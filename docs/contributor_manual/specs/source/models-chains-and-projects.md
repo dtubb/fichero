@@ -444,8 +444,8 @@ never what can be reached** (ruled 2026-10-01: offer first, never hide).
 "Train my own model" asks for a **base purpose** (Just transcribe unless changed): it runs that
 purpose's layers, with reading done by the best available teacher, and offers the distillation
 tools first. The `prepare` layer runs whenever a later layer that needs it runs; the `output`
-layer runs when the project has a synced folder or a published folder. `train` steps never run by
-themselves (`source.recipe.train-never-automatic`).
+layer runs when the project has a synced folder or a published folder. `train` steps run by
+themselves only if the person chose that in setup (`source.recipe.train-never-automatic`).
 
 **This refines two rulings, it does not reverse them** (ruled 2026-10-01): the free NLP layer runs
 automatically at import **in projects whose purpose uses entities**, not in every project; and
@@ -1435,10 +1435,9 @@ Setup
 - `source.onboard.train-path` — **[GAP]** (#4951, #5336) where no candidate fits a reading step,
   setup offers the train-your-own path (`compute/distillation.md`) and shows the corrected-line
   count at which training will be offered.
-- `source.onboard.egress-asked-twice` — **[GAP]** (#4951) whether pages may leave is asked in setup
-  when a step would use the cloud, and again the first time a cloud model is actually called, once
-  per provider per project, showing what is sent, to whom, how many pages and the estimated cost;
-  the default is that nothing leaves.
+- `source.onboard.egress-asked-twice` — **[GAP]** (#4951) superseded 2026-10-01 by
+  `source.onboard.cloud-asked-once`: asked once per project, showing what is sent, to whom, how many
+  pages and the estimated cost; the default is that nothing leaves.
 - `source.onboard.flagship-recipe` — **[GAP]** (#4950, #4951) historical Spanish hands have a
   flagship recipe, shipped with Fichero and in the catalogue, measured end to end on real pages of
   that material, whose defaults need no adjusting; its `measurements.yaml` is published with it.
@@ -1487,8 +1486,20 @@ The recipe and its format
 - `source.recipe.conditions-fixed-list` — **[GAP]** (#4950) a step's `when` and `offered_when` use
   only a fixed list of conditions (spreads detected, a confidence threshold, a corrected-line
   count); anything else is refused when the recipe is checked.
-- `source.recipe.train-never-automatic` — **[GAP]** (#4950, #5336) a train step never runs by
-  itself; it is offered when its condition is met and runs only when the person starts it.
+- `source.recipe.train-never-automatic` — **[GAP]** (#4950, #5336) a train step runs by itself only if the
+  person chose automatic training in setup (offered with a default such as distilling from a large
+  teacher, then fine-tuning a small model); otherwise it is offered when its condition is met and
+  runs only when the person starts it.
+- `source.recipe.update-is-clicked-not-applied` — **[GAP]** (#5364) a new version of a followed recipe shows
+  as an update symbol in the Inspector; nothing changes until the person clicks it; then the recipe
+  updates and a re-run of existing pages is offered as one job with its estimate.
+- `source.onboard.cloud-asked-once` — **[GAP]** (#4951) whether pages may leave the Mac is asked once per
+  project (at setup or first cloud use, whichever is first) and shown in the recipe editor, where
+  every cloud step is marked; it is not asked again per provider or per step.
+- `source.onboard.bakeoff-random-sample` — **[GAP]** (#4951) the bake-off draws a random sample stratified
+  across folders, hands and page kinds, at least 20 pages and 100 corrected lines where the project
+  has them, shows each rank with its line count and confidence range, and marks candidates within
+  one CER point "too close to call".
 - `source.recipe.prompt-files` — **[GAP]** (#5364) each prompt is one file with a header naming its
   job, the model it was written for, its version and its variables; a variable the step does not
   supply is refused when the recipe is checked.
@@ -1635,18 +1646,27 @@ To be filled at approval. The legs this slice will need, so the gap is visible:
 
 ## Open questions (with recommendations)
 
-1. **Is training ever automatic?** A train step costs cluster allocation or hours of a large Mac.
-   *Recommend:* never automatic (as written, `source.recipe.train-never-automatic`); offered when
-   its condition is met.
-2. **The bake-off's minimum.** 100 corrected lines on two pages is enough to rank three readers
-   roughly, not to trust small differences. *Recommend:* keep 100/2 as the floor, and show each
-   rank with its line count and a "too close to call" mark when two candidates are within one
-   point of CER.
-3. **The first-cloud-use question: once per provider per project, or once per step?**
-   *Recommend:* once per provider per project; a new step with the same provider is listed in the
-   Inspector but not asked again.
-4. **Does a re-run after a taken update happen by itself?** *Recommend:* no; offered as one job
-   with its estimate, because on a 3,000-page project it is days of work.
+Ruled 2026-10-01 (former questions 1-4):
+- **Training can be automatic when the person chose it in setup.** Onboarding offers training as
+  part of the recipe, with a good default (for example: distil from a large model such as a
+  frontier LLM as the teacher, then fine-tune a small one); if chosen, the train step runs when its
+  condition is met. If not chosen, it is offered when the condition is met, never started.
+  (`source.recipe.train-never-automatic` is refined accordingly.)
+- **A recipe change never changes the person's data by itself.** When the recipe a project follows
+  has a new version, the Inspector shows an update symbol; clicking it shows the diff and updates
+  the recipe; only then is a re-run of existing pages offered, as one job with its estimate. Nothing
+  runs out of the blue.
+- **Ask once about the cloud, and don't ask too much.** Whether pages may leave the Mac is asked
+  once for the project, at setup or at the first cloud use, whichever comes first, and is always
+  visible and changeable in the recipe editor (every cloud step is marked there). It is not asked
+  again per provider or per step.
+- **The bake-off must be useful; Fichero decides the sample.** It asks for a good number of
+  pages, or uses them all, and draws a **random, stratified sample** (across folders, hands and
+  page kinds) of at least 20 pages where the project has them, with at least 100 corrected lines;
+  each rank shows its line count and a confidence range, and candidates within one point of CER
+  are marked "too close to call". Below the minimum it still runs and says its result is only
+  indicative.
+
 5. **Where does the flagship's measurement come from?** It needs real pages of Spanish notarial
    and administrative hands with ground truth that can be published. *Recommend:* the app's two
    heaviest users' corrected pages, measured privately, with the published `measurements.yaml`
@@ -1666,7 +1686,7 @@ To be filled at approval. The legs this slice will need, so the gap is visible:
 
 **Not asked** (already decided by rulings): purpose first; purpose decides layers; offer, never
 hide; the recipe's contents; deterministic rules; the flagship and generated paths; the bake-off;
-the Inspector as the one surface; egress asked twice; recipes as shared folders, data not code,
+the Inspector as the one surface; egress asked once and shown in the recipe editor; recipes as shared folders, data not code,
 no keys; per-folder recipes; jobs as a registry.
 
 Older questions were ruled on 2026-09-19 and 2026-10-01: see `source-model.md`.
