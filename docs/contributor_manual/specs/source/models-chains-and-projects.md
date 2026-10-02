@@ -827,7 +827,7 @@ suits:
   languages: [es]                       # BCP 47; Glottolog stan1288
   material: [handwriting]
   period: {from: 1500, to: 1800}
-  kinds: [notarial, administrative, letters]
+  kinds: [letters, notarial, administrative]
 purposes: [transcribe, entities, search, knowledge-graph, map-places]
 defaults:                               # the profile
   direction: ltr
@@ -932,7 +932,7 @@ written_for: {hf: mlx-community/Qwen2.5-VL-7B-Instruct-4bit}
 version: 3
 variables: [reading, guideline]
 ---
-You are checking a transcription of one line of a Spanish notarial hand...
+You are checking a transcription of one line of a historical Spanish hand...
 ```
 
 A variable the step does not supply is refused when the recipe is checked.
@@ -1048,7 +1048,7 @@ fork, which names the recipe and version it came from and credits its authors.
 
 ### 14. Two journeys, end to end
 
-**(a) A historian of sixteenth-century Spanish notarial records**, with a folder of 3,000 page
+**(a) A historian of historical Spanish letters**, with a folder of 3,000 page
 images on an 8 GB MacBook Air and forty pages already corrected in an earlier tool (exported as
 PAGE XML).
 
@@ -1685,8 +1685,8 @@ Ruled 2026-10-01 (former questions 1-4):
   are marked "too close to call". Below the minimum it still runs and says its result is only
   indicative.
 
-5. **Where does the flagship's measurement come from?** It needs real pages of Spanish notarial
-   and administrative hands with ground truth that can be published. *Recommend:* the app's two
+5. **Where does the flagship's measurement come from?** It needs real pages of historical Spanish letters,
+   notarial and administrative records with ground truth that can be published. *Recommend:* the app's two
    heaviest users' corrected pages, measured privately, with the published `measurements.yaml`
    pointing at public IIIF pages of comparable material (or stating "private: N pages"), so no
    unpublished archive page leaves.
