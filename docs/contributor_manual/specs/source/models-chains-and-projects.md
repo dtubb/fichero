@@ -194,6 +194,8 @@ chaining safe: a step can only follow a step that gives what it needs.
 | find names; tag words | a reading | mentions on stretches of it; word-level analysis |
 | make a vector | a reading, or a picture | a vector |
 | transcribe speech | a stretch of a recording | a reading, with timings |
+| split pages | a scan or PDF page holding two pages (a spread), or a strip of frames | page segments, each a page of its own, in order |
+| find statements | readings (with their mentions) | claims: subject, relation, object (who did what to whom), each naming the stretch of text it came from |
 
 "Read a page" is kept apart from "read a line" on purpose. Vision-language models mostly do
 the first, and cannot be trusted to keep shapes; Kraken and its kin do the second.
@@ -215,6 +217,32 @@ segments.** With it:
 `economy_htr`, `align_transcript`, `merge_geometry` and Kraken's own segment-and-read are
 **retired into it**, keeping what they do well (refusing a page rather than guessing;
 recording measured against worked-out boxes).
+
+### How a recipe uses jobs (2026-10-01)
+
+A recipe is written in these jobs, not in tools. Each step names a **job**, **where it applies**
+(which segments: a page, regions of a kind, lines, words), its **model**, its **settings** and
+its **prompt**. Because each job declares what it takes and gives, a recipe is checked before it
+runs: a step can only use what an earlier step produced. A typical recipe for a bound manuscript:
+
+1. **split pages**: spreads into single pages (a splitter or a vision model; skipped when
+   pages are already single);
+2. **find regions**: a layout model gives regions with kinds (main text, margin, table, heading,
+   drawing);
+3. **find lines** in the text regions (a named Kraken model);
+4. **read each line**, **by region kind** ("find here, read there"): main text to one reader,
+   marginal glosses in Latin to another, tables to the cell finder and then a reader, drawings
+   to "trace a drawing";
+5. **correct** (a vision model, with the recipe's own prompt);
+6. **find names; tag words** (a named spaCy pipeline for the language);
+7. **find statements**: who did what to whom, as claims for the knowledge graph (a named model
+   and prompt; transfer verbs such as selling, giving and owing get their own check);
+8. **make a vector** for search.
+
+Which steps are present follows from the purpose: "just transcribe" stops at step 5, the full
+knowledge graph runs all eight. **Which model** each step uses is the recipe's default for the
+project, and the cascade can override it lower down: one folder of Latin charters can name a
+different reader without a second recipe.
 
 ### Chains are workflows
 
@@ -618,6 +646,15 @@ Projects and onboarding
   **Ruled 2026-10-01:** a workflow is a few tools chained; a recipe is the workflows a project
   runs, in order, plus the default model, settings and place to run for each step. A recipe
   refers to workflows by name and may carry its own; it never copies one the store already has.
+- `source.recipe.steps-are-jobs` — **[GAP]** (#4949, #5364) a recipe step names a job, where it applies
+  (which segment kinds), a model, settings and a prompt; the recipe is checked before it runs, so
+  a step uses only what an earlier step produced.
+- `source.recipe.per-region-kind` — **[GAP]** (#4949) a step can send each kind of region to a different
+  model (main text, marginal gloss, table, drawing).
+- `source.job.split-pages` — **[GAP]** (#4949) splitting a spread or a strip of frames into ordered pages
+  is a job a recipe can name.
+- `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object), each
+  naming the stretch of text it came from, is a job a recipe can name.
 - `source.recipe.folder-format` — **[GAP]** (#5364) a recipe exports as a folder: `recipe.yaml` (published
   JSON Schema), one file per prompt, its workflows, its measurements and a Workflow RO-Crate
   wrapper; models are pinned by repository and revision or DOI.
