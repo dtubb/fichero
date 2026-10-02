@@ -209,11 +209,26 @@ model holds, not only reading). Each is defined in the spec that owns it; the re
 | enrich from linked data | linked entities | facts fetched from a SPARQL endpoint (Wikidata or another set in Settings), as claims whose source is that endpoint, kept apart from what the pages say | `kg.enrich.*`, `kg.enrich.imported-vs-extracted-layers` |
 | work out dates | readings and mentions of dates | normalised dates (any calendar, as a day count) with the text they came from | `histnorm.dates.*` |
 | attribute hands | segments and their pictures | proposed hand attributions with certainty | `source.hand.attributed` |
-| export | a project, folder or selection | files in the formats the recipe names (PAGE, ALTO, TEI, IIIF, RDF as Turtle or JSON-LD, Parquet, a static site), with their provenance and, if asked, the recipe | `formats-and-training.md`, `export/` |
+| export | a project, folder or selection | files in the formats the recipe names, all from the one export stream: transcription formats (PAGE, ALTO, TEI, hOCR, plain text), IIIF, reading and writing formats (Markdown folder, Word, PDF), tables (Excel, CSV, Parquet, JSONL), linked data (RDF as Turtle or JSON-LD), a static Eleventy site, and training sets, with their provenance and, if asked, the recipe | `formats-and-training.md`, `export/exporter.md` (most emitters exist; several are not yet reachable from the app, #505, #507) |
 | publish | a folder | a IIIF published folder, a static site, or RDF behind the SPARQL console | `iiif.md`, `explore/networks.md` |
 
 SPARQL itself is a way of **asking** the knowledge graph, not a step that changes anything; a
 recipe can only make sure the graph it queries is filled and published.
+
+**Kept in sync.** An export step can write to a **synced export folder**: once made, it is kept
+current as the work changes. A correction, a new page or an accepted link re-queues the export of
+exactly what it touched (the activity spec's dependencies), so the folder (Markdown for an
+Obsidian vault, Excel for a collaborator, the Eleventy site for the web) always matches the
+library without anyone exporting again (`export.exporter-manager-continuous-sync`, #4640; the
+synced-folder spec, #4952).
+
+**Expandable by design.** Jobs and export formats are a **registry**, not a fixed list. A new
+feature adds a job (or an emitter) by declaring its name, what it takes, what it gives and its
+settings; from then on recipes can name it, onboarding can offer it, the activity queue runs it,
+and the recipe check knows where it may go. The recipe format is versioned, so a recipe written
+today keeps working when jobs are added, and one that names a job this copy of Fichero does not
+have says so instead of failing part way. Javier's and Ann's recipe is the first one built on it;
+everything else is added the same way.
 | find statements | readings (with their mentions) | claims: subject, relation, object (who did what to whom), each naming the stretch of text it came from |
 
 "Read a page" is kept apart from "read a line" on purpose. Vision-language models mostly do
@@ -706,6 +721,12 @@ Projects and onboarding
   output jobs too: link to authorities, place in a gazetteer, enrich from linked data over SPARQL,
   work out dates, attribute hands, export and publish; each is owned by its own spec and only
   named by the recipe; facts fetched from an endpoint are kept apart from what the pages say.
+- `source.recipe.jobs-are-a-registry` — **[GAP]** (#4949, #5364) jobs and export formats are registered by
+  name with what they take, give and accept as settings; a new one is available to recipes,
+  onboarding, the activity queue and the recipe check with no other change; a recipe naming a job
+  this copy lacks says so before anything runs.
+- `source.recipe.export-folder-in-sync` — **[GAP]** (#4640, #4952) an export step can write a synced
+  folder that is kept current as the work changes, re-exporting only what a change touched.
 - `source.recipe.steps-are-jobs` — **[GAP]** (#4949, #5364) a recipe step names a job, where it applies
   (which segment kinds), a model, settings and a prompt; the recipe is checked before it runs, so
   a step uses only what an earlier step produced.
