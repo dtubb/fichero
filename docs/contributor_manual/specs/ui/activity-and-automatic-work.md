@@ -41,7 +41,7 @@ So:
 3. **One pause.** A single *Pause Background Work* stops everything that runs by itself, and stays
    paused across relaunch until the person resumes it. Each job also has its own pause, resume and
    cancel.
-4. **It never gets in the way.** Background jobs run at background priority, in bounded lanes,
+4. **It never gets in the way.** Background jobs run at low priority, in bounded lanes,
    and slow down or wait on battery, under heat or memory pressure, and while the person is
    working hard. Work a person is waiting on goes first.
 5. **It is durable.** The queue lives in the project's database. Quit mid-job, crash, or pull the
@@ -307,9 +307,13 @@ slower than alone. So the local ML lane schedules **by model**, not by job:
   beside one that is GPU-bound (an MLX reader) when memory allows, so neither sits idle. Busy CPU
   work is spread over the performance cores up to the lane's limit rather than left on one thread.
 
-Priorities: a job a person is **watching** (they pressed Run, they opened the page being read) runs
-at utility QoS and goes to the front of its lane; everything else runs at background QoS on the
-efficiency cores (`core/background_compute.py`, now applied to every lane, not three call sites).
+Priorities: a job a person is **watching** (they pressed Run, they opened the page being read) goes
+to the front of its lane. The light lanes (images, database) run at background QoS on the
+efficiency cores (`core/background_compute.py`). The **local ML lane does not**: Kraken measured
+23 s a page at utility QoS and 426 s at background (#4959, `llm/kraken_runtime.py:527-530`), so
+background QoS would turn an hour's job into a day. Heavy work runs at utility QoS with its
+concurrency bounded by the lane, and yields to the person by holding the lane back, not by moving
+to the efficiency cores (corrected 2026-10-01; see "Workflow runs inside the one job model").
 The dispatcher **slows or waits** on the conditions Spotlight and Photos honour, and says which in
 `waiting_reason`: Low Power Mode or on battery below a threshold, thermal state serious or
 critical, memory pressure (the existing Kraken guard generalised), and — for the heaviest lane —
@@ -532,6 +536,196 @@ workflow by hand: a hand run is a job like any other.
 - `activity.recipe.declares-automatic` — **[GAP]** (→ #4950) a recipe lists the job kinds that run on
   add; the dependency graph comes from the job kinds' declared inputs, never written twice.
 
+## Workflow runs inside the one job model
+
+A review of the workflow runner on 2026-10-01 read it end to end, ran the scheduled path, and
+timed Kraken on this Mac. This section says what a workflow run becomes in the job model, lists the
+runner's defects as behaviours that must hold, and gives the order to fix them in. Server paths
+are relative to `fichero-server/src/fichero_server/`.
+
+### What a workflow run becomes
+
+- **A run is a parent job** (`kind = workflow`). It carries what `workflow_runs` carries today: the
+  definition snapshot, the resolved scope, the chosen model, the estimate and the usage.
+- **Each step is a child job** (`kind = workflow-step`), one per graph node.
+- **Each page in a fanned-out step is a grandchild job** (`kind = page`, or the step's own kind
+  such as `find-lines` or `read`), with `(kind, subject, inputs_fingerprint)` as its key. A page
+  job writes its output and marks itself `done` in one transaction. On resume a `done` page is
+  skipped. This key replaces the node cache, so it is keyed on the text and image the page reads,
+  not on the file's path and time or on the workflow and node ids.
+- **The jobs table, not LangGraph, is the record** of progress, state and resumption. LangGraph
+  stays inside a run as the graph engine: `build_graph`, `Send` fan-out, cross-step state in the
+  DuckDB checkpointer, and `interrupt()` for review steps. Because finished pages are rows, the
+  checkpointer only needs cross-step state: keep the last checkpoint per run, delete them all when
+  the run is done.
+- **Leases, not a sweep.** The run job holds a lease while its worker lives. On launch a run whose
+  lease has lapsed goes back to `waiting` and re-enters through the resume path, with its snapshot
+  and its chosen model; a `paused` run stays `paused` (section 5).
+- **Progress is written on purpose.** The per-item callback that today checks pause and cancel
+  becomes "update the page job, renew the lease, check pause and cancel". The Activity row, the
+  trace and the SSE stream are views of job rows and `job.updated`, not of a replay buffer.
+- **Pages flow between steps.** A page goes on to the next step as soon as its last step is done,
+  within the residency rules of section 4: the model is loaded once, work is grouped by model, two
+  heavy models run together only if both fit, and steps overlap only when they use different
+  processors.
+
+**What is deleted.** Six ways to execute a workflow become one, the runner, entered through one
+enqueue:
+
+| Today | Becomes |
+|---|---|
+| the runner (`execution/runner.py`) | **kept**: the one path, writing jobs |
+| batch items (`execution/batch.py`, its own `astream` loop) | a batch is a parent job whose children are run jobs; its tables stay only as a migration source |
+| the legacy chain executor (`execution/chaining.py` → `workflows/executor.py`, and `/chains/{id}/execute`) | deleted; a chain is a workflow (#4949) |
+| chain steps run one after another through the runner (`api/routes/workflow/chains.py`) | a chain is a workflow, so a step is a step job |
+| `builder.execute_workflow` (`workflows/builder.py`), used by schedules and triggers | deleted; a schedule or trigger enqueues a run job |
+| a sub-workflow's `ainvoke` with no checkpointer (`workflows/subworkflow.py:466-468`) | a child run job of the step that called it, so pause, cancel and the record reach it |
+
+Also deleted or folded: the three cancel registries and two pause registries (the runner's
+`_running_workflows` flag, `execution/cancellation.py`, the batch's own events) become job rows and
+one in-process wake event; `_generate_workflow_python_code` and the mermaid diagram built per run
+go (the diagram is drawn on demand from the snapshot); `recover_stale_runs` failing runs is
+replaced by lease expiry; the app's client-side chain loop `runStagedChainClientSide`
+(`ContentView+WorkflowBar.swift:166-242`) goes, since it is logic outside the engine and a second
+code path.
+
+### G. Workflow runs: defects
+
+- `activity.run.review-step-pauses` — **[BROKEN]** (#5371) a review step pauses the run and
+  waits for the person's answer, and the answer reaches the tool when the run resumes. Today the
+  node wrapper's catch-all turns LangGraph's interrupt into a failure (`workflows/builder.py:1347`),
+  and an `interrupt_before` ends the stream so the missing-exit check fails the run
+  (`execution/runner.py:2013-2022`). The only `interrupt()` call (`workflows/tools/catalogue.py:543`)
+  and the resume-with-answer path (`api/routes/workflow_execution/core.py:445`) are dead.
+- `activity.run.scheduled-runs-execute` — **[BROKEN]** (#5372) a scheduled or file-triggered run
+  executes through the same path as a run started by hand. Today `_run_single`
+  (`workflows/scheduler.py:486-496`) and `_execute_single` (`workflows/file_watcher.py:541-550`)
+  pass the stored workflow, whose nodes are dicts, to `build_graph`, which fails with
+  "'dict' object has no attribute 'label'". That path also has no checkpointer, run row, cancel,
+  document settle or usage (`workflows/builder.py:2446-2499`).
+- `activity.run.resume-once` — **[BROKEN]** (#5373) resuming a run that is already running is
+  refused. Today `/threads/{id}/resume` never checks, so two clicks start two workers on one
+  checkpoint thread (`api/routes/workflow_execution/core.py:452-570`).
+- `activity.run.resume-default-workflow` — **[BROKEN]** (#5373) a paused run of a shipped default
+  workflow resumes. Today resume loads the workflow from the store only, with no default fallback,
+  and answers 404 (`core.py:452-570`; compare `/execute` at `core.py:311-318`).
+- `activity.run.resume-from-snapshot` — **[BROKEN]** (#5373) a run resumes on the graph it started
+  with, built from its own snapshot. Today resume rebuilds the graph from the current definition,
+  so an edit made while paused changes the graph under the checkpoint.
+- `activity.run.resume-keeps-model` — **[BROKEN]** (#5373) a resumed run uses the model the person
+  chose. Today resume builds a fresh request and drops the provider and model override
+  (`core.py:542-546`).
+- `activity.run.batch-off-the-request` — **[BROKEN]** (#5374) a batch runs on the engine's work
+  path, not on the API's event loop, survives the client disconnecting, and writes a run record per
+  item. Today it runs inside the SSE response generator (`api/routes/workflow/batch.py:309-343`),
+  which can freeze the API (#1000), and its items run on their own loop with no run rows, usage,
+  timeline or scope (`execution/batch.py:684-692`).
+- `activity.run.stop-reaches-sub-workflows` — **[BROKEN]** (#5375) Stop and Pause reach a
+  sub-workflow. Today the child gets its own task id, so its cancel check is never true
+  (`workflows/subworkflow.py:443-468`).
+- `activity.run.stop-reaches-economy-htr` — **[BROKEN]** (#5375) Stop takes effect between
+  files in economy HTR. Today it runs a synchronous loop on the run's event loop with no progress
+  callback (`workflows/tools/economy_htr.py:296`), so Stop waits for the whole step and the log goes
+  quiet.
+- `activity.run.stop-reaches-in-flight-calls` — **[BROKEN]** (#5375, → #4402) Stop ends an
+  in-flight Kraken page or model call rather than waiting for it. Today nothing passes cancellation
+  into Kraken's lock and joined thread (`llm/kraken_runtime.py:499-556`) or into a model's HTTP call.
+- `activity.run.record-keeps-all-history` — **[BROKEN]** (#5376) a long run's record keeps every
+  step and page from the start. Today the saved timeline is the newest 2,000 events of the replay
+  buffer (`execution/runner.py:144-171`, `:257-264`), so a 200-page run loses its early history.
+- `activity.run.log-is-bounded` — **[BROKEN]** (#5376) a run's log is bounded in memory and
+  appended, not rewritten. Today `execution_log_lines` grows without limit and is rewritten in full
+  at every step (`execution/runner.py:1984-1988`), and the `complete` frame ships the whole final
+  state (`execution/runner.py:2161-2184`).
+- `activity.run.checkpoints-pruned` — **[BROKEN]** (#5376) only the last checkpoint per run is
+  kept, and all are deleted when the run is done. Today every superstep's full state is stored
+  (`workflows/checkpointer.py:39-57`) and rows go only when a thread is deleted
+  (`api/routes/workflow_execution/threads.py:1002`).
+- `activity.run.live-run-never-evicted` — **[BROKEN]** (#5376) a live run is never dropped from
+  the engine's run registry. Today the registry cap evicts the first entry when none has finished
+  (`execution/runner.py:273-284`), and the reopen sweep then fails the evicted run
+  (`workflows/activity.py:681-689`).
+- `activity.run.quit-pauses` — **[BROKEN]** (#5357) quitting pauses running runs at their next
+  boundary, and they carry on at the next launch. Today engine shutdown only closes the SSE hubs
+  (`api/main.py:1020-1022`), so quit is a crash, and on reopen every running, accepted and paused
+  run is failed (`workflows/activity_store.py:76-78`, `workflows/activity.py:658-707`).
+- `activity.run.cache-keyed-on-content` — **[BROKEN]** (#5360, #5361) a step re-runs when the
+  text or image it reads has changed, and is reused when it has not, in any workflow. Today the key
+  is the file's path, time and size plus the workflow and node ids (`workflows/cache.py:348-407`),
+  so a corrected page returns the entities read from the old text, and the same page and model in
+  another workflow is never reused.
+- `activity.run.one-way-to-run` — **[BROKEN]** (#5374, → #4949) every run, whether by hand, batch,
+  chain, schedule, trigger or sub-workflow, goes through the runner and writes jobs. Today there are
+  six paths (the table above) and a client-side chain loop in the app.
+
+### H. Workflow runs: efficiency
+
+These follow the residency rules of section 4 (load once, group by model, co-run only if it fits,
+measure the processors). The timings are from the 2026-10-01 review on this Mac: Kraken segmenting
+took 17–20 s a page on the CPU and was no faster on the GPU; about 10 s of that is single-threaded
+line post-processing. For 200 handwritten pages the stages today add up rather than overlap.
+
+- `activity.run.pipeline-pages` — **[GAP]** (#5370, #5358) a page moves to the next step as soon
+  as its last step is done, so a CPU-bound Kraken step runs under a GPU-bound reading step and the
+  first page is readable in about a minute. Today every step waits for all pages, because per-page
+  streaming is built but behind a flag that is off (`workflows/builder.py:383-395`). Estimated
+  saving on 200 pages: about an hour, 30–45% of the run.
+- `activity.run.kraken-workers` — **[GAP]** (#5370) Kraken runs in two or three worker
+  processes, each gated by the memory guard and each loading its models once. Today one process
+  lock serialises every Kraken page (`llm/kraken_runtime.py:496`), and the segmenter and reader are
+  reloaded on every page (`llm/kraken_runtime.py:579-588`, `:599`).
+- `activity.run.lines-batched-per-call` — **[GAP]** (#5370) when a recipe reads Kraken lines with
+  a vision model, several line crops (or the page with its line boxes) go in one call, with the
+  local model server kept warm between steps. One call per line would be 25 calls a page.
+- `activity.run.lane-cap-per-mac` — **[GAP]** (#5358) the cap on concurrent model calls is one per
+  Mac, shared by every run. Today it is per run: the semaphore is rebound to each run's event loop
+  (`workflows/builder.py:91-127`), and three runs measured 12 calls at once against a cap of 4.
+- `activity.run.utility-qos-bounded` — **[GAP]** (#5358) heavy local work runs at utility QoS in
+  a bounded lane, and yields to the person by holding the lane back. It never drops to background
+  QoS, which measured about 18 times slower for Kraken (`llm/kraken_runtime.py:527-530`).
+- `activity.run.progress-on-purpose` — **[GAP]** (#5376) a run reports progress it writes on
+  purpose (graph updates and explicit progress), not by translating LangGraph's every internal
+  event (`execution/runner.py:305-316`, `:1677-1683`).
+
+### Migration order
+
+Each step lands with the tests that pin it, under a new `jobs` test folder in the engine's unit
+tests or beside the module.
+
+1. **Fix the independent defects first.** None of these needs the job model. Let LangGraph's
+   interrupt pass through the node wrapper and record the run as paused awaiting an answer; skip the
+   missing-exit check when the last checkpoint has a pending interrupt. Stop the reopen sweep
+   touching paused runs. Make resume refuse a live run, fall back to shipped defaults, rebuild from
+   the snapshot and carry the model. Send schedules and triggers through the runner. Move batches
+   off the request. Pins: `test_interrupt_pauses_not_fails`, `test_paused_survives_relaunch`,
+   `test_resume_twice_is_refused`, `test_resume_default_workflow`,
+   `test_resume_keeps_model_override`, `test_resume_uses_snapshot_not_edited_workflow`,
+   `test_scheduled_single_run_executes` (a real `_run_single` on a stored workflow; it fails today),
+   `test_batch_survives_client_disconnect`, `test_cancel_reaches_subworkflow_child`,
+   `test_cancel_reaches_economy_htr_between_files`.
+2. **Key the cache on content.** The input's text or image hash, the tool, the model, the prompt
+   and the config; not the file's time, not the workflow or node. Pins:
+   `test_cache_misses_on_corrected_text`, `test_cache_hits_across_workflows_same_inputs`.
+3. **Add the jobs table** by growing `workflows/tasks.py`. The runner writes the run and step jobs;
+   the per-item callback writes page jobs. Read-only at first: Activity reads it. Pin:
+   `test_run_record_keeps_all_page_steps_beyond_2000_events`.
+4. **Leases and resume on launch.** At start-up a run whose lease has lapsed re-enters through the
+   resume path; done pages are skipped; checkpoints are pruned. Pins:
+   `test_sigkill_mid_run_resumes`, `test_checkpoints_pruned_after_done`.
+5. **Lanes.** One lane per resource for the whole Mac in place of per-run semaphores; Kraken worker
+   processes; per-page streaming on and its flag deleted. Pins: `test_global_lane_cap_across_runs`
+   (three runs never exceed the cap), `test_kraken_model_loaded_once_per_worker`, and a 20-page
+   pipelined run with fake tools whose time is close to the slowest step, not the sum.
+6. **Fold batch, chains and automation into jobs** and delete the dead executors. Pin: each entry
+   point (hand, batch, chain, schedule, trigger, sub-workflow) produces the same job tree for the
+   same workflow.
+7. **Replace the event firehose** (`astream_events`) with graph updates and explicit progress.
+   Pin: the job tree and the SSE stream match for one run, before and after.
+
+**The test that matters most** is `test_sigkill_mid_run_resumes`: start a run over many pages in an
+engine subprocess, kill it with `SIGKILL` mid-run, relaunch, and assert the run resumes, every page
+is done exactly once, and no artifact is written twice.
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
@@ -588,6 +782,11 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
    cluster's own message, the log tail) show in the row like any other. Its result lands through
    the one landing path (`compute.land.*`). The same inputs fingerprint stops a training or
    inference job being sent twice for unchanged inputs.
+10. **How much of LangGraph stays once runs are jobs?** *Recommend:* the graph, `Send` fan-out,
+    cross-step state and `interrupt()` for review steps; nothing else. Page jobs carry durability
+    and idempotency, so checkpoints shrink to the last one per run. If review steps are rare in the
+    shipped recipes, a later review can ask whether a review step could itself be a job that waits
+    on a person, which would leave LangGraph as the graph alone.
 
 ## Requests to other specs (for the manager to route)
 
@@ -602,6 +801,34 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
   inputs and outputs (already proposed there as typed jobs).
 - `source/segments-and-geometry.md`: `source.derived.recomputable` widens to the knowledge layer.
 - `safety/run-take-back.md`: a job is a run; `run_id` is the one stamp.
+
+Stale tags found by the 2026-10-01 workflow-runner review (corrections for those specs' owners):
+
+- `ui/workflows.md`, `workflows.run.provenance-run-id-on-artifacts` is tagged GAP but is mostly
+  built: the run id is set as the task id (`execution/runner.py:1561-1565`, #4313) and fan-out
+  carries it. Retag PARTIAL; the gaps are sub-workflow children (their own task id) and the
+  scheduled path (#5372).
+- `ui/workflows.md`, `workflows.run.pause-is-dead-end` is stale wording: a paused run can be
+  cancelled, deleted (`workflows/run_status.py:57-62`) and resumed within one engine lifetime. The
+  dead ends now are relaunch (#5357) and review steps (#5371).
+- `ui/workflows.md`, `workflows.run.stuck-processing-on-cancel-fail` is tagged GAP but is built for
+  the runner and batches (#4315, #4379); still open for schedules and triggers (#5372).
+- `ui/workflows.md`, `workflows.run.trace-view` is tagged GAP; `RunTraceModel.swift` exists, so it
+  is at least PARTIAL.
+- `ui/workflows.md`, `workflows.run.cost-tracking-per-node` is tagged GAP; per-node usage is
+  recorded at each step's end (`execution/runner.py:1640-1658`) with a run usage column, so it is
+  PARTIAL.
+- `ui/workflows.md`, `workflows.run.controls-are-fire-and-forget`, and `ui/activity.md`,
+  `activity.cancellation-boundary-generalized` (both PARTIAL): accurate but understated; Stop does
+  not reach sub-workflows or economy HTR (#5375).
+- `ui/workflows.md`, `workflows.defaults.chains-not-persisted`: accurate. The app comment in
+  `ContentView+WorkflowChainEngine.swift:9-12` that says chains persist is wrong; the engine's chain
+  store is in memory (`execution/chaining.py:831-868`).
+- `ui/automation.md`, `automation.run-now`, `automation.run-history.backend` and
+  `automation.schedule.crud` are tagged OK, but a scheduled or triggered single run crashes at graph
+  build (#5372); only the routes are pinned. Retag `automation.run-now` BROKEN citing #5372.
+- `ui/activity.md`, `activity.stale-runs-settle-across-restarts` is BROKEN for a new reason: the
+  settle now exists, and it settles too much, failing paused and resumable runs (#5357).
 
 ## Sources
 
@@ -619,3 +846,10 @@ Code read 2026-10-01: `api/routes/system/activity.py`, `importers/derivatives.py
 `App/FicheroApp.swift:646-690`. Specs: `ui/activity.md`, `ui/workflows.md`, `ui/automation.md`,
 `safety/run-take-back.md`, `compute/jobs-and-fine-tuning.md`,
 `source/models-chains-and-projects.md`, `source/segments-and-geometry.md`.
+
+Workflow-runner review, 2026-10-01 (read, one scheduled run reproduced, Kraken timed on this Mac):
+`execution/runner.py`, `workflows/builder.py`, `workflows/cache.py`, `workflows/checkpointer.py`,
+`workflows/scheduler.py`, `workflows/file_watcher.py`, `workflows/subworkflow.py`,
+`workflows/executor.py`, `execution/chaining.py`, `api/routes/workflow_execution/core.py`,
+`api/routes/workflow_execution/threads.py`, `api/routes/workflow/batch.py`,
+`workflows/tools/economy_htr.py`, `workflows/tools/catalogue.py`, `api/main.py:1015-1025`.
