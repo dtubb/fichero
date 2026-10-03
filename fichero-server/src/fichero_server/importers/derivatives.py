@@ -798,7 +798,7 @@ def _embed_stage(doc_id: str, library: str) -> None:
         _progress_tick(library)
 
 
-def _nlp_stage(doc_id: str, library: str) -> None:
+def _nlp_stage(doc_id: str, library: str, *, after_correction: bool = False) -> None:
     """Free NLP draft pass for one document (#4823): NER + SVO, written
     through the same KG writer the LLM extraction tools use, so curation
     rules apply automatically. See ``importers/nlp_draft.py`` for the design
@@ -811,9 +811,14 @@ def _nlp_stage(doc_id: str, library: str) -> None:
     through the SAME ``queue_derivatives`` call on library open
     (``db/manager.py``), which re-submits this stage too — no separate
     recovery path needed. Skips a document already marked
-    ``nlp_processed_at`` (re-run on corrected text is a deliberate v1
-    non-goal, not an oversight — see #4823's plan).
+    ``nlp_processed_at``, unless ``after_correction`` and its text is no longer
+    the text the draft was read from (``nlp_text_sha``; a draft from before the
+    hash was kept counts as changed). Then the page's draft rows nobody touched
+    are taken back through ``entity.purge_nlp_draft`` and the page is read
+    again (#5361); rows a person checked, linked or annotated survive the
+    purge and are marked ``text_changed_at`` for the person to look at.
     """
+    import hashlib
     from fichero_server.core.timeutil import utc_now
     from fichero_server.importers.nlp_draft import run_nlp_draft
 
@@ -822,8 +827,19 @@ def _nlp_stage(doc_id: str, library: str) -> None:
         return
     db, doc = opened
 
+    text_sha = hashlib.sha256((doc.page_content or "").encode()).hexdigest()
     if (doc.metadata or {}).get("nlp_processed_at"):
-        return
+        if not after_correction or (doc.metadata or {}).get("nlp_text_sha") == text_sha:
+            return
+        error = _set_aside_draft_read_from_old_text(db, doc_id, library)
+        doc = db.get(Document, doc_id)
+        if doc is None or getattr(doc, "deleted_at", None) is not None:
+            return
+        if error:
+            # Not re-read: the old draft would stand beside the new one. Visible on the page.
+            doc.metadata = {**(doc.metadata or {}), "nlp_error": error}
+            db.save(doc)
+            return
 
     try:
         result = run_nlp_draft(db, doc)
@@ -848,6 +864,7 @@ def _nlp_stage(doc_id: str, library: str) -> None:
     else:
         metadata.pop("nlp_error", None)
         metadata["nlp_processed_at"] = utc_now().isoformat()
+        metadata["nlp_text_sha"] = text_sha
         # S2 (team-lead review): visible, never silent, when the per-
         # document entity cap dropped surviving draft entities.
         if result.truncated:
@@ -861,6 +878,33 @@ def _nlp_stage(doc_id: str, library: str) -> None:
             db.save(doc)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Could not persist NLP draft outcome for %s: %s", doc_id, exc)
+
+
+def _set_aside_draft_read_from_old_text(db: "Database", doc_id: str, library: str) -> str | None:
+    """Before re-reading a corrected page: purge its untouched draft rows (audited, the same
+    action a person can run), and mark every claim that survives -- checked, linked, or from
+    another extractor -- as read from text that has since changed (#5361). Returns why the old
+    draft could not be taken back, or None."""
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.core.timeutil import utc_now
+    from fichero_server.models.knowledge import KnowledgeClaim
+
+    try:
+        registry.invoke(
+            db,
+            "entity.purge_nlp_draft",
+            {"document_id": doc_id, "dry_run": False},
+            ActionContext(actor="fichero", library_path=library),
+        )
+    except Exception as exc:  # noqa: BLE001 -- returned: the caller records it on the page
+        return f"Could not take back the names read from the old text: {exc}"
+    now = utc_now().isoformat()
+    for claim in db.query(KnowledgeClaim, source_document_id=doc_id):
+        metadata = dict(claim.metadata or {})
+        metadata["text_changed_at"] = now
+        claim.metadata = metadata
+        db.save(claim)
+    return None
 
 
 def generate_derivative(doc_id: str, library_path: str | Path) -> Path | None:

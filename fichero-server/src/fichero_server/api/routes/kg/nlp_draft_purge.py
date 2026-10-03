@@ -109,7 +109,7 @@ logger = logging.getLogger(__name__)
 # list, which is what actually triggers the `@action` decorator below.
 router = APIRouter(prefix="/kg")
 
-_DOC_METADATA_KEYS = ("nlp_processed_at", "nlp_error", "nlp_truncated")
+_DOC_METADATA_KEYS = ("nlp_processed_at", "nlp_error", "nlp_truncated", "nlp_text_sha")
 
 
 def _claim_is_draft_only(claim: KnowledgeClaim) -> bool:

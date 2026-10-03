@@ -376,3 +376,20 @@ def _embed_now(db: Any, document_id: str, key: tuple[int, str]) -> None:
             db.embed(doc)
     except Exception as exc:  # noqa: BLE001 -- best-effort tail; the text itself is saved
         logger.warning("re-embed after a reading change failed for %s: %s", document_id, exc)
+    reread_names_after_commit(db, document_id)
+
+
+def reread_names_after_commit(db: Any, document_id: str) -> None:
+    """Where the library reads names automatically, read the corrected page again so its
+    entities and claims follow the new text (#5361). Off where NLP is off: nothing is run that
+    the library did not ask for."""
+    from pathlib import Path
+
+    from fichero_server.importers.nlp_draft import auto_nlp_enabled
+
+    if not auto_nlp_enabled():
+        return
+    from fichero_server.importers.derivatives import _nlp_stage
+
+    # Never raises: a failure is recorded on the page as `nlp_error`.
+    _nlp_stage(document_id, str(Path(db.path).parent), after_correction=True)
