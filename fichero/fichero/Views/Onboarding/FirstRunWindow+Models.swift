@@ -14,15 +14,22 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
     case library
     case permissions
     case cloud
+    // Recipe setup (source.onboard.*): purpose first, then the material, ending
+    // in the proposed recipe and, only when a cloud model would fit, the one
+    // question whether pages may leave this Mac. Setup ends on what will run.
+    case purpose
+    case material
 
     var id: Int { rawValue }
 
     var title: String {
         switch self {
         case .welcome: return "Welcome"
-        case .library: return "Library"
-        case .permissions: return "Permissions"
+        case .library: return "Project"
+        case .purpose: return "Purpose"
         case .cloud: return "AI"
+        case .material: return "Your Material"
+        case .permissions: return "Permissions"
         }
     }
 
@@ -30,8 +37,10 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
         switch self {
         case .welcome: return "sparkles"
         case .library: return "folder"
-        case .permissions: return "lock.shield"
+        case .purpose: return "target"
         case .cloud: return "brain"
+        case .material: return "doc.text.magnifyingglass"
+        case .permissions: return "lock.shield"
         }
     }
 
@@ -42,7 +51,7 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
     var isMacOnly: Bool {
         switch self {
         case .welcome: return false
-        case .library, .permissions, .cloud: return true
+        case .library, .purpose, .cloud, .material, .permissions: return true
         }
     }
 
@@ -52,6 +61,10 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
     static func steps(isCompanionPlatform: Bool) -> [FirstRunStep] {
         isCompanionPlatform ? allCases.filter { !$0.isMacOnly } : allCases
     }
+
+    /// The steps Set Up… runs for an existing library from the Inspector: the
+    /// same recipe steps as first run, one code path (`source.onboard.set-up-later`).
+    static let setUpSteps: [FirstRunStep] = [.purpose, .material]
 
     /// Whether THIS platform takes the companion first-run path (#2807).
     /// Compile-time: macOS owns the local engine; every other platform is a

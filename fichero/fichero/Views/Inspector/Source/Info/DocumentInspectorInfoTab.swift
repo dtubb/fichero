@@ -125,6 +125,11 @@ struct DocumentInspectorInfoTab: View {
         infoSection("Workflow History") {
             WorkflowProvenancePanel(documentId: document.id)
         }
+
+        // The project's recipe and Set Up… (source.onboard.set-up-later).
+        infoSection("Recipe") {
+            InspectorRecipeSection()
+        }
     }
 
     // MARK: - Locations (#3055)

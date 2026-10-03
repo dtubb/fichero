@@ -180,6 +180,7 @@ class AppState {
     let localInferenceStore: LocalInferenceStore  // Public for Settings → Local LLM tab (#3120)
     let appleAvailabilityStore: AppleAvailabilityStore  // FirstRun + provider rows (#3121/#3118)
     let kgQueryStore: KGQueryStore  // Public for SPARQL console (#3298); only endpoint accessor (#1863)
+    let recipeSetupStore: RecipeSetupStore  // First run's recipe steps + Inspector Set Up… share it (source.onboard.*)
     let logger = Logger(subsystem: "app.fichero.fichero", category: "AppState")
 
     // MARK: - Initialization
@@ -200,6 +201,7 @@ class AppState {
         self.localInferenceStore = LocalInferenceStore(client: ficheroClient)
         self.appleAvailabilityStore = AppleAvailabilityStore(client: ficheroClient)
         self.kgQueryStore = KGQueryStore(client: ficheroClient)
+        self.recipeSetupStore = RecipeSetupStore(client: ficheroClient)
         LaunchProfile.milestone("AppState.init services ready")
         // #2960: engine is `@Observable`; the computed backend shims read
         // `engine.phase` directly, so views observing them track the engine

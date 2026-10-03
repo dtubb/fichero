@@ -1,10 +1,5 @@
 {
   "POST /api/documents/{document_id}/readings/compare": "reached by the CLI (documents compare-readings) and MCP (compare_readings) for the projects harness (#5389); an app surface for it is not designed yet",
-  "GET /api/recipes/project": "engine half of saving setup (#4951); the setup store reads it in slice 2",
-  "PUT /api/recipes/project": "engine half of saving setup (#4951); the setup store saves through it in slice 2",
-  "GET /api/recipes/purposes": "engine half of onboarding (#4951); the setup store switches from its hard-coded list to this in slice 2",
-  "GET /api/recipes/jobs": "engine half of onboarding (#4951); the setup window and Inspector that call it are slice 2, not built yet",
-  "POST /api/recipes/assemble": "engine half of onboarding (#4951); the setup window that calls it is slice 2, not built yet",
   "POST /api/recipes/check": "engine half of onboarding (#4951); the recipe editor that calls it is slice 2, not built yet",
   "DELETE /api/activity/{activity_id}": "no Swift call for the /api/activity/* family (2 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "DELETE /api/agent-memory/{note_id}": "#2152 agent memory - UI deferred (reason carried from check_ui_wiring's swiftui allowlist, #5105)",

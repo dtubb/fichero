@@ -4,22 +4,37 @@ import AppKit
 import SwiftUI
 
 struct FirstRunWindow: View {
-    @Environment(AppState.self) private var appState
+    @Environment(AppState.self) var appState
     @Environment(\.dismiss) private var dismiss
     private let featureManager = FeatureManager.shared
     @State private var libraryManager = LibraryManager.shared
 
-    @State private var step: FirstRunStep = .welcome
+    @State private var step: FirstRunStep
     @State private var selectedLibraryName: String?
     @State private var documentsPermission = false
+    /// "Choose a Provider" on the AI step no longer ends the flow (the recipe
+    /// steps follow it); the Add Provider sheet opens when the flow finishes.
+    @State private var wantsProviderSetup = false
 
     /// The PLATFORM's step list (#2807): the Mac runs the full flow; companion
     /// platforms (iPhone/iPad — no local engine) skip the Mac-only
     /// Library/Permissions/Cloud steps, so Welcome finishes straight into the
     /// companion connect flow (`RemoteConnectionSetupView`).
-    private let steps = FirstRunStep.steps(
-        isCompanionPlatform: FirstRunStep.isCompanionPlatform
-    )
+    /// Set Up… from the Inspector runs only `FirstRunStep.setUpSteps`: the same
+    /// recipe steps, one code path (`source.onboard.set-up-later`).
+    private let steps: [FirstRunStep]
+    /// True for Set Up… (an existing library): finishing it does not mark first
+    /// run complete.
+    private let isSetUp: Bool
+
+    init(setUp: Bool = false) {
+        let steps = setUp
+            ? FirstRunStep.setUpSteps
+            : FirstRunStep.steps(isCompanionPlatform: FirstRunStep.isCompanionPlatform)
+        self.steps = steps
+        self.isSetUp = setUp
+        _step = State(initialValue: steps.first ?? .welcome)
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -34,10 +49,19 @@ struct FirstRunWindow: View {
         .frame(width: 760, height: 520)
         #endif
         .onAppear { surfaceDefaultLibrary() }
+        // Reopen where the person left off: the project's saved answers and
+        // recipe (GET /api/recipes/project).
+        .task { await appState.recipeSetupStore.loadSaved() }
     }
 
     /// Advance within the platform step list; the LAST step finishes (#2807).
     private func advance() {
+        // Finishing the Material step saves the answers and the proposed recipe
+        // on the project. Saving is not Start: nothing runs.
+        if step == .material {
+            let store = appState.recipeSetupStore
+            Task { await store.save() }
+        }
         if step == steps.last {
             finish()
         } else {
@@ -100,7 +124,7 @@ extension FirstRunWindow {
                     FirstRunCardConfig(
                         icon: "books.vertical",
                         title: "You're ready to go",
-                        body: "Fichero already set up a local library so you can start right away. "
+                        body: "Fichero already set up a local project so you can start right away. "
                             + "Customize it later — or just begin importing scans, PDFs, notes, and graphs.",
                         primaryTitle: "Get Started",
                         primaryIcon: "arrow.right",
@@ -120,19 +144,19 @@ extension FirstRunWindow {
             }
         case .library:
             stepPage(
-                title: "Library (optional)",
-                subtitle: "You already have a working library. Add another only if you want to.",
+                title: "Project",
+                subtitle: "You already have a working project. Add another only if you want to.",
                 systemImage: "folder"
             ) {
                 firstRunCard(
                     FirstRunCardConfig(
                         icon: "folder.badge.gearshape",
-                        title: "Your working library",
+                        title: "Your working project",
                         body: selectedLibraryName.map {
-                            "Ready to use: \($0). You can create more libraries anytime, "
+                            "Ready to use: \($0). You can create more projects anytime, "
                                 + "or save this one to a folder of your choice from the File menu."
                         }
-                            ?? "A local library is ready to use. Create more libraries anytime from the File menu.",
+                            ?? "A local project is ready to use. Create more projects anytime from the File menu.",
                         primaryTitle: "Continue",
                         primaryIcon: "arrow.right",
                         primaryAction: { advance() }
@@ -146,6 +170,9 @@ extension FirstRunWindow {
                                 .foregroundStyle(.green)
                                 .lineLimit(1)
                         }
+                        // How sources come in (ruled 2026-10-03): one choice, kept
+                        // on the store for the first import.
+                        ProjectIntakeChoice(store: appState.recipeSetupStore)
                     }
                 )
             }
@@ -199,7 +226,10 @@ extension FirstRunWindow {
                             + "everything is optional and changeable in Settings.",
                         primaryTitle: "Choose a Provider",
                         primaryIcon: "plus",
-                        primaryAction: { chooseProviderAndFinish() }
+                        primaryAction: {
+                            wantsProviderSetup = true
+                            advance()
+                        }
                     ),
                     footer: {
                         // #2718 — local-first, provider-agnostic. Defer to the existing
@@ -218,58 +248,14 @@ extension FirstRunWindow {
                     }
                 )
             }
+        case .purpose:
+            recipeStepPage(.purpose)
+        case .material:
+            recipeStepPage(.material)
         }
     }
 
-    /// #3121 — the two zero-cloud, on-device options with their true state.
-    /// Apple Intelligence availability comes from the `/providers/apple/availability`
-    /// probe (#3118) so an unavailable machine sees the concrete reason instead of
-    /// discovering it at first call. MLX is always offered (Apple-silicon local
-    /// runtime) with a pointer to its setup pane.
-    private var localFirstAIOptions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            appleIntelligenceOption
-            localOptionRow(
-                icon: "cpu",
-                title: "MLX on-device models",
-                detail: "Set up in Settings ▸ Local LLM.",
-                detailTint: .secondary
-            )
-        }
-        .task {
-            await appState.appleAvailabilityStore.load()
-        }
-    }
-
-    @ViewBuilder
-    private var appleIntelligenceOption: some View {
-        let status = appState.appleAvailabilityStore.status
-        localOptionRow(
-            icon: "apple.logo",
-            title: "Apple Intelligence",
-            detail: status.map { $0.available ? "Available" : $0.label } ?? "Checking availability…",
-            detailTint: status?.available == false ? .orange : .secondary
-        )
-    }
-
-    private func localOptionRow(icon: String, title: String, detail: String, detailTint: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .frame(width: 18)
-                .foregroundStyle(.secondary)
-            Text(title)
-                .font(.callout)
-            LocalPrivateBadge()
-            Spacer()
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(detailTint)
-                .textSelection(.enabled)
-                .multilineTextAlignment(.trailing)
-        }
-    }
-
-    private func stepPage<Content: View>(
+    func stepPage<Content: View>(
         title: String,
         subtitle: String,
         systemImage: String,
@@ -370,19 +356,20 @@ extension FirstRunWindow {
         #endif
     }
 
-    /// #2718 — Finish onboarding, then hand off to the existing local-first Add
-    /// Provider flow (full provider catalog + default-model selection) rather than
-    /// hardcoding any single provider. Setting `isFirstLaunchProviderSetup` makes
-    /// that sheet pre-select a local provider.
-    private func chooseProviderAndFinish() {
-        appState.isFirstLaunchProviderSetup = true
-        appState.showAddProvider = true
-        finish()
-    }
-
+    /// #2718 — When the person chose a provider, finishing hands off to the
+    /// existing local-first Add Provider flow (full provider catalog +
+    /// default-model selection) rather than hardcoding any single provider.
+    /// Setting `isFirstLaunchProviderSetup` makes that sheet pre-select a local
+    /// provider.
     private func finish() {
-        featureManager.firstRunCompleted = true
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        if !isSetUp {
+            featureManager.firstRunCompleted = true
+            UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        }
+        if wantsProviderSetup {
+            appState.isFirstLaunchProviderSetup = true
+            appState.showAddProvider = true
+        }
         dismiss()
     }
 }
