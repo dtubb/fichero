@@ -165,6 +165,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/fonts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/locations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/migrations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/projects.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/recipes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/registries.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/settings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/storage.py

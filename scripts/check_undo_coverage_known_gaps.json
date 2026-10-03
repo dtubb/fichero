@@ -1,4 +1,6 @@
 {
+  "POST /api/recipes/assemble": "read-only: proposes a recipe from setup's answers and writes nothing, so there is nothing to undo (#4951)",
+  "POST /api/recipes/check": "read-only: reports a recipe's problems and writes nothing, so there is nothing to undo (#4951)",
   "DELETE /api/actions/{action_id}": "no undo registration in current tree",
   "DELETE /api/activity/cleanup": "no undo registration in current tree",
   "DELETE /api/activity/{activity_id}": "pre-existing drift found 2026-09-20 when the contract was regenerated; not introduced by that change; no undo registration in current tree",

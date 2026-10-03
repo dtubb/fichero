@@ -10266,6 +10266,112 @@
         }
       }
     },
+    "/api/recipes/jobs": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "List Jobs",
+        "description": "Every job a recipe can name, with the plain description setup and the manual show.",
+        "operationId": "list_jobs_api_recipes_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/assemble": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Assemble Recipe",
+        "description": "The recipe the rules give for these answers, each choice with its reasons and each gap named\n(`source.onboard.deterministic-recipe`). Proposes; writes nothing.",
+        "operationId": "assemble_recipe_api_recipes_assemble_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssembleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembledRecipe"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/check": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Check",
+        "description": "Every reason a recipe cannot run as it stands, step by step (`source.recipe.*`).",
+        "operationId": "check_api_recipes_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/citations/graph": {
       "post": {
         "tags": [
@@ -42868,6 +42974,115 @@
         "title": "ArtifactUpdate",
         "description": "Request to update an artifact's editable fields. Used by the V2\ninspector's per-panel edit. Only `content` is editable today; provider,\nmodel, version etc. are immutable provenance and stay set by the tool\nthat produced them."
       },
+      "AssembleRequest": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "title": "Purpose",
+            "description": "one of: transcribe, entities, search, knowledge-graph, map-places, edit-corpus, decipher, not-sure"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Languages",
+            "description": "BCP 47 language tags"
+          },
+          "scripts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Scripts",
+            "description": "ISO 15924 script codes"
+          },
+          "material": {
+            "type": "string",
+            "title": "Material",
+            "default": "handwriting"
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Pages",
+            "description": "roughly how many pages",
+            "default": 0
+          },
+          "cloud_allowed": {
+            "type": "boolean",
+            "title": "Cloud Allowed",
+            "default": false
+          },
+          "mac_memory_gb": {
+            "type": "number",
+            "nullable": true,
+            "title": "Mac Memory Gb",
+            "description": "defaults to this machine's memory"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "purpose",
+          "languages",
+          "scripts"
+        ],
+        "title": "AssembleRequest"
+      },
+      "AssembledRecipe": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "purposes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Purposes"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Gaps"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Problems",
+            "description": "what the recipe check finds (empty when it can run)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "purposes",
+          "steps",
+          "gaps",
+          "problems"
+        ],
+        "title": "AssembledRecipe"
+      },
       "AttachRequest": {
         "properties": {
           "text": {
@@ -45370,6 +45585,37 @@
         ],
         "title": "ChatResponse",
         "description": "Response model for chat."
+      },
+      "CheckRequest": {
+        "properties": {
+          "recipe": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Recipe"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "title": "CheckRequest"
+      },
+      "CheckResponse": {
+        "properties": {
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "type": "object",
+        "required": [
+          "problems"
+        ],
+        "title": "CheckResponse"
       },
       "ChecklistCreateRequest": {
         "properties": {
@@ -56988,6 +57234,89 @@
         ],
         "title": "InvokeActionRequest"
       },
+      "JobInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "layer": {
+            "type": "string",
+            "title": "Layer"
+          },
+          "takes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Takes"
+          },
+          "gives": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Gives"
+          },
+          "compare": {
+            "type": "string",
+            "title": "Compare"
+          },
+          "settings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Settings"
+          },
+          "since": {
+            "type": "string",
+            "title": "Since"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "layer",
+          "takes",
+          "gives",
+          "compare",
+          "settings",
+          "since"
+        ],
+        "title": "JobInfo"
+      },
+      "JobListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JobInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "JobListResponse"
+      },
       "JsonlExportRequest": {
         "properties": {
           "output_path": {
@@ -67046,6 +67375,64 @@
         ],
         "title": "RebuildResponse",
         "description": "Stats describing what got refreshed."
+      },
+      "RecipeStep": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "model": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Model"
+          },
+          "runs_on": {
+            "type": "string",
+            "nullable": true,
+            "title": "Runs On"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "gap": {
+            "type": "string",
+            "nullable": true,
+            "title": "Gap"
+          },
+          "layer": {
+            "type": "string",
+            "nullable": true,
+            "title": "Layer"
+          },
+          "offered_when": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Offered When"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Settings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "job"
+        ],
+        "title": "RecipeStep"
       },
       "RecomputeResponse": {
         "properties": {

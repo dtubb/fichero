@@ -1966,6 +1966,7 @@ from fichero_server.api.routes.system import (  # noqa: E402
     locations,
     migrations,
     projects,
+    recipes,
     registries,
     settings,
     storage,
@@ -2060,6 +2061,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (bibliography.router, "/api", ["bibliography"]),
     (batch.router, "/api", ["batches"]),
     (chat.router, "/api/chat", ["chat"]),
+    # Recipes (#4951): the job registry, checking a recipe, and assembling one from setup's answers.
+    (recipes.router, "/api", ["recipes"]),
     (citations.router, "/api", ["citations"]),
     (classifications.router, "/api", ["classifications"]),
     (claim_links.router, "/api", ["claim-links"]),

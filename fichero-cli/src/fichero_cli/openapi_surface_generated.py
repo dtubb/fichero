@@ -11633,6 +11633,75 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('recipes')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for recipes endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='recipes')
+        existing_apps['recipes'] = target_app
+
+    @target_app.command("assemble")
+    def recipes_assemble_post(
+        ctx: typer.Context,
+        cloud_allowed: Optional[bool] = typer.Option(None, "--cloud-allowed/--no-cloud-allowed", help="Request field: cloud_allowed."),
+        languages: str = typer.Option(..., "--languages", help="Request field: languages."),
+        mac_memory_gb: Optional[float] = typer.Option(None, "--mac-memory-gb", help="Request field: mac_memory_gb."),
+        material: Optional[str] = typer.Option(None, "--material", help="Request field: material."),
+        pages: Optional[int] = typer.Option(None, "--pages", help="Request field: pages."),
+        purpose: str = typer.Option(..., "--purpose", help="Request field: purpose."),
+        scripts: str = typer.Option(..., "--scripts", help="Request field: scripts."),
+    ) -> None:
+        """Assemble Recipe (POST /api/recipes/assemble)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/assemble"
+            params = None
+            payload = _build_json_payload({
+                "cloud_allowed": cloud_allowed,
+                "languages": languages,
+                "mac_memory_gb": mac_memory_gb,
+                "material": material,
+                "pages": pages,
+                "purpose": purpose,
+                "scripts": scripts,
+            }, {
+                "cloud_allowed": {'type': 'boolean', 'title': 'Cloud Allowed', 'default': False, 'x-cli-required': False},
+                "languages": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Languages', 'description': 'BCP 47 language tags', 'x-cli-required': True},
+                "mac_memory_gb": {'type': 'number', 'nullable': True, 'title': 'Mac Memory Gb', 'description': "defaults to this machine's memory", 'x-cli-required': False},
+                "material": {'type': 'string', 'title': 'Material', 'default': 'handwriting', 'x-cli-required': False},
+                "pages": {'type': 'integer', 'minimum': 0.0, 'title': 'Pages', 'description': 'roughly how many pages', 'default': 0, 'x-cli-required': False},
+                "purpose": {'type': 'string', 'title': 'Purpose', 'description': 'one of: transcribe, entities, search, knowledge-graph, map-places, edit-corpus, decipher, not-sure', 'x-cli-required': True},
+                "scripts": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Scripts', 'description': 'ISO 15924 script codes', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("check")
+    def recipes_check_post(
+        ctx: typer.Context,
+        recipe: str = typer.Option(..., "--recipe", help="Request field: recipe."),
+    ) -> None:
+        """Check (POST /api/recipes/check)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/check"
+            params = None
+            payload = _build_json_payload({
+                "recipe": recipe,
+            }, {
+                "recipe": {'additionalProperties': True, 'type': 'object', 'title': 'Recipe', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-jobs")
+    def recipes_list_jobs_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Jobs (GET /api/recipes/jobs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/jobs"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('references')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for references endpoints.', no_args_is_help=True)

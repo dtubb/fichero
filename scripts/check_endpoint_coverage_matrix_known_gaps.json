@@ -1,4 +1,7 @@
 {
+  "GET /api/recipes/jobs": "engine half of onboarding (#4951); the setup window and Inspector that call it are slice 2, not built yet",
+  "POST /api/recipes/assemble": "engine half of onboarding (#4951); the setup window that calls it is slice 2, not built yet",
+  "POST /api/recipes/check": "engine half of onboarding (#4951); the recipe editor that calls it is slice 2, not built yet",
   "DELETE /api/activity/{activity_id}": "no Swift call for the /api/activity/* family (2 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "DELETE /api/agent-memory/{note_id}": "#2152 agent memory - UI deferred (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
   "DELETE /api/authz/members": "no Swift call for the /api/authz/* family (2 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",

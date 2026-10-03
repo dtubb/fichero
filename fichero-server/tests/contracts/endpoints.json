@@ -8177,6 +8177,38 @@
         "response_model": "ReadingOrderActionAnswer"
       }
     ],
+    "recipes": [
+      {
+        "method": "POST",
+        "path": "/recipes/assemble",
+        "operation_id": "assemble_recipe_api_recipes_assemble_post",
+        "summary": "Assemble Recipe",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AssembleRequest",
+        "response_model": "AssembledRecipe"
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/check",
+        "operation_id": "check_api_recipes_check_post",
+        "summary": "Check",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CheckRequest",
+        "response_model": "CheckResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/jobs",
+        "operation_id": "list_jobs_api_recipes_jobs_get",
+        "summary": "List Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "JobListResponse"
+      }
+    ],
     "references": [
       {
         "method": "GET",
