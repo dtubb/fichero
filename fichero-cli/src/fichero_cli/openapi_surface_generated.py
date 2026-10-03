@@ -11760,6 +11760,28 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("get-start-plan")
+    def recipes_get_start_plan_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Start Plan (GET /api/recipes/project/start)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/start"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("start-project")
+    def recipes_start_project_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Start Project (POST /api/recipes/project/start)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/start"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-purposes")
     def recipes_list_purposes_get(
         ctx: typer.Context,

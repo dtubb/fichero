@@ -1326,14 +1326,14 @@ Projects
   afterwards its settings live in one place, the library's Inspector (ruled 2026-10-01); Project
   Settings… in the File menu and the context menu selects the library and opens that Inspector
   section; no separate settings window exists.
-- `source.project.stays-local` — **[GAP]** (#4951) a project whose pages may not leave this machine
+- `source.project.stays-local` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** Start refuses a cloud step, naming it, when setup's answers keep pages on this Mac; workflow runs started by hand do not check it yet; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. a project whose pages may not leave this machine
   refuses every cloud step in it, naming the step and the rule.
 - `source.project.record-rule` — **[GAP]** (#4951) a project is strict or relaxed about what counts
   as the record; a new project is strict; a recipe's profile can set either.
 - `source.project.relaxed-never-changes-the-maker` — **[GAP]** (#4951) a relaxed project changes
   what counts as the record, never who made it: a machine's reading, pass or claim is stored and
   shown as a machine's in every project (the engine sets this; see → #4868, → #4869).
-- `source.project.automatic-after-first-yes` — **[GAP]** (#4951) nothing in a project runs by itself
+- `source.project.automatic-after-first-yes` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** `GET /api/recipes/project/start` shows what Start would run and on how many pages; `POST` records the first yes (`recipe/started.yaml`: when, recipe id and version), audited and undoable, refused by step while the plan has refusals; nothing is run by it yet (the one job model and on-add are #5352); pinned by `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. nothing in a project runs by itself
   until the person presses Start at the end of setup (the first yes), which shows what will run,
   on how many pages, with an estimate; what it makes counts as the record only as the project's
   rule allows.
@@ -1412,7 +1412,7 @@ Setup
   coverage table (Latin hands, print in another script, vertical CJK, kuzushiji, palm-leaf,
   right-to-left, sign-by-sign scripts, an Indigenous syllabary, unwritten speech), setup produces
   the steps the table names or "needs a model", never an error and never a silent substitute.
-- `source.onboard.estimate-before-start` — **[GAP]** (#4951) screens 4 and 6 show the whole
+- `source.onboard.estimate-before-start` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** the Start plan carries the page count and the cost per run (free on this Mac, unpriced cloud models null); time, carbon and the main alternative's estimate are not built; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. screens 4 and 6 show the whole
   volume's estimate (time where it runs, cost, carbon labelled as an estimate) for the proposed
   recipe and for its main alternative, before anything runs.
 - `source.onboard.derives-not-asks` — **[GAP]** (#4951) direction, line position, fonts, this Mac's
@@ -1529,7 +1529,7 @@ The recipe and its format
 - `source.recipe.is-a-file` — **[GAP]** (#4950) a recipe can be exported as, and taken from, a
   shareable folder that names its steps, their models, and the scripts, languages, period and
   purposes it suits.
-- `source.recipe.makes-a-workflow` — **[GAP]** (#4950) applying a recipe's steps makes and runs
+- `source.recipe.makes-a-workflow` — **[PARTIAL]** (#4950) **Built 2026-10-03 (engine):** `plan_start` maps each step to a shipped workflow by name with the step's model (`recipes/start.py`, four jobs so far), refusing by name a step it cannot map; the runs are not started yet; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`. applying a recipe's steps makes and runs
   workflows; nothing runs except workflows.
 - `source.recipe.holds-no-second-copy` — **[GAP]** (#4950) a recipe refers to workflows in the
   store by name and may carry its own, but never a copy of one the store holds; the locked default

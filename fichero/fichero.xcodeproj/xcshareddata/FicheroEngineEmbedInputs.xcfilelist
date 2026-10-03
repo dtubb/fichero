@@ -398,6 +398,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/READM
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/prompts/correct-line.prompt.md
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/prompts/statements.prompt.md
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/recipe.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/start.py
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/bin/.gitignore
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/__init__.py
