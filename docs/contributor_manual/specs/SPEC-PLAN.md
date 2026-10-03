@@ -67,7 +67,7 @@ maintainer's step document (Mellel, to come) sets the order. Build next.
 6. **The agents: MCP and the in-app agent.** Clean up and test the MCP surface used by Claude and
    other external agents, and the in-app agent (an external agent through the same audited
    actions is the likely path; a vendor's licence decides what can be embedded).
-7. **The Istmina public site.** A public, searchable site from the Istmina archive for people
+7. **The Istmina public site** (DRAFT written 2026-10-03: `export/public-site.md`, #5381). A public, searchable site from the Istmina archive for people
    there to look for family history: names, places, dates, the page images by IIIF, built by the
    publishing stage, with rights and consent respected (`source/rights-and-access.md`).
 

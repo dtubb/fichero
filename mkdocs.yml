@@ -389,6 +389,7 @@ nav:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Export:
               - Exporter: contributor_manual/specs/export/exporter.md
+              - A Public Research Site (Istmina): contributor_manual/specs/export/public-site.md
           - Importer:
               - Importer: contributor_manual/specs/importer/importer.md
           - Explore:
