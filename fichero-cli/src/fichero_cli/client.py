@@ -534,8 +534,12 @@ class FicheroClient:
         params: dict[str, Any] | None = None,
         json: Any = None,
         files: Any = None,
+        timeout: float | None = None,
     ) -> Any:
         """Issue a request and return parsed JSON (or None for empty responses).
+
+        ``timeout`` overrides the client's default for this one request (a call that asks the
+        engine to work longer must also wait longer, #5388).
 
         Raises FicheroError on connection failure or any non-2xx status.
         """
@@ -548,6 +552,7 @@ class FicheroClient:
                 json=json,
                 files=files,
                 headers=self._headers(),
+                **({"timeout": timeout} if timeout is not None else {}),
             )
         except httpx.ConnectError as exc:
             raise _connect_error(self.base_url, exc) from exc
@@ -1151,6 +1156,8 @@ class FicheroClient:
                     "inputs": inputs or {},
                     "timeout_seconds": timeout_seconds,
                 },
+                # Wait as long as the engine was asked to work, plus a margin (#5388).
+                timeout=timeout_seconds + 30,
             )
         )
 
