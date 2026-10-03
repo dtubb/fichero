@@ -58,14 +58,16 @@ class TestAReadingChangeRefreshesTheCache:
 
     def test_search_is_re_embedded_with_the_corrected_text(self, db, client, monkeypatch):
         page, art, row = _converted(db, client)
-        import threading, time
+        import time
 
         seen = []
         monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: seen.append(doc.page_content))
         _correct(db, page, row)
-        deadline = time.time() + 10
+        # The embed is a job on the one local-model lane (#5359): it can queue behind another test's
+        # first real embedder load (~13 s measured), so the wait is generous; it returns when seen.
+        deadline = time.time() + 60
         while not seen and time.time() < deadline:
-            time.sleep(0.05)  # the embed runs on a background thread
+            time.sleep(0.05)
         assert seen and seen[-1].startswith(CORRECTED)
 
     def test_corrections_do_not_wait_for_the_embedder(self, db, client, monkeypatch):
@@ -77,7 +79,7 @@ class TestAReadingChangeRefreshesTheCache:
         monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: (started.set(), release.wait(10)))
         try:
             _correct(db, page, row)  # would hang for 10 s if the embed ran on the request path
-            assert started.wait(5)
+            assert started.wait(60)  # may queue behind another job on the lane; see above
         finally:
             release.set()
 
@@ -137,7 +139,6 @@ class TestAMembershipChangeRefreshesTheCache:
         assert self._cache(db, page) == client.get(f"/api/segments/document/{page.id}/text").json()["text"]
 
     def test_a_plain_move_does_not_run_the_refresh(self, db, client, monkeypatch):
-        from fichero_server.actions import page_text_cache
 
         page, art, row = _converted(db, client)
         calls = []

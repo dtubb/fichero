@@ -575,6 +575,23 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("set-background-paused")
+    def activity_set_background_paused_put(
+        ctx: typer.Context,
+        paused: bool = typer.Option(..., "--paused/--no-paused", help="Request field: paused."),
+    ) -> None:
+        """Set Background Paused (PUT /api/activity/jobs/paused)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/paused"
+            params = None
+            payload = _build_json_payload({
+                "paused": paused,
+            }, {
+                "paused": {'type': 'boolean', 'title': 'Paused', 'description': 'true pauses all background work; false resumes it', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("get-metrics-summary")
     def activity_get_metrics_summary_get(
         ctx: typer.Context,

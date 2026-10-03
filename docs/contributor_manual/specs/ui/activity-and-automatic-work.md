@@ -394,14 +394,22 @@ workflow by hand: a hand run is a job like any other.
 
 ### A. One job model
 
-- `activity.one-job-model` — **[GAP]** (#5353) every kind of background work, in every
+- `activity.one-job-model` — **[PARTIAL]** (#5353) every kind of background work, in every
   project and the app, is a row in one `jobs` table with the same fields, read through one route
-  family and one change event.
+  family and one change event. Built (2026-10-03): the `jobs` table in each project database and
+  one engine-wide scheduler (`execution/jobs.py`); its rows are listed by `/api/activity/jobs`
+  ("waiting", "running", recent "failed", each with its reason). One kind runs on it so far, the
+  correction re-embed (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: every other kind, parent and child jobs,
+  progress, cost, `/api/jobs` and `job.updated`.
 - `activity.jobs-are-a-tree` — **[GAP]** (#5353) a job's children (steps, pages) are jobs;
   progress, time, cost and errors roll up the tree.
 - `activity.task-queue-grows-into-jobs` — **[PARTIAL]** (#5353) the task queue is already
   a persistent queue that resumes pending work (`workflows/tasks.py:153-176`); it becomes the jobs
-  table rather than a thirteenth system being built beside it.
+  table rather than a thirteenth system being built beside it. Found 2026-10-03: nothing in the
+  engine calls `init_task_queue`, so the task queue never starts and its routes answer 503; and its
+  table lives in a file of its own, not the project's database. The `jobs` table was therefore
+  started in the project database (open question 1) and the task queue's six kinds move onto it
+  next, after which `workflows/tasks.py` and its routes go.
 - `activity.every-kind-reports` — **[PARTIAL]** (#5359) `/api/activity/jobs` merges
   the derivative queue and running/failed workflow runs (`test_activity_jobs.py`); task-queue
   tasks, batches, ingest tasks, conversion, search reindex, model downloads, runtime provisioning
@@ -413,8 +421,10 @@ workflow by hand: a hand run is a job like any other.
   model fetch from Zenodo and MLX runtime provisioning appear in Activity, not only in Settings.
 - `activity.nlp-visible` — **[GAP]** (#5359) the NLP draft stage is counted and
   shown; today it is deliberately left out of the queue's progress (`importers/derivatives.py:150-157`).
-- `activity.correction-reembed-visible` — **[GAP]** (#5359) the re-embed after a
-  correction is a queued, visible job, not a raw daemon thread (`page_text_cache.py:345-378`).
+- `activity.correction-reembed-visible` — **[OK]** (#5359) the re-embed after a
+  correction is a queued, visible job, not a raw daemon thread. Built (2026-10-03): kind
+  `make-a-vector`, written in the correction's own transaction, shown by `/api/activity/jobs`,
+  held by the pause, run by the scheduler (`fichero-server/tests/unit/jobs/test_job_queue.py`).
 - `activity.one-reindex` — **[BROKEN]** (#5363) there are two reindexes: task-queue
   `REINDEX` and `/api/search/reindex` on FastAPI `BackgroundTasks` (`search/core.py:1559`), the
   second invisible and unresumable.
@@ -445,33 +455,45 @@ workflow by hand: a hand run is a job like any other.
 
 ### C. Pause and start
 
-- `activity.pause.global` — **[GAP]** (#5355) one *Pause Background Work* stops every
-  job that started by itself, at its next boundary, and the island says so.
-- `activity.pause.global-survives-relaunch` — **[GAP]** (#5355) a Mac paused at quit is
-  paused at launch.
+- `activity.pause.global` — **[PARTIAL]** (#5355) one *Pause Background Work* stops every
+  job that started by itself, at its next boundary, and the island says so. Built (2026-10-03):
+  `PUT /api/activity/jobs/paused`; while paused the scheduler starts nothing and a waiting job says
+  "Paused by you"; `/api/activity/jobs` reports `paused` (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the Mac control
+  and the island, and the work not yet on the queue (workflow runs, the derivative pool).
+- `activity.pause.global-survives-relaunch` — **[PARTIAL]** (#5355) a Mac paused at quit is
+  paused at launch. Built: the switch is an app setting (`background_work_paused`), read by the
+  scheduler before every job (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the click-around leg.
 - `activity.pause.per-job` — **[PARTIAL]** (#5356) workflow runs have pause, resume,
   stop and delete (`RunControls.swift`); batches have pause, resume, cancel, retry
   (`batch.py:346-408`); the task queue cancels only pending tasks; the derivative queue, ingest,
   conversion and downloads (except MLX's cancel) have nothing.
 - `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
   boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for.
-- `activity.pause.controls-are-actions` — **[GAP]** (#5356) pause, resume, cancel
-  and retry are audited actions, reachable from the window, MCP and the command line.
+- `activity.pause.controls-are-actions` — **[PARTIAL]** (#5356) pause, resume, cancel
+  and retry are audited actions, reachable from the window, MCP and the command line. Built: the
+  global pause is the audited, undoable action `background.pause` (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap:
+  per-job controls, and an MCP tool.
 
 ### D. Throttling
 
 - `activity.throttle.background-qos` — **[PARTIAL]** (#5358) the derivative pool
   and conversion run at background QoS, Kraken at utility with torch threads capped; workflow
   runs, scheduled runs (→ #4740), the task queue and the correction re-embed do not.
-- `activity.throttle.lanes` — **[GAP]** (#5358) jobs run in lanes by resource
+- `activity.throttle.lanes` — **[PARTIAL]** (#5358) jobs run in lanes by resource
   (local ML, images, network, database) with bounded concurrency; a waiting job says what it is
-  waiting for.
+  waiting for. Built: the local ML lane, one job at a time, each kind declaring its QoS class; a
+  job waiting on a Kraken page says "Waiting for Kraken" (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the other
+  lanes.
 - `activity.lane.load-once` — **[GAP]** (#5358, #5370) a heavy model is loaded once and kept resident
   while work for it remains, fed in batches; it is never reloaded per page or per call.
-- `activity.lane.group-by-model` — **[GAP]** (#5358) the local ML lane runs ready work grouped by the model it
-  needs, switching models only between groups and unloading the old one first.
-- `activity.lane.co-run-only-if-it-fits` — **[GAP]** (#5358) two heavy models run at once only when their
-  measured resident sizes fit this Mac's memory with headroom; on an 8 GB Mac, never.
+- `activity.lane.group-by-model` — **[PARTIAL]** (#5358) the local ML lane runs ready work grouped by the model it
+  needs, switching models only between groups and unloading the old one first. Built: queued jobs
+  for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: unloading on
+  switch, and Kraken and reader pages, which are not on the queue yet.
+- `activity.lane.co-run-only-if-it-fits` — **[PARTIAL]** (#5358) two heavy models run at once only when their
+  measured resident sizes fit this Mac's memory with headroom; on an 8 GB Mac, never. Built: never,
+  for now: queued heavy jobs run one at a time and wait while a Kraken page holds Kraken's lock
+  (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: measuring, and co-running when both fit.
 - `activity.lane.measures-processors` — **[GAP]** (#5358) each job's row shows what it uses (CPU, GPU, Neural
   Engine, memory), measured by the engine.
 - `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
@@ -489,16 +511,19 @@ workflow by hand: a hand run is a job like any other.
 - `activity.durable.queue-is-rows` — **[PARTIAL]** (#5357) the task queue and batches
   persist rows; the derivative queue uses `Status.pending` as its queue (`db/manager.py:222-243`);
   ingest, chains, downloads, the re-embed thread and reindex are in memory.
-- `activity.durable.enqueue-with-the-change` — **[GAP]** (#5357) the job a change
-  implies is written in the change's own transaction.
+- `activity.durable.enqueue-with-the-change` — **[PARTIAL]** (#5357) the job a change
+  implies is written in the change's own transaction. Built for the correction re-embed
+  (`ActionRegistry.invoke`, `fichero-server/tests/unit/jobs/test_job_queue.py`).
 - `activity.durable.lease-not-fail` — **[BROKEN]** (#5357) after a crash or quit, an
   interrupted job goes back to waiting and resumes; today every running, accepted **and paused**
   workflow run is flipped to `failed` on reopen (`workflows/activity.py:658-707`), although its
   checkpoints are on disk (`workflows/checkpointer.py`).
 - `activity.durable.paused-stays-paused` — **[BROKEN]** (#5357) a paused job is still
   paused after relaunch; today it becomes failed (same code).
-- `activity.durable.poison-item` — **[GAP]** (#5357) an item that fails three times is
-  set aside with its reason and the job carries on.
+- `activity.durable.poison-item` — **[PARTIAL]** (#5357) an item that fails three times is
+  set aside with its reason and the job carries on. Built: a queued job interrupted by a quit or
+  crash goes back to waiting and is set aside after three (`fichero-server/tests/unit/jobs/test_job_queue.py`); a job that raises fails
+  at once, with its reason.
 - `activity.durable.nothing-twice` — **[PARTIAL]** (#5357) a job whose kind, subject and
   inputs fingerprint already finished is skipped; today the derivative stages happen to be
   idempotent and the NLP stage skips marked pages, while re-running a workflow has three different
@@ -533,8 +558,9 @@ workflow by hand: a hand run is a job like any other.
 - `activity.derived.stale-is-marked` — **[GAP]** (#5360) a change marks exactly
   the rows derived from it stale, with the reason, and the Inspector shows "out of date" on them
   until they are remade.
-- `activity.derived.coalesced` — **[GAP]** (#5360) many corrections to one page
-  make one recompute job after a short quiet period.
+- `activity.derived.coalesced` — **[PARTIAL]** (#5360) many corrections to one page
+  make one recompute job after a short quiet period. Built: one waiting job per kind and page
+  (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the quiet period.
 - `activity.derived.person-work-kept` — **[PARTIAL]** (#5361) a recompute withdraws
   only untouched machine rows; a row a person curated is kept and flagged with old and new excerpt.
   Built: the purge removes only draft rows nobody checked, linked or annotated (and keeps an entity

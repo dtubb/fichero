@@ -10,8 +10,9 @@ undo and redo included -- and NOT from the individual reading actions. Two halve
 
 * `refresh_in_transaction` runs inside the action's transaction, so the reading change and the
   cache commit or roll back together;
-* `embed_after_commit` re-embeds afterwards on a background thread, one job per page, so search
-  matches the corrected text without a correction waiting for the embedder.
+* `queue_reembed` queues, in the same transaction, one durable re-embed job per page on the
+  engine's job scheduler (`execution/jobs.py`), so search matches the corrected text without a
+  correction waiting for the embedder.
 
 Not refreshed: a page whose `page_content` a person edited directly (`page_content_is_user_edited`)
 -- the direct edit route is a second writer, still open -- and a page with no working pass.
@@ -27,7 +28,6 @@ from __future__ import annotations
 
 import logging
 import hashlib
-import threading
 from typing import Any
 
 
@@ -312,7 +312,6 @@ def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
             continue
         text = cache_text(derived)
         # The map is re-stored with the text: a stale stamp means a stale map too.
-        from fichero_server.models import PageLineMap
 
         _save_line_map(db, doc, text, derived)
         if _store(db, doc, text, utc_now(), standing_text(db, derived)):
@@ -324,7 +323,7 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
     """Rewrite `page_content` for the pages this action changed the text of. Returns the ids whose
     stored text actually changed (the ones to re-embed)."""
     from fichero_server.api.routes.document.segment_readings import document_text
-    from fichero_server.models import Document, PageLineMap
+    from fichero_server.models import Document
     from fichero_server.core.timeutil import utc_now
     from fichero_server.workflows.curation_guard import page_content_is_user_edited
 
@@ -358,39 +357,47 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
     return changed
 
 
-_pending: set[tuple[int, str]] = set()
-_pending_lock = threading.Lock()
+#: The job kind, named as the recipe job registry names it (`recipes/jobs.py`).
+REEMBED_KIND = "make-a-vector"
 
 
-def embed_after_commit(db: Any, document_ids: list[str]) -> None:
-    """Re-embed OFF the request path, one pending job per page.
+def queue_reembed(db: Any, document_ids: list[str]) -> None:
+    """Queue the re-embed of each changed page as a durable job, in the action's own transaction
+    (`activity.correction-reembed-visible`, `activity.durable.enqueue-with-the-change`).
 
     Measured on a 300-line page: the embed alone was ~8 s per correction, and a scholar correcting
-    line after line pays it every time. The job reads the page's CURRENT text when it runs, so any
-    corrections that arrive while one is queued are covered by it and only one job is queued."""
+    line after line pays it every time, so it runs OFF the request path, on the engine's job
+    scheduler. The job reads the page's CURRENT text when it runs, so corrections that arrive while
+    one is waiting are covered by it: one waiting job per page. Being a row, it shows in Activity,
+    obeys the global pause, and survives quit (it used to be a daemon thread, lost on quit)."""
+    from fichero_server.execution import jobs
+
     for document_id in document_ids:
-        key = (id(db), document_id)
-        with _pending_lock:
-            if key in _pending:
-                continue
-            _pending.add(key)
-        threading.Thread(
-            target=_embed_now, args=(db, document_id, key), name="page-text-embed", daemon=True
-        ).start()
+        jobs.enqueue(db, REEMBED_KIND, document_id, started_by="correction")
 
 
-def _embed_now(db: Any, document_id: str, key: tuple[int, str]) -> None:
+def _reembed(db: Any, document_id: str) -> None:
+    """The job: embed the page's current text (behind the same gate as every other embed, so a
+    correction and an import never stack two all-core ONNX passes), then re-read its names."""
+    from fichero_server.importers.derivatives import _embed_gate
     from fichero_server.models import Document
 
-    with _pending_lock:
-        _pending.discard(key)  # from here a newer correction queues a fresh job
     try:
         doc = db.get(Document, document_id)
         if doc is not None and doc.page_content:
-            db.embed(doc)
-    except Exception as exc:  # noqa: BLE001 -- best-effort tail; the text itself is saved
-        logger.warning("re-embed after a reading change failed for %s: %s", document_id, exc)
-    reread_names_after_commit(db, document_id)
+            with _embed_gate:
+                db.embed(doc)
+    finally:  # an embed failure fails the job, with its reason; the names still follow the text
+        reread_names_after_commit(db, document_id)
+
+
+def _register() -> None:
+    from fichero_server.execution import jobs
+
+    jobs.register_kind(REEMBED_KIND, _reembed, model="embedder")
+
+
+_register()
 
 
 def reread_names_after_commit(db: Any, document_id: str) -> None:

@@ -551,6 +551,19 @@ what it produced, and a thread's checkpoint goes separately via
 `DELETE /api/workflow-execution/threads/{thread_id}`. That separation is the point, so
 clearing a list of failures cannot quietly discard work.
 
+### Background jobs and the global pause
+
+`GET /api/activity/jobs` lists what is working in the background: the derivative queue, running
+or failed workflow runs, and the rows of the project's `jobs` table (the one job model,
+`specs/ui/activity-and-automatic-work.md`): `waiting`, `running` and recent `failed` jobs, each
+with its `reason` in words ("Paused by you", "Waiting for Kraken (another page is using it)").
+`paused` says whether *Pause Background Work* is on.
+
+`PUT /api/activity/jobs/paused` with `{"paused": true}` or `false` turns it on or off for the
+whole Mac, through the audited, undoable action `background.pause`. The switch is an app
+setting, so it holds across relaunch. While it is on, the scheduler starts nothing; a job already
+running finishes.
+
 ### Workflow run comparison
 
 `GET /api/workflow-execution/comparisons` diffs what two runs produced from
