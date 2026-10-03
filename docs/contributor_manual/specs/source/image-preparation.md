@@ -57,14 +57,26 @@ the left page is often blank graph paper and the right page carries the text in 
 **One preparation step, made of operations in order,** each recorded in the page's edit chain
 with its settings and reason, each skippable:
 
+**The goal is automatic, proper cropping:** a photograph goes in and its **pages** come out (one,
+or two for an open book, notebook or spread), or its **regions** where the thing photographed is
+not a page sequence (several letters or cards on one sheet, a newspaper's articles, a map's
+cartouche and legend). No setting is needed for the common cases; a person only corrects.
+
 1. **Find the page(s).** Locate the document in the photograph and crop away the table, ruler,
-   colour card and hands. Classical first (edges and the largest light quadrilateral); a YOLO page
-   detector (one class: page) where that fails. The page outline is kept as a geometry, so a
-   reading can still be mapped back to the photograph.
-2. **Split spreads.** Decide whether the image holds one page or two (aspect ratio, a gutter or
-   spiral found as a vertical band of dark or repeated shapes), and cut **at the gutter, not at the
-   middle**. Pages come out in reading order (left then right for a left-to-right script; the
-   cascade's direction decides). The existing grid split stays for regular grids.
+   colour card and hands. **Apple Vision first** (`VNDetectDocumentSegmentationRequest` for the
+   document's outline, `VNDetectRectanglesRequest` for the pages inside it; Core Image for the
+   perspective correction): built in, local, no training. Tried on two Sergio photographs
+   (2026-10-03): the notebook found at 0.99 on both, the table and ruler excluded, and the left
+   page returned as its own rectangle. The classical contour method and a YOLO page detector are
+   fall-backs; the existing YOLOv8 model was trained on pages on black backgrounds, so it is
+   retrained on corrected outlines before it is used on material like this. The page outline is
+   kept as a geometry, so a reading can still be mapped back to the photograph.
+2. **Split into pages or regions.** Decide whether the image holds one page, two, or several
+   regions (Vision's page rectangles, the aspect ratio, a gutter or spiral found as a vertical band
+   of dark or repeated shapes), and cut **at the gutter, not at the middle**. Pages come out in
+   reading order (left then right for a left-to-right script; the cascade's direction decides);
+   regions come out as child items of the photograph. The existing grid split stays for regular
+   grids.
 3. **Drop or mark blank pages.** A page with no ink beyond its ruling is marked **blank**: kept,
    shown dimmed, skipped by reading. Never deleted.
 4. **Turn by the text.** Decide 0, 90, 180 or 270 degrees from the text itself (line direction and
@@ -95,7 +107,7 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
 - `prep.legacy-reviewed-before-rewrite` — **[GAP]** (#5382) a written review compares the legacy tools and today's on the test set before any rewrite; the rewrite beats both.
 - `prep.find-the-page` — **[GAP]** (#5382) the page is found on a busy background and the photograph
   is cropped to it; the outline is kept as a geometry mapping back to the original.
-- `prep.split-at-the-gutter` — **[GAP]** (#5382) a two-page image is cut at its gutter or spiral, not
+- `prep.split-at-the-gutter` — **[GAP]** (#5382) a photograph is cropped automatically into its pages or regions; a two-page image is cut at its gutter or spiral, not
   at the middle, into pages in reading order; a single page is left whole.
 - `prep.blank-pages-marked` — **[GAP]** (#5382) a page with no ink beyond its ruling is marked blank,
   kept, and skipped by reading.
