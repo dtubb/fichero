@@ -320,6 +320,53 @@ struct RecipeSetupStoreTests {
         #expect(saved == false)
         #expect(store.errorMessage != nil)
     }
+    private static func planJSON(refusals: String) -> String {
+        """
+        {"workflows":[{"steps":["find-lines","read-a-line"],"job":"read-a-line","workflow":"Transcribe (Kraken)",
+          "workflow_id":"w1","runs_on":"this-mac"}],
+         "offered":["train-a-model"],"refusals":[\(refusals)],
+         "estimate":{"pages":49,"runs":[],"total_cost_usd":null}}
+        """
+    }
+
+    /// WHY: nothing in a project runs before the person's first yes, and the engine, not the
+    /// app, decides whether Start can go (source.project.automatic-after-first-yes). If the store
+    /// offered Start while a step was refused, the person would press Start on a plan the engine
+    /// already said it cannot run; a missing price must stay unknown, never read as free.
+    @Test("Start is offered only for a plan with nothing refused; an unpriced total stays unknown")
+    func startNeedsAPlanWithNoRefusals() async {
+        let refused = makeStore { request in
+            Self.reply(request, 200, Self.planJSON(refusals: "\"correct: no model fits\""))
+        }
+        await refused.loadStartPlan()
+        #expect(refused.startPlan?.refusals == ["correct: no model fits"])
+        #expect(refused.canStart == false)
+
+        let clear = makeStore { request in Self.reply(request, 200, Self.planJSON(refusals: "")) }
+        await clear.loadStartPlan()
+        #expect(clear.canStart)
+        #expect(clear.startPlan?.estimate.totalCostUsd == nil)
+        #expect(RecipeStartFields.cost(nil) == "price unknown")
+    }
+
+    /// WHY: Start must record the yes in the engine (POST, audited) before the window closes; a
+    /// refusal must not close it, and must say so.
+    @Test("start posts the yes; a refusal returns false and says so")
+    func startPostsTheYes() async {
+        let store = makeStore { request in
+            RecipesMockURLProtocol.calls += 1
+            if request.httpMethod == "POST" {
+                return Self.reply(request, RecipesMockURLProtocol.status, RecipesMockURLProtocol.status == 200
+                    ? Self.planJSON(refusals: "") : #"{"detail":[]}"#)
+            }
+            return Self.reply(request, 200, Self.planJSON(refusals: "\"read-a-line: no reader\""))
+        }
+        #expect(await store.start())
+
+        RecipesMockURLProtocol.status = 422
+        #expect(await store.start() == false)
+        #expect(store.errorMessage != nil)
+    }
 }
 
 /// `URLRequest.httpBody` is nil once the request has gone through
@@ -339,4 +386,5 @@ private extension URLRequest {
         }
         return data
     }
+
 }

@@ -19,6 +19,9 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
     // question whether pages may leave this Mac. Setup ends on what will run.
     case purpose
     case material
+    // The first yes (`source.project.automatic-after-first-yes`): what will run, on how many
+    // pages, with an estimate; nothing runs by itself before Start.
+    case start
 
     var id: Int { rawValue }
 
@@ -29,6 +32,7 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
         case .purpose: return "Purpose"
         case .cloud: return "AI"
         case .material: return "Your Material"
+        case .start: return "Start"
         case .permissions: return "Permissions"
         }
     }
@@ -40,6 +44,7 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
         case .purpose: return "target"
         case .cloud: return "brain"
         case .material: return "doc.text.magnifyingglass"
+        case .start: return "play.circle"
         case .permissions: return "lock.shield"
         }
     }
@@ -51,7 +56,7 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
     var isMacOnly: Bool {
         switch self {
         case .welcome: return false
-        case .library, .purpose, .cloud, .material, .permissions: return true
+        case .library, .purpose, .cloud, .material, .start, .permissions: return true
         }
     }
 
@@ -64,7 +69,7 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
 
     /// The steps Set Up… runs for an existing library from the Inspector: the
     /// same recipe steps as first run, one code path (`source.onboard.set-up-later`).
-    static let setUpSteps: [FirstRunStep] = [.purpose, .material]
+    static let setUpSteps: [FirstRunStep] = [.purpose, .material, .start]
 
     /// Whether THIS platform takes the companion first-run path (#2807).
     /// Compile-time: macOS owns the local engine; every other platform is a

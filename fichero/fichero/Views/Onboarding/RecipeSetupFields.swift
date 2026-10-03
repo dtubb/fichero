@@ -227,6 +227,49 @@ private enum CodeCatalogue {
         .sorted { $0.name < $1.name }
 }
 
+/// The Start step: what the recipe will run, on how many pages, what it costs, and any step
+/// the engine refuses, by name (`source.project.automatic-after-first-yes`,
+/// `source.onboard.estimate-before-start`). The engine plans; this only shows the plan.
+struct RecipeStartFields: View {
+    let store: RecipeSetupStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let plan = store.startPlan {
+                Text("\(plan.estimate.pages) pages · \(Self.cost(plan.estimate.totalCostUsd))")
+                    .font(.headline)
+                ForEach(Array(plan.workflows.enumerated()), id: \.offset) { _, run in
+                    Label("\(run.workflow) — \(run.steps.joined(separator: ", "))",
+                          systemImage: run.runsOn.hasPrefix("cloud") ? "cloud" : "desktopcomputer")
+                        .font(.body)
+                }
+                if !plan.offered.isEmpty {
+                    Text("Offered later: \(plan.offered.joined(separator: ", "))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(plan.refusals, id: \.self) { refusal in
+                    Label(refusal, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            } else {
+                ProgressView("Planning what Start would run…")
+            }
+            if let message = store.errorMessage {
+                Text(message).font(.caption).foregroundStyle(.red)
+            }
+        }
+        .task { await store.loadStartPlan() }
+    }
+
+    /// Unpriced is not free: a missing total is shown as unknown, never $0.
+    static func cost(_ value: Double?) -> String {
+        guard let value else { return "price unknown" }
+        return value == 0 ? "free, runs on this Mac" : value.formatted(.currency(code: "USD"))
+    }
+}
+
 #Preview("Your material") {
     let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
     store.languages = ["es", "la"]
@@ -241,4 +284,10 @@ private enum CodeCatalogue {
 #Preview("Project intake") {
     ProjectIntakeChoice(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
         .padding()
+}
+
+#Preview("Start") {
+    RecipeStartFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
+        .padding()
+        .frame(width: 520, height: 300)
 }

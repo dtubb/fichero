@@ -62,6 +62,12 @@ struct FirstRunWindow: View {
             let store = appState.recipeSetupStore
             Task { await store.save() }
         }
+        // Start records the first yes; the window closes only when the engine kept it.
+        if step == .start {
+            let store = appState.recipeSetupStore
+            Task { if await store.start() { finish() } }
+            return
+        }
         if step == steps.last {
             finish()
         } else {
@@ -252,6 +258,8 @@ extension FirstRunWindow {
             recipeStepPage(.purpose)
         case .material:
             recipeStepPage(.material)
+        case .start:
+            recipeStepPage(.start)
         }
     }
 
@@ -285,9 +293,10 @@ extension FirstRunWindow {
                 Spacer()
                 Button("Back") { step = step.previous(in: steps) }
                     .disabled(step == steps.first)
-                Button(step == steps.last ? "Finish" : "Continue") {
+                Button(step == .start ? "Start" : step == steps.last ? "Finish" : "Continue") {
                     advance()
                 }
+                .disabled(step == .start && !appState.recipeSetupStore.canStart)
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
             }

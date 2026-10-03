@@ -18,6 +18,14 @@ extension FirstRunWindow {
             ) {
                 recipeCard { RecipePurposeFields(store: store) }
             }
+        case .start:
+            stepPage(
+                title: "Start",
+                subtitle: "What will run, on how many pages, and what it costs. Nothing runs before you press Start.",
+                systemImage: step.icon
+            ) {
+                recipeCard { RecipeStartFields(store: store) }
+            }
         default:
             stepPage(
                 title: "Your material",

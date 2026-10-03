@@ -117,6 +117,46 @@ final class RecipeSetupStore {
         return false
     }
 
+    // MARK: Start, the first yes (source.project.automatic-after-first-yes)
+
+    /// What Start would run, on how many pages, with its estimate and any refusals,
+    /// as the engine plans it (GET /api/recipes/project/start).
+    private(set) var startPlan: Components.Schemas.StartPlan?
+
+    /// Start is offered only when the engine has a plan with nothing refused.
+    var canStart: Bool { startPlan.map { $0.refusals.isEmpty && !$0.workflows.isEmpty } ?? false }
+
+    func loadStartPlan() async {
+        do {
+            if case .ok(let success) = try await client.api.getStartPlanApiRecipesProjectStartGet() {
+                startPlan = try success.body.json
+            }
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not read what Start would run: \(error.localizedDescription)"
+        }
+    }
+
+    /// Record the first yes. Returns whether the engine kept it. The refused steps are
+    /// already on screen (the plan loads with the step), so a refusal only says so.
+    func start() async -> Bool {
+        do {
+            switch try await client.api.startProjectApiRecipesProjectStartPost() {
+            case .ok(let success):
+                startPlan = try success.body.json
+                return true
+            case .unprocessableContent:
+                errorMessage = "Start was refused; the steps below say why."
+            case .undocumented(let code, _):
+                errorMessage = "Could not start (HTTP \(code))"
+            }
+        } catch {
+            if error.isCancellationError { return false }
+            errorMessage = error.localizedDescription
+        }
+        return false
+    }
+
     private var currentAnswers: RecipeSetupAnswers {
         RecipeSetupAnswers(purpose: purpose, languages: languages, scripts: scripts, material: material,
                      pages: pages, cloudAllowed: cloudAllowed, ingestMode: ingestMode.rawValue.lowercased())

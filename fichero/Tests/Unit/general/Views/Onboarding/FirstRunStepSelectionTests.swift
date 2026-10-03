@@ -15,7 +15,7 @@ final class FirstRunStepSelectionTests: XCTestCase {
     func testMacStepListIsTheFullFlow() {
         XCTAssertEqual(
             FirstRunStep.steps(isCompanionPlatform: false),
-            [.welcome, .library, .permissions, .cloud, .purpose, .material]
+            [.welcome, .library, .permissions, .cloud, .purpose, .material, .start]
         )
     }
 
@@ -29,7 +29,7 @@ final class FirstRunStepSelectionTests: XCTestCase {
     /// code path), purpose first; if it drifted, an existing library would be set
     /// up by a different flow than a new one.
     func testSetUpRunsTheFirstRunRecipeSteps() {
-        XCTAssertEqual(FirstRunStep.setUpSteps, [.purpose, .material])
+        XCTAssertEqual(FirstRunStep.setUpSteps, [.purpose, .material, .start])
         let full = FirstRunStep.steps(isCompanionPlatform: false)
         XCTAssertEqual(Array(full.suffix(FirstRunStep.setUpSteps.count)), FirstRunStep.setUpSteps)
     }
@@ -77,12 +77,14 @@ final class FirstRunStepSelectionTests: XCTestCase {
         XCTAssertEqual(FirstRunStep.permissions.next(in: steps), .cloud)
         XCTAssertEqual(FirstRunStep.cloud.next(in: steps), .purpose)
         XCTAssertEqual(FirstRunStep.purpose.next(in: steps), .material)
-        XCTAssertEqual(FirstRunStep.material.next(in: steps), .material)
+        XCTAssertEqual(FirstRunStep.material.next(in: steps), .start)
+        XCTAssertEqual(FirstRunStep.start.next(in: steps), .start)
     }
 
     /// Backward navigation clamps at the first step.
     func testPreviousWalksMacListAndClampsAtStart() {
         let steps = FirstRunStep.steps(isCompanionPlatform: false)
+        XCTAssertEqual(FirstRunStep.start.previous(in: steps), .material)
         XCTAssertEqual(FirstRunStep.material.previous(in: steps), .purpose)
         XCTAssertEqual(FirstRunStep.purpose.previous(in: steps), .cloud)
         XCTAssertEqual(FirstRunStep.cloud.previous(in: steps), .permissions)
