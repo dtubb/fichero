@@ -2490,8 +2490,18 @@ def workflow_run(
         "--timeout",
         help="Seconds to wait for completion when --wait is set.",
     ),
+    model: Optional[str] = typer.Option(
+        None, "--model",
+        help="Run its AI steps with this model, as provider/model (e.g. omlx/Qwen2.5-VL-3B, "
+        "openrouter/google/gemini-3-flash-preview): the same choice as the app's Run menu.",
+    ),
 ) -> None:
     """Run a workflow on a document."""
+    provider_override = model_override = None
+    if model:
+        provider_override, _, model_override = model.partition("/")
+        if not provider_override or not model_override:
+            raise typer.BadParameter(f"must be provider/model, got {model!r}", param_hint="--model")
     try:
         with _client(ctx) as client:
             workflow_id = _resolve_workflow(client, name)
@@ -2502,7 +2512,10 @@ def workflow_run(
             # only fires Priority 1 when an upstream node is mapped, which
             # CLI runs don't have. `selected_doc_ids` is the Priority 2 path
             # the Files-source node reads from state.
-            result = client.run_workflow(workflow_id, {"selected_doc_ids": [doc_id]})
+            result = client.run_workflow(
+                workflow_id, {"selected_doc_ids": [doc_id]},
+                provider_override=provider_override, model_override=model_override,
+            )
             # run_workflow now returns a typed ExecuteAcceptedResponse; the
             # FakeClient still hands back a raw dict, so handle both.
             if hasattr(result, "thread_id"):

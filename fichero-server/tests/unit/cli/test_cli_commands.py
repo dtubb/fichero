@@ -1010,6 +1010,19 @@ def test_workflow_run_resolves_name_to_id():
     assert run_call[2] == {"selected_doc_ids": ["doc-7"]}
 
 
+def test_workflow_run_passes_the_chosen_model():
+    """#5388: a CLI run could not choose its model, so comparing readers from the CLI was impossible.
+    `--model provider/model` is the app's Run-menu choice; the model part may itself contain a slash."""
+    result = runner.invoke(cli.app, ["workflow", "run", "Catalogue", "doc-7",
+                                     "--model", "openrouter/google/gemini-3-flash-preview"])
+    assert result.exit_code == 0, result.output
+    run_call = next(c for c in _last_client().calls if c[0] == "run_workflow")
+    assert (run_call[3]["provider_override"], run_call[3]["model_override"]) == (
+        "openrouter", "google/gemini-3-flash-preview")
+    bad = runner.invoke(cli.app, ["workflow", "run", "Catalogue", "doc-7", "--model", "gemini"])
+    assert bad.exit_code != 0
+
+
 def test_workflow_run_unknown_name_errors():
     result = runner.invoke(cli.app, ["workflow", "run", "Nope", "doc-7"])
     assert result.exit_code == 1
