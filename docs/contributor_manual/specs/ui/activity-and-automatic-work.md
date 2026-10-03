@@ -516,10 +516,16 @@ workflow by hand: a hand run is a job like any other.
   change re-derives the page text and re-embeds it (`page_text_cache.py`;
   `tests/unit/api/test_page_content_is_a_cache.py`); off the queue, invisible, unthrottled, lost on
   quit. A direct text edit re-embeds inline on the request.
-- `activity.auto.reextract-on-change` — **[BROKEN]** (#5361) after a person
-  corrects a page's text, its entities and claims are remade from the corrected text. Today nothing
-  is queued, the NLP stage refuses a page it has seen (`derivatives.py:811-826`), and claims keep
-  offsets into the old text.
+- `activity.auto.reextract-on-change` — **[PARTIAL]** (#5361) after a person
+  corrects a page's text, its entities and claims are remade from the corrected text. Built
+  (2026-10-03): where the library reads names automatically, a correction takes back the page's
+  untouched NLP draft through the audited purge and reads it again; the draft records the text it
+  read (`nlp_text_sha`), so unchanged pages and the open-time resume never re-read; a re-run
+  extraction workflow misses the cache on changed text
+  (`fichero-server/tests/unit/api/test_names_follow_a_correction.py`,
+  `fichero-server/tests/unit/workflows/test_cache_key_follows_the_page_text.py`). Still a gap: the
+  re-read runs on a background thread, not a queued visible job (#5359), and claims from LLM
+  workflows are not withdrawn when the workflow re-runs.
 - `activity.derived.names-its-inputs` — **[PARTIAL]** (→ #4925, #5360) pictures,
   search entries, vectors and word analysis name what they were made from (`source.derived.recomputable`);
   claims name their page and offsets but not the text version; entity mentions and NLP drafts name
@@ -529,8 +535,13 @@ workflow by hand: a hand run is a job like any other.
   until they are remade.
 - `activity.derived.coalesced` — **[GAP]** (#5360) many corrections to one page
   make one recompute job after a short quiet period.
-- `activity.derived.person-work-kept` — **[GAP]** (#5361) a recompute withdraws
+- `activity.derived.person-work-kept` — **[PARTIAL]** (#5361) a recompute withdraws
   only untouched machine rows; a row a person curated is kept and flagged with old and new excerpt.
+  Built: the purge removes only draft rows nobody checked, linked or annotated (and keeps an entity
+  another page's claims name); every surviving claim is marked `text_changed_at`. Still a gap: the
+  old and new excerpt, and showing the flag in the Inspector. Ruling (2026-10-03): machine rows
+  are deleted through the audited purge for now; a reversible `withdrawn` claim state is an option
+  to add later.
 - `activity.derived.recompute-is-one-step` — **[GAP]** (→ #5245) a recompute's swap is one recorded
   step with its run id and can be taken back.
 - `activity.recipe.declares-automatic` — **[GAP]** (→ #4950) a recipe lists the job kinds that run on
