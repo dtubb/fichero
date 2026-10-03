@@ -1,5 +1,7 @@
 import SwiftUI
 
+#if os(macOS)  // RegionInteractionLayer is Mac-only (an AppKit event layer)
+
 /// Reshape in Edit Segments: a press on a point of any of the ONE selected segment's shapes -- outline,
 /// baseline, an extra area, path or point -- drags it; a press on a side's midpoint adds a point there
 /// and drags it; ⌥-click removes a point (never below what the shape needs).
@@ -134,3 +136,4 @@ extension RegionInteractionLayer {
                        y: (normalized[1] - visible.minY) / visible.height * size.height)
     }
 }
+#endif

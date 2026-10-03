@@ -1,5 +1,7 @@
 import SwiftUI
 
+#if os(macOS)  // RegionInteractionLayer is Mac-only (an AppKit event layer)
+
 /// The Shape tool's polygon and baseline in Edit Segments (`source.editor.draw-shapes`): each click adds
 /// a point; for a polygon a click on the first point closes it, and for either a double-click finishes.
 /// Escape abandons it (`WindowState.abandonDrawing`). The finished points go to the host
@@ -63,3 +65,4 @@ extension RegionInteractionLayer {
         }
     }
 }
+#endif
