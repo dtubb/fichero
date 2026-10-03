@@ -433,6 +433,7 @@ nav:
               - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
               - IIIF: contributor_manual/specs/source/iiif.md
               - Cataloguing & Metadata: contributor_manual/specs/source/cataloguing.md
+              - Image Preparation: contributor_manual/specs/source/image-preparation.md
               - Undeciphered Scripts: contributor_manual/specs/source/undeciphered-scripts.md
               - Synced Folder: contributor_manual/specs/source/synced-folder.md
               - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
