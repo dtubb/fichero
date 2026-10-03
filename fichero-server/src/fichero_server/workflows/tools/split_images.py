@@ -46,8 +46,8 @@ SPLIT_IMAGES_CONFIG = {
     "output_format": {
         "type": "string",
         "enum": ["jpg", "png", "tiff", "webp"],
-        "default": "png",
-        "description": "Derived split image format.",
+        "description": "Derived split image format. Default: the source's own format (a JPEG photo "
+        "stays JPEG), PNG for a PDF page; PNG halves of a JPEG were 2.4x its size (#5386).",
     },
     "compression_quality": {
         "type": "integer",
@@ -197,12 +197,14 @@ def split_image_file(
     rows: int = 1,
     columns: int = 2,
     pdf_dpi: int = 200,
-    output_format: str = "png",
+    output_format: str | None = None,
     compression_quality: int = 90,
 ) -> dict[str, Any]:
     """Split one image/PDF into derived output files."""
     source = Path(file_path)
     output_root = Path(output_dir)
+    if not output_format:
+        output_format = _same_format_as(source)
 
     try:
         if source.suffix.lower() == ".pdf":
@@ -254,6 +256,12 @@ def split_image_file(
             "details": {},
             "error": str(exc),
         }
+
+
+def _same_format_as(source: Path) -> str:
+    """The derived format that keeps the source's own: JPEG stays JPEG, a PDF page is PNG."""
+    suffix = source.suffix.lower().lstrip(".")
+    return {"jpeg": "jpg", "tif": "tiff"}.get(suffix, suffix) if suffix in _ALLOWED_FORMATS | {"tif"} else "png"
 
 
 @register_tool(
@@ -314,7 +322,7 @@ async def split_images(
             rows=inputs.get("rows", 1),
             columns=inputs.get("columns", 2),
             pdf_dpi=inputs.get("pdf_dpi", 200),
-            output_format=inputs.get("output_format", "png"),
+            output_format=inputs.get("output_format"),
             compression_quality=inputs.get("compression_quality", 90),
         )
         for file_path in files

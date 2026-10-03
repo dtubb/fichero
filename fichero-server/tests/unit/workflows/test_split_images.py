@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 pytest.importorskip("PIL")
@@ -68,3 +70,18 @@ async def test_split_images_workflow_returns_output_files(tmp_path):
     assert result["error"] is None
     assert result["count"] == 4
     assert len(result["parts"]) == 4
+
+
+def test_a_jpeg_splits_into_jpegs_by_default(tmp_path):
+    """#5386: Split wrote PNG halves of a 3.4 MB JPEG photo (8.1 MB, 2.4x), so a 374-photo
+    notebook corpus grew by gigabytes. A derived part keeps its source's format unless asked."""
+    from PIL import Image
+    from fichero_server.workflows.tools.split_images import split_image_file
+
+    src = tmp_path / "spread.jpg"
+    Image.new("RGB", (600, 400), "white").save(src, quality=85)
+    out = split_image_file(src, tmp_path / "out")
+    assert out["error"] is None
+    assert [Path(p).suffix for p in out["outputs"]] == [".jpg", ".jpg"]
+    asked = split_image_file(src, tmp_path / "png", output_format="png")
+    assert [Path(p).suffix for p in asked["outputs"]] == [".png", ".png"]

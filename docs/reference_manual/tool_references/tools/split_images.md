@@ -37,7 +37,7 @@ Split images into grid tiles or PDFs into page images without modifying sources.
 | `columns` | integer | 2 | Columns for image grid splitting. |
 | `compression_quality` | integer | 90 | JPEG/WebP compression quality. |
 | `output_dir` | string | — | Optional output directory. Defaults to a temp directory. |
-| `output_format` | string | png | Derived split image format. One of: jpg, png, tiff, webp. |
+| `output_format` | string | — | Derived split image format. Default: the source's own format (a JPEG photo stays JPEG), PNG for a PDF page; PNG halves of a JPEG were 2.4x its size (#5386). One of: jpg, png, tiff, webp. |
 | `pdf_dpi` | integer | 200 | DPI used when rendering PDF pages. |
 | `rows` | integer | 1 | Rows for image grid splitting. |
 
