@@ -520,15 +520,16 @@ def data_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_download_fails_loud_when_no_model_lands(data_home: Path) -> None:
     """A fetch that produces no `.mlmodel` must raise, never write an
     installed marker for a model that isn't there."""
-    with pytest.raises(RuntimeError, match="produced no .mlmodel"):
+    with pytest.raises(RuntimeError, match="produced 0 model files"):
         kraken_runtime.download_recognition_model(
             "kraken-mccatmus", run_call=lambda op: None,
         )
     assert kraken_runtime.is_recognition_model_installed("kraken-mccatmus") is False
 
 
-def _land_mlmodel() -> None:
-    model_dir = kraken_runtime.recognition_data_home() / "uuid-abc"
+def _land_mlmodel(model_id: str = "kraken-mccatmus") -> None:
+    # htrmopo writes into the folder it is given: each reader's own (`<data home>/<model id>`).
+    model_dir = kraken_runtime.recognition_data_home() / model_id / "uuid-abc"
     model_dir.mkdir(parents=True, exist_ok=True)
     (model_dir / "McCATMuS.mlmodel").write_bytes(b"weights")
 
@@ -545,6 +546,44 @@ def test_recognition_download_records_the_fetched_model_path(data_home: Path) ->
     assert resolved is not None
     assert resolved.endswith("McCATMuS.mlmodel")
     assert kraken_runtime.is_recognition_model_installed("kraken-mccatmus") is True
+
+
+def test_a_repository_reader_is_fetched_by_its_doi_into_its_own_folder(data_home: Path, monkeypatch) -> None:
+    """Any reader in Kraken's repository can be downloaded by DOI (kraken-zenodo-<n>), not only the
+    catalogue's two, once the repository says it IS a Kraken recognition model. It lands in its own
+    folder and resolves to ITS file even when another reader was fetched later: in a shared folder
+    PP-OCRv6 (.safetensors) resolved to McCATMuS ("the newest .mlmodel"), a silent substitute."""
+    import types
+
+    import htrmopo
+
+    monkeypatch.setattr(htrmopo, "get_description", lambda doi: types.SimpleNamespace(
+        model_type=["recognition"], software_name="kraken"), raising=False)
+
+    def land(model_id, name):
+        folder = kraken_runtime.recognition_data_home() / model_id / "x"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_bytes(b"w")
+
+    kraken_runtime.download_recognition_model(
+        "kraken-zenodo-21788410", run_call=lambda op: land("kraken-zenodo-21788410", "medium.safetensors"))
+    kraken_runtime.download_recognition_model("kraken-mccatmus", run_call=lambda op: _land_mlmodel())
+    path, model_id = kraken_runtime.resolve_recognition_model("kraken-zenodo-21788410")
+    assert path.endswith("kraken-zenodo-21788410/x/medium.safetensors") and model_id == "kraken-zenodo-21788410"
+    assert kraken_runtime.reader_id_for_doi("10.5281/zenodo.21788410") == "kraken-zenodo-21788410"
+
+
+def test_a_record_that_is_not_a_kraken_reader_is_refused_before_fetching(data_home: Path, monkeypatch) -> None:
+    import types
+
+    import htrmopo
+
+    monkeypatch.setattr(htrmopo, "get_description", lambda doi: types.SimpleNamespace(
+        model_type=["segmentation"], software_name="kraken"), raising=False)
+    fetched = []
+    with pytest.raises(ValueError, match="not a Kraken recognition model"):
+        kraken_runtime.download_recognition_model("kraken-zenodo-1", run_call=lambda op: fetched.append(1))
+    assert fetched == []
 
 
 def test_unknown_recognition_model_is_rejected(data_home: Path) -> None:

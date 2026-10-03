@@ -27,9 +27,8 @@ def test_a_runtime_not_in_this_build_is_not_a_candidate():
 def test_spanish_letters_on_a_16gb_mac():
     m = _models(assemble(Answers("search", frozenset({"es"}), frozenset({"Latn"}), mac_memory_gb=16), list(seed_cards())))
     assert m["find-lines"]["kraken"] == "blla"
-    # A reader Kraken here can fetch (its catalogue): PP-OCRv6 has a published CER but no runtime
-    # here can load it, so proposing it made the default recipe refuse at Start.
-    assert m["read-a-line"] == {"zenodo": "10.5281/zenodo.12743230"}
+    # PP-OCRv6, the reader with a published CER; fetched from Kraken's repository by its DOI.
+    assert m["read-a-line"] == {"zenodo": "10.5281/zenodo.21788410"}
     assert m["correct"]["hf"] == "mlx-community/Qwen2.5-VL-7B-Instruct-4bit"
 
 
@@ -39,11 +38,13 @@ def test_on_the_8gb_air_the_7gb_corrector_is_not_chosen_and_the_gap_is_named():
     assert "gap" in correct and "memory" in correct["gap"]
 
 
-def test_a_kraken_reader_this_runtime_cannot_fetch_is_not_a_candidate():
-    """A card is proposed only if this Mac can run it: Kraken fetches readers from its catalogue, so
-    a Zenodo reader outside it (PP-OCRv6) would be proposed by setup and refused by Start."""
+def test_every_kraken_reader_card_names_an_id_this_mac_can_fetch_and_run():
+    """Setup proposes only readers Fichero can download and run: a catalogue reader, or any reader
+    in Kraken's repository by its DOI (kraken-zenodo-<n>). PP-OCRv6 used to be proposed by setup and
+    then refused by Start, because the download path took catalogue ids only."""
+    from fichero_server.llm.kraken_runtime import recognition_spec
     from fichero_server.recipes.cards import kraken_reader_for
 
-    ids = {c.id for c in seed_cards()}
-    assert "kraken:zenodo/10.5281/zenodo.21788410@unpinned" not in ids
-    assert all(kraken_reader_for(c.pin) for c in seed_cards() if c.id.startswith("kraken:") and "zenodo" in c.pin)
+    readers = [kraken_reader_for(c.pin) for c in seed_cards() if c.id.startswith("kraken:") and "zenodo" in c.pin]
+    assert "kraken-zenodo-21788410" in readers
+    assert all(recognition_spec(r) for r in readers)

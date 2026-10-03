@@ -63,6 +63,7 @@ process anyway. Two rules this module still keeps:
 from __future__ import annotations
 
 import ctypes
+import re
 import ctypes.util
 import importlib.metadata
 import importlib.util
@@ -194,6 +195,24 @@ def recognition_model_path(model_id: str, home: Path | None = None) -> str | Non
     return str(path) if path else None
 
 
+#: A Kraken reader named by its record in Kraken's model repository (HTRMoPo, on Zenodo), not only
+#: the catalogue's short list: `kraken-zenodo-<record number>` (#5388 follow-up, 2026-10-03).
+_ZENODO_READER = re.compile(r"^kraken-zenodo-(\d+)$")
+
+
+def reader_id_for_doi(doi: str) -> str:
+    """The model id under which a repository reader's DOI is downloaded and run."""
+    return f"kraken-zenodo-{str(doi).rsplit('.', 1)[-1]}"
+
+
+def recognition_spec(model_id: str | None) -> dict[str, object] | None:
+    """The catalogue entry for ``model_id``, or a repository reader's {doi}; None for anything else."""
+    if model_id in KRAKEN_RECOGNITION_MODELS:
+        return KRAKEN_RECOGNITION_MODELS[model_id]
+    match = _ZENODO_READER.match(model_id or "")
+    return {"doi": f"10.5281/zenodo.{match.group(1)}"} if match else None
+
+
 def resolve_recognition_model(model_ref: str) -> tuple[str, str | None]:
     """(filesystem path, catalog id) for a recognition-model reference.
 
@@ -203,7 +222,7 @@ def resolve_recognition_model(model_ref: str) -> tuple[str, str | None]:
     path that is not there (the caller must say "install it", not run against
     nothing). One source of truth for both the workflow seam and any node.
     """
-    if model_ref in KRAKEN_RECOGNITION_MODELS:
+    if recognition_spec(model_ref):
         resolved = recognition_model_path(model_ref)
         if not resolved:
             raise RuntimeError(
@@ -590,19 +609,21 @@ def _segment_raw(image_path: str | Path) -> dict[str, object]:
 
 def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]:
     from PIL import Image
-    from kraken import blla, rpred
-    from kraken.lib import models
+    from kraken import blla
+    from kraken.configs import RecognitionInferenceConfig
+    from kraken.tasks import RecognitionTaskModel
 
     with Image.open(image_path) as image:
         if image.mode != "RGB":
             image = image.convert("RGB")
         segmentation = blla.segment(image)
-        net = models.load_any(model_path)
-        # blla's neural baseline segmentation gives us the lines; rpred reads
-        # each one with the recognition model, in the SAME order -- so
-        # prediction i belongs to segmented line i, and every line keeps its
-        # own baseline/polygon geometry.
-        predictions = list(rpred.rpred(net, image, segmentation))
+        # Kraken 7's recognition task: it loads both a .mlmodel and a .safetensors reader (the
+        # format of Kraken 7 models such as PP-OCRv6), where the old load_any read only .mlmodel.
+        # blla's neural baseline segmentation gives us the lines; the reader reads each one in the
+        # SAME order -- so prediction i belongs to segmented line i, and every line keeps its own
+        # baseline/polygon geometry.
+        net = RecognitionTaskModel.load_model(model_path)
+        predictions = list(net.predict(image, segmentation, RecognitionInferenceConfig()))
         width, height = image.width, image.height
     lines = _raw_lines(segmentation)
     for index, line in enumerate(lines):
@@ -665,10 +686,21 @@ def download_recognition_model(
     the old CLI-driven path did, since the exact filename is htrmopo's own
     choice, not documented as stable.
     """
-    spec = KRAKEN_RECOGNITION_MODELS.get(model_id)
+    spec = recognition_spec(model_id)
     if spec is None:
         raise ValueError(f"Unknown Kraken recognition model: {model_id}")
-    data_home = recognition_data_home(home)
+    if model_id not in KRAKEN_RECOGNITION_MODELS:
+        # A repository reader: fetch it only if the repository says it IS a Kraken recognition model.
+        from htrmopo import get_description
+
+        record = get_description(str(spec["doi"]))
+        if "recognition" not in (getattr(record, "model_type", None) or []) or \
+                getattr(record, "software_name", None) != "kraken":
+            raise ValueError(f"{spec['doi']} is not a Kraken recognition model in Kraken's repository")
+    # Each reader in its own folder: in one shared folder their metadata.json and README.md overwrote
+    # each other, and "the newest .mlmodel anywhere" picked ANOTHER reader when this one ships as
+    # .safetensors (Kraken 7's format) -- PP-OCRv6 resolved to McCATMuS (2026-10-03).
+    data_home = recognition_data_home(home) / model_id
     data_home.mkdir(parents=True, exist_ok=True)
 
     def _fetch() -> object:
@@ -679,12 +711,13 @@ def download_recognition_model(
     caller = run_call or _kraken_call
     caller(_fetch)
 
-    models = sorted(
-        data_home.rglob("*.mlmodel"), key=lambda p: p.stat().st_mtime, reverse=True,
-    )
-    model_path = str(models[0]) if models else None
-    if not model_path:
-        raise RuntimeError(f"model fetch produced no .mlmodel for {model_id} (DOI {spec['doi']})")
+    found = [p for p in data_home.rglob("*") if p.suffix in (".mlmodel", ".safetensors")]
+    if len(found) != 1:
+        raise RuntimeError(
+            f"model fetch for {model_id} (DOI {spec['doi']}) produced {len(found)} model files, "
+            "expected exactly one (.mlmodel or .safetensors)"
+        )
+    model_path = str(found[0])
     marker_dir = recognition_model_dir(home)
     marker_dir.mkdir(parents=True, exist_ok=True)
     _marker_path(model_id, home).write_text(

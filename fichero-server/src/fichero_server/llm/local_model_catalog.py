@@ -181,14 +181,14 @@ def catalog_entries() -> list[Any]:
 
 def owns(model_id: str) -> bool:
     """Whether this coordinator (not the MLX store) installs ``model_id``."""
-    from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS
+    from fichero_server.llm.kraken_runtime import recognition_spec
     from fichero_server.llm.local_models import SPACY_MODELS
     from fichero_server.llm.whisper_runtime import WHISPER_MLX_MODELS
 
     return (
         model_id in SPACY_MODELS
         or model_id == KRAKEN_MODEL_ID
-        or model_id in KRAKEN_RECOGNITION_MODELS
+        or recognition_spec(model_id) is not None
         or model_id in WHISPER_MLX_MODELS
     )
 
@@ -214,7 +214,7 @@ class LocalModelInstallCoordinator:
             await task
 
     async def start_install(self, model_id: str) -> ManagedModelDownloadJob:
-        from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS
+        from fichero_server.llm.kraken_runtime import recognition_spec
         from fichero_server.llm.local_models import SPACY_MODELS
         from fichero_server.llm.whisper_runtime import WHISPER_MLX_MODELS
 
@@ -223,7 +223,7 @@ class LocalModelInstallCoordinator:
             # immediately-terminal job so a caller that still polls (an old
             # client, or a diagnostic) resolves instead of hanging.
             return self._kraken_bundled_job()
-        if model_id in KRAKEN_RECOGNITION_MODELS:
+        if recognition_spec(model_id) is not None:
             return await self._start_thread_install(
                 model_id, "kraken-htr", self._install_kraken_recognition
             )
@@ -324,14 +324,14 @@ class LocalModelInstallCoordinator:
         return self._jobs.get(job_id)
 
     def delete(self, model_id: str) -> int:
-        from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS
+        from fichero_server.llm.kraken_runtime import recognition_spec
         from fichero_server.llm.local_models import LocalModelManager
         from fichero_server.llm.whisper_runtime import WHISPER_MLX_MODELS
 
         if model_id == KRAKEN_MODEL_ID:
             # #4959: bundled with the app — nothing here to delete.
             raise RuntimeError("Kraken is bundled with the app and cannot be removed.")
-        if model_id in KRAKEN_RECOGNITION_MODELS:
+        if recognition_spec(model_id) is not None:
             from fichero_server.llm.kraken_runtime import remove_recognition_model
 
             remove_recognition_model(model_id)

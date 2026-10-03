@@ -58,13 +58,17 @@ def test_the_recipes_pinned_reader_is_the_one_the_run_reads_with():
     assert (run["provider_override"], run["model_override"]) == ("kraken", "kraken-catmus-medieval")
 
 
-def test_a_reader_this_mac_cannot_fetch_is_refused_by_name_not_substituted():
-    """A reader outside the Kraken catalogue cannot be fetched by this runtime; reading with
-    another one behind the recipe's back would be a silent substitute."""
-    other = {**READ, "model": {"zenodo": "10.5281/zenodo.21788410"}}
-    plan = plan_start(_recipe(LINES, other), stays_local=True)
-    assert any(r.startswith("step read:") and "21788410" in r and "catalogue" in r
-               for r in plan["refusals"])
+def test_a_repository_reader_runs_as_itself_and_an_unfetchable_one_is_refused_by_name():
+    """A reader in Kraken's repository (PP-OCRv6 by its DOI) is planned under its own id, never
+    swapped for a catalogue reader behind the recipe's back; a reader Kraken cannot fetch at all
+    (a Hugging Face pin) is refused by name."""
+    repo = {**READ, "model": {"zenodo": "10.5281/zenodo.21788410"}}
+    plan = plan_start(_recipe(LINES, repo), stays_local=True)
+    assert not plan["refusals"], plan["refusals"]
+    assert any(w.get("model_override") == "kraken-zenodo-21788410" for w in plan["workflows"])
+    hf = {**READ, "model": {"hf": "someone/kraken-reader", "revision": "abc"}}
+    refused = plan_start(_recipe(LINES, hf), stays_local=True)["refusals"]
+    assert any(r.startswith("step read:") for r in refused), refused
 
 
 def test_a_job_no_workflow_does_is_refused_by_name():
