@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-import tempfile
 from pathlib import Path
 from typing import Any
 
+from fichero_server.workflows.tools.run_scratch import run_scratch_dir
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.image_edit_chains import (
@@ -215,7 +215,7 @@ async def enhance_images(
         files = [files]
 
     output_dir = inputs.get("output_dir") or str(
-        Path(tempfile.gettempdir()) / "fichero-enhanced-images"
+        run_scratch_dir(state, "enhanced-images")
     )
     results = [
         enhance_image_file(

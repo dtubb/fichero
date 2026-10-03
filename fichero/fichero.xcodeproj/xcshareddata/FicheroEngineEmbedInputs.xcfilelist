@@ -627,6 +627,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/remove_backgroun
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/research.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/rewrite.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/rotate_images.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/run_scratch.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/safety.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/scene.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/segment_images.py

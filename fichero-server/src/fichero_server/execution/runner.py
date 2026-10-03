@@ -2391,6 +2391,10 @@ async def _run_workflow_in_background(
         # cancellable via the same primitive (#4316/#4317).
         if state.get("status") != "paused":
             clear_cancellation(thread_id)
+            # The run's image scratch files go with it; a paused run keeps them (#5386).
+            from fichero_server.workflows.tools.run_scratch import remove_run_scratch
+
+            remove_run_scratch(thread_id)
         # The pause signal never outlives the worker: whether the run paused
         # (signal already consumed in _finish_as_paused) or ended some other
         # way, a stale pause event must not ambush the next resume (#4402).

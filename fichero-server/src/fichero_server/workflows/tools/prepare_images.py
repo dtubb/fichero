@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-import tempfile
 from pathlib import Path
 from typing import Any
 
+from fichero_server.workflows.tools.run_scratch import run_scratch_dir
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools._doc_lookup import documents_from_state_outputs
@@ -288,7 +288,7 @@ async def prepare_images(
         files = [files]
 
     output_dir = inputs.get("output_dir") or str(
-        Path(tempfile.gettempdir()) / "fichero-prepared-images"
+        run_scratch_dir(state, "prepared-images")
     )
     # Page scoping (#4298): a page-scoped run pairs each file path with the
     # page document whose `sequence` confines the work to that ONE page. The

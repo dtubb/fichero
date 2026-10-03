@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-import tempfile
 from pathlib import Path
 from typing import Any
 
+from fichero_server.workflows.tools.run_scratch import run_scratch_dir
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.image_edit_chains import (
@@ -205,7 +205,7 @@ async def fuzzy_clean_images(
         files = [files]
 
     output_dir = inputs.get("output_dir") or str(
-        Path(tempfile.gettempdir()) / "fichero-fuzzy-cleaned-images"
+        run_scratch_dir(state, "fuzzy-cleaned-images")
     )
     radius = _normalise_radius(inputs.get("despeckle_radius", 3))
     background_clean = bool(inputs.get("background_clean", True))

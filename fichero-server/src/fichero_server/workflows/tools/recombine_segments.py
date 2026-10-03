@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-import tempfile
 from pathlib import Path
 from typing import Any
 
+from fichero_server.workflows.tools.run_scratch import run_scratch_dir
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.image_edit_chains import (
@@ -222,7 +222,7 @@ async def recombine_segments(
         files = [files]
 
     output_dir = inputs.get("output_dir") or str(
-        Path(tempfile.gettempdir()) / "fichero-recombined-segments"
+        run_scratch_dir(state, "recombined-segments")
     )
     result = recombine_segment_files(
         list(files or []),

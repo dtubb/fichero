@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 import math
-import tempfile
 from pathlib import Path
 from typing import Any
 
+from fichero_server.workflows.tools.run_scratch import run_scratch_dir
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools._doc_lookup import documents_from_state_outputs
@@ -147,7 +147,7 @@ async def zoom(inputs: dict[str, Any], state: State, llm_config: LLMConfig) -> d
     files = inputs.get("files") or state.get("input_files", [])
     if isinstance(files, str):
         files = [files]
-    output_dir = inputs.get("output_dir") or str(Path(tempfile.gettempdir()) / "fichero-zoom")
+    output_dir = inputs.get("output_dir") or str(run_scratch_dir(state, "zoom"))
     options = {key: inputs[key] for key in ZOOM_CONFIG if key in inputs and key != "output_dir"}
     # Page scoping (#4298): the paired document's `sequence` is what confines a
     # PDF to the ONE page the user selected. When a stored graph wires only the
