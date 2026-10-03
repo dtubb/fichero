@@ -8210,6 +8210,26 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/project",
+        "operation_id": "get_project_setup_api_recipes_project_get",
+        "summary": "Get Project Setup",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ProjectSetup"
+      },
+      {
+        "method": "PUT",
+        "path": "/recipes/project",
+        "operation_id": "save_project_setup_api_recipes_project_put",
+        "summary": "Save Project Setup",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ProjectSetup",
+        "response_model": "ProjectSetup"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/purposes",
         "operation_id": "list_purposes_api_recipes_purposes_get",
         "summary": "List Purposes",

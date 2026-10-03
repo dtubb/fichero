@@ -1,4 +1,6 @@
 {
+  "GET /api/recipes/project": "engine half of saving setup (#4951); the setup store reads it in slice 2",
+  "PUT /api/recipes/project": "engine half of saving setup (#4951); the setup store saves through it in slice 2",
   "GET /api/recipes/purposes": "engine half of onboarding (#4951); the setup store switches from its hard-coded list to this in slice 2",
   "GET /api/recipes/jobs": "engine half of onboarding (#4951); the setup window and Inspector that call it are slice 2, not built yet",
   "POST /api/recipes/assemble": "engine half of onboarding (#4951); the setup window that calls it is slice 2, not built yet",

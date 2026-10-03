@@ -7,10 +7,17 @@ read the same answers from the engine (four architecture rules: logic in the eng
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
+
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.api.auth import action_context
+from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.db import Database
+from fichero_server.recipes.project import read_project_setup, write_project_setup
 
 from fichero_server.recipes.assemble import PURPOSE_STEPS, PURPOSES, Answers, assemble
 from fichero_server.recipes.cards import seed_cards
@@ -164,3 +171,57 @@ class CheckResponse(BaseModel):
 async def check(request: CheckRequest) -> CheckResponse:
     """Every reason a recipe cannot run as it stands, step by step (`source.recipe.*`)."""
     return CheckResponse(problems=check_recipe(request.recipe))
+
+
+# =============================================================================
+# A project's saved setup (#4951): the answers and the recipe, as files in the project folder.
+# =============================================================================
+
+
+class ProjectSetup(BaseModel):
+    """Setup's answers and the project's recipe; each null when the project has none
+    (`source.project.has-settings`). Saving is not Start: nothing runs."""
+
+    model_config = ConfigDict(extra="forbid")
+    answers: Optional[dict[str, Any]] = None
+    recipe: Optional[dict[str, Any]] = None
+
+
+def _library(db: Database) -> Path:
+    return Path(db.path).parent
+
+
+@router.get("/project", response_model=ProjectSetup)
+async def get_project_setup(db: Database = Depends(get_library_database)) -> ProjectSetup:
+    """The open project's saved setup answers and recipe."""
+    return ProjectSetup(**read_project_setup(_library(db)))
+
+
+@router.put("/project", response_model=ProjectSetup)
+async def save_project_setup(
+    request: ProjectSetup,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ProjectSetup:
+    """Save the project's setup answers and recipe (audited, undoable). A null part is removed.
+    Refused with 422 when either holds code or credentials."""
+    try:
+        result = registry.invoke(db, "project.save_setup", request.model_dump(mode="json"), ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ProjectSetup(**result.result)
+
+
+def _invert_save_setup(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("project.save_setup", before or {"answers": None, "recipe": None})
+
+
+@action("project.save_setup", ProjectSetup, domains=["project"], undoable=True,
+        invert=_invert_save_setup)
+def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    library = _library(db)
+    before = read_project_setup(library)
+    write_project_setup(library, params.answers, params.recipe)
+    after = read_project_setup(library)
+    return after, ChangeSpec(domains=["project"], target_ids=[], before=before, after=after,
+                             emit_type="project.setup_saved")

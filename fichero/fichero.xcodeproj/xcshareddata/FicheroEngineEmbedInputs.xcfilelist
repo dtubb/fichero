@@ -390,6 +390,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/assemble.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/jobs.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/project.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/recipe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/cards.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/README.md

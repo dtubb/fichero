@@ -11702,6 +11702,37 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-project-setup")
+    def recipes_get_project_setup_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Project Setup (GET /api/recipes/project)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("save-project-setup")
+    def recipes_save_project_setup_put(
+        ctx: typer.Context,
+        answers: Optional[str] = typer.Option(None, "--answers", help="Request field: answers."),
+        recipe: Optional[str] = typer.Option(None, "--recipe", help="Request field: recipe."),
+    ) -> None:
+        """Save Project Setup (PUT /api/recipes/project)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project"
+            params = None
+            payload = _build_json_payload({
+                "answers": answers,
+                "recipe": recipe,
+            }, {
+                "answers": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Answers', 'x-cli-required': False},
+                "recipe": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Recipe', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-purposes")
     def recipes_list_purposes_get(
         ctx: typer.Context,
