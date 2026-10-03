@@ -105,7 +105,7 @@ corrected outlines), Kraken's region segmenter. No method is hard-wired. The rec
 card per step, per material kind and per folder (a notebook folder and a map folder of the same
 project can differ); onboarding picks the default by rule (local, built in, cheapest first), and
 "Try Another Option…" runs the bake-off between cards on a sample, so a better card replaces the
-default only on evidence. A model trained in the loop becomes a new card the recipe can adopt, and
+default only on evidence. When no card is good enough on the sample, Fichero offers to **train** one (a YOLO detector from the pages a person has corrected, locally or on remote compute); the trained model becomes a new card, enters the same A/B, and the recipe can adopt it, and
 a shared recipe carries its card choices with it.
 
 **YOLO models must work.** A small page detector and a region detector (text block, marginal note,
