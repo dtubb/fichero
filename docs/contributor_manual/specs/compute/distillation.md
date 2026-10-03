@@ -166,6 +166,35 @@ cost of making the traces and of training; and, for B, whether the readings it c
 are where its errors are. B is adopted only if its CER beats A by more than the noise band and its
 speed is acceptable for the project's volume. The result is recorded on both cards either way.
 
+### The loop at archive scale (ruled 2026-10-03, #5404)
+
+The aim is really good **small** models, each made by a recipe for its material, that then read
+an archive of 100,000 to 1,000,000 images, and that get better with every round of use. Fichero is
+the harness: any language, script, direction, material or model. The recipe is the method, so a
+Japanese recipe is a different recipe, not the Spanish one with the language swapped. Any step can
+be distilled this way: the reader, a palaeographer reviewer or thinking model, name normalisation,
+entities, claims.
+
+- **Checks have trust levels.** A person's check outranks a model checker's (for example Fable,
+  recorded as checked by that model, never as a person), which outranks the teacher's unchecked
+  reading. Every training set and held-out set says which levels it holds; a held-out set of
+  model-checked pages is labelled so, and its scores read "against Fable's checked reading".
+- **Everyday work is data.** Corrections to text, entities and claims (SVO) made in ordinary use
+  feed the sets through the episode ledger, with no separate labelling step. A model checker can do
+  the same checking by itself where no person has been.
+- **Local first, then the cluster.** A recipe is proven on a sample on this Mac (throttled, never
+  making the Mac unusable). When the person is happy, the same recipe reads the whole archive on
+  Hugging Face Jobs or a cluster: sharded, failed shards resent, landing idempotent. A trained
+  model lands in a portable form (Hugging Face / PyTorch) as well as for MLX, since MLX runs only
+  on Macs.
+- **IIIF by reference.** An archive served over IIIF (for example the British Library's
+  Endangered Archives Programme) imports without downloading its images; the remote job fetches
+  each image from the Image API at the size its reader needs, politely, and results map back onto
+  the canvas.
+- **Rounds stop on evidence.** Each round must beat the last on the same fixed held-out pages by
+  more than the noise band (0.5 CER), or the loop stops and says so. A student never trains on its
+  own unchecked output, and held-out pages never train.
+
 ### Cascade: small first, big when unsure
 
 With a student adopted, a run uses the **student first**. Where its confidence on a line, a box or
@@ -263,6 +292,20 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
 - `distill.runs-local` — **[GAP]** (#5240, #5397) an adopted student runs on a 16 GB Mac through MLX, Core ML,
   PyTorch or Kraken, throttled like any background work, its speed and peak memory measured there
   (`compute.tune.measured-on-16gb`) (the MLX conversion is `compute.tune.convert-for-mlx`).
+
+- `distill.scale.check-trust-levels` — **[GAP]** (#5404) a training or held-out set records the
+  check level of each page (person, model checker, unchecked teacher); scores against a
+  model-checked reference say so.
+- `distill.scale.everyday-corrections-are-data` — **[GAP]** (#5404) corrections to text, entities and
+  claims made in ordinary use reach the next training set through the episode ledger.
+- `distill.scale.local-first-then-remote` — **[GAP]** (#5404) the same recipe that read a sample on
+  this Mac reads a whole archive on Hugging Face Jobs or a cluster, sharded, resending only failed
+  shards, landing idempotently; trained students land in a portable form as well as MLX.
+- `distill.scale.iiif-by-reference` — **[GAP]** (#5404) a remote IIIF manifest imports without its
+  images; remote reading fetches from the Image API at the reader's size and maps results to canvas
+  coordinates.
+- `distill.scale.rounds-stop-on-evidence` — **[GAP]** (#5404) a round that does not beat the last on
+  the fixed held-out pages by more than the noise band is not adopted, and the loop says why.
 
 ## Documentation matrix, preview harness, accessibility identifiers, UX completeness
 
