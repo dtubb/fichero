@@ -43267,13 +43267,31 @@
       },
       "AssembledRecipe": {
         "properties": {
+          "fichero_recipe": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Fichero Recipe",
+            "description": "the recipe schema version"
+          },
           "id": {
             "type": "string",
             "title": "Id"
           },
+          "version": {
+            "type": "string",
+            "nullable": true,
+            "title": "Version"
+          },
           "title": {
             "type": "string",
             "title": "Title"
+          },
+          "suits": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Suits",
+            "description": "scripts, languages and material it suits"
           },
           "purposes": {
             "items": {

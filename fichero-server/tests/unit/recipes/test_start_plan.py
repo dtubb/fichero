@@ -33,13 +33,15 @@ def test_a_project_with_no_recipe_cannot_start():
 
 
 def test_steps_become_shipped_workflows_by_name_with_the_steps_model():
-    """Kraken finds its own lines before reading, so lines+read are one run of Transcribe (Kraken);
-    the correction runs Paleographer Review with the step's MLX model. Workflows are referred to by
-    their stable preset id, never copied, and each named workflow really is in the store."""
+    """Kraken finds its own lines before reading, so lines+read are one run of Transcribe (Kraken),
+    told which reader to use; the correction runs Paleographer Review with the step's MLX model.
+    Workflows are referred to by their stable preset id, never copied, and each named workflow
+    really is in the store."""
     plan = plan_start(_recipe(LINES, READ, CORRECT), stays_local=True)
     assert plan["refusals"] == []
     kraken, review = plan["workflows"]
     assert kraken["steps"] == ["lines", "read"] and kraken["workflow"] == "Transcribe (Kraken)"
+    assert (kraken["provider_override"], kraken["model_override"]) == ("kraken", "kraken-mccatmus")
     assert review["steps"] == ["correct"] and review["workflow"] == "Paleographer Review"
     assert (review["provider_override"], review["model_override"]) == (
         "omlx", "mlx-community/Qwen2.5-VL-7B-Instruct-4bit")
@@ -48,12 +50,21 @@ def test_steps_become_shipped_workflows_by_name_with_the_steps_model():
         assert _preset(w["workflow"]) is not None, f"{w['workflow']} is not a shipped workflow"
 
 
-def test_a_reader_no_workflow_runs_is_refused_by_name_not_substituted():
-    """The shipped Kraken workflow reads with McCATMuS; a recipe that picked another reader must not
-    be read with McCATMuS behind its back."""
+def test_the_recipes_pinned_reader_is_the_one_the_run_reads_with():
+    """Gap 2 (#4951): the shipped workflow names McCATMuS, but a recipe pinned to CATMuS Medieval
+    must run CATMuS Medieval, passed as the run's Kraken reader, not the graph's."""
+    medieval = {**READ, "model": {"zenodo": "10.5281/zenodo.12743230"}}
+    [run] = plan_start(_recipe(LINES, medieval), stays_local=True)["workflows"]
+    assert (run["provider_override"], run["model_override"]) == ("kraken", "kraken-catmus-medieval")
+
+
+def test_a_reader_this_mac_cannot_fetch_is_refused_by_name_not_substituted():
+    """A reader outside the Kraken catalogue cannot be fetched by this runtime; reading with
+    another one behind the recipe's back would be a silent substitute."""
     other = {**READ, "model": {"zenodo": "10.5281/zenodo.21788410"}}
     plan = plan_start(_recipe(LINES, other), stays_local=True)
-    assert any(r.startswith("step read:") and "21788410" in r for r in plan["refusals"])
+    assert any(r.startswith("step read:") and "21788410" in r and "catalogue" in r
+               for r in plan["refusals"])
 
 
 def test_a_job_no_workflow_does_is_refused_by_name():
@@ -81,6 +92,13 @@ def test_training_is_offered_never_run_at_start():
     plan = plan_start(_recipe(LINES, READ, train), stays_local=True)
     assert plan["refusals"] == [] and plan["offered"] == ["train-a-model"]
     assert all("train-a-model" not in w["steps"] for w in plan["workflows"])
+
+
+def test_a_recipe_that_fails_the_check_never_starts():
+    """Start validates with the same check as everywhere else: a key that would carry
+    credentials refuses it, whatever maps."""
+    plan = plan_start({**_recipe(LINES, READ), "api_key": "sk-x"}, stays_local=True)
+    assert any("never code or credentials" in r for r in plan["refusals"])
 
 
 def test_a_step_with_no_model_refuses_start():
