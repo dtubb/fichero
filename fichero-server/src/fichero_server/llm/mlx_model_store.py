@@ -190,6 +190,13 @@ snapshot_download(repo_id=repo_id, revision=revision, cache_dir=models_path, ign
 """
 
 
+#: Models Fichero trained (#5398): `fichero-trained/<name>`, kept in the store's own Hub-cache layout
+#: (revision `trained`) so they resolve and load like any downloaded model, each with its card.
+TRAINED_ORG = "fichero-trained"
+TRAINED_REVISION = "trained"
+TRAINED_CARD = "fichero-card.json"
+
+
 class MLXModelStore:
     def __init__(self, root: Path | None = None) -> None:
         self.root = root or mlx_model_store_dir()
@@ -241,6 +248,32 @@ class MLXModelStore:
                 )
             )
             seen_repo_ids.add(spec.repo_id)
+        # Models Fichero trained: listed with their card, never again as an unknown cached repo.
+        for model_id in self.trained_model_ids():
+            spec = self.spec(model_id)
+            card = self.trained_card(model_id) or {}
+            supported, unsupported_reason = check_local_model_hardware(
+                display_name=spec.display_name, min_memory_bytes=spec.min_memory_bytes)
+            entries.append(
+                LocalModelCatalogEntry(
+                    provider_type=ProviderType.omlx,
+                    model_id=model_id,
+                    display_name=spec.display_name,
+                    capabilities=list(spec.capabilities),
+                    installed=self.is_complete(spec),
+                    download_size_bytes=None,
+                    disk_usage_bytes=self._disk_usage_bytes(self.trained_dir(model_id)),
+                    min_memory_bytes=spec.min_memory_bytes,
+                    memory_class=spec.memory_class,
+                    supported=supported,
+                    unsupported_reason=unsupported_reason,
+                    note=spec.note,
+                    tested_status="untested",
+                    license_label="not for release" if card.get("not_for_release") else "user-managed",
+                    source=LocalModelSource.app_cache,
+                )
+            )
+            seen_repo_ids.add(model_id)
         for repo_id in self._scan_cached_repo_ids():
             if repo_id in seen_repo_ids:
                 continue
@@ -349,9 +382,44 @@ class MLXModelStore:
         )
 
     def spec(self, model_id: str) -> ManagedModelSpec:
-        if model_id not in MANAGED_MLX_MODELS:
+        if model_id in MANAGED_MLX_MODELS:
+            return MANAGED_MLX_MODELS[model_id]
+        card = self.trained_card(model_id)
+        if card is None:
             raise KeyError(f"Unknown managed MLX model: {model_id}")
-        return MANAGED_MLX_MODELS[model_id]
+        memory = int(card.get("min_memory_bytes") or 8 * 1024**3)
+        return ManagedModelSpec(
+            model_id=model_id, repo_id=model_id, revision=TRAINED_REVISION,
+            display_name=str(card.get("display_name") or model_id), download_size_bytes=0,
+            min_memory_bytes=memory, memory_class=f"needs {memory // 1024**3} GB unified memory",
+            capabilities=("text", "vision"),
+            note=" ".join(filter(None, [str(card.get("summary") or ""),
+                                        "Not for release." if card.get("not_for_release") else ""])),
+            tested_status="untested",
+        )
+
+    def trained_dir(self, model_id: str) -> Path:
+        """Where a trained model's MLX weights and card live."""
+        return self.cache_dir / f"models--{model_id.replace('/', '--')}" / "snapshots" / TRAINED_REVISION
+
+    def trained_card(self, model_id: str) -> dict[str, Any] | None:
+        """The card of a model Fichero trained, or None for any other id."""
+        if not model_id.startswith(f"{TRAINED_ORG}/"):
+            return None
+        try:
+            import json
+
+            card = json.loads((self.trained_dir(model_id) / TRAINED_CARD).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return card if isinstance(card, dict) else None
+
+    def trained_model_ids(self) -> list[str]:
+        prefix = f"models--{TRAINED_ORG}--"
+        if not self.cache_dir.exists():
+            return []
+        found = [f"{TRAINED_ORG}/{p.name[len(prefix):]}" for p in self.cache_dir.glob(f"{prefix}*") if p.is_dir()]
+        return sorted(m for m in found if self.trained_card(m) is not None)
 
     def require_supported(self, spec: ManagedModelSpec) -> None:
         from fichero_server.llm.local_inference import LocalModelHardwareError, check_local_model_hardware

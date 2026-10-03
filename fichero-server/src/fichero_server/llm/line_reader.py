@@ -64,6 +64,18 @@ def _crop(page: Image.Image, box: OCRGeometryBox) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
+def lines_per_call(config) -> int:
+    """How many line pictures one call carries: `LINES_PER_CALL`, or what a model Fichero trained says
+    on its card (a student trained on one picture at a time is asked one at a time)."""
+    if getattr(config, "provider", None) == "omlx":
+        from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+        card = get_mlx_model_store().trained_card(str(getattr(config, "model", "") or "").removeprefix("omlx/"))
+        if card and int(card.get("lines_per_call") or 0) > 0:
+            return int(card["lines_per_call"])
+    return LINES_PER_CALL
+
+
 def parse_answer(raw: str, n: int) -> list[str | None] | None:
     """The model's JSON array of n readings, or None when it is not exactly that."""
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", (raw or "").strip())
@@ -101,7 +113,8 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
             answer = [s[0] if s else None for s in singles]
         return answer or [None]
 
-    groups = [list(range(i, min(i + LINES_PER_CALL, len(found)))) for i in range(0, len(found), LINES_PER_CALL)]
+    per_call = lines_per_call(config)
+    groups = [list(range(i, min(i + per_call, len(found)))) for i in range(0, len(found), per_call)]
     readings = [r for group in await asyncio.gather(*(batch(g) for g in groups)) for r in group]
 
     boxes, texts, cursor = [], [], 0
