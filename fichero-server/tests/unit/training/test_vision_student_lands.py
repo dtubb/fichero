@@ -92,3 +92,27 @@ def test_the_line_reader_asks_a_student_one_line_at_a_time(store, tmp_path):
     assert line_reader.lines_per_call(SimpleNamespace(provider="omlx", model=model_id)) == 1
     assert line_reader.lines_per_call(SimpleNamespace(provider="omlx", model=f"omlx/{model_id}")) == 1
     assert line_reader.lines_per_call(SimpleNamespace(provider="openrouter", model="google/gemini-3-flash-preview")) == 8
+
+
+def test_one_card_two_builds_the_hf_weights_for_linux_and_mlx_for_this_mac(store, tmp_path):
+    """WHY (`compute.engine.same-card-resolves-by-platform`): the student reads 100k pages on a Linux
+    GPU (transformers, vLLM) and a few on this Mac (MLX); one card names both builds, so the same model
+    is chosen whichever runs it."""
+    model_id = land_vision_student(_job_output(tmp_path), job_id="j1", name="sergio", card=CARD, convert=_fake_convert,
+                                   hf_build={"bucket": "historian/fichero-training", "merged": "j1/out/merged",
+                                             "adapter": "j1/out/adapter"})
+    builds = store.trained_card(model_id)["builds"]
+    assert builds["mlx"] == {"model_id": model_id, "path": str(store.trained_dir(model_id)), "bits": 4,
+                             "runs_on": "Apple silicon"}
+    assert builds["hf"]["bucket"] == "historian/fichero-training" and builds["hf"]["merged"] == "j1/out/merged"
+    assert "merged_here" not in builds["hf"], "the 17 GB copy is not kept here unless asked"
+
+
+def test_the_merged_weights_can_be_kept_here_when_asked(store, tmp_path):
+    """WHY: to run the student on a Linux GPU without Hugging Face (ACENET), the person may want the
+    standard weights on hand; asked for, they are kept beside the MLX build, not deleted."""
+    model_id = land_vision_student(_job_output(tmp_path), job_id="j1", name="sergio", card=CARD, convert=_fake_convert,
+                                   keep_merged=True)
+    here = store.trained_card(model_id)["builds"]["hf"]["merged_here"]
+    assert (tmp_path / "mlx" / "hf" / "sergio" / "model-00001-of-00001.safetensors").read_bytes() == b"bf16 weights"
+    assert here.endswith("hf/sergio")

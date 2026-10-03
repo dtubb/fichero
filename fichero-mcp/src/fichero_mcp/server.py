@@ -508,15 +508,17 @@ def fichero_train_vision_lora(
     held_out_ids: Optional[list[str]] = None,
     name: str = "student",
     language: Optional[str] = None,
-    base_repo: str = "Qwen/Qwen2.5-VL-7B-Instruct",
+    base_repo: str = "Qwen/Qwen3-VL-8B-Instruct",
     flavor: Optional[str] = None,
     timeout: str = "8h",
     epochs: int = 2,
     not_for_release: bool = True,
 ) -> Any:
-    """Distil a teacher's line readings into a local vision model: a LoRA on ``base_repo`` (bf16) on
-    Hugging Face Jobs, from the same line pictures the line reader sends and its own instruction; the
-    merged model is converted to 4-bit MLX on this Mac and lands as ``fichero-trained/<name>``.
+    """Distil a teacher's line readings into a local vision model: a LoRA on ``base_repo`` (bf16; Qwen3-VL
+    8B by default, or any image-text-to-text model such as Qwen/Qwen2.5-VL-7B-Instruct or
+    datalab-to/chandra) on Hugging Face Jobs, from the same line pictures the line reader sends and its
+    own instruction. It lands as ``fichero-trained/<name>`` in two builds of one card: 4-bit MLX on this
+    Mac, and the merged Hugging Face weights plus adapter (kept in the job's bucket) for Linux GPUs.
 
     Sends an archive's pages to another company and costs money (a 24 GB GPU for hours): pass
     ``pages_may_leave=True`` only when the PERSON has said yes for this project, and report the

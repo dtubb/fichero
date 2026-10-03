@@ -23,6 +23,8 @@ NOTEBOOK_FLAVOR = "t4-small"
 class FakeHub:
     """Answers like Hugging Face Jobs; records what Fichero asked."""
 
+    bucket = "historian/fichero-training"
+
     def __init__(self, stages=("waiting", "running", "done"), message=None):
         self.stages = list(stages)
         self.message = message
@@ -260,14 +262,18 @@ def test_the_vision_card_trains_on_line_pairs_and_lands_through_the_local_lane(d
     assert not any("SM_NPQ_C10_002" in name for name in sent), "held-out pages never leave"
     submitted = hub.submitted[0]
     assert submitted["script"] == hf_jobs.LORA_TRAINER and submitted["timeout"] == "8h"
-    assert "Qwen/Qwen2.5-VL-7B-Instruct" in submitted["script_args"]
+    assert "Qwen/Qwen3-VL-8B-Instruct" in submitted["script_args"], "Qwen3-VL 8B is the default base"
     assert on_lane == [(mlx_landing.CONVERT_KIND, mlx_landing.CONVERT_MODEL)]
     status = training_job.status(db, started["job_id"])
     assert status["card"] == "vision-lora" and status["model_id"] == model_id == "fichero-trained/sergio-qwen7b"
     assert status["training_set"]["line_pairs"] > 0
     card = store.trained_card(model_id)
-    assert card["base"] == "Qwen/Qwen2.5-VL-7B-Instruct" and card["base_licence"] == "Apache-2.0"
+    assert card["base"] == "Qwen/Qwen3-VL-8B-Instruct" and card["base_licence"] == "Apache-2.0"
     assert card["teacher"] == TEACHER and card["not_for_release"] is True
+    hf = card["builds"]["hf"]
+    assert (hf["bucket"], hf["merged"], hf["adapter"]) == (
+        "historian/fichero-training", f"{started['job_id']}/out/merged", f"{started['job_id']}/out/adapter")
+    assert card["builds"]["mlx"]["model_id"] == model_id
 
 
 def test_the_conversion_frees_kraken_first():

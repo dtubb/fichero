@@ -62,9 +62,12 @@ class TrainKrakenRequest(_TrainRequest):
 class TrainVisionLoraRequest(_TrainRequest):
     """The vision-model card: a LoRA on a vision-language model, landed on this Mac as MLX 4-bit."""
 
-    base_repo: str = Field("Qwen/Qwen2.5-VL-7B-Instruct", description="The bf16 base on the Hub (the setup card's "
-                           "model before MLX quantisation).")
-    base_licence: str = Field("Apache-2.0", description="The base's licence, carried on the card.")
+    base_repo: str = Field("Qwen/Qwen3-VL-8B-Instruct", description="The bf16 base on the Hub: any image-text-to-text "
+                           "model (Qwen3-VL 8B by default; Qwen2.5-VL 7B, chandra and others are valid).")
+    base_licence: str | None = Field(None, description="The base's licence, carried on the card; none: from Fichero's "
+                                     "list of vision bases, or 'not checked'.")
+    keep_merged_here: bool = Field(False, description="Also keep the merged Hugging Face weights on this Mac "
+                                   "(~17 GB for 8B); they are always kept in the job's bucket.")
     language: str | None = Field(None, description="The pages' language, given to the student as the line reader gives it.")
     name: str = Field("student", description="A short name: the model lands as fichero-trained/<name>.")
     flavor: str | None = Field(None, description="Hugging Face hardware; none chooses the cheapest that fits a 7B LoRA.")
@@ -242,7 +245,9 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     }
     if vision:
         _save(db, job_id, detail, phase="landing", reason="Converting the model for MLX on this Mac")
-        model_id = _land_vision(db, job_id, out, request, card)
+        hf_build = {"bucket": getattr(target, "bucket", None), "merged": f"{job_id}/out/merged",
+                    "adapter": f"{job_id}/out/adapter"}
+        model_id = _land_vision(db, job_id, out, request, card, hf_build)
         detail["model_id"] = model_id
     else:
         from fichero_server.training.landing import land_trained_reader
@@ -254,16 +259,21 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     return model_id
 
 
-def _land_vision(db: Any, job_id: str, out: Path, request: TrainVisionLoraRequest, card: dict[str, Any]) -> str:
+def _land_vision(db: Any, job_id: str, out: Path, request: TrainVisionLoraRequest, card: dict[str, Any],
+                 hf_build: dict[str, Any]) -> str:
     """The conversion is heavy local work: it runs on the local ML lane as one job, never beside a
     Kraken page or another model, while this remote job waits for it."""
     from fichero_server.training.mlx_landing import CONVERT_KIND, CONVERT_MODEL, land_vision_student
+    from fichero_server.training.vision_bases import licence_of
 
-    student = {**card, "base": request.base_repo, "base_licence": request.base_licence,
-               "language": request.language, "epochs": request.epochs, "rank": request.rank}
+    licence, licence_note = licence_of(request.base_repo)
+    student = {**card, "base": request.base_repo, "base_licence": request.base_licence or licence,
+               "base_licence_note": licence_note, "language": request.language, "epochs": request.epochs,
+               "rank": request.rank}
     return jobs.run_on_lane_blocking(
         str(Path(db.path).parent), CONVERT_KIND, job_id, model=CONVERT_MODEL,
-        fn=lambda: land_vision_student(out, job_id=job_id, name=request.name, card=student))
+        fn=lambda: land_vision_student(out, job_id=job_id, name=request.name, card=student, hf_build=hf_build,
+                                       keep_merged=request.keep_merged_here))
 
 
 def register_job_kinds() -> None:
