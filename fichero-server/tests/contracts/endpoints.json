@@ -8303,6 +8303,37 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/routes",
+        "operation_id": "routes_for_volume_api_recipes_routes_get",
+        "summary": "Routes For Volume",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "local_reader",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "pages",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "sample_pages",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "teacher",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "RoutesResponse"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/scripts",
         "operation_id": "search_scripts_api_recipes_scripts_get",
         "summary": "Search Scripts",

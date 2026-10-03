@@ -11826,6 +11826,26 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("routes-for-volume")
+    def recipes_routes_for_volume_get(
+        ctx: typer.Context,
+        local_reader: str = typer.Option(..., "--local-reader", help="Query parameter: local_reader."),
+        pages: Optional[int] = typer.Option(None, "--pages", help="Query parameter: pages."),
+        sample_pages: Optional[int] = typer.Option(None, "--sample-pages", help="Query parameter: sample_pages."),
+        teacher: str = typer.Option(..., "--teacher", help="Query parameter: teacher."),
+    ) -> None:
+        """Routes For Volume (GET /api/recipes/routes)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/routes"
+            params = {
+                "local_reader": local_reader,
+                "pages": pages,
+                "sample_pages": sample_pages,
+                "teacher": teacher,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("search-scripts")
     def recipes_search_scripts_get(
         ctx: typer.Context,

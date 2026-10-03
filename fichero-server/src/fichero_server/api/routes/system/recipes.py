@@ -179,6 +179,60 @@ async def search_languages(q: str = "", limit: int = 20) -> LanguageMatchList:
     return LanguageMatchList(items=items, count=len(items))
 
 
+class Figure(BaseModel):
+    """One number and where it came from: measured here, an estimate, or unknown."""
+
+    value: Optional[float] = None
+    basis: str = Field(description="measured, estimate or unknown")
+    source: str = Field(alias="from", description="what the figure rests on")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class RouteStep(BaseModel):
+    step: str
+    pages: Optional[int] = None
+    cost_usd: Optional[Figure] = None
+    time_seconds: Optional[Figure] = None
+
+
+class Route(BaseModel):
+    id: str
+    title: str
+    pages: int
+    cost_usd: Optional[Figure] = None
+    time_seconds: Optional[Figure] = None
+    steps: list[RouteStep] = []
+    accuracy_cer: Figure
+    leaves_this_mac: bool
+
+
+class RoutesResponse(BaseModel):
+    pages: int
+    routes: list[Route]
+
+
+@router.get("/routes", response_model=RoutesResponse, response_model_by_alias=True)
+async def routes_for_volume(
+    teacher: str,
+    local_reader: str,
+    pages: Optional[int] = None,
+    sample_pages: int = 300,
+    db: Database = Depends(get_library_database),
+) -> RoutesResponse:
+    """What can we do with this many pages? The cloud, this-Mac and distil routes side by side,
+    each figure marked measured, estimate or unknown (`source.onboard.routes-for-the-volume`).
+    `pages` defaults to the project's own count."""
+    from fichero_server.recipes.routes import routes_for_volume as plan
+    from fichero_server.recipes.start import count_pages
+
+    n = pages if pages is not None else count_pages(db)
+    if n < 0 or sample_pages < 1:
+        raise HTTPException(status_code=422, detail="pages must be 0 or more and sample_pages at least 1")
+    return RoutesResponse(pages=n, routes=[Route(**r) for r in plan(
+        db, n, teacher=teacher, local_reader=local_reader, sample_pages=sample_pages)])
+
+
 @router.get("/scripts", response_model=NamedCodeList)
 async def search_scripts(q: str = "", limit: int = 20) -> NamedCodeList:
     """Search ISO 15924 scripts by name or code (`source.onboard.widget-and-search`)."""

@@ -1415,7 +1415,7 @@ Setup
 - `source.onboard.estimate-before-start` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** the Start plan carries the page count and the cost per run (free on this Mac, unpriced cloud models null); time, carbon and the main alternative's estimate are not built; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. screens 4 and 6 show the whole
   volume's estimate (time where it runs, cost, carbon labelled as an estimate) for the proposed
   recipe and for its main alternative, before anything runs.
-- `source.onboard.routes-for-the-volume` — **[GAP]** (#4951, #5404) for the volume the person has, setup
+- `source.onboard.routes-for-the-volume` — **[PARTIAL]** (#4951, #5404) *Built (engine): `GET /api/recipes/routes` (`recipes/routes.py`) returns the cloud, this-Mac and distil routes for a volume; this Mac's time is the median of its finished job rows for that model (measured), cloud cost the price list times the Start plan's per-page tokens (estimate), and a cloud model's time, a training run's cost and hours, accuracy and carbon are `unknown` until measured; pinned by `fichero-server/tests/unit/recipes/test_routes_for_the_volume.py`. Not built: training time from past runs, accuracy from stored bake-off scores, carbon, a cluster as the read target, and setup's screen.* for the volume the person has, setup
   answers "what can we do with this?" with routes side by side, not one plan: read it all with the
   cloud teacher; read it on this Mac; and distil (the teacher labels a sample, a small model is
   trained on this Mac or a compute target, then the small model reads the whole volume here or on

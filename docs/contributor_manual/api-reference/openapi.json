@@ -10718,6 +10718,78 @@
         }
       }
     },
+    "/api/recipes/routes": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Routes For Volume",
+        "description": "What can we do with this many pages? The cloud, this-Mac and distil routes side by side,\neach figure marked measured, estimate or unknown (`source.onboard.routes-for-the-volume`).\n`pages` defaults to the project's own count.",
+        "operationId": "routes_for_volume_api_recipes_routes_get",
+        "parameters": [
+          {
+            "name": "teacher",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Teacher"
+            }
+          },
+          {
+            "name": "local_reader",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Local Reader"
+            }
+          },
+          {
+            "name": "pages",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "title": "Pages"
+            }
+          },
+          {
+            "name": "sample_pages",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 300,
+              "title": "Sample Pages"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/scripts": {
       "get": {
         "tags": [
@@ -55374,6 +55446,32 @@
         ],
         "title": "FeatureListResponse"
       },
+      "Figure": {
+        "properties": {
+          "value": {
+            "type": "number",
+            "nullable": true,
+            "title": "Value"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis",
+            "description": "measured, estimate or unknown"
+          },
+          "from": {
+            "type": "string",
+            "title": "From",
+            "description": "what the figure rests on"
+          }
+        },
+        "type": "object",
+        "required": [
+          "basis",
+          "from"
+        ],
+        "title": "Figure",
+        "description": "One number and where it came from: measured here, an estimate, or unknown."
+      },
       "FileFailure": {
         "properties": {
           "file": {
@@ -70819,6 +70917,101 @@
           "angle"
         ],
         "title": "RotateOperationRequest"
+      },
+      "Route": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "cost_usd": {
+            "$ref": "#/components/schemas/Figure",
+            "nullable": true
+          },
+          "time_seconds": {
+            "$ref": "#/components/schemas/Figure",
+            "nullable": true
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RouteStep"
+            },
+            "type": "array",
+            "title": "Steps",
+            "default": []
+          },
+          "accuracy_cer": {
+            "$ref": "#/components/schemas/Figure"
+          },
+          "leaves_this_mac": {
+            "type": "boolean",
+            "title": "Leaves This Mac"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "pages",
+          "accuracy_cer",
+          "leaves_this_mac"
+        ],
+        "title": "Route"
+      },
+      "RouteStep": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "pages": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages"
+          },
+          "cost_usd": {
+            "$ref": "#/components/schemas/Figure",
+            "nullable": true
+          },
+          "time_seconds": {
+            "$ref": "#/components/schemas/Figure",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "step"
+        ],
+        "title": "RouteStep"
+      },
+      "RoutesResponse": {
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/Route"
+            },
+            "type": "array",
+            "title": "Routes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "routes"
+        ],
+        "title": "RoutesResponse"
       },
       "RunComparisonResponse": {
         "properties": {
