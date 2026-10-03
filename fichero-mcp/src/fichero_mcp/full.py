@@ -190,15 +190,14 @@ def compare_readings(input: CompareReadingsInput) -> Any:
     def side(pass_id, artifact_id):
         return {"pass_id": pass_id} if pass_id else {"artifact_id": artifact_id}
 
-    body = {
-        "reference": side(input.reference_pass_id, input.reference_artifact_id),
-        "hypothesis": side(input.hypothesis_pass_id, input.hypothesis_artifact_id),
-        "reference_checked_by": input.reference_checked_by,
-    }
-    if input.policies:
-        body["policies"] = input.policies
     with _client() as client:
-        return client.request("POST", f"/api/documents/{input.doc_id}/readings/compare", json=body)
+        return client.compare_readings(
+            input.doc_id,
+            reference=side(input.reference_pass_id, input.reference_artifact_id),
+            hypothesis=side(input.hypothesis_pass_id, input.hypothesis_artifact_id),
+            policies=input.policies,
+            reference_checked_by=input.reference_checked_by,
+        )
 
 
 @mcp.tool()

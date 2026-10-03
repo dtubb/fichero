@@ -385,6 +385,49 @@ def fichero_workflow_status(thread_id: str, full_state: bool = False) -> Any:
         return client.execution_status(thread_id, view="full" if full_state else "summary")
 
 
+@mcp.tool()
+def fichero_compare_readings(
+    doc_id: str,
+    reference_pass_id: Optional[str] = None,
+    reference_artifact_id: Optional[str] = None,
+    hypothesis_pass_id: Optional[str] = None,
+    hypothesis_artifact_id: Optional[str] = None,
+    policies: Optional[list[str]] = None,
+    reference_checked_by: Optional[str] = None,
+) -> Any:
+    """Score one reading of a page against another, by Fichero's character error rate.
+
+    Name exactly one pass (``fichero_segments`` lists a page's passes) or one saved result
+    (``fichero_artifacts``) on each side. The answer is labelled ``agreement``: how far two
+    readings differ, not which is right. It is ``cer`` only when ``reference_checked_by`` names
+    the person who checked the reference. Report it with that label.
+
+    Args:
+        doc_id: The page's document id.
+        reference_pass_id / reference_artifact_id: The reading scored against (one of the two).
+        hypothesis_pass_id / hypothesis_artifact_id: The reading being scored (one of the two).
+        policies: Normalisation policies, e.g. ["layout-insensitive", "lenient", "diplomatic",
+            "accent-blind"]; default layout-insensitive.
+        reference_checked_by: Who checked the reference; without it the score is agreement.
+
+    A refusal (an empty reference, an unknown policy, a text too long for an exact score) carries
+    the engine's sentence; pass it on rather than reporting a number.
+    """
+    def side(pass_id: Optional[str], artifact_id: Optional[str]) -> dict[str, str]:
+        if bool(pass_id) == bool(artifact_id):
+            raise ValueError("name exactly one pass id or one artifact id on each side")
+        return {"pass_id": pass_id} if pass_id else {"artifact_id": artifact_id}  # type: ignore[dict-item]
+
+    with _client() as client:
+        return client.compare_readings(
+            doc_id,
+            reference=side(reference_pass_id, reference_artifact_id),
+            hypothesis=side(hypothesis_pass_id, hypothesis_artifact_id),
+            policies=policies,
+            reference_checked_by=reference_checked_by,
+        )
+
+
 # -- artifacts -------------------------------------------------------------
 @mcp.tool()
 def fichero_artifacts(

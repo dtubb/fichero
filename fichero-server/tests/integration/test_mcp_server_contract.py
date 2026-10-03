@@ -34,6 +34,7 @@ EXPECTED_TOOLS = {
     "fichero_workflow_list",
     "fichero_workflow_run",
     "fichero_workflow_status",
+    "fichero_compare_readings",
     "fichero_artifacts",
     "fichero_kg_entities",
     "fichero_kg_claims",

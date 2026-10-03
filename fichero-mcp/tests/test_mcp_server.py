@@ -32,6 +32,7 @@ EXPECTED_TOOLS = {
     "fichero_workflow_list",
     "fichero_workflow_run",
     "fichero_workflow_status",
+    "fichero_compare_readings",
     "fichero_artifacts",
     "fichero_kg_entities",
     "fichero_kg_claims",
@@ -303,6 +304,46 @@ def test_workflow_status_polls_the_summary_by_default(monkeypatch):
         mcp_server.fichero_workflow_status("t")
         mcp_server.fichero_workflow_status("t", full_state=True)
     assert [r.url.params.get("view") for r in seen] == ["summary", "full"]
+
+
+_COMPARE_BODY = {
+    "measure": "agreement", "reference_label": "pass: DOCX", "hypothesis_label": "result: transcription",
+    "definition": "edit distance / reference length",
+    "scores": [{"policy": "layout-insensitive", "policy_description": "", "distance": 3,
+                "reference_chars": 20, "hypothesis_chars": 21, "rate": 0.15}],
+}
+
+
+def test_compare_readings_is_on_the_default_surface(monkeypatch):
+    """#5389 said the scorer was reachable 'from the API, CLI and MCP', but it was only on the
+    `fichero_mcp.full` surface; the installed `fichero-mcp` serves this module, so an agent found
+    no scorer at all. It must be here, and send the engine's own request shape."""
+    import json
+
+    with _mock_client(monkeypatch, body=_COMPARE_BODY) as seen:
+        result = mcp_server.fichero_compare_readings(
+            "page-1", reference_pass_id="pass-docx", hypothesis_artifact_id="art-gemini",
+            policies=["layout-insensitive", "diplomatic"],
+        )
+    request = seen[0]
+    assert request.method == "POST" and request.url.path == "/api/documents/page-1/readings/compare"
+    assert json.loads(request.content) == {
+        "reference": {"pass_id": "pass-docx"}, "hypothesis": {"artifact_id": "art-gemini"},
+        "reference_checked_by": None, "policies": ["layout-insensitive", "diplomatic"],
+    }
+    assert result.measure == "agreement", "unchecked reference: agreement, never cer"
+
+
+def test_compare_readings_refuses_an_ambiguous_side(monkeypatch):
+    """WHY: a side naming both a pass and a result, or neither, has no single reading to score; the
+    agent must hear that before a request is made, not get a number for the wrong reading."""
+    with _mock_client(monkeypatch, body=_COMPARE_BODY) as seen:
+        with pytest.raises(ValueError):
+            mcp_server.fichero_compare_readings("p", reference_pass_id="a", reference_artifact_id="b",
+                                                hypothesis_pass_id="c")
+        with pytest.raises(ValueError):
+            mcp_server.fichero_compare_readings("p", reference_pass_id="a")
+    assert seen == []
 
 
 def test_artifacts_builds_path_and_params(monkeypatch):

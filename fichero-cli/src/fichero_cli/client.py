@@ -37,6 +37,7 @@ import httpx
 
 from fichero_server.api.routes.system.activity import ActivityResponse
 from fichero_server.api.routes.document.artifacts import ArtifactResponse
+from fichero_server.api.routes.document.compare_readings import CompareReadingsResponse
 from fichero_server.api.routes.document.inspector import (
     DocumentInspectorResponse,
     DocumentKnowledgeGraphResponse,
@@ -1060,6 +1061,26 @@ class FicheroClient:
                 "source_language": source_lang,
                 "target_language": target_lang,
             },
+        )
+
+    def compare_readings(
+        self,
+        doc_id: str,
+        *,
+        reference: dict[str, str],
+        hypothesis: dict[str, str],
+        policies: list[str] | None = None,
+        reference_checked_by: str | None = None,
+    ) -> CompareReadingsResponse:
+        """Score one reading of a page against another (#5389): each side is `{"pass_id": ...}` or
+        `{"artifact_id": ...}`. `agreement` unless `reference_checked_by` names who checked the
+        reference; only then `cer`. The engine refuses (422) a score it cannot stand behind."""
+        body: dict[str, Any] = {"reference": reference, "hypothesis": hypothesis,
+                                "reference_checked_by": reference_checked_by}
+        if policies:
+            body["policies"] = policies
+        return CompareReadingsResponse.model_validate(
+            self.request("POST", f"/api/documents/{quote(doc_id, safe='')}/readings/compare", json=body)
         )
 
     def execution_status(self, thread_id: str, *, view: str = "full") -> ExecutionStatusResponse:
