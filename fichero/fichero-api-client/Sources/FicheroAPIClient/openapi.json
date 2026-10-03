@@ -10363,6 +10363,114 @@
         }
       }
     },
+    "/api/recipes/languages": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Search Languages",
+        "description": "Search ISO 639-3 languages by name or code (`source.onboard.widget-and-search`).",
+        "operationId": "search_languages_api_recipes_languages_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamedCodeList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/scripts": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Search Scripts",
+        "description": "Search ISO 15924 scripts by name or code (`source.onboard.widget-and-search`).",
+        "operationId": "search_scripts_api_recipes_scripts_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamedCodeList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/assemble": {
       "post": {
         "tags": [
@@ -63205,6 +63313,45 @@
         ],
         "title": "MutationListResponse",
         "description": "Standardized envelope for mutation/triangulation list endpoints."
+      },
+      "NamedCode": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "NamedCode"
+      },
+      "NamedCodeList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NamedCode"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "NamedCodeList"
       },
       "NamingResponse": {
         "properties": {

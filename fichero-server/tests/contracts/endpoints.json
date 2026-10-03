@@ -8222,6 +8222,27 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/languages",
+        "operation_id": "search_languages_api_recipes_languages_get",
+        "summary": "Search Languages",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "NamedCodeList"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/project",
         "operation_id": "get_project_setup_api_recipes_project_get",
         "summary": "Get Project Setup",
@@ -8269,6 +8290,27 @@
         "query_params": [],
         "request_model": null,
         "response_model": "PurposeListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/scripts",
+        "operation_id": "search_scripts_api_recipes_scripts_get",
+        "summary": "Search Scripts",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "NamedCodeList"
       }
     ],
     "references": [

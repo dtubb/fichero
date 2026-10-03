@@ -1,4 +1,6 @@
 {
+  "GET /api/recipes/languages": "engine half of setup's language search; the app's Your Material step switches from Apple's locale list to this next",
+  "GET /api/recipes/scripts": "engine half of setup's script search; the app's Your Material step switches from Apple's locale list to this next",
   "GET /api/settings/compute": "the Settings pane for compute priority and device is not built yet; read by Kraken now and by the job model next",
   "PUT /api/settings/compute": "the Settings pane for compute priority and device is not built yet; set from the CLI or MCP meanwhile",
   "POST /api/documents/{document_id}/readings/compare": "reached by the CLI (documents compare-readings) and MCP (compare_readings) for the projects harness (#5389); an app surface for it is not designed yet",

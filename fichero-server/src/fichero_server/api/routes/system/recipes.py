@@ -144,6 +144,34 @@ async def list_purposes() -> PurposeListResponse:
     return PurposeListResponse(items=items, count=len(items))
 
 
+class NamedCode(BaseModel):
+    code: str
+    name: str
+
+
+class NamedCodeList(BaseModel):
+    items: list[NamedCode]
+    count: int
+
+
+@router.get("/languages", response_model=NamedCodeList)
+async def search_languages(q: str = "", limit: int = 20) -> NamedCodeList:
+    """Search ISO 639-3 languages by name or code (`source.onboard.widget-and-search`)."""
+    from fichero_server.recipes.names import search_languages as find
+
+    items = [NamedCode(**row) for row in find(q, max(1, min(limit, 100)))]
+    return NamedCodeList(items=items, count=len(items))
+
+
+@router.get("/scripts", response_model=NamedCodeList)
+async def search_scripts(q: str = "", limit: int = 20) -> NamedCodeList:
+    """Search ISO 15924 scripts by name or code (`source.onboard.widget-and-search`)."""
+    from fichero_server.recipes.names import search_scripts as find
+
+    items = [NamedCode(**row) for row in find(q, max(1, min(limit, 100)))]
+    return NamedCodeList(items=items, count=len(items))
+
+
 @router.post("/assemble", response_model=AssembledRecipe)
 async def assemble_recipe(request: AssembleRequest) -> AssembledRecipe:
     """The recipe the rules give for these answers, each choice with its reasons and each gap named

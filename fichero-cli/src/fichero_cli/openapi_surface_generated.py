@@ -11729,6 +11729,22 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("search-languages")
+    def recipes_search_languages_get(
+        ctx: typer.Context,
+        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
+    ) -> None:
+        """Search Languages (GET /api/recipes/languages)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/languages"
+            params = {
+                "limit": limit,
+                "q": q,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-project-setup")
     def recipes_get_project_setup_get(
         ctx: typer.Context,
@@ -11790,6 +11806,22 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/purposes"
             params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("search-scripts")
+    def recipes_search_scripts_get(
+        ctx: typer.Context,
+        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
+    ) -> None:
+        """Search Scripts (GET /api/recipes/scripts)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/scripts"
+            params = {
+                "limit": limit,
+                "q": q,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
