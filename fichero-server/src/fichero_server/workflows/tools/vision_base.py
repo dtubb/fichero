@@ -3271,12 +3271,15 @@ def _cgimage_to_data_uri(cg_image, max_dimension: int = 2048) -> str:
 _KRAKEN_PDF_RENDER_DPI = 300
 
 
-def _reader_label(vision_mode: str, config: Any, kraken_model: str | None) -> tuple[str, str]:
+def _reader_label(vision_mode: str, config: Any, kraken_model: str | None,
+                  lines_read_by: str = "kraken") -> tuple[str, str]:
     """What actually read the page, as (provider, model). Kraken names its recognition model (a
     catalog id, or a .mlmodel file's name), or its line finder `blla` when it only found lines;
     stamping the library's default vision model instead made a Kraken pass look like Gemini's (#5387)."""
     if vision_mode == "apple":
         return "apple", "apple-vision"
+    if vision_mode == "kraken" and lines_read_by == "model" and not kraken_model:
+        return config.provider, config.model
     if vision_mode == "kraken":
         return "kraken", (Path(kraken_model).stem if kraken_model and kraken_model.endswith(".mlmodel")
                           else kraken_model) or "blla"
@@ -3565,6 +3568,9 @@ async def process_vision(
     # line and the transcript is tied to its baselines. Absent, the kraken seam
     # stays segment-only (baselines, empty text) exactly as before.
     kraken_recognition_model: str | None = None,
+    # vision_mode="kraken" with no recognition model: "model" has the run's vision model read
+    # each line Kraken found (the teacher labelling lines for a Kraken reader to learn from).
+    lines_read_by: str = "kraken",
 ) -> dict[str, Any]:
     """Process images with vision AI.
 
@@ -4424,6 +4430,12 @@ async def process_vision(
                         result = await asyncio.to_thread(
                             segment_to_geometry, image_path, rendition_id=None
                         )
+                        if lines_read_by == "model":
+                            from fichero_server.llm.line_reader import read_lines
+
+                            result = await read_lines(
+                                image_path, result, effective_config, language=language
+                            )
                     if page_index is not None:
                         result = result.model_copy(
                             update={
@@ -4997,8 +5009,8 @@ async def process_vision(
 
                 _ep_doc_id = resolve_path_to_doc(path_to_doc, file_path)
                 _ep_model = {
-                    "provider": _reader_label(vision_mode, effective_config, kraken_recognition_model)[0],
-                    "model": _reader_label(vision_mode, effective_config, kraken_recognition_model)[1],
+                    "provider": _reader_label(vision_mode, effective_config, kraken_recognition_model, lines_read_by)[0],
+                    "model": _reader_label(vision_mode, effective_config, kraken_recognition_model, lines_read_by)[1],
                     "temperature": getattr(effective_config, "temperature", None),
                     "use_case": tool_config.artifact_type,
                 }
@@ -5072,7 +5084,7 @@ async def process_vision(
                     # (closure scope); a local re-import here would shadow it and
                     # break the pdf_text branch above (referenced-before-assign).
                     # Kraken's result is Kraken's, never the default vision model's (#5387).
-                    _p, _m = _reader_label(vision_mode, effective_config, kraken_recognition_model)
+                    _p, _m = _reader_label(vision_mode, effective_config, kraken_recognition_model, lines_read_by)
                     save_config = LLMConfig(provider=_p, model=_m)
 
                 # #2249/#2395: when per_page_texts is populated (whole-PDF path) and
