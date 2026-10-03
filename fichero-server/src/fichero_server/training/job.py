@@ -134,7 +134,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         poll_seconds: float | None = None) -> str:
     """Carry a training job through its phases; returns the landed reader's id."""
     from fichero_server.llm.kraken_runtime import resolve_recognition_model
-    from fichero_server.training.hf_jobs import HfJobsTarget
+    from fichero_server.training.hf_jobs import HfJobsTarget, kraken_args
     from fichero_server.training.kraken_set import export_training_set
     from fichero_server.training.landing import land_trained_reader
 
@@ -162,7 +162,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         _save(db, job_id, detail, phase="sending",
               reason=f"Sending {len(made.pages)} pages ({made.lines} lines) to Hugging Face")
         target.send(data, job_id)
-        far_id = target.submit(job_id, base_file=base_file, model_name=request.name,
+        far_id = target.submit(job_id, script_args=kraken_args(job_id, base_file=base_file, model_name=request.name),
                                flavor=request.flavor, timeout=request.timeout)
         detail["far_id"] = far_id
         _save(db, job_id, detail, phase="submitted", reason=f"Sent to Hugging Face ({request.flavor})")

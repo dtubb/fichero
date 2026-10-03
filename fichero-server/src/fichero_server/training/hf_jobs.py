@@ -20,12 +20,17 @@ from pathlib import Path
 from typing import Any
 
 TRAINER = Path(__file__).with_name("hf_kraken_train.py")
+LORA_TRAINER = Path(__file__).with_name("hf_vision_lora_train.py")
 BUCKET_NAME = "fichero-training"
 MOUNT = "/work"
 #: A T4 is plenty for a Kraken reader (~5 M parameters); the price is read before sending.
 DEFAULT_FLAVOR = "t4-small"
 #: Always explicit: the service ends a Job at 30 minutes unless told otherwise.
 DEFAULT_TIMEOUT = "4h"
+#: Hardware that fits a 7B vision model's LoRA in bf16 (24 GB of GPU, and enough RAM to load ~15 GB of
+#: weights); the cheapest listed is chosen. `a10g-small` is left out: its 15 GB of RAM is less than the
+#: bf16 weights it would have to load.
+LORA_FLAVORS = ("l4x1", "a10g-large")
 
 #: Hugging Face's stages, in the words a job row carries.
 DONE, FAILED, CANCELLED, WAITING, RUNNING = "done", "failed", "cancelled", "waiting", "running"
@@ -104,24 +109,28 @@ class HfJobsTarget:
         self.api.sync_bucket(str(local_dir), self._uri(job_key, "data"), token=self.token)
         return self._uri(job_key, "data")
 
-    def submit(self, job_key: str, *, base_file: str | None, model_name: str, flavor: str = DEFAULT_FLAVOR,
-               timeout: str = DEFAULT_TIMEOUT) -> str:
-        """Start the trainer on the sent data; returns the Job's id."""
+    def cheapest(self, flavors: tuple[str, ...] | list[str]) -> str:
+        """The flavour among these with the lowest listed price an hour; refused when none is listed."""
+        priced = [(price, name) for name in flavors if (price := self.price_per_hour(name)) is not None]
+        if not priced:
+            raise ValueError(f"none of {', '.join(flavors)} is listed by Hugging Face Jobs")
+        return min(priced)[1]
+
+    def submit(self, job_key: str, *, script_args: list[str], script: Path = TRAINER,
+               flavor: str = DEFAULT_FLAVOR, timeout: str = DEFAULT_TIMEOUT) -> str:
+        """Start one of Fichero's trainer scripts on the sent data; returns the Job's id."""
         from huggingface_hub import Volume
 
         if not timeout:
             raise ValueError("a Hugging Face Job needs an explicit time limit (the service's default is 30 minutes)")
-        root = f"{MOUNT}/{job_key}"
         info = self.api.run_uv_job(
-            str(TRAINER),
-            script_args=["--data", f"{root}/data", "--out", f"{root}/out", "--base", base_file or "",
-                         "--name", model_name],
-            flavor=flavor, timeout=timeout,
+            str(script), script_args=script_args, flavor=flavor, timeout=timeout,
             labels={"fichero-job": job_key},
             volumes=[Volume(type="bucket", source=self.bucket, mount_path=MOUNT)],
             token=self.token,
         )
         return info.id
+
 
     def status(self, far_id: str) -> FarStatus:
         info = self.api.inspect_job(job_id=far_id, token=self.token)
@@ -140,3 +149,19 @@ class HfJobsTarget:
         local.mkdir(parents=True, exist_ok=True)
         self.api.sync_bucket(self._uri(job_key, "out"), str(local), token=self.token)
         return local
+
+
+def job_root(job_key: str) -> str:
+    """Where a job's folders are, inside the Job."""
+    return f"{MOUNT}/{job_key}"
+
+
+def kraken_args(job_key: str, *, base_file: str | None, model_name: str) -> list[str]:
+    root = job_root(job_key)
+    return ["--data", f"{root}/data", "--out", f"{root}/out", "--base", base_file or "", "--name", model_name]
+
+
+def lora_args(job_key: str, *, base_repo: str, epochs: int, rank: int) -> list[str]:
+    root = job_root(job_key)
+    return ["--data", f"{root}/data", "--out", f"{root}/out", "--base", base_repo,
+            "--epochs", str(epochs), "--rank", str(rank)]
