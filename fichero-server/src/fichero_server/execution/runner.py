@@ -1121,7 +1121,7 @@ async def _run_workflow_in_background(
                 finalize_exc,
             )
 
-    async def _finish_as_paused() -> None:
+    async def _finish_as_paused(reason: str = "user_requested", review: list | None = None) -> None:
         """Record the run as paused (#4402).
 
         Shared by BOTH ways a run can pause: the between-events check in the
@@ -1135,15 +1135,16 @@ async def _run_workflow_in_background(
         state["status"] = "paused"
         clear_pause(thread_id)
         await log_execution(
-            f"Workflow '{workflow.name}' paused by user "
-            f"(thread_id={thread_id})"
+            f"Workflow '{workflow.name}' paused "
+            + ("by user" if reason == "user_requested" else "for a person's answer")
+            + f" (thread_id={thread_id})"
         )
         event_queue.put(
             SSEEvent(
                 event="pause",
                 thread_id=thread_id,
                 workflow_id=workflow_id,
-                data={"reason": "user_requested"},
+                data={"reason": reason, **({"review": review} if review else {})},
             )
         )
         activity_tracker.workflow_paused(
@@ -2001,6 +2002,25 @@ async def _run_workflow_in_background(
                         logger.info(
                             f"Exit node completed: {original_id}, {len(completed_exit_nodes)}/{len(exit_node_event_names)}"
                         )
+
+        # A step that asked a person (LangGraph interrupt(), e.g. ask_human) ends the stream with
+        # the question pending: that is a pause awaiting an answer, not a run that lost its exit
+        # nodes (#5371). Resume with Command(resume=answer) continues from the checkpoint.
+        snapshot = await app.aget_state(config) if hasattr(app, "aget_state") else None
+        pending_review = [
+            getattr(i, "value", i) for i in (getattr(snapshot, "interrupts", None) or ())
+        ] or [
+            getattr(i, "value", i)
+            for task in (getattr(snapshot, "tasks", None) or ())
+            for i in (getattr(task, "interrupts", None) or ())
+        ]
+        if pending_review:
+            await _finish_as_paused(reason="awaiting_review", review=pending_review)
+            return
+        # A breakpoint (interrupt_before / interrupt_after) also ends the stream with work left.
+        if (request.interrupt_before or request.interrupt_after) and getattr(snapshot, "next", None):
+            await _finish_as_paused(reason="breakpoint")
+            return
 
         # Get final state
         checkpoint_tuple = await checkpointer.aget_tuple(config)

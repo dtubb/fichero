@@ -13,6 +13,7 @@ The builder:
 
 from __future__ import annotations
 
+from langgraph.errors import GraphBubbleUp
 import asyncio
 import logging
 import os
@@ -1336,6 +1337,11 @@ def _make_node_function(
         except WorkflowPaused:
             # #4402 second half: same contract for Pause — the runner must
             # settle the run as PAUSED (resumable), not failed.
+            raise
+        except GraphBubbleUp:
+            # LangGraph's own control flow (an interrupt() asking a person, a parent command) is
+            # an ordinary Exception subclass; the catch-all below turned a review step's pause
+            # into a failed run (#5371). It must reach LangGraph untouched.
             raise
         except SystemicErrorDetected:
             # Hard-abort signal — must propagate, not be reduced to a dict.
