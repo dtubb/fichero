@@ -1350,7 +1350,7 @@ Profiles (the defaults section of a recipe)
   licences.
 
 Purposes and layers
-- `source.onboard.purpose-first` — **[GAP]** (#4951) setup's first screen asks the purpose, from the
+- `source.onboard.purpose-first` — **[PARTIAL]** (#4951) **Built 2026-10-03 (app + engine):** first run's Purpose step lists the engine's purposes (GET /api/recipes/purposes) before material; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`, `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. setup's first screen asks the purpose, from the
   table's purposes in plain words, "Not sure yet" included; the purpose is stored on the project
   and shown in its Inspector.
 - `source.onboard.purpose-sets-layers` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** purpose to steps in `assemble()` (`PURPOSE_STEPS`); running layers automatically at import is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the purpose decides which layers run at
@@ -1371,7 +1371,7 @@ Purposes and layers
   on, with whether each may use the cloud, and is never written by hand.
 
 Setup
-- `source.onboard.widget-and-search` — **[GAP]** (#4951) setup is a form with search beside each
+- `source.onboard.widget-and-search` — **[PARTIAL]** (#4951) **Built 2026-10-03:** the Your Material step searches languages and scripts (Apple's locale data for now; Glottolog / full ISO 15924 search is a gap); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. setup is a form with search beside each
   field, not a conversation.
 - `source.onboard.screens-in-order` — **[GAP]** (#4951) setup asks the purpose first and shows
   Start last, with its screens in one fixed order (provisionally the six of section 7; to be
@@ -1385,7 +1385,7 @@ Setup
 - `source.onboard.topics-written-once` — **[GAP]** (#4951) each topic's and each job's explanation
   is stored once, with its job or topic in the registry, and the same text is shown in setup, the
   Inspector, an exported recipe's README and the user manual.
-- `source.onboard.set-up-later` — **[GAP]** (#4951) "Set up later" makes a project with no settings
+- `source.onboard.set-up-later` — **[PARTIAL]** (#4951) **Built 2026-10-03:** Skip leaves the project unset and saves nothing; `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. "Set up later" makes a project with no settings
   that behaves as today, and Set Up… in its Inspector runs setup at any time.
 - `source.onboard.samples-first` — **[GAP]** (#4951) given material, setup picks up to ten sample
   pages spread across it (first, last, evenly spaced, largest and smallest), which the person can
@@ -1397,7 +1397,7 @@ Setup
 - `source.onboard.volume-counted-or-asked` — **[GAP]** (#4951) setup counts the pages of the
   material given (images, PDF pages, manifest canvases) and asks how much (tens, thousands,
   hundreds of thousands) only when it cannot count; the volume is stored and used by the rules.
-- `source.onboard.self-documenting` — **[GAP]** (#4951) each setup screen and each proposed step
+- `source.onboard.self-documenting` — **[PARTIAL]** (#4951) **Built 2026-10-03:** each proposed step explains itself with the job registry's own text (GET /api/recipes/jobs); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. each setup screen and each proposed step
   explains in plain words what it does, why it is in the recipe, and its options' trade-offs
   (accuracy, cost, speed, carbon, trainability), with an example from the person's own sample
   pages where there are some, using the job registry's descriptions.
@@ -1426,7 +1426,7 @@ Setup
   existing pages as a separate job with its page count and estimate.
 - `source.onboard.search-triggered` — **[GAP]** (#4948, #4951) once scripts, languages and period
   are set, Fichero finds candidates for each step itself, without a manual search.
-- `source.onboard.proposes-chain` — **[GAP]** (#4951) screen 4 shows the proposed recipe: a
+- `source.onboard.proposes-chain` — **[PARTIAL]** (#4951) **Built 2026-10-03:** the proposed recipe shows each step's model card (note, licence, size, error rate), reasons and gaps; estimates and samples are a gap; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. screen 4 shows the proposed recipe: a
   published one that fits (the flagship first where it fits) or a generated one, with each step's
   model, where it runs, download size, licence class and measurements.
 - `source.onboard.deterministic-recipe` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** `assemble()` from answers and cards (`recipes/assemble.py`); cards are not yet read from the real catalogue; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the recipe is assembled by rules
@@ -1494,7 +1494,7 @@ Setup
 - `source.onboard.bakeoff-skippable` — **[GAP]** (#4951) skipping the bake-off keeps the
   rule-ranked recommendation, and each such step shows "not measured on this project" in the
   Inspector until a bake-off runs.
-- `source.onboard.says-no-model` — **[GAP]** (#4951) where no candidate passes the hard constraints
+- `source.onboard.says-no-model` — **[PARTIAL]** (#4951) **Built 2026-10-03:** a step with no fitting model shows its gap in words; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. where no candidate passes the hard constraints
   for a step, setup says so in words and proposes the hand-transcribe, draft-and-correct and
   train routes; it never substitutes silently.
 - `source.onboard.no-model-step-kept` — **[GAP]** (#4951) a step with no model stays in the recipe
@@ -1561,7 +1561,7 @@ The recipe and its format
 - `source.recipe.update-is-clicked-not-applied` — **[GAP]** (#5364) a new version of a followed recipe shows
   as an update symbol in the Inspector; nothing changes until the person clicks it; then the recipe
   updates and a re-run of existing pages is offered as one job with its estimate.
-- `source.onboard.cloud-asked-once` — **[GAP]** (#4951) whether pages may leave the Mac is asked once per
+- `source.onboard.cloud-asked-once` — **[PARTIAL]** (#4951) **Built 2026-10-03:** asked only when the recipe names cloud_options, saved with the project's answers (PUT /api/recipes/project); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`, `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. whether pages may leave the Mac is asked once per
   project (at setup or first cloud use, whichever is first) and shown in the recipe editor, where
   every cloud step is marked; it is not asked again per provider or per step.
 - `source.onboard.bakeoff-random-sample` — **[GAP]** (#4951) the bake-off draws a random sample stratified
