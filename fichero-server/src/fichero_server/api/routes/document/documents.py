@@ -649,6 +649,10 @@ async def list_documents(
             items = docs[offset : offset + limit]
         else:
             items = docs[offset:]
+        # The plain list carried child_count 0 for every folder while /roots and
+        # /{id}/children filled it (#5399): an agent read the notebooks as empty.
+        # One query for the returned page only.
+        items = await asyncio.to_thread(_with_child_counts, db, items)
 
         perf["matched_rows"] = len(docs)
         perf["returned_rows"] = len(items)
