@@ -1,11 +1,12 @@
 """A vision model trained with LoRA comes home as an MLX model (#5398, `compute.tune.convert-for-mlx`).
 
 The Job returns the adapter (always: `compute.tune.adapter-always-returns`) and the base with the
-adapter merged in (bf16, ~15 GB for 7B). On this Mac the merged model is converted and quantised to
+adapter merged in (bf16, ~17 GB for 8B). Both stay in standard Hugging Face form in the job's bucket:
+that is the build a Linux GPU runs (transformers, vLLM; reading at scale off the Mac). On this Mac the merged model is converted and quantised to
 4-bit MLX with `mlx_vlm.convert`, in the MLX runtime's own Python, on the local ML lane as one heavy
 job (it never runs beside a Kraken page or another model). The MLX model lands in the model store as
-`fichero-trained/<name>` with its card, the adapter beside it; the merged copy is deleted once the
-conversion succeeded, since it is as large as the base. The conversion runs on the Mac only, as the
+`fichero-trained/<name>` with its card, the adapter beside it; this Mac's copy of the merged weights is deleted
+once the conversion succeeded (it is as large as the base) unless asked to keep it. The conversion runs on the Mac only, as the
 spec rules: MLX is Apple's.
 
 The card says what the student is: its base and licence, its teacher, its training set (lines a
@@ -62,8 +63,14 @@ def model_id_for(name: str) -> str:
 
 
 def land_vision_student(out_dir: str | Path, *, job_id: str, name: str, card: dict[str, Any],
-                        convert: Callable[[Path, Path], None] | None = None, keep_merged: bool = False) -> str:
-    """Install the trained student in the MLX model store; returns its model id."""
+                        convert: Callable[[Path, Path], None] | None = None, keep_merged: bool = False,
+                        hf_build: dict[str, Any] | None = None) -> str:
+    """Install the trained student; returns its model id.
+
+    One card, two builds (`compute.engine.same-card-resolves-by-platform`): `hf`, the merged weights
+    and the adapter in standard Hugging Face form, run by transformers or vLLM on a Linux GPU (kept in
+    the job's bucket, and here too when `keep_merged`), and `mlx`, the 4-bit conversion this Mac runs.
+    """
     from fichero_server.llm.mlx_model_store import TRAINED_CARD, get_mlx_model_store
 
     out = Path(out_dir)
@@ -81,9 +88,18 @@ def land_vision_student(out_dir: str | Path, *, job_id: str, name: str, card: di
     if adapters.exists():
         shutil.rmtree(adapters)
     shutil.copytree(adapter, adapters)
-    full = {**card, "job_id": job_id, "lines_per_call": 1, "quantised_bits": Q_BITS,
-            "adapter_path": str(adapters), "trained_at": datetime.now(timezone.utc).isoformat()}
-    (dest / TRAINED_CARD).write_text(json.dumps(full, indent=1), encoding="utf-8")
-    if not keep_merged:
+    hf = {**(hf_build or {}), "format": "huggingface (safetensors, bf16)", "adapter_here": str(adapters)}
+    if keep_merged:
+        here = store.root / "hf" / model_id.split("/", 1)[1]
+        if here.exists():
+            shutil.rmtree(here)
+        shutil.move(str(merged), str(here))
+        hf["merged_here"] = str(here)
+    else:
         shutil.rmtree(merged)
+    full = {**card, "job_id": job_id, "lines_per_call": 1, "quantised_bits": Q_BITS,
+            "adapter_path": str(adapters), "trained_at": datetime.now(timezone.utc).isoformat(),
+            "builds": {"mlx": {"model_id": model_id, "path": str(dest), "bits": Q_BITS, "runs_on": "Apple silicon"},
+                       "hf": {**hf, "runs_on": "Linux GPU (transformers, vLLM)"}}}
+    (dest / TRAINED_CARD).write_text(json.dumps(full, indent=1), encoding="utf-8")
     return model_id

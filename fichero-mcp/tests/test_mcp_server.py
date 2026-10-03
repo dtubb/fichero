@@ -366,7 +366,7 @@ def test_training_tools_send_the_engines_request(monkeypatch):
                                              language="Spanish")
     start, status, cancel, vision = seen
     assert (vision.method, vision.url.path) == ("POST", "/api/training/vision-lora")
-    assert json.loads(vision.content)["base_repo"] == "Qwen/Qwen2.5-VL-7B-Instruct"
+    assert json.loads(vision.content)["base_repo"] == "Qwen/Qwen3-VL-8B-Instruct"
     assert (start.method, start.url.path) == ("POST", "/api/training/kraken")
     body = json.loads(start.content)
     assert body["pages_may_leave"] is True and body["held_out_ids"] == ["p4"] and body["timeout"] == "4h"

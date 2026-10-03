@@ -577,10 +577,11 @@ Through the audited, non-undoable action `training.start`.
 
 `POST /api/training/vision-lora` is the same job on the vision-model card (`compute.tune.lora`): the
 same training set cut into line pictures with the line reader's own instruction and the teacher's
-answers, a LoRA on the bf16 `base_repo` (`Qwen/Qwen2.5-VL-7B-Instruct` by default, Apache-2.0) on the
-cheapest listed GPU that fits unless a `flavor` is named, and, back on this Mac, the merged model
-converted to 4-bit MLX on the local ML lane and landed as `fichero-trained/<name>` (the adapter kept
-beside it, the merged copy deleted). The same refusals. Through `training.start_vision_lora`.
+answers, a LoRA on the bf16 `base_repo` (`Qwen/Qwen3-VL-8B-Instruct` by default; any image-text-to-text
+model, its licence recorded) on the cheapest listed GPU that fits unless a `flavor` is named, and,
+back on this Mac, the merged model converted to 4-bit MLX on the local ML lane and landed as
+`fichero-trained/<name>`: one card, two builds (MLX here; the merged Hugging Face weights and adapter
+in the job's bucket for Linux GPUs; `keep_merged_here` keeps a copy on this Mac too). The same refusals. Through `training.start_vision_lora`.
 
 `GET /api/training/jobs/{job_id}` follows it: `state`, the `reason` in words, its `phase` and
 `history`, the Job's `far_id` on Hugging Face, the training set's counts (including how many lines a

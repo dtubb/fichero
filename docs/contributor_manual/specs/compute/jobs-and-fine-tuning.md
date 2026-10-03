@@ -334,7 +334,7 @@ needs them.
   `compute.image.gpu-path-is-tested-somewhere-named`).
 - `compute.engine.kraken-and-layout-in-process` — **[GAP]** (#5240) Kraken and layout models are loaded directly
   in the job's process, on the GPU when there is one. *Test:* cpu image: Kraken reads one page.
-- `compute.engine.same-card-resolves-by-platform` — **[GAP]** (#5240) a card names the engines that can run it;
+- `compute.engine.same-card-resolves-by-platform` — **[PARTIAL]** (#5240) *Built for trained vision models (#5398): a landed student's card names two builds, `mlx` (4-bit, this Mac) and `hf` (merged bf16 weights and adapter in the job's bucket, for transformers or vLLM on a Linux GPU); resolving a run to one by platform is not built.* a card names the engines that can run it;
   the same workflow resolves to MLX on the Mac and vLLM in the gpu image with no change to the
   workflow. A card no engine on the target can run refuses the job before sending.
   *Routed:* the card's fields are → #4948's. *Test:* resolution table, pure.
@@ -514,9 +514,10 @@ needs them.
    measurement on the maintainer's own pages.*
 4. **Base model for the first language or vision fine-tune.** *Answered 2026-10-03: a small
    Qwen-VL-class model (for example Qwen2.5-VL 3B) with LoRA; the choice is a card, so nothing is
-   hard-wired. It comes after the Kraken and YOLO path.* *Revised 2026-10-03 (maintainer): Qwen2.5-VL
-   7B, the setup card for Spanish hands, trained in bf16 and landed as MLX 4-bit; the 3B's licence is
-   research-only.*
+   hard-wired. It comes after the Kraken and YOLO path.* *Revised 2026-10-03 (maintainer): the base is a
+   choice on the request, Qwen3-VL 8B (Apache-2.0) by default, Qwen2.5-VL 7B or another family after a
+   bake-off of the untrained readers; trained in bf16 and landed as MLX 4-bit and as Hugging Face
+   weights; the 3B's licence is research-only.*
 5. **Does the merged model come home by default?** It is about 16 GB for an 8B model.
    *Proposal: no. The adapter always; the merged model only when the person wants it on the
    Mac.*

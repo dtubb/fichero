@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11,<3.13"
-# dependencies = ["torch>=2.5", "transformers>=4.51,<5", "peft>=0.15", "accelerate>=1.3", "pillow>=11"]
+# dependencies = ["torch>=2.5", "transformers>=4.57,<5", "peft>=0.15", "accelerate>=1.3", "pillow>=11"]
 # ///
 """Fine-tune a vision model with LoRA INSIDE a Hugging Face Job (#5398, `compute.tune.lora`). Shipped
 with Fichero; sent as the Job's script by `training.hf_jobs`, never edited per run.
@@ -8,10 +8,12 @@ with Fichero; sent as the Job's script by `training.hf_jobs`, never edited per r
     --data   a training set with line pairs (`training.line_pairs`): pairs.jsonl and lines/
     --out    out/adapter (always: `compute.tune.adapter-always-returns`) and out/merged (the base with
              the adapter merged in, bf16, which the Mac converts for MLX: `compute.tune.convert-for-mlx`)
-    --base   the bf16 base model on the Hub, e.g. Qwen/Qwen2.5-VL-7B-Instruct
+    --base   the bf16 base model on the Hub (Qwen/Qwen3-VL-8B-Instruct by default; any image-text-to-text
+             model transformers loads, e.g. Qwen/Qwen2.5-VL-7B-Instruct or datalab-to/chandra)
 
 Each pair is one line picture, the line reader's own instruction for one picture, and the teacher's
-answer; the loss is on the answer only. A few pairs are kept aside and their loss is printed after
+answer; the loss is on the answer only. Nothing here is one model family's: the model is loaded by
+`AutoModelForImageTextToText`, and the chat is written by the processor's own template. A few pairs are kept aside and their loss is printed after
 each epoch. Exits non-zero with nothing to train on.
 """
 from __future__ import annotations
@@ -22,10 +24,10 @@ import os
 import random
 import sys
 
-#: The parts of the language model the adapter learns (the vision tower is left as it is).
+#: The parts of the language model the adapter learns. In the Qwen-VL families (Qwen2.5-VL, Qwen3-VL and
+#: the models built on them) the vision tower's layers have other names (qkv, proj, fc), so it is left as
+#: it is.
 TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
-#: Line pictures are long and short; this bounds the visual tokens per picture.
-MIN_PIXELS, MAX_PIXELS = 28 * 28 * 4, 28 * 28 * 640
 
 
 def load_pairs(data_dir: str) -> list[dict]:
@@ -61,7 +63,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", required=True)
     parser.add_argument("--out", required=True)
-    parser.add_argument("--base", default="Qwen/Qwen2.5-VL-7B-Instruct")
+    parser.add_argument("--base", default="Qwen/Qwen3-VL-8B-Instruct")
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--rank", type=int, default=16)
     parser.add_argument("--lr", type=float, default=1e-4)
@@ -77,10 +79,10 @@ def main() -> None:
     import torch
     from peft import LoraConfig, get_peft_model
     from PIL import Image
-    from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+    from transformers import AutoModelForImageTextToText, AutoProcessor
 
-    processor = AutoProcessor.from_pretrained(args.base, min_pixels=MIN_PIXELS, max_pixels=MAX_PIXELS)
-    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(args.base, torch_dtype=torch.bfloat16, device_map="cuda")
+    processor = AutoProcessor.from_pretrained(args.base)
+    model = AutoModelForImageTextToText.from_pretrained(args.base, torch_dtype=torch.bfloat16, device_map="cuda")
     model.config.use_cache = False
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
