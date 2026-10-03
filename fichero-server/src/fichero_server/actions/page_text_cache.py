@@ -242,6 +242,20 @@ def cached_line_map(db: Any, document_id: str, text: str) -> list[dict[str, Any]
 DERIVATION_STAMP = "page_text_derivation"
 
 
+def _save_line_map(db: Any, doc: Any, text: str, derived: Any) -> None:
+    """Store the page's line map for ``text``; when a line's text changed, marks made on it follow
+    their words (#5077). The old map and text are read BEFORE they are replaced."""
+    from fichero_server.actions.highlight_reanchor import reanchor_mark_targets
+    from fichero_server.models import PageLineMap
+
+    old_text = doc.page_content or ""
+    old_lines = cached_line_map(db, doc.id, old_text) or []
+    new_lines = line_map(db, derived)
+    db.save(PageLineMap(id=doc.id, text_sha=_sha(text), lines=new_lines))
+    if old_lines and old_text != text:
+        reanchor_mark_targets(db, doc.id, old_text, old_lines, text, new_lines)
+
+
 def _store(db: Any, doc: Any, text: str, now: Any, standing: str | None = None) -> bool:
     """Write the cache and stamp it with the derivation that produced it. True when the TEXT, or the
     standing text search reads beside it, changed (a page to re-embed); a stamp-only update is
@@ -300,7 +314,7 @@ def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
         # The map is re-stored with the text: a stale stamp means a stale map too.
         from fichero_server.models import PageLineMap
 
-        db.save(PageLineMap(id=document_id, text_sha=_sha(text), lines=line_map(db, derived)))
+        _save_line_map(db, doc, text, derived)
         if _store(db, doc, text, utc_now(), standing_text(db, derived)):
             changed.append(document_id)
     return changed
@@ -338,7 +352,7 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
             continue  # no working pass: nothing derives, so nothing is cached
         text = cache_text(derived)
         # Stored even when the text is unchanged: two lines that read alike can swap places.
-        db.save(PageLineMap(id=document_id, text_sha=_sha(text), lines=line_map(db, derived)))
+        _save_line_map(db, doc, text, derived)
         if _store(db, doc, text, utc_now(), standing_text(db, derived)):
             changed.append(document_id)
     return changed
