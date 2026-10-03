@@ -295,6 +295,16 @@ def test_workflow_status_builds_path(monkeypatch):
     assert seen[0].url.path == "/api/workflow-execution/threads/thread-7/status"
 
 
+def test_workflow_status_polls_the_summary_by_default(monkeypatch):
+    """#5401: an agent polls this tool; the run's whole state was 526 KB, more than a tool result
+    can hold. By default it must ask the engine for the summary, and the full state only on request."""
+    status_body = {"thread_id": "t", "workflow_id": "w", "workflow_name": "T", "status": "running"}
+    with _mock_client(monkeypatch, body=status_body) as seen:
+        mcp_server.fichero_workflow_status("t")
+        mcp_server.fichero_workflow_status("t", full_state=True)
+    assert [r.url.params.get("view") for r in seen] == ["summary", "full"]
+
+
 def test_artifacts_builds_path_and_params(monkeypatch):
     # /api/artifacts/document/{id} returns the standard {items, count} envelope.
     with _mock_client(monkeypatch, body={"items": [], "count": 0}) as seen:

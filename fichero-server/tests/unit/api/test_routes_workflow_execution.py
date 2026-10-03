@@ -270,6 +270,46 @@ class TestGetThreadStatus:
         assert "Transcribe each file_process" in payload
 
     @pytest.mark.asyncio
+    async def test_summary_view_leaves_out_the_state_and_counts_progress(self):
+        """#5401: the full state of a 50-photo run was 526 KB, too big for an agent polling over MCP.
+        `view=summary` must drop it and still say how far the run has got, counting the files that
+        are finished but only in the checkpoint's pending writes."""
+        checkpoint_tuple = MagicMock()
+        checkpoint_tuple.checkpoint = {
+            "id": "checkpoint-1",
+            "channel_values": {
+                "workflow_id": "unknown",
+                "files": ["/p/a.jpg", "/p/b.jpg", "/p/c.jpg"],
+                "current_node": "files-source",
+                "__pregel_tasks": [Send("Transcribe_process", {"file": "/p/c.jpg", "doc": "x" * 5000})],
+            },
+        }
+        checkpoint_tuple.metadata = {}
+        checkpoint_tuple.pending_writes = [
+            ("t1", "parallel_results", {"transcribe": [{"file": "/p/a.jpg", "index": 0, "total": 3,
+                                                        "result": {"error": None}}]}),
+            ("t2", "parallel_results", {"transcribe": [{"file": "/p/b.jpg", "index": 1, "total": 3,
+                                                        "success": False, "error": "provider hang"}]}),
+        ]
+        mock_cp = _make_mock_checkpointer()
+        mock_cp.aget_tuple = AsyncMock(return_value=checkpoint_tuple)
+        db = MagicMock()
+        db.path = "/tmp/test.fichero/fichero.duckdb"
+
+        with patch(
+            "fichero_server.api.routes.workflow_execution.core.AsyncDuckDBCheckpointer.from_db_path",
+            return_value=mock_cp,
+        ):
+            summary = await get_thread_status("thread-1", view="summary", db=db)
+            full = await get_thread_status("thread-1", view="full", db=db)
+
+        assert summary.current_state is None and full.current_state is not None
+        (step,) = summary.progress.steps
+        assert (step.total, step.done, step.succeeded, step.failed) == (3, 2, 1, 1)
+        assert step.failures[0].file == "b.jpg"
+        assert len(summary.model_dump_json()) < len(full.model_dump_json()) / 3
+
+    @pytest.mark.asyncio
     async def test_prefers_persisted_failed_run_over_clean_checkpoint(self):
         """A checkpoint without pending writes is not proof the run succeeded."""
         checkpoint_tuple = MagicMock()

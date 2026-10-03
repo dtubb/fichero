@@ -540,6 +540,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/registry_builtins.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/remote_jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/resolver.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_comparison.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_progress.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_scope.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_status.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_steps.py

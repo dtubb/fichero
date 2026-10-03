@@ -15684,11 +15684,14 @@ def register_generated_openapi_commands(
     def workflow_execution_get_thread_status_get(
         ctx: typer.Context,
         thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        view: Optional[str] = typer.Option(None, "--view", help="Query parameter: view."),
     ) -> None:
         """Get Thread Status (GET /api/workflow-execution/threads/{thread_id}/status)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/workflow-execution/threads/{thread_id}/status"
-            params = None
+            params = {
+                "view": view,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

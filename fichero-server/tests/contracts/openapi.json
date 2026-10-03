@@ -26098,7 +26098,7 @@
           "workflow-execution"
         ],
         "summary": "Get Thread Status",
-        "description": "Get status of a workflow execution thread.\n\nRetrieves the current state and checkpoint information for a thread.\n\nArgs:\n    thread_id: Thread ID\n\nReturns:\n    Current execution status\n\nRaises:\n    404: Thread not found",
+        "description": "Get status of a workflow execution thread.\n\nRetrieves the current state and checkpoint information for a thread, and the run's\nprogress (the current step, files done, succeeded, failed and cancelled per fanned-out\nstep, the first failures by file), counted from the state and the checkpoint's pending\nwrites so a running fan-out is counted as it goes.\n\nArgs:\n    thread_id: Thread ID\n    view: `full` (the whole state) or `summary` (progress only)\n\nReturns:\n    Current execution status\n\nRaises:\n    404: Thread not found",
         "operationId": "get_thread_status_api_workflow_execution_threads__thread_id__status_get",
         "parameters": [
           {
@@ -26109,6 +26109,22 @@
               "type": "string",
               "title": "Thread Id"
             }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "full",
+                "summary"
+              ],
+              "type": "string",
+              "description": "`summary` leaves out the run's whole state (hundreds of KB for a fanned-out run) and keeps `progress`: the current step and per-file outcome counts (#5401).",
+              "default": "full",
+              "title": "View"
+            },
+            "description": "`summary` leaves out the run's whole state (hundreds of KB for a fanned-out run) and keeps `progress`: the current step and per-file outcome counts (#5401)."
           }
         ],
         "responses": {
@@ -54922,6 +54938,10 @@
             "type": "string",
             "nullable": true,
             "title": "Error"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/RunProgress",
+            "nullable": true
           }
         },
         "type": "object",
@@ -55117,6 +55137,26 @@
           "items"
         ],
         "title": "FeatureListResponse"
+      },
+      "FileFailure": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "File",
+            "description": "The file's name (not its full path)."
+          },
+          "error": {
+            "type": "string",
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "error"
+        ],
+        "title": "FileFailure",
+        "description": "One file a step could not do."
       },
       "FileType": {
         "type": "string",
@@ -70619,6 +70659,37 @@
         ],
         "title": "RunComparisonResponse"
       },
+      "RunProgress": {
+        "properties": {
+          "current_node": {
+            "type": "string",
+            "nullable": true,
+            "title": "Current Node"
+          },
+          "completed_nodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Completed Nodes"
+          },
+          "files_total": {
+            "type": "integer",
+            "title": "Files Total",
+            "default": 0
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepProgress"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "title": "RunProgress",
+        "description": "How far a run has got."
+      },
       "RunStatus": {
         "type": "string",
         "enum": [
@@ -75438,6 +75509,54 @@
           "label"
         ],
         "title": "StepCreateRequest"
+      },
+      "StepProgress": {
+        "properties": {
+          "node": {
+            "type": "string",
+            "title": "Node"
+          },
+          "total": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Total",
+            "description": "Files this step fans out over, when known."
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "succeeded": {
+            "type": "integer",
+            "title": "Succeeded"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "cancelled": {
+            "type": "integer",
+            "title": "Cancelled"
+          },
+          "failures": {
+            "items": {
+              "$ref": "#/components/schemas/FileFailure"
+            },
+            "type": "array",
+            "title": "Failures",
+            "description": "The first 10 failures by file."
+          }
+        },
+        "type": "object",
+        "required": [
+          "node",
+          "done",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ],
+        "title": "StepProgress",
+        "description": "One fanned-out step's per-file outcomes."
       },
       "StepStatus": {
         "type": "string",

@@ -371,14 +371,18 @@ def fichero_workflow_run(
 
 
 @mcp.tool()
-def fichero_workflow_status(thread_id: str) -> Any:
-    """Get the current status of a workflow execution.
+def fichero_workflow_status(thread_id: str, full_state: bool = False) -> Any:
+    """Get the current status of a workflow execution: its status, error, and progress (the current
+    step, and per fanned-out step the files done, succeeded, failed and cancelled, with the first
+    failures by file). A few hundred bytes, safe to poll.
 
     Args:
         thread_id: The execution thread ID returned by ``fichero_workflow_run``.
+        full_state: Also return the run's whole LangGraph state. It is large (526 KB for a
+            50-photo run, #5401): ask for it only to debug a run, never to poll one.
     """
     with _client() as client:
-        return client.execution_status(thread_id)
+        return client.execution_status(thread_id, view="full" if full_state else "summary")
 
 
 # -- artifacts -------------------------------------------------------------

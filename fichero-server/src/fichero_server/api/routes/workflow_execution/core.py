@@ -9,7 +9,7 @@ import json
 import logging
 import queue
 import threading
-from typing import Any, AsyncGenerator, TYPE_CHECKING
+from typing import Any, AsyncGenerator, Literal, TYPE_CHECKING
 from uuid import uuid4
 
 from fastapi import (
@@ -17,6 +17,7 @@ from fastapi import (
     HTTPException,
     Depends,
     BackgroundTasks,
+    Query,
     Request,
 )
 from fastapi.responses import StreamingResponse
@@ -25,6 +26,7 @@ from fichero_server.db import Database
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
+from fichero_server.workflows.run_progress import summarize_run_state
 from fichero_server.workflows.workflow_store import WorkflowStore
 
 
@@ -583,15 +585,24 @@ async def resume_workflow(
 @router.get("/threads/{thread_id}/status")
 async def get_thread_status(
     thread_id: str,
+    view: Literal["full", "summary"] = Query(
+        "full",
+        description="`summary` leaves out the run's whole state (hundreds of KB for a fanned-out "
+        "run) and keeps `progress`: the current step and per-file outcome counts (#5401).",
+    ),
     db: Database = Depends(get_library_database),
 ) -> ExecutionStatusResponse:
     """
     Get status of a workflow execution thread.
 
-    Retrieves the current state and checkpoint information for a thread.
+    Retrieves the current state and checkpoint information for a thread, and the run's
+    progress (the current step, files done, succeeded, failed and cancelled per fanned-out
+    step, the first failures by file), counted from the state and the checkpoint's pending
+    writes so a running fan-out is counted as it goes.
 
     Args:
         thread_id: Thread ID
+        view: `full` (the whole state) or `summary` (progress only)
 
     Returns:
         Current execution status
@@ -668,8 +679,9 @@ async def get_thread_status(
             workflow_name=workflow_name,
             status=status,
             checkpoint_id=checkpoint_tuple.checkpoint["id"],
-            current_state=_sanitize_for_json(current_state),
+            current_state=None if view == "summary" else _sanitize_for_json(current_state),
             error=workflow_error,
+            progress=summarize_run_state(current_state, checkpoint_tuple.pending_writes),
         )
 
     except HTTPException:

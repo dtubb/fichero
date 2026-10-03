@@ -1062,10 +1062,11 @@ class FicheroClient:
             },
         )
 
-    def execution_status(self, thread_id: str) -> ExecutionStatusResponse:
+    def execution_status(self, thread_id: str, *, view: str = "full") -> ExecutionStatusResponse:
+        """A run's status. `view="summary"` leaves out the whole state and keeps `progress` (#5401)."""
         return ExecutionStatusResponse.model_validate(
             self.request(
-                "GET", f"/api/workflow-execution/threads/{thread_id}/status"
+                "GET", f"/api/workflow-execution/threads/{thread_id}/status", params={"view": view}
             )
         )
 

@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from fichero_server.workflows.run_progress import RunProgress
 from fichero_server.workflows.run_status import RunStatus
 from fichero_server.workflows.selection import SelectionKind, WorkflowSelection
 
@@ -115,8 +116,11 @@ class ExecutionStatusResponse(BaseModel):
     # app can replace its hand-rolled status enums with this generated one.
     status: RunStatus
     checkpoint_id: str | None = None
+    # The whole LangGraph state: hundreds of KB for a fanned-out run (#5401). Left out when the
+    # caller asks for `view=summary`; `progress` says how far the run has got either way.
     current_state: dict[str, Any] | None = None
     error: str | None = None
+    progress: RunProgress | None = None
 
 
 class ResumeWorkflowRequest(BaseModel):

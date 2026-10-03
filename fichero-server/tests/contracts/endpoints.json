@@ -10872,7 +10872,13 @@
         "path_params": [
           "thread_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "view",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": null,
         "response_model": "ExecutionStatusResponse"
       },
