@@ -510,6 +510,8 @@ $(SRCROOT)/../fichero-server/src/fichero_server/security/url_security.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/xml_security.py
 $(SRCROOT)/../fichero-server/src/fichero_server/spatial_arrange.py
 $(SRCROOT)/../fichero-server/src/fichero_server/tool_context.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/kraken_set.py
 $(SRCROOT)/../fichero-server/src/fichero_server/verification_targets.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/action_store.py
