@@ -58,7 +58,7 @@ maintainer's step document (Mellel, to come) sets the order. Build next.
    Wanted: the facts of each item (what, who, when, where, extent) from its metadata fields and
    claims, with no AI interpretation. Fold into the cataloguing spec (#5365, prototypes).
 3. **Cataloguing and metadata on prototypes** (#5365).
-4. **Project gazetteer and canonical names.** One project-level gazetteer and one canonical name
+4. **Project gazetteer and canonical names** (DRAFT written 2026-10-03: `kg/project-gazetteer-and-names.md`, #5380). One project-level gazetteer and one canonical name
    list, as good as the evidence allows, enriched from Wikidata and the gazetteers in
    `kg/kg-enrichment.md`, every enrichment a claim with its source, kept apart from what the pages
    say.

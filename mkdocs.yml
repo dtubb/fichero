@@ -413,6 +413,7 @@ nav:
           - KG:
               - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
+              - Project Gazetteer & Canonical Names: contributor_manual/specs/kg/project-gazetteer-and-names.md
               - KG Entity Inspector: contributor_manual/specs/kg/kg-entity-inspector.md
               - KG Interactions & Standards: contributor_manual/specs/kg/kg-interactions.md
               - KG Readable Representation: contributor_manual/specs/kg/kg-readable-representation.md
