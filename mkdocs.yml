@@ -328,6 +328,7 @@ nav:
       - Security Model: contributor_manual/security-model.md
       - Setup & Contributing: contributor_manual/setup-and-contributing.md
       - Contributor Machine Setup: contributor_manual/contributor-machine-setup.md
+      - Roadmap (the research pipeline): contributor_manual/roadmap/research-pipeline.md
       - Testing: contributor_manual/TESTING.md
       - Testing Constitution: contributor_manual/TESTING-CONSTITUTION.md
       - Test Template: contributor_manual/TEST-TEMPLATE.md
@@ -370,6 +371,7 @@ nav:
           - Backend Standards: contributor_manual/backend-development-standards.md
           - Extensibility Guarantee: contributor_manual/extensibility-guarantee.md
       - Specs:
+          - Spec Plan (which spec covers what): contributor_manual/specs/SPEC-PLAN.md
           - Open Questions Digest: contributor_manual/specs/OPEN-QUESTIONS.md
           - Spec Template: contributor_manual/specs/_TEMPLATE.md
           - AI:
