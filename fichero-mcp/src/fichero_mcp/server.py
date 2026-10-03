@@ -143,7 +143,8 @@ def fichero_use_library(path: str) -> Any:
 # -- documents -------------------------------------------------------------
 @mcp.tool()
 def fichero_import(path: str, parent_id: Optional[str] = None) -> Any:
-    """Import a file into the library.
+    """Import ONE file into the library, uploading a copy of it. For a folder, or to leave files
+    where they are, use ``fichero_ingest_folder``.
 
     Args:
         path: Path to the file to upload.
@@ -151,6 +152,47 @@ def fichero_import(path: str, parent_id: Optional[str] = None) -> Any:
     """
     with _mutating_client() as client:
         return client.import_file(path, parent_id=parent_id)
+
+
+@mcp.tool()
+def fichero_ingest_folder(
+    path: str,
+    mode: str = "link",
+    recursive: bool = True,
+    parent_id: Optional[str] = None,
+    extract_text: bool = False,
+    auto_embed: bool = False,
+) -> Any:
+    """Bring a whole folder into the library as a folder, keeping its structure.
+
+    The same engine route as ``fichero ingest folder``. ``fichero_import`` takes one file and
+    uploads a copy; this takes a folder, and by default LINKS its files where they are, copying
+    nothing (a 104-photo notebook: seconds, and the library grows by about a megabyte).
+
+    Args:
+        path: The folder, as the ENGINE sees it: a path on the machine the engine runs on.
+        mode: "link" (files stay where they are, the default), "copy" into the library, or "move".
+        recursive: Include subfolders, as subfolders.
+        parent_id: Put the folder inside this library folder.
+        extract_text: Extract embedded text while importing (photographs have none; off by default).
+        auto_embed: Index for search while importing rather than afterwards.
+
+    Returns a ``task_id``. Poll ``fichero_ingest_status`` until its status is completed, failed or
+    cancelled, and report its failures and unpaired files, not just the count imported.
+    """
+    if mode not in ("link", "copy", "move"):
+        raise ValueError(f"mode must be link, copy or move, not {mode!r}")
+    with _mutating_client() as client:
+        return client.ingest_folder(path, mode=mode, recursive=recursive, parent_id=parent_id,
+                                    extract_text=extract_text, auto_embed=auto_embed)
+
+
+@mcp.tool()
+def fichero_ingest_status(task_id: str) -> Any:
+    """A folder import's progress: status, files processed of total, the new document ids, and its
+    report (files that failed and why, files imported as passes, files left unpaired)."""
+    with _client() as client:
+        return client.ingest_status(task_id)
 
 
 @mcp.tool()

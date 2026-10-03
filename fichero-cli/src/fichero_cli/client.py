@@ -38,6 +38,7 @@ import httpx
 from fichero_server.api.routes.system.activity import ActivityResponse
 from fichero_server.api.routes.document.artifacts import ArtifactResponse
 from fichero_server.api.routes.document.compare_readings import CompareReadingsResponse
+from fichero_server.api.routes.ingest.core import IngestTaskResponse, IngestTaskStatus
 from fichero_server.api.routes.document.inspector import (
     DocumentInspectorResponse,
     DocumentKnowledgeGraphResponse,
@@ -1061,6 +1062,30 @@ class FicheroClient:
                 "source_language": source_lang,
                 "target_language": target_lang,
             },
+        )
+
+    def ingest_folder(
+        self,
+        path: str,
+        *,
+        mode: str = "link",
+        recursive: bool = True,
+        parent_id: str | None = None,
+        extract_text: bool = True,
+        auto_embed: bool = False,
+    ) -> IngestTaskResponse:
+        """Bring a folder in as a folder (#5400), through the route `fichero ingest folder` uses.
+        `mode`: link (files stay where they are), copy, or move. Returns a task to poll with
+        `ingest_status`."""
+        return IngestTaskResponse.model_validate(self.request("POST", "/api/ingest/folder", json={
+            "path": path, "mode": mode, "recursive": recursive, "parent_id": parent_id,
+            "extract_text": extract_text, "auto_embed": auto_embed,
+        }))
+
+    def ingest_status(self, task_id: str) -> IngestTaskStatus:
+        """A folder import's progress and its per-file report (failures, files left unpaired)."""
+        return IngestTaskStatus.model_validate(
+            self.request("GET", f"/api/ingest/status/{quote(task_id, safe='')}")
         )
 
     def compare_readings(

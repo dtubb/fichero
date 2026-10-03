@@ -24,6 +24,8 @@ EXPECTED_TOOLS = {
     # core read / drive
     "fichero_health",
     "fichero_import",
+    "fichero_ingest_folder",
+    "fichero_ingest_status",
     "fichero_docs_list",
     "fichero_docs_get",
     "fichero_create_note",
