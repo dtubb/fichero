@@ -55690,6 +55690,13 @@
             "nullable": true,
             "title": "Launch Nonce"
           },
+          "missing_dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Dependencies"
+          },
           "dependencies": {
             "additionalProperties": {
               "type": "string"

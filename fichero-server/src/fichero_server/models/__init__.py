@@ -2031,6 +2031,9 @@ class HealthResponse(BaseModel):
     #: the socket. Loopback callers only; None to a remote one (no local paths over the network).
     engine_owner: str | None = None
     launch_nonce: str | None = None
+    #: Packages the engine imports by name for a feature (lxml for PAGE/ALTO/TEI) that are not
+    #: installed; empty when all are present (#5384).
+    missing_dependencies: list[str] = Field(default_factory=list)
     # Live dependency versions for the About box's "Built with" (Daniel wants
     # them DERIVED, never hard-typed). Keys are lowercased pip distribution
     # names → installed version; a lib that is not installed is simply absent

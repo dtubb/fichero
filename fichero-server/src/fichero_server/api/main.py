@@ -1076,6 +1076,18 @@ async def _handle_library_access_denied(
     return JSONResponse(exc.payload, status_code=403)
 
 
+@app.exception_handler(ModuleNotFoundError)
+async def _handle_missing_module(_request: Request, exc: ModuleNotFoundError):
+    """A package the engine imports by name is not installed: say which, not a bare 500 (#5384)."""
+    name = exc.name or str(exc)
+    what = _REQUIRED_BY_NAME.get(name, "this feature")
+    return JSONResponse(
+        {"detail": f"This engine is missing the Python package '{name}', needed for {what}. "
+                   "Reinstall the engine's dependencies."},
+        status_code=503,
+    )
+
+
 @app.exception_handler(LibraryNotFoundError)
 async def _handle_library_not_found(
     _request: Request,
@@ -1804,8 +1816,25 @@ def _engine_owner_for(request: Request) -> str | None:
     return engine_owner() if _is_loopback_request(request) else None
 
 
+#: Packages imported by NAME only when a feature runs, so a missing one is silent until then (#5384).
+_REQUIRED_BY_NAME = {
+    "lxml": "reading and writing PAGE, ALTO and TEI",
+    "cv2": "image preparation (crop, split, straighten)",
+}
+
+
+@functools.lru_cache(maxsize=1)
+def _missing_required_modules() -> list[str]:
+    """Required by-name packages this engine cannot find (checked without importing them)."""
+    import importlib.util
+
+    return sorted(m for m in _REQUIRED_BY_NAME if importlib.util.find_spec(m) is None)
+
+
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:
-    """Attach HMAC(server bootstrap secret, nonce) when the client asks."""
+    """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
+    through here, so it also names any missing required package (#5384)."""
+    response.missing_dependencies = _missing_required_modules()
     if not nonce:
         return response
     secret = globals().get("_api_token")
