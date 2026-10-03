@@ -85,12 +85,14 @@ def test_a_recipe_the_app_saves_from_assemble_is_a_whole_recipe(client):
     assert client.post("/api/recipes/check", json={"recipe": recipe}).json()["problems"] == []
 
 
-def test_the_default_spanish_handwriting_recipe_is_refused_only_for_its_reader(client):
-    """The rules pick PP-OCRv6 for Latin handwriting (the reader with a published CER), and this
-    Mac's Kraken cannot fetch it: that, and nothing else, is what stops Start."""
+def test_the_default_spanish_handwriting_recipe_starts_as_assembled(client):
+    """Setup proposes only readers this Mac can run (a Kraken reader outside its catalogue, such as
+    PP-OCRv6, is not a candidate), so the recipe the rules assemble for Spanish handwriting can be
+    started as proposed: a recipe setup offers and Start then refuses is a broken promise."""
     _save(client, _assembled(client))
-    refusals = client.get("/api/recipes/project/start").json()["refusals"]
-    assert len(refusals) == 1 and "21788410" in refusals[0], refusals
+    plan = client.get("/api/recipes/project/start").json()
+    assert plan["refusals"] == [], plan["refusals"]
+    assert plan["workflows"]
 
 
 def test_with_a_reader_this_mac_can_fetch_the_default_recipe_starts_and_records_its_version(client):

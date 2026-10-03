@@ -36,12 +36,9 @@ def _preset(name: str) -> dict | None:
 
 
 def _kraken_reader_for(pin: dict) -> str | None:
-    """The catalogue id of the Kraken reader a Zenodo pin names, or None if the catalogue lacks it
-    (this runtime fetches readers from its catalogue only)."""
-    from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS
+    from fichero_server.recipes.cards import kraken_reader_for
 
-    return next((rid for rid, row in KRAKEN_RECOGNITION_MODELS.items()
-                 if row.get("doi") == pin.get("zenodo")), None)
+    return kraken_reader_for(pin)
 
 
 def _override(pin: dict) -> tuple[str, str] | None:

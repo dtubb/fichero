@@ -23,6 +23,15 @@ def _set(value) -> frozenset[str] | None:
     return None if value in (None, "any") else frozenset(value)
 
 
+def kraken_reader_for(pin: dict) -> str | None:
+    """The catalogue id of the Kraken reader a Zenodo pin names, or None if the catalogue lacks it
+    (this runtime fetches readers from its catalogue only)."""
+    from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS
+
+    return next((rid for rid, row in KRAKEN_RECOGNITION_MODELS.items()
+                 if row.get("doi") == pin.get("zenodo")), None)
+
+
 @lru_cache(maxsize=1)
 def seed_cards() -> tuple[Card, ...]:
     import yaml
@@ -34,6 +43,11 @@ def seed_cards() -> tuple[Card, ...]:
             raise ValueError(f"card id {row['id']!r} is not <runtime>:<source>@<version>")
         if row.get("runs_here") is False:
             continue  # its runtime is not in this build yet; it is not a candidate
+        if "zenodo" in row["pin"] and row["id"].startswith("kraken:") and kraken_reader_for(row["pin"]) is None:
+            # Kraken here fetches readers from its catalogue only: a reader it cannot fetch would be
+            # proposed and then refused at Start (the default es/Latn recipe was, for PP-OCRv6).
+            continue
+
         cards.append(Card(
             id=row["id"],
             pin=dict(row["pin"]),
