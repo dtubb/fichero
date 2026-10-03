@@ -38,6 +38,8 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "doc_id", "doc_ids", "document_id", "document_ids", "page_id", "folder_id", "parent_id",
         "target_document_id", "source_document_id", "source_document_ids", "linked_document_id",
         "linked_document_ids", "realized_as_document_id", "library_destination_folder_id", "group_id",
+        # document.group (#5303): the pages and documents gathered into a new group node.
+        "child_ids",
     )},
     # --- the page model ------------------------------------------------------------------------
     **{name: (RECORD, _SEGMENT) for name in (

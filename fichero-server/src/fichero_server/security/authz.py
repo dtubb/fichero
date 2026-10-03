@@ -42,6 +42,7 @@ from fichero_server.models import (
     AccountUser,
     AgentNote,
     Artifact,
+    ConvertedBoxOrigin,
     ContentRepresentation,
     Document,
     DocumentNote,
@@ -464,6 +465,8 @@ _DOCUMENT_ID_RESOLVERS: tuple[tuple[type, Callable[[Any, Any], "str | None"]], .
     (SegmentMatch, lambda db, row: row.document_id),
     (SegmentVersion, lambda db, row: row.document_id),
     (SegmentForwarding, lambda db, row: row.document_id),
+    # Where a converted box was (#5066): of one document, like the segment it is keyed by.
+    (ConvertedBoxOrigin, lambda db, row: row.document_id),
     (SegmentCarry, lambda db, row: _document_id_of_segment_match(db, row.match_id)),
     # A record hung on a SEGMENT belongs to that segment's document: an editorial fact (#4935) and a
     # hand attribution. Without these, a `fact_id` / `attribution_id` resolved "itself only" and a
