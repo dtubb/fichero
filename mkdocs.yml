@@ -374,6 +374,7 @@ nav:
           - Spec Template: contributor_manual/specs/_TEMPLATE.md
           - AI:
               - AI Settings: contributor_manual/specs/ai/ai-settings.md
+              - Local Runtimes & Providers: contributor_manual/specs/ai/local-runtimes.md
               - Provider API Keys: contributor_manual/specs/ai/provider-keys.md
           - Compute:
               - Remote Compute (foundation): contributor_manual/specs/compute/remote-compute.md
@@ -381,6 +382,7 @@ nav:
               - Targets, Installing & Connecting: contributor_manual/specs/compute/targets-and-connection.md
               - What Leaves, Transfer & Results: contributor_manual/specs/compute/transfer-and-results.md
               - Jobs, Engines, Fine-tuning & Publishing: contributor_manual/specs/compute/jobs-and-fine-tuning.md
+              - Teaching Small Models from Big Ones: contributor_manual/specs/compute/distillation.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Export:
@@ -389,6 +391,7 @@ nav:
               - Importer: contributor_manual/specs/importer/importer.md
           - Explore:
               - Explore (seeing a whole project): contributor_manual/specs/explore/explore.md
+              - Connections Across Corpora: contributor_manual/specs/explore/connections-across-corpora.md
               - By meaning (what the vectors can do): contributor_manual/specs/explore/meaning.md
               - By place (maps, journeys): contributor_manual/specs/explore/place.md
               - By time (timelines, arcs): contributor_manual/specs/explore/time.md
@@ -424,6 +427,8 @@ nav:
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
               - Maps & Georeference: contributor_manual/specs/source/maps-and-georeference.md
               - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
+              - IIIF: contributor_manual/specs/source/iiif.md
+              - Undeciphered Scripts: contributor_manual/specs/source/undeciphered-scripts.md
               - Synced Folder: contributor_manual/specs/source/synced-folder.md
               - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
               - Build Notes (identity & storage): contributor_manual/specs/source/build-notes-identity-and-storage.md
@@ -453,9 +458,11 @@ nav:
               - Xcode Build/Test/Run Configs: contributor_manual/specs/testing/xcode-build-configs.md
           - Transport:
               - "Engine Transport: HTTPS / UDS / In-Memory": contributor_manual/specs/transport/transport-http-uds.md
+              - Library Sharing: contributor_manual/specs/transport/library-sharing.md
           - UI:
               - About: contributor_manual/specs/ui/about.md
               - Activity: contributor_manual/specs/ui/activity.md
+              - Activity & Automatic Work: contributor_manual/specs/ui/activity-and-automatic-work.md
               - Automation: contributor_manual/specs/ui/automation.md
               - Library View Modes: contributor_manual/specs/ui/library-view-modes.md
               - Menus & Commands: contributor_manual/specs/ui/menus-and-commands.md
