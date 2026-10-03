@@ -10369,7 +10369,7 @@
           "recipes"
         ],
         "summary": "Search Languages",
-        "description": "Search ISO 639-3 languages by name or code (`source.onboard.widget-and-search`).",
+        "description": "Search ISO 639-3 and Glottolog languages and dialects by name, tag or glottocode\n(`source.onboard.widget-and-search`).",
         "operationId": "search_languages_api_recipes_languages_get",
         "parameters": [
           {
@@ -10399,7 +10399,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NamedCodeList"
+                  "$ref": "#/components/schemas/LanguageMatchList"
                 }
               }
             }
@@ -59594,6 +59594,65 @@
         ],
         "title": "LanguageFitResponse",
         "description": "Language-fit recommendation response."
+      },
+      "LanguageMatch": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "nullable": true,
+            "title": "Code",
+            "description": "BCP 47 tag; a dialect carries its language's; none when only Glottolog knows it"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "glottocode": {
+            "type": "string",
+            "nullable": true,
+            "title": "Glottocode",
+            "description": "Glottolog 5.3 code, where Glottolog has one"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level",
+            "description": "language or dialect"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language",
+            "description": "for a dialect, the language it belongs to"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "level"
+        ],
+        "title": "LanguageMatch",
+        "description": "A language or dialect: its BCP 47 tag and its Glottolog code, two systems kept apart."
+      },
+      "LanguageMatchList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LanguageMatch"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "LanguageMatchList"
       },
       "LanguageSpec": {
         "properties": {

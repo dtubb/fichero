@@ -1371,7 +1371,7 @@ Purposes and layers
   on, with whether each may use the cloud, and is never written by hand.
 
 Setup
-- `source.onboard.widget-and-search` — **[PARTIAL]** (#4951) **Built 2026-10-03:** the Your Material step searches languages and scripts (Apple's locale data for now; Glottolog / full ISO 15924 search is a gap); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. setup is a form with search beside each
+- `source.onboard.widget-and-search` — **[PARTIAL]** (#4951) **Built 2026-10-03:** the Your Material step searches languages and scripts (Apple's locale data in the app for now). The engine searches ISO 639-3 joined with Glottolog 5.3 (CC BY 4.0, vendored; languages ISO lacks and about 13,000 dialects, each answer with its BCP 47 tag and glottocode kept apart) and every ISO 15924 script: `GET /api/recipes/languages`, `/scripts`, `fichero-server/tests/unit/api/test_setup_searches_languages_and_scripts.py`; the app switching to it is the gap; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. setup is a form with search beside each
   field, not a conversation.
 - `source.onboard.screens-in-order` — **[GAP]** (#4951) setup asks the purpose first and shows
   Start last, with its screens in one fixed order (provisionally the six of section 7; to be

@@ -154,13 +154,29 @@ class NamedCodeList(BaseModel):
     count: int
 
 
-@router.get("/languages", response_model=NamedCodeList)
-async def search_languages(q: str = "", limit: int = 20) -> NamedCodeList:
-    """Search ISO 639-3 languages by name or code (`source.onboard.widget-and-search`)."""
+class LanguageMatch(BaseModel):
+    """A language or dialect: its BCP 47 tag and its Glottolog code, two systems kept apart."""
+
+    code: Optional[str] = Field(default=None, description="BCP 47 tag; a dialect carries its language's; none when only Glottolog knows it")
+    name: str
+    glottocode: Optional[str] = Field(default=None, description="Glottolog 5.3 code, where Glottolog has one")
+    level: str = Field(description="language or dialect")
+    language: Optional[str] = Field(default=None, description="for a dialect, the language it belongs to")
+
+
+class LanguageMatchList(BaseModel):
+    items: list[LanguageMatch]
+    count: int
+
+
+@router.get("/languages", response_model=LanguageMatchList)
+async def search_languages(q: str = "", limit: int = 20) -> LanguageMatchList:
+    """Search ISO 639-3 and Glottolog languages and dialects by name, tag or glottocode
+    (`source.onboard.widget-and-search`)."""
     from fichero_server.recipes.names import search_languages as find
 
-    items = [NamedCode(**row) for row in find(q, max(1, min(limit, 100)))]
-    return NamedCodeList(items=items, count=len(items))
+    items = [LanguageMatch(**row) for row in find(q, max(1, min(limit, 100)))]
+    return LanguageMatchList(items=items, count=len(items))
 
 
 @router.get("/scripts", response_model=NamedCodeList)

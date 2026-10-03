@@ -300,7 +300,7 @@ fichero_server = [
     "resources/default_workflows/*.json",
     "resources/workflow_meta/*.json",
     "resources/fonts/*",
-    "recipes/seed/*.yaml","recipes/seed/*.txt",
+    "recipes/seed/*.yaml","recipes/seed/*.txt","recipes/seed/*.gz",
     "recipes/seed/*/*",
     "recipes/seed/*/prompts/*",
 ]
