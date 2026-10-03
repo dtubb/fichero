@@ -169,6 +169,43 @@ class TestTheLaneKeepsOneModelLoaded:
         assert released == [True]
 
 
+class TestSwitchingBetweenHeavyModels:
+    def test_the_embedder_lets_go_before_kraken_runs(self, db, monkeypatch):
+        """WHY: the embedder (~1.5 GB) and Kraken (2-3 GB) do not both fit an 8 GB Mac. The
+        switch frees the embedder first, unless an embed or a search is using it this moment."""
+        import fichero_server.db.embeddings as embeddings
+
+        released = []
+        monkeypatch.setattr(embeddings, "release_idle_embedders",
+                            lambda idle_seconds=None: released.append(idle_seconds) or [])
+        jobs.submit(db, "read-a-line", "p1", model="embedder", fn=lambda: None).result(10)
+        jobs.submit(db, "read-a-line", "p2", model="kraken:a", fn=lambda: None).result(10)
+        assert released == [0]
+
+    def test_background_work_waits_for_a_quiet_spell_before_swapping_models(self, db, monkeypatch):
+        """WHY: a run's Kraken pages come in bursts, each followed by its saved page's embed.
+        Swapping to the embedder in every gap would reload Kraken on the next page and the
+        embedder on the next embed, page after page. A background embed waits until Kraken has
+        been quiet; a page someone is waiting for switches back at once."""
+        import time
+
+        monkeypatch.setattr(jobs, "SWITCH_AFTER_QUIET_SECONDS", 0.6)
+        embedded = []
+        monkeypatch.setitem(jobs.KINDS, "t-embed", jobs.Kind(
+            run=lambda db, s: embedded.append(time.monotonic()), model="embedder"))
+        jobs.submit(db, "find-lines", "page", model="kraken:blla", fn=lambda: None).result(10)
+        kraken_done = time.monotonic()
+        jobs.enqueue(db, "t-embed", "page")
+        deadline = time.monotonic() + 10
+        while not embedded and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert embedded and embedded[0] - kraken_done >= 0.5
+
+        started = time.monotonic()
+        jobs.submit(db, "find-lines", "next", model="kraken:blla", fn=lambda: None).result(10)
+        assert time.monotonic() - started < 0.5
+
+
 class TestAPageSomeoneIsWaitingFor:
     def test_it_runs_while_background_work_is_paused_and_says_so(self, db, monkeypatch):
         """WHY: pause stops what runs by itself; a run a person pressed is what they asked for

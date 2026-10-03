@@ -345,12 +345,36 @@ def _kraken_busy() -> bool:
 
 
 def _release_kraken() -> None:
-    """Free Kraken's resident models before another heavy model loads (`activity.lane.group-by-
-    model`: a switch unloads the old model first). Under Kraken's own lock, which guards them."""
+    """Free Kraken's resident models. Under Kraken's own lock, which guards them."""
     runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
     if runtime is not None:
         with runtime._INFERENCE_LOCK:
             runtime.release_resident_models()
+
+
+def _release_embedder() -> None:
+    """Free the embedding model, unless an embed or a search holds it right now."""
+    embeddings = sys.modules.get("fichero_server.db.embeddings")
+    if embeddings is not None:
+        embeddings.release_idle_embedders(idle_seconds=0)
+
+
+def _family(model: str | None) -> str | None:
+    return "kraken" if (model or "").startswith(KRAKEN_MODEL_PREFIX) else model
+
+
+#: The heavy models the lane frees when it switches from one to another (`activity.lane.group-by-
+#: model`: a switch unloads the old model first). A light one (spaCy) stays loaded beside them.
+_RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder}
+#: A background job for another heavy model waits until the loaded one has had no work for this
+#: long, so work that arrives in bursts (a run's Kraken pages, each followed by its page's embed)
+#: does not swap two models in and out page by page. Work a person waits for switches at once.
+SWITCH_AFTER_QUIET_SECONDS = 20.0
+
+
+def _heavy_switch(loaded: str | None, model: str | None) -> bool:
+    return (_family(loaded) in _RELEASE and _family(model) in _RELEASE
+            and _family(loaded) != _family(model))
 
 
 class _Lane:
@@ -372,6 +396,10 @@ class _Lane:
         self.pick = threading.Lock()
         #: The model the last job loaded: the next job prefers it (`activity.lane.group-by-model`).
         self.loaded_model: str | None = None
+        #: When the last job for that model finished (monotonic), and when to look again for a
+        #: switch that is waiting for the quiet spell.
+        self.loaded_used_at = 0.0
+        self.look_again_at: float | None = None
 
 
 class _Scheduler:
@@ -436,7 +464,10 @@ class _Scheduler:
                     getattr(importlib.import_module(module), "register_job_kinds", lambda: None)()
                 self._kinds_loaded = True
         while True:
-            lane.event.wait(self.IDLE_SECONDS)
+            timeout = self.IDLE_SECONDS
+            if lane.look_again_at is not None:
+                timeout = min(timeout, max(0.0, lane.look_again_at - time.monotonic()))
+            lane.event.wait(timeout)
             lane.event.clear()
             # An error in a scan ends this thread (logged by threading's excepthook); the next
             # wake (an enqueue, a library open, a pause change) starts a new one. A caller waiting
@@ -508,7 +539,14 @@ class _Scheduler:
             return None
         # Across libraries the same rule: the loaded model first, then the oldest.
         candidates.sort(key=lambda c: (c[2][3] != lane.loaded_model, c[2][4]))
-        return candidates[0]
+        best = candidates[0]
+        lane.look_again_at = None
+        if _heavy_switch(lane.loaded_model, best[2][3]) and best[2][0] not in attached:
+            quiet_from = lane.loaded_used_at + SWITCH_AFTER_QUIET_SECONDS
+            if time.monotonic() < quiet_from:
+                lane.look_again_at = quiet_from
+                return None
+        return best
 
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
         from fichero_server.db.manager import db_manager
@@ -521,9 +559,8 @@ class _Scheduler:
                            "WHERE id = ?", [job_id])
                 while _kraken_busy():
                     time.sleep(self.KRAKEN_POLL_SECONDS)
-            if (model is not None and (lane.loaded_model or "").startswith(KRAKEN_MODEL_PREFIX)
-                    and not model.startswith(KRAKEN_MODEL_PREFIX)):
-                _release_kraken()
+            if _heavy_switch(lane.loaded_model, model):
+                _RELEASE[_family(lane.loaded_model)]()
             if model is not None:
                 lane.loaded_model = model
         kind.qos()
@@ -533,6 +570,8 @@ class _Scheduler:
         except Exception as exc:  # noqa: BLE001 -- recorded on the row, and handed to whoever waits
             logger.warning("job %s (%s on %s) failed: %s", job_id, kind_name, subject, exc)
             state, reason, error = "failed", str(exc) or type(exc).__name__, exc
+        if model is not None and model == lane.loaded_model:
+            lane.loaded_used_at = time.monotonic()
         with self._lock:
             waiting = self._watchers.pop(job_id, [])
         if handed_in is not None:

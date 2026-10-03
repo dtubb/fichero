@@ -502,8 +502,10 @@ workflow by hand: a hand run is a job like any other.
   needs, switching models only between groups and unloading the old one first. Built: queued jobs
   for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`), Kraken pages
   included, named by reader (`kraken:<reader id>`); leaving Kraken for another heavy model frees
-  Kraken's resident models first (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap: unloading the embedder and MLX
-  models on a switch, and MLX pages, which are not on the queue yet.
+  Kraken's resident models first, and leaving the embedder for Kraken frees the embedder; a
+  background job for another heavy model waits for 20 s of quiet on the loaded one, so bursts do
+  not swap models page by page, while work a person waits for switches at once
+  (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap: MLX models and pages, which are not on the queue yet.
 - `activity.lane.co-run-only-if-it-fits` — **[PARTIAL]** (#5358) two heavy models run at once only when their
   measured resident sizes fit this Mac's memory with headroom; on an 8 GB Mac, never. Built: never,
   for now: queued heavy jobs run one at a time and wait while a Kraken page holds Kraken's lock
