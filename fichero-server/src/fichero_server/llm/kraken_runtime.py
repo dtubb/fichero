@@ -204,12 +204,44 @@ def reader_id_for_doi(doi: str) -> str:
     return f"kraken-zenodo-{str(doi).rsplit('.', 1)[-1]}"
 
 
+#: A reader Fichero trained (`compute.tune.model-comes-back-as-a-card`, #5398): `kraken-trained-<job>`.
+#: It is never downloaded; it lands from its training job with a card naming where it came from.
+TRAINED_READER_PREFIX = "kraken-trained-"
+
+
+def trained_reader_card(model_id: str | None, home: Path | None = None) -> dict[str, object] | None:
+    """The card a landed trained reader carries (its provenance), or None."""
+    if not (model_id or "").startswith(TRAINED_READER_PREFIX):
+        return None
+    marker = _marker_path(str(model_id), home)
+    try:
+        card = json.loads(marker.read_text(encoding="utf-8")).get("trained")
+    except (OSError, ValueError):
+        return None
+    return card if isinstance(card, dict) else None
+
+
+def trained_readers(home: Path | None = None) -> list[tuple[str, dict[str, object]]]:
+    """Every landed trained reader, (model id, card), newest first."""
+    found = []
+    for marker in recognition_model_dir(home).glob(f"{TRAINED_READER_PREFIX}*.installed"):
+        model_id = marker.name[: -len(".installed")]
+        card = trained_reader_card(model_id, home)
+        if card is not None:
+            found.append((model_id, card))
+    return sorted(found, key=lambda row: str(row[1].get("trained_at", "")), reverse=True)
+
+
 def recognition_spec(model_id: str | None) -> dict[str, object] | None:
-    """The catalogue entry for ``model_id``, or a repository reader's {doi}; None for anything else."""
+    """The catalogue entry for ``model_id``, a repository reader's {doi}, or a trained reader's
+    {trained: card}; None for anything else."""
     if model_id in KRAKEN_RECOGNITION_MODELS:
         return KRAKEN_RECOGNITION_MODELS[model_id]
     match = _ZENODO_READER.match(model_id or "")
-    return {"doi": f"10.5281/zenodo.{match.group(1)}"} if match else None
+    if match:
+        return {"doi": f"10.5281/zenodo.{match.group(1)}"}
+    card = trained_reader_card(model_id)
+    return {"trained": card} if card is not None else None
 
 
 def resolve_recognition_model(model_ref: str) -> tuple[str, str | None]:
@@ -730,6 +762,9 @@ def download_recognition_model(
     spec = recognition_spec(model_id)
     if spec is None:
         raise ValueError(f"Unknown Kraken recognition model: {model_id}")
+    if "trained" in spec:
+        raise ValueError(f"{model_id} is a reader Fichero trained: it lands from its training job, "
+                         "it is not downloaded")
     if model_id not in KRAKEN_RECOGNITION_MODELS:
         # A repository reader: fetch it only if the repository says it IS a Kraken recognition model.
         from htrmopo import get_description
@@ -943,6 +978,9 @@ def recognize_to_geometry(
 __all__ = [
     "release_resident_models",
     "KRAKEN_RECOGNITION_MODELS",
+    "TRAINED_READER_PREFIX",
+    "trained_reader_card",
+    "trained_readers",
     "download_recognition_model",
     "is_installed",
     "is_recognition_model_installed",

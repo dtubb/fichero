@@ -142,6 +142,29 @@ def kraken_catalog_entries() -> list[Any]:
                 source=_source(model_installed),
             )
         )
+    # Readers Fichero trained (#5398): landed from a training job, with where they came from. Listed
+    # like any reader; never made a default by landing (`compute.tune.not-default-until-chosen`).
+    for model_id, card in kr.trained_readers():
+        release = "Not for release." if card.get("not_for_release") else ""
+        entries.append(
+            _make_entry(
+                provider_type=ProviderType.kraken,
+                model_id=model_id,
+                display_name=str(card.get("display_name") or model_id),
+                capabilities=["recognition"],
+                installed=True,
+                download_size_bytes=0,
+                disk_usage_bytes=int(card.get("size_bytes") or 0),
+                min_memory_bytes=None,
+                memory_class=None,
+                supported=True,
+                unsupported_reason=None,
+                note=" ".join(filter(None, [str(card.get("summary") or ""), release])),
+                tested_status="untested",
+                license_label="not for release" if card.get("not_for_release") else "user-managed",
+                source=_source(True),
+            )
+        )
     return entries
 
 
