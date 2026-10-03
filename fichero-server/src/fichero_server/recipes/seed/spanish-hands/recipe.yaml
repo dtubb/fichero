@@ -1,0 +1,91 @@
+# The flagship recipe: historical Spanish hands (letters first; notarial and administrative records).
+# MODEL PINS ARE ILLUSTRATIVE until the flagship's own measurement sets them (#4950); the Zenodo
+# DOI 10.5281/zenodo.NNNNNNN is a placeholder for the Kraken reader that measurement chooses.
+fichero_recipe: 1
+id: fichero/spanish-hands
+version: 0.1.0
+title: Historical Spanish hands, 1500-1900
+authors: [{name: Fichero maintainers}]
+licence: CC-BY-4.0
+suits:
+  scripts: [Latn]
+  languages: [es]
+  material: [handwriting]
+  period: {from: 1500, to: 1900}
+  kinds: [letters, notarial, administrative]
+purposes: [transcribe, entities, search, knowledge-graph, map-places]
+defaults:
+  direction: ltr
+  line_position: baseline
+  guideline: diplomatic
+  normalisation: as-written
+  record_rule: strict
+  fonts: [Junicode]
+  views_first: [source, reader]
+steps:
+  - id: split
+    job: split-pages
+    layer: prepare
+    applies_to: pages
+    when: {spreads_detected: true}
+    model: {builtin: page-splitter}
+    runs_on: this-mac
+  - id: lines
+    job: find-lines
+    layer: lines
+    applies_to: pages
+    model: {kraken: blla, kraken_version: "5.2"}
+    runs_on: this-mac
+  - id: read
+    job: read-a-line
+    layer: reading
+    applies_to: {lines_in: [main-text, margin]}
+    model: {zenodo: 10.5281/zenodo.NNNNNNN}
+    runs_on: this-mac
+  - id: correct
+    job: correct
+    layer: reading
+    applies_to: lines
+    when: {confidence_below: 0.90}
+    model: {hf: mlx-community/Qwen2.5-VL-7B-Instruct-4bit, revision: main}
+    alternatives:
+      - {hf: mlx-community/Qwen2.5-VL-3B-Instruct-4bit, revision: main}
+    prompt: prompts/correct-line.prompt.md
+    settings: {temperature: 0, keep_spelling: true}
+    runs_on: this-mac
+  - id: names
+    job: find-names-tag-words
+    layer: entities
+    applies_to: readings
+    model: {spacy: es_core_news_md, version: "3.8.0"}
+    runs_on: this-mac
+  - id: dates
+    job: work-out-dates
+    layer: graph
+    applies_to: readings
+    settings: {calendars: [julian, gregorian], switch: 1582-10-15}
+    runs_on: this-mac
+  - id: statements
+    job: find-statements
+    layer: graph
+    applies_to: readings
+    model: {role: $large}
+    prompt: prompts/statements.prompt.md
+    settings: {check_transfer_verbs: true}
+    runs_on: this-mac
+  - id: vectors
+    job: make-a-vector
+    layer: vectors
+    applies_to: readings
+    model: {hf: intfloat/multilingual-e5-small, revision: main}
+    runs_on: this-mac
+  - id: tei
+    job: export
+    layer: output
+    settings: {formats: [tei, page], to: synced-folder}
+  - id: train-reader
+    job: train-a-model
+    layer: train
+    offered_when: {corrected_lines_at_least: 2000}
+    settings: {kind: kraken-recognition, base: read}
+    runs_on: cluster

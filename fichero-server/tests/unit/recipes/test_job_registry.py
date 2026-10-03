@@ -20,23 +20,23 @@ def test_every_job_explains_itself_and_declares_what_flows():
 
 
 def test_a_sensible_handwriting_recipe_checks_clean():
-    steps = ["prepare_image", "find_lines", "read_lines", "correct", "find_names", "find_statements",
-             "make_vectors", "export"]
+    steps = ["prepare-the-image", "find-lines", "read-a-line", "correct", "find-names-tag-words", "find-statements",
+             "make-a-vector", "export"]
     assert jobs.unmet_inputs(steps) == []
 
 
 def test_a_step_that_needs_what_no_earlier_step_gave_is_refused_by_name():
-    problems = jobs.unmet_inputs(["read_lines"])  # nothing found the lines
+    problems = jobs.unmet_inputs(["read-a-line"])  # nothing found the lines
     assert problems == ["step 1 (Read each line) needs lines, which no earlier step gives"]
 
 
 def test_a_job_this_copy_lacks_is_named_not_crashed_on():
-    assert jobs.unmet_inputs(["find_lines", "summon_spirits"]) == [
+    assert jobs.unmet_inputs(["find-lines", "summon_spirits"]) == [
         "step 2: this copy of Fichero has no job 'summon_spirits'"]
 
 
 def test_a_job_registers_once_and_must_explain_itself():
     with pytest.raises(ValueError):
-        jobs.register_job(jobs.get_job("find_lines"))
+        jobs.register_job(jobs.get_job("find-lines"))
     with pytest.raises(ValueError):
         jobs.register_job(jobs.Job("x_new", "X", frozenset(), frozenset({"y"}), "z", "c", "  "))
