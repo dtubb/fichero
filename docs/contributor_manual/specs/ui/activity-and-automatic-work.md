@@ -416,7 +416,10 @@ workflow by hand: a hand run is a job like any other.
   and correction re-embeds report elsewhere or nowhere.
 - `activity.kraken-mlx-inference-visible` — **[PARTIAL]** (#5359) Kraken and MLX
   inference shows as its workflow run's row, failures with their reason; which page it is on, and
-  "waiting for Kraken", are not shown.
+  "waiting for Kraken", are not shown. Built (2026-10-03): every Kraken page a workflow reads
+  (Transcribe in Kraken mode, economy HTR) is a job row (`find-lines`, `read-a-line`) naming its
+  page and reader, with its state and reason (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap: MLX pages, and showing
+  the rows under their run.
 - `activity.model-work-visible` — **[GAP]** (#5359) a model download, a Kraken
   model fetch from Zenodo and MLX runtime provisioning appear in Activity, not only in Settings.
 - `activity.nlp-visible` — **[GAP]** (#5359) the NLP draft stage is counted and
@@ -484,16 +487,23 @@ workflow by hand: a hand run is a job like any other.
   waiting for. Built: the local ML lane, one job at a time, each kind declaring its QoS class; a
   job waiting on a Kraken page says "Waiting for Kraken" (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the other
   lanes.
-- `activity.lane.load-once` — **[GAP]** (#5358, #5370) a heavy model is loaded once and kept resident
-  while work for it remains, fed in batches; it is never reloaded per page or per call.
+- `activity.lane.load-once` — **[PARTIAL]** (#5358, #5370) a heavy model is loaded once and kept resident
+  while work for it remains, fed in batches; it is never reloaded per page or per call. Built for
+  Kraken: its line finder and reader stay resident (`llm/kraken_runtime.py` `_resident`), and the
+  lane runs a folder's pages for one reader together (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap: batching, and
+  the other runtimes.
 - `activity.lane.group-by-model` — **[PARTIAL]** (#5358) the local ML lane runs ready work grouped by the model it
   needs, switching models only between groups and unloading the old one first. Built: queued jobs
-  for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: unloading on
-  switch, and Kraken and reader pages, which are not on the queue yet.
+  for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`), Kraken pages
+  included, named by reader (`kraken:<reader id>`); leaving Kraken for another heavy model frees
+  Kraken's resident models first (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap: unloading the embedder and MLX
+  models on a switch, and MLX pages, which are not on the queue yet.
 - `activity.lane.co-run-only-if-it-fits` — **[PARTIAL]** (#5358) two heavy models run at once only when their
   measured resident sizes fit this Mac's memory with headroom; on an 8 GB Mac, never. Built: never,
   for now: queued heavy jobs run one at a time and wait while a Kraken page holds Kraken's lock
-  (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: measuring, and co-running when both fit.
+  (`fichero-server/tests/unit/jobs/test_job_queue.py`); a workflow's Kraken pages are on the same lane, and a vision
+  model reading Kraken's lines waits on the network off it (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap:
+  measuring, and co-running when both fit.
 - `activity.lane.measures-processors` — **[GAP]** (#5358) each job's row shows what it uses (CPU, GPU, Neural
   Engine, memory), measured by the engine.
 - `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
@@ -667,6 +677,10 @@ code path.
 - `activity.run.stop-reaches-in-flight-calls` — **[BROKEN]** (#5375, → #4402) Stop ends an
   in-flight Kraken page or model call rather than waiting for it. Today nothing passes cancellation
   into Kraken's lock and joined thread (`llm/kraken_runtime.py:499-556`) or into a model's HTTP call.
+  Built (2026-10-03): a Kraken page still waiting for the lane is cancelled when the task waiting
+  for it is cancelled (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`); the runner's Stop sets a flag
+  rather than cancelling the task, so it does not reach a waiting page yet, and a page already
+  running is still waited for.
 - `activity.run.record-keeps-all-history` — **[BROKEN]** (#5376) a long run's record keeps every
   step and page from the start. Today the saved timeline is the newest 2,000 events of the replay
   buffer (`execution/runner.py:144-171`, `:257-264`), so a 200-page run loses its early history.

@@ -33,16 +33,18 @@ closed one: querying a closed `Database` would silently reopen its file.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 import threading
 import time
 import uuid
+from concurrent.futures import Future
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
-from fichero_server.core.background_compute import set_background_qos
+from fichero_server.core.background_compute import set_background_qos, set_utility_qos
 from fichero_server.core.timeutil import utc_now
 
 if TYPE_CHECKING:
@@ -54,8 +56,8 @@ logger = logging.getLogger(__name__)
 PAUSE_SETTING_KEY = "background_work_paused"
 #: A row interrupted this many times is failed rather than retried (`activity.durable.poison-item`).
 MAX_ATTEMPTS = 3
-#: The model whose lock outside the queue a heavy job waits on.
-KRAKEN_MODEL = "kraken"
+#: Kraken models are named `kraken:<reader id>` (or `kraken:blla`, the line finder alone).
+KRAKEN_MODEL_PREFIX = "kraken:"
 #: Modules that register kinds, imported before the first scan so a job left waiting at quit runs
 #: after relaunch even before anything in this session enqueues one.
 _KIND_MODULES = ("fichero_server.actions.page_text_cache",)
@@ -81,7 +83,8 @@ _SCHEMA = """
 class Kind:
     """What the scheduler needs to know about a kind of job."""
 
-    run: Callable[["Database", str], None]
+    #: None for an ATTACHED kind: its work is handed in by a caller that waits for it (`submit`).
+    run: Callable[["Database", str], None] | None
     #: The heavy model it loads; jobs are grouped by it. None for work that loads no model.
     model: str | None
     #: Sets this thread's QoS class before the job runs.
@@ -91,9 +94,16 @@ class Kind:
 KINDS: dict[str, Kind] = {}
 
 
-def register_kind(kind: str, run: Callable[["Database", str], None], *, model: str | None,
+def register_kind(kind: str, run: Callable[["Database", str], None] | None, *, model: str | None,
                   qos: Callable[[], None] = set_background_qos) -> None:
     KINDS[kind] = Kind(run=run, model=model, qos=qos)
+
+
+# Kraken's line finding and line reading, handed in by a workflow step that waits for each page.
+# Named as the recipe job registry names them. Utility QoS: a person is waiting for these pages,
+# and background measured ~18 times slower for Kraken (#4959).
+for _attached in ("find-lines", "read-a-line"):
+    register_kind(_attached, None, model=None, qos=set_utility_qos)
 
 
 def _key(db: "Database") -> str:
@@ -117,16 +127,75 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
     if row:
         job_id = row[0]
     else:
-        job_id = str(uuid.uuid4())
-        model = KINDS[kind].model if kind in KINDS else None
-        db.execute(
-            "INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) "
-            "VALUES (?, ?, ?, ?, 'waiting', 0, ?, ?)",
-            [job_id, kind, subject, model, started_by, utc_now()],
-        )
+        job_id = _insert(db, kind, subject, KINDS[kind].model if kind in KINDS else None, started_by)
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return job_id
+
+
+def _is_attached(kind: str) -> bool:
+    return kind in KINDS and KINDS[kind].run is None
+
+
+def _insert(db: "Database", kind: str, subject: str, model: str | None, started_by: str) -> str:
+    job_id = str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) "
+        "VALUES (?, ?, ?, ?, 'waiting', 0, ?, ?)",
+        [job_id, kind, subject, model, started_by, utc_now()],
+    )
+    return job_id
+
+
+def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[[], Any],
+           started_by: str = "workflow") -> Future:
+    """Hand the local-model lane one piece of work a caller is WAITING for (a workflow step's
+    Kraken page) and return a future for its result.
+
+    The work is a row like any job: visible in Activity, grouped with the other work for `model`
+    (a folder's pages keep one reader loaded), and never run beside another heavy model. Only the
+    model work belongs here: anything after it that waits on the network (a vision model reading
+    the lines Kraken found) runs in the caller, off the lane.
+
+    A person is waiting, so the global pause does not hold it (spec open question 2); the row says
+    it ran although background work is paused. Cancelling the future before the work starts
+    cancels the row (an awaiting task that is cancelled does this). Not re-run after a restart:
+    the row holds no recipe for the work, and the caller's run resumes or fails on its own, so
+    `resume` cancels it."""
+    _ensure(db)
+    future: Future = Future()
+    job_id = _insert(db, kind, subject, model, started_by)
+    _scheduler.attach(job_id, fn, future)
+    key = _key(db)
+    db.add_after_commit_hook(lambda: _scheduler.wake(key))
+    return future
+
+
+def _open_library(library_path: str | None) -> "Database | None":
+    if not library_path:
+        return None
+    from fichero_server.db.manager import DatabaseManager, db_manager
+
+    return db_manager.open_database(DatabaseManager._cache_key(library_path))
+
+
+async def run_on_lane(library_path: str | None, kind: str, subject: str, *, model: str,
+                      fn: Callable[[], Any]) -> Any:
+    """`submit` for an async caller with a library path. Work outside an open project has no
+    table to be a row in, and runs on a worker thread as it did before the queue."""
+    db = _open_library(library_path)
+    if db is None:
+        return await asyncio.to_thread(fn)
+    return await asyncio.wrap_future(submit(db, kind, subject, model=model, fn=fn))
+
+
+def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, model: str,
+                         fn: Callable[[], Any]) -> Any:
+    """`run_on_lane` for a synchronous caller."""
+    db = _open_library(library_path)
+    if db is None:
+        return fn()
+    return submit(db, kind, subject, model=model, fn=fn).result()
 
 
 def resume(db: "Database") -> None:
@@ -134,6 +203,13 @@ def resume(db: "Database") -> None:
     `MAX_ATTEMPTS`; then, if anything is waiting, wake the scheduler for this library. A library
     with nothing waiting is never scanned, so opening one adds no traffic on its connection."""
     _ensure(db)
+    attached = [name for name in KINDS if _is_attached(name)]
+    db.execute(
+        f"UPDATE jobs SET state = 'cancelled', finished_at = ?, "
+        f"reason = 'Its workflow run stopped before this page was done' "
+        f"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)})",
+        [utc_now(), *attached],
+    )
     db.execute(
         "UPDATE jobs SET state = 'failed', finished_at = ?, "
         "reason = 'Interrupted ' || attempts || ' times; set aside' "
@@ -179,7 +255,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     )
     out = []
     for job_id, kind, subject, state, reason, attempts, created_at in rows:
-        if state == "waiting" and paused:
+        if state == "waiting" and paused and not _is_attached(kind):
             reason = "Paused by you"
         out.append({"id": job_id, "kind": kind, "subject": subject, "state": state,
                     "reason": reason, "attempts": attempts, "created_at": created_at})
@@ -191,6 +267,15 @@ def _kraken_busy() -> bool:
     # it here would cost the engine its startup time.
     runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
     return runtime is not None and runtime._INFERENCE_LOCK.locked()
+
+
+def _release_kraken() -> None:
+    """Free Kraken's resident models before another heavy model loads (`activity.lane.group-by-
+    model`: a switch unloads the old model first). Under Kraken's own lock, which guards them."""
+    runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
+    if runtime is not None:
+        with runtime._INFERENCE_LOCK:
+            runtime.release_resident_models()
 
 
 class _Scheduler:
@@ -209,8 +294,21 @@ class _Scheduler:
         self._wake = threading.Event()
         self._thread: threading.Thread | None = None
         self._kinds_loaded = False
+        #: Work handed in by waiting callers, by job id: (the work, the caller's future).
+        self._attached: dict[str, tuple[Callable[[], Any], Future]] = {}
         #: The model the last job loaded: the next job prefers it (`activity.lane.group-by-model`).
         self.loaded_model: str | None = None
+
+    def attach(self, job_id: str, fn: Callable[[], Any], future: Future) -> None:
+        with self._lock:
+            self._attached[job_id] = (fn, future)
+
+    def _fail_attached(self, exc: BaseException) -> None:
+        with self._lock:
+            waiting, self._attached = self._attached, {}
+        for _fn, future in waiting.values():
+            if not future.done():
+                future.set_exception(exc)
 
     def wake(self, key: str | None) -> None:
         with self._lock:
@@ -233,21 +331,31 @@ class _Scheduler:
             self._wake.wait(self.IDLE_SECONDS)
             self._wake.clear()
             # An error in a scan ends this thread (logged by threading's excepthook); the next
-            # wake (an enqueue, a library open, a pause change) starts a new one.
-            while (picked := self._next()) is not None:
-                self._run(*picked)
+            # wake (an enqueue, a library open, a pause change) starts a new one. A caller waiting
+            # on handed-in work hears the error rather than waiting forever.
+            try:
+                while (picked := self._next()) is not None:
+                    self._run(*picked)
+            except Exception as exc:
+                self._fail_attached(exc)
+                raise
 
     def _next(self) -> tuple[str, Any, tuple] | None:
-        if is_paused() or not KINDS:
-            return None
         from fichero_server.db.manager import db_manager
 
-        kinds = list(KINDS)
-        marks = ", ".join("?" for _ in kinds)
-        candidates = []
+        # Stored kinds run unless paused; handed-in work runs whenever its caller is waiting.
+        stored = [] if is_paused() else [name for name, kind in KINDS.items() if kind.run is not None]
         with self._lock:
             keys = list(self._libraries)
             self._rewoken.clear()
+            attached = list(self._attached)
+        if not stored and not attached:
+            return None
+        where = " OR ".join(filter(None, [
+            f"kind IN ({', '.join('?' for _ in stored)})" if stored else "",
+            f"id IN ({', '.join('?' for _ in attached)})" if attached else "",
+        ]))
+        candidates = []
         idle = []
         for key in keys:
             db = db_manager.open_database(key)
@@ -256,9 +364,9 @@ class _Scheduler:
                 continue
             row = db.execute_fetchone(
                 f"SELECT id, kind, subject, model, created_at FROM jobs "
-                f"WHERE state = 'waiting' AND kind IN ({marks}) "
+                f"WHERE state = 'waiting' AND ({where}) "
                 f"ORDER BY (model IS NOT DISTINCT FROM ?) DESC, created_at, rowid LIMIT 1",
-                [*kinds, self.loaded_model],
+                [*stored, *attached, self.loaded_model],
             )
             if row:
                 candidates.append((key, db, row))
@@ -277,24 +385,40 @@ class _Scheduler:
 
         job_id, kind_name, subject, model, _ = row
         kind = KINDS[kind_name]
-        if model != KRAKEN_MODEL and _kraken_busy():
+        with self._lock:
+            handed_in = self._attached.pop(job_id, None)
+        if handed_in is not None and not handed_in[1].set_running_or_notify_cancel():
+            db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped before it started', "
+                       "finished_at = ? WHERE id = ?", [utc_now(), job_id])
+            return
+        if _kraken_busy():  # a Kraken page outside the queue: no second heavy model beside it
             db.execute("UPDATE jobs SET reason = 'Waiting for Kraken (another page is using it)' "
                        "WHERE id = ?", [job_id])
             while _kraken_busy():
                 time.sleep(self.KRAKEN_POLL_SECONDS)
+        if (model is not None and (self.loaded_model or "").startswith(KRAKEN_MODEL_PREFIX)
+                and not model.startswith(KRAKEN_MODEL_PREFIX)):
+            _release_kraken()
         db.execute(
-            "UPDATE jobs SET state = 'running', started_at = ?, attempts = attempts + 1, reason = NULL "
+            "UPDATE jobs SET state = 'running', started_at = ?, attempts = attempts + 1, reason = ? "
             "WHERE id = ? AND state = 'waiting'",
-            [utc_now(), job_id],
+            [utc_now(), "Running although background work is paused"
+             if handed_in is not None and is_paused() else None, job_id],
         )
-        self.loaded_model = model
+        if model is not None:
+            self.loaded_model = model
         kind.qos()
         state, reason = "done", None
         try:
-            kind.run(db, subject)
-        except Exception as exc:  # noqa: BLE001 -- recorded on the row: the failure is the job's, shown with its reason
+            if handed_in is not None:
+                handed_in[1].set_result(handed_in[0]())
+            else:
+                kind.run(db, subject)
+        except Exception as exc:  # noqa: BLE001 -- recorded on the row, and handed to a waiting caller
             logger.warning("job %s (%s on %s) failed: %s", job_id, kind_name, subject, exc)
             state, reason = "failed", str(exc) or type(exc).__name__
+            if handed_in is not None:
+                handed_in[1].set_exception(exc)
         if db_manager.open_database(key) is not db:
             return  # closed while it ran: the row stays `running` and resumes when the library opens
         db.execute("UPDATE jobs SET state = ?, reason = ?, finished_at = ? WHERE id = ?",

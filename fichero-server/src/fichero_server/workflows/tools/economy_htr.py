@@ -172,7 +172,8 @@ def trocr_transcribe_lines(
     return [t.strip() for t in texts]
 
 
-def kraken_transcribe_page(image_path: str, model_path: str) -> str:
+def kraken_transcribe_page(image_path: str, model_path: str, *, library_path: str | None = None,
+                           page_subject: str | None = None) -> str:
     """Full-page kraken run: baseline segmentation + recognition.
 
     ``model_path`` is either a catalog model id ("kraken-mccatmus",
@@ -190,7 +191,14 @@ def kraken_transcribe_page(image_path: str, model_path: str) -> str:
     # A catalog model id resolves to the downloaded .mlmodel; a path is literal.
     resolved_path, _catalog_id = kraken_runtime.resolve_recognition_model(model_path)
 
-    payload = kraken_runtime.recognize_lines(image_path, resolved_path)
+    from fichero_server.execution.jobs import run_on_lane_blocking
+
+    # A job on the local-model lane like every Kraken page (#5358); see `vision_base`.
+    payload = run_on_lane_blocking(
+        library_path, "read-a-line", page_subject or Path(image_path).name,
+        model=f"kraken:{_catalog_id or resolved_path}",
+        fn=lambda: kraken_runtime.recognize_lines(image_path, resolved_path),
+    )
     lines = payload.get("lines") or []
     return "\n".join(str(line.get("text") or "") for line in lines).strip()
 
@@ -208,6 +216,7 @@ def economy_htr_file(
     batch_size: int = 8,
     min_line_confidence: float = 0.0,
     keep_crops_dir: str = "",
+    library_path: str | None = None,
 ) -> dict[str, Any]:
     """Transcribe one image; returns {text, lines, backend, error}."""
     source = Path(file_path)
@@ -221,7 +230,7 @@ def economy_htr_file(
             raise ValueError(f"Unsupported input file type: {source.suffix}")
 
         if backend == "kraken":
-            text = kraken_transcribe_page(str(source), kraken_model_path)
+            text = kraken_transcribe_page(str(source), kraken_model_path, library_path=library_path)
             return {"source": str(source), "text": text, "lines": [], "backend": backend, "error": None}
 
         from fichero_server.workflows.tools.vision_base import (
@@ -295,7 +304,10 @@ async def economy_htr(inputs: dict[str, Any], state: State, llm_config: LLMConfi
     options = {key: inputs[key] for key in ECONOMY_HTR_CONFIG if key in inputs}
     documents = list(inputs.get("documents") or []) or documents_from_state_outputs(state, files)
 
-    results = [economy_htr_file(file_path, **options) for file_path in files]
+    results = [
+        economy_htr_file(file_path, **options, library_path=state.get("library_path"))
+        for file_path in files
+    ]
 
     records = []
     for index, result in enumerate(results):

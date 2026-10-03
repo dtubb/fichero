@@ -4403,6 +4403,14 @@ async def process_vision(
                     `page_index` is set only when `image_path` is a rendered
                     PDF page — stamped onto the result (and each box) as
                     provenance naming which render produced it (#4892)."""
+                    # Each page is a job on the local-model lane (#5358): visible in
+                    # Activity, grouped by model so a folder keeps one reader loaded,
+                    # never beside another heavy model. Only the Kraken call is the
+                    # job; a vision model reading its lines (below) waits on the
+                    # network and runs here, off the lane.
+                    from fichero_server.execution.jobs import run_on_lane
+
+                    _page_subject = doc_id_for_file or Path(image_path).name
                     if kraken_recognition_model:
                         # A recognition model is configured: Kraken READS
                         # each line and the transcript is tied to its
@@ -4414,12 +4422,12 @@ async def process_vision(
                         _model_path, _model_id = resolve_recognition_model(
                             kraken_recognition_model
                         )
-                        result = await asyncio.to_thread(
-                            recognize_to_geometry,
-                            image_path,
-                            _model_path,
-                            model_id=_model_id,
-                            rendition_id=None,
+                        result = await run_on_lane(
+                            library_path, "read-a-line", _page_subject,
+                            model=f"kraken:{_model_id or _model_path}",
+                            fn=lambda: recognize_to_geometry(
+                                image_path, _model_path, model_id=_model_id, rendition_id=None
+                            ),
                         )
                     else:
                         # No recognition model: segment-only, exactly as
@@ -4427,8 +4435,9 @@ async def process_vision(
                         # transcript is the truthful value (the geometry
                         # rides on the result).
                         from fichero_server.llm.kraken_runtime import segment_to_geometry
-                        result = await asyncio.to_thread(
-                            segment_to_geometry, image_path, rendition_id=None
+                        result = await run_on_lane(
+                            library_path, "find-lines", _page_subject, model="kraken:blla",
+                            fn=lambda: segment_to_geometry(image_path, rendition_id=None),
                         )
                         if lines_read_by == "model":
                             from fichero_server.llm.line_reader import read_lines
