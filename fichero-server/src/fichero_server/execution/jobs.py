@@ -226,6 +226,7 @@ def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[
     _ensure(db)
     future: Future = Future()
     job_id = _insert(db, kind, subject, model, started_by)
+    future.job_id = job_id  # type: ignore[attr-defined] -- what `withdraw` cancels
     _scheduler.attach(job_id, fn, future)
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
@@ -240,14 +241,38 @@ def _open_library(library_path: str | None) -> "Database | None":
     return db_manager.open_database(DatabaseManager._cache_key(library_path))
 
 
+#: How often a page waiting for the lane looks at its run's Stop flag.
+STOP_POLL_SECONDS = 0.25
+
+
 async def run_on_lane(library_path: str | None, kind: str, subject: str, *, model: str,
-                      fn: Callable[[], Any]) -> Any:
+                      fn: Callable[[], Any], run_id: str | None = None) -> Any:
     """`submit` for an async caller with a library path. Work outside an open project has no
-    table to be a row in, and runs on a worker thread as it did before the queue."""
+    table to be a row in, and runs on a worker thread as it did before the queue.
+
+    With `run_id`, Stop on that run reaches the page while it is still WAITING for the lane:
+    its row is cancelled ("Stopped by you") and `WorkflowCancelled` is raised, the runner's
+    signal for a stop, not a failure. A page already running is waited for (the call has no
+    way to be interrupted yet)."""
     db = _open_library(library_path)
     if db is None:
         return await asyncio.to_thread(fn)
-    return await asyncio.wrap_future(submit(db, kind, subject, model=model, fn=fn))
+    future = submit(db, kind, subject, model=model, fn=fn)
+    waiting = asyncio.wrap_future(future)
+    while True:
+        done, _ = await asyncio.wait({waiting}, timeout=STOP_POLL_SECONDS)
+        if done:
+            return waiting.result()
+        if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future):
+            from fichero_server.execution.cancellation import WorkflowCancelled
+
+            raise WorkflowCancelled(run_id)
+
+
+def _stop_requested(run_id: str) -> bool:
+    from fichero_server.execution.cancellation import cancellation_requested
+
+    return cancellation_requested(run_id)
 
 
 def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, model: str,
@@ -430,6 +455,17 @@ class _Scheduler:
         with self._lock:
             self._watchers.setdefault(job_id, []).append(future)
         return future
+
+    def withdraw(self, db: "Database", future: Future) -> bool:
+        """Cancel handed-in work that has not started. False when it already runs."""
+        if not future.cancel():
+            return False
+        job_id = future.job_id  # type: ignore[attr-defined]
+        with self._lock:
+            self._attached.pop(job_id, None)
+        db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
+                   "WHERE id = ? AND state = 'waiting'", [utc_now(), job_id])
+        return True
 
     def _fail_attached(self, exc: BaseException) -> None:
         with self._lock:

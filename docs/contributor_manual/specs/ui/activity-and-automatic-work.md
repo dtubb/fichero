@@ -691,10 +691,10 @@ code path.
 - `activity.run.stop-reaches-in-flight-calls` — **[BROKEN]** (#5375, → #4402) Stop ends an
   in-flight Kraken page or model call rather than waiting for it. Today nothing passes cancellation
   into Kraken's lock and joined thread (`llm/kraken_runtime.py:499-556`) or into a model's HTTP call.
-  Built (2026-10-03): a Kraken page still waiting for the lane is cancelled when the task waiting
-  for it is cancelled (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`); the runner's Stop sets a flag
-  rather than cancelling the task, so it does not reach a waiting page yet, and a page already
-  running is still waited for.
+  Built (2026-10-03): Stop reaches a Kraken page still waiting for the lane: its row is cancelled
+  ("Stopped by you") and the step ends as stopped, not as a file error
+  (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still broken: a page already running is waited for, and
+  economy HTR's pages are not reached.
 - `activity.run.record-keeps-all-history` — **[BROKEN]** (#5376) a long run's record keeps every
   step and page from the start. Today the saved timeline is the newest 2,000 events of the replay
   buffer (`execution/runner.py:144-171`, `:257-264`), so a 200-page run loses its early history.

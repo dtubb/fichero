@@ -107,6 +107,7 @@ from fichero_server.workflows.circuit_breaker import (
     call_with_breaker,
 )
 from fichero_server.media.image_flatten import flatten_for_opaque_format
+from fichero_server.execution.cancellation import WorkflowCancelled
 
 logger = logging.getLogger(__name__)
 
@@ -4424,7 +4425,7 @@ async def process_vision(
                         )
                         result = await run_on_lane(
                             library_path, "read-a-line", _page_subject,
-                            model=f"kraken:{_model_id or _model_path}",
+                            model=f"kraken:{_model_id or _model_path}", run_id=task_id,
                             fn=lambda: recognize_to_geometry(
                                 image_path, _model_path, model_id=_model_id, rendition_id=None
                             ),
@@ -4437,6 +4438,7 @@ async def process_vision(
                         from fichero_server.llm.kraken_runtime import segment_to_geometry
                         result = await run_on_lane(
                             library_path, "find-lines", _page_subject, model="kraken:blla",
+                            run_id=task_id,
                             fn=lambda: segment_to_geometry(image_path, rendition_id=None),
                         )
                         if lines_read_by == "model":
@@ -5332,6 +5334,10 @@ async def process_vision(
             )
             texts.append("")
             values.append(None)
+        except WorkflowCancelled:
+            # Stop is not a failure (#4402): a page stopped while it waited for the lane must
+            # end the run as cancelled, not be recorded as this file's error.
+            raise
         except Exception as e:
             err = str(e)
             if _is_non_retriable_provider_error(err):
@@ -5435,6 +5441,8 @@ async def process_vision(
                 "output_files": [],
                 "page_records": [],
             }
+        except WorkflowCancelled:
+            raise  # Stop, not a crash: see `_process_file`
         except Exception as exc:  # defensive: _process_file already isolates
             # per-file errors via its own try/except, but never let an
             # unexpected escape abort the sibling files.

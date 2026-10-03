@@ -40,7 +40,7 @@ def _geometry(text: str = "vecino de la ciudad"):
     )
 
 
-async def _transcribe(library_path: str, doc, extra: dict):
+async def _transcribe(library_path: str, doc, extra: dict, task_id: str | None = None):
     from fichero_server.llm import LLMConfig
     from fichero_server.workflows.tools.sources import files_tool
     from fichero_server.workflows.tools.transcribe import transcribe
@@ -50,7 +50,7 @@ async def _transcribe(library_path: str, doc, extra: dict):
     return await transcribe(
         inputs={"files": src["files"], "documents": src["documents"], "vision_mode": "kraken",
                 "regions_first": False, **extra},
-        state={"library_path": library_path, "task_id": None},
+        state={"library_path": library_path, "task_id": task_id},
         llm_config=LLMConfig(provider="", model=""),
     )
 
@@ -284,3 +284,65 @@ def test_economy_htr_reads_its_kraken_page_on_the_lane(test_package, tmp_path, m
     assert kraken_transcribe_page(str(png), "kraken-mccatmus", library_path=library) == "vecino"
     assert threads == ["fichero-jobs"]
     assert _rows(db) == [("read-a-line", "p.png", "kraken:kraken-mccatmus", "done", None)]
+
+
+class TestStopReachesAPageWaitingForTheLane:
+    @pytest.mark.asyncio
+    async def test_stop_cancels_a_waiting_page_and_ends_the_step_as_stopped(self, test_package, tmp_path, monkeypatch):
+        """WHY: the runner's Stop is a flag the tools look at between pages; a page already
+        queued behind another run's Kraken work would have run after the person pressed Stop.
+        It is withdrawn from the lane, its row says so, and the step ends as STOPPED -- the
+        Transcribe tool must not record it as this file's error, which would read as a failure."""
+        import fichero_server.llm.kraken_runtime as kraken_runtime
+        from fichero_server.execution.cancellation import (
+            WorkflowCancelled, clear_cancellation, request_cancellation)
+
+        library = str(test_package)
+        db = db_manager.get_database(library)
+        doc = _page(db, tmp_path)
+        ran = []
+        monkeypatch.setattr(kraken_runtime, "segment_to_geometry",
+                            lambda image_path, rendition_id=None: ran.append(1) or _geometry(""))
+        gate, first = _blocked_lane(db)
+        try:
+            step = asyncio.ensure_future(_transcribe(library, doc, {}, task_id="run-stop"))
+            for _ in range(200):  # until the page is queued behind the held job
+                await asyncio.sleep(0.02)
+                if db.execute_fetchone("SELECT 1 FROM jobs WHERE subject = ? AND state = 'waiting'", [doc.id]):
+                    break
+            request_cancellation("run-stop")
+            with pytest.raises(WorkflowCancelled):
+                await asyncio.wait_for(step, 10)
+        finally:
+            gate.set()
+            clear_cancellation("run-stop")
+        first.result(10)
+        assert ran == []
+        assert db.execute_fetchone("SELECT state, reason FROM jobs WHERE subject = ?", [doc.id]) == (
+            "cancelled", "Stopped by you")
+
+    @pytest.mark.asyncio
+    async def test_a_page_already_running_is_waited_for(self, db, test_package):
+        """WHY: a Kraken call cannot be interrupted midway yet (#4402); stopping must not leave
+        it orphaned, writing into a run that thinks it has ended. The waiter keeps its result."""
+        from fichero_server.execution.cancellation import clear_cancellation, request_cancellation
+
+        started, gate = threading.Event(), threading.Event()
+
+        def page():
+            started.set()
+            gate.wait(10)
+            return "lines"
+
+        waiting = asyncio.ensure_future(jobs.run_on_lane(
+            str(test_package), "find-lines", "busy", model="kraken:blla", fn=page, run_id="run-busy"))
+        try:
+            await asyncio.to_thread(started.wait, 10)
+            request_cancellation("run-busy")
+            await asyncio.sleep(0.6)
+            assert not waiting.done()
+            gate.set()
+            assert await asyncio.wait_for(waiting, 10) == "lines"
+        finally:
+            gate.set()
+            clear_cancellation("run-busy")
