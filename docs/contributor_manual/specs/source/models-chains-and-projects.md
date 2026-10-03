@@ -1164,9 +1164,9 @@ no corrected pages.
 Then: the newspaper is read in minutes and the researcher corrects a few columns; once 100 lines
 are corrected the bake-off is offered there and measures Tesseract on them. The letters are lined
 automatically; the researcher checks the lines and transcribes in the Source view with the
-syllabary's font and keyboard. At the threshold the train step is offered: with no cluster and
-16 GB, Fichero says a Mac with 32 GB or a cluster is needed and links to adding one
-(`compute/distillation.md`); a Kraken reader fine-tuned from the corrected letters (with the
+syllabary's font and keyboard. At the threshold the train step is offered: a Kraken reader trains on this 16 GB Mac,
+throttled (`compute/jobs-and-fine-tuning.md`, `compute.tune.on-this-mac`), or on Hugging Face Jobs
+or a cluster if the project allows pages to leave the Mac; a Kraken reader fine-tuned from the corrected letters (with the
 corrected newspaper lines as extra data, marked as print) comes back as a card, is measured on
 held-out letters, and is pinned into the letters folder's next recipe version only where it
 clears the bar. The researcher can publish the recipe and, if the community agrees, the model, so

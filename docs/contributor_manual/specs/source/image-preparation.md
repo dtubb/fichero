@@ -35,7 +35,8 @@ the left page is often blank graph paper and the right page carries the text in 
 - **The legacy tools** (`fichero_archive/_archive/fichero_legacy/tools/`) did more and, by the
   maintainer's account, did it better: `split.py` (detects spiral notebooks, spreads, covers and
   labels; finds the split point from the binding's periodic pattern), `crop.py` (crops with a
-  **YOLOv8 page model**, `fichero_resources/yolo_models/yolov8s-fichero.pt`, falling back to
+  **YOLOv8 page model** (`fichero_resources/yolo_models/yolov8s-fichero.pt`, in the old
+  `fichero_archive` tree, not in this repository), falling back to
   contours), `rotate.py` (Hough-line straightening), `segment.py` (deskew from text baselines, safe
   cut points). The move to today's tools kept the heuristics in `media/image_ops.py` and dropped
   the YOLO model; Apple Vision is used only to read text, not to find the page.

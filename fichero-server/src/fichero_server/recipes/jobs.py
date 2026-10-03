@@ -143,7 +143,8 @@ _job("pull-out-passages", "Pull out passages", {"line_readings"}, {"passages"}, 
 _job("train-a-model", "Train a model", {"line_readings", "lines"}, {"model_card"}, "train",
      "the candidate against the current step on held-out corrected pages",
      "Trains a small model on your corrected pages, so it reads your material better and faster. "
-     "Runs on a cluster, a GPU service or a large Mac.", ("base", "where"))
+     "A Kraken reader or a YOLO detector trains on this Mac; larger models on Hugging Face Jobs or a "
+     "cluster, if the project lets pages leave the Mac.", ("base", "where"))
 # --- Output ---------------------------------------------------------------------------------------
 _job("export", "Export", {"line_readings"}, {"files"}, "output", "the files side by side",
      "Writes your work out in the formats you name (TEI, PAGE, ALTO, plain text, Markdown, Excel, "
