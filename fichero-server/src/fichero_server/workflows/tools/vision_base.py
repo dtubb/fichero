@@ -3935,13 +3935,28 @@ async def process_vision(
         _vision_provider = getattr(effective_config, "provider", "") or "unknown"
 
         async def _vision_resilient(make_coro):
-            return await call_with_breaker(
-                make_coro,
-                provider=_vision_provider,
-                breaker=_vision_breaker,
-                semaphore=_vision_sem,
-                label=Path(file_path).name,
-                **_vision_backoff,
+            def call():
+                return call_with_breaker(
+                    make_coro,
+                    provider=_vision_provider,
+                    breaker=_vision_breaker,
+                    semaphore=_vision_sem,
+                    label=Path(file_path).name,
+                    **_vision_backoff,
+                )
+
+            from fichero_server.execution.jobs import LOCAL_MODEL_SERVERS, hold_lane
+
+            _provider = (effective_config.provider or "").lower()
+            if _provider not in LOCAL_MODEL_SERVERS:
+                return await call()
+            # A model served on this Mac (MLX, Ollama, LM Studio) is a heavy model: its page
+            # holds the local-model lane while it reads, so Kraken or the embedder never load
+            # beside it, and the page shows in Activity (#5358). A cloud model waits on the
+            # network and stays off the lane.
+            return await hold_lane(
+                library_path, "read-a-page", doc_id_for_file or Path(file_path).name,
+                model=f"{_provider}:{effective_config.model}", work=call, run_id=task_id,
             )
 
         try:

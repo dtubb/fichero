@@ -139,10 +139,11 @@ def kind_name(kind: str) -> str:
     return (registered.name if registered else None) or kind
 
 
-# Kraken's line finding and line reading, handed in by a workflow step that waits for each page.
-# Named as the recipe job registry names them. Utility QoS: a person is waiting for these pages,
-# and background measured ~18 times slower for Kraken (#4959).
-for _attached in ("find-lines", "read-a-line"):
+# Kraken's line finding and line reading, and a page read by a model served on this Mac, handed
+# in by a workflow step that waits for each page. Named as the recipe job registry names them.
+# Utility QoS: a person is waiting for these pages, and background measured ~18 times slower for
+# Kraken (#4959).
+for _attached in ("find-lines", "read-a-line", "read-a-page"):
     register_kind(_attached, None, model=None, qos=set_utility_qos)
 
 
@@ -294,15 +295,65 @@ async def run_on_lane(library_path: str | None, kind: str, subject: str, *, mode
     if db is None:
         return await asyncio.to_thread(fn)
     future = submit(db, kind, subject, model=model, fn=fn)
-    waiting = asyncio.wrap_future(future)
+    return await _wait_for_lane(db, future, asyncio.wrap_future(future), run_id)
+
+
+async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future", run_id: str | None) -> Any:
+    """Wait for `signal`, withdrawing the job and raising `WorkflowCancelled` if the run is
+    stopped while the job is still waiting for the lane."""
     while True:
-        done, _ = await asyncio.wait({waiting}, timeout=STOP_POLL_SECONDS)
+        done, _ = await asyncio.wait({signal}, timeout=STOP_POLL_SECONDS)
         if done:
-            return waiting.result()
+            return signal.result()
         if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future):
             from fichero_server.execution.cancellation import WorkflowCancelled
 
             raise WorkflowCancelled(run_id)
+
+
+#: Longest the lane is held for one model call before it carries on regardless (a caller that
+#: vanished without letting go must not wedge the lane for good).
+HOLD_LIMIT_SECONDS = 900.0
+
+
+async def hold_lane(library_path: str | None, kind: str, subject: str, *, model: str,
+                    work: Callable[[], Any], run_id: str | None = None) -> Any:
+    """Run async `work` (a call to a model served on this Mac: MLX, Ollama, LM Studio) as a job
+    on the local-model lane. The call stays in the caller, on its event loop; the lane's thread
+    holds the slot while it runs, so no other heavy model starts beside it, and its row is shown,
+    grouped by model and stoppable while it waits, like a Kraken page."""
+    db = _open_library(library_path)
+    if db is None:
+        return await work()
+    loop = asyncio.get_running_loop()
+    granted: asyncio.Future = loop.create_future()
+    release = threading.Event()
+
+    def hold() -> None:
+        loop.call_soon_threadsafe(lambda: granted.done() or granted.set_result(None))
+        release.wait(HOLD_LIMIT_SECONDS)
+
+    future = submit(db, kind, subject, model=model, fn=hold)
+    try:
+        lane = asyncio.wrap_future(future)
+        try:
+            await _wait_for_lane(db, future, _first_of(granted, lane), run_id)
+        except asyncio.CancelledError:
+            _scheduler.withdraw(db, future)  # its caller is gone: the slot is not wanted
+            raise
+        return await work()
+    finally:
+        release.set()
+
+
+def _first_of(granted: "asyncio.Future", lane: "asyncio.Future") -> "asyncio.Future":
+    """`granted`, or the lane's own failure if the job fails before it is granted."""
+    def failed(done: "asyncio.Future") -> None:
+        if not granted.done() and not done.cancelled() and done.exception() is not None:
+            granted.set_exception(done.exception())
+
+    lane.add_done_callback(failed)
+    return granted
 
 
 def _stop_requested(run_id: str) -> bool:
@@ -420,13 +471,28 @@ def _release_embedder() -> None:
         embeddings.release_idle_embedders(idle_seconds=0)
 
 
+#: Providers whose models run in a server on this Mac (named `<provider>:<model>` on the lane).
+LOCAL_MODEL_SERVERS = frozenset({"omlx", "ollama", "lmstudio"})
+
+
 def _family(model: str | None) -> str | None:
-    return "kraken" if (model or "").startswith(KRAKEN_MODEL_PREFIX) else model
+    if (model or "").startswith(KRAKEN_MODEL_PREFIX):
+        return "kraken"
+    if (model or "").split(":", 1)[0] in LOCAL_MODEL_SERVERS:
+        return "local-model"
+    return model
+
+
+def _keep_local_model_server() -> None:
+    # ponytail: not stopped on a switch. Its server takes 30-300 s to start again and frees its
+    # own memory when idle; stop it here once measured resident sizes say this Mac needs it.
+    return None
 
 
 #: The heavy models the lane frees when it switches from one to another (`activity.lane.group-by-
 #: model`: a switch unloads the old model first). A light one (spaCy) stays loaded beside them.
-_RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder}
+_RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder,
+            "local-model": _keep_local_model_server}
 #: A background job for another heavy model waits until the loaded one has had no work for this
 #: long, so work that arrives in bursts (a run's Kraken pages, each followed by its page's embed)
 #: does not swap two models in and out page by page. Work a person waits for switches at once.
@@ -596,9 +662,17 @@ class _Scheduler:
         quiet_from = lane.loaded_used_at + SWITCH_AFTER_QUIET_SECONDS
         others = [f for f in _RELEASE if f != _family(lane.loaded_model)]
         if _family(lane.loaded_model) in _RELEASE and time.monotonic() < quiet_from and others:
-            held = " OR ".join(
-                "COALESCE(model, '') LIKE ?" if f == "kraken" else "COALESCE(model, '') = ?" for f in others)
-            held_params = [KRAKEN_MODEL_PREFIX + "%" if f == "kraken" else f for f in others]
+            held_parts, held_params = [], []
+            for f in others:
+                prefixes = ([KRAKEN_MODEL_PREFIX] if f == "kraken" else
+                            [f"{p}:" for p in sorted(LOCAL_MODEL_SERVERS)] if f == "local-model" else [])
+                if prefixes:
+                    held_parts += ["COALESCE(model, '') LIKE ?"] * len(prefixes)
+                    held_params += [p + "%" for p in prefixes]
+                else:
+                    held_parts.append("COALESCE(model, '') = ?")
+                    held_params.append(f)
+            held = " OR ".join(held_parts)
             if attached:
                 where += f" AND (id IN ({', '.join('?' for _ in attached)}) OR NOT ({held}))"
                 params += [*attached, *held_params]
