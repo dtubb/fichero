@@ -15125,6 +15125,83 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('training')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for training endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='training')
+        existing_apps['training'] = target_app
+
+    @target_app.command("a-job-s-phase-and-outcome")
+    def training_a_job_s_phase_and_outcome_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """A training job's phase and outcome (GET /api/training/jobs/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/training/jobs/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-a-job-cancels-its-job-on-hugging-face")
+    def training_stop_a_job_cancels_its_job_on_hugging_face_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Stop a training job (cancels its Job on Hugging Face) (POST /api/training/jobs/{job_id}/cancel)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/training/jobs/{job_id}/cancel"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("train-a-kraken-reader-on-hugging-face-jobs")
+    def training_train_a_kraken_reader_on_hugging_face_jobs_post(
+        ctx: typer.Context,
+        base: Optional[str] = typer.Option(None, "--base", help="Request field: base."),
+        display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
+        flavor: Optional[str] = typer.Option(None, "--flavor", help="Request field: flavor."),
+        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        not_for_release: Optional[bool] = typer.Option(None, "--not-for-release/--no-not-for-release", help="Request field: not_for_release."),
+        pages_may_leave: Optional[bool] = typer.Option(None, "--pages-may-leave/--no-pages-may-leave", help="Request field: pages_may_leave."),
+        release_note: Optional[str] = typer.Option(None, "--release-note", help="Request field: release_note."),
+        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+        teacher: str = typer.Option(..., "--teacher", help="Request field: teacher."),
+        timeout: Optional[str] = typer.Option(None, "--timeout", help="Request field: timeout."),
+    ) -> None:
+        """Train a Kraken reader on Hugging Face Jobs (POST /api/training/kraken)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/kraken"
+            params = None
+            payload = _build_json_payload({
+                "base": base,
+                "display_name": display_name,
+                "flavor": flavor,
+                "held_out_ids": held_out_ids,
+                "name": name,
+                "not_for_release": not_for_release,
+                "pages_may_leave": pages_may_leave,
+                "release_note": release_note,
+                "scope_ids": scope_ids,
+                "teacher": teacher,
+                "timeout": timeout,
+            }, {
+                "base": {'type': 'string', 'nullable': True, 'title': 'Base', 'description': 'The Kraken reader to start from (a model id); none trains from nothing.', 'x-cli-required': False},
+                "display_name": {'type': 'string', 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
+                "flavor": {'type': 'string', 'title': 'Flavor', 'description': 'Hugging Face hardware.', 'default': 't4-small', 'x-cli-required': False},
+                "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'Pages kept home as the test; never sent.', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'description': "A short name for the trained reader's file.", 'default': 'reader', 'x-cli-required': False},
+                "not_for_release": {'type': 'boolean', 'title': 'Not For Release', 'description': 'The trained reader may not be released.', 'default': True, 'x-cli-required': False},
+                "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages to go to Hugging Face.", 'default': False, 'x-cli-required': False},
+                "release_note": {'type': 'string', 'nullable': True, 'title': 'Release Note', 'x-cli-required': False},
+                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages whose teacher-read lines train the reader.', 'x-cli-required': True},
+                "teacher": {'type': 'string', 'title': 'Teacher', 'description': 'The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.', 'x-cli-required': True},
+                "timeout": {'type': 'string', 'title': 'Timeout', 'description': "The Job's time limit; always sent (the service's default is 30 minutes).", 'default': '4h', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('triggers')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for triggers endpoints.', no_args_is_help=True)

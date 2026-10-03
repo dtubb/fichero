@@ -263,7 +263,7 @@ All [GAP]: designed, not built.
   `runner_command` in `build_remote_run_spec` (`remote_jobs.py:435-442`) is replaced by the
   image's "run a package" command. *Test:* the same three-page workflow on this Mac and in the
   cpu image yields identical readings.
-- `compute.job.one-state-machine` — **[GAP]** (#5240, #5353) every compute job, on every target, is a row in
+- `compute.job.one-state-machine` — **[PARTIAL]** (#5240, #5353) *Built for training (#5398): a `train-a-model` job is a row in the one `jobs` table, lane `remote`, with `target` and `detail` (request, far-side id, phase history) columns; workflow jobs and `job.updated` broadcast on every phase are not built.* every compute job, on every target, is a row in
   the one `jobs` table (`activity.one-job-model`), moves through the phases above and no others,
   and each change is stored and broadcast as `job.updated`. *Data:* the `jobs` row, plus what a
   remote job adds to it: target id, package manifest hash, far-side ids, phase history. No
@@ -310,7 +310,7 @@ All [GAP]: designed, not built.
   constants. On Alliance clusters the GPU is asked for by its model name (CITED, S7). *Data:*
   `SlurmJobConfig` (VERIFIED `remote_jobs.py:28-36`), filled from cards. *Test:* an 8B LoRA
   recipe proposes one GPU of at least 40 GB.
-- `compute.job.costs-shown-where-known` — **[GAP]** (#5240) for Hugging Face Jobs, the price for each hour of the
+- `compute.job.costs-shown-where-known` — **[PARTIAL]** (#5240) *Built for training (#5398): the price per hour is read from `list_jobs_hardware` and returned when the job starts, and the time limit is always sent; no app sheet shows it yet.* for Hugging Face Jobs, the price for each hour of the
   chosen hardware is shown before sending, read from its API, and a time limit is always set
   explicitly because the service's default is 30 minutes (CITED, S12). *Test:* recorded API.
 - `compute.job.everywhere` — **[GAP]** (#5240) jobs can be listed, started, watched and cancelled from the app,
@@ -380,11 +380,11 @@ needs them.
   used (CPU, GPU, Neural Engine) on the job and on the resulting card, and every adopted model
   carries a measurement of reading on a 16 GB Mac (speed per page, peak memory). *Test:* the card
   of a trained model has those fields filled from the run, never typed by hand.
-- `compute.tune.input-is-a-training-set` — **[GAP]** (#5240) a training job's only data input is a training set
+- `compute.tune.input-is-a-training-set` — **[PARTIAL]** (#5240) *Built for distillation (#5398): `training/kraken_set.py` writes the teacher's line passes as PAGE XML beside each photograph, held-out pages left out; the person-checked split of #4947 is not built.* a training job's only data input is a training set
   as `source.train.*` defines it, made by that spec's code; this slice adds no second way to
   cut line pictures. *Routed:* → #4947. *Test:* a training package holds exactly the training
   set's objects and its description.
-- `compute.tune.kraken-recognition` — **[GAP]** (#5240) a `train-kraken-recognition` job runs `ketos train` on the
+- `compute.tune.kraken-recognition` — **[PARTIAL]** (#5240) *Built on Hugging Face Jobs (#5398): `ketos train -f page -q early` from a base reader card, best model returned; on this Mac and in the image, and held-out scores, not built.* a `train-kraken-recognition` job runs `ketos train` on the
   training set, from a base model card or from nothing, and returns the best model, its log,
   and character and word error rates on the held-out part. *Data:* the training set's split
   (`source.train.split-by-manuscript`). *Test:* a tiny set in the cpu image for two epochs
@@ -412,7 +412,7 @@ needs them.
   two-minute limit and a trainer stub: the run completes across two parts with no repeated
   steps. Whether `ketos train` resumes by itself is UNVERIFIED (S18) and is checked when the
   slice is cut.
-- `compute.tune.model-comes-back-as-a-card` — **[GAP]** (#5240) a returned model lands as a model file and a card
+- `compute.tune.model-comes-back-as-a-card` — **[PARTIAL]** (#5240) *Built for Kraken (#5398): `training/landing.py` lands `kraken-trained-<job>` with a card (base, teacher, set, held-out pages, job, target) listed in the model catalogue; scores on landing are not built.* a returned model lands as a model file and a card
   in the one catalogue, naming its base, its training set, the job, the target, the recipe and
   its scores (`source.train.model-lineage`). It is a row under its provider like any downloaded
   model (`source.find.download-is-a-provider-row`). *Test:* after landing, the catalogue lists
@@ -447,7 +447,7 @@ needs them.
   and licence class, and the training set's; publishing reads them. *Routed:*
   `source.model.licence-class`. *Test:* an adapter on a base with a bespoke licence is marked
   so.
-- `compute.tune.bootstrapped-data-is-marked` — **[GAP]** (#5240) if a training set includes readings made by a
+- `compute.tune.bootstrapped-data-is-marked` — **[PARTIAL]** (#5240) *Built (#5398): the set's manifest and the reader's card count lines read by a model and lines checked by a person; no app view shows it yet.* if a training set includes readings made by a
   model rather than checked by a person, which `source.train.human-checked-by-default`
   allows only by a deliberate choice, the job's record and the card say how many, so a model
   taught by another model is never mistaken for one taught by a person. *Test:* counts on the

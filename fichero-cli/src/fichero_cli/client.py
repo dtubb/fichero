@@ -1088,6 +1088,18 @@ class FicheroClient:
             self.request("GET", f"/api/ingest/status/{quote(task_id, safe='')}")
         )
 
+    def train_kraken(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Queue a Kraken training job on Hugging Face Jobs (#5398); see POST /api/training/kraken."""
+        return self.request("POST", "/api/training/kraken", json=request)
+
+    def training_status(self, job_id: str) -> dict[str, Any]:
+        """A training job's phase, Job id, counts, last log lines and landed reader."""
+        return self.request("GET", f"/api/training/jobs/{quote(job_id, safe='')}")
+
+    def cancel_training(self, job_id: str) -> dict[str, Any]:
+        """Stop a training job; a running one is cancelled on Hugging Face."""
+        return self.request("POST", f"/api/training/jobs/{quote(job_id, safe='')}/cancel")
+
     def compare_readings(
         self,
         doc_id: str,

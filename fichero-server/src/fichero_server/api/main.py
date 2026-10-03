@@ -1875,6 +1875,7 @@ async def get_stats(db: Database = Depends(get_library_database)):
 # nested name) purely for app startup, which is what blew the
 # test_module_count_budget_at_app_import budget after the routes reorg.
 # Importing the nested module directly keeps exactly one entry per route.
+from fichero_server.api.routes import training as training_routes  # noqa: E402
 from fichero_server.api.routes import (  # noqa: E402
     ingest,
     kg_claim_analysis,
@@ -2060,6 +2061,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # `source.format.everywhere` (#4943): one page out as PAGE XML, ALTO or TEI, with the loss
     # report and the choices (pass, order, reading kind) that were made.
     (document_page_export.router, "/api", ["formats"]),
+    # /api/training — train a reader as a job (#5398): Kraken on Hugging Face Jobs, landed as a card.
+    (training_routes.router, "/api", ["training"]),
     # Source-model slice 10 (#4931): the ONE typed link. Segments are on it now;
     # the four existing link records converge one per later slice, and this
     # vocabulary is seeded from all of them so no word is lost when they do.

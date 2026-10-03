@@ -10416,6 +10416,42 @@
         "response_model": "TaskResultResponse"
       }
     ],
+    "training": [
+      {
+        "method": "GET",
+        "path": "/training/jobs/{job_id}",
+        "operation_id": "training_job_status_api_training_jobs__job_id__get",
+        "summary": "A training job's phase and outcome",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TrainingJobStatus"
+      },
+      {
+        "method": "POST",
+        "path": "/training/jobs/{job_id}/cancel",
+        "operation_id": "cancel_training_job_api_training_jobs__job_id__cancel_post",
+        "summary": "Stop a training job (cancels its Job on Hugging Face)",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/training/kraken",
+        "operation_id": "start_kraken_training_api_training_kraken_post",
+        "summary": "Train a Kraken reader on Hugging Face Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TrainKrakenRequest",
+        "response_model": "TrainingStarted"
+      }
+    ],
     "triggers": [
       {
         "method": "GET",

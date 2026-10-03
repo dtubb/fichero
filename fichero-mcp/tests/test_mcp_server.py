@@ -34,6 +34,9 @@ EXPECTED_TOOLS = {
     "fichero_workflow_list",
     "fichero_workflow_run",
     "fichero_workflow_status",
+    "fichero_train_kraken",
+    "fichero_training_status",
+    "fichero_training_cancel",
     "fichero_compare_readings",
     "fichero_artifacts",
     "fichero_kg_entities",
@@ -346,6 +349,24 @@ def test_compare_readings_refuses_an_ambiguous_side(monkeypatch):
         with pytest.raises(ValueError):
             mcp_server.fichero_compare_readings("p", reference_pass_id="a")
     assert seen == []
+
+
+def test_training_tools_send_the_engines_request(monkeypatch):
+    """#5398: an agent can start, follow and stop a training job the one way the engine offers. The
+    yes for the pages to leave is the agent's to pass on from the person, never a default."""
+    import json
+
+    with _mock_client(monkeypatch, body={"job_id": "j1"}) as seen:
+        mcp_server.fichero_train_kraken(["folder-1"], "google/gemini-3-flash-preview", pages_may_leave=True,
+                                        held_out_ids=["p4"], base="kraken-zenodo-21788410")
+        mcp_server.fichero_training_status("j1")
+        mcp_server.fichero_training_cancel("j1")
+    start, status, cancel = seen
+    assert (start.method, start.url.path) == ("POST", "/api/training/kraken")
+    body = json.loads(start.content)
+    assert body["pages_may_leave"] is True and body["held_out_ids"] == ["p4"] and body["timeout"] == "4h"
+    assert (status.method, status.url.path) == ("GET", "/api/training/jobs/j1")
+    assert (cancel.method, cancel.url.path) == ("POST", "/api/training/jobs/j1/cancel")
 
 
 def test_artifacts_builds_path_and_params(monkeypatch):

@@ -285,7 +285,7 @@ All [GAP]: designed, not built.
 
 ### Transfer
 
-- `compute.transfer.hub-carrier` — **[GAP]** (#5398) for a Hugging Face target, objects are written to a
+- `compute.transfer.hub-carrier` — **[PARTIAL]** (#5398) *Built for training (#5398): a private bucket of the person's account, one folder per job, `sync_bucket` up and down, mounted into the Job.* for a Hugging Face target, objects are written to a
   private dataset repository of the person's, each under its sha256, by the one transfer core;
   "which do you have" is the repository's file list; the job reads its inputs from there and
   writes its result package back there; the repository is emptied of the job's objects after

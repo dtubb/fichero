@@ -5119,6 +5119,178 @@
         }
       }
     },
+    "/api/training/kraken": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Train a Kraken reader on Hugging Face Jobs",
+        "description": "Queue a `train-a-model` job: the pages in scope whose lines the teacher read go to a private\nbucket of the person's Hugging Face account, Fichero's trainer fine-tunes the base reader there,\nand the trained reader comes home as a reader card. Refused (and nothing queued) without the\nperson's yes for the pages to leave, without a Hugging Face token, or with a base reader that is\nnot installed.",
+        "operationId": "start_kraken_training_api_training_kraken_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainKrakenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingStarted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/training/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "A training job's phase and outcome",
+        "operationId": "training_job_status_api_training_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJobStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/training/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Stop a training job (cancels its Job on Hugging Face)",
+        "operationId": "cancel_training_job_api_training_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Cancel Training Job Api Training Jobs  Job Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/links/naming": {
       "get": {
         "tags": [
@@ -76604,6 +76776,84 @@
         "title": "TopEntityListResponse",
         "description": "Standardized envelope for GET /api/entities/top."
       },
+      "TrainKrakenRequest": {
+        "properties": {
+          "scope_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scope Ids",
+            "description": "Folders or pages whose teacher-read lines train the reader."
+          },
+          "teacher": {
+            "type": "string",
+            "title": "Teacher",
+            "description": "The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview."
+          },
+          "held_out_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Held Out Ids",
+            "description": "Pages kept home as the test; never sent."
+          },
+          "base": {
+            "type": "string",
+            "nullable": true,
+            "title": "Base",
+            "description": "The Kraken reader to start from (a model id); none trains from nothing."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "A short name for the trained reader's file.",
+            "default": "reader"
+          },
+          "display_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Display Name"
+          },
+          "flavor": {
+            "type": "string",
+            "title": "Flavor",
+            "description": "Hugging Face hardware.",
+            "default": "t4-small"
+          },
+          "timeout": {
+            "type": "string",
+            "title": "Timeout",
+            "description": "The Job's time limit; always sent (the service's default is 30 minutes).",
+            "default": "4h"
+          },
+          "pages_may_leave": {
+            "type": "boolean",
+            "title": "Pages May Leave",
+            "description": "The person's yes for these pages to go to Hugging Face.",
+            "default": false
+          },
+          "not_for_release": {
+            "type": "boolean",
+            "title": "Not For Release",
+            "description": "The trained reader may not be released.",
+            "default": true
+          },
+          "release_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Release Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_ids",
+          "teacher"
+        ],
+        "title": "TrainKrakenRequest",
+        "description": "What a person asks for: which pages teach, which teacher, which test, from which reader."
+      },
       "TrainResponse": {
         "properties": {
           "triples": {
@@ -76708,6 +76958,79 @@
         ],
         "title": "TrainingExportResponse"
       },
+      "TrainingJobStatus": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "phase": {
+            "type": "string",
+            "nullable": true,
+            "title": "Phase"
+          },
+          "far_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Far Id"
+          },
+          "price_per_hour_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Price Per Hour Usd"
+          },
+          "reader_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reader Id"
+          },
+          "training_set": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Training Set"
+          },
+          "last_lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Last Lines",
+            "default": []
+          },
+          "history": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "History",
+            "default": []
+          },
+          "request": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Request"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "state"
+        ],
+        "title": "TrainingJobStatus",
+        "description": "A training job's row, in words and numbers."
+      },
       "TrainingResult": {
         "properties": {
           "model_id": {
@@ -76775,6 +77098,34 @@
         ],
         "title": "TrainingResult",
         "description": "Training job result."
+      },
+      "TrainingStarted": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "flavor": {
+            "type": "string",
+            "title": "Flavor"
+          },
+          "timeout": {
+            "type": "string",
+            "title": "Timeout"
+          },
+          "price_per_hour_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Price Per Hour Usd"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "flavor",
+          "timeout"
+        ],
+        "title": "TrainingStarted"
       },
       "TrainingStatus": {
         "type": "string",

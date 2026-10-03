@@ -63,9 +63,12 @@ MAX_ATTEMPTS = 3
 KRAKEN_MODEL_PREFIX = "kraken:"
 #: Modules that register kinds, imported before the first scan so a job left waiting at quit runs
 #: after relaunch even before anything in this session enqueues one.
-_KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives")
-#: Lane -> how many of its jobs run at once (`activity.throttle.lanes`).
-LANES = {"local-ml": 1, "images": 2}
+_KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
+                 "fichero_server.training.job")
+#: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
+#: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
+#: never holds the local ML lane.
+LANES = {"local-ml": 1, "images": 2, "remote": 2}
 #: Finished jobs older than this are deleted when their library opens (spec open question 8).
 KEEP_FINISHED_DAYS = 30
 
@@ -84,6 +87,18 @@ _SCHEMA = """
         finished_at TIMESTAMP
     )
 """
+#: What a job sent away adds to its row (`compute.job.one-state-machine`): where it runs, and its
+#: detail as JSON (the request, the far side's id, the phase and its history). Added to existing
+#: libraries in place.
+_ADDED_COLUMNS = (
+    "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS target TEXT",
+    "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS detail TEXT",
+)
+_ENSURED: set[str] = set()
+
+
+class JobCancelled(Exception):
+    """Raised by a job's run when it was stopped: the row ends `cancelled`, not `failed`."""
 
 
 @dataclass(frozen=True)
@@ -139,6 +154,11 @@ def _key(db: "Database") -> str:
 
 def _ensure(db: "Database") -> None:
     db.execute(_SCHEMA)
+    key = str(db.path)
+    if key not in _ENSURED:
+        for statement in _ADDED_COLUMNS:
+            db.execute(statement)
+        _ENSURED.add(key)
 
 
 def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic") -> str:
@@ -153,6 +173,22 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
         job_id = row[0]
     else:
         job_id = _insert(db, kind, subject, KINDS[kind].model if kind in KINDS else None, started_by)
+    key = _key(db)
+    db.add_after_commit_hook(lambda: _scheduler.wake(key))
+    return job_id
+
+
+def enqueue_remote(db: "Database", kind: str, subject: str, *, target: str, detail: str,
+                   reason: str, started_by: str) -> str:
+    """Queue one job sent to another place, with where it runs and its detail (JSON) written in the
+    same statement, so the scheduler never claims it before it knows what to do."""
+    _ensure(db)
+    job_id = str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO jobs (id, kind, subject, model, state, reason, attempts, started_by, created_at, target, detail) "
+        "VALUES (?, ?, ?, NULL, 'waiting', ?, 0, ?, ?, ?, ?)",
+        [job_id, kind, subject, reason, started_by, utc_now(), target, detail],
+    )
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return job_id
@@ -603,6 +639,8 @@ class _Scheduler:
         state, reason, result, error = "done", None, None, None
         try:
             result = handed_in[0]() if handed_in is not None else kind.run(db, subject)
+        except JobCancelled as exc:
+            state, reason, error = "cancelled", str(exc) or "Stopped by you", exc
         except Exception as exc:  # noqa: BLE001 -- recorded on the row, and handed to whoever waits
             logger.warning("job %s (%s on %s) failed: %s", job_id, kind_name, subject, exc)
             state, reason, error = "failed", str(exc) or type(exc).__name__, exc

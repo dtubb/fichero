@@ -564,6 +564,25 @@ whole Mac, through the audited, undoable action `background.pause`. The switch i
 setting, so it holds across relaunch. While it is on, the scheduler starts nothing; a job already
 running finishes.
 
+### Training a reader (Hugging Face Jobs)
+
+`POST /api/training/kraken` queues a `train-a-model` job (#5398, `specs/compute/jobs-and-fine-tuning.md`):
+the pages under `scope_ids` whose lines the `teacher` model read are written as PAGE XML beside their
+photographs (the `held_out_ids` pages stay home as the test), sent to a private bucket of the
+person's Hugging Face account, and Fichero's trainer fine-tunes the `base` Kraken reader there on the
+chosen `flavor` with an explicit `timeout`. The answer carries the job id and the hardware's
+`price_per_hour_usd`. It is refused, with nothing queued, without `pages_may_leave: true` (403),
+without a Hugging Face token in Settings (412), or with a base reader that is not installed (422).
+Through the audited, non-undoable action `training.start`.
+
+`GET /api/training/jobs/{job_id}` follows it: `state`, the `reason` in words, its `phase` and
+`history`, the Job's `far_id` on Hugging Face, the training set's counts (including how many lines a
+model read and a person checked), the Job's `last_lines` when it ends, and, once landed, the
+`reader_id` (`kraken-trained-…`) to read with. The job also appears in `GET /api/activity/jobs`.
+
+`POST /api/training/jobs/{job_id}/cancel` stops it (`training.cancel`): a job not started ends at
+once; a running one is cancelled on Hugging Face at its next look and ends `cancelled`.
+
 ### Workflow run comparison
 
 `GET /api/workflow-execution/comparisons` diffs what two runs produced from

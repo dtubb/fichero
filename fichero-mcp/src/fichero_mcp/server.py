@@ -470,6 +470,52 @@ def fichero_compare_readings(
         )
 
 
+@mcp.tool()
+def fichero_train_kraken(
+    scope_ids: list[str],
+    teacher: str,
+    pages_may_leave: bool,
+    held_out_ids: Optional[list[str]] = None,
+    base: Optional[str] = None,
+    name: str = "reader",
+    flavor: str = "t4-small",
+    timeout: str = "4h",
+    not_for_release: bool = True,
+) -> Any:
+    """Train a Kraken reader on Hugging Face Jobs from the lines a teacher model read (distillation).
+
+    The pages under ``scope_ids`` whose lines ``teacher`` read go to a private bucket of the
+    person's Hugging Face account (the ``held_out_ids`` pages stay home as the test); Fichero's
+    trainer fine-tunes ``base`` (a Kraken reader id, e.g. a downloaded ``kraken-zenodo-…``) there;
+    the trained reader comes home as ``kraken-trained-…``. This sends an archive's pages to another
+    company and costs money: pass ``pages_may_leave=True`` only when the PERSON has said yes for
+    this project, and report the ``price_per_hour_usd`` it answers with. Returns the job id; follow it
+    with ``fichero_training_status``.
+    """
+    with _mutating_client() as client:
+        return client.train_kraken({
+            "scope_ids": scope_ids, "teacher": teacher, "held_out_ids": held_out_ids or [],
+            "base": base, "name": name, "flavor": flavor, "timeout": timeout,
+            "pages_may_leave": pages_may_leave, "not_for_release": not_for_release,
+        })
+
+
+@mcp.tool()
+def fichero_training_status(job_id: str) -> Any:
+    """A training job's state and phase in words, the Job's id on Hugging Face, the training set's
+    counts (lines a model read, lines a person checked), the Job's last log lines when it ends, and
+    the landed reader's id once it is home."""
+    with _client() as client:
+        return client.training_status(job_id)
+
+
+@mcp.tool()
+def fichero_training_cancel(job_id: str) -> Any:
+    """Stop a training job. A running one is cancelled on Hugging Face (it stops costing)."""
+    with _mutating_client() as client:
+        return client.cancel_training(job_id)
+
+
 # -- artifacts -------------------------------------------------------------
 @mcp.tool()
 def fichero_artifacts(

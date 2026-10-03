@@ -259,7 +259,7 @@ All [GAP]: designed, not built.
 
 ### Hugging Face
 
-- `compute.target.add-huggingface` — **[GAP]** (#5238) adding Hugging Face takes a fine-grained token. Check
+- `compute.target.add-huggingface` — **[PARTIAL]** (#5238) *Built in part (#5398): the token is Fichero's `huggingface` provider key, refused by name when missing; the permission check when it is added is not built.* adding Hugging Face takes a fine-grained token. Check
   reports the account name, whether the token may run jobs and write to the person's own
   repositories, and whether there is credit. The token is a secret in the one key store.
   *Test:* against a recorded API: a read-only token reads "cannot run jobs".
