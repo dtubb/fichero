@@ -54,7 +54,7 @@ maintainer's step document (Mellel, to come) sets the order. Build next.
    ACENET; and as much as possible runs locally (fine-tuning YOLO and Kraken inside Fichero on a
    16 GB Mac). The loop also improves Fichero itself: every defect a project hits becomes an
    issue against the specs here.
-2. **Catalogue entries that show, not tell.** Today's catalogue text is too long and analyses.
+2. **Catalogue entries that show, not tell** (DRAFT written 2026-10-03: `source/cataloguing.md`, with item 3). Today's catalogue text is too long and analyses.
    Wanted: the facts of each item (what, who, when, where, extent) from its metadata fields and
    claims, with no AI interpretation. Fold into the cataloguing spec (#5365, prototypes).
 3. **Cataloguing and metadata on prototypes** (#5365).
