@@ -1529,7 +1529,7 @@ The recipe and its format
 - `source.recipe.is-a-file` — **[GAP]** (#4950) a recipe can be exported as, and taken from, a
   shareable folder that names its steps, their models, and the scripts, languages, period and
   purposes it suits.
-- `source.recipe.makes-a-workflow` — **[PARTIAL]** (#4950) **Built 2026-10-03 (engine):** `plan_start` maps each step to a shipped workflow by name with the step's model (`recipes/start.py`, four jobs so far), refusing by name a step it cannot map; the runs are not started yet; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`. applying a recipe's steps makes and runs
+- `source.recipe.makes-a-workflow` — **[PARTIAL]** (#4950) **Built 2026-10-03 (engine):** `plan_start` maps each step to a shipped workflow by name with the step's model (`recipes/start.py`, four jobs so far), refusing by name a step it cannot map; a pinned Kraken reader reaches Transcribe (Kraken) as the run's `kraken` override (`workflows/validation.py`), and a reader outside the catalogue this Mac can fetch is refused; Start validates with `check_recipe`, and the assemble answer is a whole recipe (schema, version, suits); the runs are not started yet; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/workflows/test_kraken_reader_is_a_run_override.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. applying a recipe's steps makes and runs
   workflows; nothing runs except workflows.
 - `source.recipe.holds-no-second-copy` — **[GAP]** (#4950) a recipe refers to workflows in the
   store by name and may carry its own, but never a copy of one the store holds; the locked default

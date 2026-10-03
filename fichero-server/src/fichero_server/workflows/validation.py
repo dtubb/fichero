@@ -848,6 +848,30 @@ def model_can_serve_capability(provider: str, model: str, capability: str) -> bo
         return True
 
 
+#: The run-level "provider" that names a Kraken READER (#4951): the model is a
+#: Kraken recognition model (a catalog id or a .mlmodel path), and it reaches
+#: only a node that reads lines with Kraken, as that node's ``kraken_model``.
+#: The same override path as a language model, so a recipe's pinned reader is
+#: what runs, never the one the shipped graph happens to name.
+KRAKEN_READER_PROVIDER = "kraken"
+
+
+def _is_kraken_reader_node(node: object) -> bool:
+    return _node_tool(node) == "transcribe" and _node_config(node).get("vision_mode") == "kraken"
+
+
+def _override_fields(node: object, provider: str, model: str) -> dict:
+    """What the run-level choice writes onto a node it reaches."""
+    if provider == KRAKEN_READER_PROVIDER:
+        return {"config": {**_node_config(node), "kraken_model": model}}
+    fields: dict = {}
+    if provider:
+        fields["provider_name"] = provider
+    if model:
+        fields["model_name"] = model
+    return fields
+
+
 def run_override_reaches_node(
     node: object,
     provider_override: str,
@@ -859,7 +883,10 @@ def run_override_reaches_node(
     False leaves the node alone, which means it resolves its own tier default
     — the honest outcome for a text-only model landing on a vision step, and
     the reason "never claim apple-vision will Translate" survives R-11.
+    A Kraken reader serves only a node that reads lines with Kraken.
     """
+    if (provider_override or "").strip() == KRAKEN_READER_PROVIDER:
+        return bool((model_override or "").strip()) and _is_kraken_reader_node(node)
     td = tool_def if tool_def is not None else TOOL_DEFS.get(_node_tool(node))
     if not node_uses_llm(node, td):
         return False
@@ -892,16 +919,11 @@ def apply_run_model_override(
     for node in nodes or []:
         if not run_override_reaches_node(node, provider, model):
             continue
-        if isinstance(node, dict):
-            if provider:
-                node["provider_name"] = provider
-            if model:
-                node["model_name"] = model
-        else:
-            if provider:
-                node.provider_name = provider
-            if model:
-                node.model_name = model
+        for key, value in _override_fields(node, provider, model).items():
+            if isinstance(node, dict):
+                node[key] = value
+            else:
+                setattr(node, key, value)
         reached.append(_node_id(node))
     return reached
 
@@ -925,12 +947,7 @@ def apply_run_model_override_to_def(
     for index, node in enumerate(nodes):
         if not run_override_reaches_node(node, provider, model):
             continue
-        update: dict[str, str] = {}
-        if provider:
-            update["provider_name"] = provider
-        if model:
-            update["model_name"] = model
-        nodes[index] = node.model_copy(update=update)
+        nodes[index] = node.model_copy(update=_override_fields(node, provider, model))
         changed = True
     if not changed:
         return workflow_def
@@ -1161,7 +1178,15 @@ def validate_run_eligibility(
 
     wants_override = bool((provider_override or "").strip() or (model_override or "").strip())
     resolver = workflow_resolver or (lambda ref: resolve_sub_workflow_ref(ref))
-    if wants_override and not workflow_override_target_tools(
+    if (provider_override or "").strip() == KRAKEN_READER_PROVIDER:
+        # ponytail: the parent's own nodes only; a Kraken reader inside a sub-workflow is refused.
+        if not any(run_override_reaches_node(n, KRAKEN_READER_PROVIDER, model_override or "")
+                   for n in nodes or []):
+            errors.append(
+                f"Workflow '{name}' cannot take the Kraken reader {model_override!r}: none of "
+                "its nodes reads lines with Kraken (#4951)"
+            )
+    elif wants_override and not workflow_override_target_tools(
         nodes, workflow_resolver=resolver
     ):
         refs = workflow_sub_workflow_refs(nodes)

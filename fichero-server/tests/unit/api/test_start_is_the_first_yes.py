@@ -67,3 +67,42 @@ def test_a_refused_start_names_the_step_and_records_nothing(client, test_package
     r = client.post("/api/recipes/project/start")
     assert r.status_code == 422 and "step correct" in r.text and "off this Mac" in r.text
     assert not (Path(test_package) / "recipe" / "started.yaml").exists()
+
+
+def _assembled(client):
+    r = client.post("/api/recipes/assemble", json={
+        "purpose": "transcribe", "languages": ["es"], "scripts": ["Latn"],
+        "material": "handwriting", "mac_memory_gb": 16})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_a_recipe_the_app_saves_from_assemble_is_a_whole_recipe(client):
+    """Gap 5: the assemble answer carries the schema, version and suits, so what the app saves
+    passes the same check as a recipe folder, and Start can record which version it ran."""
+    recipe = _assembled(client)
+    assert recipe["fichero_recipe"] == 1 and recipe["version"] and recipe["suits"]["scripts"] == ["Latn"]
+    assert client.post("/api/recipes/check", json={"recipe": recipe}).json()["problems"] == []
+
+
+def test_the_default_spanish_handwriting_recipe_is_refused_only_for_its_reader(client):
+    """The rules pick PP-OCRv6 for Latin handwriting (the reader with a published CER), and this
+    Mac's Kraken cannot fetch it: that, and nothing else, is what stops Start."""
+    _save(client, _assembled(client))
+    refusals = client.get("/api/recipes/project/start").json()["refusals"]
+    assert len(refusals) == 1 and "21788410" in refusals[0], refusals
+
+
+def test_with_a_reader_this_mac_can_fetch_the_default_recipe_starts_and_records_its_version(client):
+    """Swap the reader for McCATMuS (as a person can in the Inspector) and the same assembled
+    recipe starts: the yes names the recipe's version and both runs."""
+    recipe = _assembled(client)
+    for step in recipe["steps"]:
+        if step["job"] == "read-a-line":
+            step["model"] = {"zenodo": "10.5281/zenodo.13788177"}
+    _save(client, recipe)
+    r = client.post("/api/recipes/project/start")
+    assert r.status_code == 200, r.text
+    started = r.json()["started"]
+    assert started["recipe_version"] == recipe["version"]
+    assert started["workflows"] == ["Transcribe (Kraken)", "Paleographer Review"]

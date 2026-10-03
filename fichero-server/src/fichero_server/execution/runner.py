@@ -1579,10 +1579,14 @@ async def _run_workflow_in_background(
             # any configured default. Same precedence as resolution: explicit
             # choice, then tier.
             from fichero_server.llm import set_run_model_choice
+            from fichero_server.workflows.validation import KRAKEN_READER_PROVIDER
 
-            run_choice_token = set_run_model_choice(
-                provider_override, model_override
-            )
+            # A Kraken reader is not a language model: the fallback ladder
+            # must never be handed it as a model to fall back to.
+            if provider_override != KRAKEN_READER_PROVIDER:
+                run_choice_token = set_run_model_choice(
+                    provider_override, model_override
+                )
 
         # Identify exit nodes (nodes with no outgoing edges). Workflow edges
         # use raw node IDs, but LangGraph events use the display label when one

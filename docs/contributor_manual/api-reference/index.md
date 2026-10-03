@@ -886,8 +886,9 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`sou
 
 - `GET /api/recipes/jobs`: every job a recipe can name, with what it takes and gives and its plain description.
 - `GET /api/recipes/purposes`: the purposes setup offers, in order, and whether each runs by itself.
-- `POST /api/recipes/assemble`: the recipe the rules give for setup's answers, each choice with its reasons and each gap named. Writes nothing.
+- `POST /api/recipes/assemble`: the recipe the rules give for setup's answers, each choice with its reasons and each gap named; a whole recipe (`fichero_recipe`, `version`, `suits`) that passes the check. Writes nothing.
 - `POST /api/recipes/check`: every reason a recipe cannot run as it stands, step by step.
 - `GET|PUT /api/recipes/project`: the open project's saved setup answers and recipe (files in the project's `recipe/` folder). Saving is audited and undoable, and is not Start.
 - `GET /api/recipes/project/start`: what Start would run — the shipped workflows each step maps to, with the step's model, the steps only offered later (training), every refusal named by step, the page count and the cost estimate — and the first yes once given.
 - `POST /api/recipes/project/start`: the first yes. Records when Start was pressed and on which recipe version (`recipe/started.yaml`); audited and undoable. `422`, naming each step, while the plan has refusals (no recipe, a step with no model, a cloud step in a project that keeps its pages here, a step no shipped workflow can run). It does not run anything yet.
+- A Kraken reader rides the run-level override: `provider_override: "kraken"` with `model_override` a catalogue id (`kraken-catmus-medieval`) or a `.mlmodel` path sets the reader of every node that reads lines with Kraken; a workflow with no such node refuses it (`400`).

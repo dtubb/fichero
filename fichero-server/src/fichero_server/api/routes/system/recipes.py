@@ -96,8 +96,13 @@ class RecipeStep(BaseModel):
 
 
 class AssembledRecipe(BaseModel):
+    # Optional so older clients keep decoding; present so a recipe saved from this answer is a
+    # whole recipe.yaml that passes the check (`source.recipe.is-a-file`).
+    fichero_recipe: Optional[int] = Field(default=None, description="the recipe schema version")
     id: str
+    version: Optional[str] = None
     title: str
+    suits: Optional[dict[str, Any]] = Field(default=None, description="scripts, languages and material it suits")
     purposes: list[str]
     steps: list[RecipeStep]
     gaps: list[str]
@@ -152,6 +157,7 @@ async def assemble_recipe(request: AssembleRequest) -> AssembledRecipe:
     recipe = assemble(answers, list(seed_cards()))
     problems = [] if recipe["gaps"] else check_recipe(recipe)
     return AssembledRecipe(
+        fichero_recipe=recipe["fichero_recipe"], version=recipe["version"], suits=recipe["suits"],
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
         steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"],
         cloud_options=recipe["cloud_options"], problems=problems,

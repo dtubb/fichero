@@ -4,8 +4,8 @@
 `source.recipe.makes-a-workflow`, `source.recipe.holds-no-second-copy`, `source.project.stays-local`,
 `source.onboard.estimate-before-start`. A recipe runs only as workflows Fichero already ships,
 named, never copied: each step's job maps to one shipped workflow, and the step's model reaches it
-only where that workflow can honestly take it (a provider/model override, or the very reader its
-graph names). A step that cannot be mapped is refused by name, never run with another model.
+only where that workflow can honestly take it (a provider/model override; for a Kraken reader,
+the `kraken` run override that sets the reading node's reader). A step that cannot be mapped is refused by name, never run with another model.
 
 Pure, except `count_pages`: the Start screen, the Inspector, MCP and the command line all read the
 same plan from the engine.
@@ -13,6 +13,8 @@ same plan from the engine.
 from __future__ import annotations
 
 from typing import Any
+
+from fichero_server.workflows.validation import KRAKEN_READER_PROVIDER
 
 #: job -> the shipped workflow that carries it out, by its name in the store.
 WORKFLOW_FOR_JOB = {
@@ -33,17 +35,9 @@ def _preset(name: str) -> dict | None:
     return next((p for p in _load_preset_files() if p.get("name") == name), None)
 
 
-def _preset_kraken_reader(name: str) -> str | None:
-    """The Kraken reader a shipped workflow's graph names (its node config)."""
-    for node in (_preset(name) or {}).get("nodes") or []:
-        reader = (node.get("config") or {}).get("kraken_model")
-        if reader:
-            return reader
-    return None
-
-
 def _kraken_reader_for(pin: dict) -> str | None:
-    """The catalogue id of the Kraken reader a Zenodo pin names, or None if the catalogue lacks it."""
+    """The catalogue id of the Kraken reader a Zenodo pin names, or None if the catalogue lacks it
+    (this runtime fetches readers from its catalogue only)."""
     from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS
 
     return next((rid for rid, row in KRAKEN_RECOGNITION_MODELS.items()
@@ -73,7 +67,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool) -> dict[str, Any]:
     """
     from fichero_server.workflows.default_workflows import preset_workflow_id
 
-    from fichero_server.recipes.jobs import unmet_inputs
+    from fichero_server.recipes.recipe import check_recipe
 
     if not recipe:
         return {"workflows": [], "offered": [], "refusals": ["this project has no recipe yet: run setup first"]}
@@ -110,11 +104,11 @@ def plan_start(recipe: dict | None, *, stays_local: bool) -> dict[str, Any]:
                 continue
         elif job == "read-a-line":
             reader = _kraken_reader_for(pin)
-            shipped = _preset_kraken_reader(name)
-            if reader is None or reader != shipped:
-                refusals.append(f"{label}: no shipped workflow reads lines with {pin} "
-                                f"({name} reads with {shipped})")
+            if reader is None:
+                refusals.append(f"{label}: the reader {pin} is not in the Kraken catalogue this Mac "
+                                "can fetch, so no workflow can read with it")
                 continue
+            entry["provider_override"], entry["model_override"] = KRAKEN_READER_PROVIDER, reader
             # Kraken finds its own lines before reading them: one run carries both steps.
             if workflows and workflows[-1]["job"] == "find-lines":
                 entry["steps"] = workflows.pop()["steps"] + entry["steps"]
@@ -125,9 +119,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool) -> dict[str, Any]:
                 continue
             entry["provider_override"], entry["model_override"] = override
         workflows.append(entry)
-    # Each step uses only what an earlier step or the page gives (`source.recipe.steps-are-jobs`).
-    refusals.extend(unmet_inputs([s.get("job", "") for s in recipe.get("steps") or []
-                                  if not s.get("offered_when")]))
+    # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
+    refusals.extend(check_recipe(recipe))
     return {"workflows": workflows, "offered": offered, "refusals": refusals}
 
 
