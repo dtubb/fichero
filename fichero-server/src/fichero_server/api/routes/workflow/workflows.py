@@ -1195,11 +1195,18 @@ def _reject_if_read_only(workflow: "Workflow") -> None:  # noqa: F821
 def update_workflow_impl(
     db: Database, workflow_id: str, workflow: WorkflowDef
 ) -> "Workflow":  # noqa: F821
-    """Replace a node-based workflow's editable fields (extracted from the
+    """Update a node-based workflow's editable fields (extracted from the
     ``PUT /api/workflows/{id}`` route so the route and the ``workflow.update``
     action share one implementation). Raises ``HTTPException(404)`` for an
     unknown id, ``HTTPException(403)`` for a read-only default. Demotes
-    ``is_template`` once a user edits a preset (#780)."""
+    ``is_template`` once a user edits a preset (#780).
+
+    Only the fields the request SENT are written (#5403). The CLI leaves out what
+    it was not given, and WorkflowDef's defaults turned a missing `nodes`/`edges`
+    into empty lists: `workflow update --provider ...` erased every node and edge.
+    The app sends the whole definition, so it replaces everything as before.
+    Nodes and edges are replaced together or not at all: one without the other
+    could leave edges pointing at nodes that are gone, so that is a 422."""
     from fichero_server.models import Workflow
 
     existing = db.get(Workflow, workflow_id)
@@ -1208,16 +1215,27 @@ def update_workflow_impl(
             status_code=404, detail=f"Workflow not found: {workflow_id}"
         )
     _reject_if_read_only(existing)
+    sent = workflow.model_fields_set
+    if ("nodes" in sent) != ("edges" in sent):
+        raise HTTPException(
+            status_code=422,
+            detail="Send nodes and edges together: the graph is replaced as a whole. "
+            f"This request sent only {'nodes' if 'nodes' in sent else 'edges'}.",
+        )
     _reject_incompatible_edges(workflow)
 
-    # Use model_dump_for_storage() to exclude ports (they come from registry)
     existing.name = workflow.name
-    existing.description = workflow.description or ""
+    if "description" in sent:
+        existing.description = workflow.description or ""
     existing.format = "nodes"
-    existing.provider = workflow.provider or ""
-    existing.model = workflow.model or ""
-    existing.nodes = [node.model_dump_for_storage() for node in workflow.nodes]
-    existing.edges = [edge.model_dump() for edge in workflow.edges]
+    if "provider" in sent:
+        existing.provider = workflow.provider or ""
+    if "model" in sent:
+        existing.model = workflow.model or ""
+    if "nodes" in sent:
+        # Use model_dump_for_storage() to exclude ports (they come from registry)
+        existing.nodes = [node.model_dump_for_storage() for node in workflow.nodes]
+        existing.edges = [edge.model_dump() for edge in workflow.edges]
     existing.updated_at = utc_now()
     # Once a user edits a preset workflow, it stops being a template —
     # reinstall-defaults must NOT wipe it on next app launch (#780).
