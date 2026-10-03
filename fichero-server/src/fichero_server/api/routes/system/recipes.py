@@ -225,3 +225,122 @@ def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -
     after = read_project_setup(library)
     return after, ChangeSpec(domains=["project"], target_ids=[], before=before, after=after,
                              emit_type="project.setup_saved")
+
+
+# =============================================================================
+# Start: the project's first yes (#4951). `source.project.automatic-after-first-yes`.
+# =============================================================================
+
+
+class StartWorkflow(BaseModel):
+    """One shipped workflow Start runs, the recipe steps it carries out, and its model."""
+
+    steps: list[str]
+    job: str
+    workflow: str = Field(description="the shipped workflow's name in the store")
+    workflow_id: str
+    provider_override: Optional[str] = None
+    model_override: Optional[str] = None
+    runs_on: str
+
+
+class StartEstimateRun(BaseModel):
+    workflow: str
+    steps: list[str]
+    where: str
+    pages: int
+    cost_usd: Optional[float] = Field(description="0 on this Mac; null when the model has no price")
+
+
+class StartEstimate(BaseModel):
+    pages: int = Field(description="pages, and files with no pages, in the project")
+    runs: list[StartEstimateRun]
+    total_cost_usd: Optional[float] = None
+
+
+class StartRecord(BaseModel):
+    started_at: str
+    recipe_id: Optional[str] = None
+    recipe_version: Optional[str] = None
+    workflows: list[str]
+    pages: int
+
+
+class StartPlan(BaseModel):
+    """What pressing Start would run, on how many pages, and every reason it cannot yet."""
+
+    started: Optional[StartRecord] = Field(default=None, description="the first yes, once given")
+    workflows: list[StartWorkflow]
+    offered: list[str] = Field(description="steps offered later (training), never run at Start")
+    refusals: list[str] = Field(description="Start is refused while this is not empty")
+    estimate: StartEstimate
+
+
+def _start_plan(db: Database) -> dict[str, Any]:
+    from fichero_server.recipes.project import read_start
+    from fichero_server.recipes.start import count_pages, estimate, plan_start
+
+    library = _library(db)
+    setup = read_project_setup(library)
+    # A project keeps its pages on this Mac unless setup's answer said otherwise.
+    stays_local = not (setup["answers"] or {}).get("cloud_allowed", False)
+    plan = plan_start(setup["recipe"], stays_local=stays_local)
+    plan["estimate"] = estimate(plan["workflows"], count_pages(db))
+    plan["started"] = read_start(library)
+    return plan
+
+
+@router.get("/project/start", response_model=StartPlan)
+async def get_start_plan(db: Database = Depends(get_library_database)) -> StartPlan:
+    """What Start would run on this project, with the estimate, before anything runs
+    (`source.onboard.estimate-before-start`)."""
+    return StartPlan(**_start_plan(db))
+
+
+class StartParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    withdraw: bool = Field(default=False, description="take the first yes back (undo)")
+
+
+@router.post("/project/start", response_model=StartPlan)
+async def start_project(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> StartPlan:
+    """The first yes: record that the person pressed Start, on which recipe version (audited,
+    undoable). Refused with 422, naming each step, while the plan has refusals."""
+    try:
+        registry.invoke(db, "project.start", {}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return StartPlan(**_start_plan(db))
+
+
+def _invert_start(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("project.start", {"withdraw": True})
+
+
+@action("project.start", StartParams, domains=["project"], undoable=True, invert=_invert_start)
+def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.core.timeutil import utc_now_iso
+    from fichero_server.recipes.project import read_start, write_start
+
+    library = _library(db)
+    before = read_start(library)
+    if params.withdraw:
+        record = None
+    else:
+        plan = _start_plan(db)
+        if plan["refusals"]:
+            raise ValueError("Start is refused: " + "; ".join(plan["refusals"]))
+        recipe = read_project_setup(library)["recipe"] or {}
+        record = {
+            "started_at": utc_now_iso(timespec="seconds"),
+            "recipe_id": recipe.get("id"),
+            "recipe_version": recipe.get("version"),
+            "workflows": [w["workflow"] for w in plan["workflows"]],
+            "pages": plan["estimate"]["pages"],
+        }
+    write_start(library, record)
+    return {"started": record}, ChangeSpec(domains=["project"], target_ids=[], before={"started": before},
+                                           after={"started": record}, emit_type="project.started")

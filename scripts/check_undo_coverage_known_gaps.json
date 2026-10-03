@@ -1,6 +1,7 @@
 {
   "POST /api/documents/{document_id}/readings/compare": "read-only: scores two readings of a page and writes nothing, so there is nothing to undo (#5389)",
   "PUT /api/recipes/project": "undoable in the engine (project.save_setup, audited with an inverse); the app's undo surface registers it when setup saves through it, slice 2 (#4951)",
+  "POST /api/recipes/project/start": "undoable in the engine (project.start, audited; its inverse withdraws the first yes); the app's undo surface registers it when setup presses Start through it (#4951)",
   "POST /api/recipes/assemble": "read-only: proposes a recipe from setup's answers and writes nothing, so there is nothing to undo (#4951)",
   "POST /api/recipes/check": "read-only: reports a recipe's problems and writes nothing, so there is nothing to undo (#4951)",
   "DELETE /api/actions/{action_id}": "no undo registration in current tree",

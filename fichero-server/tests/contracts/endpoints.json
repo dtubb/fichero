@@ -8242,6 +8242,26 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/project/start",
+        "operation_id": "get_start_plan_api_recipes_project_start_get",
+        "summary": "Get Start Plan",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StartPlan"
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/project/start",
+        "operation_id": "start_project_api_recipes_project_start_post",
+        "summary": "Start Project",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StartPlan"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/purposes",
         "operation_id": "list_purposes_api_recipes_purposes_get",
         "summary": "List Purposes",

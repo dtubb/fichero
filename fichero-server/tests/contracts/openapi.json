@@ -10531,6 +10531,80 @@
         }
       }
     },
+    "/api/recipes/project/start": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Get Start Plan",
+        "description": "What Start would run on this project, with the estimate, before anything runs\n(`source.onboard.estimate-before-start`).",
+        "operationId": "get_start_plan_api_recipes_project_start_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartPlan"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Start Project",
+        "description": "The first yes: record that the person pressed Start, on which recipe version (audited,\nundoable). Refused with 422, naming each step, while the plan has refusals.",
+        "operationId": "start_project_api_recipes_project_start_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/citations/graph": {
       "post": {
         "tags": [
@@ -74669,6 +74743,199 @@
         ],
         "title": "SparqlResponseRow",
         "description": "One SPARQL result row. Bindings keyed by query variable name."
+      },
+      "StartEstimate": {
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "pages, and files with no pages, in the project"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/StartEstimateRun"
+            },
+            "type": "array",
+            "title": "Runs"
+          },
+          "total_cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Total Cost Usd"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "runs"
+        ],
+        "title": "StartEstimate"
+      },
+      "StartEstimateRun": {
+        "properties": {
+          "workflow": {
+            "type": "string",
+            "title": "Workflow"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "where": {
+            "type": "string",
+            "title": "Where"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd",
+            "description": "0 on this Mac; null when the model has no price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow",
+          "steps",
+          "where",
+          "pages",
+          "cost_usd"
+        ],
+        "title": "StartEstimateRun"
+      },
+      "StartPlan": {
+        "properties": {
+          "started": {
+            "$ref": "#/components/schemas/StartRecord",
+            "nullable": true,
+            "description": "the first yes, once given"
+          },
+          "workflows": {
+            "items": {
+              "$ref": "#/components/schemas/StartWorkflow"
+            },
+            "type": "array",
+            "title": "Workflows"
+          },
+          "offered": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Offered",
+            "description": "steps offered later (training), never run at Start"
+          },
+          "refusals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Refusals",
+            "description": "Start is refused while this is not empty"
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/StartEstimate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflows",
+          "offered",
+          "refusals",
+          "estimate"
+        ],
+        "title": "StartPlan",
+        "description": "What pressing Start would run, on how many pages, and every reason it cannot yet."
+      },
+      "StartRecord": {
+        "properties": {
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          },
+          "recipe_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Recipe Id"
+          },
+          "recipe_version": {
+            "type": "string",
+            "nullable": true,
+            "title": "Recipe Version"
+          },
+          "workflows": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Workflows"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "started_at",
+          "workflows",
+          "pages"
+        ],
+        "title": "StartRecord"
+      },
+      "StartWorkflow": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "workflow": {
+            "type": "string",
+            "title": "Workflow",
+            "description": "the shipped workflow's name in the store"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "provider_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider Override"
+          },
+          "model_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Override"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "job",
+          "workflow",
+          "workflow_id",
+          "runs_on"
+        ],
+        "title": "StartWorkflow",
+        "description": "One shipped workflow Start runs, the recipe steps it carries out, and its model."
       },
       "Status": {
         "type": "string",
