@@ -8,18 +8,16 @@
 > done away from the Mac.
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
-> code makes them pass. **Status: DRAFT — first pass, 2026-09-20. This is the FOUNDATION of the
-> compute set: the honest answer, the words, the design on one page, what exists, the map of
-> the slices, how it is tested from the maintainer's side, and the questions. Nothing is
-> approved.** The working name "remote-compute" is not ruled; no GitHub milestone of that name
-> exists yet, by instruction, until the maintainer has read this file.
-> Tags (when behaviours are tagged): **[OK]** built and tested · **[PARTIAL]** built, partly
-> proven · **[GAP]** intended, never built · **[BROKEN]** code contradicts the rule.
-> **Behaviours in this set are written in full but carry NO tag and NO issue yet.** Every one
-> of them is designed and not built unless its line says otherwise. They are tagged and given
-> issues after the maintainer rules on the questions at the end. That is deliberate; do not
-> "fix" it by adding tags without issues (the guardrail `check_spec_broken_has_issue.py`
-> would, rightly, refuse them).
+> code makes them pass. **Status: DRAFT — first pass 2026-09-20; revised 2026-10-03 against the
+> maintainer's rulings of that day (see "Ruled 2026-10-03" and `REVIEW-2026-10-03.md`). This is
+> the FOUNDATION of the compute set. Nothing is approved.** Milestone `remote-compute` exists;
+> its issues are #5238 (targets), #5239 (transfer and results), #5240 (jobs and fine-tuning),
+> #5241 (the image), #5336-#5338 (distillation), #5119 (the training loop), #5397 (training on
+> this Mac) and #5398 (Hugging Face Jobs first).
+> Tags: **[OK]** built and tested · **[PARTIAL]** built, partly proven · **[GAP]** intended,
+> never built · **[BROKEN]** code contradicts the rule. Every behaviour in this set is
+> **[GAP]** with its issue; none is built (searched 2026-10-03: no training, Hugging Face Jobs
+> or YOLO detector code in the engine).
 >
 > Every claim about Fichero's own code is marked **VERIFIED** (read in the file, line given)
 > or **INFERRED**. Every claim about an outside service carries a source in "Sources" and is
@@ -35,7 +33,7 @@ The maintainer asked for this, and asked whether it is doable:
 - On the Mac: Apple's on-device models, Kraken (finding lines, and reading handwriting), and
   YOLO-family layout models.
 - Away from the Mac: fine-tuning a model of three or eight billion parameters, inference, and
-  batch work over a whole collection.
+  batch work over a whole project.
 - How: a Docker build of `fichero-server` for Linux, beside the Mac build, with everything in
   it except the Apple parts. Fichero on the Mac is pointed at a remote place (a cluster such as
   ACENET's, or Hugging Face) with an API key or an SSH login. It installs the server there,
@@ -80,13 +78,13 @@ the project's automation cannot test. It stays a last resort for a cluster with 
 and none is known.
 
 **What comes back, traced against the code.** A local run today does **not** write one result
-file. It writes in two places: straight into the collection's database, as it goes (VERIFIED:
+file. It writes in two places: straight into the project's database, as it goes (VERIFIED:
 the runner is handed the open database, `execution/runner.py:842-850`; documents and artifacts
 are saved at the run's boundary, `workflows/completion.py:230-243`, `:305`); and one line for
 each model call into the **episode ledger**, which *is* JSONL, append-only, inside the
-collection's own folder (VERIFIED `observability/episodes.py:10-14`, `:65-78`). So the one code
+project's own folder (VERIFIED `observability/episodes.py:10-14`, `:65-78`). So the one code
 path is kept like this: on the cluster the package is unpacked into a **small scratch
-collection** holding only the chosen sources; the **unchanged** runner runs against it exactly
+project** holding only the chosen sources; the **unchanged** runner runs against it exactly
 as it does on the Mac, writing the same database rows and the same ledger lines; then the
 engine's existing export stream (`export_service.py:124`, `iter_export_records`, the one the
 JSONL and Parquet exports already use) writes what is new as JSONL. The Mac fetches those
@@ -147,7 +145,7 @@ and fetching need no person, but still need the Mac awake.
    clusters, cannot reach the internet (CITED, S2, S5). Everything a job needs (the image, the
    models, the data) must be put in place beforehand from a login node.
 4. **The app side.** The Mac app today has no way to hold a second server's address and token,
-   or to say that a collection lives on another machine (issue #2573, open). Everything where
+   or to say that a project lives on another machine (issue #2573, open). Everything where
    the Mac "connects to a server somewhere else" waits on that.
 5. **A large image.** A GPU image with PyTorch, an inference engine and the training libraries
    is several gigabytes. It has to be built and tested by the project's own automation, not by
@@ -161,7 +159,7 @@ and fetching need no person, but still need the Mac awake.
 | "With everything except Apple Vision" | More than Vision stays behind. **MLX runs only on Apple silicon**, and today every local language model in Fichero runs through MLX. Apple's on-device model and Apple's translation also stay on the Mac. | The Linux image carries a **different engine for the same job**: vLLM for language and vision models. It sits behind the one provider list the AI settings already have. Kraken, spaCy and the rest are the same on both. |
 | Install `fichero-server` on Hugging Face | Hugging Face is mainly a place to **keep** models and datasets. Its "Spaces" lose their disk on restart and are shaped as public web pages. | **Hugging Face Jobs** runs a container on a rented GPU, by the minute, from an API token, and can expose one port behind that token (CITED, S12). That fits "send a job" well. And the Hub is a good **registry**: the place to keep and publish datasets, adapters and model cards. Both send research material to a company in the United States, which the person must agree to first. |
 | Reach the cluster over Tailscale | Tailscale on a compute node needs the node to reach the internet. On at least three Alliance clusters it cannot (CITED, S5). No Alliance policy on it was found either way (UNVERIFIED). | **An SSH tunnel** is the documented way in on a cluster (CITED, S2). Tailscale is right for machines we control. |
-| Fine-tune "on the Mac and on remote compute" alike | A Linux container on a Mac gets no GPU that PyTorch can use (CITED, S16). Kraken training on Apple silicon was blocked upstream and is unconfirmed today (UNVERIFIED, S10). Apple's on-device model takes an adapter, but one adapter fits one system-model version and shipping it needs an entitlement (CITED, S11). | On the Mac, small fine-tunes run **natively through MLX** (no container). Anything larger goes to a GPU elsewhere. The Apple adapter is left out of this set. |
+| Fine-tune "on the Mac and on remote compute" alike | A Linux container on a Mac gets no GPU that PyTorch can use (CITED, S16). Kraken training on Apple's GPU was blocked upstream and is unconfirmed today (UNVERIFIED, S10). Apple's on-device model takes an adapter, but one adapter fits one system-model version and shipping it needs an entitlement (CITED, S11). | On the Mac, Kraken and YOLO train **natively, inside the engine** (no container), on Apple's GPU if Kraken allows it and on the CPU if not, measured on a 16 GB Mac (ruled 2026-10-03; #5397). A vision-language LoRA trains on a GPU elsewhere, Hugging Face Jobs first, and comes back to *run* on the Mac. The Apple adapter is left out of this set. |
 
 ### What is better than it sounds
 
@@ -193,8 +191,8 @@ one catalogue, one gate that decides whether content may leave.
 | `remote-compute.md` | this file: the answer, the words, the design on one page, what exists, the rulings proposed against duplicate paths, testing from the maintainer's side, build order, questions, sources |
 | `linux-server-image.md` | the Linux image: what is in it and what is left out, CPU and GPU images, running offline, what it reports about itself, how it is built and smoke-tested with no person involved, the local stand-in on the Mac; release questions routed to `harness/release-and-versioning.md` |
 | `targets-and-connection.md` | compute targets as one list of machines; adding one; installing; connecting on each kind of target (Tailscale, SSH tunnel, token); the second factor; secrets; sessions and their time limits; what existing cluster settings become |
-| `transfer-and-results.md` | what is asked before anything leaves; the work package; the one transfer core and its two carriers; resume; cleaning up the far side; results landing as audited actions; what happens when the collection changed meanwhile |
-| `jobs-and-fine-tuning.md` | job kinds; which engine for which work (the answer to "Blackfish, or load the models directly"); batch work over a collection; fine-tuning as a job; surviving a time limit; the model coming back; publishing to Hugging Face and Zenodo, routed to the exporter and model-card specs |
+| `transfer-and-results.md` | what is asked before anything leaves; the work package; the one transfer core and its two carriers; resume; cleaning up the far side; results landing as audited actions; what happens when the project changed meanwhile |
+| `jobs-and-fine-tuning.md` | job kinds; which engine for which work (the answer to "Blackfish, or load the models directly"); batch work over a project; fine-tuning as a job; surviving a time limit; the model coming back; publishing to Hugging Face and Zenodo, routed to the exporter and model-card specs |
 
 ## The design
 
@@ -209,7 +207,37 @@ one catalogue, one gate that decides whether content may leave.
   list. (Answered in `jobs-and-fine-tuning.md`.)
 - **Hugging Face, with Parquet, as a place to keep track of and publish** datasets, adapters,
   models and model cards. (Built on the existing exporter; see below.)
-- **A new word: collection.** See "The words". Its exact meaning is question 1.
+- **A new word: collection.** Superseded: the unit is the **project** (a library becomes a
+  project; confirmed 2026-10-03). This set says "project" throughout; what a job is sent is a
+  selection of sources inside a project.
+
+### Ruled 2026-10-03 (maintainer; paraphrased)
+
+- **Where training is proven, in order.** Hugging Face Jobs first, because it is known to run
+  training reliably; then ACENET (Slurm); then Docker on a machine we control, and others.
+- **As much as possible runs on the Mac.** Fine-tuning Kraken (lines and readers) and YOLO
+  (page and region detectors) runs inside Fichero on a 16 GB Mac. Every small model Fichero
+  adopts must run on a 16 GB Mac.
+- **Cheapest and local first.** A costlier place or model is used only when an A/B on the
+  project's own checked pages shows it is needed: by error rate, cost, speed, carbon and
+  trainability.
+- **Distillation is an option, never the default.** When a person chooses training in setup,
+  the default offered is to distil from a large teacher, then fine-tune a small model. Training
+  runs by itself only if it was chosen in setup (`source.recipe.train-never-automatic`).
+- **The models.** Kraken (`ketos train`, `ketos segtrain`); YOLO detectors; a small
+  vision-language model (for example Qwen2.5-VL 3B) with LoRA; spaCy. Good models are released
+  on Hugging Face as part of Fichero, with their licences respected.
+- **One job model.** A remote, cluster or training run is a job in the one job table of
+  `ui/activity-and-automatic-work.md` (its question 9, ruled 2026-10-01), never a second runner
+  or a second job table.
+- **Load a model once, group work by model, never co-run heavy models unless both fit**, and
+  measure what each job uses (CPU, GPU, Neural Engine, memory).
+- **One audited action layer; logic in the engine; recipes are data and name providers, never
+  keys.** Pages leaving the Mac are asked about **once per project**.
+- **The Mac stays usable**: background work, training included, throttles itself.
+- **One error rate.** CER is Fichero's one definition (`workflows/transcription_accuracy.py`,
+  reached through `POST /api/documents/{id}/readings/compare`). A score is called *CER* only when
+  a person checked the reference; otherwise it is *agreement*.
 
 Everything else in this set is **PROPOSED** until ruled.
 
@@ -224,7 +252,7 @@ Everything else in this set is **PROPOSED** until ruled.
 | How the Mac reaches it | Tailscale `serve`, or an SSH tunnel | SSH, with the person's second factor on first connection; a tunnel for a session | HTTPS with the person's token |
 | Credential | a paired-device token (the existing pairing) and, for install, an SSH key | an SSH key Fichero keeps; the second factor stays with the person | a fine-grained token |
 | Who else can read the data there | whoever runs that machine | the cluster's administrators; not certified for sensitive data (CITED, S6) | a company in the United States |
-| Can hold a collection and be opened from the Mac | yes (needs #2573) | not proposed | no |
+| Can hold a project and be opened from the Mac | yes (needs #2573) | not proposed | no |
 
 **Send a job** is the way of working that exists everywhere, so it is built first. The Mac's
 own server stays in charge. It makes a **work package**: a job description, and a list of the
@@ -240,7 +268,7 @@ are rows of that kind today; VERIFIED `llm/providers.py:48-51`). To Fichero it i
 provider row, which exists while the session does. Page images go to it one request at a
 time, through the same gate as any cloud model.
 
-**A remote server that holds a collection**, opened from the Mac as if it were local, is the
+**A remote server that holds a project**, opened from the Mac as if it were local, is the
 third thing. It is true on a machine we control. It is the existing "remote engine" model
 plus the push half of the existing sync. It waits on #2573, so it comes last.
 
@@ -251,7 +279,7 @@ cluster, beside HTTPS to a running Fichero server). The older `BundleManifest`, 
 bare paths with no hashes (VERIFIED `remote_jobs.py:39-81`), is folded into it.
 
 **One gate.** Whether content may leave the Mac is decided in the one place the source-model
-set already names (`source.egress.one-gate`, #4949), reading the collection's own rule
+set already names (`source.egress.one-gate`, #4949), reading the project's own rule
 (`source.project.stays-local`, #4951). Sending a work package is one more caller of that gate,
 not a second check.
 
@@ -267,14 +295,14 @@ The reasoning is in `jobs-and-fine-tuning.md`; the choice is question 6.
 
 | Word | Meaning here | Not to be confused with |
 |---|---|---|
-| **collection** | the maintainer's new word (2026-09-20) for the unit of work that is sent: what has been called a library, a project or a folder. **Its exact meaning is not ruled** (question 1). Until it is, this set uses "collection" for *whatever whole thing the person chose to work on*, and never relies on it being one of the three. | **project**: the source-model set recorded on 2026-09-19 that a *library* becomes a *project* (`source/source-model.md`, "The words"). Both rulings are recorded. This set does not resolve them. |
-| **compute target** | a place work can run, added once: *this Mac*, *a Linux machine*, *a Slurm cluster*, *Hugging Face*. One list holds them all. | a provider (a thing that offers models); a paired device (a phone or iPad that reads a collection) |
+| **project** | the whole thing a person works on, with its own settings and recipe (a library becomes a project; confirmed 2026-10-03). A job is sent a **selection** of a project's sources. The earlier word "collection" (2026-09-20) is retired in this set. | a selection (the sources one job is sent) |
+| **compute target** | a place work can run, added once: *this Mac*, *a Linux machine*, *a Slurm cluster*, *Hugging Face*. One list holds them all. | a provider (a thing that offers models); a paired device (a phone or iPad that reads a project) |
 | **server image** | the published Linux image of `fichero-server`. One image, run by Docker or by Apptainer. | the Mac's embedded engine (same code, packaged by Briefcase) |
 | **job** | work that is sent, runs unattended and comes back. It has a kind, a work package, a state and a result package. | a workflow run (a job *carries* a workflow run, or a training run) |
 | **session** | a model served on a target for a limited time, reached through a tunnel, shown with its time left. | a server (which stays up) |
-| **work package** | what a job needs and nothing more: a job description plus a content-addressed list of objects. A **projection** in the source-model sense: made when wanted, never the record. | a whole collection; an export |
-| **result package** | what a job made: the engine's own export records for what is new (JSONL), the episode-ledger lines the run appended (JSONL), and new objects. | a database; a changed copy of the collection |
-| **landing** | replaying a result package into the collection through the audited action layer, so history stays whole. | copying files back |
+| **work package** | what a job needs and nothing more: a job description plus a content-addressed list of objects. A **projection** in the source-model sense: made when wanted, never the record. | a whole project; an export |
+| **result package** | what a job made: the engine's own export records for what is new (JSONL), the episode-ledger lines the run appended (JSONL), and new objects. | a database; a changed copy of the project |
+| **landing** | replaying a result package into the project through the audited action layer, so history stays whole. | copying files back |
 | **carrier** | the way bytes travel: HTTPS to a running Fichero server, or files over SSH. The transfer core is the same over both. | transport (the app-to-engine connection in `transport/`) |
 | **adapter** | the small file a LoRA fine-tune produces; useless without its base model. | a merged model (base plus adapter, a full-size file) |
 | **publish** | to put a dataset, adapter, model or card where other people can get it (Hugging Face, Zenodo). Always a separate, deliberate act. | sending a work package to a target (which is private) |
@@ -338,7 +366,18 @@ The full table, with a line reference for every claim, is in the working note
   Mac's own token file because **the app has no setting for a second server's token** (`:82-96`).
 - **The provider list** already holds local servers that speak the OpenAI-style protocol
   (VERIFIED `llm/providers.py:48-51`).
-- **No training code and no YOLO code exist** in the engine (VERIFIED by search). `mlx_lm`'s
+- **No training code and no YOLO detector exist** in the engine (VERIFIED by search,
+  2026-10-03). The job registry already names the step: `train-a-model`, taking line readings
+  and lines, giving a model card (VERIFIED `recipes/jobs.py:143-146`); the seed cards mark the
+  Kraken and small vision-language models trainable (`recipes/seed/cards.yaml`). YOLO is read and
+  written only as label files (`formats/yolo.py`).
+- **Kraken now runs inside the engine's own process**, loaded once, one operation at a time
+  (VERIFIED `llm/kraken_runtime.py:512-519`), with PyTorch in the engine. So a Kraken trainer
+  can run in the same process on the Mac.
+- **The one CER is reachable**: `POST /api/documents/{id}/readings/compare` scores a reading
+  against a reference with the CER of `workflows/transcription_accuracy.py`, and labels it
+  `agreement` unless a person checked the reference (VERIFIED
+  `api/routes/document/compare_readings.py:88`; #5389 and #5394 closed). `mlx_lm`'s
   convert step, which a model trained elsewhere would need, **is not called anywhere**
   (VERIFIED by search of `llm/mlx_model_store.py` and `llm/mlx_runtime.py`).
 - **PyTorch is now inside the Mac engine.** On the integration branch, commit `b844f9d85`
@@ -368,11 +407,13 @@ The maintainer's standing worry is two code paths for one job. Five are already 
 |---|---|---|
 | 1 | Files to a remote by **rsync** (two of the plans) or by **our own manifest over HTTPS** (the third plan, and the only one with code) | Our manifest, difference and checkpoint are the one transfer logic. SSH is a second **carrier** under it, not a second logic. See `transfer-and-results.md`. |
 | 2 | `BundleManifest` (paths, no hashes) and `SyncManifest` (hashes, resume) | One manifest. A work package is a `SyncManifest` with a job description beside it. `BundleManifest` is removed. No stored data uses it (VERIFIED: it is only ever built in memory, `hpc.py:308-315`). |
-| 3 | **Clusters** saved under `hpc.clusters`, and **remote servers** in the app's connection settings and, one day, on each library (#2573) | One list of **compute targets**, which is also the list of machines a collection can live on. See `targets-and-connection.md` for what happens to saved clusters. |
+| 3 | **Clusters** saved under `hpc.clusters`, and **remote servers** in the app's connection settings and, one day, on each library (#2573) | One list of **compute targets**, which is also the list of machines a project can live on. See `targets-and-connection.md` for what happens to saved clusters. |
 | 4 | The container **listens on every interface**; the documents and the remote mode say **loopback only** | The image listens on loopback by default, like the Mac. It listens more widely only inside a container's private network, and the far machine never offers the port to a public network. See `linux-server-image.md`. |
 | 5 | A cluster-served model as a **new kind of provider** (the fine-tuning plan) or as **an existing local-server row at another address** | An existing kind of row. A session adds a row and removes it. No second provider system. See `jobs-and-fine-tuning.md`. |
 | 6 | Two **job runners**: the workflow runner on the Mac, and a separate small `runner/run_task.py` for clusters (named, never written) | One runner. The image runs the same workflow code in a "run this package" mode. See `jobs-and-fine-tuning.md`. |
 | 7 | Two **model catalogues**: models on the Mac, and models cached on a target | One catalogue of cards (`source.model.card-is-the-catalogue`). A card gains "also present on these targets". A target has no catalogue of its own. |
+| 8 | Two **job models**: a `compute_jobs` table proposed here, and the one `jobs` table of `ui/activity-and-automatic-work.md` | The one `jobs` table (ruled 2026-10-01). A remote job is a row with lane `remote` and its target named; its far-side states are its `state` and `waiting_reason`; array pieces are child jobs. See `compute.job.one-state-machine`. |
+| 9 | Two **trainers**: one in the Mac engine, one in the image | One trainer in the engine's code. It runs in process on the Mac and in "run a package" mode in the image, on Hugging Face Jobs or a cluster. See `compute.tune.one-trainer-three-places`. |
 
 ## How this is tested from the maintainer's side
 
@@ -422,32 +463,41 @@ cut. It is question 9.
 A container on a Mac gets no GPU that PyTorch can use (CITED, S16), so the stand-in proves the
 loop and proves nothing about speed.
 
-## Build order (proposed; engine before app; each slice builds, tests and commits alone)
+## Build order (revised 2026-10-03; engine before app; each slice builds, tests and commits alone)
 
-1. **The job loop on this Mac.** Work package, the one runner in "run this package" mode,
-   result package, landing through audited actions, the state machine. The far side is a local
-   folder. No network, no Docker. Folds `BundleManifest` into the sync manifest.
-2. **The image, built and smoke-tested by automation.** CPU image first. Health, capability
-   report, offline run, Apptainer conversion. Settles the listening rule.
-3. **The gate.** The "what will leave" sheet and its record, as a caller of
-   `source.egress.one-gate`. If that gate is not built yet, this slice builds the smallest
-   honest version of it *in that spec's place*, not here.
-4. **A Linux machine as a target.** Add, install, pair, send a job over HTTPS, clean up. The
-   walkthrough above becomes possible here.
-5. **A Slurm cluster as a target.** The Fichero-kept key, the second factor, staging from a
-   login node, the SSH carrier, live submit, poll and fetch, sparse re-submit. Turns the
-   dishonest "Test" route into a real one. Tested against the Slurm-in-containers fixture.
-6. **Fine-tuning Kraken as a job**, end to end: training set in (from #4947), model and scores
-   out, card in the catalogue. The first fine-tune, because nothing has to be converted.
-7. **The GPU image and vLLM.** Batch vision-model work inside a job; then a session as a
-   provider row.
-8. **Fine-tuning a language or vision model** with LoRA; adapter back; merge; convert for MLX
-   on the Mac. The convert step is new and untested here, so it is its own slice.
-9. **Hugging Face**: the Hub as a registry (publish, through the exporter), then Jobs as a
-   target.
-10. **A remote server that holds a collection.** Push half of the sync; #2573 in the app.
+The first goal is narrow: **fine-tune a Kraken reader and a YOLO page detector on the Sergio
+notebooks' checked pages, first on Hugging Face Jobs, then on this Mac, then on ACENET; measure
+each by CER on held-out pages; adopt the winner in the project's recipe as a new card.** The
+order serves that goal first. `REVIEW-2026-10-03.md` gives the reasons.
 
-Slices 1 to 3 need no outside account of any kind.
+0. **Before any training (other specs).** Checked pages on the Sergio notebooks (a person);
+   a training set from them, split by notebook (`source.train.*`, #4947), with line pictures for
+   Kraken and YOLO labels for the detector (`formats/yolo.py` already writes them); the one CER
+   (built); the one job table (#5353).
+1. **One trainer, proven on this Mac's CPU in `pytest`.** The `train-a-model` job's engine code:
+   training set in; model file, log and held-out CER out. Tiny set, two epochs, no network. It is
+   the code every later place runs.
+2. **The image that trains.** One `linux/amd64` image with the CUDA runtime, the engine, Kraken
+   and the YOLO trainer, with "run a package" mode. Built and smoke-tested by automation on CPU.
+   No vLLM, no LoRA libraries, no `arm64` stand-in yet.
+3. **Hugging Face Jobs as the first target** (#5398). Token, the hub carrier, run the image,
+   fetch, land the model as a card, egress asked once per project. Run twice: the same CER within
+   noise is the proof.
+4. **Training on this Mac** (#5397). The same trainer in the local ML lane on a 16 GB Mac,
+   throttled, with memory and processor use measured. Compared with the Hugging Face run.
+5. **Adoption.** The trained card enters the A/B against the current step (Kraken's general
+   models, the frontier draft) on held-out checked pages; the winner is offered as the
+   project's next recipe version (`compute.tune.adopted-by-the-recipe`).
+6. **ACENET.** The Slurm target: the Fichero-kept key, the second factor, Apptainer from the same
+   image, staging, the SSH carrier, live submit, poll and fetch. The trials in
+   `targets-and-connection.md` (its questions 1 to 3) come first.
+7. **Release on Hugging Face** as part of Fichero, once the project's rights allow it.
+8. **Later, each its own slice:** the small vision-language model with LoRA (on Hugging Face
+   Jobs, then ACENET; it must then *run* on a 16 GB Mac); batch inference jobs and landing passes
+   (`compute.land.*` for readings); vLLM and sessions; a Linux machine we control; the `arm64`
+   stand-in; MLX conversion; Zenodo; a remote server that holds a project (#2573).
+
+Slices 1 and 2 need no outside account; slice 3 needs a Hugging Face token with credit.
 
 ## Requests to other specs (for the manager to route; nothing edited there from here)
 
@@ -518,21 +568,20 @@ that already exists.
 Each has a proposal, so "agreed" is a complete answer. The same list, with more room for notes,
 is in the working note *questions for the maintainer*, outside the repository.
 
-1. **What is a collection?** Yesterday's ruling: a library becomes a **project**. Today's word:
-   **collection**, for what has been called a library, a project or a folder. Is a collection
-   (a) the whole project, under a new name; (b) a folder inside a project; or (c) any of the
-   three: whatever the person selected to work on? *Proposal: (c) for this set. "Project" stays
-   the name of the whole thing with its own settings; a "collection" is any chosen set of
-   sources inside it (a folder, a selection, or all of it), which is exactly what a job is sent.
-   Then the two rulings do not collide. If instead (a) is meant, "collection" replaces
-   "project" everywhere and the source-model set changes its word.*
+*Questions 1, 2, 3, 8, 11 and 17 are answered by the rulings of 2026-10-03 (above): the project
+is the unit; the milestone is `remote-compute`; jobs first, sessions later; Kraken and YOLO are the
+first fine-tunes; Hugging Face Jobs is the first target for training; ACENET is second. They are
+kept below, marked, so the record stays whole.*
+
+1. **What is a collection?** *Answered 2026-10-03: the project is the unit; a job is sent a
+   selection of a project's sources. This set no longer uses "collection".*
 2. **The name of this set and its milestone.** *Proposal: `remote-compute`, files in
    `specs/compute/`, behaviour ids `compute.*`.*
 3. **Build "send a job" first, everywhere; sessions second; a remote server that holds a
-   collection last.** *Proposal: yes, in the build order above. It gives fine-tuning and batch
+   project last.** *Proposal: yes, in the build order above. It gives fine-tuning and batch
    work on every kind of target soonest, and needs the least new app work.*
 4. **On a cluster, no long-lived server: jobs and time-limited sessions only.** *Proposal:
-   agreed as the honest limit. A whole `fichero-server` holding a collection is for machines we
+   agreed as the honest limit. A whole `fichero-server` holding a project is for machines we
    control.*
 5. **A key Fichero makes and keeps**, rather than the person's own SSH set-up. The person pastes
    the public half into the cluster's account page once. *Proposal: yes, because a sandboxed
@@ -548,9 +597,9 @@ is in the working note *questions for the maintainer*, outside the repository.
    are the training set.*
 9. **The walkthrough needs Docker Desktop on the maintainer's Mac.** *Proposal: agreed, with a
    half-day trial of whether the sandboxed build can drive it; if not, one pasted command.*
-10. **What is asked before a collection leaves.** *Proposal: a sheet that names what, how much,
+10. **What is asked before a project leaves.** *Proposal: a sheet that names what, how much,
     where, who runs that place and how long it stays; a yes that is remembered for that
-    collection and that target; nothing sent from a collection marked "may not leave"; and
+    project and that target; nothing sent from a project marked "may not leave"; and
     until the rights slice is unblocked, nothing is excluded automatically and the sheet says
     so.*
 11. **Hugging Face.** *Proposal: the Hub as a registry first (private by default, gated where
