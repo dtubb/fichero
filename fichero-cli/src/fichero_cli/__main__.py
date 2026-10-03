@@ -249,7 +249,6 @@ _DEFAULT_WAIT_TIMEOUT_SECONDS = 300.0  # 5 minutes — overridable with --timeou
 # Legacy attempt cap kept for back-compat with tests that monkeypatch it
 # (test_workflow_run_wait_raises_on_all_404_exhaustion). The wait loop now
 # bounds itself by wall time, but honors this cap when it's been narrowed.
-_POLL_MAX_ATTEMPTS = 600
 
 
 @app.callback()
@@ -2386,15 +2385,12 @@ def _poll_until_terminal(
       we raise FicheroError with a pointer to ``fichero activity`` so the
       caller can investigate.
     """
+    # Bounded by --timeout alone. A fixed cap of 600 polls (~11 min) used to end the wait first, so
+    # a longer --timeout had no effect on a long run (#5393).
     deadline = time.monotonic() + max(timeout_seconds, 0.0)
-    # Honour the legacy attempt cap — tests narrow it to make timeout
-    # assertions fast. When the cap is at its default (600) the wall-clock
-    # deadline dominates.
-    attempts_remaining = _POLL_MAX_ATTEMPTS
     last_status: Any = None
 
-    while attempts_remaining > 0 and time.monotonic() < deadline:
-        attempts_remaining -= 1
+    while time.monotonic() < deadline:
         try:
             terminal_event = _poll_activity_for_terminal(client, thread_id)
         except FicheroError as exc:
@@ -2423,8 +2419,14 @@ def _poll_until_terminal(
         f"Timed out after {timeout_seconds:.0f}s waiting for workflow thread "
         f"{thread_id} to emit a terminal activity event. Check "
         f"`fichero activity --limit 50` for what the executor is doing. "
-        f"Last status snapshot: {last_status!r}"
+        f"Last status: {_status_word(last_status)}"
     )
+
+
+def _status_word(status: Any) -> str:
+    """The run's status in a word, not its whole state (that dump ran to a megabyte, #5393)."""
+    value = status.get("status") if isinstance(status, dict) else getattr(status, "status", None)
+    return str(value or "unknown")
 
 
 def _merge_terminal_payload(

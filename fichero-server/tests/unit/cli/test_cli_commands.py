@@ -1215,9 +1215,7 @@ def test_workflow_run_wait_raises_on_timeout(monkeypatch):
 
     monkeypatch.setattr(FakeClient, "execution_status", perma_404)
     monkeypatch.setattr(FakeClient, "list_activities", empty_activities)
-    # Shrink both budgets so the test is fast — wall-clock dominates with
-    # zero timeout, attempt cap is the safety net.
-    monkeypatch.setattr(cli, "_POLL_MAX_ATTEMPTS", 3)
+    # --timeout 0: the wall clock is the only bound (#5393).
     result = runner.invoke(
         cli.app,
         ["workflow", "run", "Catalogue", "doc-7", "--wait", "--timeout", "0"],
@@ -1225,6 +1223,25 @@ def test_workflow_run_wait_raises_on_timeout(monkeypatch):
     assert result.exit_code == 1
     assert "Timed out" in result.output
     assert "fichero activity" in result.output
+
+
+def test_workflow_run_wait_is_bounded_by_timeout_alone(monkeypatch):
+    """#5393: a fixed cap of 600 polls (~11 min) ended --wait before a longer --timeout, so a
+    104-photo run always looked like a timeout. A run that finishes after 700 polls is waited for."""
+    polls = {"n": 0}
+
+    def activities(self, *, thread_id=None, types=None, limit=100):
+        polls["n"] += 1
+        if polls["n"] < 700:
+            return []
+        return [{"type": "workflow_completed", "thread_id": thread_id,
+                 "details": {"workflow_id": "wf-1", "workflow_name": "Catalogue"}}]
+
+    monkeypatch.setattr(FakeClient, "list_activities", activities)
+    monkeypatch.setattr(cli, "_POLL_INTERVAL_SECONDS", 0)
+    result = runner.invoke(cli.app, ["workflow", "run", "Catalogue", "doc-7", "--wait", "--timeout", "3600"])
+    assert result.exit_code == 0, result.output
+    assert polls["n"] >= 700
 
 
 # -- workflow run --wait #1079: workflow_id/name on terminal payload --------
