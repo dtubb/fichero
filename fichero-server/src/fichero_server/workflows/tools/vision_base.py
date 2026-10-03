@@ -1999,9 +1999,45 @@ def _vision_ocr_cgimage_with_geometry(
     return VisionOCRResult(text="", line_boxes=[], word_boxes=[])
 
 
+#: Apple Vision calls in flight at once, across the whole engine. One per fanned-out file (104 at
+#: once on a notebook folder) deadlocked Apple's text recogniser: four threads stuck in
+#: VNRecognizeTextRequest, 0% CPU, and the run "running" forever (#5392).
+APPLE_VISION_CONCURRENCY = 2
+_APPLE_VISION_GATE = threading.BoundedSemaphore(APPLE_VISION_CONCURRENCY)
+
+
+class AppleVisionTimeout(RuntimeError):
+    """A page's Apple Vision call did not return in time; that page fails, the run goes on."""
+
+
+def _apple_vision_deadline() -> float:
+    try:
+        return max(30.0, float(os.environ.get("FICHERO_APPLE_VISION_TIMEOUT", "300")))
+    except ValueError:
+        return 300.0
+
+
+async def _apple_vision_call(fn, *args):
+    """Run one Apple Vision page call through the engine-wide gate, with a deadline that covers
+    waiting for the gate too. A call stuck in Apple's recogniser cannot be interrupted, so it is
+    abandoned: this page raises AppleVisionTimeout by name and the run continues (#5392)."""
+    def gated():
+        with _APPLE_VISION_GATE:
+            return fn(*args)
+
+    deadline = _apple_vision_deadline()
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(gated), timeout=deadline)
+    except asyncio.TimeoutError as exc:
+        raise AppleVisionTimeout(
+            f"Apple Vision did not finish this page within {deadline:.0f} s "
+            f"(at most {APPLE_VISION_CONCURRENCY} pages read at once); the page was skipped"
+        ) from exc
+
+
 async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
     """Async wrapper for Apple Vision OCR."""
-    return await asyncio.to_thread(apple_vision_ocr, image_path, language)
+    return await _apple_vision_call(apple_vision_ocr, image_path, language)
 
 
 #: Serializes whole-document rasterization. See the note at its use site in
@@ -2146,14 +2182,14 @@ def _apple_ocr_pdf_page(pdf_path: str, page_index: int, language: str = "en") ->
 
 async def apple_vision_ocr_pages_async(pdf_path: str, language: str = "en") -> list[str]:
     """Async per-page OCR for PDFs. Returns list[str] (one entry per page)."""
-    return await asyncio.to_thread(_apple_ocr_pdf_pages, pdf_path, language)
+    return await _apple_vision_call(_apple_ocr_pdf_pages, pdf_path, language)
 
 
 async def apple_vision_ocr_pages_geometry_async(
     pdf_path: str, language: str = "en"
 ) -> list[VisionOCRResult]:
     """Async per-page OCR for PDFs, keeping geometry (#4309)."""
-    return await asyncio.to_thread(_apple_ocr_pdf_pages_geometry, pdf_path, language)
+    return await _apple_vision_call(_apple_ocr_pdf_pages_geometry, pdf_path, language)
 
 
 async def apple_vision_ocr_pdf_page_async(
@@ -2162,7 +2198,7 @@ async def apple_vision_ocr_pdf_page_async(
     language: str = "en",
 ) -> str:
     """Async OCR for one PDF page by zero-based page index."""
-    return await asyncio.to_thread(
+    return await _apple_vision_call(
         _apple_ocr_pdf_page,
         pdf_path,
         page_index,
@@ -2176,7 +2212,7 @@ async def apple_vision_ocr_pdf_page_geometry_async(
     language: str = "en",
 ) -> VisionOCRResult:
     """Async OCR for one PDF page, keeping geometry (#4309)."""
-    return await asyncio.to_thread(
+    return await _apple_vision_call(
         _apple_ocr_pdf_page_geometry,
         pdf_path,
         page_index,
@@ -2188,7 +2224,7 @@ async def apple_vision_ocr_with_geometry_async(
     image_path: str, language: str = "en", reference_text: str | None = None
 ) -> VisionOCRResult:
     """Async wrapper for Apple Vision OCR that keeps geometry (#4309)."""
-    return await asyncio.to_thread(
+    return await _apple_vision_call(
         apple_vision_ocr_with_geometry, image_path, language, reference_text
     )
 
