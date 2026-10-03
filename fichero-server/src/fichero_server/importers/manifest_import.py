@@ -708,8 +708,13 @@ def _ingest_page_image(
     parent_id: str | None,
     ingest_mode: str,
     summary: "ImportSummary",
+    link_in_place: bool = False,
 ) -> str:
     """Bring a page's preferred image into the library under ``ingest_mode``.
+
+    ``link_in_place``: link through the engine's own ingest with copying off, so the ENGINE records
+    and checks the path (as ``ingest folder --no-copy-mode`` does). For a caller that has no
+    post-import stamp, such as the CLI: there, link made pathless pages while reporting success (#5383).
 
     * ``link`` — reference the source path in place (no byte copy); the local
       preview cache is still warmed so the app never loads over the network.
@@ -739,7 +744,7 @@ def _ingest_page_image(
     # post-import stamp — every warm request could only 404, and it cost
     # ~0.5-0.8s per page on a large library (half the page phase,
     # 2026-08-18). queue_derivatives builds previews after the stamp.
-    if ingest_mode == "link":
+    if ingest_mode == "link" and not link_in_place:
         created = client.request(
             "POST", "/documents", document_payload(node, parent_id)
         )
@@ -752,7 +757,7 @@ def _ingest_page_image(
         {
             "path": source_path,
             "parent_id": parent_id,
-            "copy_mode": True,
+            "copy_mode": ingest_mode != "link",
             # Do NOT extract text on ingest — page_content comes from the
             # manifest transcript (provenance import, not Apple Vision OCR).
             "extract_text": False,
@@ -767,7 +772,7 @@ def _ingest_page_image(
     metadata["ingest_mode"] = ingest_mode
     # Rewrite the active image path to the local in-library file so the app
     # never reaches over the network for this rendition.
-    if local_path:
+    if local_path and ingest_mode != "link":
         _rewrite_images_to_local(metadata, str(source_path), str(local_path))
 
     update_body: dict[str, Any] = {
@@ -813,6 +818,7 @@ def import_manifest(
     write_transcript_artifacts: bool = True,
     root_parent_id: str | None = None,
     on_progress: Any | None = None,
+    link_in_place: bool = False,
 ) -> ImportSummary:
     """Import a canonical manifest into a library through the API client.
 
@@ -921,14 +927,14 @@ def import_manifest(
             )
         is_leaf = external_id not in parent_externals
         page_with_image = node.get("node_type") == "page" and preferred_image(node)
-        if is_leaf and mode == "link":
+        if is_leaf and mode == "link" and not (link_in_place and page_with_image):
             # LINK-mode leaves — pages and plain references alike — create
             # from the same document_payload the singular path uses.
             pending_creates.append((node, document_payload(node, parent_id)))
         elif page_with_image:
-            # Pages with an image in copy/move go through the mode-aware path
-            # (bytes brought local via native ingest).
-            new_id = _ingest_page_image(client, node, parent_id, mode, summary)
+            # Pages with an image in copy/move -- or in link with nothing to stamp afterwards (the
+            # CLI, #5383) -- go through the mode-aware path (the engine's native ingest).
+            new_id = _ingest_page_image(client, node, parent_id, mode, summary, link_in_place)
             register_created(node, new_id)
         else:
             created = client.request(
@@ -1381,6 +1387,8 @@ def import_manifest_via_http(
         library_str,
         copy_images=copy_images,
         ingest_mode=ingest_mode,
+        # Nothing stamps paths after a CLI import, so link goes through the engine's ingest (#5383).
+        link_in_place=True,
     )
 
 __all__ = [name for name in dir() if not name.startswith("__")]
