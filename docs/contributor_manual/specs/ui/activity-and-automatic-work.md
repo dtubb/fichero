@@ -420,8 +420,9 @@ workflow by hand: a hand run is a job like any other.
   inference shows as its workflow run's row, failures with their reason; which page it is on, and
   "waiting for Kraken", are not shown. Built (2026-10-03): every Kraken page a workflow reads
   (Transcribe in Kraken mode, economy HTR) is a job row (`find-lines`, `read-a-line`) naming its
-  page and reader, with its state and reason (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap: MLX pages, and showing
-  the rows under their run.
+  page and reader, with its state and reason (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`); a page read by a model
+  served on this Mac (MLX, Ollama, LM Studio) is a `read-a-page` row named by its model
+  (`fichero-server/tests/unit/jobs/test_local_model_pages_on_the_lane.py`). Still a gap: showing the rows under their run.
 - `activity.model-work-visible` — **[GAP]** (#5359) a model download, a Kraken
   model fetch from Zenodo and MLX runtime provisioning appear in Activity, not only in Settings.
 - `activity.nlp-visible` — **[PARTIAL]** (#5359) the NLP draft stage is counted and
@@ -475,13 +476,19 @@ workflow by hand: a hand run is a job like any other.
 - `activity.pause.per-job` — **[PARTIAL]** (#5356) workflow runs have pause, resume,
   stop and delete (`RunControls.swift`); batches have pause, resume, cancel, retry
   (`batch.py:346-408`); the task queue cancels only pending tasks; the derivative queue, ingest,
-  conversion and downloads (except MLX's cancel) have nothing.
+  conversion and downloads (except MLX's cancel) have nothing. Built (2026-10-03): any row in the
+  `jobs` table can be paused, resumed and cancelled (`PUT /api/activity/jobs/{id}/paused`,
+  `POST /api/activity/jobs/{id}/cancel`): a job running here finishes its item and says so, a
+  training Job is cancelled on Hugging Face (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: retry, the window's
+  per-row controls, and pausing all waiting jobs of one kind at once.
 - `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
   boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for.
 - `activity.pause.controls-are-actions` — **[PARTIAL]** (#5356) pause, resume, cancel
   and retry are audited actions, reachable from the window, MCP and the command line. Built: the
-  global pause is the audited, undoable action `background.pause` (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap:
-  per-job controls, and an MCP tool.
+  global pause is the audited, undoable action `background.pause` (`fichero-server/tests/unit/jobs/test_job_queue.py`); per job, `job.pause`
+  (undoable) and `job.cancel`; MCP tools `fichero_jobs`, `fichero_pause_background_work`,
+  `fichero_job_pause`, `fichero_job_cancel` (`fichero-mcp/tests/test_mcp_server.py`). Still a gap:
+  retry.
 
 ### D. Throttling
 
@@ -505,7 +512,9 @@ workflow by hand: a hand run is a job like any other.
   Kraken's resident models first, and leaving the embedder for Kraken frees the embedder; a
   background job for another heavy model waits for 20 s of quiet on the loaded one, so bursts do
   not swap models page by page, while work a person waits for switches at once
-  (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap: MLX models and pages, which are not on the queue yet.
+  (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Pages read by a model served on this Mac hold the same lane
+  (`fichero-server/tests/unit/jobs/test_local_model_pages_on_the_lane.py`). Still a gap: stopping a local model server on a switch (its restart costs
+  30-300 s), and local-model calls outside a workflow page (chat, extraction).
 - `activity.lane.co-run-only-if-it-fits` — **[PARTIAL]** (#5358) two heavy models run at once only when their
   measured resident sizes fit this Mac's memory with headroom; on an 8 GB Mac, never. Built: never,
   for now: queued heavy jobs run one at a time and wait while a Kraken page holds Kraken's lock
@@ -542,7 +551,8 @@ workflow by hand: a hand run is a job like any other.
   workflow run is flipped to `failed` on reopen (`workflows/activity.py:658-707`), although its
   checkpoints are on disk (`workflows/checkpointer.py`).
 - `activity.durable.paused-stays-paused` — **[BROKEN]** (#5357) a paused job is still
-  paused after relaunch; today it becomes failed (same code).
+  paused after relaunch; today it becomes failed (same code). Holds for rows in the `jobs` table
+  (`fichero-server/tests/unit/jobs/test_job_queue.py`); still broken for workflow runs, which are not jobs yet.
 - `activity.durable.poison-item` — **[PARTIAL]** (#5357) an item that fails three times is
   set aside with its reason and the job carries on. Built: a queued job interrupted by a quit or
   crash goes back to waiting and is set aside after three (`fichero-server/tests/unit/jobs/test_job_queue.py`); a job that raises fails

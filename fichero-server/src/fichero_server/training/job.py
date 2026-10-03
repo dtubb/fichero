@@ -283,6 +283,6 @@ def register_job_kinds() -> None:
 
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="remote",
-                           name="Train a model")
+                           name="Train a model", cancel=request_cancel)
     if CONVERT_KIND not in jobs.KINDS:
         jobs.register_kind(CONVERT_KIND, None, model=None, qos=set_utility_qos, name="Convert a model for MLX")

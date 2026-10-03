@@ -115,6 +115,9 @@ class Kind:
     lane: str = "local-ml"
     #: What Activity calls it, when the recipe job registry has no name for it.
     name: str | None = None
+    #: How to stop one of these when the generic way cannot (work running somewhere else, such
+    #: as a training Job on Hugging Face): `(db, job_id) -> state after the request`.
+    cancel: Callable[["Database", str], str] | None = None
 
 
 KINDS: dict[str, Kind] = {}
@@ -122,10 +125,10 @@ KINDS: dict[str, Kind] = {}
 
 def register_kind(kind: str, run: Callable[["Database", str], Any] | None, *, model: str | None,
                   qos: Callable[[], None] = set_background_qos, lane: str = "local-ml",
-                  name: str | None = None) -> None:
+                  name: str | None = None, cancel: Callable[["Database", str], str] | None = None) -> None:
     if lane not in LANES:
         raise ValueError(f"no lane {lane!r}")
-    KINDS[kind] = Kind(run=run, model=model, qos=qos, lane=lane, name=name)
+    KINDS[kind] = Kind(run=run, model=model, qos=qos, lane=lane, name=name, cancel=cancel)
 
 
 def kind_name(kind: str) -> str:
@@ -139,10 +142,11 @@ def kind_name(kind: str) -> str:
     return (registered.name if registered else None) or kind
 
 
-# Kraken's line finding and line reading, handed in by a workflow step that waits for each page.
-# Named as the recipe job registry names them. Utility QoS: a person is waiting for these pages,
-# and background measured ~18 times slower for Kraken (#4959).
-for _attached in ("find-lines", "read-a-line"):
+# Kraken's line finding and line reading, and a page read by a model served on this Mac, handed
+# in by a workflow step that waits for each page. Named as the recipe job registry names them.
+# Utility QoS: a person is waiting for these pages, and background measured ~18 times slower for
+# Kraken (#4959).
+for _attached in ("find-lines", "read-a-line", "read-a-page"):
     register_kind(_attached, None, model=None, qos=set_utility_qos)
 
 
@@ -294,15 +298,65 @@ async def run_on_lane(library_path: str | None, kind: str, subject: str, *, mode
     if db is None:
         return await asyncio.to_thread(fn)
     future = submit(db, kind, subject, model=model, fn=fn)
-    waiting = asyncio.wrap_future(future)
+    return await _wait_for_lane(db, future, asyncio.wrap_future(future), run_id)
+
+
+async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future", run_id: str | None) -> Any:
+    """Wait for `signal`, withdrawing the job and raising `WorkflowCancelled` if the run is
+    stopped while the job is still waiting for the lane."""
     while True:
-        done, _ = await asyncio.wait({waiting}, timeout=STOP_POLL_SECONDS)
+        done, _ = await asyncio.wait({signal}, timeout=STOP_POLL_SECONDS)
         if done:
-            return waiting.result()
+            return signal.result()
         if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future):
             from fichero_server.execution.cancellation import WorkflowCancelled
 
             raise WorkflowCancelled(run_id)
+
+
+#: Longest the lane is held for one model call before it carries on regardless (a caller that
+#: vanished without letting go must not wedge the lane for good).
+HOLD_LIMIT_SECONDS = 900.0
+
+
+async def hold_lane(library_path: str | None, kind: str, subject: str, *, model: str,
+                    work: Callable[[], Any], run_id: str | None = None) -> Any:
+    """Run async `work` (a call to a model served on this Mac: MLX, Ollama, LM Studio) as a job
+    on the local-model lane. The call stays in the caller, on its event loop; the lane's thread
+    holds the slot while it runs, so no other heavy model starts beside it, and its row is shown,
+    grouped by model and stoppable while it waits, like a Kraken page."""
+    db = _open_library(library_path)
+    if db is None:
+        return await work()
+    loop = asyncio.get_running_loop()
+    granted: asyncio.Future = loop.create_future()
+    release = threading.Event()
+
+    def hold() -> None:
+        loop.call_soon_threadsafe(lambda: granted.done() or granted.set_result(None))
+        release.wait(HOLD_LIMIT_SECONDS)
+
+    future = submit(db, kind, subject, model=model, fn=hold)
+    try:
+        lane = asyncio.wrap_future(future)
+        try:
+            await _wait_for_lane(db, future, _first_of(granted, lane), run_id)
+        except asyncio.CancelledError:
+            _scheduler.withdraw(db, future)  # its caller is gone: the slot is not wanted
+            raise
+        return await work()
+    finally:
+        release.set()
+
+
+def _first_of(granted: "asyncio.Future", lane: "asyncio.Future") -> "asyncio.Future":
+    """`granted`, or the lane's own failure if the job fails before it is granted."""
+    def failed(done: "asyncio.Future") -> None:
+        if not granted.done() and not done.cancelled() and done.exception() is not None:
+            granted.set_exception(done.exception())
+
+    lane.add_done_callback(failed)
+    return granted
 
 
 def _stop_requested(run_id: str) -> bool:
@@ -349,6 +403,53 @@ def resume(db: "Database") -> None:
         _scheduler.wake(_key(db))
 
 
+def _job_row(db: "Database", job_id: str) -> tuple[str, str]:
+    _ensure(db)
+    row = db.execute_fetchone("SELECT kind, state FROM jobs WHERE id = ?", [job_id])
+    if row is None:
+        raise KeyError(f"no job {job_id!r} in this project")
+    return row[0], row[1]
+
+
+def pause_job(db: "Database", job_id: str, paused: bool) -> str:
+    """Pause one waiting job, or resume one paused job (`activity.pause.per-job`). A paused job
+    stays paused across relaunch until resumed. A job already running finishes its item; a page a
+    workflow run is waiting for is paused with its run, not here. Returns the job's state."""
+    kind, state = _job_row(db, job_id)
+    if _is_attached(kind):
+        raise ValueError("This page belongs to a workflow run that is waiting for it: pause the run instead")
+    if paused and state == "waiting":
+        db.execute("UPDATE jobs SET state = 'paused', reason = 'Paused by you' WHERE id = ? AND state = 'waiting'",
+                   [job_id])
+        return "paused"
+    if not paused and state == "paused":
+        db.execute("UPDATE jobs SET state = 'waiting', reason = NULL WHERE id = ? AND state = 'paused'", [job_id])
+        key = _key(db)
+        db.add_after_commit_hook(lambda: _scheduler.wake(key))
+        return "waiting"
+    return state
+
+
+def cancel_job(db: "Database", job_id: str) -> str:
+    """Stop one job (`activity.pause.per-job`): a waiting or paused one ends `cancelled` now; a page
+    a run is waiting for is withdrawn from the lane (the run sees it stopped); a kind that runs
+    somewhere else stops there by its own `cancel`. A job running here finishes the item it is on
+    (nothing can interrupt it midway yet). Returns the job's state after the request."""
+    kind, state = _job_row(db, job_id)
+    registered = KINDS.get(kind)
+    if registered is not None and registered.cancel is not None:
+        return registered.cancel(db, job_id)
+    if state not in ("waiting", "paused"):
+        return state
+    with _scheduler._lock:
+        handed_in = _scheduler._attached.get(job_id)
+    if handed_in is not None:
+        return "cancelled" if _scheduler.withdraw(db, handed_in[1]) else "running"
+    db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
+               "WHERE id = ? AND state IN ('waiting', 'paused')", [utc_now(), job_id])
+    return "cancelled"
+
+
 def is_paused() -> bool:
     from fichero_server.db.app import get_app_db
 
@@ -374,10 +475,11 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     paused = is_paused()
     rows = db.execute_fetchall(
         "SELECT id, kind, subject, state, reason, attempts, created_at FROM ("
-        " SELECT * FROM jobs WHERE state IN ('waiting', 'running')"
+        " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused')"
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' ORDER BY finished_at DESC LIMIT ?)"
-        ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 ELSE 2 END, created_at",
+        ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
+        "created_at",
         [failed_limit],
     )
     out: list[dict[str, Any]] = []
@@ -420,8 +522,22 @@ def _release_embedder() -> None:
         embeddings.release_idle_embedders(idle_seconds=0)
 
 
+#: Providers whose models run in a server on this Mac (named `<provider>:<model>` on the lane).
+LOCAL_MODEL_SERVERS = frozenset({"omlx", "ollama", "lmstudio"})
+
+
 def _family(model: str | None) -> str | None:
-    return "kraken" if (model or "").startswith(KRAKEN_MODEL_PREFIX) else model
+    if (model or "").startswith(KRAKEN_MODEL_PREFIX):
+        return "kraken"
+    if (model or "").split(":", 1)[0] in LOCAL_MODEL_SERVERS:
+        return "local-model"
+    return model
+
+
+def _keep_local_model_server() -> None:
+    # ponytail: not stopped on a switch. Its server takes 30-300 s to start again and frees its
+    # own memory when idle; stop it here once measured resident sizes say this Mac needs it.
+    return None
 
 
 #: The heavy models the lane frees when it switches from one to another (`activity.lane.group-by-
@@ -429,7 +545,8 @@ def _family(model: str | None) -> str | None:
 _RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder,
             # Converting a trained model for MLX (#5398) holds a 7B model's weights itself; it frees
             # nothing when it ends (its process exits), but switching TO it frees Kraken or the embedder.
-            "mlx-convert": lambda: None}
+            "mlx-convert": lambda: None,
+            "local-model": _keep_local_model_server}
 #: A background job for another heavy model waits until the loaded one has had no work for this
 #: long, so work that arrives in bursts (a run's Kraken pages, each followed by its page's embed)
 #: does not swap two models in and out page by page. Work a person waits for switches at once.
@@ -599,9 +716,17 @@ class _Scheduler:
         quiet_from = lane.loaded_used_at + SWITCH_AFTER_QUIET_SECONDS
         others = [f for f in _RELEASE if f != _family(lane.loaded_model)]
         if _family(lane.loaded_model) in _RELEASE and time.monotonic() < quiet_from and others:
-            held = " OR ".join(
-                "COALESCE(model, '') LIKE ?" if f == "kraken" else "COALESCE(model, '') = ?" for f in others)
-            held_params = [KRAKEN_MODEL_PREFIX + "%" if f == "kraken" else f for f in others]
+            held_parts, held_params = [], []
+            for f in others:
+                prefixes = ([KRAKEN_MODEL_PREFIX] if f == "kraken" else
+                            [f"{p}:" for p in sorted(LOCAL_MODEL_SERVERS)] if f == "local-model" else [])
+                if prefixes:
+                    held_parts += ["COALESCE(model, '') LIKE ?"] * len(prefixes)
+                    held_params += [p + "%" for p in prefixes]
+                else:
+                    held_parts.append("COALESCE(model, '') = ?")
+                    held_params.append(f)
+            held = " OR ".join(held_parts)
             if attached:
                 where += f" AND (id IN ({', '.join('?' for _ in attached)}) OR NOT ({held}))"
                 params += [*attached, *held_params]

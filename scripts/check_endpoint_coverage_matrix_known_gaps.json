@@ -1,5 +1,7 @@
 {
   "GET /api/recipes/routes": "engine half of setup's routes for the volume; the app's Ready step shows them next (#4951)",
+  "PUT /api/activity/jobs/{job_id}/paused": "engine, CLI and MCP (fichero_job_pause) only: the Activity window's per-row Pause comes with the jobs table (#5354, #5356)",
+  "POST /api/activity/jobs/{job_id}/cancel": "engine, CLI and MCP (fichero_job_cancel) only: the Activity window's per-row Cancel comes with the jobs table (#5354, #5356)",
   "GET /api/recipes/languages": "engine half of setup's language search; the app's Your Material step switches from Apple's locale list to this next",
   "GET /api/recipes/scripts": "engine half of setup's script search; the app's Your Material step switches from Apple's locale list to this next",
   "GET /api/settings/compute": "the Settings pane for compute priority and device is not built yet; read by Kraken now and by the job model next",

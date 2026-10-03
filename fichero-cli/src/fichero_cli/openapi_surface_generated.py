@@ -592,6 +592,36 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("cancel-job")
+    def activity_cancel_job_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Cancel Job (POST /api/activity/jobs/{job_id}/cancel)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/jobs/{job_id}/cancel"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("set-job-paused")
+    def activity_set_job_paused_put(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        paused: bool = typer.Option(..., "--paused/--no-paused", help="Request field: paused."),
+    ) -> None:
+        """Set Job Paused (PUT /api/activity/jobs/{job_id}/paused)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/jobs/{job_id}/paused"
+            params = None
+            payload = _build_json_payload({
+                "paused": paused,
+            }, {
+                "paused": {'type': 'boolean', 'title': 'Paused', 'description': 'true pauses this job; false resumes it', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("get-metrics-summary")
     def activity_get_metrics_summary_get(
         ctx: typer.Context,
