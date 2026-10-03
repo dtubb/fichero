@@ -618,11 +618,36 @@ class TestEstimateWorkflowCost:
         assert r.status_code == 200
         data = r.json()
         assert data["pricing_available"] is False
-        # A miss carries no price. The client shows "unpriced" off the flag; it
-        # must never read the accompanying zero as a US$0.00 charge.
-        assert data["estimated_cost_usd"] == 0.0
+        # A miss carries no price: no figure at all, never a zero a caller can
+        # read as a US$0.00 charge (the CLI printed $0.00 for a paid run, #5391).
+        assert data["estimated_cost_usd"] is None
         assert data["input_cost_per_million"] == 0.0
         assert data["output_cost_per_million"] == 0.0
+
+    def test_estimate_cost_prices_the_model_a_step_without_one_will_use(
+        self, client, db, monkeypatch
+    ):
+        """#5391: Transcribe Manuscript names no model; the run falls to the library's vision
+        default, but the estimate resolved nothing and reported $0.00 for a paid Gemini run. The
+        estimate now asks the RUNNER's resolver what each AI step will call, so they agree."""
+        from fichero_server.llm import LLMConfig
+
+        wf = Workflow(name="Transcribe", description="", format="nodes", steps=[], provider="", model="",
+                      nodes=[{"id": "t", "tool": "transcribe", "config": {}}], edges=[])
+        db.save(wf)
+        monkeypatch.setattr(
+            "fichero_server.workflows.builder._resolve_node_llm_config",
+            lambda node, base: LLMConfig(provider="openrouter", model="google/gemini-3-flash-preview"),
+        )
+        monkeypatch.setattr(
+            "fichero_server.api.routes.workflow.workflows.get_model_cost",
+            lambda name: {"input_cost_per_token": 1e-6, "output_cost_per_token": 2e-6} if "gemini" in name else None,
+        )
+        r = client.post(f"/api/workflows/{wf.id}/estimate-cost", json={
+            "file_count": 49, "estimated_input_tokens_per_file": 1000, "estimated_output_tokens_per_file": 500})
+        data = r.json()
+        assert (data["provider"], data["model"]) == ("openrouter", "google/gemini-3-flash-preview")
+        assert data["pricing_available"] is True and data["estimated_cost_usd"] > 0
 
     def test_estimate_cost_resolves_tier_alias_before_pricing(
         self, client, db, monkeypatch

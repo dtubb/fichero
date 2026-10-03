@@ -77750,6 +77750,7 @@
           },
           "estimated_cost_usd": {
             "type": "number",
+            "nullable": true,
             "title": "Estimated Cost Usd"
           },
           "input_cost_per_million": {

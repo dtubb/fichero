@@ -49,7 +49,6 @@ api/routes/search/core.py::_run_entity_semantic_queries 1
 api/routes/search/core.py::enhanced_search 3
 api/routes/search/core.py::reindex_all.do_reindex 1
 api/routes/system/activity.py::list_background_jobs 1
-api/routes/workflow/workflows.py::_resolved_run_model 1
 api/routes/workflow_execution/threads.py::_cancel_settled_run 1
 api/routes/workflow_execution/threads.py::cancel_workflow 1
 api/routes/workflow_execution/threads.py::pause_workflow 1

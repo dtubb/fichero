@@ -327,7 +327,8 @@ class WorkflowCostEstimateResponse(BaseModel):
     estimated_input_tokens: int
     estimated_output_tokens: int
     estimated_total_tokens: int
-    estimated_cost_usd: float
+    #: Null when the model cannot be priced (`pricing_available` false): unpriced is not free (#5391).
+    estimated_cost_usd: float | None
     input_cost_per_million: float
     output_cost_per_million: float
     pricing_available: bool
@@ -455,43 +456,28 @@ def _category_display_name(category: str) -> str:
 
 
 def _resolved_run_model(wf, provider: str, model: str) -> tuple[str, str]:
-    """What a run of this workflow would really call.
-
-    Walks the LLM-using nodes for a provider/model or a tier alias and
-    resolves it the way the runner does. Returns the first that resolves —
-    a mixed-model workflow cannot be priced by a single figure anyway, and
-    the first paid step is the honest anchor for an upper bound.
+    """What a run of this workflow would really call: the first AI step's model, resolved by the
+    RUNNER's own resolver (`_resolve_node_llm_config`: node model or tier alias, then the workflow's,
+    then the category default such as the library's vision model). A separate resolver here missed
+    those fallbacks, so a step naming no model priced as free (#5391).
     """
-    from fichero_server.llm import resolve_model_alias_for_capability
-    from fichero_server.workflows.validation import node_uses_llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.builder import _resolve_node_llm_config
+    from fichero_server.workflows.registry import get_tool_def
+    from fichero_server.workflows.runtime import to_workflow_def
 
-    for node in getattr(wf, "nodes", None) or []:
-        if not node_uses_llm(node):
+    base = LLMConfig(provider=provider, model=model)
+    for node in to_workflow_def(wf).nodes:
+        tool_def = get_tool_def(node.tool)
+        if not (tool_def and tool_def.uses_llm):
             continue
-        config = node.get("config") if isinstance(node, dict) else getattr(node, "config", {})
-        config = config if isinstance(config, dict) else {}
-        candidate_provider = (
-            (node.get("provider_name") if isinstance(node, dict) else None)
-            or config.get("provider_name")
-            or provider
-        )
-        candidate_model = (
-            (node.get("model_name") if isinstance(node, dict) else None)
-            or config.get("model_name")
-            or model
-        )
         try:
-            resolved_provider, resolved_model = resolve_model_alias_for_capability(
-                str(candidate_provider or ""),
-                str(candidate_model or ""),
-                required_capability=None,
-            )
-        except Exception:
-            # An unconfigured tier is a real answer: leave it unpriced rather
-            # than guessing a model the run would not use.
+            config = _resolve_node_llm_config(node, base)
+        except ValueError:
+            # An unconfigured tier is a real answer: leave it unpriced rather than guess.
             continue
-        if resolved_provider and resolved_model:
-            return resolved_provider, resolved_model
+        if config.provider and config.model:
+            return config.provider, config.model
     return provider, model
 
 
@@ -1177,7 +1163,7 @@ async def estimate_workflow_cost(
         estimated_input_tokens=estimated_input_tokens,
         estimated_output_tokens=estimated_output_tokens,
         estimated_total_tokens=estimated_input_tokens + estimated_output_tokens,
-        estimated_cost_usd=estimated_cost_usd,
+        estimated_cost_usd=estimated_cost_usd if priced else None,
         input_cost_per_million=input_cost_per_million,
         output_cost_per_million=output_cost_per_million,
         # The RESOLVER's answer, not an inference from the number: a model
