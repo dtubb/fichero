@@ -68,5 +68,10 @@ struct SparkleLinkageTests {
         #expect(infoPlistText.contains("$(SPARKLE_FEED_URL)"))
         #expect(infoPlistText.contains("<key>SUPublicEDKey</key>"))
         #expect(infoPlistText.contains("$(SPARKLE_PUBLIC_ED_KEY)"))
+        // A SANDBOXED app (the Release/DMG build is) cannot launch Sparkle's installer itself:
+        // without SUEnableInstallerLauncherService the update downloads, then fails to install
+        // with an unnamed error. The mach-lookup exceptions in FicheroRelease.entitlements are
+        // the other half; this key is what tells Sparkle to use them.
+        #expect(infoPlistText.contains("<key>SUEnableInstallerLauncherService</key>"))
     }
 }
