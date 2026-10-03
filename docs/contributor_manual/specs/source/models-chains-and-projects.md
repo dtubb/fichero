@@ -1415,6 +1415,14 @@ Setup
 - `source.onboard.estimate-before-start` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** the Start plan carries the page count and the cost per run (free on this Mac, unpriced cloud models null); time, carbon and the main alternative's estimate are not built; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. screens 4 and 6 show the whole
   volume's estimate (time where it runs, cost, carbon labelled as an estimate) for the proposed
   recipe and for its main alternative, before anything runs.
+- `source.onboard.routes-for-the-volume` — **[GAP]** (#4951, #5404) for the volume the person has, setup
+  answers "what can we do with this?" with routes side by side, not one plan: read it all with the
+  cloud teacher; read it on this Mac; and distil (the teacher labels a sample, a small model is
+  trained on this Mac or a compute target, then the small model reads the whole volume here or on
+  a cluster). Each route shows the whole volume's cost, wall-clock time where it runs, expected
+  accuracy (measured on this project's checked pages; else published; else "unknown until the
+  bake-off") and carbon, each figure marked measured or estimate. The distil route also shows the
+  teacher's labelling cost and the training run's cost and time. Ruled 2026-10-03.
 - `source.onboard.derives-not-asks` — **[GAP]** (#4951) direction, line position, fonts, this Mac's
   chip and memory, keys present and compute targets are worked out, shown, and correctable, never
   asked.
