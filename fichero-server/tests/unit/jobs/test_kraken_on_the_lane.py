@@ -186,24 +186,33 @@ class TestSwitchingBetweenHeavyModels:
         """WHY: a run's Kraken pages come in bursts, each followed by its saved page's embed.
         Swapping to the embedder in every gap would reload Kraken on the next page and the
         embedder on the next embed, page after page. A background embed waits until Kraken has
-        been quiet; a page someone is waiting for switches back at once."""
-        import time
+        been quiet; other work behind it is not held up; a page someone is waiting for switches
+        back at once.
 
-        monkeypatch.setattr(jobs, "SWITCH_AFTER_QUIET_SECONDS", 0.6)
-        embedded = []
+        No timing windows (this ran on a loaded machine and flaked at 0.6 s): the spell is set
+        far longer than the test, and the lane's own one-at-a-time order is the clock. A job
+        queued AFTER the embed runs first only if the embed is being held."""
+        order = []
+        monkeypatch.setattr(jobs, "SWITCH_AFTER_QUIET_SECONDS", 3600.0)
         monkeypatch.setitem(jobs.KINDS, "t-embed", jobs.Kind(
-            run=lambda db, s: embedded.append(time.monotonic()), model="embedder"))
-        jobs.submit(db, "find-lines", "page", model="kraken:blla", fn=lambda: None).result(10)
-        kraken_done = time.monotonic()
-        jobs.enqueue(db, "t-embed", "page")
-        deadline = time.monotonic() + 10
-        while not embedded and time.monotonic() < deadline:
-            time.sleep(0.02)
-        assert embedded and embedded[0] - kraken_done >= 0.5
+            run=lambda db, s: order.append("embed"), model="embedder"))
+        monkeypatch.setitem(jobs.KINDS, "t-light", jobs.Kind(
+            run=lambda db, s: order.append("light"), model=None))
 
-        started = time.monotonic()
-        jobs.submit(db, "find-lines", "next", model="kraken:blla", fn=lambda: None).result(10)
-        assert time.monotonic() - started < 0.5
+        jobs.submit(db, "find-lines", "page", model="kraken:blla", fn=lambda: None).result(30)
+        embed = jobs.enqueue_many(db, "t-embed", ["page"])[0]
+        jobs.enqueue_many(db, "t-light", ["page"])[0].result(30)  # queued after, runs first
+        assert order == ["light"]  # the embed is held by Kraken's quiet spell
+
+        monkeypatch.setattr(jobs, "SWITCH_AFTER_QUIET_SECONDS", 0.0)  # the spell ends
+        jobs._scheduler.wake(None)
+        embed.result(30)
+        assert order == ["light", "embed"]
+
+        # The embedder is loaded and was just used; a page someone waits for does not wait out
+        # an hour-long spell, it switches at once.
+        monkeypatch.setattr(jobs, "SWITCH_AFTER_QUIET_SECONDS", 3600.0)
+        assert jobs.submit(db, "find-lines", "next", model="kraken:blla", fn=lambda: "lines").result(30) == "lines"
 
 
 class TestAPageSomeoneIsWaitingFor:

@@ -588,6 +588,24 @@ class _Scheduler:
             f"kind IN ({', '.join('?' for _ in stored)})" if stored else "",
             f"id IN ({', '.join('?' for _ in attached)})" if attached else "",
         ]))
+        where, params = f"({where})", [*stored, *attached]
+        # The quiet spell: while the loaded heavy model has had work recently, background jobs for
+        # ANOTHER heavy model are left where they are -- excluded, so the work behind them (a
+        # light model's, or a page someone waits for) still runs.
+        lane.look_again_at = None
+        quiet_from = lane.loaded_used_at + SWITCH_AFTER_QUIET_SECONDS
+        others = [f for f in _RELEASE if f != _family(lane.loaded_model)]
+        if _family(lane.loaded_model) in _RELEASE and time.monotonic() < quiet_from and others:
+            held = " OR ".join(
+                "COALESCE(model, '') LIKE ?" if f == "kraken" else "COALESCE(model, '') = ?" for f in others)
+            held_params = [KRAKEN_MODEL_PREFIX + "%" if f == "kraken" else f for f in others]
+            if attached:
+                where += f" AND (id IN ({', '.join('?' for _ in attached)}) OR NOT ({held}))"
+                params += [*attached, *held_params]
+            else:
+                where += f" AND NOT ({held})"
+                params += held_params
+            lane.look_again_at = quiet_from  # look again when the spell ends
         candidates = []
         idle = []
         for key in keys:
@@ -597,9 +615,9 @@ class _Scheduler:
                 continue
             row = db.execute_fetchone(
                 f"SELECT id, kind, subject, model, created_at FROM jobs "
-                f"WHERE state = 'waiting' AND ({where}) "
+                f"WHERE state = 'waiting' AND {where} "
                 f"ORDER BY (model IS NOT DISTINCT FROM ?) DESC, created_at, rowid LIMIT 1",
-                [*stored, *attached, lane.loaded_model],
+                [*params, lane.loaded_model],
             )
             if row:
                 candidates.append((key, db, row))
@@ -611,14 +629,7 @@ class _Scheduler:
             return None
         # Across libraries the same rule: the loaded model first, then the oldest.
         candidates.sort(key=lambda c: (c[2][3] != lane.loaded_model, c[2][4]))
-        best = candidates[0]
-        lane.look_again_at = None
-        if _heavy_switch(lane.loaded_model, best[2][3]) and best[2][0] not in attached:
-            quiet_from = lane.loaded_used_at + SWITCH_AFTER_QUIET_SECONDS
-            if time.monotonic() < quiet_from:
-                lane.look_again_at = quiet_from
-                return None
-        return best
+        return candidates[0]
 
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
         from fichero_server.db.manager import db_manager
