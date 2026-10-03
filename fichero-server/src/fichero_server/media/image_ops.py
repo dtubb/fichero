@@ -19,7 +19,9 @@ def detect_deskew_angle(image: Image.Image) -> float:
     lines = cv2.HoughLinesP(cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 50, 150), 1, np.pi / 180, threshold=100, minLineLength=max(80, gray.shape[1] // 5), maxLineGap=12)
     if lines is None:
         return 0.0
-    angles = [float(np.degrees(np.arctan2(y2-y1, x2-x1))) for [[x1, y1, x2, y2]] in lines if -15 <= np.degrees(np.arctan2(y2-y1, x2-x1)) <= 15]
+    # OpenCV 4 returns (N, 1, 4), OpenCV 5 returns (N, 4); one shape for both (#5385).
+    segments = np.asarray(lines).reshape(-1, 4)
+    angles = [float(np.degrees(np.arctan2(y2-y1, x2-x1))) for x1, y1, x2, y2 in segments if -15 <= np.degrees(np.arctan2(y2-y1, x2-x1)) <= 15]
     return float(np.median(angles)) if angles else 0.0
 
 

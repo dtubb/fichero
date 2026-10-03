@@ -353,38 +353,11 @@ def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Imag
 
 
 def _estimate_straighten_angle(image: Image.Image) -> float:
-    try:
-        import cv2  # type: ignore[import-not-found]
-        import numpy as np
-    except ImportError:
-        return 0.0
+    """The one deskew estimate (media.image_ops.detect_deskew_angle); a second copy here broke
+    separately when OpenCV 5 changed HoughLinesP's result shape (#5385)."""
+    from fichero_server.media.image_ops import detect_deskew_angle
 
-    rgb = np.array(image.convert("RGB"))
-    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
-    min_length = max(80, gray.shape[1] // 5)
-    lines = cv2.HoughLinesP(
-        edges,
-        1,
-        np.pi / 180,
-        threshold=100,
-        minLineLength=min_length,
-        maxLineGap=12,
-    )
-    if lines is None:
-        return 0.0
-
-    angles: list[float] = []
-    for line in lines:
-        x1, y1, x2, y2 = line[0]
-        angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
-        if -15.0 <= angle <= 15.0:
-            angles.append(angle)
-
-    if not angles:
-        return 0.0
-    return float(np.median(angles))
+    return detect_deskew_angle(image)
 
 
 def _foreground_segments(
