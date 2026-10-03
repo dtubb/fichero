@@ -98,6 +98,16 @@ same sample of pages read with and without each operation, character error rate 
 pages, and an operation stays in the recipe only where it helps. The renditions are shown side by
 side for a person to look at too.
 
+**Fichero is the harness; the recipe chooses.** Every operation above is a job in the registry
+(`split-pages`, `prepare-the-image`, `find-regions`), and every way of doing it is a **card**:
+Apple Vision, the contour method, a YOLO model (the stock one, or one trained on this project's
+corrected outlines), Kraken's region segmenter. No method is hard-wired. The recipe names the
+card per step, per material kind and per folder (a notebook folder and a map folder of the same
+project can differ); onboarding picks the default by rule (local, built in, cheapest first), and
+"Try Another Option…" runs the bake-off between cards on a sample, so a better card replaces the
+default only on evidence. A model trained in the loop becomes a new card the recipe can adopt, and
+a shared recipe carries its card choices with it.
+
 **YOLO models must work.** A small page detector and a region detector (text block, marginal note,
 heading, ruler, colour card) run locally (Core ML or PyTorch MPS), are trainable inside Fichero from
 a few dozen corrected outlines (`train-a-model`), and appear as cards in the recipe.
@@ -122,6 +132,7 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
   measured in the bake-off; an operation that does not help is left out of the recipe.
 - `prep.never-changes-the-original` — **[OK]** every result is a new rendition in the edit chain
   (`preview.edit.chain-is-a-separate-row-never-the-source`).
+- `prep.methods-are-cards-the-recipe-chooses` — **[GAP]** (#5382, #4951) each preparation job has several cards (Apple Vision, contour, YOLO stock or trained, Kraken regions); the recipe names one per step, material kind and folder; the bake-off replaces it only on evidence.
 - `prep.yolo-detectors-run-and-train` — **[GAP]** (#5382) a YOLO page and region detector runs
   locally and is trainable in Fichero from corrected outlines.
 
