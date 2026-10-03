@@ -517,6 +517,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/training/hf_kraken_train.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/kraken_set.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/landing.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/line_pairs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/verification_targets.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/action_store.py

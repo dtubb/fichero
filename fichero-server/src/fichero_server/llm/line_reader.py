@@ -37,17 +37,30 @@ PROMPT = (
 )
 
 
-def _crop(page: Image.Image, box: OCRGeometryBox) -> str:
-    """The line's polygon bounds, padded by a third of its height, as a JPEG data URI."""
-    xs = [p[0] for p in box.metadata["polygon_px"]]
-    ys = [p[1] for p in box.metadata["polygon_px"]]
+def crop_line(page: Image.Image, polygon_px: list) -> Image.Image:
+    """The line's polygon bounds, padded by a third of its height, at most 1,600 px wide: the
+    picture the teacher reads. A student is trained on exactly this cut (`training.line_pairs`),
+    so it learns the teacher's task and is asked it the same way."""
+    xs = [p[0] for p in polygon_px]
+    ys = [p[1] for p in polygon_px]
     pad = (max(ys) - min(ys)) / 3
     crop = page.crop((max(0, min(xs) - pad), max(0, min(ys) - pad),
                       min(page.width, max(xs) + pad), min(page.height, max(ys) + pad)))
     if crop.width > _MAX_CROP_WIDTH:
         crop = crop.resize((_MAX_CROP_WIDTH, round(crop.height * _MAX_CROP_WIDTH / crop.width)))
+    return crop.convert("RGB")
+
+
+def prompt_for(n: int, language: str | None = None) -> str:
+    """The instruction for n line pictures, with the language when it is known."""
+    hint = f" (in {language})" if language and language not in ("und", "unknown") else ""
+    return PROMPT.format(n=n, language=hint)
+
+
+def _crop(page: Image.Image, box: OCRGeometryBox) -> str:
+    """`crop_line` as a JPEG data URI."""
     buf = io.BytesIO()
-    crop.convert("RGB").save(buf, format="JPEG", quality=90)
+    crop_line(page, box.metadata["polygon_px"]).save(buf, format="JPEG", quality=90)
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
@@ -73,13 +86,12 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     page.load()
     found = [b for b in lines.boxes if b.metadata.get("polygon_px")]
     crops = [_crop(page, b) for b in found]
-    hint = f" (in {language})" if language and language not in ("und", "unknown") else ""
     gate = asyncio.Semaphore(CONCURRENT_CALLS)
 
     async def ask(indices: list[int]) -> list[str | None] | None:
         async with gate:
             raw = await vision(images=[crops[i] for i in indices],
-                               prompt=PROMPT.format(n=len(indices), language=hint), config=config)
+                               prompt=prompt_for(len(indices), language), config=config)
         return parse_answer(raw, len(indices))
 
     async def batch(indices: list[int]) -> list[str | None]:
