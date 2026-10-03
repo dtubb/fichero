@@ -412,5 +412,6 @@
   "POST /api/documents/import-batch": "as /api/documents/import: no undo registration; each imported page and pass is individually deletable (#5220)",
   "POST /api/conversion/{run_id}/seen": "#5222: records that a person saw a conversion report; a view receipt, not an edit, so there is nothing to take back (it only lets the run's snapshot be tidied later)",
   "POST /api/training/kraken": "not undoable by design (training.start, audited, undoable=False): a Job that ran on Hugging Face has run and was paid for; it is stopped with the cancel route, and its landed reader is removed like any reader (#5398)",
-  "POST /api/training/jobs/{job_id}/cancel": "not undoable by design (training.cancel, audited, undoable=False): a cancelled Job on Hugging Face cannot be resumed; start a new one (#5398)"
+  "POST /api/training/jobs/{job_id}/cancel": "not undoable by design (training.cancel, audited, undoable=False): a cancelled Job on Hugging Face cannot be resumed; start a new one (#5398)",
+  "POST /api/training/vision-lora": "not undoable by design (training.start_vision_lora, audited, undoable=False): a Job that ran on Hugging Face has run and was paid for; it is stopped with the cancel route, and its landed model is deleted like any MLX model (#5398)"
 }

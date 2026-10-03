@@ -15192,12 +15192,71 @@ def register_generated_openapi_commands(
                 "flavor": {'type': 'string', 'title': 'Flavor', 'description': 'Hugging Face hardware.', 'default': 't4-small', 'x-cli-required': False},
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'Pages kept home as the test; never sent.', 'x-cli-required': False},
                 "name": {'type': 'string', 'title': 'Name', 'description': "A short name for the trained reader's file.", 'default': 'reader', 'x-cli-required': False},
-                "not_for_release": {'type': 'boolean', 'title': 'Not For Release', 'description': 'The trained reader may not be released.', 'default': True, 'x-cli-required': False},
+                "not_for_release": {'type': 'boolean', 'title': 'Not For Release', 'description': 'The trained model may not be released.', 'default': True, 'x-cli-required': False},
                 "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages to go to Hugging Face.", 'default': False, 'x-cli-required': False},
                 "release_note": {'type': 'string', 'nullable': True, 'title': 'Release Note', 'x-cli-required': False},
-                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages whose teacher-read lines train the reader.', 'x-cli-required': True},
+                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages whose teacher-read lines are the lessons.', 'x-cli-required': True},
                 "teacher": {'type': 'string', 'title': 'Teacher', 'description': 'The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.', 'x-cli-required': True},
                 "timeout": {'type': 'string', 'title': 'Timeout', 'description': "The Job's time limit; always sent (the service's default is 30 minutes).", 'default': '4h', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("train-a-vision-model-with-lora-on-hugging-face-jobs-landed-here-as-mlx")
+    def training_train_a_vision_model_with_lora_on_hugging_face_jobs_landed_here_as_mlx_post(
+        ctx: typer.Context,
+        base_licence: Optional[str] = typer.Option(None, "--base-licence", help="Request field: base_licence."),
+        base_repo: Optional[str] = typer.Option(None, "--base-repo", help="Request field: base_repo."),
+        display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
+        epochs: Optional[int] = typer.Option(None, "--epochs", help="Request field: epochs."),
+        flavor: Optional[str] = typer.Option(None, "--flavor", help="Request field: flavor."),
+        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        not_for_release: Optional[bool] = typer.Option(None, "--not-for-release/--no-not-for-release", help="Request field: not_for_release."),
+        pages_may_leave: Optional[bool] = typer.Option(None, "--pages-may-leave/--no-pages-may-leave", help="Request field: pages_may_leave."),
+        rank: Optional[int] = typer.Option(None, "--rank", help="Request field: rank."),
+        release_note: Optional[str] = typer.Option(None, "--release-note", help="Request field: release_note."),
+        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+        teacher: str = typer.Option(..., "--teacher", help="Request field: teacher."),
+        timeout: Optional[str] = typer.Option(None, "--timeout", help="Request field: timeout."),
+    ) -> None:
+        """Train a vision model with LoRA on Hugging Face Jobs, landed here as MLX (POST /api/training/vision-lora)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/vision-lora"
+            params = None
+            payload = _build_json_payload({
+                "base_licence": base_licence,
+                "base_repo": base_repo,
+                "display_name": display_name,
+                "epochs": epochs,
+                "flavor": flavor,
+                "held_out_ids": held_out_ids,
+                "language": language,
+                "name": name,
+                "not_for_release": not_for_release,
+                "pages_may_leave": pages_may_leave,
+                "rank": rank,
+                "release_note": release_note,
+                "scope_ids": scope_ids,
+                "teacher": teacher,
+                "timeout": timeout,
+            }, {
+                "base_licence": {'type': 'string', 'title': 'Base Licence', 'description': "The base's licence, carried on the card.", 'default': 'Apache-2.0', 'x-cli-required': False},
+                "base_repo": {'type': 'string', 'title': 'Base Repo', 'description': "The bf16 base on the Hub (the setup card's model before MLX quantisation).", 'default': 'Qwen/Qwen2.5-VL-7B-Instruct', 'x-cli-required': False},
+                "display_name": {'type': 'string', 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
+                "epochs": {'type': 'integer', 'maximum': 20.0, 'minimum': 1.0, 'title': 'Epochs', 'default': 2, 'x-cli-required': False},
+                "flavor": {'type': 'string', 'nullable': True, 'title': 'Flavor', 'description': 'Hugging Face hardware; none chooses the cheapest that fits a 7B LoRA.', 'x-cli-required': False},
+                "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'Pages kept home as the test; never sent.', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The pages' language, given to the student as the line reader gives it.", 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'description': 'A short name: the model lands as fichero-trained/<name>.', 'default': 'student', 'x-cli-required': False},
+                "not_for_release": {'type': 'boolean', 'title': 'Not For Release', 'description': 'The trained model may not be released.', 'default': True, 'x-cli-required': False},
+                "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages to go to Hugging Face.", 'default': False, 'x-cli-required': False},
+                "rank": {'type': 'integer', 'maximum': 256.0, 'minimum': 2.0, 'title': 'Rank', 'default': 16, 'x-cli-required': False},
+                "release_note": {'type': 'string', 'nullable': True, 'title': 'Release Note', 'x-cli-required': False},
+                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages whose teacher-read lines are the lessons.', 'x-cli-required': True},
+                "teacher": {'type': 'string', 'title': 'Teacher', 'description': 'The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.', 'x-cli-required': True},
+                "timeout": {'type': 'string', 'title': 'Timeout', 'description': "The Job's time limit; always sent.", 'default': '8h', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

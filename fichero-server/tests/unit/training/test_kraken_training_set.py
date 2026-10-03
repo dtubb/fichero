@@ -29,10 +29,11 @@ TEACHER = "google/gemini-3-flash-preview"
 BOOT = ActionContext(actor="historian", library_path=None, is_bootstrap=True)
 
 
-def _page(db, tmp_path, name: str, folder: Document, *, read_by: str | None = TEACHER) -> Document:
+def _page(db, tmp_path, name: str, folder: Document, *, read_by: str | None = TEACHER,
+          size: tuple[int, int] = (40, 30)) -> Document:
     photo = tmp_path / "photos" / f"{name}.jpg"
     photo.parent.mkdir(exist_ok=True)
-    Image.new("RGB", (40, 30), (220, 220, 210)).save(photo)
+    Image.new("RGB", size, (220, 220, 210)).save(photo)
     doc = Document(name=f"{name}.jpg", doc_type=DocType.file, file_type=FileType.image, path=str(photo),
                    parent_id=folder.id, status=Status.completed)
     db.save(doc)

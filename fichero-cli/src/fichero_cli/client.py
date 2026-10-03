@@ -1092,6 +1092,10 @@ class FicheroClient:
         """Queue a Kraken training job on Hugging Face Jobs (#5398); see POST /api/training/kraken."""
         return self.request("POST", "/api/training/kraken", json=request)
 
+    def train_vision_lora(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Queue a vision-model LoRA training job (#5398); see POST /api/training/vision-lora."""
+        return self.request("POST", "/api/training/vision-lora", json=request)
+
     def training_status(self, job_id: str) -> dict[str, Any]:
         """A training job's phase, Job id, counts, last log lines and landed reader."""
         return self.request("GET", f"/api/training/jobs/{quote(job_id, safe='')}")

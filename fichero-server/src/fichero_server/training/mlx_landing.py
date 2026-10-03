@@ -1,0 +1,89 @@
+"""A vision model trained with LoRA comes home as an MLX model (#5398, `compute.tune.convert-for-mlx`).
+
+The Job returns the adapter (always: `compute.tune.adapter-always-returns`) and the base with the
+adapter merged in (bf16, ~15 GB for 7B). On this Mac the merged model is converted and quantised to
+4-bit MLX with `mlx_vlm.convert`, in the MLX runtime's own Python, on the local ML lane as one heavy
+job (it never runs beside a Kraken page or another model). The MLX model lands in the model store as
+`fichero-trained/<name>` with its card, the adapter beside it; the merged copy is deleted once the
+conversion succeeded, since it is as large as the base. The conversion runs on the Mac only, as the
+spec rules: MLX is Apple's.
+
+The card says what the student is: its base and licence, its teacher, its training set (lines a
+model read, lines a person checked), the held-out pages, the job, where it ran, that it reads ONE line
+picture per call (as it was trained), and whether it may be released.
+"""
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable
+
+#: Attached kind on the local ML lane: the conversion is handed in by the training job, which waits.
+CONVERT_KIND = "convert-a-model"
+CONVERT_MODEL = "mlx-convert"
+Q_BITS = 4
+
+
+class ConversionFailed(RuntimeError):
+    """`mlx_vlm.convert` did not produce an MLX model."""
+
+
+def convert_command(merged: Path, dest: Path, python: str) -> list[str]:
+    return [python, "-m", "mlx_vlm.convert", "--hf-path", str(merged), "--mlx-path", str(dest),
+            "-q", "--q-bits", str(Q_BITS)]
+
+
+def convert_for_mlx(merged: Path, dest: Path, *, run: Callable[[list[str]], Any] | None = None) -> None:
+    """Convert and quantise a merged Hugging Face model into `dest` (4-bit MLX)."""
+    from fichero_server.llm.mlx_runtime import get_mlx_runtime
+
+    python = str(get_mlx_runtime().require_python_path())
+    if dest.exists():
+        shutil.rmtree(dest)
+    command = convert_command(merged, dest, python)
+    if run is not None:
+        run(command)
+    else:
+        done = subprocess.run(command, capture_output=True, text=True)
+        if done.returncode != 0:
+            raise ConversionFailed((done.stderr or done.stdout).strip()[-800:] or f"exit {done.returncode}")
+    if not any(dest.glob("*.safetensors")):
+        raise ConversionFailed(f"mlx_vlm.convert wrote no weights into {dest.name}")
+
+
+def model_id_for(name: str) -> str:
+    from fichero_server.llm.mlx_model_store import TRAINED_ORG
+
+    slug = "".join(c if c.isalnum() or c in "-_." else "-" for c in name).strip("-") or "student"
+    return f"{TRAINED_ORG}/{slug}"
+
+
+def land_vision_student(out_dir: str | Path, *, job_id: str, name: str, card: dict[str, Any],
+                        convert: Callable[[Path, Path], None] | None = None, keep_merged: bool = False) -> str:
+    """Install the trained student in the MLX model store; returns its model id."""
+    from fichero_server.llm.mlx_model_store import TRAINED_CARD, get_mlx_model_store
+
+    out = Path(out_dir)
+    adapter, merged = out / "adapter", out / "merged"
+    if not adapter.is_dir():
+        raise ConversionFailed("the Job returned no adapter")
+    if not merged.is_dir():
+        raise ConversionFailed("the Job returned no merged model to convert for MLX")
+    store = get_mlx_model_store()
+    model_id = model_id_for(name)
+    dest = store.trained_dir(model_id)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    (convert or convert_for_mlx)(merged, dest)
+    adapters = store.root / "adapters" / model_id.split("/", 1)[1]
+    if adapters.exists():
+        shutil.rmtree(adapters)
+    shutil.copytree(adapter, adapters)
+    full = {**card, "job_id": job_id, "lines_per_call": 1, "quantised_bits": Q_BITS,
+            "adapter_path": str(adapters), "trained_at": datetime.now(timezone.utc).isoformat()}
+    (dest / TRAINED_CARD).write_text(json.dumps(full, indent=1), encoding="utf-8")
+    if not keep_merged:
+        shutil.rmtree(merged)
+    return model_id

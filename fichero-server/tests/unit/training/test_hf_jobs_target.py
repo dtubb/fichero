@@ -85,7 +85,8 @@ def test_the_job_runs_fichero_s_trainer_with_an_explicit_time_limit_and_the_buck
     """WHY: the service ends a Job at 30 minutes unless told; a Kraken run takes longer, so a limit is
     always sent. The trainer is Fichero's own script, reading and writing the job's folders."""
     api = FakeApi()
-    far_id = HfJobsTarget(token="hf_x", api=api).submit("job-a", base_file="medium.safetensors", model_name="sergio")
+    far_id = HfJobsTarget(token="hf_x", api=api).submit(
+        "job-a", script_args=hf_jobs.kraken_args("job-a", base_file="medium.safetensors", model_name="sergio"))
 
     assert far_id == "job-123"
     (_, args, kwargs), = _called(api, "run_uv_job")
@@ -95,7 +96,20 @@ def test_the_job_runs_fichero_s_trainer_with_an_explicit_time_limit_and_the_buck
     (volume,) = kwargs["volumes"]
     assert (volume.type, volume.source, volume.mount_path) == ("bucket", "historian/fichero-training", "/work")
     with pytest.raises(ValueError, match="time limit"):
-        HfJobsTarget(token="hf_x", api=api).submit("job-b", base_file=None, model_name="x", timeout="")
+        HfJobsTarget(token="hf_x", api=api).submit("job-b", script_args=[], timeout="")
+
+
+def test_the_vision_lora_runs_on_the_cheapest_gpu_that_fits():
+    """WHY: an A10G and an L4 both fit a 7B LoRA in bf16; the person pays for the cheaper, read from
+    the service's own list, not a name fixed in code that may cost more next month."""
+    api = FakeApi()
+    api.list_jobs_hardware = lambda **kw: [SimpleNamespace(name="a10g-large", unit_cost_usd=0.025, unit_label="minute"),
+                                           SimpleNamespace(name="l4x1", unit_cost_usd=0.0133, unit_label="minute"),
+                                           SimpleNamespace(name="a10g-small", unit_cost_usd=0.0167, unit_label="minute")]
+    target = HfJobsTarget(token="hf_x", api=api)
+    assert target.cheapest(hf_jobs.LORA_FLAVORS) == "l4x1"
+    with pytest.raises(ValueError, match="listed"):
+        target.cheapest(("h100-x8",))
 
 
 def test_the_price_is_read_from_the_service_per_hour():
@@ -128,7 +142,7 @@ def test_every_call_carries_the_token_and_nothing_else_does():
     api = FakeApi()
     target = HfJobsTarget(token="hf_secret", api=api)
     target.send("/tmp/set", "job-a")
-    target.submit("job-a", base_file=None, model_name="m")
+    target.submit("job-a", script_args=hf_jobs.kraken_args("job-a", base_file=None, model_name="m"))
     for name, args, kwargs in api.calls:
         assert kwargs.get("token") == "hf_secret", name
         visible = repr(args) + repr({k: v for k, v in kwargs.items() if k != "token"})

@@ -5183,6 +5183,70 @@
         }
       }
     },
+    "/api/training/vision-lora": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Train a vision model with LoRA on Hugging Face Jobs, landed here as MLX",
+        "description": "Queue a `train-a-model` job on the vision-model card: the same training set as the Kraken\ncard, cut into line pictures with the line reader's own instruction and the teacher's answers; a\nLoRA on the bf16 base (Qwen2.5-VL 7B by default) on the cheapest GPU that fits; the merged model\nconverted to 4-bit MLX on this Mac and landed as `fichero-trained/<name>`, the adapter kept beside\nit. The same refusals as the Kraken card.",
+        "operationId": "start_vision_lora_training_api_training_vision_lora_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainVisionLoraRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingStarted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/training/jobs/{job_id}": {
       "get": {
         "tags": [
@@ -76784,7 +76848,7 @@
             },
             "type": "array",
             "title": "Scope Ids",
-            "description": "Folders or pages whose teacher-read lines train the reader."
+            "description": "Folders or pages whose teacher-read lines are the lessons."
           },
           "teacher": {
             "type": "string",
@@ -76799,6 +76863,28 @@
             "title": "Held Out Ids",
             "description": "Pages kept home as the test; never sent."
           },
+          "display_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Display Name"
+          },
+          "pages_may_leave": {
+            "type": "boolean",
+            "title": "Pages May Leave",
+            "description": "The person's yes for these pages to go to Hugging Face.",
+            "default": false
+          },
+          "not_for_release": {
+            "type": "boolean",
+            "title": "Not For Release",
+            "description": "The trained model may not be released.",
+            "default": true
+          },
+          "release_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Release Note"
+          },
           "base": {
             "type": "string",
             "nullable": true,
@@ -76811,11 +76897,6 @@
             "description": "A short name for the trained reader's file.",
             "default": "reader"
           },
-          "display_name": {
-            "type": "string",
-            "nullable": true,
-            "title": "Display Name"
-          },
           "flavor": {
             "type": "string",
             "title": "Flavor",
@@ -76827,23 +76908,6 @@
             "title": "Timeout",
             "description": "The Job's time limit; always sent (the service's default is 30 minutes).",
             "default": "4h"
-          },
-          "pages_may_leave": {
-            "type": "boolean",
-            "title": "Pages May Leave",
-            "description": "The person's yes for these pages to go to Hugging Face.",
-            "default": false
-          },
-          "not_for_release": {
-            "type": "boolean",
-            "title": "Not For Release",
-            "description": "The trained reader may not be released.",
-            "default": true
-          },
-          "release_note": {
-            "type": "string",
-            "nullable": true,
-            "title": "Release Note"
           }
         },
         "type": "object",
@@ -76852,7 +76916,7 @@
           "teacher"
         ],
         "title": "TrainKrakenRequest",
-        "description": "What a person asks for: which pages teach, which teacher, which test, from which reader."
+        "description": "The Kraken card: a recognition model fine-tuned with `ketos train`."
       },
       "TrainResponse": {
         "properties": {
@@ -76896,6 +76960,110 @@
           "trained"
         ],
         "title": "TrainResponse"
+      },
+      "TrainVisionLoraRequest": {
+        "properties": {
+          "scope_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scope Ids",
+            "description": "Folders or pages whose teacher-read lines are the lessons."
+          },
+          "teacher": {
+            "type": "string",
+            "title": "Teacher",
+            "description": "The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview."
+          },
+          "held_out_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Held Out Ids",
+            "description": "Pages kept home as the test; never sent."
+          },
+          "display_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Display Name"
+          },
+          "pages_may_leave": {
+            "type": "boolean",
+            "title": "Pages May Leave",
+            "description": "The person's yes for these pages to go to Hugging Face.",
+            "default": false
+          },
+          "not_for_release": {
+            "type": "boolean",
+            "title": "Not For Release",
+            "description": "The trained model may not be released.",
+            "default": true
+          },
+          "release_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Release Note"
+          },
+          "base_repo": {
+            "type": "string",
+            "title": "Base Repo",
+            "description": "The bf16 base on the Hub (the setup card's model before MLX quantisation).",
+            "default": "Qwen/Qwen2.5-VL-7B-Instruct"
+          },
+          "base_licence": {
+            "type": "string",
+            "title": "Base Licence",
+            "description": "The base's licence, carried on the card.",
+            "default": "Apache-2.0"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language",
+            "description": "The pages' language, given to the student as the line reader gives it."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "A short name: the model lands as fichero-trained/<name>.",
+            "default": "student"
+          },
+          "flavor": {
+            "type": "string",
+            "nullable": true,
+            "title": "Flavor",
+            "description": "Hugging Face hardware; none chooses the cheapest that fits a 7B LoRA."
+          },
+          "timeout": {
+            "type": "string",
+            "title": "Timeout",
+            "description": "The Job's time limit; always sent.",
+            "default": "8h"
+          },
+          "epochs": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Epochs",
+            "default": 2
+          },
+          "rank": {
+            "type": "integer",
+            "maximum": 256.0,
+            "minimum": 2.0,
+            "title": "Rank",
+            "default": 16
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_ids",
+          "teacher"
+        ],
+        "title": "TrainVisionLoraRequest",
+        "description": "The vision-model card: a LoRA on a vision-language model, landed on this Mac as MLX 4-bit."
       },
       "TrainingExportRequest": {
         "properties": {
@@ -76978,6 +77146,16 @@
             "nullable": true,
             "title": "Phase"
           },
+          "card": {
+            "type": "string",
+            "nullable": true,
+            "title": "Card"
+          },
+          "flavor": {
+            "type": "string",
+            "nullable": true,
+            "title": "Flavor"
+          },
           "far_id": {
             "type": "string",
             "nullable": true,
@@ -76992,6 +77170,11 @@
             "type": "string",
             "nullable": true,
             "title": "Reader Id"
+          },
+          "model_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Id"
           },
           "training_set": {
             "additionalProperties": true,

@@ -29,7 +29,10 @@ class FakeHub:
         self.sent, self.submitted, self.cancelled, self.fetched = [], [], [], []
 
     def price_per_hour(self, flavor):
-        return 0.4 if flavor == NOTEBOOK_FLAVOR else None
+        return {NOTEBOOK_FLAVOR: 0.4, "l4x1": 0.8}.get(flavor)
+
+    def cheapest(self, flavors):
+        return "l4x1"
 
     def send(self, local_dir, job_key):
         self.sent.append(sorted(p.name for p in local_dir.rglob("*") if p.is_file()))
@@ -51,6 +54,9 @@ class FakeHub:
     def fetch(self, job_key, local_dir):
         local_dir.mkdir(parents=True, exist_ok=True)
         (local_dir / "sergio_best.safetensors").write_bytes(b"trained weights")
+        for part in ("adapter", "merged"):  # what the vision-model trainer writes
+            (local_dir / part).mkdir(exist_ok=True)
+            (local_dir / part / "weights.safetensors").write_bytes(part.encode())
         self.fetched.append(job_key)
         return local_dir
 
@@ -199,3 +205,75 @@ def test_the_scheduler_ends_a_stopped_job_cancelled_not_failed(db, monkeypatch):
     jobs._scheduler._run(jobs._scheduler.lanes["remote"], "key", db, row, None)
     assert db.execute_fetchone("SELECT state, reason, target FROM jobs WHERE id = ?", [job_id]) == (
         "cancelled", "Stopped by you; the Job on Hugging Face was cancelled", "huggingface-jobs")
+
+
+# --- the vision-model card -----------------------------------------------------------------------
+
+
+@pytest.fixture
+def full_size_notebook(db, tmp_path):
+    from fichero_server.models import DocType, Document
+    from tests.unit.training.test_line_pairs import PAGE_SIZE
+
+    folder = Document(name="SM_NPQ_C10", doc_type=DocType.folder)
+    db.save(folder)
+    _page(db, tmp_path, "SM_NPQ_C10_001", folder, size=PAGE_SIZE)
+    test_page = _page(db, tmp_path, "SM_NPQ_C10_002", folder, size=PAGE_SIZE)
+    return SimpleNamespace(folder=folder, test_page=test_page)
+
+
+def test_the_vision_card_trains_on_line_pairs_and_lands_through_the_local_lane(db, full_size_notebook, tmp_path,
+                                                                             monkeypatch):
+    """WHY: the vision student learns from the same set as the Kraken student (line pictures and the
+    teacher's answers), on the cheapest GPU that fits, and its conversion for MLX is heavy LOCAL work:
+    it must go to the local ML lane, never run beside a Kraken page from the remote lane's thread."""
+    from fichero_server.llm import mlx_model_store as store_module
+    from fichero_server.llm.mlx_model_store import MLXModelStore
+    from fichero_server.training import hf_jobs, mlx_landing
+    from fichero_server.training.job import TrainVisionLoraRequest
+
+    store = MLXModelStore(root=tmp_path / "mlx")
+    monkeypatch.setattr(store_module, "get_mlx_model_store", lambda: store)
+
+    def convert(merged, dest):
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "model.safetensors").write_bytes(b"4-bit")
+
+    monkeypatch.setattr(mlx_landing, "convert_for_mlx", convert)
+    on_lane = []
+
+    def run_on_lane_blocking(library_path, kind, subject, *, model, fn):
+        on_lane.append((kind, model))
+        return fn()
+
+    monkeypatch.setattr(jobs, "run_on_lane_blocking", run_on_lane_blocking)
+    hub = FakeHub()
+    request = TrainVisionLoraRequest(scope_ids=[full_size_notebook.folder.id], teacher=TEACHER,
+                                     held_out_ids=[full_size_notebook.test_page.id], name="sergio-qwen7b",
+                                     language="Spanish", pages_may_leave=True)
+    started = training_job.start(db, request, started_by="historian", target_factory=lambda: hub)
+    model_id = training_job.run(db, _subject(db, started["job_id"]), target=hub, sleep=lambda s: None)
+
+    assert started["flavor"] == "l4x1" and started["price_per_hour_usd"] == 0.8
+    (sent,) = hub.sent
+    assert "pairs.jsonl" in sent and any(name.startswith("SM_NPQ_C10_001_") for name in sent)
+    assert not any("SM_NPQ_C10_002" in name for name in sent), "held-out pages never leave"
+    submitted = hub.submitted[0]
+    assert submitted["script"] == hf_jobs.LORA_TRAINER and submitted["timeout"] == "8h"
+    assert "Qwen/Qwen2.5-VL-7B-Instruct" in submitted["script_args"]
+    assert on_lane == [(mlx_landing.CONVERT_KIND, mlx_landing.CONVERT_MODEL)]
+    status = training_job.status(db, started["job_id"])
+    assert status["card"] == "vision-lora" and status["model_id"] == model_id == "fichero-trained/sergio-qwen7b"
+    assert status["training_set"]["line_pairs"] > 0
+    card = store.trained_card(model_id)
+    assert card["base"] == "Qwen/Qwen2.5-VL-7B-Instruct" and card["base_licence"] == "Apache-2.0"
+    assert card["teacher"] == TEACHER and card["not_for_release"] is True
+
+
+def test_the_conversion_frees_kraken_first():
+    """WHY: a 7B conversion beside a resident Kraken model can exhaust a 16 GB Mac; switching the local
+    lane to it must free the heavy model already loaded."""
+    from fichero_server.training.mlx_landing import CONVERT_MODEL
+
+    assert jobs._heavy_switch("kraken:kraken-mccatmus", CONVERT_MODEL)
+    assert jobs._heavy_switch("embedder", CONVERT_MODEL)

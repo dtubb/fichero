@@ -426,7 +426,10 @@ def _family(model: str | None) -> str | None:
 
 #: The heavy models the lane frees when it switches from one to another (`activity.lane.group-by-
 #: model`: a switch unloads the old model first). A light one (spaCy) stays loaded beside them.
-_RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder}
+_RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder,
+            # Converting a trained model for MLX (#5398) holds a 7B model's weights itself; it frees
+            # nothing when it ends (its process exits), but switching TO it frees Kraken or the embedder.
+            "mlx-convert": lambda: None}
 #: A background job for another heavy model waits until the loaded one has had no work for this
 #: long, so work that arrives in bursts (a run's Kraken pages, each followed by its page's embed)
 #: does not swap two models in and out page by page. Work a person waits for switches at once.

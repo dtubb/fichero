@@ -575,10 +575,17 @@ chosen `flavor` with an explicit `timeout`. The answer carries the job id and th
 without a Hugging Face token in Settings (412), or with a base reader that is not installed (422).
 Through the audited, non-undoable action `training.start`.
 
+`POST /api/training/vision-lora` is the same job on the vision-model card (`compute.tune.lora`): the
+same training set cut into line pictures with the line reader's own instruction and the teacher's
+answers, a LoRA on the bf16 `base_repo` (`Qwen/Qwen2.5-VL-7B-Instruct` by default, Apache-2.0) on the
+cheapest listed GPU that fits unless a `flavor` is named, and, back on this Mac, the merged model
+converted to 4-bit MLX on the local ML lane and landed as `fichero-trained/<name>` (the adapter kept
+beside it, the merged copy deleted). The same refusals. Through `training.start_vision_lora`.
+
 `GET /api/training/jobs/{job_id}` follows it: `state`, the `reason` in words, its `phase` and
 `history`, the Job's `far_id` on Hugging Face, the training set's counts (including how many lines a
 model read and a person checked), the Job's `last_lines` when it ends, and, once landed, the
-`reader_id` (`kraken-trained-…`) to read with. The job also appears in `GET /api/activity/jobs`.
+`reader_id` (`kraken-trained-…`) or `model_id` (`fichero-trained/…`) to read with. The job also appears in `GET /api/activity/jobs`.
 
 `POST /api/training/jobs/{job_id}/cancel` stops it (`training.cancel`): a job not started ends at
 once; a running one is cancelled on Hugging Face at its next look and ends `cancelled`.
