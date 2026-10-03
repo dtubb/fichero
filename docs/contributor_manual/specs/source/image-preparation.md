@@ -60,7 +60,7 @@ with its settings and reason, each skippable:
 **The goal is automatic, proper cropping:** a photograph goes in and its **pages** come out (one,
 or two for an open book, notebook or spread), or its **regions** where the thing photographed is
 not a page sequence (several letters or cards on one sheet, a newspaper's articles, a map's
-cartouche and legend). No setting is needed for the common cases; a person only corrects.
+cartouche and legend). Each page also comes out **upright and straight**: turned the right way up from its text, and deskewed where it is tilted (the outline Vision finds already corrects perspective; a small residual tilt is measured from the lines). Each of these runs only when needed: a page already straight is left alone. No setting is needed for the common cases; a person only corrects.
 
 1. **Find the page(s).** Locate the document in the photograph and crop away the table, ruler,
    colour card and hands. **Apple Vision first** (`VNDetectDocumentSegmentationRequest` for the
@@ -121,7 +121,7 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
   at the middle, into pages in reading order; a single page is left whole.
 - `prep.blank-pages-marked` — **[GAP]** (#5382) a page with no ink beyond its ruling is marked blank,
   kept, and skipped by reading.
-- `prep.turn-by-the-text` — **[GAP]** (#5382) a page is turned by 0, 90, 180 or 270 degrees from its
+- `prep.turn-by-the-text` — **[GAP]** (#5382) automatically, after cropping, a page is turned by 0, 90, 180 or 270 degrees from its
   text, not only from EXIF.
 - `prep.straighten-and-flatten` — **[PARTIAL]** (#5382) small skew is corrected from the lines
   (`deskew_images`); flattening a curved page is a gap.
