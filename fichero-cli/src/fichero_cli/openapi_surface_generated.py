@@ -14245,6 +14245,40 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-compute-preferences")
+    def settings_get_compute_preferences_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Compute Preferences (GET /api/settings/compute)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/settings/compute"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("set-compute-preferences")
+    def settings_set_compute_preferences_put(
+        ctx: typer.Context,
+        device: Optional[str] = typer.Option(None, "--device", help="Request field: device."),
+        effective: Optional[str] = typer.Option(None, "--effective", help="Request field: effective."),
+        priority: Optional[str] = typer.Option(None, "--priority", help="Request field: priority."),
+    ) -> None:
+        """Set Compute Preferences (PUT /api/settings/compute)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/settings/compute"
+            params = None
+            payload = _build_json_payload({
+                "device": device,
+                "effective": effective,
+                "priority": priority,
+            }, {
+                "device": {'type': 'string', 'enum': ['auto', 'cpu', 'gpu'], 'title': 'Device', 'default': 'auto', 'x-cli-required': False},
+                "effective": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'nullable': True, 'title': 'Effective', 'x-cli-required': False},
+                "priority": {'type': 'string', 'enum': ['fast', 'balanced', 'background'], 'title': 'Priority', 'default': 'balanced', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-model-profiles")
     def settings_list_model_profiles_get(
         ctx: typer.Context,

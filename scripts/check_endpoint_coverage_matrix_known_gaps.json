@@ -1,4 +1,6 @@
 {
+  "GET /api/settings/compute": "the Settings pane for compute priority and device is not built yet; read by Kraken now and by the job model next",
+  "PUT /api/settings/compute": "the Settings pane for compute priority and device is not built yet; set from the CLI or MCP meanwhile",
   "POST /api/documents/{document_id}/readings/compare": "reached by the CLI (documents compare-readings) and MCP (compare_readings) for the projects harness (#5389); an app surface for it is not designed yet",
   "POST /api/recipes/check": "engine half of onboarding (#4951); the recipe editor that calls it is slice 2, not built yet",
   "DELETE /api/activity/{activity_id}": "no Swift call for the /api/activity/* family (2 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",

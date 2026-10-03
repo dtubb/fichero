@@ -74,7 +74,6 @@ import threading
 from pathlib import Path
 from typing import Callable, TypeVar
 
-from fichero_server.core.background_compute import embed_threads, set_utility_qos
 from fichero_server.db.paths import server_state_dir
 from fichero_server.media.ocr_geometry import (
     OCRGeometryBox,
@@ -544,18 +543,18 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             # the call. Callers arrive on `asyncio.to_thread`'s POOLED workers;
             # a QoS class set on one of those would outlive this call and slow
             # whatever unrelated request that worker serves next.
-            # UTILITY, not background: someone is waiting for this page.
-            # Measured: 23 s at utility against 426 s at background for one
-            # page (#4959).
-            set_utility_qos()
+            # The person's compute priority (core/compute_preferences.py): balanced, the default,
+            # is UTILITY, not background, because someone is waiting for this page (measured:
+            # 23 s at utility against 426 s at background for one page, #4959); fast drops the
+            # throttle; background yields to everything.
+            from fichero_server.core.compute_preferences import apply_to_this_thread, compute_preferences
+
+            threads = apply_to_this_thread(compute_preferences()["priority"])
             try:
                 import torch
 
-                # Same balanced-throttle knob the embedder uses
-                # (`embed_threads`, `FICHERO_EMBED_THREADS`-overridable); no
-                # second preference. Process-wide in torch, which is the
-                # point: never peg the machine.
-                torch.set_num_threads(max(1, embed_threads()))
+                # Process-wide in torch: balanced never pegs the machine, fast may.
+                torch.set_num_threads(threads)
             except (ImportError, RuntimeError):
                 # Narrow on purpose: a throttle that crashes the work is
                 # worse than an unthrottled page, but nothing else may be
@@ -631,13 +630,12 @@ def release_resident_models() -> None:
 
 
 def _reader_config(config_cls: Callable[..., object]) -> object:
-    """The reader's device, named: Apple's GPU (MPS) when torch has it, else the CPU. Kraken's
+    """The reader's device, as the person chose (auto: Apple's GPU when torch has it). Kraken's
     "auto" was slower than either per page (measured 2026-10-03 on a Sergio notebook half-page:
     auto 28 s, CPU 13 s, MPS 11 s, with the model already loaded)."""
-    import torch
+    from fichero_server.core.compute_preferences import compute_preferences, torch_accelerator
 
-    accelerator = "mps" if torch.backends.mps.is_available() else "cpu"
-    return config_cls(accelerator=accelerator, device=1)
+    return config_cls(accelerator=torch_accelerator(compute_preferences()["device"]), device=1)
 
 
 def _segmenter() -> object:

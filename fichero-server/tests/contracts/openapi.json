@@ -22595,6 +22595,70 @@
         }
       }
     },
+    "/api/settings/compute": {
+      "get": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Get Compute Preferences",
+        "description": "The saved compute preferences and what applies now.",
+        "operationId": "get_compute_preferences_api_settings_compute_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComputePreferences"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Set Compute Preferences",
+        "description": "Save the compute preferences (owner only). Local model work reads them on its next page.",
+        "operationId": "set_compute_preferences_api_settings_compute_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComputePreferences"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComputePreferences"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sources": {
       "post": {
         "tags": [
@@ -48554,6 +48618,41 @@
         ],
         "title": "CompiledQuery",
         "description": "What the LLM compiled a natural-language request into."
+      },
+      "ComputePreferences": {
+        "properties": {
+          "priority": {
+            "type": "string",
+            "enum": [
+              "fast",
+              "balanced",
+              "background"
+            ],
+            "title": "Priority",
+            "default": "balanced"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "cpu",
+              "gpu"
+            ],
+            "title": "Device",
+            "default": "auto"
+          },
+          "effective": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Effective"
+          }
+        },
+        "type": "object",
+        "title": "ComputePreferences",
+        "description": "`priority`: balanced (default; the Mac stays usable), fast (no throttle, every core), or\nbackground (yields to everything). `device`: auto (Apple's GPU when available), cpu or gpu.\n`effective` is what applies now: an environment override (FICHERO_COMPUTE_PRIORITY /\nFICHERO_COMPUTE_DEVICE, for test runs) wins over the saved choice."
       },
       "ConnectedClientsResponse": {
         "properties": {

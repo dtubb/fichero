@@ -9745,6 +9745,26 @@
       },
       {
         "method": "GET",
+        "path": "/settings/compute",
+        "operation_id": "get_compute_preferences_api_settings_compute_get",
+        "summary": "Get Compute Preferences",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ComputePreferences"
+      },
+      {
+        "method": "PUT",
+        "path": "/settings/compute",
+        "operation_id": "set_compute_preferences_api_settings_compute_put",
+        "summary": "Set Compute Preferences",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ComputePreferences",
+        "response_model": "ComputePreferences"
+      },
+      {
+        "method": "GET",
         "path": "/settings/model-profiles",
         "operation_id": "list_model_profiles_api_settings_model_profiles_get",
         "summary": "List Model Profiles",

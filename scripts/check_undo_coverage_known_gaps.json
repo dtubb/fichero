@@ -1,4 +1,5 @@
 {
+  "PUT /api/settings/compute": "an app preference (priority, device), not library data: setting it again is the undo, as for the other settings routes",
   "POST /api/documents/{document_id}/readings/compare": "read-only: scores two readings of a page and writes nothing, so there is nothing to undo (#5389)",
   "PUT /api/recipes/project": "undoable in the engine (project.save_setup, audited with an inverse); the app's undo surface registers it when setup saves through it, slice 2 (#4951)",
   "POST /api/recipes/project/start": "undoable in the engine (project.start, audited; its inverse withdraws the first yes); the app's undo surface registers it when setup presses Start through it (#4951)",

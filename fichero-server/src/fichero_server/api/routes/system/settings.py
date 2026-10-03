@@ -7,6 +7,8 @@ Endpoints for managing app-wide settings like default AI models.
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Literal, Optional
+
 from pydantic import BaseModel, Field
 
 from fichero_server.api.routes.auth.accounts import (
@@ -463,3 +465,41 @@ def set_sparql_endpoints(
 
     get_app_db().set_setting(_SPARQL_ENDPOINTS_SETTING_KEY, config.model_dump_json())
     return config
+
+
+# =============================================================================
+# Compute preferences: how hard local model work may push this Mac, and where.
+# =============================================================================
+
+
+class ComputePreferences(BaseModel):
+    """`priority`: balanced (default; the Mac stays usable), fast (no throttle, every core), or
+    background (yields to everything). `device`: auto (Apple's GPU when available), cpu or gpu.
+    `effective` is what applies now: an environment override (FICHERO_COMPUTE_PRIORITY /
+    FICHERO_COMPUTE_DEVICE, for test runs) wins over the saved choice."""
+
+    priority: Literal["fast", "balanced", "background"] = "balanced"
+    device: Literal["auto", "cpu", "gpu"] = "auto"
+    effective: Optional[dict[str, str]] = None
+
+
+@router.get("/compute", response_model=ComputePreferences)
+def get_compute_preferences(request: Request) -> ComputePreferences:
+    """The saved compute preferences and what applies now."""
+    _require_authenticated_or_bootstrap(request)
+    from fichero_server.core.compute_preferences import compute_preferences, stored_preferences
+
+    return ComputePreferences(**stored_preferences(), effective=compute_preferences())
+
+
+@router.put("/compute", response_model=ComputePreferences)
+def set_compute_preferences(
+    body: ComputePreferences,
+    request: Request,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> ComputePreferences:
+    """Save the compute preferences (owner only). Local model work reads them on its next page."""
+    from fichero_server.core.compute_preferences import compute_preferences, save_preferences
+
+    saved = save_preferences(body.priority, body.device)
+    return ComputePreferences(**saved, effective=compute_preferences())
