@@ -32,13 +32,22 @@ the left page is often blank graph paper and the right page carries the text in 
   `auto_crop_border_images` (`detect_content_bbox`), `remove_background_images`,
   `adaptive_binarize_images`, `denoise_images`, `enhance_images`, `fuzzy_clean_images`,
   `prepare_images` (a fixed sequence for OCR).
-- **The legacy tools to port, not rewrite** (`fichero_archive/_archive/fichero_legacy/tools/`):
-  `split.py` (detects spiral notebooks, spreads, covers and labels; finds the split point from the
-  binding's periodic pattern), `crop.py` (crops with a **YOLOv8 page model**,
-  `fichero_resources/yolo_models/yolov8s-fichero.pt`, falling back to contours), `rotate.py`
-  (Hough-line straightening), `segment.py` (deskew from text baselines, safe cut points).
-  Kraken's region segmenter (`blla`) is the second detector to compare with YOLO for regions;
-  for cropping the page itself, YOLO first.
+- **The legacy tools** (`fichero_archive/_archive/fichero_legacy/tools/`) did more and, by the
+  maintainer's account, did it better: `split.py` (detects spiral notebooks, spreads, covers and
+  labels; finds the split point from the binding's periodic pattern), `crop.py` (crops with a
+  **YOLOv8 page model**, `fichero_resources/yolo_models/yolov8s-fichero.pt`, falling back to
+  contours), `rotate.py` (Hough-line straightening), `segment.py` (deskew from text baselines, safe
+  cut points). The move to today's tools kept the heuristics in `media/image_ops.py` and dropped
+  the YOLO model; Apple Vision is used only to read text, not to find the page.
+- **How they come over: reviewed, then rewritten better, never copied.** Before any code, a written
+  review sets the legacy tools beside today's on the Sergio test set: what each does, where each
+  fails, which ideas are worth keeping. The rewrite keeps those ideas in today's structure (the
+  edit chain, the job registry, one code path) with tests, and must beat both on the test set.
+- **Detectors to compare** for finding the page: the YOLOv8 page model (retrained on corrected
+  outlines if it falls short), Apple Vision's document detection
+  (`VNDetectDocumentSegmentationRequest`), and the classical contour method. For regions on the
+  page: YOLO against Kraken's region segmenter (`blla`), which also gives baselines and reading
+  order.
 - **Missing:** finding the page on a busy background, splitting at the real gutter or spiral,
   turning by the text, knowing a page is blank, suppressing ruled or graph paper, flattening a
   curved page, and any measure of whether a step helped.
@@ -83,6 +92,7 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
 
 ## Behaviors
 
+- `prep.legacy-reviewed-before-rewrite` — **[GAP]** (#5382) a written review compares the legacy tools and today's on the test set before any rewrite; the rewrite beats both.
 - `prep.find-the-page` — **[GAP]** (#5382) the page is found on a busy background and the photograph
   is cropped to it; the outline is kept as a geometry mapping back to the original.
 - `prep.split-at-the-gutter` — **[GAP]** (#5382) a two-page image is cut at its gutter or spiral, not
