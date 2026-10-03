@@ -8207,6 +8207,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "JobListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/purposes",
+        "operation_id": "list_purposes_api_recipes_purposes_get",
+        "summary": "List Purposes",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PurposeListResponse"
       }
     ],
     "references": [

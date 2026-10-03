@@ -47,5 +47,7 @@ def seed_cards() -> tuple[Card, ...]:
             memory_gb=float(row.get("memory_gb") or 0),
             trainable=bool(row.get("trainable")),
             cer_published=row.get("cer_published"),
+            licence=str(row.get("licence") or ""),
+            note=str(row.get("note") or ""),
         ))
     return tuple(cards)

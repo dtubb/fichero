@@ -12,7 +12,7 @@ from typing import Any, Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero_server.recipes.assemble import PURPOSE_STEPS, Answers, assemble
+from fichero_server.recipes.assemble import PURPOSE_STEPS, PURPOSES, Answers, assemble
 from fichero_server.recipes.cards import seed_cards
 from fichero_server.recipes.jobs import all_jobs
 from fichero_server.recipes.recipe import check_recipe
@@ -60,10 +60,26 @@ class AssembleRequest(BaseModel):
     mac_memory_gb: Optional[float] = Field(default=None, description="defaults to this machine's memory")
 
 
+class RecipeCard(BaseModel):
+    """The facts on the chosen model's card that setup shows (`source.onboard.proposes-chain`)."""
+
+    id: str = Field(description="<runtime>:<source>@<version>")
+    note: str = ""
+    licence: str = ""
+    open_licence: bool = True
+    size_gb: float = 0.0
+    memory_gb: float = 0.0
+    cer_measured_here: Optional[float] = None
+    cer_published: Optional[float] = None
+    trainable: bool = False
+
+
 class RecipeStep(BaseModel):
     id: str
     job: str
     model: Optional[dict[str, Any]] = None
+    card: Optional[RecipeCard] = None
+    uses_cloud: bool = False
     runs_on: Optional[str] = None
     reasons: list[str] = Field(default_factory=list)
     gap: Optional[str] = None
@@ -78,6 +94,11 @@ class AssembledRecipe(BaseModel):
     purposes: list[str]
     steps: list[RecipeStep]
     gaps: list[str]
+    cloud_options: list[str] = Field(
+        default_factory=list,
+        description="jobs a cloud model would also fit if pages could leave this Mac; "
+        "setup asks the egress question only when this is not empty",
+    )
     problems: list[str] = Field(description="what the recipe check finds (empty when it can run)")
 
 
@@ -86,6 +107,29 @@ def _this_machine_memory_gb() -> float:
         return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
     except (ValueError, OSError):
         return 8.0
+
+
+class PurposeInfo(BaseModel):
+    id: str
+    title: str
+    description: str
+    runs_by_itself: bool = Field(description="true: its layers run after Start; false: tools are offered")
+
+
+class PurposeListResponse(BaseModel):
+    items: list[PurposeInfo]
+    count: int
+
+
+@router.get("/purposes", response_model=PurposeListResponse)
+async def list_purposes() -> PurposeListResponse:
+    """The purposes setup offers, in order, each with its label and whether it runs by itself
+    (`source.onboard.purpose-first`)."""
+    items = [
+        PurposeInfo(id=pid, title=title, description=desc, runs_by_itself=bool(PURPOSE_STEPS[pid]))
+        for pid, (title, desc) in PURPOSES.items()
+    ]
+    return PurposeListResponse(items=items, count=len(items))
 
 
 @router.post("/assemble", response_model=AssembledRecipe)
@@ -102,7 +146,8 @@ async def assemble_recipe(request: AssembleRequest) -> AssembledRecipe:
     problems = [] if recipe["gaps"] else check_recipe(recipe)
     return AssembledRecipe(
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
-        steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"], problems=problems,
+        steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"],
+        cloud_options=recipe["cloud_options"], problems=problems,
     )
 
 

@@ -30,3 +30,21 @@ def test_checking_a_recipe_with_code_in_it_names_the_problem(client):
         "steps": [{"id": "a", "job": "find-lines", "settings": {"command": "rm -rf ~"}}]}})
     assert r.status_code == 200
     assert any("command" in p for p in r.json()["problems"])
+
+
+def test_setup_reads_its_purposes_from_the_engine(client):
+    """The purposes, their labels and whether each runs by itself come from one list in the engine,
+    so setup, the Inspector and the manual never disagree (`source.onboard.purpose-first`)."""
+    r = client.get("/api/recipes/purposes")
+    assert r.status_code == 200, r.text
+    items = {p["id"]: p for p in r.json()["items"]}
+    assert items["transcribe"]["runs_by_itself"] is True
+    assert items["decipher"]["runs_by_itself"] is False
+    assert all(p["title"] and p["description"] for p in items.values())
+
+
+def test_an_assembled_step_names_its_card(client):
+    r = client.post("/api/recipes/assemble", json={
+        "purpose": "search", "languages": ["es"], "scripts": ["Latn"], "mac_memory_gb": 16})
+    step = next(s for s in r.json()["steps"] if s["job"] == "find-lines")
+    assert step["card"]["id"].startswith("kraken:") and step["uses_cloud"] is False

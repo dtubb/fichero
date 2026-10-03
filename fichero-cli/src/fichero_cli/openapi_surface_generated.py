@@ -11702,6 +11702,17 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-purposes")
+    def recipes_list_purposes_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Purposes (GET /api/recipes/purposes)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/purposes"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('references')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for references endpoints.', no_args_is_help=True)

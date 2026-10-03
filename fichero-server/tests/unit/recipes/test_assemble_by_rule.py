@@ -103,3 +103,21 @@ def test_a_gap_free_generated_recipe_passes_the_check():
 def test_each_choice_names_its_reasons():
     read = next(s for s in assemble(SPANISH_LETTERS, CARDS)["steps"] if s["job"] == "read-a-line")
     assert "made for handwriting" in read["reasons"] and "runs on this Mac, free" in read["reasons"]
+
+
+def test_the_egress_question_is_needed_only_where_a_cloud_model_would_fit():
+    """Setup asks once whether pages may leave this Mac, and only when it matters
+    (`source.onboard.cloud-asked-once`): a cloud model that fits a step is named, while every step
+    still chooses locally. Without this, setup either asks everyone or never asks."""
+    recipe = assemble(SPANISH_LETTERS, CARDS)
+    assert recipe["cloud_options"] == ["correct"]
+    assert not any(s["uses_cloud"] for s in recipe["steps"])
+    for_print = Answers("transcribe", frozenset({"es"}), frozenset({"Latn"}), "print")
+    assert assemble(for_print, [c for c in CARDS if c.id != "gemini-flash"])["cloud_options"] == []
+
+
+def test_a_chosen_step_carries_its_cards_facts():
+    """Setup shows what it proposes, not just a pin (`source.onboard.proposes-chain`)."""
+    steps = {s["job"]: s for s in assemble(SPANISH_LETTERS, CARDS)["steps"]}
+    card = steps["read-a-line"]["card"]
+    assert card["id"] == "ppocrv6-medium" and card["cer_published"] == 0.039 and card["trainable"]

@@ -27,6 +27,21 @@ PURPOSE_STEPS: dict[str, tuple[str, ...]] = {
     "not-sure": (),
 }
 
+#: How setup offers each purpose: its label, and whether it runs by itself ("just do it") or offers
+#: its tools first. One list, read by setup, the Inspector and the manual (`source.onboard.purpose-first`).
+PURPOSES: dict[str, tuple[str, str]] = {
+    "transcribe": ("Just transcribe", "Read every page into text you can correct."),
+    "entities": ("People, places and things", "Transcribe, then find the names in the text."),
+    "search": ("Search my sources", "Transcribe, then make the text searchable by meaning."),
+    "knowledge-graph": ("The full knowledge graph",
+                        "Names, dates and statements, linked into one graph you can question."),
+    "map-places": ("Map places", "Find the places in the text and put them on a map."),
+    "edit-corpus": ("Edit a corpus", "Lines and readings to edit by hand; nothing runs by itself after."),
+    "decipher": ("Decipher a script", "Tools for signs not yet read; nothing runs by itself."),
+    "not-sure": ("Not sure yet", "Import first; the tools are offered when you want them."),
+}
+assert set(PURPOSES) == set(PURPOSE_STEPS)
+
 #: Jobs whose model must know the project's language (section 8, rule 3).
 LANGUAGE_JOBS = frozenset({"correct", "translate-transliterate-normalise", "find-names-tag-words",
                            "find-statements", "make-a-vector"})
@@ -58,6 +73,8 @@ class Card:
     memory_gb: float = 0.0
     cer_measured_here: float | None = None
     cer_published: float | None = None
+    licence: str = ""
+    note: str = ""
 
     @property
     def local(self) -> bool:
@@ -174,10 +191,25 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
             step["gap"] = choice.gap
             notes.append(f"{job}: {choice.gap}")
         else:
-            step["model"] = dict(choice.card.pin)
-            step["runs_on"] = choice.card.runs_on
+            card = choice.card
+            step["model"] = dict(card.pin)
+            step["runs_on"] = card.runs_on
             step["reasons"] = choice.reasons
+            step["card"] = {
+                "id": card.id, "note": card.note, "licence": card.licence,
+                "open_licence": card.open_licence, "size_gb": card.size_gb,
+                "memory_gb": card.memory_gb, "cer_measured_here": card.cer_measured_here,
+                "cer_published": card.cer_published, "trainable": card.trainable,
+            }
+        step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
         steps.append(step)
+    # Where a cloud model would also fit if pages could leave this Mac: setup asks the egress
+    # question only when this is not empty (`source.onboard.cloud-asked-once`).
+    with_cloud = Answers(**{**a.__dict__, "cloud_allowed": True})
+    cloud_options = sorted({
+        job for job in jobs for c in cards
+        if job in c.jobs and c.runs_on.startswith("cloud") and _hard_constraints(job, c, with_cloud) is None
+    })
     return {
         "fichero_recipe": 1,
         "id": f"generated/{a.purpose}-{'-'.join(sorted(a.languages))}-{'-'.join(sorted(a.scripts))}",
@@ -187,4 +219,5 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         "purposes": [a.purpose],
         "steps": steps,
         "gaps": notes,
+        "cloud_options": cloud_options,
     }

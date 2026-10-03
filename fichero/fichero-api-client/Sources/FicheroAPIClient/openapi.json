@@ -10288,6 +10288,28 @@
         }
       }
     },
+    "/api/recipes/purposes": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "List Purposes",
+        "description": "The purposes setup offers, in order, each with its label and whether it runs by itself\n(`source.onboard.purpose-first`).",
+        "operationId": "list_purposes_api_recipes_purposes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurposeListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/assemble": {
       "post": {
         "tags": [
@@ -43063,6 +43085,14 @@
             "type": "array",
             "title": "Gaps"
           },
+          "cloud_options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cloud Options",
+            "description": "jobs a cloud model would also fit if pages could leave this Mac; setup asks the egress question only when this is not empty"
+          },
           "problems": {
             "items": {
               "type": "string"
@@ -66617,6 +66647,56 @@
         ],
         "title": "PruneTrivialClaimsResponse"
       },
+      "PurposeInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "runs_by_itself": {
+            "type": "boolean",
+            "title": "Runs By Itself",
+            "description": "true: its layers run after Start; false: tools are offered"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "runs_by_itself"
+        ],
+        "title": "PurposeInfo"
+      },
+      "PurposeListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PurposeInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "PurposeListResponse"
+      },
       "PykeenListResponse": {
         "properties": {
           "items": {
@@ -67376,6 +67456,61 @@
         "title": "RebuildResponse",
         "description": "Stats describing what got refreshed."
       },
+      "RecipeCard": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "<runtime>:<source>@<version>"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          },
+          "licence": {
+            "type": "string",
+            "title": "Licence",
+            "default": ""
+          },
+          "open_licence": {
+            "type": "boolean",
+            "title": "Open Licence",
+            "default": true
+          },
+          "size_gb": {
+            "type": "number",
+            "title": "Size Gb",
+            "default": 0.0
+          },
+          "memory_gb": {
+            "type": "number",
+            "title": "Memory Gb",
+            "default": 0.0
+          },
+          "cer_measured_here": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cer Measured Here"
+          },
+          "cer_published": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cer Published"
+          },
+          "trainable": {
+            "type": "boolean",
+            "title": "Trainable",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "RecipeCard",
+        "description": "The facts on the chosen model's card that setup shows (`source.onboard.proposes-chain`)."
+      },
       "RecipeStep": {
         "properties": {
           "id": {
@@ -67391,6 +67526,15 @@
             "type": "object",
             "nullable": true,
             "title": "Model"
+          },
+          "card": {
+            "$ref": "#/components/schemas/RecipeCard",
+            "nullable": true
+          },
+          "uses_cloud": {
+            "type": "boolean",
+            "title": "Uses Cloud",
+            "default": false
           },
           "runs_on": {
             "type": "string",
