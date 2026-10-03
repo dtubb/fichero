@@ -34,6 +34,9 @@ from fichero_server.workflows.cache import (
     compute_batch_cache_key,
     is_sequentially_cacheable,
     CACHEABLE_TOOLS,
+    IMAGE_READING_TOOLS,
+    TEXT_READING_TOOLS,
+    text_fingerprint,
 )
 from fichero_server.workflows.tools.output_quality import (
     assess_result_quality,
@@ -1135,6 +1138,13 @@ def _make_node_function(
                                 provider=node_llm_config.provider,
                                 model=node_llm_config.model,
                                 file_paths=file_paths,
+                                text_fingerprint=(
+                                    text_fingerprint(
+                                        seq_cache._db, list(state.get("selected_doc_ids") or [])
+                                    )
+                                    if node_def.tool not in IMAGE_READING_TOOLS
+                                    else ""
+                                ),
                             )
                             # Unwrap the CacheEntry: the guard must judge the
                             # RESULT dict, not the wrapper (bool(entry) is
@@ -1853,6 +1863,12 @@ def _make_parallel_node_function(
                         model=node_llm_config.model,
                         file_path=file_path,
                         document_id=doc_id_for_cache,
+                        # A text reader's result depends on the words, not the image (#5361).
+                        text_fingerprint=(
+                            text_fingerprint(cache._db, [doc_id_for_cache])
+                            if node_def.tool in TEXT_READING_TOOLS and doc_id_for_cache
+                            else ""
+                        ),
                     )
 
                     # Check cache. Treat empty/unusable cached entries as

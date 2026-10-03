@@ -8,6 +8,8 @@ unchanged files. Cache keys are based on:
 - tool: The tool being used (describe, transcribe, etc.)
 - config: Node configuration (prompt, model, etc.)
 - file identity: path + mtime + size (fast, reliable)
+- text fingerprint: for tools that read a document's TEXT, a hash of its current page text,
+  so a correction is a miss and extraction re-runs on the corrected words (#5361)
 
 Invalidation:
 - Automatic: File changes, config changes, model changes all produce new keys
@@ -69,6 +71,34 @@ CACHEABLE_TOOLS = {
 # (*_folder_cleanup, *_page_cleanup) are matched by suffix in
 # is_sequentially_cacheable() rather than enumerated here.
 CACHEABLE_SEQUENTIAL_TOOLS = CACHEABLE_TOOLS
+
+# Cacheable tools that read the IMAGE file. Every other cacheable tool reads a document's text
+# (page_content), so its key also carries a fingerprint of that text: without it a corrected page
+# kept returning the entities extracted from the misread words (#5361). Image readers keep the
+# file key so a correction never re-runs OCR over it.
+IMAGE_READING_TOOLS = frozenset({"describe", "transcribe", "handwriting", "caption"})
+TEXT_READING_TOOLS = frozenset(CACHEABLE_TOOLS - IMAGE_READING_TOOLS)
+
+
+def text_fingerprint(db: Any, doc_ids: list[str] | tuple[str, ...]) -> str:
+    """A hash of the current page text of these documents and their pages (#5361).
+
+    Covers each id and its direct children (a PDF's pages hold the text). Empty when there are no
+    ids, so a key without a document is unchanged.
+    """
+    ids = [i for i in doc_ids if isinstance(i, str) and i]
+    if not ids:
+        return ""
+    marks = ",".join("?" * len(ids))
+    rows = db.execute_fetchall(
+        f"SELECT id, COALESCE(page_content, '') FROM documents "
+        f"WHERE id IN ({marks}) OR parent_id IN ({marks}) ORDER BY id",
+        [*ids, *ids],
+    )
+    digest = hashlib.sha256()
+    for row_id, text in rows:
+        digest.update(f"{row_id}\x00{text}\x00".encode())
+    return digest.hexdigest()[:16]
 
 
 class NodeCache:
@@ -354,6 +384,7 @@ def compute_cache_key(
     model: str,
     file_path: str,
     document_id: str | None = None,
+    text_fingerprint: str = "",
 ) -> str:
     """
     Compute cache key for a node execution.
@@ -401,6 +432,8 @@ def compute_cache_key(
             file_identity,
             document_id or "",
         ]
+        # Appended only when present, so keys for image readers are unchanged (#5361).
+        + ([text_fingerprint] if text_fingerprint else [])
     )
 
     # Hash to fixed-length key
@@ -435,6 +468,7 @@ def compute_batch_cache_key(
     provider: str,
     model: str,
     file_paths: list[str],
+    text_fingerprint: str = "",
 ) -> str:
     """Compute cache key for a non-parallel (sequential) node execution.
 
@@ -472,6 +506,7 @@ def compute_batch_cache_key(
             model or "",
             batch_hash,
         ]
+        + ([text_fingerprint] if text_fingerprint else [])
     )
 
     return hashlib.sha256(key_parts.encode()).hexdigest()[:32]
