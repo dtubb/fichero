@@ -333,25 +333,37 @@ def calculate_cross_language_similarity(
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:
-    """Calculate Levenshtein edit distance between two strings."""
+    """Exact Levenshtein edit distance (unit costs) between two strings.
+
+    Myers' bit-parallel algorithm (Hyyro's formulation) on Python's big integers: the same exact
+    answer as the cell-by-cell table, about word-size times faster, so a whole two-page spread
+    (10,000+ characters) is scored in well under a second instead of being refused (#5394).
+    """
     if len(s1) < len(s2):
-        return levenshtein_distance(s2, s1)
-
-    if len(s2) == 0:
+        s1, s2 = s2, s1
+    m = len(s2)
+    if m == 0:
         return len(s1)
-
-    previous_row = range(len(s2) + 1)
-    for i, c1 in enumerate(s1):
-        current_row = [i + 1]
-        for j, c2 in enumerate(s2):
-            # Cost: 0 if same, 1 if different
-            insertions = previous_row[j + 1] + 1
-            deletions = current_row[j] + 1
-            substitutions = previous_row[j] + (0 if c1 == c2 else 1)
-            current_row.append(min(insertions, deletions, substitutions))
-        previous_row = current_row
-
-    return previous_row[-1]
+    peq: dict[str, int] = {}
+    for i, ch in enumerate(s2):
+        peq[ch] = peq.get(ch, 0) | (1 << i)
+    mask, last = (1 << m) - 1, 1 << (m - 1)
+    pv, mv, score = mask, 0, m
+    for ch in s1:
+        eq = peq.get(ch, 0)
+        xv = eq | mv
+        xh = ((((eq & pv) + pv) & mask) ^ pv) | eq
+        ph = (mv | ~(xh | pv)) & mask
+        mh = pv & xh
+        if ph & last:
+            score += 1
+        elif mh & last:
+            score -= 1
+        ph = ((ph << 1) | 1) & mask
+        mh = (mh << 1) & mask
+        pv = (mh | ~(xv | ph)) & mask
+        mv = ph & xv
+    return score
 
 
 # Language-specific stemmers (simplified)

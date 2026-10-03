@@ -529,3 +529,41 @@ def test_real_gold_fixture_policies_are_ordered_on_a_modernised_reading() -> Non
     # Accent-blind absorbs the cedilla; the long s and the expansion remain
     # errors, so the number drops but does not vanish.
     assert 0 < blind.cer < diplomatic.cer
+
+
+def test_a_whole_two_page_spread_is_scored_not_refused():
+    """#5394: the exact distance was the cell-by-cell table in pure Python, so anything over 5,000
+    characters was refused, and 44 of 98 Sergio C02 spreads (one photo, two dense pages) could not be
+    scored at all. The distance is now Myers' bit-parallel algorithm: same exact answer, fast."""
+    import random
+
+    rng = random.Random(5394)
+    ref = "".join(rng.choice("abcdefghijklmnopqrstuvwxyzñé ") for _ in range(12_000))
+    hyp = list(ref)
+    for _ in range(600):
+        hyp[rng.randrange(len(hyp))] = "x"
+    score = character_error_rate(ref, "".join(hyp), policy="diplomatic")
+    assert score.reference_chars == 12_000 and 0 < score.cer <= 600 / 12_000
+
+
+def test_the_fast_distance_is_the_exact_distance():
+    """Pinned against the textbook table on many small random pairs, including empty strings and
+    non-ASCII letters: the speed-up must change nothing about the number."""
+    import random
+
+    from fichero_server.llm.multilingual import levenshtein_distance
+
+    def table(a: str, b: str) -> int:
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a):
+            cur = [i + 1]
+            for j, cb in enumerate(b):
+                cur.append(min(prev[j + 1] + 1, cur[j] + 1, prev[j] + (ca != cb)))
+            prev = cur
+        return prev[-1]
+
+    rng = random.Random(1)
+    for _ in range(1500):
+        a = "".join(rng.choice("abñé ") for _ in range(rng.randint(0, 30)))
+        b = "".join(rng.choice("abñé ") for _ in range(rng.randint(0, 30)))
+        assert levenshtein_distance(a, b) == table(a, b), (a, b)

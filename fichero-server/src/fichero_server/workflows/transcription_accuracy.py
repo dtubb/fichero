@@ -89,10 +89,10 @@ CER_DEFINITION = (
     "a clamp would hide a run that emitted a page of commentary."
 )
 
-#: The exact distance is O(reference x hypothesis) in pure Python. A manuscript
-#: page transcription runs 1-3k characters; well past that the honest move is
-#: to refuse rather than to return a heuristic wearing a CER's name.
-MAX_CER_CHARS = 5000
+#: The distance is exact (Myers' bit-parallel algorithm, `llm.multilingual.levenshtein_distance`):
+#: a two-page spread of 10-15k characters scores in a fraction of a second, so the 5,000 limit
+#: that refused whole spreads is gone (#5394). This bound only refuses inputs that are not a page.
+MAX_CER_CHARS = 100_000
 
 #: Beyond this ratio between normalised lengths the two texts are not
 #: plausibly transcriptions of the same page — the usual cause is a one-page
