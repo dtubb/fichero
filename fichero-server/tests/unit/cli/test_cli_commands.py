@@ -77,10 +77,11 @@ class FakeClient:
 
     def request_stream(self, method, path, *, params=None):
         self.calls.append(("request_stream", method, path, {"params": params}))
-        return [
+        # The real request_stream yields lines as they arrive (#5321), so the fake does too.
+        return iter([
             'data: {"type":"tick","thread_id":"t-1"}',
             ": keepalive",
-        ]
+        ])
 
     def list_documents(self, **kw):
         self.calls.append(("list_documents", kw))

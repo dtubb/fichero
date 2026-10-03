@@ -319,6 +319,8 @@ def _invoke(ctx: typer.Context, operation: Callable[[FicheroClient], Any]) -> No
             data = operation(client)
             if isinstance(data, Iterator):
                 for line in data:
+                    if line.startswith(":"):
+                        continue  # an SSE comment (a keepalive), not an event
                     typer.echo(_render_stream_line(line, as_json=ctx.obj["json"]))
                 return
     except FicheroError as exc:
