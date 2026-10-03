@@ -4831,6 +4831,33 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("compare-readings")
+    def documents_compare_readings_post(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        hypothesis: str = typer.Option(..., "--hypothesis", help="Request field: hypothesis."),
+        policies: Optional[str] = typer.Option(None, "--policies", help="Request field: policies."),
+        reference: str = typer.Option(..., "--reference", help="Request field: reference."),
+        reference_checked_by: Optional[str] = typer.Option(None, "--reference-checked-by", help="Request field: reference_checked_by."),
+    ) -> None:
+        """Compare Readings (POST /api/documents/{document_id}/readings/compare)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{document_id}/readings/compare"
+            params = None
+            payload = _build_json_payload({
+                "hypothesis": hypothesis,
+                "policies": policies,
+                "reference": reference,
+                "reference_checked_by": reference_checked_by,
+            }, {
+                "hypothesis": {'properties': {'pass_id': {'type': 'string', 'nullable': True, 'title': 'Pass Id'}, 'artifact_id': {'type': 'string', 'nullable': True, 'title': 'Artifact Id'}}, 'type': 'object', 'title': 'ReadingRef', 'description': 'One reading of the page: a pass, or a saved result (artifact).', 'x-cli-required': True},
+                "policies": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Policies', 'description': 'normalisation policies: accent-blind, diplomatic, layout-insensitive, lenient', 'x-cli-required': False},
+                "reference": {'properties': {'pass_id': {'type': 'string', 'nullable': True, 'title': 'Pass Id'}, 'artifact_id': {'type': 'string', 'nullable': True, 'title': 'Artifact Id'}}, 'type': 'object', 'title': 'ReadingRef', 'description': 'One reading of the page: a pass, or a saved result (artifact).', 'x-cli-required': True},
+                "reference_checked_by": {'type': 'string', 'nullable': True, 'title': 'Reference Checked By', 'description': 'who checked the reference; without it the score is agreement, not CER', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-renditions")
     def documents_list_renditions_get(
         ctx: typer.Context,

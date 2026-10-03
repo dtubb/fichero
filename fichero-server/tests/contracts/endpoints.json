@@ -3328,6 +3328,18 @@
         "response_model": "DocumentOutlineResponse"
       },
       {
+        "method": "POST",
+        "path": "/documents/{document_id}/readings/compare",
+        "operation_id": "compare_readings_api_documents__document_id__readings_compare_post",
+        "summary": "Compare Readings",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "CompareReadingsRequest",
+        "response_model": "CompareReadingsResponse"
+      },
+      {
         "method": "GET",
         "path": "/documents/{document_id}/renditions",
         "operation_id": "list_renditions_api_documents__document_id__renditions_get",

@@ -14,6 +14,7 @@ EXPECTED_FULL_TOOLS = {
     "import_document",
     "list_documents",
     "get_document",
+    "compare_readings",
     "document_inspector",
     "document_knowledge_graph",
     "list_workflows",

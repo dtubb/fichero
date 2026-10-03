@@ -63,6 +63,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/annotations.
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/artifacts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/campaigns.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/classifications.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/compare_readings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/content_representations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/dataset.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/documents.py

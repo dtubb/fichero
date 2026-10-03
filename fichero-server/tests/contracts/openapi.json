@@ -4404,6 +4404,59 @@
         }
       }
     },
+    "/api/documents/{document_id}/readings/compare": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Compare Readings",
+        "description": "How far one reading of this page is from another, by Fichero's CER definition, under each\nnormalisation policy asked for. Labelled `agreement` unless `reference_checked_by` names who\nchecked the reference. Refuses (422) rather than returning a number it cannot stand behind:\nan empty reference, an unknown policy, a text too long for an exact score.",
+        "operationId": "compare_readings_api_documents__document_id__readings_compare_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareReadingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareReadingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/source-settings/resolve": {
       "get": {
         "tags": [
@@ -47982,6 +48035,76 @@
         ],
         "title": "ColumnNote"
       },
+      "CompareReadingsRequest": {
+        "properties": {
+          "reference": {
+            "$ref": "#/components/schemas/ReadingRef"
+          },
+          "hypothesis": {
+            "$ref": "#/components/schemas/ReadingRef"
+          },
+          "policies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Policies",
+            "description": "normalisation policies: accent-blind, diplomatic, layout-insensitive, lenient"
+          },
+          "reference_checked_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reference Checked By",
+            "description": "who checked the reference; without it the score is agreement, not CER"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reference",
+          "hypothesis"
+        ],
+        "title": "CompareReadingsRequest"
+      },
+      "CompareReadingsResponse": {
+        "properties": {
+          "measure": {
+            "type": "string",
+            "enum": [
+              "agreement",
+              "cer"
+            ],
+            "title": "Measure"
+          },
+          "reference_label": {
+            "type": "string",
+            "title": "Reference Label"
+          },
+          "hypothesis_label": {
+            "type": "string",
+            "title": "Hypothesis Label"
+          },
+          "definition": {
+            "type": "string",
+            "title": "Definition"
+          },
+          "scores": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingScore"
+            },
+            "type": "array",
+            "title": "Scores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "measure",
+          "reference_label",
+          "hypothesis_label",
+          "definition",
+          "scores"
+        ],
+        "title": "CompareReadingsResponse"
+      },
       "CompareRequest": {
         "properties": {
           "prompt": {
@@ -67508,6 +67631,61 @@
         ],
         "title": "ReadingRead",
         "description": "One reading, read either from the representation table or from an\nartifact. The caller cannot tell which \u2014 `source.one-store`."
+      },
+      "ReadingRef": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Id"
+          },
+          "artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Artifact Id"
+          }
+        },
+        "type": "object",
+        "title": "ReadingRef",
+        "description": "One reading of the page: a pass, or a saved result (artifact)."
+      },
+      "ReadingScore": {
+        "properties": {
+          "policy": {
+            "type": "string",
+            "title": "Policy"
+          },
+          "policy_description": {
+            "type": "string",
+            "title": "Policy Description"
+          },
+          "distance": {
+            "type": "integer",
+            "title": "Distance"
+          },
+          "reference_chars": {
+            "type": "integer",
+            "title": "Reference Chars"
+          },
+          "hypothesis_chars": {
+            "type": "integer",
+            "title": "Hypothesis Chars"
+          },
+          "rate": {
+            "type": "number",
+            "title": "Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "policy",
+          "policy_description",
+          "distance",
+          "reference_chars",
+          "hypothesis_chars",
+          "rate"
+        ],
+        "title": "ReadingScore"
       },
       "RebuildRequest": {
         "properties": {

@@ -1,4 +1,5 @@
 {
+  "POST /api/documents/{document_id}/readings/compare": "reached by the CLI (documents compare-readings) and MCP (compare_readings) for the projects harness (#5389); an app surface for it is not designed yet",
   "GET /api/recipes/project": "engine half of saving setup (#4951); the setup store reads it in slice 2",
   "PUT /api/recipes/project": "engine half of saving setup (#4951); the setup store saves through it in slice 2",
   "GET /api/recipes/purposes": "engine half of onboarding (#4951); the setup store switches from its hard-coded list to this in slice 2",
