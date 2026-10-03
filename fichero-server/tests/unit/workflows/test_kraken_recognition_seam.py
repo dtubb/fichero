@@ -256,3 +256,52 @@ async def test_no_recognition_model_stays_segment_only(temp_library, tmp_path):
     assert not result.get("error"), result.get("error")
     assert calls["segment"] == 1, "segment-only path must still call segment_to_geometry"
     assert calls["recognize"] == 0, "no recognition model must NOT trigger recognition"
+
+
+@pytest.mark.asyncio
+async def test_a_kraken_reading_is_stamped_with_its_recognition_model(temp_library, tmp_path):
+    await _stamped_with(temp_library, tmp_path, "kraken-mccatmus", "kraken-mccatmus")
+
+
+@pytest.mark.asyncio
+async def test_kraken_finding_lines_only_is_stamped_blla(temp_library, tmp_path):
+    await _stamped_with(temp_library, tmp_path, None, "blla")
+
+
+async def _stamped_with(temp_library, tmp_path, recognition_model, expected_model):
+    """#5387: with the library's default vision model set (Gemini through OpenRouter), a Kraken
+    transcription was stamped openrouter / gemini, so a Kraken pass and a Gemini pass could not be
+    told apart. Comparing readers, CER and training all rest on this stamp."""
+    from fichero_server.llm import LLMConfig
+    from fichero_server.models import Artifact, Document, DocType, FileType
+    from fichero_server.workflows.tools.sources import files_tool
+    from fichero_server.workflows.tools.transcribe import transcribe
+    import fichero_server.llm.kraken_runtime as kraken_runtime
+
+    library_path, db_manager = temp_library
+    db = db_manager.get_database(library_path)
+    png = tmp_path / "hand.png"
+    _make_png(png)
+    doc = Document(name="hand.png", doc_type=DocType.file, file_type=FileType.image, path=str(png))
+    db.save(doc)
+    default_vision = LLMConfig(provider="openrouter", model="google/gemini-3-flash-preview")
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(kraken_runtime, "recognize_to_geometry",
+                   lambda *a, **k: _recognized_geometry())
+        mp.setattr(kraken_runtime, "segment_to_geometry",
+                   lambda *a, **k: _segment_only_geometry(), raising=False)
+        mp.setattr(kraken_runtime, "resolve_recognition_model",
+                   lambda ref: ("/models/mccatmus.mlmodel", "kraken-mccatmus"))
+        src = await files_tool(inputs={}, state={"selected_doc_ids": [doc.id], "library_path": library_path},
+                               llm_config=default_vision)
+        result = await transcribe(
+            inputs={"files": src["files"], "documents": src["documents"], "vision_mode": "kraken",
+                    "regions_first": False, **({"kraken_model": recognition_model} if recognition_model else {})},
+            state={"library_path": library_path, "task_id": None},
+            llm_config=default_vision,
+        )
+
+    assert not result.get("error"), result.get("error")
+    [art] = db.query(Artifact, document_id=doc.id, artifact_type="transcription")
+    assert (art.provider, art.model) == ("kraken", expected_model)

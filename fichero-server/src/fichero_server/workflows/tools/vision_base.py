@@ -3235,6 +3235,18 @@ def _cgimage_to_data_uri(cg_image, max_dimension: int = 2048) -> str:
 _KRAKEN_PDF_RENDER_DPI = 300
 
 
+def _reader_label(vision_mode: str, config: Any, kraken_model: str | None) -> tuple[str, str]:
+    """What actually read the page, as (provider, model). Kraken names its recognition model (a
+    catalog id, or a .mlmodel file's name), or its line finder `blla` when it only found lines;
+    stamping the library's default vision model instead made a Kraken pass look like Gemini's (#5387)."""
+    if vision_mode == "apple":
+        return "apple", "apple-vision"
+    if vision_mode == "kraken":
+        return "kraken", (Path(kraken_model).stem if kraken_model and kraken_model.endswith(".mlmodel")
+                          else kraken_model) or "blla"
+    return config.provider, config.model
+
+
 def _render_pdf_page_to_temp_png(pdf_path: str, page_index: int, dpi: int = _KRAKEN_PDF_RENDER_DPI) -> str:
     """Render one PDF page to a temp PNG file for Kraken (#4892).
 
@@ -4949,8 +4961,8 @@ async def process_vision(
 
                 _ep_doc_id = resolve_path_to_doc(path_to_doc, file_path)
                 _ep_model = {
-                    "provider": ("apple" if vision_mode == "apple" else effective_config.provider),
-                    "model": ("apple-vision" if vision_mode == "apple" else effective_config.model),
+                    "provider": _reader_label(vision_mode, effective_config, kraken_recognition_model)[0],
+                    "model": _reader_label(vision_mode, effective_config, kraken_recognition_model)[1],
                     "temperature": getattr(effective_config, "temperature", None),
                     "use_case": tool_config.artifact_type,
                 }
@@ -5019,11 +5031,13 @@ async def process_vision(
                 save_config = effective_config
                 if pdf_layer_used:
                     save_config = LLMConfig(provider="pdf_text", model="pdf-text-layer")
-                elif vision_mode == "apple":
+                elif vision_mode in ("apple", "kraken"):
                     # LLMConfig is already imported at the top of process_vision
                     # (closure scope); a local re-import here would shadow it and
                     # break the pdf_text branch above (referenced-before-assign).
-                    save_config = LLMConfig(provider="apple", model="apple-vision")
+                    # Kraken's result is Kraken's, never the default vision model's (#5387).
+                    _p, _m = _reader_label(vision_mode, effective_config, kraken_recognition_model)
+                    save_config = LLMConfig(provider=_p, model=_m)
 
                 # #2249/#2395: when per_page_texts is populated (whole-PDF path) and
                 # the current doc is the parent (path_to_doc has its path, so
