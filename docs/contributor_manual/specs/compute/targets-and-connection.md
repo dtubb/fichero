@@ -214,10 +214,16 @@ All [GAP]: designed, not built.
 ### A Slurm cluster
 
 - `compute.secret.fichero-makes-the-key` — **[GAP]** (#5238) for an SSH target Fichero makes an Ed25519 key pair;
-  the private half is stored only in the one key store (`ai/provider-keys.md`); the public half
-  is shown with Copy, and can be shown again. Removing the target deletes the private half.
+  the private half is stored only in the Keychain, the one key store (`ai/provider-keys.md`); the
+  public half is shown with Copy, to be added to the person's **own** cluster account, and can be
+  shown again. Removing the target deletes the private half.
   *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create,
   read public half twice (same), remove target, assert the secret is gone.
+- `compute.secret.never-in-a-recipe` — **[GAP]** (#5238, #4950) a recipe names a step's place only as
+  `runs_on: cluster` (or `gpu-service`); the host, the person's account and the key belong to the
+  person's target (key in the Keychain), bound by the project (`source.recipe.runs-on-binds-to-a-target`).
+  A recipe that carries a host, an account, a key or a token is refused when it is checked, naming
+  the field. *Test:* a recipe with an `ssh_key` or `user` field fails the recipe check.
 - `compute.connect.ssh-in-process` — **[GAP]** (#5238) the server connects over SSH itself and does not run the
   system's `ssh`, so it works inside the app's sandbox. *Existing data:*
   `remote_jobs.build_ssh_command` and the three `*_command` builders stay as the **description**

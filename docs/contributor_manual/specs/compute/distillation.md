@@ -105,8 +105,10 @@ Every job a model does in Fichero has a teacher and a natural student:
    Unchecked teacher output can be added deliberately, and is then counted and marked
    (`compute.tune.bootstrapped-data-is-marked`).
 4. **Build the set.** The training set is built from the selection (`source.train.*`). It holds the
-   reasons as well, where the teacher's run recorded them. Today's vision runs do not record a
-   reason beside each reading (#4642 adds it), so until then a set has no reasons, and says so. The split is by document,
+   reasons as well, where the teacher's run recorded them. A vision run already keeps a thinking
+   model's reasoning for each **page**, on the artifact and in the episode ledger (VERIFIED
+   `workflows/tools/vision_base.py:4138-4143`, `:4971-5019`); reasons tied to each **line** are
+   not recorded yet (#4642). See "Distilling a reasoning model's palaeography". The split is by document,
    never by line (`source.train.split-by-manuscript`).
 5. **Train.** On the Mac where the model fits (Kraken and YOLO on a 16 GB Mac), otherwise on
    Hugging Face Jobs, then a cluster such as ACENET (`compute.job.*`, `compute.tune.*`). The student's card records its teacher, its set, its base model and every
@@ -123,6 +125,46 @@ Every job a model does in Fichero has a teacher and a natural student:
 8. **Keep learning.** New corrections accumulate. Fichero says when there is enough new checked
    work to retrain, and the new student must beat the old one on the same held-out pages before
    it replaces it.
+
+### Distilling a reasoning model's palaeography
+
+This is #4642's question, made testable: does a small reader learn better from a big model's
+**reasons** than from transcriptions alone? The A/B decides; nothing assumes it.
+
+**Inputs.**
+- Checked pages of the project (ground truth), split by document (`source.train.split-by-manuscript`).
+- A **teacher**: a large reasoning ("thinking") vision model, named by its card, whose terms allow
+  training on its outputs (`distill.licence.teacher-terms`).
+- A **reasoning prompt**, a file in the recipe (`source.recipe.is-a-file`), asking for each line:
+  the letterforms that decided a reading, abbreviations and their expansions, uncertain readings
+  with their alternatives, then the transcription.
+
+**Making the traces.** The teacher reads the checked pages as an ordinary run, through the egress
+gate. Its reasoning and its transcription are kept with full provenance in the **episode ledger**
+(one immutable record per call: prompt, raw output, thinking, model and settings, timing, cost,
+images by reference; VERIFIED `observability/episodes.py:1-19`, `:78-117`), and its transcription
+lands as a pass whose readings name their episode. No second store is made for traces.
+
+**The training set.** Built from the checked pages, in two forms over the **same** lines and split:
+- **A, answer only:** line or page image → the person's checked transcription.
+- **B, reasoning and answer:** image → the teacher's reasoning, then the person's checked
+  transcription. The answer is always the checked text, never the teacher's. A trace is used only
+  where the teacher's own reading of that line is within a set CER of the checked one, so the
+  student never learns reasons for a wrong reading; how many were dropped is on the set.
+
+The ledger already exports chat-form training pairs with the person's correction as the answer
+(VERIFIED `observability/episodes.py:154`, `export_training_pairs`); the set builder reads from it
+rather than writing a second exporter.
+
+**Training.** One base (for example Qwen2.5-VL 3B), LoRA, the same settings for A and B. On
+Hugging Face Jobs first, then ACENET (`compute.tune.lora`); the adapters run on a 16 GB Mac.
+
+**Measured, A against B against the teacher and the cheap baseline**, on the held-out checked
+pages: the one CER and WER; speed and peak memory per page on a 16 GB Mac (B writes reasoning
+before its answer, so it is slower, and B is also measured with its reasoning switched off); the
+cost of making the traces and of training; and, for B, whether the readings it calls uncertain
+are where its errors are. B is adopted only if its CER beats A by more than the noise band and its
+speed is acceptable for the project's volume. The result is recorded on both cards either way.
 
 ### Cascade: small first, big when unsure
 
@@ -174,6 +216,19 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
   proposed to cover every hand, layout and page kind in the scope.
 - `distill.set.keeps-reasons` — **[GAP]** (#4642) where the teacher gave its reasons, the set keeps them,
   and a student can be trained to give them.
+- `distill.reasoning.traces-in-the-ledger` — **[GAP]** (#4642) a reasoning teacher's traces for each line
+  (letterforms, abbreviations and expansions, uncertain readings with alternatives, then the
+  transcription) are kept in the episode ledger with the teacher's card, prompt file, run, time and
+  cost, and its readings name their episode; no second store holds traces.
+- `distill.reasoning.answer-is-checked` — **[GAP]** (#4642) in a reasoning set the answer is always the
+  person's checked transcription; a trace is kept only where the teacher's own reading is within
+  the set CER of it, and the count dropped is stated on the set.
+- `distill.reasoning.two-arms` — **[GAP]** (#4642, #5337) the same base, lines, split and settings train an
+  answer-only student and a reasoning-and-answer student, so the A/B measures the reasons alone.
+- `distill.reasoning.ab-decides` — **[GAP]** (#4642, #5337) both students, the teacher and the cheap baseline
+  are measured on held-out checked pages (one CER, WER, speed and peak memory on a 16 GB Mac, with
+  and without reasoning at run time, trace and training cost); the reasoning student is adopted
+  only if it beats the answer-only one beyond the noise band, and both cards record the result.
 - `distill.train.card-names-teacher` — **[GAP]** (#5337) a student's card names its teacher,
   set, base model and every licence.
 - `distill.measure.against-people` — **[GAP]** (#5337) the student is measured on held-out

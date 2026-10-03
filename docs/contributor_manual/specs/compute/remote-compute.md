@@ -104,6 +104,15 @@ checkpoint. What does not happen while the Mac sleeps: new pieces are not sent, 
 fetched, and nothing lands. With a cluster's unattended "automation" path (by request), sending
 and fetching need no person, but still need the Mac awake.
 
+**Fichero controls Slurm; it does not only describe it** (ruled 2026-10-03). Over that one SSH
+connection, with the person's own cluster account, the Mac's engine submits (`sbatch`), watches
+(`squeue`, `sacct`), cancels (`scancel`) and fetches the results, and every one of those is a step
+of a job in the one job table, shown in Activity like any other. The account's key lives in the
+Keychain; a recipe says only that a step runs on a cluster and never names a host, an account or a
+key. The command builders in `workflows/remote_jobs.py` stay as the description of what is run;
+the in-process SSH connection is the one way it is run. See `jobs-and-fine-tuning.md`,
+"Controlling Slurm", and `targets-and-connection.md`.
+
 ### What is straightforward
 
 1. **One Linux image.** A Docker image of `fichero-server` for Linux is ordinary work. A seed of

@@ -174,6 +174,22 @@ Slurm's states fill `queued` and `running` through the existing mapping. Array p
 jobs. A job is `done` only when landed. Global pause stops new sends and polling and never
 cancels a job already running on a cluster or on Hugging Face (that costs allocation or money).
 
+### Controlling Slurm
+
+Fichero runs the cluster's own commands for the person, over the one in-process SSH connection
+to the login node (`compute.connect.ssh-in-process`), with the person's own account:
+
+| Step of the job | Command | What Fichero records on the job row |
+|---|---|---|
+| submit | `sbatch --parsable` (an array for many shards) | the scheduler's job id; phase `submitted` |
+| watch | `squeue` while queued (with `--start` for the estimate), `sacct` for every open job | phase `queued` or `running`; the estimated start; on the end, state and exit code |
+| cancel | `scancel <id>` (or the listed pieces) | phase `cancelled`, once the scheduler confirms it |
+| fetch | the SSH carrier (`compute.transfer.ssh-carrier`) from the job's folder | phases `fetching`, `landing`, `done` |
+
+The commands are built by the existing pure builders (`remote_jobs.py`) and shown on request as
+"what will run". There is no second way: no shelling out to the system's `ssh`, no script the
+person runs by hand, no cluster-side daemon.
+
 ### Surviving a time limit
 
 A cluster ends a job at its time limit. Training that takes longer than one limit must carry
@@ -263,8 +279,10 @@ All [GAP]: designed, not built.
   only those indices. Built as a pure rule (VERIFIED `remote_jobs.py:310-344`). *Test:* fixture:
   pieces 3 and 7 of 10 fail; the re-submit names `3,7`; the other eight are not re-run and
   their results are landed once.
-- `compute.job.live-submit` — **[GAP]** (#5240) `SshCliSubmitter`'s `submit`, `poll` and `cancel` are
-  implemented over the in-process SSH connection, and the `enabled` flag goes away: the guard
+- `compute.job.live-submit` — **[GAP]** (#5240) Fichero controls Slurm itself: `SshCliSubmitter`'s `submit`
+  (`sbatch`), `poll` (`squeue`, `sacct`), `cancel` (`scancel`) and the fetch of results are
+  implemented over the in-process SSH connection with the person's own account, each a step of a
+  row in the one job table (`compute.job.one-state-machine`), and the `enabled` flag goes away: the guard
   against accidental submission is now the consent sheet and the owner role, not a constant.
   *Existing data:* `DryRunSubmitter` stays as the test fake; the dry-run route stays as "show
   me what will run". *Test:* fixture: submit returns the scheduler's job id; poll follows it to
@@ -274,7 +292,7 @@ All [GAP]: designed, not built.
   stops when none are open. *Test:* three open jobs produce one call for each interval on the
   fixture's log.
 - `compute.job.queued-says-so` — **[GAP]** (#5240) a job waiting in a cluster's queue reads "Queued on *name*",
-  with the scheduler's estimated start if it gives one; it never reads "running". *Data:* the
+  with the scheduler's estimated start (`squeue --start`) if it gives one; it never reads "running". *Data:* the
   existing `QUEUED_SLURM_STATES` (VERIFIED `remote_jobs.py:267`). *Test:* pure.
 - `compute.job.fails-with-a-reason` — **[GAP]** (#5240) a failed job carries a reason from a fixed list (*out of
   time*, *out of memory*, *node failed*, *a model was missing*, *the step refused: …*,
