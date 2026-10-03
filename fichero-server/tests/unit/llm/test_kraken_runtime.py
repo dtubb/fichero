@@ -669,3 +669,22 @@ def test_sparse_flagging_does_not_mutate_the_original_result() -> None:
 
     assert is_sparse_geometry(flagged) is True
     assert is_sparse_geometry(original) is False
+
+
+def test_a_kraken_model_loads_once_and_is_replaced_not_stacked() -> None:
+    """Every page reloaded Kraken's line finder and reader from disk. A model is now kept resident
+    per kind and reused while the same model is asked for; a different reader REPLACES it (two
+    readers never sit in memory together), and release frees both before another heavy model."""
+    loads: list[str] = []
+
+    def loader(name: str):
+        return lambda: loads.append(name) or name
+
+    kraken_runtime.release_resident_models()
+    assert kraken_runtime._resident("read", "a.mlmodel", loader("a")) == "a"
+    assert kraken_runtime._resident("read", "a.mlmodel", loader("a")) == "a"
+    assert loads == ["a"]
+    assert kraken_runtime._resident("read", "b.safetensors", loader("b")) == "b"
+    assert loads == ["a", "b"] and list(kraken_runtime._RESIDENT) == ["read"]
+    kraken_runtime.release_resident_models()
+    assert kraken_runtime._RESIDENT == {}

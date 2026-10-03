@@ -602,9 +602,42 @@ def _segment_raw(image_path: str | Path) -> dict[str, object]:
     with Image.open(image_path) as image:
         if image.mode != "RGB":
             image = image.convert("RGB")
-        segmentation = blla.segment(image)
+        segmentation = blla.segment(image, model=_segmenter())
         width, height = image.width, image.height
     return {"width": width, "height": height, "lines": _raw_lines(segmentation)}
+
+
+#: One resident model per kind ("segment", "read"), kept between pages: every page used to reload
+#: the line finder and the reader from disk. Loading once and reusing it is the "load a model once,
+#: group work by model" rule (ai/local-runtimes.md); a different model for the same kind replaces
+#: it, and `release_resident_models` frees both before another heavy model loads. Only touched
+#: inside `_kraken_call`'s single lock, so no second lock is needed.
+_RESIDENT: dict[str, tuple[str, object]] = {}
+
+
+def _resident(kind: str, key: str, load: Callable[[], object]) -> object:
+    held = _RESIDENT.get(kind)
+    if held is not None and held[0] == key:
+        return held[1]
+    _RESIDENT.pop(kind, None)  # drop the old one before loading its replacement
+    model = load()
+    _RESIDENT[kind] = (key, model)
+    return model
+
+
+def release_resident_models() -> None:
+    """Free Kraken's resident models (before another heavy model loads)."""
+    _RESIDENT.clear()
+
+
+def _segmenter() -> object:
+    """Kraken's built-in baseline line finder, loaded once."""
+    from importlib import resources
+
+    from kraken.lib import vgsl
+
+    return _resident("segment", "blla", lambda: vgsl.TorchVGSLModel.load_model(
+        resources.files("kraken").joinpath("blla.mlmodel")))
 
 
 def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]:
@@ -616,13 +649,13 @@ def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]
     with Image.open(image_path) as image:
         if image.mode != "RGB":
             image = image.convert("RGB")
-        segmentation = blla.segment(image)
+        segmentation = blla.segment(image, model=_segmenter())
         # Kraken 7's recognition task: it loads both a .mlmodel and a .safetensors reader (the
         # format of Kraken 7 models such as PP-OCRv6), where the old load_any read only .mlmodel.
         # blla's neural baseline segmentation gives us the lines; the reader reads each one in the
         # SAME order -- so prediction i belongs to segmented line i, and every line keeps its own
         # baseline/polygon geometry.
-        net = RecognitionTaskModel.load_model(model_path)
+        net = _resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path))
         predictions = list(net.predict(image, segmentation, RecognitionInferenceConfig()))
         width, height = image.width, image.height
     lines = _raw_lines(segmentation)
@@ -900,6 +933,7 @@ def recognize_to_geometry(
 
 
 __all__ = [
+    "release_resident_models",
     "KRAKEN_RECOGNITION_MODELS",
     "download_recognition_model",
     "is_installed",
