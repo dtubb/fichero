@@ -1254,7 +1254,13 @@ def _action_import_file(
     # A TEI, PAGE or ALTO file on its own is a document of its pages (#5143).
     from fichero_server.api.routes.document.format_import import import_file_as_pages
 
-    import_file_as_pages(db, doc, Path(params.path), ctx)
+    # Read the file where it now IS: with mode="move" the original path is gone by now, and reading
+    # it failed the import after the file had already been moved into the library.
+    stored = Path(params.path)
+    if not stored.is_file() and doc.path:
+        recorded = Path(doc.path)
+        stored = recorded if recorded.is_absolute() else package_path / recorded
+    import_file_as_pages(db, doc, stored, ctx)
     _upsert_sidecar_entities(db, [doc], ctx)
     _apply_sidecar_renditions(db, [doc], package_path)
     spec = ChangeSpec(
