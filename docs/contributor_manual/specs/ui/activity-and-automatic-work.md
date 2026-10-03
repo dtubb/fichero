@@ -649,11 +649,13 @@ code path.
   boundary, and they carry on at the next launch. Today engine shutdown only closes the SSE hubs
   (`api/main.py:1020-1022`), so quit is a crash, and on reopen every running, accepted and paused
   run is failed (`workflows/activity_store.py:76-78`, `workflows/activity.py:658-707`).
-- `activity.run.cache-keyed-on-content` — **[BROKEN]** (#5360, #5361) a step re-runs when the
-  text or image it reads has changed, and is reused when it has not, in any workflow. Today the key
-  is the file's path, time and size plus the workflow and node ids (`workflows/cache.py:348-407`),
-  so a corrected page returns the entities read from the old text, and the same page and model in
-  another workflow is never reused.
+- `activity.run.cache-keyed-on-content` — **[PARTIAL]** (#5360, #5361) a step re-runs when the
+  text or image it reads has changed, and is reused when it has not, in any workflow. Built
+  (2026-10-03): a text-reading step's key carries a fingerprint of the page's current text, so a
+  correction re-runs extraction; image readers keep the file key
+  (`fichero-server/tests/unit/workflows/test_cache_key_follows_the_page_text.py`). Still a gap: the
+  key includes the workflow and node ids, so the same page and model in another workflow is never
+  reused.
 - `activity.run.one-way-to-run` — **[BROKEN]** (#5374, → #4949) every run, whether by hand, batch,
   chain, schedule, trigger or sub-workflow, goes through the runner and writes jobs. Today there are
   six paths (the table above) and a client-side chain loop in the app.
