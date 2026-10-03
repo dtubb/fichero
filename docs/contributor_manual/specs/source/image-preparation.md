@@ -32,6 +32,13 @@ the left page is often blank graph paper and the right page carries the text in 
   `auto_crop_border_images` (`detect_content_bbox`), `remove_background_images`,
   `adaptive_binarize_images`, `denoise_images`, `enhance_images`, `fuzzy_clean_images`,
   `prepare_images` (a fixed sequence for OCR).
+- **The legacy tools to port, not rewrite** (`fichero_archive/_archive/fichero_legacy/tools/`):
+  `split.py` (detects spiral notebooks, spreads, covers and labels; finds the split point from the
+  binding's periodic pattern), `crop.py` (crops with a **YOLOv8 page model**,
+  `fichero_resources/yolo_models/yolov8s-fichero.pt`, falling back to contours), `rotate.py`
+  (Hough-line straightening), `segment.py` (deskew from text baselines, safe cut points).
+  Kraken's region segmenter (`blla`) is the second detector to compare with YOLO for regions;
+  for cropping the page itself, YOLO first.
 - **Missing:** finding the page on a busy background, splitting at the real gutter or spiral,
   turning by the text, knowing a page is blank, suppressing ruled or graph paper, flattening a
   curved page, and any measure of whether a step helped.
