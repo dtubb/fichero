@@ -4048,6 +4048,27 @@ _KEYLESS_OPENAI_COMPATIBLE: set[str] = {"ollama", "lmstudio", "omlx"}
 _MANAGED_OMLX_RESTART_CAP = 2
 
 
+def _refuse_a_model_the_local_server_does_not_serve(requested: str | None, served: str | None) -> None:
+    """The managed local server loads ONE model, its profile's. A step that names a different managed
+    model was silently served by that one instead (a 3B request ran, and failed, as an 8B; #5388).
+    Refuse by name. A name that is not a managed model is left to the server to answer."""
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+
+    def canonical(name: str | None) -> str | None:
+        for model_id, spec in MANAGED_MLX_MODELS.items():
+            if name in (model_id, getattr(spec, "repo_id", None)):
+                return model_id
+        return None
+
+    want, have = canonical(requested), canonical(served) or served
+    if want and want != have:
+        name = MANAGED_MLX_MODELS[want].display_name
+        raise LocalModelUnavailableError(
+            f"This step asks for {name}, but Fichero's local model server is set to {have}. "
+            f"Choose {have} for the step, or switch the local model to {name} in Settings > AI."
+        )
+
+
 async def _ensure_managed_local_provider_ready(config: LLMConfig) -> None:
     if config.provider.lower() != "omlx":
         return
@@ -4065,6 +4086,7 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig) -> None:
     if not profile.managed_by_app or str(profile.base_url).rstrip("/") != effective_base_url:
         return
 
+    _refuse_a_model_the_local_server_does_not_serve(config.model, profile.model_id)
     manager = _manager_for_profile(profile.id)
     try:
         if profile.startup_policy == LocalProviderStartupPolicy.manual:
