@@ -358,6 +358,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/geometry_merge.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_flatten.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_ops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/ocr_geometry.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/page_split.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_crops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_math.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/rendition_order.py
@@ -642,6 +643,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/similarity.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/sources.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/split_chapters.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/split_images.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/split_pages.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/style.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/sub_workflow.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/summarize.py

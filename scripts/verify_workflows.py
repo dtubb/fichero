@@ -114,7 +114,7 @@ IMAGE_INPUT_TOOLS = {
     "enhance_images", "faces", "fuzzy_clean_images", "handwriting", "layout",
     "objects", "organize_same_documents", "prepare_images",
     "recombine_segments", "remove_background_images", "rotate_images",
-    "scene", "segment_images", "similarity", "split_images", "sub_workflow",
+    "scene", "segment_images", "similarity", "split_images", "split_pages", "sub_workflow",
     "transcribe", "transcribe_review", "zoom",
 }
 

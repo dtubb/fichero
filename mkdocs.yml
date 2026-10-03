@@ -293,6 +293,7 @@ nav:
               - Split Chapters: reference_manual/tool_references/tools/split_chapters.md
               - Split Diary Entries: reference_manual/tool_references/tools/diary_entries.md
               - Split Images: reference_manual/tool_references/tools/split_images.md
+              - Split Pages: reference_manual/tool_references/tools/split_pages.md
               - Style: reference_manual/tool_references/tools/style.md
               - Sub-Workflow: reference_manual/tool_references/tools/sub_workflow.md
               - Summarize: reference_manual/tool_references/tools/summarize.md

@@ -75,7 +75,7 @@ CLI_STAND_IN_ANSWER = "stand-in cli answer"
 
 
 # Tools whose canonical input is a second shape than "one text file":
-IMAGE_TOOLS_EXTRA = {"zoom", "recombine_segments", "segment_images", "split_images"}
+IMAGE_TOOLS_EXTRA = {"zoom", "recombine_segments", "segment_images", "split_images", "split_pages"}
 PDF_TOOLS = {"split_chapters", "detect_structure", "book_structure", "book_index"}
 PAIR_IMAGE_TOOLS = {"compare", "similarity"}  # require >= 2 images
 FOLDER_TARGET_TOOLS = {"organize_same_documents", "summarize_folder", "folder"}

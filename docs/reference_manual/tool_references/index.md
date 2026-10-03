@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 55 shipped workflows and 127 tools.
+This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 55 shipped workflows and 128 tools.
 
 - [Every workflow](workflows/index.md) — the presets, step by step.
 - [Every tool](tools/index.md) — the single steps a workflow is built from.
