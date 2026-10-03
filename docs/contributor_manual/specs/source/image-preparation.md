@@ -82,8 +82,14 @@ cartouche and legend). Each page also comes out **upright and straight**: turned
 4. **Turn by the text.** Decide 0, 90, 180 or 270 degrees from the text itself (line direction and
    which way the letters stand: Apple Vision's orientation, or a reading attempted at each turn and
    the most confident kept), then a lossless quarter turn.
-5. **Straighten.** Small-angle deskew from the lines (`detect_deskew_angle`), then, optionally,
-   **flatten** a curved page (dewarp from the text lines' curvature).
+5. **Straighten and flatten.** Small-angle deskew from the lines (`detect_deskew_angle`). Then,
+   where a page is curved, **flatten** it: a bound book photographed or scanned open curls toward
+   its spine, so the lines nearest the gutter bend, crowd together and darken while the rest of the
+   page is straight. Detected from the text lines' curvature (straight lines need nothing), and
+   corrected by dewarping cards: a text-line model (fit the lines, then unwarp the page as a
+   curved sheet, as Leptonica's dewarp and page-dewarp do), and learned unwarpers (DocTr, UVDoc)
+   compared in the A/B. The gutter's shadow is evened out with the light. Measured like everything
+   else: by whether the lines near the gutter read better.
 6. **Clean.** Flatten the light, raise faded ink, and, where the paper is ruled or graph paper,
    **suppress the ruling** (thin, regular, coloured lines) without touching the ink. Binarize only
    for engines that want it; VLMs usually read better from the cleaned colour image.
@@ -124,7 +130,7 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
 - `prep.turn-by-the-text` — **[GAP]** (#5382) automatically, after cropping, a page is turned by 0, 90, 180 or 270 degrees from its
   text, not only from EXIF.
 - `prep.straighten-and-flatten` — **[PARTIAL]** (#5382) small skew is corrected from the lines
-  (`deskew_images`); flattening a curved page is a gap.
+  (`deskew_images`); flattening a page curved toward the spine (lines bending near the gutter) is a gap.
 - `prep.suppress-ruling` — **[GAP]** (#5382) ruled and graph-paper lines are removed and the ink kept.
 - `prep.unsure-becomes-a-proposal` — **[GAP]** (#5382) an operation below its confidence proposes and
   lists the page for review rather than changing it; a correction can apply to the folder.
