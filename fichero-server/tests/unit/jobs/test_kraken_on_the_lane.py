@@ -65,7 +65,9 @@ def _page(db, tmp_path):
 
 
 def _rows(db):
-    return db.execute_fetchall("SELECT kind, subject, model, state, reason FROM jobs ORDER BY created_at")
+    """The Kraken rows (a saved page also queues its embed, which is not what these pin)."""
+    return db.execute_fetchall("SELECT kind, subject, model, state, reason FROM jobs "
+                               "WHERE kind IN ('find-lines', 'read-a-line') ORDER BY created_at")
 
 
 class TestAWorkflowsKrakenPageIsAJob:

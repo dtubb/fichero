@@ -365,20 +365,19 @@ async def list_background_jobs(
     except Exception as exc:  # never let the jobs list fail over the workflow half
         logger.debug("list_background_jobs: workflow-run merge failed: %s", exc)
 
-    # Queued jobs (the one job model, #5353): waiting, running and recently failed, with why.
+    # Queued jobs (the one job model, #5353): running, waiting (one row per kind, `total` = how
+    # many wait) and recently failed, with why.
     from fichero_server.execution import jobs as job_queue
-    from fichero_server.recipes.jobs import get_job
 
     for row in job_queue.snapshot(db):
-        registered = get_job(row["kind"])
         jobs.append(
             BackgroundJob(
                 id=row["id"],
                 task_type=row["kind"],
-                name=registered.name if registered else row["kind"],
+                name=job_queue.kind_name(row["kind"]),
                 library=library,
                 current=1 if row["state"] == "failed" else 0,
-                total=1,
+                total=row["count"],
                 percent=100.0 if row["state"] == "failed" else 0.0,
                 state=row["state"],
                 reason=row["reason"],

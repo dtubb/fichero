@@ -123,10 +123,19 @@ class TestPerThreadQoSSeparation:
         assert seen["bg"] == bc._QOS_CLASS_BACKGROUND
         assert seen["plain"] != bc._QOS_CLASS_BACKGROUND
 
-    def test_the_derivative_pool_runs_workers_at_background_qos(self):
-        # The pool's initializer must background every derivative/embed worker.
+    def test_derivative_stages_run_at_background_qos(self, db, test_package, monkeypatch):
+        # Every thumbnail and embed stage runs at background QoS, on whichever lane runs it.
         from fichero_server.importers import derivatives
+        from fichero_server.models import DocType, Document, FileType, Status
 
-        pool = derivatives._get_executor()
-        qos = pool.submit(bc.current_thread_qos_class).result(timeout=5)
-        assert qos == bc._QOS_CLASS_BACKGROUND
+        seen = {}
+        monkeypatch.setattr(derivatives, "_thumbnail_stage",
+                            lambda doc_id, library: seen.setdefault("thumbnail", bc.current_thread_qos_class()))
+        monkeypatch.setattr(derivatives, "_embed_stage",
+                            lambda doc_id, library: seen.setdefault("embed", bc.current_thread_qos_class()))
+        doc = Document(name="a.md", doc_type=DocType.file, file_type=FileType.text,
+                       status=Status.pending, page_content="text")
+        db.save(doc)
+        for future in derivatives.queue_derivatives([doc], library_path=test_package):
+            future.result(timeout=30)
+        assert seen == {"thumbnail": bc._QOS_CLASS_BACKGROUND, "embed": bc._QOS_CLASS_BACKGROUND}

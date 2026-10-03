@@ -413,7 +413,9 @@ workflow by hand: a hand run is a job like any other.
 - `activity.every-kind-reports` — **[PARTIAL]** (#5359) `/api/activity/jobs` merges
   the derivative queue and running/failed workflow runs (`test_activity_jobs.py`); task-queue
   tasks, batches, ingest tasks, conversion, search reindex, model downloads, runtime provisioning
-  and correction re-embeds report elsewhere or nowhere.
+  and correction re-embeds report elsewhere or nowhere. Built (2026-10-03): the job rows are
+  merged too: correction re-embeds, Kraken pages, and each import stage (thumbnail, embed, NLP
+  draft), waiting ones as one row per stage with a count (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`).
 - `activity.kraken-mlx-inference-visible` — **[PARTIAL]** (#5359) Kraken and MLX
   inference shows as its workflow run's row, failures with their reason; which page it is on, and
   "waiting for Kraken", are not shown. Built (2026-10-03): every Kraken page a workflow reads
@@ -422,8 +424,11 @@ workflow by hand: a hand run is a job like any other.
   the rows under their run.
 - `activity.model-work-visible` — **[GAP]** (#5359) a model download, a Kraken
   model fetch from Zenodo and MLX runtime provisioning appear in Activity, not only in Settings.
-- `activity.nlp-visible` — **[GAP]** (#5359) the NLP draft stage is counted and
+- `activity.nlp-visible` — **[PARTIAL]** (#5359) the NLP draft stage is counted and
   shown; today it is deliberately left out of the queue's progress (`importers/derivatives.py:150-157`).
+  Built (2026-10-03): each page's NLP draft is a job ("Read names (NLP draft)"), counted and
+  shown in Activity with its state (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). Still a gap: the import progress bar
+  ("37 of 252 pages") still counts embeds only.
 - `activity.correction-reembed-visible` — **[OK]** (#5359) the re-embed after a
   correction is a queued, visible job, not a raw daemon thread. Built (2026-10-03): kind
   `make-a-vector`, written in the correction's own transaction, shown by `/api/activity/jobs`,
@@ -461,8 +466,9 @@ workflow by hand: a hand run is a job like any other.
 - `activity.pause.global` — **[PARTIAL]** (#5355) one *Pause Background Work* stops every
   job that started by itself, at its next boundary, and the island says so. Built (2026-10-03):
   `PUT /api/activity/jobs/paused`; while paused the scheduler starts nothing and a waiting job says
-  "Paused by you"; `/api/activity/jobs` reports `paused` (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the Mac control
-  and the island, and the work not yet on the queue (workflow runs, the derivative pool).
+  "Paused by you"; `/api/activity/jobs` reports `paused` (`fichero-server/tests/unit/jobs/test_job_queue.py`). The derivative stages
+  are held too (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). Still a gap: the Mac control and the island, and the work not
+  yet on the queue (workflow runs started by themselves).
 - `activity.pause.global-survives-relaunch` — **[PARTIAL]** (#5355) a Mac paused at quit is
   paused at launch. Built: the switch is an app setting (`background_work_paused`), read by the
   scheduler before every job (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the click-around leg.
@@ -485,8 +491,8 @@ workflow by hand: a hand run is a job like any other.
 - `activity.throttle.lanes` — **[PARTIAL]** (#5358) jobs run in lanes by resource
   (local ML, images, network, database) with bounded concurrency; a waiting job says what it is
   waiting for. Built: the local ML lane, one job at a time, each kind declaring its QoS class; a
-  job waiting on a Kraken page says "Waiting for Kraken" (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the other
-  lanes.
+  job waiting on a Kraken page says "Waiting for Kraken" (`fichero-server/tests/unit/jobs/test_job_queue.py`); and the images lane,
+  two thumbnails at a time (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). Still a gap: the network and database lanes.
 - `activity.lane.load-once` — **[PARTIAL]** (#5358, #5370) a heavy model is loaded once and kept resident
   while work for it remains, fed in batches; it is never reloaded per page or per call. Built for
   Kraken: its line finder and reader stay resident (`llm/kraken_runtime.py` `_resident`), and the
@@ -520,10 +526,15 @@ workflow by hand: a hand run is a job like any other.
 
 - `activity.durable.queue-is-rows` — **[PARTIAL]** (#5357) the task queue and batches
   persist rows; the derivative queue uses `Status.pending` as its queue (`db/manager.py:222-243`);
-  ingest, chains, downloads, the re-embed thread and reindex are in memory.
+  ingest, chains, downloads, the re-embed thread and reindex are in memory. Built (2026-10-03):
+  the derivative stages and the correction re-embed are rows in `jobs`, and an import's stages
+  survive a quit (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). The open-time `Status.pending` re-queue stays for libraries
+  imported before; it no longer runs anything twice. Still a gap: ingest tasks, chains, downloads,
+  reindex.
 - `activity.durable.enqueue-with-the-change` — **[PARTIAL]** (#5357) the job a change
   implies is written in the change's own transaction. Built for the correction re-embed
-  (`ActionRegistry.invoke`, `fichero-server/tests/unit/jobs/test_job_queue.py`).
+  (`ActionRegistry.invoke`, `fichero-server/tests/unit/jobs/test_job_queue.py`) and an import's derivative stages, which commit or roll
+  back with the documents (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`).
 - `activity.durable.lease-not-fail` — **[BROKEN]** (#5357) after a crash or quit, an
   interrupted job goes back to waiting and resumes; today every running, accepted **and paused**
   workflow run is flipped to `failed` on reopen (`workflows/activity.py:658-707`), although its
@@ -537,7 +548,8 @@ workflow by hand: a hand run is a job like any other.
 - `activity.durable.nothing-twice` — **[PARTIAL]** (#5357) a job whose kind, subject and
   inputs fingerprint already finished is skipped; today the derivative stages happen to be
   idempotent and the NLP stage skips marked pages, while re-running a workflow has three different
-  behaviours (`safety/run-take-back.md`).
+  behaviours (`safety/run-take-back.md`). Built: queuing a page whose stage is already waiting
+  reuses that job (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). Still a gap: the inputs fingerprint.
 
 ### F. Automatic processing
 

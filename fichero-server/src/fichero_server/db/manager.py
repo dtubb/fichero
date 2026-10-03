@@ -238,7 +238,7 @@ class DatabaseManager:
                                 "Resuming derivatives for %d pending document(s)",
                                 len(stranded),
                             )
-                            queue_derivatives(stranded, library_path=package_path)
+                            queue_derivatives(stranded, library_path=package_path, db=db)
                     except Exception:
                         logger.exception("Pending-derivative resume failed")
 

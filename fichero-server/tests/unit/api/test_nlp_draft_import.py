@@ -733,42 +733,37 @@ class TestChangeEventIsCoalescedOncePerDocument:
 
 
 # =============================================================================
-# Shares the derivatives module's bounded, background-QoS executor -- no new
-# pool, so the [[user-machine-always-useful]] throttle already proven for
-# thumbnails/embeds covers this stage too.
+# Runs on the local-model lane with the embeds: one heavy model at a time,
+# grouped by model, at background QoS -- no pool of its own.
 # =============================================================================
 
 
-class TestSharesTheBoundedExecutor:
-    def test_nlp_stage_runs_on_the_same_executor_as_thumbnails_and_embeds(
-        self, db, test_package, monkeypatch
-    ):
-        seen_executors = []
-        real_get_executor = derivatives._get_executor
+class TestRunsOnTheModelLane:
+    def test_nlp_stage_runs_on_the_model_lane_after_the_embeds(self, db, test_package, monkeypatch):
+        """WHY: spaCy is a model; run beside the embedder it would put two models in memory, and
+        interleaved with it would swap them page by page. Thumbnails are not models and keep
+        their own two-wide lane (#1400)."""
+        import threading
 
-        def _spy():
-            executor = real_get_executor()
-            seen_executors.append(executor)
-            return executor
+        from fichero_server.execution import jobs
 
-        # This test is about WHICH POOL each stage runs on, not extraction
-        # quality or embedding correctness -- stub both real model-backed
-        # stages so it doesn't pay a real cold-start (slow-test fix, team-
-        # lead review).
-        monkeypatch.setattr(type(db), "embed", lambda self, d: True)
-        monkeypatch.setattr(
-            "fichero_server.importers.nlp_draft.run_nlp_draft",
-            lambda db_, doc_, **kw: NlpDraftResult(),
-        )
-        monkeypatch.setattr(derivatives, "_get_executor", _spy)
+        seen = []
+
+        def stage(name):
+            return lambda doc_id, library: seen.append((name, threading.current_thread().name))
+
+        monkeypatch.setattr(derivatives, "_thumbnail_stage", stage("thumbnail"))
+        monkeypatch.setattr(derivatives, "_embed_stage", stage("embed"))
+        monkeypatch.setattr(derivatives, "_nlp_stage", stage("nlp"))
         monkeypatch.setattr(derivatives, "auto_nlp_enabled", lambda: True)
-        doc = _text_doc(db)
+        docs = [_text_doc(db), _text_doc(db, "Pedro vendió la casa.")]
 
-        futures = derivatives.queue_derivatives([doc], library_path=test_package)
-        _drain(futures)
+        _drain(derivatives.queue_derivatives(docs, library_path=test_package))
 
-        assert len({id(e) for e in seen_executors}) == 1
-        assert derivatives.MAX_CONCURRENT_DERIVATIVES == 2  # unchanged ceiling
+        model_lane = [name for name, thread in seen if thread == "fichero-jobs"]
+        assert model_lane == ["embed", "embed", "nlp", "nlp"]
+        assert {thread for name, thread in seen if name == "thumbnail"} <= {"fichero-jobs-images"}
+        assert derivatives.MAX_CONCURRENT_DERIVATIVES == jobs.LANES["images"] == 2  # unchanged ceiling
 
 
 # =============================================================================

@@ -525,22 +525,26 @@ class TestQueueEmitsCoalescedTrackerActivity:
         assert logged == []
 
 
-def test_queue_embedding_submits_only_the_embed_stage_after_commit(monkeypatch):
-    """#5264: a workflow's saved page is embedded on the pool, once its save commits, and gets
-    no thumbnail or NLP pass (it has neither new pixels nor a new import)."""
-    from unittest.mock import MagicMock
+def test_queue_embedding_queues_only_the_embed_stage_with_the_save(db, test_package, monkeypatch):
+    """#5264: a workflow's saved page is embedded as a job written with its save, and gets no
+    thumbnail or NLP pass (it has neither new pixels nor a new import). WHY: an embed queued
+    before the save commits could read the page before its text exists; one queued after the
+    commit could be lost to a crash in between."""
+    import time
 
     from fichero_server.importers import derivatives
 
-    executor = MagicMock()
-    monkeypatch.setattr(derivatives, "_get_executor", lambda: executor)
+    ran = []
+    monkeypatch.setattr(derivatives, "_embed_stage", lambda doc_id, library: ran.append(doc_id))
     monkeypatch.setattr(derivatives, "_progress_add", lambda *a, **k: None)
-    db = MagicMock()
-    hooks = []
-    db.add_after_commit_hook.side_effect = hooks.append
 
-    derivatives.queue_embedding("page-1", library_path="/lib.fichero", db=db)
-    executor.submit.assert_not_called()  # nothing before the commit
+    with db.transaction():
+        derivatives.queue_embedding("page-1", library_path=test_package, db=db)
+        time.sleep(0.2)
+        assert ran == []  # nothing runs before the commit
 
-    hooks[0]()
-    executor.submit.assert_called_once_with(derivatives._embed_stage, "page-1", "/lib.fichero")
+    deadline = time.time() + 30
+    while not ran and time.time() < deadline:
+        time.sleep(0.02)
+    assert ran == ["page-1"]
+    assert [row[0] for row in db.execute_fetchall("SELECT kind FROM jobs")] == ["embed"]

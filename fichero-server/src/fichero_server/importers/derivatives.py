@@ -3,14 +3,18 @@
 Import records rows at ~900 files/sec (#4203) precisely because it does the
 minimum per file. Thumbnail generation is slow, failure-prone, and needs
 decoding — putting it inline would destroy that. So ingest queues the work
-here and returns; this module drains the queue on its own bounded pool and
-emits a ``document.updated`` change per document as each derivative lands, so
-the row gains its thumbnail in place with no refresh and no polling.
+here and returns, and each stage lands as it finishes: the thumbnail stage
+emits a ``document.updated`` change per document, so the row gains its
+thumbnail in place with no refresh and no polling.
 
-Bounded on purpose. ``MAX_CONCURRENT_DERIVATIVES`` is small because unbounded
-concurrent texture decode destabilised the window server once already (#1400,
-the reason the canvas caps at 250 nodes). The same hazard applies to bulk
-thumbnail generation, so the ceiling is designed in rather than discovered.
+The stages are JOBS (#5353, `execution/jobs.py`): rows in the project's `jobs`
+table, written in the import's own transaction, so a quit mid-import loses
+nothing and nothing is done twice; they show in Activity and obey Pause
+Background Work. Thumbnails run on the images lane, two at a time, because
+unbounded concurrent texture decode destabilised the window server once
+already (#1400, the reason the canvas caps at 250 nodes). Embedding and the NLP
+draft run on the local-model lane, one heavy model at a time, grouped by model:
+a folder's pages are all embedded, then all read for names.
 
 Failure is recorded, never silent: a document whose derivative could not be
 produced keeps ``Status.pending`` and gains ``metadata["derivative_error"]``,
@@ -22,7 +26,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import Future
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
 
@@ -34,8 +38,13 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 logger = logging.getLogger(__name__)
 
 # Two at a time. See the module docstring: this is the #1400 hazard, not a
-# tuning knob to raise casually.
+# tuning knob to raise casually. It is the images lane's width (`jobs.LANES`).
 MAX_CONCURRENT_DERIVATIVES = 2
+
+#: The job kinds (`execution/jobs.py`), one per stage.
+THUMBNAIL_KIND = "thumbnail"
+EMBED_KIND = "embed"
+NLP_KIND = "nlp-draft"
 
 # Types whose derivative is worth generating eagerly. Everything else keeps the
 # existing lazy path (the storage endpoints still call ensure_thumbnail on a
@@ -49,34 +58,15 @@ DERIVATIVE_FILE_TYPES = frozenset({FileType.image, FileType.pdf})
 # tests already monkeypatch this module's other seams.
 from fichero_server.importers.nlp_draft import auto_nlp_enabled  # noqa: E402
 
-_executor: ThreadPoolExecutor | None = None
-_executor_lock = threading.Lock()
-
 # Balanced background throttle ([[user-machine-always-useful]]): embedding is
 # the CPU-heavy stage, and its ONNX call already uses embed_threads() cores, so
 # we also bound how many embeds run AT ONCE. Default 1 → total embedding CPU ≈
-# embed_threads() ≈ half the machine, even mid bulk-import. Thumbnails keep the
-# pool's own 2-wide limit (a different, #1400, hazard). Sized once at import.
+# embed_threads() ≈ half the machine, even mid bulk-import. The local-model lane
+# already runs one job at a time; the gate also covers the embeds that run
+# outside it (a direct page edit). Sized once at import.
 from fichero_server.core.background_compute import embed_concurrency  # noqa: E402
 
 _embed_gate = threading.Semaphore(embed_concurrency())
-
-
-def _get_executor() -> ThreadPoolExecutor:
-    global _executor
-    with _executor_lock:
-        if _executor is None:
-            from fichero_server.core.background_compute import set_background_qos
-
-            _executor = ThreadPoolExecutor(
-                max_workers=MAX_CONCURRENT_DERIVATIVES,
-                thread_name_prefix="derivative",
-                # Every derivative/embed worker runs at background QoS so its CPU
-                # yields to the foreground — the machine stays usable during a
-                # big import (Daniel, 2026-09-06).
-                initializer=set_background_qos,
-            )
-    return _executor
 
 
 def needs_derivative(doc: Document) -> bool:
@@ -106,17 +96,16 @@ def queue_derivatives(
     library_path: str | Path,
     db: "Database | None" = None,
 ) -> list[Future]:
-    """Schedule derivative generation for freshly ingested documents.
+    """Queue derivative generation for freshly ingested documents: one job per
+    stage and document, written in the caller's transaction when it has one.
 
     Returns the futures so a caller (and the tests) can wait; the ingest path
     deliberately does NOT wait.
 
     Pass ``db`` when the caller might be inside a transaction — the audited
-    ``import.file`` action is atomic, so submitting immediately would let a
-    worker look up a document id that has not been COMMITTED yet, find
-    nothing, and drop the thumbnail on the floor. ``add_after_commit_hook``
-    runs the submission immediately when there is no open transaction, so this
-    is the same call either way; the returned list fills in on commit.
+    ``import.file`` action is atomic, so the job rows commit (or roll back)
+    with the documents they name, and no stage can look up a document id that
+    has not been COMMITTED yet. The returned list fills in on commit.
     """
     library = str(library_path)
     if not library:
@@ -136,37 +125,34 @@ def queue_derivatives(
     futures: list[Future] = []
     if not queued and not nlp_queued:
         return futures
+    from fichero_server.execution import jobs
 
-    def submit() -> None:
-        executor = _get_executor()
+    register_job_kinds()
+    db = db if db is not None else _library_db(library)
+    # Thumbnails run on their own lane, so an image never waits behind a
+    # ~1.3s embed of an earlier page (user, live 2026-08-19). The NLP draft
+    # runs after the embeds on the model lane (the cheaper, more visible
+    # stages first) and is not counted in `_progress_add`'s total: its
+    # per-document visibility is its job row and the `nlp_error` field.
+    queued_jobs = (
+        jobs.enqueue_many(db, THUMBNAIL_KIND, queued)
+        + jobs.enqueue_many(db, EMBED_KIND, queued)
+        + jobs.enqueue_many(db, NLP_KIND, nlp_queued)
+    )
+
+    def committed() -> None:
         if queued:
-            _progress_add(
-                library, len(queued), db_path=str(db.path) if db is not None else None
-            )
-        # Thumbnails FIRST, embeds after (user, live 2026-08-19): on one shared
-        # FIFO pool, interleaving them made every later page's thumbnail wait
-        # behind ~1.3s embeds of earlier pages. Submitting the whole thumbnail
-        # wave ahead of the embed wave gets images on screen while the text
-        # embeds catch up behind them.
-        for doc_id in queued:
-            futures.append(executor.submit(_thumbnail_stage, doc_id, library))
-        for doc_id in queued:
-            futures.append(executor.submit(_embed_stage, doc_id, library))
-        # NLP last: same reasoning as thumbnails-before-embeds -- the
-        # cheaper, more visible stages (image on screen, text searchable)
-        # should not queue behind the KG draft pass. Not counted in
-        # `_progress_add`'s total (matches the thumbnail stage's own
-        # precedent: only the embed stage ticks the document-progress
-        # counter today) -- per-document visibility for NLP is the
-        # `nlp_error` metadata field, not the progress bar.
-        for doc_id in nlp_queued:
-            futures.append(executor.submit(_nlp_stage, doc_id, library))
+            _progress_add(library, len(queued), db_path=str(db.path))
+        futures.extend(queued_jobs)
 
-    if db is not None:
-        db.add_after_commit_hook(submit)
-    else:
-        submit()
+    db.add_after_commit_hook(committed)
     return futures
+
+
+def _library_db(library: str) -> "Database":
+    from fichero_server.db.manager import db_manager
+
+    return db_manager.get_database(library)
 
 
 def queue_embedding(
@@ -175,7 +161,7 @@ def queue_embedding(
     library_path: str | Path,
     db: "Database | None" = None,
 ) -> None:
-    """Embed ONE saved document on the derivative pool, after its save commits (#5264).
+    """Embed ONE saved document as a job, queued with its save (#5264).
 
     A workflow's save used to embed inline, in the thread that saves the page: ~45 ms of ONNX
     per page, serialized behind every other page's save (48 pages: 5.3 s of runner time with an
@@ -187,15 +173,12 @@ def queue_embedding(
     if not library:
         logger.warning("Not queueing an embedding for %s: no library path given", doc_id)
         return
+    from fichero_server.execution import jobs
 
-    def submit() -> None:
-        _progress_add(library, 1, db_path=str(db.path) if db is not None else None)
-        _get_executor().submit(_embed_stage, doc_id, library)
-
-    if db is not None:
-        db.add_after_commit_hook(submit)
-    else:
-        submit()
+    register_job_kinds()
+    db = db if db is not None else _library_db(library)
+    jobs.enqueue_many(db, EMBED_KIND, [doc_id], started_by="workflow")
+    db.add_after_commit_hook(lambda: _progress_add(library, 1, db_path=str(db.path)))
 
 
 # ---------------------------------------------------------------------------
@@ -921,15 +904,35 @@ def generate_derivative(doc_id: str, library_path: str | Path) -> Path | None:
 
 
 def shutdown(wait: bool = True, *, cancel_pending: bool = False) -> None:
-    """Stop the derivative pool (engine shutdown, and at the end of a test session).
+    """Stand the stall watchdog down (engine shutdown, and at the end of a test session).
 
-    `cancel_pending` drops stages not yet started. The pool's worker threads are not daemons, so
-    Python's exit JOINS them, and they run every queued stage first: a test session that imported
-    a folder sat at exit, at background QoS, embedding pages of libraries already deleted (#5223).
-    A stage already running still finishes -- a page is never left half-written."""
-    global _executor
+    The stages used to run on a pool whose worker threads were not daemons, so Python's exit
+    JOINED them after running every queued stage: a test session that imported a folder sat at
+    exit embedding pages of libraries already deleted (#5223). The stages are jobs now, on the
+    scheduler's daemon threads, so exit never waits for them; a stage not yet run stays a
+    `waiting` row and runs when its library next opens. The arguments are kept for callers."""
     _disarm_stall_watchdog()
-    with _executor_lock:
-        executor, _executor = _executor, None
-    if executor is not None:
-        executor.shutdown(wait=wait, cancel_futures=cancel_pending)
+
+
+def _library_of(db: "Database") -> str:
+    return str(Path(db.path).parent)
+
+
+_kinds_registered = False
+
+
+def register_job_kinds() -> None:
+    """Register the stages as job kinds. Lazily, on first use: this module is imported when the
+    engine starts, and the job scheduler need not be (#3950 import budget)."""
+    global _kinds_registered
+    if _kinds_registered:
+        return
+    _kinds_registered = True
+    from fichero_server.execution import jobs
+
+    jobs.register_kind(THUMBNAIL_KIND, lambda db, doc_id: _thumbnail_stage(doc_id, _library_of(db)),
+                       model=None, lane="images", name="Make thumbnails")
+    jobs.register_kind(EMBED_KIND, lambda db, doc_id: _embed_stage(doc_id, _library_of(db)),
+                       model="embedder", name="Embed for search")
+    jobs.register_kind(NLP_KIND, lambda db, doc_id: _nlp_stage(doc_id, _library_of(db)),
+                       model="spacy", name="Read names (NLP draft)")
