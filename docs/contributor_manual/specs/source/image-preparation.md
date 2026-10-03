@@ -121,11 +121,11 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
 
 ## Behaviors
 
-- `prep.legacy-reviewed-before-rewrite` — **[GAP]** (#5382) a written review compares the legacy tools and today's on the test set before any rewrite; the rewrite beats both.
-- `prep.find-the-page` — **[GAP]** (#5382) the page is found on a busy background and the photograph
-  is cropped to it; the outline is kept as a geometry mapping back to the original.
-- `prep.split-at-the-gutter` — **[GAP]** (#5382) a photograph is cropped automatically into its pages or regions; a two-page image is cut at its gutter or spiral, not
-  at the middle, into pages in reading order; a single page is left whole.
+- `prep.legacy-reviewed-before-rewrite` — **[OK]** (#5382) a written review compares the legacy tools and today's on the test set before any rewrite; the rewrite beats both. The review: fichero-projects `projects/sergio-notebooks/prep-review.md` (11 Sergio photos, 2026-10-03).
+- `prep.find-the-page` — **[PARTIAL]** (#5382) the page is found on a busy background and the photograph
+  is cropped to it; the outline is kept as a geometry mapping back to the original. `split_pages` finds it with Apple Vision's document outline and crops to its box (`media/page_split.py`); the four-corner outline is reported but not yet stored as a geometry, and no perspective correction is applied.
+- `prep.split-at-the-gutter` — **[PARTIAL]** (#5382) a photograph is cropped automatically into its pages or regions; a two-page image is cut at its gutter or spiral, not
+  at the middle, into pages in reading order; a single page is left whole. `split_pages` cuts spreads at the darkest column of the outline's middle band, keeps an outline narrower than tall whole, and proposes rather than cuts below its confidence (pinned on 11 Sergio photos, `tests/unit/media/test_page_split.py`); regions, and the recipe calling it (#5390), are not built.
 - `prep.blank-pages-marked` — **[GAP]** (#5382) a page with no ink beyond its ruling is marked blank,
   kept, and skipped by reading.
 - `prep.turn-by-the-text` — **[GAP]** (#5382) automatically, after cropping, a page is turned by 0, 90, 180 or 270 degrees from its

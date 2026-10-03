@@ -63,6 +63,7 @@ from fichero_server.workflows.tools import remove_background_images  # noqa: F40
 from fichero_server.workflows.tools import segment_images  # noqa: F401  (#1391)
 from fichero_server.workflows.tools import recombine_segments  # noqa: F401  (#1392)
 from fichero_server.workflows.tools import split_images  # noqa: F401  (#1394)
+from fichero_server.workflows.tools import split_pages  # noqa: F401  (#5382)
 
 # LLM tools
 from fichero_server.workflows.tools import summarize
@@ -182,6 +183,7 @@ __all__ = [
     "segment_images",
     "recombine_segments",
     "split_images",
+    "split_pages",
     # LLM
     "summarize",
     "entities",
