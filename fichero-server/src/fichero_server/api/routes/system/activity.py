@@ -405,6 +405,83 @@ async def set_background_paused(
     return BackgroundPauseResponse.model_validate(result.result)
 
 
+class JobPauseRequest(BaseModel):
+    paused: bool = Field(description="true pauses this job; false resumes it")
+
+
+class JobControlParams(BaseModel):
+    job_id: str
+    paused: Optional[bool] = None
+
+
+class JobStateResponse(BaseModel):
+    id: str
+    state: str = Field(description="the job's state after the request: waiting, paused, running, cancelled, …")
+
+
+def _control_job(db: Database, ctx: ActionContext, name: str, params: dict) -> JobStateResponse:
+    try:
+        result = registry.invoke(db, name, params, ctx)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'\"")) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return JobStateResponse.model_validate(result.result)
+
+
+@router.put("/jobs/{job_id}/paused", response_model=JobStateResponse)
+async def set_job_paused(
+    job_id: str,
+    request: JobPauseRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> JobStateResponse:
+    """Pause one waiting job, or resume a paused one (`activity.pause.per-job`). A paused job stays
+    paused across relaunch. A running job finishes the item it is on; a page a workflow run is
+    waiting for is paused with its run (409)."""
+    return _control_job(db, ctx, "job.pause", {"job_id": job_id, "paused": request.paused})
+
+
+@router.post("/jobs/{job_id}/cancel", response_model=JobStateResponse)
+async def cancel_job(
+    job_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> JobStateResponse:
+    """Stop one job: a waiting or paused one ends cancelled; a page a run waits for is withdrawn;
+    a training Job is cancelled on Hugging Face. A job running here finishes its item (the state
+    returned says `running`)."""
+    return _control_job(db, ctx, "job.cancel", {"job_id": job_id})
+
+
+def _invert_job_pause(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("job.pause", {"job_id": (after or {})["id"], "paused": (before or {}).get("state") == "paused"})
+
+
+@action("job.pause", JobControlParams, domains=["activity"], undoable=True, invert=_invert_job_pause)
+def _action_job_pause(db: Database, params: JobControlParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    before = job_queue._job_row(db, params.job_id)[1]
+    state = job_queue.pause_job(db, params.job_id, bool(params.paused))
+    return {"id": params.job_id, "state": state}, ChangeSpec(
+        domains=["activity"], target_ids=[params.job_id], before={"state": before},
+        after={"id": params.job_id, "state": state}, emit_type="job.updated",
+    )
+
+
+@action("job.cancel", JobControlParams, domains=["activity"])
+def _action_job_cancel(db: Database, params: JobControlParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    before = job_queue._job_row(db, params.job_id)[1]
+    state = job_queue.cancel_job(db, params.job_id)
+    return {"id": params.job_id, "state": state}, ChangeSpec(
+        domains=["activity"], target_ids=[params.job_id], before={"state": before},
+        after={"id": params.job_id, "state": state}, emit_type="job.updated",
+    )
+
+
 def _invert_pause(before: dict | None, after: dict | None, ctx: ActionContext):
     return ("background.pause", {"paused": bool((before or {}).get("paused"))})
 

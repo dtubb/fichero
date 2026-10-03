@@ -115,6 +115,9 @@ class Kind:
     lane: str = "local-ml"
     #: What Activity calls it, when the recipe job registry has no name for it.
     name: str | None = None
+    #: How to stop one of these when the generic way cannot (work running somewhere else, such
+    #: as a training Job on Hugging Face): `(db, job_id) -> state after the request`.
+    cancel: Callable[["Database", str], str] | None = None
 
 
 KINDS: dict[str, Kind] = {}
@@ -122,10 +125,10 @@ KINDS: dict[str, Kind] = {}
 
 def register_kind(kind: str, run: Callable[["Database", str], Any] | None, *, model: str | None,
                   qos: Callable[[], None] = set_background_qos, lane: str = "local-ml",
-                  name: str | None = None) -> None:
+                  name: str | None = None, cancel: Callable[["Database", str], str] | None = None) -> None:
     if lane not in LANES:
         raise ValueError(f"no lane {lane!r}")
-    KINDS[kind] = Kind(run=run, model=model, qos=qos, lane=lane, name=name)
+    KINDS[kind] = Kind(run=run, model=model, qos=qos, lane=lane, name=name, cancel=cancel)
 
 
 def kind_name(kind: str) -> str:
@@ -400,6 +403,53 @@ def resume(db: "Database") -> None:
         _scheduler.wake(_key(db))
 
 
+def _job_row(db: "Database", job_id: str) -> tuple[str, str]:
+    _ensure(db)
+    row = db.execute_fetchone("SELECT kind, state FROM jobs WHERE id = ?", [job_id])
+    if row is None:
+        raise KeyError(f"no job {job_id!r} in this project")
+    return row[0], row[1]
+
+
+def pause_job(db: "Database", job_id: str, paused: bool) -> str:
+    """Pause one waiting job, or resume one paused job (`activity.pause.per-job`). A paused job
+    stays paused across relaunch until resumed. A job already running finishes its item; a page a
+    workflow run is waiting for is paused with its run, not here. Returns the job's state."""
+    kind, state = _job_row(db, job_id)
+    if _is_attached(kind):
+        raise ValueError("This page belongs to a workflow run that is waiting for it: pause the run instead")
+    if paused and state == "waiting":
+        db.execute("UPDATE jobs SET state = 'paused', reason = 'Paused by you' WHERE id = ? AND state = 'waiting'",
+                   [job_id])
+        return "paused"
+    if not paused and state == "paused":
+        db.execute("UPDATE jobs SET state = 'waiting', reason = NULL WHERE id = ? AND state = 'paused'", [job_id])
+        key = _key(db)
+        db.add_after_commit_hook(lambda: _scheduler.wake(key))
+        return "waiting"
+    return state
+
+
+def cancel_job(db: "Database", job_id: str) -> str:
+    """Stop one job (`activity.pause.per-job`): a waiting or paused one ends `cancelled` now; a page
+    a run is waiting for is withdrawn from the lane (the run sees it stopped); a kind that runs
+    somewhere else stops there by its own `cancel`. A job running here finishes the item it is on
+    (nothing can interrupt it midway yet). Returns the job's state after the request."""
+    kind, state = _job_row(db, job_id)
+    registered = KINDS.get(kind)
+    if registered is not None and registered.cancel is not None:
+        return registered.cancel(db, job_id)
+    if state not in ("waiting", "paused"):
+        return state
+    with _scheduler._lock:
+        handed_in = _scheduler._attached.get(job_id)
+    if handed_in is not None:
+        return "cancelled" if _scheduler.withdraw(db, handed_in[1]) else "running"
+    db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
+               "WHERE id = ? AND state IN ('waiting', 'paused')", [utc_now(), job_id])
+    return "cancelled"
+
+
 def is_paused() -> bool:
     from fichero_server.db.app import get_app_db
 
@@ -425,10 +475,11 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     paused = is_paused()
     rows = db.execute_fetchall(
         "SELECT id, kind, subject, state, reason, attempts, created_at FROM ("
-        " SELECT * FROM jobs WHERE state IN ('waiting', 'running')"
+        " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused')"
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' ORDER BY finished_at DESC LIMIT ?)"
-        ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 ELSE 2 END, created_at",
+        ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
+        "created_at",
         [failed_limit],
     )
     out: list[dict[str, Any]] = []

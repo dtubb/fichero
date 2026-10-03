@@ -216,4 +216,4 @@ def register_job_kinds() -> None:
     """Called by the scheduler before its first scan (`execution.jobs._KIND_MODULES`)."""
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="remote",
-                           name="Train a model")
+                           name="Train a model", cancel=request_cancel)

@@ -378,6 +378,144 @@
         }
       }
     },
+    "/api/activity/jobs/{job_id}/paused": {
+      "put": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Set Job Paused",
+        "description": "Pause one waiting job, or resume a paused one (`activity.pause.per-job`). A paused job stays\npaused across relaunch. A running job finishes the item it is on; a page a workflow run is\nwaiting for is paused with its run (409).",
+        "operationId": "set_job_paused_api_activity_jobs__job_id__paused_put",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobPauseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Cancel Job",
+        "description": "Stop one job: a waiting or paused one ends cancelled; a page a run waits for is withdrawn;\na training Job is cancelled on Hugging Face. A job running here finishes its item (the state\nreturned says `running`).",
+        "operationId": "cancel_job_api_activity_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/stats": {
       "get": {
         "tags": [
@@ -58168,6 +58306,39 @@
           "count"
         ],
         "title": "JobListResponse"
+      },
+      "JobPauseRequest": {
+        "properties": {
+          "paused": {
+            "type": "boolean",
+            "title": "Paused",
+            "description": "true pauses this job; false resumes it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "paused"
+        ],
+        "title": "JobPauseRequest"
+      },
+      "JobStateResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "the job's state after the request: waiting, paused, running, cancelled, \u2026"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "state"
+        ],
+        "title": "JobStateResponse"
       },
       "JsonlExportRequest": {
         "properties": {

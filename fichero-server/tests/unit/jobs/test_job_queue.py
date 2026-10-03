@@ -234,3 +234,87 @@ class TestTheCorrectionReembedRunsThroughTheQueue:
         jobs.set_paused(False)
         assert _wait_for(lambda: embedded and embedded[-1].startswith("In the year of Our Lord"))
         assert _wait_for(lambda: _states(db)[page.id][0] == "done")
+
+
+class TestPerJobControls:
+    """`activity.pause.per-job`, `activity.pause.controls-are-actions`: one job paused, resumed or
+    stopped from the window, MCP or the command line, through one audited action each."""
+
+    def test_a_paused_job_waits_stays_paused_after_a_relaunch_and_runs_when_resumed(
+            self, test_package, client, monkeypatch):
+        """WHY: pausing one job must hold exactly that job while the rest of the queue moves, and
+        a quit must not quietly un-pause it (the opposite of what workflow runs do today)."""
+        from fichero_server.models import ActionAudit
+
+        ran: list[str] = []
+        _kind(monkeypatch, "t-one", None, ran)
+        db = db_manager.get_database(test_package)
+        jobs.set_paused(True)
+        held = jobs.enqueue(db, "t-one", "held")
+        r = client.put(f"/api/activity/jobs/{held}/paused", json={"paused": True})
+        assert r.status_code == 200 and r.json() == {"id": held, "state": "paused"}
+        jobs.enqueue(db, "t-one", "other")
+        jobs.set_paused(False)
+        assert _wait_for(lambda: ran == ["other"])
+
+        db_manager.close_database(test_package)
+        monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
+        db = db_manager.get_database(test_package)
+        assert _states(db)["held"] == ("paused", "Paused by you")
+        [row] = [j for j in client.get("/api/activity/jobs").json()["jobs"] if j["id"] == held]
+        assert (row["state"], row["reason"]) == ("paused", "Paused by you")
+
+        audit = [a for a in db.all(ActionAudit) if a.action_name == "job.pause"][-1]
+        assert client.post(f"/api/actions/audit/{audit.id}/undo").status_code == 200  # undo = resume
+        assert _wait_for(lambda: ran == ["other", "held"])
+
+    def test_cancel_stops_a_waiting_job_and_lets_a_running_one_finish_its_item(self, db, client, monkeypatch):
+        """WHY: a cancelled job must never run; one already running cannot be interrupted midway,
+        so the answer must say it is still running rather than claim it stopped."""
+        import threading as _threading
+
+        gate, started, ran = _threading.Event(), _threading.Event(), []
+
+        def slow(db, subject):
+            started.set()
+            gate.wait(30)
+            ran.append(subject)
+
+        monkeypatch.setitem(jobs.KINDS, "t-slow", jobs.Kind(run=slow, model=None))
+        running = jobs.enqueue(db, "t-slow", "running")
+        assert started.wait(30)
+        waiting = jobs.enqueue(db, "t-slow", "waiting")
+        assert client.post(f"/api/activity/jobs/{waiting}/cancel").json() == {"id": waiting, "state": "cancelled"}
+        assert client.post(f"/api/activity/jobs/{running}/cancel").json() == {"id": running, "state": "running"}
+        gate.set()
+        assert _wait_for(lambda: _states(db)["running"][0] == "done")
+        assert ran == ["running"]
+        assert _states(db)["waiting"] == ("cancelled", "Stopped by you")
+
+    def test_a_kind_that_runs_elsewhere_is_stopped_by_its_own_cancel(self, db, client, monkeypatch):
+        """WHY: a training Job runs on Hugging Face; only its kind knows how to stop it there (and
+        stop the bill). The generic control must hand over, not mark the row and walk away."""
+        asked = []
+        monkeypatch.setitem(jobs.KINDS, "t-far", jobs.Kind(
+            run=lambda db, s: None, model=None, cancel=lambda db, job_id: asked.append(job_id) or "running"))
+        jobs.set_paused(True)
+        job = jobs.enqueue(db, "t-far", "far")
+        assert client.post(f"/api/activity/jobs/{job}/cancel").json() == {"id": job, "state": "running"}
+        assert asked == [job]
+
+    def test_a_page_a_run_waits_for_is_paused_with_its_run_and_unknown_ids_are_404(self, db, client):
+        """WHY: pausing a page a running step is waiting for would leave that step hanging with
+        no way to tell why; the run has its own Pause."""
+        import threading as _threading
+
+        gate = _threading.Event()
+        first = jobs.submit(db, "find-lines", "first", model="kraken:blla", fn=lambda: gate.wait(30))
+        page = jobs.submit(db, "find-lines", "page", model="kraken:blla", fn=lambda: None)
+        try:
+            assert client.put(f"/api/activity/jobs/{page.job_id}/paused", json={"paused": True}).status_code == 409
+            assert client.post("/api/activity/jobs/no-such-job/cancel").status_code == 404
+            assert client.post(f"/api/activity/jobs/{page.job_id}/cancel").json()["state"] == "cancelled"
+        finally:
+            gate.set()
+        first.result(30)
+        assert page.cancelled()

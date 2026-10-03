@@ -555,14 +555,23 @@ clearing a list of failures cannot quietly discard work.
 
 `GET /api/activity/jobs` lists what is working in the background: the derivative queue, running
 or failed workflow runs, and the rows of the project's `jobs` table (the one job model,
-`specs/ui/activity-and-automatic-work.md`): `waiting`, `running` and recent `failed` jobs, each
-with its `reason` in words ("Paused by you", "Waiting for Kraken (another page is using it)").
+`specs/ui/activity-and-automatic-work.md`): `running`, `waiting` (one row per kind when more
+than one waits, with the count in `total`), `paused` and recent `failed` jobs, each with its
+`reason` in words ("Paused by you", "Waiting for Kraken (another page is using it)").
 `paused` says whether *Pause Background Work* is on.
 
 `PUT /api/activity/jobs/paused` with `{"paused": true}` or `false` turns it on or off for the
 whole Mac, through the audited, undoable action `background.pause`. The switch is an app
 setting, so it holds across relaunch. While it is on, the scheduler starts nothing; a job already
 running finishes.
+
+One job: `PUT /api/activity/jobs/{job_id}/paused` with `{"paused": true}` holds a waiting job
+(it stays paused across relaunch) and `false` resumes it, through the undoable action
+`job.pause`; `POST /api/activity/jobs/{job_id}/cancel` stops it through `job.cancel`. Both answer
+`{"id", "state"}` with the job's state after the request: a job already running finishes the item
+it is on and answers `running`; a training Job is cancelled on Hugging Face. A page a workflow
+run is waiting for is paused with its run (`409`); an unknown id is `404`. MCP: `fichero_jobs`,
+`fichero_pause_background_work`, `fichero_job_pause`, `fichero_job_cancel`.
 
 ### Training a reader (Hugging Face Jobs)
 

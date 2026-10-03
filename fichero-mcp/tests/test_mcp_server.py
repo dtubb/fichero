@@ -37,6 +37,10 @@ EXPECTED_TOOLS = {
     "fichero_train_kraken",
     "fichero_training_status",
     "fichero_training_cancel",
+    "fichero_jobs",
+    "fichero_pause_background_work",
+    "fichero_job_pause",
+    "fichero_job_cancel",
     "fichero_compare_readings",
     "fichero_artifacts",
     "fichero_kg_entities",
@@ -367,6 +371,26 @@ def test_training_tools_send_the_engines_request(monkeypatch):
     assert body["pages_may_leave"] is True and body["held_out_ids"] == ["p4"] and body["timeout"] == "4h"
     assert (status.method, status.url.path) == ("GET", "/api/training/jobs/j1")
     assert (cancel.method, cancel.url.path) == ("POST", "/api/training/jobs/j1/cancel")
+
+
+def test_job_tools_send_the_engines_request(monkeypatch):
+    """#5353: an agent sees the background queue and pauses or stops it, or one job, through the
+    same audited routes as the window. WHY: a tool that built its own path would drift from the
+    engine's, and an agent could think it stopped a job that is still running."""
+    with _mock_client(monkeypatch, body={"jobs": [], "count": 0, "paused": False}) as seen:
+        mcp_server.fichero_jobs()
+        mcp_server.fichero_pause_background_work(True)
+        mcp_server.fichero_job_pause("j/1")
+        mcp_server.fichero_job_pause("j1", paused=False)
+        mcp_server.fichero_job_cancel("j1")
+    listing, pause_all, pause, resume, cancel = seen
+    assert (listing.method, listing.url.path) == ("GET", "/api/activity/jobs")
+    assert (pause_all.method, pause_all.url.path) == ("PUT", "/api/activity/jobs/paused")
+    assert json.loads(pause_all.content) == {"paused": True}
+    assert (pause.method, pause.url.raw_path.decode()) == ("PUT", "/api/activity/jobs/j%2F1/paused")
+    assert json.loads(pause.content) == {"paused": True}
+    assert json.loads(resume.content) == {"paused": False}
+    assert (cancel.method, cancel.url.path) == ("POST", "/api/activity/jobs/j1/cancel")
 
 
 def test_artifacts_builds_path_and_params(monkeypatch):

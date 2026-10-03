@@ -1100,6 +1100,23 @@ class FicheroClient:
         """Stop a training job; a running one is cancelled on Hugging Face."""
         return self.request("POST", f"/api/training/jobs/{quote(job_id, safe='')}/cancel")
 
+    def background_jobs(self) -> dict[str, Any]:
+        """What is working in the background: queued jobs with their reason, and whether Pause
+        Background Work is on (#5353)."""
+        return self.request("GET", "/api/activity/jobs")
+
+    def pause_background_work(self, paused: bool) -> dict[str, Any]:
+        """Pause (or resume) all background work on this Mac; kept across relaunch."""
+        return self.request("PUT", "/api/activity/jobs/paused", json={"paused": paused})
+
+    def pause_job(self, job_id: str, paused: bool = True) -> dict[str, Any]:
+        """Pause one waiting job, or resume a paused one."""
+        return self.request("PUT", f"/api/activity/jobs/{quote(job_id, safe='')}/paused", json={"paused": paused})
+
+    def cancel_job(self, job_id: str) -> dict[str, Any]:
+        """Stop one job; the state after the request says if it was running and finishes its item."""
+        return self.request("POST", f"/api/activity/jobs/{quote(job_id, safe='')}/cancel")
+
     def compare_readings(
         self,
         doc_id: str,

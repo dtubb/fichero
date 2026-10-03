@@ -980,6 +980,38 @@ def fichero_activity(limit: int = 50) -> Any:
         return client.recent_activity(limit=limit)
 
 
+@mcp.tool()
+def fichero_jobs() -> Any:
+    """What is working in the background now: each job's kind, state (waiting, running, paused,
+    failed) and the reason in words, and whether Pause Background Work is on. Waiting jobs of one
+    kind are one row with a count."""
+    with _client() as client:
+        return client.background_jobs()
+
+
+@mcp.tool()
+def fichero_pause_background_work(paused: bool = True) -> Any:
+    """Pause (paused=False: resume) everything that runs by itself on this Mac. Kept across
+    relaunch. Work a person started and is waiting for still runs."""
+    with _mutating_client() as client:
+        return client.pause_background_work(paused)
+
+
+@mcp.tool()
+def fichero_job_pause(job_id: str, paused: bool = True) -> Any:
+    """Pause one waiting job (paused=False: resume it). Use an id from fichero_jobs."""
+    with _mutating_client() as client:
+        return client.pause_job(job_id, paused)
+
+
+@mcp.tool()
+def fichero_job_cancel(job_id: str) -> Any:
+    """Stop one job. One already running finishes the item it is on (the returned state says
+    `running`); a training Job is cancelled on Hugging Face."""
+    with _mutating_client() as client:
+        return client.cancel_job(job_id)
+
+
 # -- agent workspace actions ----------------------------------------------
 @mcp.tool()
 def fichero_workspace_add_source(workspace_id: str, document_id: str) -> Any:
