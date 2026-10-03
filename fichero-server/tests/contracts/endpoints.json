@@ -369,6 +369,16 @@
         "response_model": "BackgroundJobsResponse"
       },
       {
+        "method": "PUT",
+        "path": "/activity/jobs/paused",
+        "operation_id": "set_background_paused_api_activity_jobs_paused_put",
+        "summary": "Set Background Paused",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BackgroundPauseRequest",
+        "response_model": "BackgroundPauseResponse"
+      },
+      {
         "method": "GET",
         "path": "/activity/metrics/summary",
         "operation_id": "get_activity_metrics_summary_api_activity_metrics_summary_get",

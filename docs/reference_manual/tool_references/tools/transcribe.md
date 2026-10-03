@@ -47,6 +47,7 @@ Extract text from images (OCR)
 | `force_ocr` | boolean | no | Force image processing instead of existing text. |
 | `kraken_model` | string | — | When vision_mode='kraken', the Kraken recognition model to READ each line (a catalog id like 'kraken-mccatmus', or a .mlmodel path). Empty = segment only (baselines, no text). Install from Settings -> AI -> Local Inference. |
 | `language` | string | auto | Language locale, or 'auto' to follow the library's language policy. |
+| `lines_read_by` | string | kraken | When vision_mode='kraken' and no kraken_model is named: 'model' has this step's vision model read each line Kraken found, a few lines per call, so the transcript carries Kraken's own line geometry. Exported as PAGE XML, that is a training set for a Kraken reader (distilling the model into it). One of: kraken, model. |
 | `match_mode` | string | prefer | Match mode. One of: prefer, strict, inform. |
 | `max_image_dimension` | integer | 8192 | Max image size. |
 | `max_items` | integer | 10 | List max items. |

@@ -242,6 +242,14 @@ class DatabaseManager:
                     except Exception:
                         logger.exception("Pending-derivative resume failed")
 
+                # Jobs left running at quit or crash go back to waiting and carry on (#5357).
+                try:
+                    from fichero_server.execution import jobs
+
+                    jobs.resume(db)
+                except Exception:
+                    logger.exception("Could not resume the library's jobs")
+
                 # Convert the library's stored geometry to the page model, in the background,
                 # after the migrations above (#5222, ruled 2026-09-20). Returns at once; it
                 # never delays the open, and unconverted pages read through as before.

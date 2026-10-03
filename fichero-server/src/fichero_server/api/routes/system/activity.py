@@ -138,7 +138,7 @@ class BackgroundJob(BaseModel):
     current: int
     total: int
     percent: float
-    state: str  # running | stalled | failed | paused
+    state: str  # running | stalled | failed | paused | waiting (a queued job)
     # For a failed job (e.g. a Kraken run when the runtime/model isn't installed),
     # the actionable reason — so the user sees WHY, not just that it stopped.
     reason: Optional[str] = None
@@ -154,6 +154,16 @@ class BackgroundJobsResponse(BaseModel):
     # sample is unavailable. Per-job attribution is intentionally not attempted.
     process_cpu_percent: Optional[float] = None
     cpu_count: int
+    # Pause Background Work is on (`activity.pause.global`): nothing that runs by itself starts.
+    paused: bool = False
+
+
+class BackgroundPauseRequest(BaseModel):
+    paused: bool = Field(description="true pauses all background work; false resumes it")
+
+
+class BackgroundPauseResponse(BaseModel):
+    paused: bool
 
 
 class CleanupResponse(BaseModel):
@@ -355,11 +365,63 @@ async def list_background_jobs(
     except Exception as exc:  # never let the jobs list fail over the workflow half
         logger.debug("list_background_jobs: workflow-run merge failed: %s", exc)
 
+    # Queued jobs (the one job model, #5353): waiting, running and recently failed, with why.
+    from fichero_server.execution import jobs as job_queue
+    from fichero_server.recipes.jobs import get_job
+
+    for row in job_queue.snapshot(db):
+        registered = get_job(row["kind"])
+        jobs.append(
+            BackgroundJob(
+                id=row["id"],
+                task_type=row["kind"],
+                name=registered.name if registered else row["kind"],
+                library=library,
+                current=1 if row["state"] == "failed" else 0,
+                total=1,
+                percent=100.0 if row["state"] == "failed" else 0.0,
+                state=row["state"],
+                reason=row["reason"],
+            )
+        )
+
     return BackgroundJobsResponse(
         jobs=jobs,
         count=len(jobs),
         process_cpu_percent=process_cpu_percent(),
         cpu_count=cpu_count(),
+        paused=job_queue.is_paused(),
+    )
+
+
+@router.put("/jobs/paused", response_model=BackgroundPauseResponse)
+async def set_background_paused(
+    request: BackgroundPauseRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> BackgroundPauseResponse:
+    """Pause or resume ALL background work on this Mac (`activity.pause.global`). Kept across
+    relaunch. While paused nothing is started by the queue; a job already running finishes."""
+    result = registry.invoke(db, "background.pause", {"paused": request.paused}, ctx)
+    return BackgroundPauseResponse.model_validate(result.result)
+
+
+def _invert_pause(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("background.pause", {"paused": bool((before or {}).get("paused"))})
+
+
+@action("background.pause", BackgroundPauseRequest, domains=["activity"], undoable=True, invert=_invert_pause)
+def _action_background_pause(
+    db: Database, params: BackgroundPauseRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    before = job_queue.is_paused()
+    # Applied once the audit commits: a rolled-back action leaves the switch as it was.
+    db.add_after_commit_hook(lambda: job_queue.set_paused(params.paused))
+    return {"paused": params.paused}, ChangeSpec(
+        domains=["activity"], before={"paused": before}, after={"paused": params.paused},
+        emit_type="background.paused" if params.paused else "background.resumed",
     )
 
 
