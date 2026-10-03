@@ -5,10 +5,10 @@
 > the server there is, its version, and what it can and cannot run. The contributor manual
 > needs "Building and testing the Linux image", written from the built behaviour.
 >
-> Design-led (Testing Constitution). **Status: DRAFT — first pass, 2026-09-20.** A slice of the
-> compute set: read `remote-compute.md` first. Behaviours below carry **no tag and no issue
-> yet**, by the rule stated there; all are designed and not built unless the line says
-> otherwise. Claims about our code are **VERIFIED** with a line or **INFERRED**; claims about
+> Design-led (Testing Constitution). **Status: DRAFT — first pass 2026-09-20; revised
+> 2026-10-03 against the maintainer's rulings (`remote-compute.md`, "Ruled 2026-10-03";
+> `REVIEW-2026-10-03.md`).** A slice of the compute set: read `remote-compute.md` first. Every
+> behaviour is **[GAP]** with its issue (#5241); none is built. Claims about our code are **VERIFIED** with a line or **INFERRED**; claims about
 > outside services are **CITED** (S-numbers refer to "Sources" in `remote-compute.md`) or
 > **UNVERIFIED**.
 
@@ -57,6 +57,11 @@ a job through it, and only then publishes it.
 | **cpu** | the stand-in on a Mac; a small Linux machine; every automated test | `linux/arm64` and `linux/amd64` | the server, Kraken, spaCy, the workflow runner |
 | **gpu** | a GPU machine; a cluster; Hugging Face Jobs | `linux/amd64` | everything in **cpu**, plus the CUDA runtime, vLLM, and the fine-tuning libraries (`transformers`, `peft`, `trl`, `accelerate`, `bitsandbytes`) |
 
+**Built first** (2026-10-03): only what Hugging Face Jobs needs to train: the **gpu** image on
+`linux/amd64`, carrying the server, Kraken and the YOLO trainer, with "run a package" mode, and
+smoke-tested by automation on CPU (PyTorch's CUDA wheels also run on a CPU; INFERRED, confirmed at the first build). vLLM and the LoRA libraries are
+added with their slices; the `arm64` **cpu** image comes with the local stand-in.
+
 Two, because a GPU image is several gigabytes and only runs on one architecture, while the
 stand-in on an Apple-silicon Mac must be `arm64` to run at a usable speed: an emulated `amd64`
 PyTorch image is slow and can fail outright (CITED, S16). They are built from **one** recipe
@@ -66,8 +71,9 @@ the first build shows the numbers.
 
 ### What is in it, and what is not
 
-- **In:** the server; the one workflow runner; Kraken, **installed at build time**, not at
-  first use; spaCy and its small models, as on the Mac; DuckDB; LanceDB; the exporter.
+- **In:** the server; the one workflow runner; the one trainer (`compute.tune.one-trainer-three-places`);
+  Kraken, **installed at build time**, not at first use; the YOLO trainer (Ultralytics, AGPL-3.0,
+  the same licence as Fichero; its card says so); spaCy and its small models, as on the Mac; DuckDB; LanceDB; the exporter.
 - **Left out, and reported as unavailable:** Apple's on-device model, Apple Vision, Apple
   translation, MLX, and Whisper through MLX.
 - **Never in:** any model's weights. Every model is fetched on request, by its card, into a
@@ -75,7 +81,7 @@ the first build shows the numbers.
   (`source.model.licence-class`, #4948). This keeps the image small, keeps copyleft and
   restricted-licence models out of what Fichero distributes, and means an AGPL-licensed layout
   model is a person's choice, not a default.
-- **Never in:** any secret, any collection, any person's data.
+- **Never in:** any secret, any project, any person's data.
 
 ### Listening
 
@@ -124,7 +130,7 @@ hold: report its version and its API contract, and refuse nothing silently.
 
 ## Behaviors
 
-All untagged and unbuilt unless stated. "Data" names what the behaviour reads or writes.
+All [GAP]: designed, not built. "Data" names what the behaviour reads or writes.
 
 ### The image
 

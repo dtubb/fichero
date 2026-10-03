@@ -6,9 +6,10 @@
 > thing it cannot (your second factor); what the coloured dot on a row means; sessions and
 > their time limit; removing a place and what is cleaned up.
 >
-> Design-led (Testing Constitution). **Status: DRAFT — first pass, 2026-09-20.** A slice of the
-> compute set: read `remote-compute.md` first. Behaviours carry **no tag and no issue yet**, by
-> the rule stated there. **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
+> Design-led (Testing Constitution). **Status: DRAFT — first pass 2026-09-20; revised
+> 2026-10-03 against the maintainer's rulings (`remote-compute.md`, "Ruled 2026-10-03";
+> `REVIEW-2026-10-03.md`).** A slice of the compute set: read `remote-compute.md` first. Every
+> behaviour is **[GAP]** with its issue; none is built. **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
 > outside services, with S-numbers from "Sources" in `remote-compute.md`.
 
 ## Intent
@@ -57,7 +58,7 @@ jobs, and sessions with their time left.
 ### One list of machines
 
 A **compute target** is a record in one list. The same list is, later, the list of machines a
-collection can live on (#2573), so there is never a second "remote machine" setting.
+project can live on (#2573), so there is never a second "remote machine" setting.
 
 | Field | Meaning |
 |---|---|
@@ -71,7 +72,12 @@ collection can live on (#2573), so there is never a second "remote machine" sett
 | `last_checked`, `last_result`, `capabilities` | the last real check, its outcome, and what the server there reported |
 
 `this-mac` always exists and cannot be removed. It is the far side of the no-network job loop
-(`remote-compute.md`, "How this is tested").
+(`remote-compute.md`, "How this is tested"), and the first place training is offered when the
+model fits (ruled 2026-10-03: Kraken and YOLO train on a 16 GB Mac).
+
+**Order of building** (ruled 2026-10-03): **Hugging Face** first, because it needs only a token
+and is known to run training reliably (#5398); then a **Slurm cluster** (ACENET); then a
+**Linux machine** and the local container. Sessions come after all three.
 
 ### What Fichero does on each kind
 
@@ -113,6 +119,8 @@ On Alliance clusters a second factor is required for every SSH login and cannot 
 
 ### Sessions
 
+*Deferred* until after the first training path (2026-10-03).
+
 A session is a job that serves a model and is reached through a forward. Its row shows
 *queued*, *starting*, *ready, 2 h 41 min left*, *ended*. When it ends, its provider row goes
 with it, and anything that was using it fails with "the session on *name* ended", never with a
@@ -128,7 +136,7 @@ beside the old; old ones are removed when no job names them.
 
 ## Behaviors
 
-All untagged and unbuilt unless stated.
+All [GAP]: designed, not built.
 
 ### The list
 
@@ -206,10 +214,16 @@ All untagged and unbuilt unless stated.
 ### A Slurm cluster
 
 - `compute.secret.fichero-makes-the-key` — **[GAP]** (#5238) for an SSH target Fichero makes an Ed25519 key pair;
-  the private half is stored only in the one key store (`ai/provider-keys.md`); the public half
-  is shown with Copy, and can be shown again. Removing the target deletes the private half.
+  the private half is stored only in the Keychain, the one key store (`ai/provider-keys.md`); the
+  public half is shown with Copy, to be added to the person's **own** cluster account, and can be
+  shown again. Removing the target deletes the private half.
   *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create,
   read public half twice (same), remove target, assert the secret is gone.
+- `compute.secret.never-in-a-recipe` — **[GAP]** (#5238, #4950) a recipe names a step's place only as
+  `runs_on: cluster` (or `gpu-service`); the host, the person's account and the key belong to the
+  person's target (key in the Keychain), bound by the project (`source.recipe.runs-on-binds-to-a-target`).
+  A recipe that carries a host, an account, a key or a token is refused when it is checked, naming
+  the field. *Test:* a recipe with an `ssh_key` or `user` field fails the recipe check.
 - `compute.connect.ssh-in-process` — **[GAP]** (#5238) the server connects over SSH itself and does not run the
   system's `ssh`, so it works inside the app's sandbox. *Existing data:*
   `remote_jobs.build_ssh_command` and the three `*_command` builders stay as the **description**

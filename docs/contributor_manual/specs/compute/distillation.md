@@ -5,7 +5,8 @@
 > work and its people's corrections into a small model that runs on their own Mac, how to tell
 > whether the small one is good enough, and when Fichero still asks the big one.
 >
-> Design-led (Testing Constitution). **Status: DRAFT.** Builds on `jobs-and-fine-tuning.md`
+> Design-led (Testing Constitution). **Status: DRAFT; revised 2026-10-03 against the maintainer's
+> rulings (`remote-compute.md`, "Ruled 2026-10-03"; `REVIEW-2026-10-03.md`).** Builds on `jobs-and-fine-tuning.md`
 > (training jobs, LoRA, MLX conversion, #5240), `transfer-and-results.md` (the egress gate and
 > landing results), `source/formats-and-training.md` (training sets, measuring against ground
 > truth, #4947) and `source/models-chains-and-projects.md` (model cards, #4948). It is the design
@@ -31,6 +32,13 @@ So a project should be able to **teach a small model from a big one**:
 
 Every correction then makes the project's own model better. A community's corrections become a
 community's model.
+
+**Distillation is an option, never the default** (ruled 2026-10-03). The cheapest local step
+stays the default until an A/B on the project's checked pages says otherwise
+(`source.recipe.cheapest-local-first`). When a person chooses training in setup, the default
+offered is this loop: distil from a large teacher, then fine-tune a small model. It runs by itself
+only if it was chosen in setup (`source.recipe.train-never-automatic`). Every student Fichero
+adopts must run on a 16 GB Mac.
 
 ## Prior art / best practices
 
@@ -97,14 +105,18 @@ Every job a model does in Fichero has a teacher and a natural student:
    Unchecked teacher output can be added deliberately, and is then counted and marked
    (`compute.tune.bootstrapped-data-is-marked`).
 4. **Build the set.** The training set is built from the selection (`source.train.*`). It holds the
-   reasons as well, where the teacher's run recorded them. Today's vision runs do not record a
-   reason beside each reading (#4642 adds it), so until then a set has no reasons, and says so. The split is by document,
+   reasons as well, where the teacher's run recorded them. A vision run already keeps a thinking
+   model's reasoning for each **page**, on the artifact and in the episode ledger (VERIFIED
+   `workflows/tools/vision_base.py:4138-4143`, `:4971-5019`); reasons tied to each **line** are
+   not recorded yet (#4642). See "Distilling a reasoning model's palaeography". The split is by document,
    never by line (`source.train.split-by-manuscript`).
-5. **Train.** On the Mac for small jobs, on a cluster for larger ones (`compute.job.*`,
-   `compute.tune.*`). The student's card records its teacher, its set, its base model and every
+5. **Train.** On the Mac where the model fits (Kraken and YOLO on a 16 GB Mac), otherwise on
+   Hugging Face Jobs, then a cluster such as ACENET (`compute.job.*`, `compute.tune.*`). The student's card records its teacher, its set, its base model and every
    licence.
 6. **Measure.** On held-out, human-checked pages, Fichero shows the student beside the teacher
-   and beside people's corrections: character error rate, word error rate, detection precision
+   and beside people's corrections: the one CER (`workflows/transcription_accuracy.py`, through
+   the readings/compare route; *agreement*, not CER, where no person checked the reference), word
+   error rate, detection precision
    and recall, per hand, per page kind and per sign (`source.train.measured`). It also shows speed
    and cost per page for both.
 7. **Adopt where it is good enough.** The project sets a bar per job (for example, CER no worse
@@ -113,6 +125,46 @@ Every job a model does in Fichero has a teacher and a natural student:
 8. **Keep learning.** New corrections accumulate. Fichero says when there is enough new checked
    work to retrain, and the new student must beat the old one on the same held-out pages before
    it replaces it.
+
+### Distilling a reasoning model's palaeography
+
+This is #4642's question, made testable: does a small reader learn better from a big model's
+**reasons** than from transcriptions alone? The A/B decides; nothing assumes it.
+
+**Inputs.**
+- Checked pages of the project (ground truth), split by document (`source.train.split-by-manuscript`).
+- A **teacher**: a large reasoning ("thinking") vision model, named by its card, whose terms allow
+  training on its outputs (`distill.licence.teacher-terms`).
+- A **reasoning prompt**, a file in the recipe (`source.recipe.is-a-file`), asking for each line:
+  the letterforms that decided a reading, abbreviations and their expansions, uncertain readings
+  with their alternatives, then the transcription.
+
+**Making the traces.** The teacher reads the checked pages as an ordinary run, through the egress
+gate. Its reasoning and its transcription are kept with full provenance in the **episode ledger**
+(one immutable record per call: prompt, raw output, thinking, model and settings, timing, cost,
+images by reference; VERIFIED `observability/episodes.py:1-19`, `:78-117`), and its transcription
+lands as a pass whose readings name their episode. No second store is made for traces.
+
+**The training set.** Built from the checked pages, in two forms over the **same** lines and split:
+- **A, answer only:** line or page image → the person's checked transcription.
+- **B, reasoning and answer:** image → the teacher's reasoning, then the person's checked
+  transcription. The answer is always the checked text, never the teacher's. A trace is used only
+  where the teacher's own reading of that line is within a set CER of the checked one, so the
+  student never learns reasons for a wrong reading; how many were dropped is on the set.
+
+The ledger already exports chat-form training pairs with the person's correction as the answer
+(VERIFIED `observability/episodes.py:154`, `export_training_pairs`); the set builder reads from it
+rather than writing a second exporter.
+
+**Training.** One base (for example Qwen2.5-VL 3B), LoRA, the same settings for A and B. On
+Hugging Face Jobs first, then ACENET (`compute.tune.lora`); the adapters run on a 16 GB Mac.
+
+**Measured, A against B against the teacher and the cheap baseline**, on the held-out checked
+pages: the one CER and WER; speed and peak memory per page on a 16 GB Mac (B writes reasoning
+before its answer, so it is slower, and B is also measured with its reasoning switched off); the
+cost of making the traces and of training; and, for B, whether the readings it calls uncertain
+are where its errors are. B is adopted only if its CER beats A by more than the noise band and its
+speed is acceptable for the project's volume. The result is recorded on both cards either way.
 
 ### Cascade: small first, big when unsure
 
@@ -152,6 +204,11 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
 
 ## Behaviors
 
+- `distill.offered-not-default` — **[GAP]** (#5337, #4950) distillation is offered, never chosen by default:
+  setup offers it as the default *kind* of training when a person chooses training, and a train or
+  distil step runs by itself only if that was chosen in setup. *Test:* a project set up without
+  training has no train step in its recipe; one set up with automatic training has the distil
+  then fine-tune steps.
 - `distill.job.any-model-job` — **[GAP]** (#5337) any model job in Fichero (layout,
   lines, reading, signs, entities, normalising, vectors) can be distilled from a teacher into a
   named small student.
@@ -159,11 +216,25 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
   proposed to cover every hand, layout and page kind in the scope.
 - `distill.set.keeps-reasons` — **[GAP]** (#4642) where the teacher gave its reasons, the set keeps them,
   and a student can be trained to give them.
+- `distill.reasoning.traces-in-the-ledger` — **[GAP]** (#4642) a reasoning teacher's traces for each line
+  (letterforms, abbreviations and expansions, uncertain readings with alternatives, then the
+  transcription) are kept in the episode ledger with the teacher's card, prompt file, run, time and
+  cost, and its readings name their episode; no second store holds traces.
+- `distill.reasoning.answer-is-checked` — **[GAP]** (#4642) in a reasoning set the answer is always the
+  person's checked transcription; a trace is kept only where the teacher's own reading is within
+  the set CER of it, and the count dropped is stated on the set.
+- `distill.reasoning.two-arms` — **[GAP]** (#4642, #5337) the same base, lines, split and settings train an
+  answer-only student and a reasoning-and-answer student, so the A/B measures the reasons alone.
+- `distill.reasoning.ab-decides` — **[GAP]** (#4642, #5337) both students, the teacher and the cheap baseline
+  are measured on held-out checked pages (one CER, WER, speed and peak memory on a 16 GB Mac, with
+  and without reasoning at run time, trace and training cost); the reasoning student is adopted
+  only if it beats the answer-only one beyond the noise band, and both cards record the result.
 - `distill.train.card-names-teacher` — **[GAP]** (#5337) a student's card names its teacher,
   set, base model and every licence.
 - `distill.measure.against-people` — **[GAP]** (#5337) the student is measured on held-out
   checked pages beside the teacher and the people's corrections, per hand, page kind and sign,
-  with speed and cost per page.
+  with speed and cost per page; the error rate is the one CER, called *agreement* where no person
+  checked the reference.
 - `distill.adopt.within-bar` — **[GAP]** (#5337) a student becomes the default only for the
   scope where it clears the project's bar, recorded on its card.
 - `distill.retrain.must-beat` — **[GAP]** (#5337) a retrained student replaces the old one
@@ -189,8 +260,9 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
   of its base, set and teacher licences (extends `compute.tune.licence-carries` with the teacher).
   That a set holds people-checked work by default, and counts any unchecked teacher output, is
   already `source.train.human-checked-by-default` and `compute.tune.bootstrapped-data-is-marked`.
-- `distill.runs-local` — **[GAP]** (#5240) an adopted student runs on the Mac through MLX, Core ML or
-  Kraken, throttled like any background work (the MLX conversion is `compute.tune.convert-for-mlx`).
+- `distill.runs-local` — **[GAP]** (#5240, #5397) an adopted student runs on a 16 GB Mac through MLX, Core ML,
+  PyTorch or Kraken, throttled like any background work, its speed and peak memory measured there
+  (`compute.tune.measured-on-16gb`) (the MLX conversion is `compute.tune.convert-for-mlx`).
 
 ## Documentation matrix, preview harness, accessibility identifiers, UX completeness
 
@@ -206,26 +278,28 @@ measurement and the cascade's routing are pinned with known confidences and outc
 ## Open questions
 
 1. **First job to distil.** Line reading is the best-trodden path and has the most corrected data.
-   Layout (YOLO) is second. **The first real customer is a researcher who has corrected a large
-   number of VLM transcriptions** in his library: his corrections are exactly the checked
-   ground truth step 3 asks for. Recommendation, in this order:
-   1. Measure the current VLM's character and word error rates against his corrections, per hand
-      and page kind (`distill.measure.against-people`). That alone tells him where the VLM fails.
-   2. Build the set from his corrected lines, split by document.
-   3. Fine-tune a small VLM of about 3 GB quantised (for example a 2–3B Qwen-VL-class model with
-      LoRA), with a Kraken student beside it. **Where it trains, most realistic first:**
-      - ACENET or another Digital Research Alliance of Canada cluster, as a Slurm job
-        (`remote-compute.md`, `compute.job.*`);
-      - a rented GPU through Hugging Face Jobs (the `gpu` image in `linux-server-image.md`);
-      - a Mac with 32 GB or more through MLX, for the smallest runs. Training needs several times
-        the model's own size in memory (weights, gradients, optimiser state, activations), so an
-        8 GB Mac like the Air only RUNS a student; it never trains one.
+   Layout (YOLO) is second. **The first test is the Sergio notebooks project** (one hand, 374 page
+   photographs, a Qwen-VL draft and a frontier-model draft to check; `fichero-projects`). A second
+   customer is a researcher who has corrected many VLM transcriptions in his library: his
+   corrections are exactly the checked ground truth step 3 asks for. Recommendation, in this order:
+   1. Measure the current drafts against the checked pages, per hand and page kind
+      (`distill.measure.against-people`). That alone shows where the big model fails.
+   2. Build the set from the checked lines and outlines, split by document.
+   3. Fine-tune, smallest first (ruled 2026-10-03): a **Kraken reader** and a **YOLO page
+      detector** first, then a small VLM (for example Qwen2.5-VL 3B with LoRA). **Where it
+      trains, in order:**
+      - **Hugging Face Jobs** first, to prove the training recipe reruns to the same CER
+        (`compute.tune.proven-on-huggingface-first`, #5398);
+      - **this Mac** for Kraken and YOLO, on 16 GB, in the local ML lane (`compute.tune.on-this-mac`,
+        #5397);
+      - **ACENET** (Slurm) after that (`remote-compute.md`, `compute.job.*`).
 
-      The trained adapter comes back to the Mac and runs there, quantised (`compute.tune.convert-for-mlx`).
+      A VLM LoRA trains on a GPU elsewhere; the adapter comes back to the Mac and runs there,
+      quantised, within 16 GB (`compute.tune.convert-for-mlx`).
    4. Adopt it only where it clears the bar.
 
-   His corrections made before the page model (edits of the stored page text) count only after
-   their pages convert (#5222), so conversion comes first.
+   For the second customer, corrections made before the page model (edits of the stored page
+   text) count only after their pages convert (#5222), so conversion comes first.
 2. **The default bar** for adopting a student: relative to the teacher (no worse than its CER
    plus one point) or absolute (CER under 5%)? Recommendation: relative, shown with the absolute
    number.

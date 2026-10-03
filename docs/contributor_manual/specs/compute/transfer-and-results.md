@@ -2,13 +2,14 @@
 
 > Milestone: remote-compute
 > Manual: TBD — "Before anything leaves your Mac": what the sheet tells you and what your yes
-> covers; a collection that may never leave; what is sent (only what the work needs); what
+> covers; a project that may never leave; what is sent (only what the work needs); what
 > happens if the network drops; what Fichero removes from the other machine afterwards and
 > what it cannot promise; how results appear, and why they never replace your own work.
 >
-> Design-led (Testing Constitution). **Status: DRAFT — first pass, 2026-09-20.** A slice of the
-> compute set: read `remote-compute.md` first. Behaviours carry **no tag and no issue yet**, by
-> the rule stated there. **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
+> Design-led (Testing Constitution). **Status: DRAFT — first pass 2026-09-20; revised
+> 2026-10-03 against the maintainer's rulings (`remote-compute.md`, "Ruled 2026-10-03";
+> `REVIEW-2026-10-03.md`).** A slice of the compute set: read `remote-compute.md` first. Every
+> behaviour is **[GAP]** with its issue; none is built. **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
 > outside services, with S-numbers from "Sources" in `remote-compute.md`.
 
 ## Intent
@@ -16,12 +17,12 @@
 Archival material is not ordinary data. Some of it is restricted by an archive; some is held
 by a community whose protocols outrank any default in an app. So nothing leaves the Mac until
 a person has been told, in plain words, what will go, how much, to where, who runs that place
-and how long it will stay, and has said yes. A collection marked as never to leave cannot be
+and how long it will stay, and has said yes. A project marked as never to leave cannot be
 sent at all. What is sent is the least the work needs: a training set, or the page images of
-the selected sources, never the whole collection because it was easier. It travels in pieces
+the selected sources, never the whole project because it was easier. It travels in pieces
 named by their content, so a dropped connection costs only the piece in flight. Afterwards
 Fichero removes what it put there and says what it cannot vouch for. What comes back is not a
-changed copy of the collection. It is a list of proposed changes, replayed on the Mac through
+changed copy of the project. It is a list of proposed changes, replayed on the Mac through
 the same audited actions as a person's own edits, each marked as made by a machine, on that
 target, by that model. It adds; it never overwrites.
 
@@ -69,7 +70,9 @@ Sending a work package to a target is one more case of content leaving the Mac. 
 at the **one gate** the source-model set names, not at a second one here. This slice adds what
 that gate must be told and what the person must be shown.
 
-The sheet, shown before the first send of a given collection to a given target, says:
+The question is asked **once per project** (ruled 2026-10-03). It is the same answer setup
+records when it asks whether pages may leave this Mac (`source.project.stays-local`, #4951); if
+setup did not ask it, the sheet asks it at the project's first send. The sheet says:
 
 1. **What:** "412 page images and their transcriptions from *Marshall diaries, 1890s*", or
    "a training set of 3,120 lines made from 96 pages you corrected".
@@ -78,23 +81,25 @@ The sheet, shown before the first send of a given collection to a given target, 
 3. **Where, and who runs it:** the target's name and its `operator_note`.
 4. **Who else could read it there**, in one sentence for that kind of target.
 5. **How long it stays:** "removed when the job's results are back", or "kept until you remove
-   it" for a server that holds a collection.
+   it" for a server that holds a project.
 6. **What is left out,** and why: material the rights record restricts. **Until the rights
    slice is unblocked the sheet says instead: "Fichero does not yet know which of these
    sources are restricted. Nothing has been left out."** That sentence is a behaviour, because
    the dishonest alternative is silence.
-7. For material that may be community-held, one question, asked once for a collection and
-   remembered: "Does any of this come from, or depict, a community that holds rights or
+7. For material that may be community-held, one question, part of the same once-per-project
+   answer: "Does any of this come from, or depict, a community that holds rights or
    protocols over it? If so, has someone with the authority to agree said it may be sent to
    *target*?" The answers are *No such material*, *Yes, and it is agreed*, and *Not sure: do not
    send*. This follows the CARE principles and the First Nations principles of OCAP, where the
    community's own protocol outranks a tool's default (CITED, S14, S6). It is a pointer to a
    conversation, not a legal test.
 
-A **yes** is recorded as an audited action naming the person, the collection, the target, the
-kind of work and the answers. It covers later sends of the same kind from that collection to
-that target. It does not cover another target, and it does not cover **publishing**, which is
-always asked again (`jobs-and-fine-tuning.md`).
+A **yes** is recorded as an audited action naming the person, the project, the target and the
+answers. It covers every later send from that project, to any target the project binds; each
+job's row still names where its pages went. It can be withdrawn in the project's settings, and
+then nothing more is sent until it is given again. It does not cover **publishing**, which is
+asked on its own (`jobs-and-fine-tuning.md`), because publishing makes material public, which
+sending to a private target does not.
 
 ### The work package
 
@@ -106,7 +111,7 @@ A work package is a folder with two things in it:
 
 Beside them, `manifest.json` is an ordinary `SyncManifest` over those objects. There are no
 file paths from the Mac anywhere in it. A package is a **projection**: it can always be made
-again from the collection, and it is never the record.
+again from the project, and it is never the record.
 
 What goes in depends on the work, and is always the least that will do:
 
@@ -115,7 +120,7 @@ What goes in depends on the work, and is always the least that will do:
 | read or segment pages | the page images of the selected sources, at the resolution the model needs; the ids they belong to | other sources; the database; notes; the knowledge graph |
 | work over text (entities, normalising) | the text and its ids | images |
 | fine-tuning | a **training set**, as `source.train.*` defines it (#4947): line pictures and their human-checked readings, with its own description | anything not in the training set |
-| a server that holds a collection | the whole collection, by the existing library sync | (this is the one case where everything goes) |
+| a server that holds a project | the whole project, by the existing library sync | (this is the one case where everything goes) |
 
 ### One transfer core, two carriers
 
@@ -128,8 +133,10 @@ object and answers "which of these do you already have":
   `<base>/fichero/objects/<sha256>` over the one SSH connection. "Which do you have" is a
   listing of that folder. A received object is re-hashed on the far side before it counts.
 - **Local carrier:** for `this-mac`, a copy within one disk.
-- **Hub carrier:** for Hugging Face Jobs, objects go to a private repository or bucket the job
-  mounts (CITED, S12). Proposed last, with the Hugging Face slice.
+- **Hub carrier:** for Hugging Face Jobs, objects go to a private dataset repository the job
+  reads (CITED, S12), each stored under its sha256; "which do you have" is that repository's
+  file list. **Built first** (ruled 2026-10-03: Hugging Face Jobs is the first remote place
+  training runs; #5398).
 
 Objects are stored once for each target, not once for each job. A second job over the same
 pages sends nothing. This is also why `rsync` is not used: it would be a second way to decide
@@ -154,11 +161,11 @@ access while the data was there (CITED, S6).
 
 ### Results: the same records a local run makes
 
-A local run writes into the collection's database as it goes, and appends one line for each
-model call to the episode ledger, which is JSONL inside the collection's folder (VERIFIED
+A local run writes into the project's database as it goes, and appends one line for each
+model call to the episode ledger, which is JSONL inside the project's folder (VERIFIED
 `execution/runner.py:842-850`, `workflows/completion.py:230-243`,
 `observability/episodes.py:10-14`). To keep **one runner**, the far side does the same thing
-into a **scratch collection**: a small `.fichero` package made from the work package, holding
+into a **scratch project**: a small `.fichero` package made from the work package, holding
 only the chosen sources, with their ids unchanged. The unchanged runner runs against it. Then
 the engine's one export stream (`iter_export_records`, `export_service.py:124`) writes what the
 run added as JSONL records.
@@ -166,7 +173,7 @@ run added as JSONL records.
 So a **result package** holds: `records.jsonl` (the exporter's records for what is new, each
 naming the id and the **version** of the source it was computed from); `episodes.jsonl` (the
 ledger lines the run appended); and new objects (a model file, line pictures) under their
-sha256. The scratch collection itself never comes back and is deleted with the job's folder.
+sha256. The scratch project itself never comes back and is deleted with the job's folder.
 
 The Mac fetches it with the same transfer core, and **lands** it:
 
@@ -175,7 +182,7 @@ The Mac fetches it with the same transfer core, and **lands** it:
   new code on the results side.
 - Ledger lines are appended to the Mac's own ledger. Each has its own `episode_id`
   (VERIFIED `observability/episodes.py:97`), so appending the same lines twice is detected. The far side never writes
-  to the collection, so the rule that the engine is the only writer holds.
+  to the project, so the rule that the engine is the only writer holds.
 - The server stamps each as **made by a machine**, with the job, the target, the model card and
   its version, and the person who sent the job as the one responsible. The package cannot claim
   otherwise. This is what `source.making.recorded` (#4949) reads later.
@@ -186,7 +193,7 @@ The Mac fetches it with the same transfer core, and **lands** it:
 - Landing is **all of a source or none of it**: a failure half-way through one source undoes
   that source's lines and reports it; other sources stand.
 
-### When the collection changed while the work was away
+### When the project changed while the work was away
 
 Work can be away for days. Meanwhile a person may correct a page, redraw a line, or delete a
 source. Because results only ever *add* a pass, most of this is harmless. The rules:
@@ -197,27 +204,27 @@ source. Because results only ever *add* a pass, most of this is harmless. The ru
 | the source's text or segments were edited | lands as a new pass, marked "computed from an earlier version", with that version named |
 | the segment a reading belongs to no longer exists | follows the forwarding note if the source model left one (`source-model.md`, slice 4); otherwise the line is **set aside** |
 | the source was deleted | its lines are **set aside** |
-| the collection is now marked "may not leave" | results still land (they are coming home); nothing more is sent |
+| the project is now marked "may not leave" | results still land (they are coming home); nothing more is sent |
 
 **Set aside** means kept in the job's folder on the Mac, listed on the job with the reason,
 never dropped silently, and removable by the person.
 
 ## Behaviors
 
-All untagged and unbuilt unless stated.
+All [GAP]: designed, not built.
 
 ### Leaving
 
 - `compute.leave.one-gate` — **[GAP]** (#5239) a send to any target is allowed or refused by the one egress gate
-  (`source.egress.one-gate`), called with the collection, the target and the kind of work. This
+  (`source.egress.one-gate`), called with the project, the target and the kind of work. This
   slice adds no second check. *Routed:* the gate itself is → #4949's. *Test:* with the gate faked
   to refuse, no carrier is ever called.
-- `compute.leave.stays-local-is-absolute` — **[GAP]** (#5239) a collection marked "may not leave this machine"
+- `compute.leave.stays-local-is-absolute` — **[GAP]** (#5239) a project marked "may not leave this machine"
   (`source.project.stays-local`) can be sent only to targets of kind `this-mac`. A
-  `local-container` counts as this Mac. The refusal names the collection's rule. *Test:* each
-  kind of target against a collection so marked.
-- `compute.leave.sheet-before-first-send` — **[GAP]** (#5239) before the first send of a kind of work from a
-  collection to a target, a sheet shows the seven things listed above, computed from the actual
+  `local-container` counts as this Mac. The refusal names the project's rule. *Test:* each
+  kind of target against a project so marked.
+- `compute.leave.sheet-before-first-send` — **[GAP]** (#5239) before a project's first send, unless setup
+  already recorded the answer, a sheet shows the seven things listed above, computed from the actual
   package and the target's record. *Data:* the package manifest; the target's `operator_note`.
   *Test:* pure Swift: a package of 3 images and a cluster target yields those strings; bytes
   shown equal the pending set, not the package total.
@@ -231,20 +238,22 @@ All untagged and unbuilt unless stated.
   (`source.format.rights-filtered-once`, → #4943), and the sheet lists what was left out and why.
   **Blocked** with `source/rights-and-access.md`. *Test:* to be written with that slice.
 - `compute.leave.community-question-once` — **[GAP]** (#5239) the community question is asked once for a
-  collection, its answer is stored on the collection, and "Not sure: do not send" refuses every
-  send from it to any target but this Mac until changed. *Data:* a collection setting
+  project, as part of its one egress answer; its answer is stored on the project, and "Not sure: do not send" refuses every
+  send from it to any target but this Mac until changed. *Data:* a project setting
   `compute.community_answer` with values `none` · `agreed` · `unsure`, and who set it and
-  when. *Existing data:* collections with no answer are asked at their first send. *Test:* each
+  when. *Existing data:* projects with no answer are asked at their first send. *Test:* each
   answer against a send.
-- `compute.leave.yes-is-recorded-and-scoped` — **[GAP]** (#5239) a yes is an audited action (person, collection,
-  target, kind of work, the answers shown). It covers later sends of that kind from that
-  collection to that target only. It can be withdrawn in the collection's settings, after
-  which the sheet appears again. *Test:* second send: no sheet; other target: sheet; after
-  withdrawal: sheet; the audit log holds one record for each yes.
-- `compute.leave.nothing-in-the-background-without-a-yes` — **[GAP]** (#5239) automatic work (a collection's
+- `compute.leave.yes-is-recorded-and-scoped` — **[GAP]** (#5239) a yes is an audited action (person, project,
+  target, the answers shown), given **once per project** (ruled 2026-10-03). It covers every
+  later send from that project to the targets it binds. It can be withdrawn in the project's
+  settings, after which nothing is sent until it is given again. Setup's answer to "may pages
+  leave this Mac" is this same record, not a second one. *Test:* second send, and a send to
+  another bound target: no sheet; after withdrawal: refused with the sheet as data; the audit log
+  holds one record for each yes.
+- `compute.leave.nothing-in-the-background-without-a-yes` — **[GAP]** (#5239) automatic work (a project's
   default chain, `source.project.automatic-after-first-yes`) never chooses a remote target by
   itself. A remote target is used only when a person chose it for that run or set it as that
-  collection's default after a yes. *Test:* an automatic run with a remote default and no
+  project's default after a yes. *Test:* an automatic run with a remote default and no
   recorded yes runs on this Mac and says why.
 
 ### The package
@@ -266,7 +275,7 @@ All untagged and unbuilt unless stated.
   submit and a job never discovers a missing model half-way. *Test:* a workflow with two model
   steps yields two model entries.
 - `compute.package.is-a-projection` — **[GAP]** (#5239) a package is never the record: it can be deleted at any
-  time and made again, and two packages made from the same collection state and the same job
+  time and made again, and two packages made from the same project state and the same job
   are byte-identical. *Test:* build twice, compare hashes.
 - `compute.package.no-secrets` — **[GAP]** (#5239) no token, key or provider API key is ever in a package or a
   job script. Work that needs a cloud provider's key cannot be sent to a target; it is refused
@@ -276,6 +285,12 @@ All untagged and unbuilt unless stated.
 
 ### Transfer
 
+- `compute.transfer.hub-carrier` — **[GAP]** (#5398) for a Hugging Face target, objects are written to a
+  private dataset repository of the person's, each under its sha256, by the one transfer core;
+  "which do you have" is the repository's file list; the job reads its inputs from there and
+  writes its result package back there; the repository is emptied of the job's objects after
+  landing, as `compute.transfer.far-side-cleaned` says. *Test:* against a recorded Hub API: a
+  second job over the same training set uploads nothing; the repository is private.
 - `compute.transfer.one-core` — **[GAP]** (#5239) every send and every fetch, on every carrier, goes through
   `diff_manifests`, `SyncCheckpoint` and `pending_objects`. No other code decides what to send.
   *Test:* a guardrail: no `rsync`, `scp` or `sftp put` call exists outside the SSH carrier, and
@@ -320,17 +335,17 @@ All untagged and unbuilt unless stated.
 ### Landing
 
 - `compute.land.same-records-as-a-local-run` — **[GAP]** (#5239) a job's `records.jsonl` is written by the one
-  export stream from a scratch collection the unchanged runner wrote into; no second writer of
+  export stream from a scratch project the unchanged runner wrote into; no second writer of
   run output exists. *Data:* `iter_export_records`; the scratch package under the job's folder.
   *Test:* the same three-page workflow run on this Mac directly, and as a job on the `this-mac`
   target, leaves identical readings and identical ledger lines apart from ids and times.
 - `compute.land.ledger-lines-merge` — **[GAP]** (#5239) a job's `episodes.jsonl` lines are appended to the
-  collection's ledger under their own `episode_id`s; a line whose id is already present is
+  project's ledger under their own `episode_id`s; a line whose id is already present is
   skipped. *Existing data:* the ledger is append-only and is never rewritten. *Test:* land
   twice; line count unchanged the second time; the training export
   (`episodes.export_training_pairs`) sees the remote calls.
 - `compute.land.only-the-mac-writes` — **[GAP]** (#5239) the far side produces a result package and never writes
-  to a collection; every change is an audited action run by the Mac's server. *Test:* a result
+  to a project; every change is an audited action run by the Mac's server. *Test:* a result
   package that tries to name an action outside the allowed list for its job kind is refused
   whole.
 - `compute.land.allowed-actions-by-job-kind` — **[GAP]** (#5239) each job kind has a fixed list of actions its
@@ -389,11 +404,11 @@ agree in the app".
 1. **Is the community question right, and are its three answers right?** *Proposal: as written;
    the wording is the maintainer's to change, and the rights slice may later replace it with
    something richer (Local Contexts labels).*
-2. **Does a yes cover later sends of the same kind to the same target?** *Proposal: yes. Asking
-   every time trains people to click through.*
+2. **Does a yes cover later sends of the same kind to the same target?** *Answered 2026-10-03:
+   egress is asked once per project; the yes covers every send from it.*
 3. **Remove shared objects at once, or keep them for the next job?** *Proposal: keep until no
    unfinished job names them; "remove everything when done" is a choice on the sheet, off by
    default on a machine we control, on by default on a cluster and on Hugging Face.*
-4. **Should a send be refused outright for a collection that has not answered the community
+4. **Should a send be refused outright for a project that has not answered the community
    question?** *Proposal: yes; it is asked at the first send, so nobody is blocked for long.*
 5. **An agent cannot say yes.** *Proposal: agreed as a hard rule.*

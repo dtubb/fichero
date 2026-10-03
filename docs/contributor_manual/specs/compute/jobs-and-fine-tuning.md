@@ -6,9 +6,10 @@
 > pages you corrected, and seeing whether it helped; training a language or vision model; what
 > comes back to your Mac; publishing a model or a dataset, and what cannot be taken back.
 >
-> Design-led (Testing Constitution). **Status: DRAFT — first pass, 2026-09-20.** A slice of the
-> compute set: read `remote-compute.md` first. Behaviours carry **no tag and no issue yet**, by
-> the rule stated there. **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
+> Design-led (Testing Constitution). **Status: DRAFT — first pass 2026-09-20; revised
+> 2026-10-03 against the maintainer's rulings (`remote-compute.md`, "Ruled 2026-10-03";
+> `REVIEW-2026-10-03.md`).** A slice of the compute set: read `remote-compute.md` first. Every
+> behaviour is **[GAP]** with its issue; none is built. **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
 > outside services, with S-numbers from "Sources" in `remote-compute.md`.
 
 ## Intent
@@ -36,11 +37,19 @@ what cannot be undone.
 - **The provider list** with local-server rows that speak the OpenAI-style protocol: Ollama,
   LM Studio, oMLX (VERIFIED `llm/providers.py:48-51`); and rows for Kraken, spaCy, Whisper and
   Apple as peers (`:35-47`), as `ai/ai-settings.md` ratified.
-- **Kraken on the Mac** runs in its own environment by subprocess, and fetches recognition
-  models by DOI from Zenodo (VERIFIED `llm/kraken_runtime.py:23`, `:94-104`, `:213-269`). It
-  only reads; it is never trained (`source/formats-and-training.md:15`).
-- **No training code, no YOLO code, no vLLM, and no call to MLX's convert step** anywhere in
-  the engine (VERIFIED by search).
+- **Kraken on the Mac** now runs inside the engine's own process, loaded once and used one
+  operation at a time (VERIFIED `llm/kraken_runtime.py:512-519`; the subprocess of the first pass
+  is gone), and fetches readers by DOI from its repository (#4951). It only reads; it is never
+  trained (`source/formats-and-training.md:15`).
+- **The step is registered, not built**: `train-a-model` (line readings and lines in, a model card
+  out) is in the job registry (VERIFIED `recipes/jobs.py:143-146`). Its description still says it
+  runs "on a cluster, a GPU service or a large Mac", which the 2026-10-03 ruling corrects: Kraken
+  and YOLO train on a 16 GB Mac.
+- **The one CER is reachable** through `POST /api/documents/{id}/readings/compare`
+  (`workflows/transcription_accuracy.py`; VERIFIED `api/routes/document/compare_readings.py:88`),
+  labelled `agreement` unless a person checked the reference.
+- **No training code, no YOLO detector, no vLLM, no Hugging Face Jobs call, and no call to MLX's
+  convert step** anywhere in the engine (VERIFIED by search, 2026-10-03).
 - **Training sets, scores and cards are designed elsewhere and unbuilt**: `source.train.*`
   (#4947), `source.model.*` and `source.find.*` (#4948). That spec says a Kraken training spec
   "is not written" (`formats-and-training.md:133-135`). For the *running* of training, this is
@@ -102,11 +111,12 @@ Blackfish or loading the models directly. The honest answer differs by kind of w
 | Kind of work | On the Mac | On Linux with a GPU | Why |
 |---|---|---|---|
 | **Watched work**: trying a language or vision model on a page, chat | MLX, as today | **vLLM, as a session**, reached as a provider row | the one case with a person waiting; a server is right; adapters load while it runs |
-| **Batch reading with a vision model** over a collection | MLX, as today (slow for thousands of pages; that is why it is sent away) | **vLLM inside the job's own process**, no web server; large work cut into array pieces | highest throughput, fewest parts; one start-up for each piece |
+| **Batch reading with a vision model** over a project | MLX, as today (slow for thousands of pages; that is why it is sent away) | **vLLM inside the job's own process**, no web server; large work cut into array pieces | highest throughput, fewest parts; one start-up for each piece |
 | **Batch Kraken** (finding lines, reading) | Kraken as today | **Kraken in the job's own process**, array pieces | the only shape Kraken has |
-| **Layout detection** | in process (a later slice on the Mac) | **in the job's own process** | nothing for a server to share |
-| **Fine-tuning Kraken** | not proposed (upstream support on Apple silicon UNVERIFIED) | **`ketos train` / `ketos segtrain` as a job** | batch by nature |
-| **Fine-tuning a language or vision model** | small runs natively through MLX (a later slice) | **`trl` + `peft` as a job**; LoRA by default, QLoRA when memory is short | batch by nature; one 40 GB GPU is enough for 8B |
+| **Layout detection** | in process (`prep.yolo-detectors-run-and-train`) | **in the job's own process** | nothing for a server to share |
+| **Fine-tuning Kraken** | **in the engine's process, in the local ML lane, on a 16 GB Mac** (ruled 2026-10-03; Apple's GPU if Kraken allows it, else the CPU; #5397) | **`ketos train` / `ketos segtrain` as a job**, Hugging Face Jobs first, then a cluster | batch by nature |
+| **Fine-tuning a YOLO detector** | **in the engine's process, in the local ML lane, on a 16 GB Mac** (#5397) | the same trainer as a job | a few dozen to a few hundred boxed pages |
+| **Fine-tuning a language or vision model** (for example Qwen2.5-VL 3B with LoRA) | runs, quantised, on a 16 GB Mac; small training runs through MLX are a later slice | **`trl` + `peft` as a job**, Hugging Face Jobs first; LoRA by default, QLoRA when memory is short | batch by nature; one 40 GB GPU is enough for 8B |
 | A Linux machine with **no GPU** | | llama.cpp for language models; Kraken on CPU | the honest fallback; the row says "No GPU" |
 
 **Blackfish: learn, do not use, do not wrap.** What it solves, we need: a cache of images and
@@ -137,23 +147,48 @@ code** the Mac runs, over the package's inputs, with providers resolved as above
 |---|---|---|---|
 | `workflow` | a workflow and the selected sources' objects | new passes and readings | yes: one piece for each shard of sources |
 | `train-kraken-recognition` · `train-kraken-segmentation` | a training set (#4947) and a base model card, or none | a `.mlmodel`, its training log, scores on the held-out part | no |
+| `train-layout` | a training set of checked boxes (YOLO labels) and a base detector card | a detector, its log, precision and recall per region kind on the held-out part | no |
 | `train-lora` | a training set, a base model card, a recipe | an adapter, its log, scores; optionally a merged model | no |
 | `session` | a base model card, adapter cards | a provider row while it lasts | no |
 
 A **shard** is a fixed number of sources, not one source: one process start (and, with vLLM,
 one three-minute warm-up) for each page would waste the allocation.
 
-### One state machine
+### One state machine, inside the one job model
+
+A compute job is **a row in the one `jobs` table** of `ui/activity-and-automatic-work.md`
+(its question 9, ruled 2026-10-01): `kind` is what it does (`workflow`, `train-a-model`), its
+target is named, a job sent away runs in lane `remote`, and a training job on this Mac runs in
+the local ML lane. There is no `compute_jobs` table. The phases below are that row's `state`
+(`waiting`, `running`, `done`, `failed`, `cancelled`) with its `waiting_reason` and `progress`
+saying which phase, in words:
 
 `preparing` → `waiting-for-yes` → `sending` → `staging-models` → `submitted` → `queued` →
 `running` → `finished-there` → `fetching` → `landing` → `done`.
 
-Side states: `waiting-for-sign-in` (the cluster connection dropped; the job there is
+Side phases: `waiting-for-sign-in` (the cluster connection dropped; the job there is
 unaffected), `failed` (with a reason from a fixed list and the far side's last lines of
 output), `cancelled`, `done-with-problems` (landed, with lines set aside or pieces failed).
 
-This is `RunStatus` with the steps before and after the far side made visible. Slurm's states
-fill `queued` and `running` through the existing mapping. A job is `done` only when landed.
+Slurm's states fill `queued` and `running` through the existing mapping. Array pieces are child
+jobs. A job is `done` only when landed. Global pause stops new sends and polling and never
+cancels a job already running on a cluster or on Hugging Face (that costs allocation or money).
+
+### Controlling Slurm
+
+Fichero runs the cluster's own commands for the person, over the one in-process SSH connection
+to the login node (`compute.connect.ssh-in-process`), with the person's own account:
+
+| Step of the job | Command | What Fichero records on the job row |
+|---|---|---|
+| submit | `sbatch --parsable` (an array for many shards) | the scheduler's job id; phase `submitted` |
+| watch | `squeue` while queued (with `--start` for the estimate), `sacct` for every open job | phase `queued` or `running`; the estimated start; on the end, state and exit code |
+| cancel | `scancel <id>` (or the listed pieces) | phase `cancelled`, once the scheduler confirms it |
+| fetch | the SSH carrier (`compute.transfer.ssh-carrier`) from the job's folder | phases `fetching`, `landing`, `done` |
+
+The commands are built by the existing pure builders (`remote_jobs.py`) and shown on request as
+"what will run". There is no second way: no shelling out to the system's `ssh`, no script the
+person runs by hand, no cluster-side daemon.
 
 ### Surviving a time limit
 
@@ -178,7 +213,7 @@ already supports.
   runs on Apple silicon (CITED, S19). Whether MLX can load a PyTorch adapter without merging is
   UNVERIFIED, so this set assumes it cannot. **This route is called nowhere in Fichero today,
   so it is its own slice, with its own test, and is not promised until that test is green.**
-- Every model that comes back is **scored at once** against the collection's ground truth
+- Every model that comes back is **scored at once** against the project's ground truth
   (`source.train.measured`, #4947) and its card names the training set it came from
   (`source.train.model-lineage`). A model whose scores are worse than its base is shown as
   worse, not hidden.
@@ -200,7 +235,7 @@ What publishing must ask first, every time, whatever was agreed for sending:
 
 1. Who may get this: *only me* (private), *people I approve* (gated), *anyone* (public).
    **Private is the default.**
-2. For a dataset or a model trained on the collection: the community question of
+2. For a dataset or a model trained on the project: the community question of
    `transfer-and-results.md`, asked **again**, in its publishing form, because a model can
    carry what it was trained on.
 3. The licence, from the card or the training set's own description.
@@ -213,13 +248,13 @@ until someone objects*.
 
 ## Behaviors
 
-All untagged and unbuilt unless stated.
+All [GAP]: designed, not built.
 
 ### Jobs
 
 - `compute.job.choose-where` — **[GAP]** (#5240) wherever a workflow can be run, the person can choose a target
   from those that are green and able to run it; the default is this Mac. The choice can be
-  saved as a collection's default only after a yes for that collection and target
+  saved as a project's default only after a yes for that project and target
   (`compute.leave.yes-is-recorded-and-scoped`). *Data:* `capabilities` of each target against
   the workflow's model cards. *Test:* a workflow needing an MLX-only model offers only this Mac,
   and says why the others are absent.
@@ -228,10 +263,12 @@ All untagged and unbuilt unless stated.
   `runner_command` in `build_remote_run_spec` (`remote_jobs.py:435-442`) is replaced by the
   image's "run a package" command. *Test:* the same three-page workflow on this Mac and in the
   cpu image yields identical readings.
-- `compute.job.one-state-machine` — **[GAP]** (#5240) every job, on every target, moves through the states above
-  and no others; each change is stored and broadcast. *Data:* a `compute_jobs` table: job id,
-  kind, collection id, target id, person, package manifest hash, state, state history, far-side
-  ids, counts, reason. *Existing data:* none. *Test:* pure transitions; illegal ones raise.
+- `compute.job.one-state-machine` — **[GAP]** (#5240, #5353) every compute job, on every target, is a row in
+  the one `jobs` table (`activity.one-job-model`), moves through the phases above and no others,
+  and each change is stored and broadcast as `job.updated`. *Data:* the `jobs` row, plus what a
+  remote job adds to it: target id, package manifest hash, far-side ids, phase history. No
+  `compute_jobs` table. *Existing data:* none. *Test:* pure transitions; illegal ones raise; a
+  remote job appears in `/api/jobs` beside local ones.
 - `compute.job.done-means-landed` — **[GAP]** (#5240) see `compute.land.completed-means-landed`.
 - `compute.job.array-by-shard` — **[GAP]** (#5240) a `workflow` job over many sources is one Slurm array job, one
   piece for each shard of a fixed number of sources; the number is a setting on the job with a
@@ -242,8 +279,10 @@ All untagged and unbuilt unless stated.
   only those indices. Built as a pure rule (VERIFIED `remote_jobs.py:310-344`). *Test:* fixture:
   pieces 3 and 7 of 10 fail; the re-submit names `3,7`; the other eight are not re-run and
   their results are landed once.
-- `compute.job.live-submit` — **[GAP]** (#5240) `SshCliSubmitter`'s `submit`, `poll` and `cancel` are
-  implemented over the in-process SSH connection, and the `enabled` flag goes away: the guard
+- `compute.job.live-submit` — **[GAP]** (#5240) Fichero controls Slurm itself: `SshCliSubmitter`'s `submit`
+  (`sbatch`), `poll` (`squeue`, `sacct`), `cancel` (`scancel`) and the fetch of results are
+  implemented over the in-process SSH connection with the person's own account, each a step of a
+  row in the one job table (`compute.job.one-state-machine`), and the `enabled` flag goes away: the guard
   against accidental submission is now the consent sheet and the owner role, not a constant.
   *Existing data:* `DryRunSubmitter` stays as the test fake; the dry-run route stays as "show
   me what will run". *Test:* fixture: submit returns the scheduler's job id; poll follows it to
@@ -253,7 +292,7 @@ All untagged and unbuilt unless stated.
   stops when none are open. *Test:* three open jobs produce one call for each interval on the
   fixture's log.
 - `compute.job.queued-says-so` — **[GAP]** (#5240) a job waiting in a cluster's queue reads "Queued on *name*",
-  with the scheduler's estimated start if it gives one; it never reads "running". *Data:* the
+  with the scheduler's estimated start (`squeue --start`) if it gives one; it never reads "running". *Data:* the
   existing `QUEUED_SLURM_STATES` (VERIFIED `remote_jobs.py:267`). *Test:* pure.
 - `compute.job.fails-with-a-reason` — **[GAP]** (#5240) a failed job carries a reason from a fixed list (*out of
   time*, *out of memory*, *node failed*, *a model was missing*, *the step refused: …*,
@@ -280,6 +319,10 @@ All untagged and unbuilt unless stated.
 
 ### Engines
 
+*Deferred* (2026-10-03): vLLM, sessions and batch vision-model jobs come after the first
+training path (Kraken and YOLO on Hugging Face Jobs, this Mac, then ACENET). Nothing in that path
+needs them.
+
 - `compute.engine.vllm-is-a-provider-row` — **[GAP]** (#5240) `vllm` is a provider kind, a peer of `omlx`, in the
   one provider list; it is *available* only where a CUDA GPU is. *Routed:* its row's look is
   `ai/ai-settings.md`'s. *Test:* on the Mac and the cpu image it reads unavailable with the
@@ -302,14 +345,41 @@ All untagged and unbuilt unless stated.
 - `compute.engine.session-serves-adapters` — **[GAP]** (#5240) a session can serve its base model with any of the
   person's adapters for that base, chosen as models of that row. *Test:* named-machine.
 - `compute.engine.session-passes-the-gate` — **[GAP]** (#5240) every request to a session's row passes the one
-  egress gate like any model that is not on this Mac, so a collection marked "may not leave"
-  cannot use it. *Test:* such a collection is refused with the collection's rule.
+  egress gate like any model that is not on this Mac, so a project marked "may not leave"
+  cannot use it. *Test:* such a project is refused with the project's rule.
 - `compute.engine.no-gpu-fallback-is-named` — **[GAP]** (#5240) on a Linux machine with no GPU, language models
   run through llama.cpp and the row and every result say so; nothing silently runs on a CPU
   when a GPU was asked for. *Test:* a job asking for a GPU on the cpu image is refused.
 
 ### Fine-tuning
 
+- `compute.tune.one-trainer-three-places` — **[GAP]** (#5119, #5397) a `train-a-model` job runs one engine
+  code path wherever it runs: in the engine's process on this Mac, and in the image's "run a
+  package" mode on Hugging Face Jobs or a cluster. The same training set gives a model, a log and
+  a held-out score of the same form in all three. *Test:* a tiny Kraken set for two epochs on
+  this Mac's CPU and in the cpu image yields loadable models and scores of the same shape.
+- `compute.tune.where-cheapest-first` — **[GAP]** (#5119, #4950) a train step runs on this Mac when its card's
+  measured memory fits this Mac beside the resident embedder; otherwise on the project's bound
+  `gpu-service` target, then its `cluster` target (`source.recipe.runs-on-binds-to-a-target`). A
+  costlier place is chosen only when the A/B evidence on the project's pages (error rate, cost,
+  speed, carbon, trainability) is shown for it. *Test:* a Kraken recipe on a 16 GB Mac resolves to
+  this Mac; a 3B LoRA recipe resolves to the bound Hugging Face target, with the reason.
+- `compute.tune.proven-on-huggingface-first` — **[GAP]** (#5398) a training recipe is first run on Hugging Face
+  Jobs and counts as proven when two runs reach the same held-out CER within a stated noise
+  band; the proof (dates, image digest, hardware, CER) is recorded on the recipe before it is run
+  on a cluster. *Test:* the recipe file carries the proof record; a cluster run of an unproven
+  recipe is offered with "not yet proven on Hugging Face".
+- `compute.tune.on-this-mac` — **[GAP]** (#5397) Kraken recognition, Kraken segmentation and a YOLO detector
+  train on a 16 GB Mac in the local ML lane: the trainer holds the lane as one heavy model, no
+  reader runs beside it unless both fit (`activity.lane.co-run-only-if-it-fits`), it runs at
+  utility QoS with bounded threads, it waits on battery, heat, memory pressure and active use
+  (`activity.throttle.power-heat-memory`), and pause resumes from its last checkpoint. *Test:* a
+  tiny set trains under the lane with a fake memory-pressure signal: it waits, then resumes
+  without repeating an epoch.
+- `compute.tune.measured-on-16gb` — **[GAP]** (#5397) every training run records its peak memory and what it
+  used (CPU, GPU, Neural Engine) on the job and on the resulting card, and every adopted model
+  carries a measurement of reading on a 16 GB Mac (speed per page, peak memory). *Test:* the card
+  of a trained model has those fields filled from the run, never typed by hand.
 - `compute.tune.input-is-a-training-set` — **[GAP]** (#5240) a training job's only data input is a training set
   as `source.train.*` defines it, made by that spec's code; this slice adds no second way to
   cut line pictures. *Routed:* → #4947. *Test:* a training package holds exactly the training
@@ -323,10 +393,10 @@ All untagged and unbuilt unless stated.
   on the Mac can then be told to use that model rather than its built-in one. *Existing data:*
   pages segmented before are untouched; the trained model makes new passes. *Test:* as above,
   plus one page segmented on the Mac with the returned model.
-- `compute.tune.yolo-layout` — **[GAP]** (#5240) a `train-layout` job trains a YOLO-family detector for
-  regions (by kind) or lines from a training set of the project's checked boxes (exported as YOLO,
-  which Fichero already writes, `source.format.yolo-out`), on a cluster, a GPU service or a large
-  Mac; the trained detector comes back as a model card and is measured on held-out pages
+- `compute.tune.yolo-layout` — **[GAP]** (#5240, #5397) a `train-layout` job trains a YOLO-family detector
+  for the page (`prep.yolo-detectors-run-and-train`), regions (by kind) or lines from a training
+  set of the project's checked boxes or outlines (exported as YOLO, which Fichero already writes,
+  `source.format.yolo-out`), on this Mac first (16 GB), on Hugging Face Jobs, or on a cluster; the trained detector comes back as a model card and is measured on held-out pages
   (precision and recall per region kind) before a recipe may use it. *Existing data:* earlier
   passes are untouched; the detector makes new passes. *Test:* a tiny set trains, returns, and
   finds boxes on one held-out page.
@@ -347,13 +417,25 @@ All untagged and unbuilt unless stated.
   its scores (`source.train.model-lineage`). It is a row under its provider like any downloaded
   model (`source.find.download-is-a-provider-row`). *Test:* after landing, the catalogue lists
   it with those fields.
-- `compute.tune.scored-against-your-own-pages` — **[GAP]** (#5240) on landing, the model is scored against the
-  collection's ground truth beside its base model, and the card shows both. A model that is
-  worse is shown as worse. *Routed:* the scoring is `source.train.measured`. *Test:* a
-  deliberately bad model lands with a worse score displayed.
-- `compute.tune.not-default-until-chosen` — **[GAP]** (#5240) a returned model is never made a collection's
+- `compute.tune.scored-against-your-own-pages` — **[GAP]** (#5240, #4947) on landing, the model is scored
+  against the project's held-out ground truth beside its base model, and the card shows both. A
+  reader's score is the one CER (`workflows/transcription_accuracy.py`, through
+  `POST /api/documents/{id}/readings/compare`), named *CER* only where a person checked the
+  reference and *agreement* otherwise; no second scorer is written. A detector's score is
+  precision and recall per region kind, and the CER of reading the pages it prepared. A model
+  that is worse is shown as worse. *Routed:* the scoring is `source.train.measured`. *Test:* a
+  deliberately bad model lands with a worse score displayed; a reference that no person checked
+  is labelled agreement.
+- `compute.tune.not-default-until-chosen` — **[GAP]** (#5240) a returned model is never made a project's
   default by landing; the person chooses it (`source.find.try-before-default`). *Test:* defaults
   unchanged after landing.
+- `compute.tune.adopted-by-the-recipe` — **[GAP]** (#5337, #4950) a trained model that beats the current step
+  on the project's held-out checked pages enters the recipe as a **new card for that step**, in
+  the project's next recipe version, offered to the person with the A/B table (error rate, cost,
+  speed, carbon, trainability); a model that does not beat it is kept as a card and not offered.
+  Training and adoption run by themselves only if the person chose automatic training in setup
+  (`source.recipe.train-never-automatic`). *Test:* a better tiny model yields a proposed recipe
+  version pinning its card; a worse one yields none.
 - `compute.tune.adapter-always-returns` — **[GAP]** (#5240) a `train-lora` job always returns the adapter. A
   merged model is returned only when asked for, because it is as large as the base. *Test:*
   result package contents for both choices.
@@ -373,9 +455,15 @@ All untagged and unbuilt unless stated.
 
 ### Publishing (offered to the exporter and model-card specs)
 
+- `compute.publish.good-models-released-by-fichero` — **[GAP]** (#5240) a model that cleared its project's bar,
+  whose training data's rights and whose base model's licence allow it, can be released on
+  Hugging Face as part of Fichero, with its card stating its data, hand, period, held-out CER and
+  licence. Release is a person's act and is asked on its own (`compute.publish.is-separate-and-asked-again`).
+  *Test:* a model whose project has no rights answer is refused release with that reason.
+
 - `compute.publish.is-separate-and-asked-again` — **[GAP]** (#5240) publishing a dataset, adapter, model or card
   is always its own act with its own sheet (the four things above); a yes to *sending* never
-  covers it. *Test:* a collection with a recorded send yes still gets the publish sheet.
+  covers it. *Test:* a project with a recorded send yes still gets the publish sheet.
 - `compute.publish.private-by-default` — **[GAP]** (#5240) a new repository is private unless the person chooses
   gated or public. *Test:* the create call's visibility.
 - `compute.publish.gated-is-offered` — **[GAP]** (#5240) "people I approve" makes a gated repository with manual
@@ -424,9 +512,9 @@ All untagged and unbuilt unless stated.
 2. **Blackfish: learn, not use.** *Proposal: agreed; close #31 with the finding.*
 3. **Shard size.** *Proposal: 50 sources by default, a setting on the job; to be re-set from a
    measurement on the maintainer's own pages.*
-4. **Base model for the first language or vision fine-tune.** Qwen's 3B-to-8B models are
-   Apache-2.0 and are the cleanest licence; Llama's and older Gemma's are bespoke (CITED, S8).
-   *Proposal: Qwen-class by default; the choice is a card, so nothing is hard-wired.*
+4. **Base model for the first language or vision fine-tune.** *Answered 2026-10-03: a small
+   Qwen-VL-class model (for example Qwen2.5-VL 3B) with LoRA; the choice is a card, so nothing is
+   hard-wired. It comes after the Kraken and YOLO path.*
 5. **Does the merged model come home by default?** It is about 16 GB for an 8B model.
    *Proposal: no. The adapter always; the merged model only when the person wants it on the
    Mac.*
