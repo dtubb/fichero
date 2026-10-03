@@ -693,12 +693,16 @@ def create_workflow_impl(db: Database, workflow: WorkflowDef) -> "Workflow":  # 
 
     _reject_incompatible_edges(workflow)
 
+    # #5402: a request that names no provider/model is stored with neither, so every node follows
+    # the library's AI defaults at run time (its vision or text slot), not WorkflowDef's class
+    # default `openai / gpt-4o`, which a library with no OpenAI key cannot run.
+    named = workflow.model_fields_set
     db_workflow = Workflow(
         name=workflow.name,
         description=workflow.description or "",
         format="nodes",
-        provider=workflow.provider or "",
-        model=workflow.model or "",
+        provider=(workflow.provider or "") if "provider" in named else "",
+        model=(workflow.model or "") if "model" in named else "",
         nodes=[node.model_dump_for_storage() for node in workflow.nodes],
         edges=[edge.model_dump() for edge in workflow.edges],
     )

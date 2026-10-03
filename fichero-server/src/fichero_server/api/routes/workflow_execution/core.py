@@ -141,13 +141,22 @@ def _validate_workflow_for_execution(
         sub_workflow_resolver_for_db,
     )
     from fichero_server.workflows.validation import (  # noqa: PLC0415
+        apply_run_model_override_to_def,
         validate_run_eligibility,
         validate_workflow_connections,
         validate_workflow_preflight,
     )
 
-    workflow_def = to_workflow_def(workflow)
-    resolver = sub_workflow_resolver_for_db(db) if db is not None else None
+    # #5402: preflight checks the models the run will USE. The run's provider/model choice is stamped
+    # onto the nodes it can serve, with the runner's own rule, before the policy check; validating the
+    # stored workflow's provider refused `--model openrouter/...` on a workflow stored as openai.
+    provider_override = getattr(request, "provider_override", None)
+    model_override = getattr(request, "model_override", None)
+    workflow_def = apply_run_model_override_to_def(to_workflow_def(workflow), provider_override, model_override)
+    stored_resolver = sub_workflow_resolver_for_db(db) if db is not None else None
+    resolver = stored_resolver and (
+        lambda ref: apply_run_model_override_to_def(stored_resolver(ref), provider_override, model_override)
+    )
     errors = [
         *validate_workflow_connections(workflow_def),
         *validate_workflow_preflight(workflow_def, workflow_resolver=resolver),
@@ -159,12 +168,12 @@ def _validate_workflow_for_execution(
             name=workflow.name,
             config=getattr(workflow, "config", None),
             nodes=workflow.nodes,
-            provider_override=getattr(request, "provider_override", None),
-            model_override=getattr(request, "model_override", None),
-            # Same resolver the preflight uses: since R-11 the choice reaches
-            # a child's nodes, so the refusal must count them or it refuses a
-            # run the engine can now honestly perform.
-            workflow_resolver=resolver,
+            provider_override=provider_override,
+            model_override=model_override,
+            # The stored children, as the preflight sees them before the run's choice: since R-11 the
+            # choice reaches a child's nodes, so the refusal must count them or it refuses a run the
+            # engine can now honestly perform.
+            workflow_resolver=stored_resolver,
         ),
     ]
 
