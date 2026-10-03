@@ -1254,7 +1254,7 @@ Model cards
   Face `library=peft`) as their own tier, each shown with its base model and training data.
 
 Jobs and chains
-- `source.recipe.jobs-are-a-registry` — **[GAP]** (#4949, #5364) jobs and export formats are
+- `source.recipe.jobs-are-a-registry` — **[PARTIAL]** (#4949, #5364) **Built 2026-10-03 (engine):** the registry with typed takes and gives, layers, A/B comparison and descriptions (`recipes/jobs.py`); not yet read by setup or the activity queue; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. jobs and export formats are
   registered by name with what they take, give, accept as settings, their layer and the Fichero
   version that added them; a newly registered one is available to recipes, setup, the activity
   queue and the recipe check with no other change; a recipe naming a job this copy lacks is
@@ -1353,7 +1353,7 @@ Purposes and layers
 - `source.onboard.purpose-first` — **[GAP]** (#4951) setup's first screen asks the purpose, from the
   table's purposes in plain words, "Not sure yet" included; the purpose is stored on the project
   and shown in its Inspector.
-- `source.onboard.purpose-sets-layers` — **[GAP]** (#4951) the purpose decides which layers run at
+- `source.onboard.purpose-sets-layers` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** purpose to steps in `assemble()` (`PURPOSE_STEPS`); running layers automatically at import is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the purpose decides which layers run at
   import, as the table says: the NLP layer runs by itself only where the purpose uses entities, and
   lines only where it includes them (refines the NLP and Kraken rulings, 2026-10-01).
 - `source.onboard.offers-never-hides` — **[GAP]** (#4951) a purpose changes what is offered first
@@ -1429,7 +1429,7 @@ Setup
 - `source.onboard.proposes-chain` — **[GAP]** (#4951) screen 4 shows the proposed recipe: a
   published one that fits (the flagship first where it fits) or a generated one, with each step's
   model, where it runs, download size, licence class and measurements.
-- `source.onboard.deterministic-recipe` — **[GAP]** (#4950, #4951) the recipe is assembled by rules
+- `source.onboard.deterministic-recipe` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** `assemble()` from answers and cards (`recipes/assemble.py`); cards are not yet read from the real catalogue; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the recipe is assembled by rules
   from the answers and the cards' confirmed facts; the same answers and catalogue always give the
   same recipe, and each choice names the card facts and measurements it rests on.
 - `source.recipe.candidates-filtered-then-ranked` — **[GAP]** (#4950) candidates are kept only if
@@ -1438,12 +1438,12 @@ Setup
   are ranked in a fixed order: accuracy in one-point bands (measured here, else published, else
   coverage), then local before remote, cheaper, faster, lower carbon, trainable, smaller, then
   card id.
-- `source.recipe.cheapest-local-first` — **[GAP]** (#4950, #4951) a step's starting choice is the cheapest
+- `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** local candidates first in `assemble()`; the A/B that moves up is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. a step's starting choice is the cheapest
   local candidate that passes the hard constraints (Tesseract, Kraken, or a local open OCR model);
   a costlier option replaces it only after an A/B on the person's pages shows the cheap one misses
   the bar and the person confirms; the comparison shows accuracy, cost and environmental cost side
   by side; distilling and fine-tuning are offered as options, never defaults.
-- `source.recipe.volume-rule` — **[GAP]** (#4950, #4951) the volume band changes the
+- `source.recipe.volume-rule` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** training offered from 5,000 pages in `assemble()`; cost and time limits not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the volume band changes the
   recommendation: under 100 pages accuracy alone decides; from 5,000 the train step is offered
   from the start; above 100,000 a candidate whose whole-volume cost or time is beyond the limits
   (by default 500 dollars in the cloud or 30 days on this Mac) is shown but not chosen, and the
@@ -1537,7 +1537,7 @@ The recipe and its format
 - `source.recipe.stored-in-project` — **[GAP]** (#4950) a project's recipe (followed version,
   overrides, purpose, added layers, target bindings) is stored in the project database, and the
   Inspector, MCP and the command line return the same resolved recipe from the engine.
-- `source.recipe.steps-are-jobs` — **[GAP]** (#4949, #5364) a recipe step names a job, where it
+- `source.recipe.steps-are-jobs` — **[PARTIAL]** (#4949, #5364) **Built 2026-10-03 (engine):** `unmet_inputs` checks steps in order (`recipes/jobs.py`); pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. a recipe step names a job, where it
   applies (which segment kinds), a model, settings and a prompt; the recipe is checked before it
   runs, so a step uses only what an earlier step or the source gives.
 - `source.recipe.per-region-kind` — **[GAP]** (#4949) a step can send each kind of region to a
@@ -1574,13 +1574,13 @@ The recipe and its format
 - `source.recipe.schema-versioned` — **[GAP]** (#5364) `recipe.yaml` carries its schema version; a
   version newer than this Fichero understands is refused with the version named, and an older one
   keeps working.
-- `source.recipe.folder-format` — **[GAP]** (#5364) a recipe exports as a folder: `recipe.yaml`
+- `source.recipe.folder-format` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** `recipe.yaml` load and check (`recipes/recipe.py`); prompts, measurements and the RO-Crate wrapper not yet written by Export Recipe; pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe exports as a folder: `recipe.yaml`
   (published JSON Schema), one file per prompt, its workflows, its measurements, a licence, a README
   and a Workflow RO-Crate wrapper.
-- `source.recipe.data-not-code` — **[GAP]** (#5364) a recipe can name only registered jobs, models,
+- `source.recipe.data-not-code` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** code-shaped keys refused anywhere in a recipe (`recipes/recipe.py`); pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe can name only registered jobs, models,
   prompts, settings and workflows built from Fichero's tools; it cannot carry scripts or grant a
   model tools or network access, and an imported recipe that tries is refused, naming the entry.
-- `source.recipe.never-holds-keys` — **[GAP]** (#5364) a recipe names providers and models but never
+- `source.recipe.never-holds-keys` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** credential-shaped keys refused (`recipes/recipe.py`); pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe names providers and models but never
   a key; exporting one that would include a key is impossible by construction, and taking one that
   needs a missing key says which.
 - `source.recipe.checked-at-every-door` — **[GAP]** (#4950, #5364) a recipe is checked at setup,
@@ -1596,7 +1596,7 @@ The recipe and its format
   spreadsheet.
 - `source.job.pull-out-passages` — **[GAP]** (#4949) a step can gather excerpts on a question or theme,
   each with its source and place, into a note or collection.
-- `source.recipe.embedder-by-language` — **[GAP]** (#4948, #4951) the embedder is the smallest local
+- `source.recipe.embedder-by-language` — **[PARTIAL]** (#4948, #4951) **Built 2026-10-03 (engine):** the smallest local embedder covering the languages, in `assemble()`; the search A/B is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the embedder is the smallest local
   model whose card covers all the project's languages and scripts and that this Mac holds; its A/B
   is a side-by-side search on the person's own questions; changing it re-embeds as one job.
 - `source.recipe.advanced-per-step` — **[GAP]** (#4951) every step shown in setup and the Inspector has an
