@@ -225,6 +225,17 @@ def find_draft_only_rows(
     candidate_entities = [
         e for e in entities if _entity_is_draft_only(e, claims_by_entity)
     ]
+    if document_id:
+        # Scoped to one document, `claims_by_entity` sees only this document's claims. An entity a
+        # claim on ANOTHER page also names is not draft-only here: deleting it would leave that
+        # claim (perhaps one a person checked) pointing at nothing (#5361).
+        candidate_entities = [
+            e for e in candidate_entities
+            if all(
+                source == document_id
+                for source in db.knowledge_claim_source_document_ids_for_entity(e.id)
+            )
+        ]
 
     protected = _protected_ids(
         db,

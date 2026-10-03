@@ -414,3 +414,28 @@ class TestF2IndependentTouchProtection:
         )
         # Nothing was actually touched -- dry run.
         assert db.get(KnowledgeEntity, entity.id) is not None
+
+
+class TestDocumentScopeKeepsAnEntityOtherPagesName:
+    """WHY: a document-scoped purge judged an entity "draft-only" from THIS document's claims
+    alone. When the same person is named on another page -- there in a claim a person checked --
+    the entity was deleted and that page's claim pointed at nothing. A page correction purges its
+    own draft before re-reading (#5361), so this must hold on every correction."""
+
+    def test_entity_named_on_another_page_survives(self, db, test_package):
+        from fichero_server.models.knowledge import ClaimCurationState
+        first = _seed_draft(db, _draft_doc(db))
+        second = _seed_draft(db, _draft_doc(db))
+        [entity] = db.query(KnowledgeEntity, canonical_name="Juan Perez")
+        kept = db.query(KnowledgeClaim, source_document_id=second.id)[0]
+        kept.curation_state = ClaimCurationState.curated
+        db.save(kept)
+
+        result = registry.invoke(
+            db, "entity.purge_nlp_draft", {"document_id": first.id, "dry_run": False}, _ctx(),
+        )
+
+        assert result.result["entity_count"] == 0
+        assert db.query(KnowledgeClaim, source_document_id=first.id) == []
+        assert db.get(KnowledgeEntity, entity.id) is not None
+        assert entity.id in db.get(KnowledgeClaim, kept.id).entity_ids
