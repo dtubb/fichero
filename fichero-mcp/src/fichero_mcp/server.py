@@ -501,6 +501,36 @@ def fichero_train_kraken(
 
 
 @mcp.tool()
+def fichero_train_vision_lora(
+    scope_ids: list[str],
+    teacher: str,
+    pages_may_leave: bool,
+    held_out_ids: Optional[list[str]] = None,
+    name: str = "student",
+    language: Optional[str] = None,
+    base_repo: str = "Qwen/Qwen2.5-VL-7B-Instruct",
+    flavor: Optional[str] = None,
+    timeout: str = "8h",
+    epochs: int = 2,
+    not_for_release: bool = True,
+) -> Any:
+    """Distil a teacher's line readings into a local vision model: a LoRA on ``base_repo`` (bf16) on
+    Hugging Face Jobs, from the same line pictures the line reader sends and its own instruction; the
+    merged model is converted to 4-bit MLX on this Mac and lands as ``fichero-trained/<name>``.
+
+    Sends an archive's pages to another company and costs money (a 24 GB GPU for hours): pass
+    ``pages_may_leave=True`` only when the PERSON has said yes for this project, and report the
+    ``flavor`` and ``price_per_hour_usd`` it answers with. Follow it with ``fichero_training_status``.
+    """
+    with _mutating_client() as client:
+        return client.train_vision_lora({
+            "scope_ids": scope_ids, "teacher": teacher, "held_out_ids": held_out_ids or [], "name": name,
+            "language": language, "base_repo": base_repo, "flavor": flavor, "timeout": timeout,
+            "epochs": epochs, "pages_may_leave": pages_may_leave, "not_for_release": not_for_release,
+        })
+
+
+@mcp.tool()
 def fichero_training_status(job_id: str) -> Any:
     """A training job's state and phase in words, the Job's id on Hugging Face, the training set's
     counts (lines a model read, lines a person checked), the Job's last log lines when it ends, and

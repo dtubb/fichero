@@ -258,5 +258,6 @@
   "POST /api/conversion/{run_id}/seen": "#5222: the library-conversion report has a CLI but no app surface yet (the app's conversion status view is the next slice of #5222)",
   "POST /api/training/kraken": "training as a job (#5398): engine, CLI and MCP surface first; the app's Train a Reader sheet and its Activity row are not built yet",
   "GET /api/training/jobs/{job_id}": "training as a job (#5398): engine, CLI and MCP surface first; the app's Train a Reader sheet and its Activity row are not built yet",
-  "POST /api/training/jobs/{job_id}/cancel": "training as a job (#5398): engine, CLI and MCP surface first; the app's Train a Reader sheet and its Activity row are not built yet"
+  "POST /api/training/jobs/{job_id}/cancel": "training as a job (#5398): engine, CLI and MCP surface first; the app's Train a Reader sheet and its Activity row are not built yet",
+  "POST /api/training/vision-lora": "training as a job (#5398): engine, CLI and MCP surface first; the app's Train a Reader sheet and its Activity row are not built yet"
 }

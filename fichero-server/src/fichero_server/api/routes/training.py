@@ -18,7 +18,7 @@ from fichero_server.api.auth import action_context
 from fichero_server.db import Database
 from fichero_server.training import job as training_job
 from fichero_server.training.hf_jobs import NoHuggingFaceToken
-from fichero_server.training.job import PagesMayNotLeave, TrainKrakenRequest
+from fichero_server.training.job import PagesMayNotLeave, TrainKrakenRequest, TrainVisionLoraRequest
 from fichero_server.training.kraken_set import EmptyTrainingSet
 
 router = APIRouter(prefix="/training")
@@ -38,9 +38,12 @@ class TrainingJobStatus(BaseModel):
     state: str
     reason: str | None = None
     phase: str | None = None
+    card: str | None = None
+    flavor: str | None = None
     far_id: str | None = None
     price_per_hour_usd: float | None = None
     reader_id: str | None = None
+    model_id: str | None = None
     training_set: dict[str, Any] | None = None
     last_lines: list[str] = []
     history: list[dict[str, Any]] = []
@@ -56,6 +59,14 @@ def _action_start(db: Database, params: TrainKrakenRequest, ctx: ActionContext) 
     started = training_job.start(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": training_job.KIND},
+                               emit_type="job.created")
+
+
+@action("training.start_vision_lora", TrainVisionLoraRequest, domains=["job"], undoable=False)
+def _action_start_vision_lora(db: Database, params: TrainVisionLoraRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    started = training_job.start(db, params, started_by=ctx.actor or "owner")
+    return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
+                               after={"job_id": started["job_id"], "kind": training_job.KIND, "card": "vision-lora"},
                                emit_type="job.created")
 
 
@@ -80,6 +91,29 @@ async def start_kraken_training(
     not installed."""
     try:
         result = registry.invoke(db, "training.start", request.model_dump(), ctx)
+    except PagesMayNotLeave as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except NoHuggingFaceToken as exc:
+        raise HTTPException(status_code=412, detail=str(exc)) from exc
+    except (EmptyTrainingSet, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return TrainingStarted(**result.result)
+
+
+@router.post("/vision-lora", response_model=TrainingStarted,
+             summary="Train a vision model with LoRA on Hugging Face Jobs, landed here as MLX")
+async def start_vision_lora_training(
+    request: TrainVisionLoraRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> TrainingStarted:
+    """Queue a `train-a-model` job on the vision-model card: the same training set as the Kraken
+    card, cut into line pictures with the line reader's own instruction and the teacher's answers; a
+    LoRA on the bf16 base (Qwen2.5-VL 7B by default) on the cheapest GPU that fits; the merged model
+    converted to 4-bit MLX on this Mac and landed as `fichero-trained/<name>`, the adapter kept beside
+    it. The same refusals as the Kraken card."""
+    try:
+        result = registry.invoke(db, "training.start_vision_lora", request.model_dump(), ctx)
     except PagesMayNotLeave as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except NoHuggingFaceToken as exc:

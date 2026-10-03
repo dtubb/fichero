@@ -35,6 +35,7 @@ EXPECTED_TOOLS = {
     "fichero_workflow_run",
     "fichero_workflow_status",
     "fichero_train_kraken",
+    "fichero_train_vision_lora",
     "fichero_training_status",
     "fichero_training_cancel",
     "fichero_compare_readings",
@@ -361,7 +362,11 @@ def test_training_tools_send_the_engines_request(monkeypatch):
                                         held_out_ids=["p4"], base="kraken-zenodo-21788410")
         mcp_server.fichero_training_status("j1")
         mcp_server.fichero_training_cancel("j1")
-    start, status, cancel = seen
+        mcp_server.fichero_train_vision_lora(["folder-1"], "google/gemini-3-flash-preview", pages_may_leave=True,
+                                             language="Spanish")
+    start, status, cancel, vision = seen
+    assert (vision.method, vision.url.path) == ("POST", "/api/training/vision-lora")
+    assert json.loads(vision.content)["base_repo"] == "Qwen/Qwen2.5-VL-7B-Instruct"
     assert (start.method, start.url.path) == ("POST", "/api/training/kraken")
     body = json.loads(start.content)
     assert body["pages_may_leave"] is True and body["held_out_ids"] == ["p4"] and body["timeout"] == "4h"

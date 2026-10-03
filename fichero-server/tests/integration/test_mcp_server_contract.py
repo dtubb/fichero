@@ -37,6 +37,7 @@ EXPECTED_TOOLS = {
     "fichero_workflow_run",
     "fichero_workflow_status",
     "fichero_train_kraken",
+    "fichero_train_vision_lora",
     "fichero_training_status",
     "fichero_training_cancel",
     "fichero_compare_readings",

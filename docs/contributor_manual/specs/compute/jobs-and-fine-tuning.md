@@ -400,7 +400,7 @@ needs them.
   (precision and recall per region kind) before a recipe may use it. *Existing data:* earlier
   passes are untouched; the detector makes new passes. *Test:* a tiny set trains, returns, and
   finds boxes on one held-out page.
-- `compute.tune.lora` — **[GAP]** (#5240) a `train-lora` job fine-tunes a base model named by card with LoRA
+- `compute.tune.lora` — **[PARTIAL]** (#5240) *Built for a vision model on Hugging Face Jobs (#5398): `hf_vision_lora_train.py` (transformers + peft, bf16, loss on the answer alone) on line pairs cut by the line reader's own crop with its own instruction; rank and epochs on the request, not yet a recipe file; QLoRA and the CPU tiny-model test are not built.* a `train-lora` job fine-tunes a base model named by card with LoRA
   (QLoRA when the card and the target's memory call for it), from a recipe file that names
   rank, learning rate, epochs and the prompt form, and returns the adapter, its log and scores.
   A recipe is a shareable file in the sense of `source.recipe.is-a-file` (→ #4950). *Test:* a
@@ -412,7 +412,7 @@ needs them.
   two-minute limit and a trainer stub: the run completes across two parts with no repeated
   steps. Whether `ketos train` resumes by itself is UNVERIFIED (S18) and is checked when the
   slice is cut.
-- `compute.tune.model-comes-back-as-a-card` — **[PARTIAL]** (#5240) *Built for Kraken (#5398): `training/landing.py` lands `kraken-trained-<job>` with a card (base, teacher, set, held-out pages, job, target) listed in the model catalogue; scores on landing are not built.* a returned model lands as a model file and a card
+- `compute.tune.model-comes-back-as-a-card` — **[PARTIAL]** (#5240) *Built for Kraken and for a vision model (#5398): `training/landing.py` lands `kraken-trained-<job>`, `training/mlx_landing.py` lands `fichero-trained/<name>`, each with a card (base, teacher, set, held-out pages, job, target, release) listed in its catalogue; scores on landing are not built.* a returned model lands as a model file and a card
   in the one catalogue, naming its base, its training set, the job, the target, the recipe and
   its scores (`source.train.model-lineage`). It is a row under its provider like any downloaded
   model (`source.find.download-is-a-provider-row`). *Test:* after landing, the catalogue lists
@@ -436,14 +436,14 @@ needs them.
   Training and adoption run by themselves only if the person chose automatic training in setup
   (`source.recipe.train-never-automatic`). *Test:* a better tiny model yields a proposed recipe
   version pinning its card; a worse one yields none.
-- `compute.tune.adapter-always-returns` — **[GAP]** (#5240) a `train-lora` job always returns the adapter. A
+- `compute.tune.adapter-always-returns` — **[PARTIAL]** (#5240) *Built (#5398): the adapter always returns and is kept beside the MLX model. The vision card also returns the merged model, because the MLX conversion needs it, and deletes it once converted; a choice to skip it is not built.* a `train-lora` job always returns the adapter. A
   merged model is returned only when asked for, because it is as large as the base. *Test:*
   result package contents for both choices.
-- `compute.tune.convert-for-mlx` — **[GAP]** (#5240) a merged model fetched to the Mac can be converted and
+- `compute.tune.convert-for-mlx` — **[PARTIAL]** (#5240) *Built, not yet run on a real model (#5398): `training/mlx_landing.py` runs `mlx_vlm.convert -q --q-bits 4` in the MLX runtime's Python on this Mac, on the local ML lane, and lands `fichero-trained/<name>` in the MLX store; the named-machine test (a merged model converts, loads and answers) is the maintainer's run.* a merged model fetched to the Mac can be converted and
   quantised for MLX, and then appears as a model of the MLX row. The convert step runs on the
   Mac only. **Its own slice; not promised until its test is green.** *Test:* a tiny merged
   model converts, loads in the MLX runtime, and answers one prompt.
-- `compute.tune.licence-carries` — **[GAP]** (#5240) a fine-tuned model's card carries its base model's licence
+- `compute.tune.licence-carries` — **[PARTIAL]** (#5240) *Built in part (#5398): the vision student's card carries its base's licence (`base_licence`, Apache-2.0 for Qwen2.5-VL 7B); the training set's licence and licence classes are not.* a fine-tuned model's card carries its base model's licence
   and licence class, and the training set's; publishing reads them. *Routed:*
   `source.model.licence-class`. *Test:* an adapter on a base with a bespoke licence is marked
   so.
@@ -514,7 +514,9 @@ needs them.
    measurement on the maintainer's own pages.*
 4. **Base model for the first language or vision fine-tune.** *Answered 2026-10-03: a small
    Qwen-VL-class model (for example Qwen2.5-VL 3B) with LoRA; the choice is a card, so nothing is
-   hard-wired. It comes after the Kraken and YOLO path.*
+   hard-wired. It comes after the Kraken and YOLO path.* *Revised 2026-10-03 (maintainer): Qwen2.5-VL
+   7B, the setup card for Spanish hands, trained in bf16 and landed as MLX 4-bit; the 3B's licence is
+   research-only.*
 5. **Does the merged model come home by default?** It is about 16 GB for an 8B model.
    *Proposal: no. The adapter always; the merged model only when the person wants it on the
    Mac.*
