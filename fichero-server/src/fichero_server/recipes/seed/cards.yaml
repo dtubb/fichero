@@ -1,0 +1,137 @@
+# Model cards: the facts the recipe rules read (`source.model.*`, `ai/local-runtimes.md` section 1).
+# Seeded 2026-10-03 from Fichero's own catalogue (llm/local_model_catalog.py, kraken_runtime.py)
+# and the 2026-10-01 model search. Only facts stated on the models' published cards are recorded;
+# anything not stated is left empty (unknown), never guessed. `pin_verified: false` marks a
+# Hugging Face pin whose commit SHA has not been fixed yet ("main" is not a pin; the flagship's
+# measurement fixes it, #4950).
+cards:
+  - id: kraken:builtin/blla@bundled
+    pin: {kraken: blla, kraken_version: bundled}
+    jobs: [find-lines]
+    scripts: any
+    languages: any
+    material: [handwriting, print, typescript]
+    licence: Apache-2.0
+    size_gb: 0.01
+    memory_gb: 3.6          # measured 2.3-3.6 GB resident after a page (#5370)
+    trainable: true          # ketos segtrain
+    note: Kraken's built-in line finder; ships inside the app.
+  - id: kraken:zenodo/10.5281/zenodo.13788177@unpinned
+    pin: {zenodo: 10.5281/zenodo.13788177}
+    jobs: [read-a-line]
+    scripts: [Latn]
+    languages: any
+    material: [handwriting, print, typescript]
+    licence: CC-BY-4.0
+    size_gb: 0.016
+    memory_gb: 1.0
+    trainable: true
+    note: McCATMuS, general Latin-script recognition, 16th-21st century.
+  - id: kraken:zenodo/10.5281/zenodo.12743230@unpinned
+    pin: {zenodo: 10.5281/zenodo.12743230}
+    jobs: [read-a-line]
+    scripts: [Latn]
+    languages: any
+    material: [handwriting]
+    licence: CC-BY-4.0
+    size_gb: 0.016
+    memory_gb: 1.0
+    trainable: true
+    note: CATMuS Medieval, medieval manuscripts (French, Latin, Spanish).
+  - id: kraken:zenodo/10.5281/zenodo.21788410@unpinned
+    pin: {zenodo: 10.5281/zenodo.21788410}
+    jobs: [read-a-line]
+    scripts: [Latn, Arab, Armn, Cyrl, Ethi, Geor, Grek, Hebr, Mlym, Syrc]
+    languages: any
+    material: [handwriting, print]
+    licence: Apache-2.0
+    size_gb: 0.06
+    memory_gb: 1.0
+    trainable: true
+    cer_published: 0.0391    # aggregate over 44 languages, per its card
+    note: PP-OCRv6 (medium), multilingual handwritten and printed recognition.
+  - id: tesseract:tessdata/spa@unpinned
+    pin: {tesseract: "5", traineddata: spa}
+    jobs: [read-a-line]
+    scripts: [Latn]
+    languages: [es]
+    material: [print, typescript]
+    licence: Apache-2.0
+    size_gb: 0.02
+    memory_gb: 0.3
+    trainable: true
+    runs_here: false         # Tesseract is not bundled yet (ai/local-runtimes.md)
+    note: Tesseract's Spanish data; the fast local baseline for print.
+  - id: apple:vision/recognize-text@os
+    pin: {builtin: apple-vision}
+    jobs: [read-a-page]
+    scripts: [Latn, Cyrl, Hani, Hang, Arab, Thai]
+    languages: any
+    material: [print, handwriting]
+    licence: system
+    pinnable: false
+    note: Apple's on-device text recognition; changes with macOS.
+  - id: spacy:pkg/es_core_news_sm@bundled
+    pin: {spacy: es_core_news_sm, version: bundled}
+    jobs: [find-names-tag-words]
+    scripts: [Latn]
+    languages: [es]
+    material: [handwriting, print, typescript]
+    licence: GPL-3.0
+    size_gb: 0.015
+    note: spaCy's small Spanish pipeline; bundled.
+  - id: spacy:pkg/en_core_web_sm@bundled
+    pin: {spacy: en_core_web_sm, version: bundled}
+    jobs: [find-names-tag-words]
+    scripts: [Latn]
+    languages: [en]
+    material: [handwriting, print, typescript]
+    licence: MIT
+    size_gb: 0.013
+    note: spaCy's small English pipeline; bundled.
+  - id: embed:hf/intfloat/multilingual-e5-large@unpinned
+    pin: {hf: intfloat/multilingual-e5-large, revision: main}
+    pin_verified: false
+    jobs: [make-a-vector]
+    scripts: any
+    languages: any
+    material: [handwriting, print, typescript]
+    licence: MIT
+    size_gb: 2.2
+    memory_gb: 2.5
+    note: Multilingual embedder (about 100 languages); the engine's current default.
+  - id: embed:hf/BAAI/bge-m3@unpinned
+    pin: {hf: BAAI/bge-m3, revision: main}
+    pin_verified: false
+    jobs: [make-a-vector]
+    scripts: any
+    languages: any
+    material: [handwriting, print, typescript]
+    licence: MIT
+    size_gb: 2.27
+    memory_gb: 2.5
+    note: Multilingual embedder, long documents.
+  - id: mlx:hf/mlx-community/Qwen2.5-VL-7B-Instruct-4bit@unpinned
+    pin: {hf: mlx-community/Qwen2.5-VL-7B-Instruct-4bit, revision: main}
+    pin_verified: false
+    jobs: [correct, read-a-page]
+    scripts: [Latn, Cyrl, Hani, Arab]
+    languages: [en, zh, es, fr, de, it, pt, ru, ar]
+    material: [handwriting, print, typescript]
+    licence: Apache-2.0
+    size_gb: 5.6
+    memory_gb: 7.0
+    trainable: true          # LoRA
+    note: Qwen2.5-VL 7B, 4-bit, for MLX on Apple silicon.
+  - id: mlx:hf/mlx-community/Qwen2.5-VL-3B-Instruct-4bit@unpinned
+    pin: {hf: mlx-community/Qwen2.5-VL-3B-Instruct-4bit, revision: main}
+    pin_verified: false
+    jobs: [correct, read-a-page]
+    scripts: [Latn, Cyrl, Hani, Arab]
+    languages: [en, zh, es, fr, de, it, pt, ru, ar]
+    material: [handwriting, print, typescript]
+    licence: Qwen-Research
+    size_gb: 2.3
+    memory_gb: 3.5
+    trainable: true
+    note: Qwen2.5-VL 3B, 4-bit; its licence is research-only, so it needs a deliberate choice.

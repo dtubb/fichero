@@ -34,6 +34,8 @@ LANGUAGE_JOBS = frozenset({"correct", "translate-transliterate-normalise", "find
 REWRITING_JOBS = frozenset({"correct", "translate-transliterate-normalise"})
 #: Volume above which training is offered from the start (section 8, the volume rule).
 TRAIN_OFFERED_FROM_PAGES = 5_000
+#: Memory left for macOS, the app and the engine when a model is resident (the 8 GB Air taught us).
+MEMORY_HEADROOM_GB = 2.0
 
 
 @dataclass(frozen=True)
@@ -97,8 +99,8 @@ def _hard_constraints(job: str, card: Card, a: Answers) -> str | None:
         return "its licence is not open (accept it to use it)"
     if not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed:
         return "it runs in the cloud and this project keeps pages on this Mac"
-    if card.local and card.memory_gb > a.mac_memory_gb:
-        return "this Mac does not have the memory to run it"
+    if card.local and card.memory_gb > a.mac_memory_gb - MEMORY_HEADROOM_GB:
+        return "this Mac does not have the memory to run it alongside macOS and Fichero"
     return None
 
 
