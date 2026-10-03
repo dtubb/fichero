@@ -630,6 +630,16 @@ def release_resident_models() -> None:
     _RESIDENT.clear()
 
 
+def _reader_config(config_cls: Callable[..., object]) -> object:
+    """The reader's device, named: Apple's GPU (MPS) when torch has it, else the CPU. Kraken's
+    "auto" was slower than either per page (measured 2026-10-03 on a Sergio notebook half-page:
+    auto 28 s, CPU 13 s, MPS 11 s, with the model already loaded)."""
+    import torch
+
+    accelerator = "mps" if torch.backends.mps.is_available() else "cpu"
+    return config_cls(accelerator=accelerator, device=1)
+
+
 def _segmenter() -> object:
     """Kraken's built-in baseline line finder, loaded once."""
     from importlib import resources
@@ -656,7 +666,7 @@ def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]
         # SAME order -- so prediction i belongs to segmented line i, and every line keeps its own
         # baseline/polygon geometry.
         net = _resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path))
-        predictions = list(net.predict(image, segmentation, RecognitionInferenceConfig()))
+        predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
         width, height = image.width, image.height
     lines = _raw_lines(segmentation)
     for index, line in enumerate(lines):
