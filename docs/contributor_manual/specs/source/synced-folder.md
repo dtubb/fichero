@@ -43,6 +43,19 @@ its own layout.
 | **read-back format** | a format Fichero can import (PAGE, ALTO, TEI): edits to such files come back. Every other format is **out only** |
 | **intake** | new images or files arriving in the folder becoming sources |
 
+**The four ways sources come in** (ruled by the maintainer, 2026-10-03). Setup asks this once per
+project, and each import can choose again:
+
+| Way | What happens to the originals |
+|---|---|
+| **Link** (the default) | read where they are; Fichero never changes them |
+| **Copy** | Fichero makes its own copy in the project; the originals are never touched |
+| **Move** | moved into the project and kept by the app; the originals are removed from where they were (setup says so plainly) |
+| **Index** | Fichero works on the folder in place and writes its changes back into the original files, keeping that folder up to date: an adopted folder, both ways |
+
+Link, Copy and Move are the ingest `mode` today (`link`, `copy`, `move`). Index is this spec's
+adopted folder and is not built.
+
 ## What exists today
 
 - The exporter writes PAGE, ALTO, TEI, plain text and more on request (`export/exporter.md`);
@@ -203,6 +216,7 @@ Ownership and layout
   wrote itself, known by a checksum it recorded; any other file in the way is left and reported.
 - `source.sync.fixed-layout` — **[GAP]** (#4952) a made folder's layout is chosen by Fichero and is
   the same for every project.
+- `source.sync.four-ways-in` — **[PARTIAL]** (#4952) setup and import offer Link, Copy, Move and Index with what each does to the originals; Link, Copy and Move are built (ingest `mode`), Index is not.
 - `source.sync.adopt-existing-folder` — **[GAP]** (#4952) importing a folder of TEI, ALTO or PAGE XML
   can make it the synced folder: it keeps its own layout, each file is matched to its source (the
   match shown for correction), work in Fichero is written back into the same file in the same
