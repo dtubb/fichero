@@ -21,8 +21,8 @@ def test_a_different_managed_model_is_refused_naming_both():
 
 @pytest.mark.parametrize("requested", ["mlx-community/Qwen3-VL-8B", "mlx-community/Qwen3-VL-8B-Instruct-4bit"])
 def test_the_served_model_by_id_or_repo_passes(requested):
-    _refuse_a_model_the_local_server_does_not_serve(requested, "mlx-community/Qwen3-VL-8B")
+    assert _refuse_a_model_the_local_server_does_not_serve(requested, "mlx-community/Qwen3-VL-8B") is None
 
 
 def test_a_name_that_is_not_a_managed_model_is_left_to_the_server():
-    _refuse_a_model_the_local_server_does_not_serve("some-served-name", "mlx-community/Qwen3-VL-8B")
+    assert _refuse_a_model_the_local_server_does_not_serve("some-served-name", "mlx-community/Qwen3-VL-8B") is None
