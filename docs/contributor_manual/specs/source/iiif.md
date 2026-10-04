@@ -245,7 +245,7 @@ Out:
   Image API 2.1 service, dev tier.
 - `iiif.export.points-at-original` — **[PARTIAL]** (#5326) *Built: a by-reference page's manifest paints the archive's own image at the canvas's size with the image service exactly as the archive published it (kept at import), and carries the archive's rights and required statement; pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: a folder or collection export, the static site's manifests.* a page that came in by reference exports
   pointing at its original image service; nothing is re-hosted.
-- `iiif.export.segments-as-annotations` — **[GAP]** (#5326) segments export as annotations with
+- `iiif.export.segments-as-annotations` — **[PARTIAL]** (#5326) *Built: a canvas names an annotation page of its working pass's lines (`GET /api/iiif/iiif/lines/{id}`), each the counting reading's text and language, `textGranularity: line`, its maker (Software or Person) and its place in canvas pixels, read through the one page exporter; pinned by `fichero-server/tests/unit/api/test_iiif_segments_as_annotations.py`. Not built: other readings, notes and claims as their own labelled pages.* segments export as annotations with
   selectors and text granularity, carrying the counting reading's text, language and maker; other
   readings, notes and claims go as separate, labelled annotation pages.
 - `iiif.round-trip` — **[GAP]** (#5326) a manifest exported by Fichero and imported again, into a
