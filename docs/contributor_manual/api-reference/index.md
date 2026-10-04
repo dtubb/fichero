@@ -614,11 +614,10 @@ model read and a person checked), the Job's `last_lines` when it ends, and, once
 
 `POST /api/training/reasons` queues a `gather-reasons` job (#4642): a palaeographer (a reasoning vision
 model, `provider` and `model`) is asked about every line of the `checked` pass in scope, held-out pages
-left out: with `mode: read`, the letterforms, abbreviations and uncertain readings behind each reading,
-then the transcription; with `mode: review`, its review of the `draft` pass's reading of each line.
-`prompt_file` is the recipe's own prompt. Each call is one episode in the ledger, which the vision
-card's `why`, `thinking` and `review` arms read. Through `training.gather_reasons`; 422 for a review with
-no `draft`. `GET /api/training/reasons/{job_id}` gives its counts (lines, with reasons, with thinking,
+left out: the letterforms, abbreviations and uncertain readings behind each reading, then the
+transcription. `prompt_file` is the recipe's own prompt. Each call is one episode in the ledger, which
+the vision card's `why` and `thinking` arms read (its `review` arm reads a check run of the readings,
+below). Through `training.gather_reasons`; 422 with no scope. `GET /api/training/reasons/{job_id}` gives its counts (lines, with reasons, with thinking,
 unanswered, pages missing and why); `POST /api/training/reasons/{job_id}/cancel` stops it
 (`training.cancel_reasons`): no further lines are asked about, and what was gathered stays.
 
@@ -683,6 +682,29 @@ place; a file Fichero did not write, or one changed since it wrote it, is never 
 `GET /api/sync-folders` gives each folder's place, formats, last write, files waiting, and the
 files written, in the way, changed outside and deleted outside (found again when the library opens).
 `DELETE /api/sync-folders/{folder_id}` unties it and leaves its files.
+
+### Checking a layer's proposals
+
+`specs/source/checking.md` (`source.check.*`, #5404). `POST /api/check/runs` queues a `check` job: the
+checker (`provider`, `model`) is shown each proposal of `layer` in `scope_ids`, one a call:
+`readings` (the palaeographer reviewer: each line's picture and its counting reading of `kind`; the
+lines of the page's newest pass, or of `pass_model`'s), `claims` (each statement's text, subject,
+relation, object and the passage it came from) or `entities` (each entity's name, type, other names
+and the passages that mention it). `prompt_file` is the recipe's prompt for the card. Each answer
+(confirm, correct or reject, with reasons) is a verdict through `check.verdict`, recorded at the trust
+level `model`; each call is an episode in the ledger, named on its verdict. A corrected reading is
+first written as a new reading of the line naming the one checked (`representation.create`, a
+machine's reading); a statement's or entity's correction is held on the verdict for a person to take.
+A model never curates a statement or verifies an entity: its *reject* moves an `unreviewed` statement to
+`shortlisted`, and nothing further. Through `check.run`. `GET /api/check/runs/{job_id}` gives the counts
+(confirm, correct, reject, unanswered) in words; `POST /api/check/runs/{job_id}/cancel` stops it before
+its next proposal (`check.cancel`).
+
+`POST /api/check/verdicts` records your own verdict (`layer`, `target_id`, `verdict`, `reasons`,
+`correction`) through `check.verdict`, at `person`; the trust level and the checker are the server's
+(422 if sent). It moves no curation state: a statement's curation is its own action.
+`POST /api/mcp/tools/check/verdicts` is the same for an agent, recorded at `model`.
+`GET /api/check/verdicts` lists verdicts by `target_id`, `run_id` or `layer`.
 
 ### Workflow run comparison
 

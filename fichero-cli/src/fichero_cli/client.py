@@ -1125,6 +1125,21 @@ class FicheroClient:
         """Stop one job; the state after the request says if it was running and finishes its item."""
         return self.request("POST", f"/api/activity/jobs/{quote(job_id, safe='')}/cancel")
 
+    def check_run(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Queue a check of a layer's proposals by a checker model (#5404); see POST /api/check/runs."""
+        return self.request("POST", "/api/check/runs", json=request)
+
+    def check_status(self, job_id: str) -> dict[str, Any]:
+        """A check run's counts: confirmed, corrected, rejected, unanswered."""
+        return self.request("GET", f"/api/check/runs/{quote(job_id, safe='')}")
+
+    def cancel_check(self, job_id: str) -> dict[str, Any]:
+        """Stop a check run before its next proposal; what was checked stays."""
+        return self.request("POST", f"/api/check/runs/{quote(job_id, safe='')}/cancel")
+
+    def check_verdicts(self, **query: str) -> dict[str, Any]:
+        """Verdicts on a proposal (target_id), of a run (run_id), or of a layer."""
+        return self.request("GET", "/api/check/verdicts", params={k: v for k, v in query.items() if v})
 
     def gather_reasons(self, request: dict[str, Any]) -> dict[str, Any]:
         """Queue a palaeographer's reasons (or review) for each checked line (#4642); see POST /api/training/reasons."""

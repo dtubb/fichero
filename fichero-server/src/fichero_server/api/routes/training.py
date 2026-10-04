@@ -211,9 +211,9 @@ async def start_gathering_reasons(
 ) -> dict[str, str]:
     """Queue a `gather-reasons` job (#4642): the teacher (a reasoning vision model) reads every line of
     the checked pass in scope, held-out pages left out, and gives the letterforms, abbreviations and
-    uncertain readings behind each reading (`read`), or reviews the `draft` pass's reading of each line
-    (`review`). Each call is an episode in the ledger; the vision card's `why`, `thinking` and `review`
-    arms are made from them. A hosted teacher goes through the egress gate like any model call."""
+    uncertain readings behind each reading. Each call is an episode in the ledger; the vision card's
+    `why` and `thinking` arms are made from them (the `review` arm from the check job's readings card,
+    `POST /api/check/runs`). A hosted teacher goes through the egress gate like any model call."""
     try:
         return registry.invoke(db, "training.gather_reasons", request.model_dump(), ctx).result
     except ValueError as exc:

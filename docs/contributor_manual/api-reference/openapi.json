@@ -5607,7 +5607,7 @@
           "training"
         ],
         "summary": "Ask a palaeographer for its reasons (or review) on each checked line",
-        "description": "Queue a `gather-reasons` job (#4642): the teacher (a reasoning vision model) reads every line of\nthe checked pass in scope, held-out pages left out, and gives the letterforms, abbreviations and\nuncertain readings behind each reading (`read`), or reviews the `draft` pass's reading of each line\n(`review`). Each call is an episode in the ledger; the vision card's `why`, `thinking` and `review`\narms are made from them. A hosted teacher goes through the egress gate like any model call.",
+        "description": "Queue a `gather-reasons` job (#4642): the teacher (a reasoning vision model) reads every line of\nthe checked pass in scope, held-out pages left out, and gives the letterforms, abbreviations and\nuncertain readings behind each reading. Each call is an episode in the ledger; the vision card's\n`why` and `thinking` arms are made from them (the `review` arm from the check job's readings card,\n`POST /api/check/runs`). A hosted teacher goes through the egress gate like any model call.",
         "operationId": "start_gathering_reasons_api_training_reasons_post",
         "parameters": [
           {
@@ -5874,6 +5874,313 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Reasons Ab Status Api Training Reasons Ab  Job Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/check/runs": {
+      "post": {
+        "tags": [
+          "check"
+        ],
+        "summary": "Check a layer's proposals with a checker model, as one job",
+        "description": "Queue a `check` job: the checker model is shown each proposal of `layer` in scope (a line's picture\nand its counting reading; a statement with its subject, relation, object and passage; an entity with\nits names and passages) and answers confirm, correct or reject with its reasons. Each answer is a\nverdict at the trust level `model`; a corrected reading is a new reading naming the first; a model\nnever curates a statement or verifies an entity. Through `check.run`.",
+        "operationId": "start_check_run_api_check_runs_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Start Check Run Api Check Runs Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/check/runs/{job_id}": {
+      "get": {
+        "tags": [
+          "check"
+        ],
+        "summary": "A check run's counts in words and numbers",
+        "operationId": "check_run_status_api_check_runs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Check Run Status Api Check Runs  Job Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/check/runs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "check"
+        ],
+        "summary": "Stop a check run before its next proposal",
+        "operationId": "cancel_check_run_api_check_runs__job_id__cancel_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Cancel Check Run Api Check Runs  Job Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/check/verdicts": {
+      "post": {
+        "tags": [
+          "check"
+        ],
+        "summary": "Record your verdict on a proposal",
+        "description": "Confirm, correct or reject one proposal, with your reasons, through `check.verdict`. Its trust level\nis the server's: `person` for you, `model` for a run or an agent. A reject records your verdict; a\nstatement's curation is still its own action.",
+        "operationId": "record_verdict_api_check_verdicts_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckVerdictParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Record Verdict Api Check Verdicts Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "check"
+        ],
+        "summary": "Verdicts on a proposal, or of a run",
+        "operationId": "list_verdicts_api_check_verdicts_get",
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Target Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "layer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Layer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Verdicts Api Check Verdicts Get"
                 }
               }
             }
@@ -21401,6 +21708,51 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MCPClaimsListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp/tools/check/verdicts": {
+      "post": {
+        "tags": [
+          "mcp",
+          "mcp-tools"
+        ],
+        "summary": "Mcp Check Verdict",
+        "description": "MCP tool endpoint: record an agent's verdict through `check.verdict`, the same action a person's goes\nthrough. Written from this route, so it is an agent's: trust `model`, never a person's\n(`source.check.model-never-a-person`), and a reject moves a statement no further than `shortlisted`.",
+        "operationId": "mcp_check_verdict_api_mcp_tools_check_verdicts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MCPCheckVerdictRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Mcp Check Verdict Api Mcp Tools Check Verdicts Post"
                 }
               }
             }
@@ -47481,6 +47833,134 @@
         ],
         "title": "CheckResponse"
       },
+      "CheckRunRequest": {
+        "properties": {
+          "layer": {
+            "type": "string",
+            "enum": [
+              "readings",
+              "claims",
+              "entities"
+            ],
+            "title": "Layer",
+            "description": "Which layer's proposals to check."
+          },
+          "scope_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scope Ids",
+            "description": "Folders, pages or documents: their lines, or their statements and entities."
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "The checker's provider, e.g. openrouter, omlx."
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "The checker model, e.g. a palaeographer such as Fable."
+          },
+          "prompt_file": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prompt File",
+            "description": "The recipe's prompt for this card; none uses Fichero's own."
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "readings: the kind of reading checked.",
+            "default": "transcription"
+          },
+          "pass_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Model",
+            "description": "readings: check the lines of this model's pass, not the page's newest."
+          }
+        },
+        "type": "object",
+        "required": [
+          "layer",
+          "scope_ids",
+          "provider",
+          "model"
+        ],
+        "title": "CheckRunRequest"
+      },
+      "CheckVerdictParams": {
+        "properties": {
+          "layer": {
+            "type": "string",
+            "enum": [
+              "readings",
+              "claims",
+              "entities"
+            ],
+            "title": "Layer"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "confirm",
+              "correct",
+              "reject"
+            ],
+            "title": "Verdict"
+          },
+          "reasons": {
+            "type": "string",
+            "title": "Reasons"
+          },
+          "correction": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Correction"
+          },
+          "replacement_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Replacement Id"
+          },
+          "checker_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Checker Model"
+          },
+          "episode_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Episode Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "layer",
+          "target_id",
+          "verdict",
+          "reasons"
+        ],
+        "title": "CheckVerdictParams"
+      },
       "ChecklistCreateRequest": {
         "properties": {
           "project_id": {
@@ -57079,16 +57559,6 @@
             "title": "Checked",
             "description": "The model id of the CHECKED pass (its lines and their right readings)."
           },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "read",
-              "review"
-            ],
-            "title": "Mode",
-            "description": "`read`: the palaeographer's reasons and transcription; `review`: its review of the `draft` pass's readings.",
-            "default": "read"
-          },
           "provider": {
             "type": "string",
             "title": "Provider",
@@ -57098,12 +57568,6 @@
             "type": "string",
             "title": "Model",
             "description": "The teacher: a reasoning vision model, e.g. Qwen3-VL-8B-Thinking."
-          },
-          "draft": {
-            "type": "string",
-            "nullable": true,
-            "title": "Draft",
-            "description": "review: the model id of the pass whose readings are reviewed."
           },
           "held_out_ids": {
             "items": {
@@ -63273,6 +63737,49 @@
           "why"
         ],
         "title": "LossOut"
+      },
+      "MCPCheckVerdictRequest": {
+        "properties": {
+          "layer": {
+            "type": "string",
+            "title": "Layer",
+            "description": "readings, claims or entities"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "verdict": {
+            "type": "string",
+            "title": "Verdict",
+            "description": "confirm, correct or reject"
+          },
+          "reasons": {
+            "type": "string",
+            "title": "Reasons"
+          },
+          "correction": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Correction"
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "layer",
+          "target_id",
+          "verdict",
+          "reasons"
+        ],
+        "title": "MCPCheckVerdictRequest",
+        "description": "An agent's verdict on one proposal (`source.check.*`). No trust and no checker: the server's."
       },
       "MCPClaimDeletedResponse": {
         "properties": {

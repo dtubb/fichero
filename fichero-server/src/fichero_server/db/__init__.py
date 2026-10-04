@@ -1252,6 +1252,7 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.editorial import EditorialFact
         from fichero_server.models.hands import Hand, HandAttribution
         from fichero_server.models.letterforms import Allograph, LetterformDescription
+        from fichero_server.models.checking import CheckVerdict
         from fichero_server.models.campaigns import Campaign, CampaignMembership, ReadingCampaigns
         from fichero_server.models.rights import RightsRecord
         from fichero_server.models.signs import DeclaredSign
@@ -1374,6 +1375,8 @@ class Database(DatabaseEmbeddingMixin):
             HandAttribution,
             Allograph,
             LetterformDescription,
+            # `source.check.*` (#5404): a checker's verdicts, beside the proposals they check.
+            CheckVerdict,
             Campaign,
             CampaignMembership,
             ReadingCampaigns,

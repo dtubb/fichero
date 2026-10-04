@@ -2792,6 +2792,133 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('check')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for check endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='check')
+        existing_apps['check'] = target_app
+
+    @target_app.command("a-layer-s-proposals-with-a-checker-model-as-one-job")
+    def check_a_layer_s_proposals_with_a_checker_model_as_one_job_post(
+        ctx: typer.Context,
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        layer: str = typer.Option(..., "--layer", help="Request field: layer."),
+        model: str = typer.Option(..., "--model", help="Request field: model."),
+        pass_model: Optional[str] = typer.Option(None, "--pass-model", help="Request field: pass_model."),
+        prompt_file: Optional[str] = typer.Option(None, "--prompt-file", help="Request field: prompt_file."),
+        provider: str = typer.Option(..., "--provider", help="Request field: provider."),
+        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+    ) -> None:
+        """Check a layer's proposals with a checker model, as one job (POST /api/check/runs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/check/runs"
+            params = None
+            payload = _build_json_payload({
+                "kind": kind,
+                "language": language,
+                "layer": layer,
+                "model": model,
+                "pass_model": pass_model,
+                "prompt_file": prompt_file,
+                "provider": provider,
+                "scope_ids": scope_ids,
+            }, {
+                "kind": {'type': 'string', 'title': 'Kind', 'description': 'readings: the kind of reading checked.', 'default': 'transcription', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "layer": {'type': 'string', 'enum': ['readings', 'claims', 'entities'], 'title': 'Layer', 'description': "Which layer's proposals to check.", 'x-cli-required': True},
+                "model": {'type': 'string', 'title': 'Model', 'description': 'The checker model, e.g. a palaeographer such as Fable.', 'x-cli-required': True},
+                "pass_model": {'type': 'string', 'nullable': True, 'title': 'Pass Model', 'description': "readings: check the lines of this model's pass, not the page's newest.", 'x-cli-required': False},
+                "prompt_file": {'type': 'string', 'nullable': True, 'title': 'Prompt File', 'description': "The recipe's prompt for this card; none uses Fichero's own.", 'x-cli-required': False},
+                "provider": {'type': 'string', 'title': 'Provider', 'description': "The checker's provider, e.g. openrouter, omlx.", 'x-cli-required': True},
+                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders, pages or documents: their lines, or their statements and entities.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("a-run-s-counts-in-words-and-numbers")
+    def check_a_run_s_counts_in_words_and_numbers_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """A check run's counts in words and numbers (GET /api/check/runs/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/check/runs/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-a-run-before-its-next-proposal")
+    def check_stop_a_run_before_its_next_proposal_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Stop a check run before its next proposal (POST /api/check/runs/{job_id}/cancel)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/check/runs/{job_id}/cancel"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("verdicts-on-a-proposal-or-of-a-run")
+    def check_verdicts_on_a_proposal_or_of_a_run_get(
+        ctx: typer.Context,
+        layer: Optional[str] = typer.Option(None, "--layer", help="Query parameter: layer."),
+        run_id: Optional[str] = typer.Option(None, "--run-id", help="Query parameter: run_id."),
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
+    ) -> None:
+        """Verdicts on a proposal, or of a run (GET /api/check/verdicts)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/check/verdicts"
+            params = {
+                "layer": layer,
+                "run_id": run_id,
+                "target_id": target_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("record-your-verdict-on-a-proposal")
+    def check_record_your_verdict_on_a_proposal_post(
+        ctx: typer.Context,
+        checker_model: Optional[str] = typer.Option(None, "--checker-model", help="Request field: checker_model."),
+        correction: Optional[str] = typer.Option(None, "--correction", help="Request field: correction."),
+        episode_id: Optional[str] = typer.Option(None, "--episode-id", help="Request field: episode_id."),
+        layer: str = typer.Option(..., "--layer", help="Request field: layer."),
+        reasons: str = typer.Option(..., "--reasons", help="Request field: reasons."),
+        replacement_id: Optional[str] = typer.Option(None, "--replacement-id", help="Request field: replacement_id."),
+        segment_id: Optional[str] = typer.Option(None, "--segment-id", help="Request field: segment_id."),
+        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
+        verdict: str = typer.Option(..., "--verdict", help="Request field: verdict."),
+    ) -> None:
+        """Record your verdict on a proposal (POST /api/check/verdicts)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/check/verdicts"
+            params = None
+            payload = _build_json_payload({
+                "checker_model": checker_model,
+                "correction": correction,
+                "episode_id": episode_id,
+                "layer": layer,
+                "reasons": reasons,
+                "replacement_id": replacement_id,
+                "segment_id": segment_id,
+                "target_id": target_id,
+                "verdict": verdict,
+            }, {
+                "checker_model": {'type': 'string', 'nullable': True, 'title': 'Checker Model', 'x-cli-required': False},
+                "correction": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Correction', 'x-cli-required': False},
+                "episode_id": {'type': 'string', 'nullable': True, 'title': 'Episode Id', 'x-cli-required': False},
+                "layer": {'type': 'string', 'enum': ['readings', 'claims', 'entities'], 'title': 'Layer', 'x-cli-required': True},
+                "reasons": {'type': 'string', 'title': 'Reasons', 'x-cli-required': True},
+                "replacement_id": {'type': 'string', 'nullable': True, 'title': 'Replacement Id', 'x-cli-required': False},
+                "segment_id": {'type': 'string', 'nullable': True, 'title': 'Segment Id', 'x-cli-required': False},
+                "target_id": {'type': 'string', 'title': 'Target Id', 'x-cli-required': True},
+                "verdict": {'type': 'string', 'enum': ['confirm', 'correct', 'reject'], 'title': 'Verdict', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('citation-usages')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for citation-usages endpoints.', no_args_is_help=True)
@@ -9615,6 +9742,38 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='mcp')
         existing_apps['mcp'] = target_app
 
+    @target_app.command("check-verdict")
+    def mcp_check_verdict_post(
+        ctx: typer.Context,
+        correction: Optional[str] = typer.Option(None, "--correction", help="Request field: correction."),
+        layer: str = typer.Option(..., "--layer", help="Request field: layer."),
+        reasons: str = typer.Option(..., "--reasons", help="Request field: reasons."),
+        segment_id: Optional[str] = typer.Option(None, "--segment-id", help="Request field: segment_id."),
+        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
+        verdict: str = typer.Option(..., "--verdict", help="Request field: verdict."),
+    ) -> None:
+        """Mcp Check Verdict (POST /api/mcp/tools/check/verdicts)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/mcp/tools/check/verdicts"
+            params = None
+            payload = _build_json_payload({
+                "correction": correction,
+                "layer": layer,
+                "reasons": reasons,
+                "segment_id": segment_id,
+                "target_id": target_id,
+                "verdict": verdict,
+            }, {
+                "correction": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Correction', 'x-cli-required': False},
+                "layer": {'type': 'string', 'title': 'Layer', 'description': 'readings, claims or entities', 'x-cli-required': True},
+                "reasons": {'type': 'string', 'title': 'Reasons', 'x-cli-required': True},
+                "segment_id": {'type': 'string', 'nullable': True, 'title': 'Segment Id', 'x-cli-required': False},
+                "target_id": {'type': 'string', 'title': 'Target Id', 'x-cli-required': True},
+                "verdict": {'type': 'string', 'title': 'Verdict', 'description': 'confirm, correct or reject', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-knowledge-claims")
     def mcp_list_knowledge_claims_get(
         ctx: typer.Context,
@@ -15482,10 +15641,8 @@ def register_generated_openapi_commands(
     def training_ask_a_palaeographer_for_its_reasons_or_review_on_each_checked_line_post(
         ctx: typer.Context,
         checked: str = typer.Option(..., "--checked", help="Request field: checked."),
-        draft: Optional[str] = typer.Option(None, "--draft", help="Request field: draft."),
         held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
         language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        mode: Optional[str] = typer.Option(None, "--mode", help="Request field: mode."),
         model: str = typer.Option(..., "--model", help="Request field: model."),
         prompt_file: Optional[str] = typer.Option(None, "--prompt-file", help="Request field: prompt_file."),
         provider: str = typer.Option(..., "--provider", help="Request field: provider."),
@@ -15497,20 +15654,16 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "checked": checked,
-                "draft": draft,
                 "held_out_ids": held_out_ids,
                 "language": language,
-                "mode": mode,
                 "model": model,
                 "prompt_file": prompt_file,
                 "provider": provider,
                 "scope_ids": scope_ids,
             }, {
                 "checked": {'type': 'string', 'title': 'Checked', 'description': 'The model id of the CHECKED pass (its lines and their right readings).', 'x-cli-required': True},
-                "draft": {'type': 'string', 'nullable': True, 'title': 'Draft', 'description': 'review: the model id of the pass whose readings are reviewed.', 'x-cli-required': False},
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'Pages kept as the test: never asked about.', 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
-                "mode": {'type': 'string', 'enum': ['read', 'review'], 'title': 'Mode', 'description': "`read`: the palaeographer's reasons and transcription; `review`: its review of the `draft` pass's readings.", 'default': 'read', 'x-cli-required': False},
                 "model": {'type': 'string', 'title': 'Model', 'description': 'The teacher: a reasoning vision model, e.g. Qwen3-VL-8B-Thinking.', 'x-cli-required': True},
                 "prompt_file": {'type': 'string', 'nullable': True, 'title': 'Prompt File', 'description': "The recipe's prompt file; none uses Fichero's own.", 'x-cli-required': False},
                 "provider": {'type': 'string', 'title': 'Provider', 'description': "The teacher's provider, e.g. openrouter, gemini, omlx.", 'x-cli-required': True},

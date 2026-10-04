@@ -584,28 +584,85 @@ def fichero_training_cancel(job_id: str) -> Any:
 
 
 @mcp.tool()
+def fichero_check_run(
+    layer: str,
+    scope_ids: list[str],
+    provider: str,
+    model: str,
+    prompt_file: Optional[str] = None,
+    language: Optional[str] = None,
+    pass_model: Optional[str] = None,
+) -> Any:
+    """Check a layer's proposals with a checker model, as one job: ``layer`` is ``readings`` (the
+    palaeographer reviewer: each line's picture and counting reading), ``claims`` (each statement, its
+    subject, relation, object and passage) or ``entities`` (each entity, its names and passages). Each
+    answer (confirm, correct or reject, with reasons) is a verdict at the trust level ``model``; a
+    corrected reading is a new reading naming the first; a model never curates or verifies. A hosted
+    checker is a paid call that sends pages or text out: say so to the person first. Follow it with
+    ``fichero_check_status``; read the verdicts with ``fichero_check_verdicts``."""
+    with _mutating_client() as client:
+        return client.check_run({"layer": layer, "scope_ids": scope_ids, "provider": provider, "model": model,
+                                 "prompt_file": prompt_file, "language": language, "pass_model": pass_model})
+
+
+@mcp.tool()
+def fichero_check_status(job_id: str) -> Any:
+    """A check run's state and counts: confirmed, corrected, rejected, unanswered."""
+    with _client() as client:
+        return client.check_status(job_id)
+
+
+@mcp.tool()
+def fichero_check_cancel(job_id: str) -> Any:
+    """Stop a check run before its next proposal; the verdicts already made stay."""
+    with _mutating_client() as client:
+        return client.cancel_check(job_id)
+
+
+@mcp.tool()
+def fichero_check_verdicts(target_id: Optional[str] = None, run_id: Optional[str] = None,
+                           layer: Optional[str] = None) -> Any:
+    """Verdicts on one proposal (``target_id``), of one run (``run_id``) or of one layer: each with its
+    verdict, reasons, checker, trust level (person or model), episode and, for a correction, what replaces
+    the proposal."""
+    with _client() as client:
+        return client.check_verdicts(target_id=target_id, run_id=run_id, layer=layer)
+
+
+@mcp.tool()
+def fichero_check_verdict(layer: str, target_id: str, verdict: str, reasons: str,
+                          correction: Optional[dict[str, Any]] = None, segment_id: Optional[str] = None) -> Any:
+    """Record YOUR verdict (confirm, correct or reject, with reasons) on one proposal. It is recorded as an
+    agent's, at the trust level ``model``, never a person's; your reject moves a statement no further than
+    ``shortlisted`` for a person to decide. For a statement or entity, ``correction`` holds the corrected
+    values for a person to take."""
+    with _mutating_client() as client:
+        return client.request("POST", "/api/mcp/tools/check/verdicts", json={
+            "layer": layer, "target_id": target_id, "verdict": verdict, "reasons": reasons,
+            "correction": correction, "segment_id": segment_id})
+
+
+@mcp.tool()
 def fichero_gather_reasons(
     scope_ids: list[str],
     checked: str,
     provider: str,
     model: str,
-    mode: str = "read",
-    draft: Optional[str] = None,
     held_out_ids: Optional[list[str]] = None,
     language: Optional[str] = None,
     prompt_file: Optional[str] = None,
 ) -> Any:
     """Ask a palaeographer (a reasoning vision model: ``provider``/``model``) about every line of the
-    CHECKED pass (``checked``, its model id) in scope, held-out pages left out. ``mode="read"``: the
-    letterforms, abbreviations and uncertain readings behind each reading, then the transcription;
-    ``mode="review"``: its review of the ``draft`` pass's reading of each line. Each call is kept in the
-    episode ledger; ``fichero_train_vision_lora`` with ``arm`` = why, thinking or review trains on them.
+    CHECKED pass (``checked``, its model id) in scope, held-out pages left out: the letterforms,
+    abbreviations and uncertain readings behind each reading, then the transcription. Each call is kept
+    in the episode ledger; ``fichero_train_vision_lora`` with ``arm`` = why or thinking trains on them
+    (``review`` trains on a ``fichero_check_run`` of the readings).
     A hosted model is a paid call that sends line pictures out: say so to the person first. Follow it
     with ``fichero_reasons_status``."""
     with _mutating_client() as client:
         return client.gather_reasons({
-            "scope_ids": scope_ids, "checked": checked, "provider": provider, "model": model, "mode": mode,
-            "draft": draft, "held_out_ids": held_out_ids or [], "language": language, "prompt_file": prompt_file,
+            "scope_ids": scope_ids, "checked": checked, "provider": provider, "model": model,
+            "held_out_ids": held_out_ids or [], "language": language, "prompt_file": prompt_file,
         })
 
 

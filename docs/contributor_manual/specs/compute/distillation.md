@@ -233,6 +233,9 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
 
 ## Behaviors
 
+Tests for `distill.reasoning.*` and `distill.set.keeps-reasons`:
+`fichero-server/tests/unit/training/test_distill_reasoning_to_spec.py`, one per behaviour, through the API.
+
 - `distill.offered-not-default` — **[GAP]** (#5337, #4950) distillation is offered, never chosen by default:
   setup offers it as the default *kind* of training when a person chooses training, and a train or
   distil step runs by itself only if that was chosen in setup. *Test:* a project set up without
@@ -249,6 +252,11 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
   (letterforms, abbreviations and expansions, uncertain readings with alternatives, then the
   transcription) are kept in the episode ledger with the teacher's card, prompt file, run, time and
   cost, and its readings name their episode; no second store holds traces.
+- `distill.reasoning.gather-is-a-job` — **[OK]** (#4642; `training/reasons_job.py`, `POST /api/training/reasons`) asking a palaeographer for its reasons on a
+  scope's checked lines is one job in Activity, from the API, the CLI and MCP, with its counts in words
+  (lines asked about, with reasons, with thinking, unanswered), held-out pages never asked about, and can
+  be stopped before the next line; what was gathered stays. The palaeographer *reviewer* is not a second
+  mechanism: it is the check job's readings card (`source.check.readings-card`).
 - `distill.reasoning.answer-is-checked` — **[OK]** (#4642; `training/line_pairs.arms_for`; `max_trace_cer` (0.10 by default) and the drops on the set) in a reasoning set the answer is always the
   person's checked transcription; a trace is kept only where the teacher's own reading is within
   the set CER of it, and the count dropped is stated on the set.
