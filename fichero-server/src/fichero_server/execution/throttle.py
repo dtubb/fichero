@@ -28,6 +28,8 @@ IDLE_BEFORE_HEAVY_SECONDS = 30.0
 BATTERY_READING_SECONDS = 30.0
 #: macOS memory pressure levels (`kern.memorystatus_vm_pressure_level`): 1 normal, 2 warn, 4 critical.
 _PRESSURE_WARN = 2
+#: The one reason that means "let memory go", not just "wait": a long job stops on it.
+MEMORY_REASON = "Waiting: memory is tight"
 #: `NSProcessInfoThermalState`: 0 nominal, 1 fair, 2 serious, 3 critical.
 _THERMAL_SERIOUS = 2
 
@@ -43,7 +45,7 @@ def memory_is_tight() -> str | None:
     from fichero_server.llm.kraken_runtime import _memory_pressure_level
 
     level = _memory_pressure_level()
-    return "Waiting: memory is tight" if level is not None and level >= _PRESSURE_WARN else None
+    return MEMORY_REASON if level is not None and level >= _PRESSURE_WARN else None
 
 
 def mac_is_hot() -> str | None:

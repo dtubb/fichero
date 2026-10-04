@@ -85,6 +85,15 @@ class TrainVisionLoraRequest(_TrainRequest):
 
 
 #: The cards a training job can be, by the name its row records.
+class TrainKrakenHereRequest(_TrainRequest):
+    """The Kraken card, trained on this Mac. Nothing leaves it."""
+
+    base: str | None = Field(None, description="The Kraken reader to start from (a model id); none trains from nothing.")
+    name: str = Field("reader", description="A short name for the trained reader's file.")
+    epochs: int | None = Field(None, ge=1, description="A fixed number of epochs; none stops when it stops improving.")
+    batch_size: int = Field(4, ge=1, le=64, description="Lines per step; small keeps memory down on a 16 GB Mac.")
+
+
 CARDS: dict[str, type[_TrainRequest]] = {"kraken": TrainKrakenRequest, "vision-lora": TrainVisionLoraRequest}
 
 

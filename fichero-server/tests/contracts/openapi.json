@@ -313,6 +313,50 @@
         }
       }
     },
+    "/api/activity/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Job Tree",
+        "description": "One job and everything under it, with progress rolled up (`activity.jobs-are-a-tree`): a\nworkflow run (its id is its thread id), its steps, and the pages each step handed to a lane,\neach with its state and why.",
+        "operationId": "get_job_tree_api_activity_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobTree"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/paused": {
       "put": {
         "tags": [
@@ -5304,6 +5348,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TrainingStarted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/training/kraken/here": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Train a Kraken reader on this Mac, gently",
+        "description": "Queue a `train-on-this-mac` job: the same training set and settings as the Hugging Face card,\ntrained here on the local-model lane. Nothing leaves this Mac. It holds while the Mac is in use,\nhot or on battery, lets memory go and comes back when memory is tight or other work is waiting,\nresumes from its last finished epoch, and records the memory and time it took. Follow and stop it\nwith `/training/jobs/{job_id}`. Refused with a base reader that is not installed.",
+        "operationId": "start_kraken_training_here_api_training_kraken_here_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainKrakenHereRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingStartedHere"
                 }
               }
             }
@@ -45057,6 +45165,11 @@
             "type": "string",
             "nullable": true,
             "title": "Reason"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
           }
         },
         "type": "object",
@@ -59268,6 +59381,74 @@
           "state"
         ],
         "title": "JobStateResponse"
+      },
+      "JobTree": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done",
+            "description": "pages (or other leaf jobs) under this one that are done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "pages (or other leaf jobs) under this one in all"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/JobTree"
+            },
+            "type": "array",
+            "title": "Children"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "subject",
+          "state",
+          "done",
+          "total"
+        ],
+        "title": "JobTree",
+        "description": "A job and everything under it: a run, its steps, their pages (`activity.jobs-are-a-tree`)."
       },
       "JsonlExportRequest": {
         "properties": {
@@ -78275,6 +78456,87 @@
         "title": "TopEntityListResponse",
         "description": "Standardized envelope for GET /api/entities/top."
       },
+      "TrainKrakenHereRequest": {
+        "properties": {
+          "scope_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scope Ids",
+            "description": "Folders or pages whose teacher-read lines are the lessons."
+          },
+          "teacher": {
+            "type": "string",
+            "title": "Teacher",
+            "description": "The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview."
+          },
+          "held_out_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Held Out Ids",
+            "description": "Pages kept home as the test; never sent."
+          },
+          "display_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Display Name"
+          },
+          "pages_may_leave": {
+            "type": "boolean",
+            "title": "Pages May Leave",
+            "description": "The person's yes for these pages to go to Hugging Face.",
+            "default": false
+          },
+          "not_for_release": {
+            "type": "boolean",
+            "title": "Not For Release",
+            "description": "The trained model may not be released.",
+            "default": true
+          },
+          "release_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Release Note"
+          },
+          "base": {
+            "type": "string",
+            "nullable": true,
+            "title": "Base",
+            "description": "The Kraken reader to start from (a model id); none trains from nothing."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "A short name for the trained reader's file.",
+            "default": "reader"
+          },
+          "epochs": {
+            "type": "integer",
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Epochs",
+            "description": "A fixed number of epochs; none stops when it stops improving."
+          },
+          "batch_size": {
+            "type": "integer",
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "title": "Batch Size",
+            "description": "Lines per step; small keeps memory down on a 16 GB Mac.",
+            "default": 4
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_ids",
+          "teacher"
+        ],
+        "title": "TrainKrakenHereRequest",
+        "description": "The Kraken card, trained on this Mac. Nothing leaves it."
+      },
       "TrainKrakenRequest": {
         "properties": {
           "scope_ids": {
@@ -78671,6 +78933,12 @@
             "type": "object",
             "nullable": true,
             "title": "Request"
+          },
+          "measured": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Measured"
           }
         },
         "type": "object",
@@ -78776,6 +79044,19 @@
           "timeout"
         ],
         "title": "TrainingStarted"
+      },
+      "TrainingStartedHere": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "TrainingStartedHere"
       },
       "TrainingStatus": {
         "type": "string",

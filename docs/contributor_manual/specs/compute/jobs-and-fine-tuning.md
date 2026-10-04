@@ -114,7 +114,8 @@ Blackfish or loading the models directly. The honest answer differs by kind of w
 | **Batch reading with a vision model** over a project | MLX, as today (slow for thousands of pages; that is why it is sent away) | **vLLM inside the job's own process**, no web server; large work cut into array pieces | highest throughput, fewest parts; one start-up for each piece |
 | **Batch Kraken** (finding lines, reading) | Kraken as today | **Kraken in the job's own process**, array pieces | the only shape Kraken has |
 | **Layout detection** | in process (`prep.yolo-detectors-run-and-train`) | **in the job's own process** | nothing for a server to share |
-| **Fine-tuning Kraken** | **in the engine's process, in the local ML lane, on a 16 GB Mac** (ruled 2026-10-03; Apple's GPU if Kraken allows it, else the CPU; #5397) | **`ketos train` / `ketos segtrain` as a job**, Hugging Face Jobs first, then a cluster | batch by nature |
+| **Fine-tuning Kraken** | **in the engine's process, in the local ML lane, on a 16 GB Mac** (ruled 2026-10-03; Apple's GPU if Kraken allows it, else the CPU; #5397. Measured
+2026-10-04: it does not, Kraken's CTC loss has no MPS kernel, so the CPU) | **`ketos train` / `ketos segtrain` as a job**, Hugging Face Jobs first, then a cluster | batch by nature |
 | **Fine-tuning a YOLO detector** | **in the engine's process, in the local ML lane, on a 16 GB Mac** (#5397) | the same trainer as a job | a few dozen to a few hundred boxed pages |
 | **Fine-tuning a language or vision model** (for example Qwen2.5-VL 3B with LoRA) | runs, quantised, on a 16 GB Mac; small training runs through MLX are a later slice | **`trl` + `peft` as a job**, Hugging Face Jobs first; LoRA by default, QLoRA when memory is short | batch by nature; one 40 GB GPU is enough for 8B |
 | A Linux machine with **no GPU** | | llama.cpp for language models; Kraken on CPU | the honest fallback; the row says "No GPU" |
@@ -369,14 +370,25 @@ needs them.
   band; the proof (dates, image digest, hardware, CER) is recorded on the recipe before it is run
   on a cluster. *Test:* the recipe file carries the proof record; a cluster run of an unproven
   recipe is offered with "not yet proven on Hugging Face".
-- `compute.tune.on-this-mac` — **[GAP]** (#5397) Kraken recognition, Kraken segmentation and a YOLO detector
+- `compute.tune.on-this-mac` — **[PARTIAL]** (#5397) *Built for Kraken recognition (2026-10-04,
+  `training/local.py`, `POST /api/training/kraken/here`): `ketos train` runs inside the engine (a child of the
+  sandboxed engine cannot start, `llm/kraken_runtime.py`), on the CPU (Kraken's CTC loss has no Apple GPU
+  kernel: `-d mps` fails, measured), at utility QoS with `embed_threads()` threads and no worker processes,
+  as one heavy model on the local-model lane. A Lightning callback at every batch holds training while the
+  Mac is in use, hot or on battery, and stops it (memory let go, job back to waiting) when memory is tight,
+  background work is paused, a person waits for other work, or it is cancelled; it resumes from
+  `last.ckpt` without repeating a finished epoch (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`, including a run of Kraken itself).
+  Segmentation and YOLO are not built.* Kraken recognition, Kraken segmentation and a YOLO detector
   train on a 16 GB Mac in the local ML lane: the trainer holds the lane as one heavy model, no
   reader runs beside it unless both fit (`activity.lane.co-run-only-if-it-fits`), it runs at
   utility QoS with bounded threads, it waits on battery, heat, memory pressure and active use
   (`activity.throttle.power-heat-memory`), and pause resumes from its last checkpoint. *Test:* a
   tiny set trains under the lane with a fake memory-pressure signal: it waits, then resumes
   without repeating an epoch.
-- `compute.tune.measured-on-16gb` — **[GAP]** (#5397) every training run records its peak memory and what it
+- `compute.tune.measured-on-16gb` — **[PARTIAL]** (#5397) *Built for training on this Mac: the job and the
+  landed card carry `measured` (peak resident memory, what training added, device, threads, batch size,
+  epochs, seconds), sampled from the run (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`). The reading measurement of an adopted model is not
+  built.* every training run records its peak memory and what it
   used (CPU, GPU, Neural Engine) on the job and on the resulting card, and every adopted model
   carries a measurement of reading on a 16 GB Mac (speed per page, peak memory). *Test:* the card
   of a trained model has those fields filled from the run, never typed by hand.
@@ -410,8 +422,8 @@ needs them.
   checkpoint on the scheduler's warning signal, is re-queued under the same job id, and resumes
   from the checkpoint; the job's row reads "running (part 2)". *Test:* fixture with a
   two-minute limit and a trainer stub: the run completes across two parts with no repeated
-  steps. Whether `ketos train` resumes by itself is UNVERIFIED (S18) and is checked when the
-  slice is cut.
+  steps. Whether `ketos train` resumes by itself was UNVERIFIED (S18); checked 2026-10-04 on Kraken 7.1.1:
+  `ketos train --resume <checkpoint>` restores the run and trains the next epoch only (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`).
 - `compute.tune.model-comes-back-as-a-card` — **[PARTIAL]** (#5240) *Built for Kraken and for a vision model (#5398): `training/landing.py` lands `kraken-trained-<job>`, `training/mlx_landing.py` lands `fichero-trained/<name>`, each with a card (base, teacher, set, held-out pages, job, target, release) listed in its catalogue; scores on landing are not built.* a returned model lands as a model file and a card
   in the one catalogue, naming its base, its training set, the job, the target, the recipe and
   its scores (`source.train.model-lineage`). It is a row under its provider like any downloaded

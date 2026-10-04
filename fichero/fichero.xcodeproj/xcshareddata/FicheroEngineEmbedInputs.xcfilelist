@@ -529,6 +529,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/training/job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/kraken_set.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/landing.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/line_pairs.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/local.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/mlx_landing.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons_ab.py

@@ -46,8 +46,12 @@ def _wait_for(predicate, seconds=30.0):
     return False
 
 
-def test_a_background_model_job_waits_while_memory_is_tight_says_so_and_then_runs(db, signals, monkeypatch):
-    """WHY: starting a model under memory pressure is what makes the Mac swap and beachball. The
+def test_activity_throttle_power_heat_memory__waits_while_memory_is_tight_and_says_so(db, signals, monkeypatch):
+    """Behaviour `activity.throttle.power-heat-memory`: "background lanes slow or wait in Low Power Mode, on low
+    battery, under serious thermal state or memory pressure, and say so; no setting." Through the real
+    scheduler, with the Mac's signals faked.
+
+    WHY: starting a model under memory pressure is what makes the Mac swap and beachball. The
     job waits, its row says why (not a spinner), and it runs once the pressure eases."""
     ran = []
     monkeypatch.setitem(jobs.KINDS, "t-heavy", jobs.Kind(run=lambda db, s: ran.append(s), model="embedder"))
@@ -66,8 +70,12 @@ def test_a_background_model_job_waits_while_memory_is_tight_says_so_and_then_run
     ("battery", "Waiting: the Mac is on battery"),
     ("in_use", "Waiting: you're using the Mac"),
 ])
-def test_each_signal_holds_background_work_with_its_own_reason(db, signals, monkeypatch, signal, reason):
-    """WHY: the row must say which of the four is holding it, or "waiting" reads as stuck."""
+def test_activity_throttle_power_heat_memory__each_signal_says_its_own_reason(db, signals, monkeypatch, signal, reason):
+    """Behaviour `activity.throttle.power-heat-memory`: "background lanes slow or wait in Low Power Mode, on low
+    battery, under serious thermal state or memory pressure, and say so; no setting." Through the real
+    scheduler, with the Mac's signals faked.
+
+    WHY: the row must say which of the four is holding it, or "waiting" reads as stuck."""
     ran = []
     monkeypatch.setitem(jobs.KINDS, "t-heavy", jobs.Kind(run=lambda db, s: ran.append(s), model="embedder"))
     signals[signal] = True
@@ -77,8 +85,11 @@ def test_each_signal_holds_background_work_with_its_own_reason(db, signals, monk
     assert _wait_for(lambda: ran == ["page"])
 
 
-def test_a_page_someone_waits_for_runs_while_they_use_the_mac_but_not_under_memory_pressure(db, signals, monkeypatch):
-    """WHY: the person pressed Run and is clicking around while it works; holding their page until
+def test_activity_throttle_watched_first__a_waited_for_page_runs_while_the_mac_is_in_use(db, signals, monkeypatch):
+    """Behaviour `activity.throttle.watched-first`: "a job a person is waiting on goes first in its lane";
+    with `activity.throttle.power-heat-memory` still holding it under memory pressure.
+
+    WHY: the person pressed Run and is clicking around while it works; holding their page until
     they stop would stall exactly what they asked for. Memory pressure still holds it: that is
     what beachballs. And a background job held for "in use" must not stand in front of it."""
     ran = []
@@ -96,8 +107,10 @@ def test_a_page_someone_waits_for_runs_while_they_use_the_mac_but_not_under_memo
     assert waiting.result(30) == "lines"
 
 
-def test_thumbnails_are_not_held(db, test_package, signals, monkeypatch):
-    """WHY: the throttle is for heavy model work; a thumbnail is a small decode on its own lane,
+def test_activity_throttle_power_heat_memory__the_images_lane_is_not_held(db, test_package, signals, monkeypatch):
+    """Behaviour `activity.throttle.power-heat-memory` applies to the heavy lane; thumbnails are a light lane.
+
+    WHY: the throttle is for heavy model work; a thumbnail is a small decode on its own lane,
     and holding it would leave the grid grey while the person is looking at it."""
     from fichero_server.importers import derivatives
     from fichero_server.models import DocType, Document, FileType, Status
@@ -114,6 +127,9 @@ def test_thumbnails_are_not_held(db, test_package, signals, monkeypatch):
 
 
 class TestTheProbesReadTheMac:
+    """`activity.throttle.power-heat-memory`'s signals as read from the Mac. No surface: the signals are
+    the operating system's; these pin each probe's reading of them."""
+
     def test_memory_pressure_from_the_kernels_level(self, monkeypatch):
         """WHY: macOS's own pressure level (2 warn, 4 critical) is the signal that predicts a
         beachball; free memory alone does not (macOS keeps little memory free on purpose)."""

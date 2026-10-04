@@ -1,16 +1,16 @@
 """#4462 — prove the query-count ratchet actually sees workflow DB access.
 
 `fichero_server.core.duckdb_session.connect_utc` is the one chokepoint the
-ratchet's counting wrap (#4443) attaches to. `workflows/tasks.py`,
-`workflows/scheduler.py`, and `workflows/activity_store.py` all route through
-it (grep confirms no bare `duckdb.connect` remains outside `connect_utc`
+ratchet's counting wrap (#4443) attaches to. The library's managed connection
+(which `/api/tasks` reads the job table through, #5353), `workflows/scheduler.py`
+and `workflows/activity_store.py` all route through it (grep confirms no bare `duckdb.connect` remains outside `connect_utc`
 itself) — but #4462 was filed because routing through the right function is
 not sufficient proof on its own: the counter was ALREADY once silently blind
 end-to-end (the Starlette-threadpool context-copy bug) while every unit test
 of the wrap in isolation stayed green. "A counter returning 0 looks identical
 to an efficient route" (#4462) — so this drives a REAL endpoint, not the
-connection object directly, with a REAL (unmocked) `TaskQueue` backed by a
-real DuckDB file, through the actual FastAPI middleware stack, and reads the
+connection object directly, through the REAL (unmocked) job-table queue of a
+real library, through the actual FastAPI middleware stack, and reads the
 result back the way the ratchet itself does: from
 `perf_ratchet._query_session`, not from `duckdb_session.get_query_count()`
 in the test's own thread.
@@ -34,8 +34,6 @@ import duckdb
 from unittest.mock import patch
 
 import perf_ratchet
-from fichero_server.workflows import tasks as tasks_module
-from fichero_server.workflows.tasks import TaskQueue
 
 BASE = "/api/tasks"
 _ROUTE_KEY = "queries.GET./api/tasks"
@@ -81,12 +79,21 @@ class TestTheGuardHasTeeth:
 
     def test_bypassing_connect_utc_is_caught_as_zero(self, client, monkeypatch, tmp_path):
         monkeypatch.setenv("FICHERO_PERF_RATCHET", "1")
-        queue = TaskQueue(str(tmp_path / "ratchet_tasks_bypass.duckdb"))
         perf_ratchet._query_session.pop(_ROUTE_KEY, None)
 
-        # Route list_tasks's connect call around connect_utc, uncounted —
-        # the shape of the bug #4462 was filed to prevent.
-        monkeypatch.setattr(tasks_module, "connect_utc", duckdb.connect)
+        class BypassingQueue:
+            """A queue whose list reads through a bare `duckdb.connect`, around `connect_utc`,
+            uncounted — the shape of the bug #4462 was filed to prevent."""
+
+            async def list_tasks(self, **_filters):
+                conn = duckdb.connect(str(tmp_path / "ratchet_tasks_bypass.duckdb"))
+                try:
+                    conn.execute("SELECT 1").fetchall()
+                finally:
+                    conn.close()
+                return []
+
+        queue = BypassingQueue()
 
         with patch(
             "fichero_server.api.routes.workflow.tasks.job_task_queue",

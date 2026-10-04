@@ -142,6 +142,8 @@ class BackgroundJob(BaseModel):
     # For a failed job (e.g. a Kraken run when the runtime/model isn't installed),
     # the actionable reason — so the user sees WHY, not just that it stopped.
     reason: Optional[str] = None
+    # The job this one belongs to: a page's step (whose own parent is its run), #5353.
+    parent_id: Optional[str] = None
 
 
 class BackgroundJobsResponse(BaseModel):
@@ -156,6 +158,22 @@ class BackgroundJobsResponse(BaseModel):
     cpu_count: int
     # Pause Background Work is on (`activity.pause.global`): nothing that runs by itself starts.
     paused: bool = False
+
+
+class JobTree(BaseModel):
+    """A job and everything under it: a run, its steps, their pages (`activity.jobs-are-a-tree`)."""
+
+    id: str
+    kind: str
+    name: str
+    subject: str
+    model: Optional[str] = None
+    state: str
+    reason: Optional[str] = None
+    parent_id: Optional[str] = None
+    done: int = Field(description="pages (or other leaf jobs) under this one that are done")
+    total: int = Field(description="pages (or other leaf jobs) under this one in all")
+    children: list["JobTree"] = Field(default_factory=list)
 
 
 class BackgroundPauseRequest(BaseModel):
@@ -381,6 +399,7 @@ async def list_background_jobs(
                 percent=100.0 if row["state"] == "failed" else 0.0,
                 state=row["state"],
                 reason=row["reason"],
+                parent_id=row.get("parent_id"),
             )
         )
 
@@ -391,6 +410,19 @@ async def list_background_jobs(
         cpu_count=cpu_count(),
         paused=job_queue.is_paused(),
     )
+
+
+@router.get("/jobs/{job_id}", response_model=JobTree)
+async def get_job_tree(job_id: str, db: Database = Depends(get_library_database)) -> JobTree:
+    """One job and everything under it, with progress rolled up (`activity.jobs-are-a-tree`): a
+    workflow run (its id is its thread id), its steps, and the pages each step handed to a lane,
+    each with its state and why."""
+    from fichero_server.execution import jobs as job_queue
+
+    found = job_queue.tree(db, job_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail=f"no job {job_id!r} in this project")
+    return JobTree.model_validate(found)
 
 
 @router.put("/jobs/paused", response_model=BackgroundPauseResponse)

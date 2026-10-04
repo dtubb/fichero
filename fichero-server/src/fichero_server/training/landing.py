@@ -28,11 +28,16 @@ class NoTrainedModel(RuntimeError):
 
 
 def best_model_file(out_dir: str | Path, name: str) -> Path:
-    """`<name>_best.*` when early stopping wrote one, else the latest epoch's checkpoint."""
+    """`<name>_best.*` when early stopping wrote one (Kraken 5 and 6), `best_<score>.*` (what Kraken 7's
+    `ketos train` writes into its output folder: checked 2026-10-04 against 7.1.1, which the HF image
+    and this Mac both run), else the latest epoch's checkpoint."""
     files = [p for p in Path(out_dir).rglob("*") if p.suffix in _MODEL_SUFFIXES]
     best = [p for p in files if p.stem == f"{name}_best"]
     if best:
         return best[0]
+    scored = [p for p in files if p.stem.startswith("best_")]
+    if scored:
+        return max(scored, key=lambda p: p.stat().st_mtime)
     epochs = [(int(m.group(1)), p) for p in files if (m := _EPOCH.search(p.stem))]
     if epochs:
         return max(epochs)[1]

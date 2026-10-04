@@ -573,6 +573,15 @@ it is on and answers `running`; a training Job is cancelled on Hugging Face. A p
 run is waiting for is paused with its run (`409`); an unknown id is `404`. MCP: `fichero_jobs`,
 `fichero_pause_background_work`, `fichero_job_pause`, `fichero_job_cancel`.
 
+A workflow run is a job too (#5353): its row's id is the run's thread id, each step is a child
+(`<run>:<step>`), and each page a step hands to a lane is a grandchild, named by its model (a cloud
+model's page on the network lane, capped per Mac; a local model's on the local-model lane).
+`GET /api/activity/jobs/{job_id}` returns a job and everything under it, each with `done` and
+`total` pages rolled up; pages in `/api/activity/jobs` carry their step as `parent_id`. Pause and
+Stop on a run's row (`PUT .../paused`, `POST .../cancel`) reach the run's own Pause and Stop: its
+pages still waiting for a lane are withdrawn ("Paused with its run", "Stopped by you"). A paused
+run is resumed with `POST /api/workflow-execution/threads/{thread_id}/resume`.
+
 ### Training a reader (Hugging Face Jobs)
 
 `POST /api/training/kraken` queues a `train-a-model` job (#5398, `specs/compute/jobs-and-fine-tuning.md`):
@@ -645,6 +654,20 @@ run off this Mac (422). Through the audited, non-undoable action `reading.start_
 `POST /api/reading-at-scale/jobs/{job_id}/resend-failed` sends the failed shards again, and only those
 (`reading.resend_failed`; 409 while the run is still going). `POST /api/reading-at-scale/jobs/{job_id}/cancel`
 stops it (`reading.cancel_at_scale`): its running shards are cancelled on Hugging Face.
+
+### Training a reader on this Mac
+
+`POST /api/training/kraken/here` queues the same Kraken card on this Mac (`train-on-this-mac`, the
+audited action `training.start_here`): the same training set and `ketos train` settings, nothing
+sent and nothing paid. It runs on the local-model lane inside the engine (a child process of the
+sandboxed engine cannot start), on the CPU (Kraken's CTC loss has no Apple GPU kernel), at utility
+priority with bounded threads. It holds while the Mac is in use, hot or on battery; lets memory go
+and goes back to waiting when memory is tight, background work is paused or a person waits for
+other work; and resumes from its last finished epoch (`ketos train --resume`, checked on Kraken
+7.1.1). Body: the Kraken card's fields without the Hugging Face ones, plus `epochs` (none: stop
+when it stops improving) and `batch_size`. `GET /api/training/jobs/{job_id}` follows it, with
+`measured` (peak resident memory, what training added, device, threads, epochs, seconds), and
+`POST /api/training/jobs/{job_id}/cancel` stops it at its next step. MCP: `fichero_train_kraken_here`.
 
 ### Workflow run comparison
 

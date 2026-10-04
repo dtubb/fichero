@@ -18,7 +18,12 @@ from fichero_server.api.auth import action_context
 from fichero_server.db import Database
 from fichero_server.training import job as training_job
 from fichero_server.training.hf_jobs import NoHuggingFaceToken
-from fichero_server.training.job import PagesMayNotLeave, TrainKrakenRequest, TrainVisionLoraRequest
+from fichero_server.training.job import (
+    PagesMayNotLeave,
+    TrainKrakenHereRequest,
+    TrainKrakenRequest,
+    TrainVisionLoraRequest,
+)
 from fichero_server.training import reasons_job
 from fichero_server.training.kraken_set import EmptyTrainingSet
 from fichero_server.training.reasons_job import GatherReasonsRequest, ReasonsABRequest
@@ -31,6 +36,10 @@ class TrainingStarted(BaseModel):
     flavor: str
     timeout: str
     price_per_hour_usd: float | None = None
+
+
+class TrainingStartedHere(BaseModel):
+    job_id: str
 
 
 class TrainingJobStatus(BaseModel):
@@ -50,6 +59,7 @@ class TrainingJobStatus(BaseModel):
     last_lines: list[str] = []
     history: list[dict[str, Any]] = []
     request: dict[str, Any] | None = None
+    measured: dict[str, Any] | None = None
 
 
 class CancelTrainingParams(BaseModel):
@@ -69,6 +79,16 @@ def _action_start_vision_lora(db: Database, params: TrainVisionLoraRequest, ctx:
     started = training_job.start(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": training_job.KIND, "card": "vision-lora"},
+                               emit_type="job.created")
+
+
+@action("training.start_here", TrainKrakenHereRequest, domains=["job"], undoable=False)
+def _action_start_here(db: Database, params: TrainKrakenHereRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.training import local as local_training  # the engine starts without it (#3950)
+
+    started = local_training.start(db, params, started_by=ctx.actor or "owner")
+    return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
+                               after={"job_id": started["job_id"], "kind": local_training.KIND},
                                emit_type="job.created")
 
 
@@ -100,6 +120,24 @@ async def start_kraken_training(
     except (EmptyTrainingSet, ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TrainingStarted(**result.result)
+
+
+@router.post("/kraken/here", response_model=TrainingStartedHere, summary="Train a Kraken reader on this Mac, gently")
+async def start_kraken_training_here(
+    request: TrainKrakenHereRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> TrainingStartedHere:
+    """Queue a `train-on-this-mac` job: the same training set and settings as the Hugging Face card,
+    trained here on the local-model lane. Nothing leaves this Mac. It holds while the Mac is in use,
+    hot or on battery, lets memory go and comes back when memory is tight or other work is waiting,
+    resumes from its last finished epoch, and records the memory and time it took. Follow and stop it
+    with `/training/jobs/{job_id}`. Refused with a base reader that is not installed."""
+    try:
+        result = registry.invoke(db, "training.start_here", request.model_dump(), ctx)
+    except (ValueError, RuntimeError, LookupError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return TrainingStartedHere(**result.result)
 
 
 @router.post("/vision-lora", response_model=TrainingStarted,

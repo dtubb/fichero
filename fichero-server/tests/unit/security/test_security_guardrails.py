@@ -35,7 +35,6 @@ PERSISTENCE_PATH_ALLOWLIST = frozenset(
         "workflows/batch.py",
         "workflows/file_watcher.py",
         "workflows/scheduler.py",
-        "workflows/tasks.py",
     }
 )
 
