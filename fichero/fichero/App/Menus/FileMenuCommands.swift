@@ -20,6 +20,7 @@ struct FileMenuCommands: View {
     @FocusedValue(\.duplicateWindowAction) private var duplicateWindowAction
     @FocusedValue(\.saveLibraryAction) private var saveLibraryAction
     @FocusedValue(\.closeLibraryAction) private var closeLibraryAction
+    @FocusedValue(\.setUpProjectAction) private var setUpProjectAction
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
     @Environment(\.openWindow) private var openWindow
     @State private var registry = KnownLibraryRegistryStore.shared
@@ -110,11 +111,21 @@ struct FileMenuCommands: View {
                     : registry.libraries.isEmpty && registry.fetchError == nil
             )
 
-            Button("Close Library") {
-                closeLibraryAction?.run()
+            // One Group: the outer Group is at @ViewBuilder's 10-entry arity limit.
+            Group {
+                // Setup for the key window's project, the same flow as Inspector › Info ›
+                // Recipe › Set Up… (`source.onboard.reachable`, #5421).
+                Button("Set Up Project…") {
+                    setUpProjectAction?.run()
+                }
+                .disabled(setUpProjectAction == nil)
+
+                Button("Close Library") {
+                    closeLibraryAction?.run()
+                }
+                .keyboardShortcut("w", modifiers: [.command, .control])
+                .disabled(closeLibraryAction == nil)
             }
-            .keyboardShortcut("w", modifiers: [.command, .control])
-            .disabled(closeLibraryAction == nil)
 
             Divider()
 
@@ -307,9 +318,8 @@ private extension FileMenuCommands {
             return
         }
 
-        let newLibrary = libraryManager.createNewLibrary()
         do {
-            try libraryManager.saveLibrary(newLibrary.id, to: finalURL)
+            let newLibrary = try libraryManager.createProject(at: finalURL)
             libraryManager.currentLibraryId = newLibrary.id
             NewLibraryPanel.noteChosenDirectory(forLibraryAt: finalURL)
             openWindow(id: "main")

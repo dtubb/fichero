@@ -33,6 +33,23 @@ func libraryIsLoadedAndEmpty(isLoaded: Bool, rootCollections: [Document]) -> Boo
     }
 }
 
+/// Whether a window presents setup (`FirstRunWindow(setUp: true)`) now: setup was asked for the
+/// project THIS window shows, and the app's own first run is not already showing (it runs the
+/// same recipe steps). Deliberately never reads `firstRunCompleted`, which governs only the app's
+/// first launch: a project created after it still opens setup
+/// (`source.onboard.new-project-offers-setup`, #5430).
+func projectSetUpIsDue(requestedLibraryId: UUID?, windowLibraryId: UUID, firstRunShowing: Bool) -> Bool {
+    !firstRunShowing && requestedLibraryId == windowLibraryId
+}
+
+/// Whether the main view's empty state offers Set Up… (`source.onboard.reachable`, #5421): only
+/// for an empty container the person is browsing (`offersImport`) in a project that is loaded and
+/// empty — the same "empty" first run uses — never for an empty folder in a full project or a
+/// filter that hid every row.
+func projectOffersSetUp(reason: LibraryEmptyReason, isLoaded: Bool, rootCollections: [Document]) -> Bool {
+    reason.offersImport && libraryIsLoadedAndEmpty(isLoaded: isLoaded, rootCollections: rootCollections)
+}
+
 /// Main window view - simplified to just track one library per window
 struct LibraryWindow: View {
     @Environment(LibraryManager.self) var libraryManager
@@ -196,6 +213,12 @@ struct LibraryWindow: View {
         .focusedSceneValue(\.newLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleNewLibrary() }))
         .focusedSceneValue(\.saveLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleSaveLibrary() }))
         .focusedSceneValue(\.closeLibraryAction, closeLibraryAction)
+        // File › Set Up Project… for this window's project (`source.onboard.reachable`, #5421).
+        .focusedSceneValue(\.setUpProjectAction, FocusedLibraryAction(
+            isEnabled: true,
+            target: windowState.libraryId.uuidString,
+            run: { libraryManager.requestSetUp(for: windowState.libraryId) }
+        ))
         // Titlebar tracks the open library so the window title matches its
         // proxy icon (representedURL, set in syncHostWindowMetadata) — macOS
         // convention (#2489). Empty when no library is open. Folder/document
@@ -237,14 +260,36 @@ struct LibraryWindow: View {
                     // said "nobody set a boolean", which is not the same fact as
                     // "this user has nothing yet" — so onboarding presented over
                     // a loaded library full of documents.
-                    && libraryIsLoadedAndEmpty(
-                        isLoaded: libraryManager.loadedLibraryIds.contains(windowState.libraryId),
-                        rootCollections: windowState.library?.documentStore.collections ?? []
-                    )
+                    && windowLibraryIsLoadedAndEmpty
             },
-            set: { if !$0 { featureManager.firstRunCompleted = true } }
+            set: {
+                guard !$0 else { return }
+                featureManager.firstRunCompleted = true
+                // First run already ran the recipe steps; a setup asked for this project is done.
+                if libraryManager.setUpRequestedLibraryId == windowState.libraryId {
+                    libraryManager.setUpRequestedLibraryId = nil
+                }
+            }
         )) {
             FirstRunWindow()
+                .environment(appState)
+        }
+        // Setup for THIS window's project (#5430, #5421): a new project, File › Set Up Project…,
+        // or an empty project's Set Up…. The same flow as Inspector › Info › Recipe › Set Up….
+        // Armed like first run (#3163), and never gated on `firstRunCompleted`.
+        .sheet(isPresented: Binding(
+            get: {
+                firstRunSheetArmed
+                    && appState.isBackendRunning
+                    && projectSetUpIsDue(
+                        requestedLibraryId: libraryManager.setUpRequestedLibraryId,
+                        windowLibraryId: windowState.libraryId,
+                        firstRunShowing: !featureManager.firstRunCompleted && windowLibraryIsLoadedAndEmpty
+                    )
+            },
+            set: { if !$0 { libraryManager.setUpRequestedLibraryId = nil } }
+        )) {
+            FirstRunWindow(setUp: true)
                 .environment(appState)
         }
         // #4064: the supervised backend dropped AND auto-restart ran out — show a
@@ -275,6 +320,14 @@ struct LibraryWindow: View {
         } message: {
             Text("The Fichero server stopped and couldn't restart automatically. Retry to try again, or quit.")
         }
+    }
+
+    /// #4017b: this window's library is VERIFIED loaded and empty. Read by first run and by setup.
+    private var windowLibraryIsLoadedAndEmpty: Bool {
+        libraryIsLoadedAndEmpty(
+            isLoaded: libraryManager.loadedLibraryIds.contains(windowState.libraryId),
+            rootCollections: windowState.library?.documentStore.collections ?? []
+        )
     }
 
     var body: some View {

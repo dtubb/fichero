@@ -22,7 +22,13 @@ actual test bodies rather than pattern-matching names, and updated tags/citation
 Both issues are already on this milestone (#291); no new issues were needed.
 
 ### Create
-- `create.project.appears-and-is-selected` — **[BROKEN]** (#5430) a project created in the app
+- `create.project.appears-and-is-selected` — **[PARTIAL]** (#5430) **Built 2026-10-04:** both File ›
+  New Library… routes go through `LibraryManager.createProject(at:)`, which inserts one entry into
+  `openLibraries` after Global, saves it, remembers its saved path for the next launch (the cause
+  found: `saveLibrary` never re-saved the open list, which skips temporary packages, so a new
+  project vanished at relaunch), and sets `createdProjectId`, which the sidebar selects through
+  its click seam; `fichero/Tests/Unit/general/Models/LibraryManagerCreateProjectTests.swift`. Not
+  pinned: the sidebar's own row rebuild and selection (view code, checked on screen). a project created in the app
   appears in the sidebar at once, as one row added in place (no reload), and is selected; setup then
   opens for it (`source.onboard.new-project-offers-setup`). Found 2026-10-04 by the maintainer: a
   new library did not appear in the sidebar. *Test:* creating a project through the real create

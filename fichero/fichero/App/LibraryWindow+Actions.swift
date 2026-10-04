@@ -210,9 +210,10 @@ extension LibraryWindow {
             // Keeping it in-window also preserves the current window's
             // connection/store, so we don't re-trigger #3362's new-window
             // re-auth path.
-            let newLibrary = libraryManager.createNewLibrary()
+            // One create path for both File-menu routes (#5430): it saves, remembers the project
+            // for the next launch, marks its sidebar row for selection and asks for its setup.
             do {
-                try libraryManager.saveLibrary(newLibrary.id, to: finalURL)
+                let newLibrary = try libraryManager.createProject(at: finalURL)
                 assignLibrary(id: newLibrary.id)
                 NewLibraryPanel.noteChosenDirectory(forLibraryAt: finalURL)
                 libraryWindowLogger.info("Created and saved new library in-place: \(finalURL.lastPathComponent)")
