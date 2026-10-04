@@ -44,6 +44,14 @@ class Teacher:
         return f"<think>The second letter has a loop.</think>{answer}" if self.think else answer
 
 
+@pytest.fixture(autouse=True)
+def no_scheduler(monkeypatch):
+    """The imports below queue re-embeds; the real scheduler would wake and outlive each test's library."""
+    from fichero_server.execution import jobs
+
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+
+
 @pytest.fixture
 def project(db, tmp_path):
     folder = Document(name="SM_NPQ_C01", doc_type=DocType.folder)
@@ -140,3 +148,42 @@ def test_a_batch_that_cannot_be_matched_is_asked_again_line_by_line(db, project)
 def test_thinking_is_split_from_the_answer(raw, answer, thinking):
     """WHY: a thinking block left in the answer fails the JSON parse and the line is lost."""
     assert reasons.split_thinking(raw) == (answer, thinking)
+
+
+def test_gathering_reasons_is_one_job_that_stops_when_asked(db, project, monkeypatch):
+    """WHY: a palaeographer asked about thousands of lines runs for hours and may cost money; it must be
+    a row in Activity with its counts in words, and a stop must ask no further lines."""
+    import fichero_server.llm as llm
+    from fichero_server.execution import jobs
+    from fichero_server.training import reasons_job
+    from fichero_server.training.reasons_job import GatherReasonsRequest
+
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    teacher = Teacher(think=True)
+    monkeypatch.setattr(llm, "vision", lambda images, prompt, config: teacher(images, prompt))
+    folder, _kept, test = project
+    request = GatherReasonsRequest(scope_ids=[folder.id], checked=CHECKED, provider="omlx",
+                                   model="mlx-community/Qwen3-VL-8B-Thinking-4bit", held_out_ids=[test.id])
+    job_id = reasons_job.start(db, request, started_by="historian")["job_id"]
+    subject = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [job_id])[0]
+    result = reasons_job.run(db, subject)
+    assert result["reasoned"] == result["lines"] > 0 and result["with_thinking"] == result["lines"]
+    assert "lines have reasons" in reasons_job.status(db, job_id)["reason"]
+    reasons_job.register_job_kinds()
+    assert jobs.KINDS[reasons_job.KIND].lane == "remote"
+
+    stopped = reasons_job.start(db, request, started_by="historian")["job_id"]
+    db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [stopped])
+    reasons_job.request_cancel(db, stopped)
+    before = len(teacher.prompts)
+    with pytest.raises(jobs.JobCancelled):
+        reasons_job.run(db, db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [stopped])[0])
+    assert len(teacher.prompts) == before
+
+
+def test_the_api_refuses_a_review_without_a_draft_and_answers_for_an_unknown_job(client):
+    """WHY: the refusal must reach the app, CLI and MCP as a sentence with its own status."""
+    r = client.post("/api/training/reasons", json={"scope_ids": ["x"], "checked": "c", "provider": "omlx",
+                                                   "model": "m", "mode": "review"})
+    assert r.status_code == 422 and "draft" in r.json()["detail"]
+    assert client.get("/api/training/reasons/nope").status_code == 404

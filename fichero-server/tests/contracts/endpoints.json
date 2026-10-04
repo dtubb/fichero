@@ -10501,6 +10501,40 @@
       },
       {
         "method": "POST",
+        "path": "/training/reasons",
+        "operation_id": "start_gathering_reasons_api_training_reasons_post",
+        "summary": "Ask a palaeographer for its reasons (or review) on each checked line",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "GatherReasonsRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/training/reasons/{job_id}",
+        "operation_id": "reasons_job_status_api_training_reasons__job_id__get",
+        "summary": "A reasons job's counts in words and numbers",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/training/reasons/{job_id}/cancel",
+        "operation_id": "cancel_reasons_job_api_training_reasons__job_id__cancel_post",
+        "summary": "Stop a reasons job (no further lines are asked about)",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
         "path": "/training/vision-lora",
         "operation_id": "start_vision_lora_training_api_training_vision_lora_post",
         "summary": "Train a vision model with LoRA on Hugging Face Jobs, landed here as MLX",

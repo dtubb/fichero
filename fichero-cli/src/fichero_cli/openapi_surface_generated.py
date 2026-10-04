@@ -15291,6 +15291,71 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("ask-a-palaeographer-for-its-reasons-or-review-on-each-checked-line")
+    def training_ask_a_palaeographer_for_its_reasons_or_review_on_each_checked_line_post(
+        ctx: typer.Context,
+        checked: str = typer.Option(..., "--checked", help="Request field: checked."),
+        draft: Optional[str] = typer.Option(None, "--draft", help="Request field: draft."),
+        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        mode: Optional[str] = typer.Option(None, "--mode", help="Request field: mode."),
+        model: str = typer.Option(..., "--model", help="Request field: model."),
+        prompt_file: Optional[str] = typer.Option(None, "--prompt-file", help="Request field: prompt_file."),
+        provider: str = typer.Option(..., "--provider", help="Request field: provider."),
+        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+    ) -> None:
+        """Ask a palaeographer for its reasons (or review) on each checked line (POST /api/training/reasons)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/reasons"
+            params = None
+            payload = _build_json_payload({
+                "checked": checked,
+                "draft": draft,
+                "held_out_ids": held_out_ids,
+                "language": language,
+                "mode": mode,
+                "model": model,
+                "prompt_file": prompt_file,
+                "provider": provider,
+                "scope_ids": scope_ids,
+            }, {
+                "checked": {'type': 'string', 'title': 'Checked', 'description': 'The model id of the CHECKED pass (its lines and their right readings).', 'x-cli-required': True},
+                "draft": {'type': 'string', 'nullable': True, 'title': 'Draft', 'description': 'review: the model id of the pass whose readings are reviewed.', 'x-cli-required': False},
+                "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'Pages kept as the test: never asked about.', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "mode": {'type': 'string', 'enum': ['read', 'review'], 'title': 'Mode', 'description': "`read`: the palaeographer's reasons and transcription; `review`: its review of the `draft` pass's readings.", 'default': 'read', 'x-cli-required': False},
+                "model": {'type': 'string', 'title': 'Model', 'description': 'The teacher: a reasoning vision model, e.g. Qwen3-VL-8B-Thinking.', 'x-cli-required': True},
+                "prompt_file": {'type': 'string', 'nullable': True, 'title': 'Prompt File', 'description': "The recipe's prompt file; none uses Fichero's own.", 'x-cli-required': False},
+                "provider": {'type': 'string', 'title': 'Provider', 'description': "The teacher's provider, e.g. openrouter, gemini, omlx.", 'x-cli-required': True},
+                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages whose checked lines are asked about.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("a-reasons-job-s-counts-in-words-and-numbers")
+    def training_a_reasons_job_s_counts_in_words_and_numbers_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """A reasons job's counts in words and numbers (GET /api/training/reasons/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/training/reasons/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-a-reasons-job-no-further-lines-are-asked-about")
+    def training_stop_a_reasons_job_no_further_lines_are_asked_about_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Stop a reasons job (no further lines are asked about) (POST /api/training/reasons/{job_id}/cancel)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/training/reasons/{job_id}/cancel"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("train-a-vision-model-with-lora-on-hugging-face-jobs-landed-here-as-mlx")
     def training_train_a_vision_model_with_lora_on_hugging_face_jobs_landed_here_as_mlx_post(
         ctx: typer.Context,

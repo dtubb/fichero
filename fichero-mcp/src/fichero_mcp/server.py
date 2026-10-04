@@ -557,6 +557,46 @@ def fichero_training_cancel(job_id: str) -> Any:
 
 
 @mcp.tool()
+def fichero_gather_reasons(
+    scope_ids: list[str],
+    checked: str,
+    provider: str,
+    model: str,
+    mode: str = "read",
+    draft: Optional[str] = None,
+    held_out_ids: Optional[list[str]] = None,
+    language: Optional[str] = None,
+    prompt_file: Optional[str] = None,
+) -> Any:
+    """Ask a palaeographer (a reasoning vision model: ``provider``/``model``) about every line of the
+    CHECKED pass (``checked``, its model id) in scope, held-out pages left out. ``mode="read"``: the
+    letterforms, abbreviations and uncertain readings behind each reading, then the transcription;
+    ``mode="review"``: its review of the ``draft`` pass's reading of each line. Each call is kept in the
+    episode ledger; ``fichero_train_vision_lora`` with ``arm`` = why, thinking or review trains on them.
+    A hosted model is a paid call that sends line pictures out: say so to the person first. Follow it
+    with ``fichero_reasons_status``."""
+    with _mutating_client() as client:
+        return client.gather_reasons({
+            "scope_ids": scope_ids, "checked": checked, "provider": provider, "model": model, "mode": mode,
+            "draft": draft, "held_out_ids": held_out_ids or [], "language": language, "prompt_file": prompt_file,
+        })
+
+
+@mcp.tool()
+def fichero_reasons_status(job_id: str) -> Any:
+    """A reasons job's state and counts: lines asked about, with reasons, with thinking, unanswered."""
+    with _client() as client:
+        return client.reasons_status(job_id)
+
+
+@mcp.tool()
+def fichero_reasons_cancel(job_id: str) -> Any:
+    """Stop a reasons job: no further lines are asked about; what was gathered stays."""
+    with _mutating_client() as client:
+        return client.cancel_reasons(job_id)
+
+
+@mcp.tool()
 def fichero_read_at_scale(
     scope_ids: list[str],
     card: str,

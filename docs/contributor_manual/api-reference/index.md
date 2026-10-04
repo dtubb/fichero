@@ -594,6 +594,16 @@ episode ledger (`training.reasons`) and are kept only where the palaeographer's 
 model read and a person checked), the Job's `last_lines` when it ends, and, once landed, the
 `reader_id` (`kraken-trained-…`) or `model_id` (`fichero-trained/…`) to read with. The job also appears in `GET /api/activity/jobs`.
 
+`POST /api/training/reasons` queues a `gather-reasons` job (#4642): a palaeographer (a reasoning vision
+model, `provider` and `model`) is asked about every line of the `checked` pass in scope, held-out pages
+left out: with `mode: read`, the letterforms, abbreviations and uncertain readings behind each reading,
+then the transcription; with `mode: review`, its review of the `draft` pass's reading of each line.
+`prompt_file` is the recipe's own prompt. Each call is one episode in the ledger, which the vision
+card's `why`, `thinking` and `review` arms read. Through `training.gather_reasons`; 422 for a review with
+no `draft`. `GET /api/training/reasons/{job_id}` gives its counts (lines, with reasons, with thinking,
+unanswered, pages missing and why); `POST /api/training/reasons/{job_id}/cancel` stops it
+(`training.cancel_reasons`): no further lines are asked about, and what was gathered stays.
+
 `POST /api/training/jobs/{job_id}/cancel` stops it (`training.cancel`): a job not started ends at
 once; a running one is cancelled on Hugging Face at its next look and ends `cancelled`.
 

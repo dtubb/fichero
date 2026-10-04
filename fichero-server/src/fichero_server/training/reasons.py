@@ -114,6 +114,7 @@ class Collected:
     reasoned: int = 0
     with_thinking: int = 0
     unparsed: int = 0
+    stopped: bool = False
     missing: list[dict[str, str]] = field(default_factory=list)
 
 
@@ -196,7 +197,8 @@ Ask = Callable[[list[str], str], Awaitable[str]]
 
 async def collect(lines: list[Line], photos: dict[str, Path], *, mode: str, ask: Ask, model: dict[str, Any],
                   library_path: str, language: str | None = None, template: str | None = None,
-                  prompt_file: str | None = None, per_call: int = 1) -> Collected:
+                  prompt_file: str | None = None, per_call: int = 1,
+                  should_stop: Callable[[], bool] | None = None) -> Collected:
     """Ask the teacher for every line's reasons (or review), recording one episode per call."""
     from PIL import Image
 
@@ -216,6 +218,9 @@ async def collect(lines: list[Line], photos: dict[str, Path], *, mode: str, ask:
         return pages[doc_id]
 
     async def call(group: list[Line]) -> None:
+        if should_stop is not None and should_stop():
+            out.stopped = True
+            return
         prompt = prompt_for(mode, len(group), language, [g.draft or "" for g in group] if mode == REVIEW else None,
                             template)
         images = [_crop_data_uri(page(g.document_id), g.polygon) for g in group]
@@ -274,7 +279,7 @@ def traces_by_line(library_path: str, mode: str = READ) -> dict[str, dict[str, A
 
 async def gather_reasons(db: Any, *, scope_ids: list[str], checked: str, mode: str, config: Any,
                          draft: str | None = None, held_out_ids: list[str] = (), language: str | None = None,
-                         prompt_file: str | None = None) -> Collected:
+                         prompt_file: str | None = None, should_stop: Callable[[], bool] | None = None) -> Collected:
     """The teacher (`config`'s vision model) gives its reasons for, or reviews, every checked line in scope.
     `prompt_file` is the recipe's prompt (`source.recipe.is-a-file`), read here and named on each episode."""
     from fichero_server.llm import vision
@@ -290,6 +295,7 @@ async def gather_reasons(db: Any, *, scope_ids: list[str], checked: str, mode: s
 
     done = await collect(lines, photos, mode=mode, ask=ask, library_path=str(Path(db.path).parent),
                          model={"provider": config.provider, "model": config.model}, language=language,
-                         template=template, prompt_file=Path(prompt_file).name if prompt_file else None)
+                         template=template, prompt_file=Path(prompt_file).name if prompt_file else None,
+                         should_stop=should_stop)
     done.missing = missing
     return done

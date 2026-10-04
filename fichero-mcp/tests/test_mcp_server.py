@@ -38,6 +38,9 @@ EXPECTED_TOOLS = {
     "fichero_train_vision_lora",
     "fichero_training_status",
     "fichero_training_cancel",
+    "fichero_gather_reasons",
+    "fichero_reasons_status",
+    "fichero_reasons_cancel",
     "fichero_read_at_scale",
     "fichero_reading_status",
     "fichero_reading_resend_failed",
@@ -377,6 +380,23 @@ def test_training_tools_send_the_engines_request(monkeypatch):
     assert body["pages_may_leave"] is True and body["held_out_ids"] == ["p4"] and body["timeout"] == "4h"
     assert (status.method, status.url.path) == ("GET", "/api/training/jobs/j1")
     assert (cancel.method, cancel.url.path) == ("POST", "/api/training/jobs/j1/cancel")
+
+
+def test_reasons_tools_send_the_engines_request(monkeypatch):
+    """#4642: an agent gathers a palaeographer's reasons the one way the engine offers."""
+    import json
+
+    with _mock_client(monkeypatch, body={"job_id": "g1"}) as seen:
+        mcp_server.fichero_gather_reasons(["c01"], "fable-checked", "omlx", "Qwen3-VL-8B-Thinking",
+                                          held_out_ids=["p9"])
+        mcp_server.fichero_reasons_status("g1")
+        mcp_server.fichero_reasons_cancel("g1")
+    start, status, cancel = seen
+    assert (start.method, start.url.path) == ("POST", "/api/training/reasons")
+    body = json.loads(start.content)
+    assert body["mode"] == "read" and body["checked"] == "fable-checked" and body["held_out_ids"] == ["p9"]
+    assert (status.method, status.url.path) == ("GET", "/api/training/reasons/g1")
+    assert (cancel.method, cancel.url.path) == ("POST", "/api/training/reasons/g1/cancel")
 
 
 def test_reading_at_scale_tools_send_the_engines_request(monkeypatch):
