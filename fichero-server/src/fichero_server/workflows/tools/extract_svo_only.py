@@ -363,6 +363,7 @@ async def extract_svo_only(
                     provider=getattr(llm_config, "provider", None),
                     model=getattr(llm_config, "model", None),
                     grounding_text=record["text"],
+                    run_id=state.get("task_id"),
                 )
 
         # Page-at-a-time SVO (was: one _extract_claims_for_entity call per
@@ -459,6 +460,7 @@ async def extract_svo_only(
                     provider=getattr(llm_config, "provider", None),
                     model=getattr(llm_config, "model", None),
                     grounding_text=record["text"],
+                    run_id=state.get("task_id"),
                 )
 
         await emit_progress_event(

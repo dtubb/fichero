@@ -123,6 +123,7 @@ async def kg_writer(
             provider=record.get("provider") or getattr(llm_config, "provider", None),
             model=record.get("model") or getattr(llm_config, "model", None),
             grounding_text=record.get("grounding_text"),
+            run_id=state.get("task_id"),
         )
         await emit_progress_event(
             progress_callback,

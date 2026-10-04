@@ -5114,6 +5114,7 @@ def register_generated_openapi_commands(
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
         offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
         q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
+        run_id: Optional[str] = typer.Option(None, "--run-id", help="Query parameter: run_id."),
     ) -> None:
         """List Entities (GET /api/entities)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5125,6 +5126,7 @@ def register_generated_openapi_commands(
                 "limit": limit,
                 "offset": offset,
                 "q": q,
+                "run_id": run_id,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

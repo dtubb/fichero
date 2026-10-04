@@ -623,7 +623,18 @@ def _is_garbage_entity_name(name: str) -> bool:
     return len(stripped) < 2 or not any(c.isalpha() for c in stripped)
 
 
-def create_entity_impl(db: Database, request: "EntityUpsertRequest") -> KnowledgeEntity:
+def entity_run_ids(entity: KnowledgeEntity) -> set[str]:
+    """The model runs named on this entity's attribution entries."""
+    return {getattr(step, "run_id", None) for step in entity.attribution_chain
+            if getattr(step.role, "value", step.role) == "extractor"} - {None}
+
+
+def _person_attribution(actor: str | None) -> dict:
+    """The `editor` entry a person's create or edit writes (`kg.entity.says-who-made-it`)."""
+    return {"role": "editor", "name": actor or "unknown", "basis": "asserted", "at": utc_now().isoformat()}
+
+
+def create_entity_impl(db: Database, request: "EntityUpsertRequest", *, actor: str | None = None) -> KnowledgeEntity:
     if _is_garbage_entity_name(request.canonical_name):
         raise HTTPException(
             status_code=422,
@@ -646,12 +657,13 @@ def create_entity_impl(db: Database, request: "EntityUpsertRequest") -> Knowledg
         created_at=now,
         updated_at=now,
     )
+    entity.add_attribution(_person_attribution(actor))
     db.save(entity)
     return entity
 
 
 def update_entity_impl(
-    db: Database, entity_id: str, request: "EntityUpsertRequest"
+    db: Database, entity_id: str, request: "EntityUpsertRequest", *, actor: str | None = None
 ) -> KnowledgeEntity:
     entity = db.get(KnowledgeEntity, entity_id)
     if entity is None:
@@ -678,6 +690,7 @@ def update_entity_impl(
         )
     )
     entity.updated_at = now
+    entity.add_attribution(_person_attribution(actor))
     db.save(entity)
     return entity
 
@@ -695,6 +708,7 @@ def _action_create_entity(
     entity = create_entity_impl(
         db,
         EntityUpsertRequest.model_validate(params.model_dump(mode="json")),
+        actor=ctx.actor,
     )
     spec = ChangeSpec(
         domains=["entity"],
@@ -888,6 +902,7 @@ def _action_update_entity(
                 **params.model_dump(mode="json", exclude={"entity_id"}),
             }
         ),
+        actor=ctx.actor,
     )
     spec = ChangeSpec(
         domains=["entity"],
@@ -1176,6 +1191,7 @@ def list_entities_impl(
     include_descendants: bool = True,
     limit: int = 50,
     offset: int = 0,
+    run_id: str | None = None,
 ) -> list[KnowledgeEntity]:
     """Core entity-list query shared by the route and the ``entity.list`` action.
 
@@ -1219,7 +1235,7 @@ def list_entities_impl(
             if entity_type
             else db.all(KnowledgeEntity)
         )
-        if q is None and entity_type is None and document_id is None:
+        if q is None and entity_type is None and document_id is None and run_id is None:
             entities = [
                 entity for entity in entities if not _is_date_like_entity(entity)
             ]
@@ -1229,6 +1245,8 @@ def list_entities_impl(
     # — otherwise a successful merge looks like it did nothing (#1849). Mirrors
     # the soft-delete exclusion already done in kg_review / cleanup.
     entities = [entity for entity in entities if entity.merged_into_id is None]
+    if run_id:  # the entities one run named (`kg.entity.says-who-made-it`)
+        entities = [entity for entity in entities if run_id in entity_run_ids(entity)]
 
     needle = _normalize_text(q)
     if needle:
@@ -1253,6 +1271,7 @@ async def list_entities(
     include_descendants: Annotated[bool, Query()] = True,
     limit: Annotated[int, Query(ge=1, le=25000)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    run_id: Annotated[str | None, Query(description="Only the entities this run named (its attribution entry)")] = None,
     db: Database = Depends(get_library_database),
 ) -> EntityListResponse:
     """List knowledge entities with optional filtering.
@@ -1269,6 +1288,7 @@ async def list_entities(
         include_descendants=include_descendants,
         limit=limit,
         offset=offset,
+        run_id=run_id,
     )
     return EntityListResponse(items=items, count=len(items))
 

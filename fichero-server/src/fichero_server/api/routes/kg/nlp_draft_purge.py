@@ -374,3 +374,77 @@ def _action_purge_nlp_draft(
         emit_fn=_emit_purge_changes if not params.dry_run else None,
     )
     return result, spec
+
+
+# --- Taking back one run's entities (`kg.entity.says-who-made-it`, #4869) ---------------------------------------
+class TakeBackRunParams(BaseModel):
+    """``entity.take_back_run`` params."""
+
+    #: The run whose entities are taken back (its `extractor` attribution entry's `run_id`).
+    run_id: str
+    #: Default True: counts only, nothing removed.
+    dry_run: bool = True
+
+
+_NAMED_ELSEWHERE = "another run or a person also named it"
+_CLAIMED = "a claim names it"
+_REVIEWED = "a person reviewed it"
+
+
+def find_run_only_entities(db: Database, run_id: str) -> tuple[list[KnowledgeEntity], dict[str, str]]:
+    """The entities `run_id` alone made and nothing has touched since, and ``{id: reason}`` for the run's
+    other entities, which stay. Read-only, shared by the dry run and the real one."""
+    from fichero_server.api.routes.entity.entities import entity_run_ids
+
+    named = [e for e in db.query(KnowledgeEntity) if e.merged_into_id is None and run_id in entity_run_ids(e)]
+    claimed: set[str] = set()
+    for claim in db.query(KnowledgeClaim):
+        claimed.update(claim.entity_ids or [])
+        claimed.update(i for i in (claim.subject_entity_id, getattr(claim, "object_entity_id", None)) if i)
+    kept: dict[str, str] = {}
+    for entity in named:
+        others = [s for s in entity.attribution_chain if getattr(s, "run_id", None) != run_id]
+        if others:
+            kept[entity.id] = _NAMED_ELSEWHERE
+        elif entity.curation_state != EntityCurationState.unreviewed:
+            kept[entity.id] = _REVIEWED
+        elif entity.id in claimed:
+            kept[entity.id] = _CLAIMED
+    candidates = {e.id for e in named if e.id not in kept}
+    kept.update(_protected_ids(db, candidates, set()))
+    return [e for e in named if e.id not in kept], kept
+
+
+@action(
+    "entity.take_back_run",
+    TakeBackRunParams,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_take_back_run(
+    db: Database, params: TakeBackRunParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    taken, kept = find_run_only_entities(db, params.run_id)
+    entity_ids = [e.id for e in taken]
+    if not params.dry_run:
+        from fichero_server.api.routes.entity.entities import delete_entity_impl
+
+        for entity_id in entity_ids:
+            delete_entity_impl(db, entity_id, cascade_claims=False, actor=ctx.actor)
+    result = {
+        "run_id": params.run_id,
+        "entity_count": len(entity_ids),
+        "kept_count": len(kept),
+        "kept_reasons": _protected_breakdown(kept),
+        "dry_run": params.dry_run,
+    }
+    spec = ChangeSpec(
+        domains=["entity"],
+        # A dry run names nothing: an audit row naming these ids would itself count as a touch next time.
+        target_ids=[] if params.dry_run else entity_ids,
+        entity_ids=[] if params.dry_run else entity_ids,
+        after=result,
+        emit_type=None if params.dry_run else "entity.deleted",
+        emit_fn=_emit_purge_changes if not params.dry_run else None,
+    )
+    return result, spec
