@@ -967,6 +967,9 @@ class _Lane:
         #: switch that is waiting for the quiet spell.
         self.loaded_used_at = 0.0
         self.look_again_at: float | None = None
+        #: What each running job is for, by job id (its model, `provider:model`): the network
+        #: lane's share per provider counts these.
+        self.running: dict[str, str | None] = {}
 
 
 class _Scheduler:
@@ -1058,7 +1061,10 @@ class _Scheduler:
             # on handed-in work hears the error rather than waiting forever.
             try:
                 while (picked := self._claim(lane)) is not None:
-                    self._run(lane, *picked)
+                    try:
+                        self._run(lane, *picked)
+                    finally:
+                        lane.running.pop(picked[2][0], None)
             except Exception as exc:
                 if lane.name == "local-ml":
                     self._fail_attached(exc)
@@ -1106,6 +1112,7 @@ class _Scheduler:
                     [utc_now(), "Running although background work is paused"
                      if handed_in is not None and is_paused() else None, row[0]],
                 )
+                lane.running[row[0]] = row[3]
                 return key, db, row, handed_in
             if held:
                 lane.look_again_at = lane_look_again
@@ -1143,6 +1150,25 @@ class _Scheduler:
             f"id IN ({', '.join('?' for _ in attached)})" if attached else "",
         ]))
         where, params = f"({where})", [*stored, *attached]
+        held_back = False
+        # One provider's calls never take the whole network lane while another provider's call is
+        # waiting (`activity.run.lane-cap-per-mac`, the cap per provider): a provider stuck on a rate
+        # limit leaves a slot for the others. Work-conserving: with no other provider's call waiting,
+        # it takes the last slot too, so a Mac using one provider keeps the whole lane.
+        share_clause, share_params = "", []
+        if lane.name == "network":
+            share = max(1, lane.slots - 1)
+            counts: dict[str, int] = {}
+            for model in list(lane.running.values()):
+                provider = (model or "").split(":", 1)[0]
+                counts[provider] = counts.get(provider, 0) + 1
+            full = [provider for provider, n in counts.items() if provider and n >= share]
+            # A library whose waiting rows are only held back by a share is not idle: it is looked
+            # at again when one of those running calls ends (the lane's thread loops at once).
+            held_back = bool(full)
+            if full:
+                share_clause = " AND NOT (" + " OR ".join("COALESCE(model, '') LIKE ?" for _ in full) + ")"
+                share_params = [f"{provider}:%" for provider in full]
         # The quiet spell: while the loaded heavy model has had work recently, background jobs for
         # ANOTHER heavy model are left where they are -- excluded, so the work behind them (a
         # light model's, or a page someone waits for) still runs.
@@ -1179,13 +1205,23 @@ class _Scheduler:
                 idle.append(key)
                 continue
             now = utc_now()
-            row = db.execute_fetchone(
-                f"SELECT id, kind, subject, model, created_at FROM jobs "
-                f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where} "
-                f"ORDER BY {attached_first}COALESCE(watched, FALSE) DESC, (model IS NOT DISTINCT FROM ?) DESC, "
-                f"created_at, rowid LIMIT 1",
-                [now, *params, *attached, lane.loaded_model],
-            )
+
+            def first(clause: str, extra: list[Any]) -> tuple | None:
+                return db.execute_fetchone(
+                    f"SELECT id, kind, subject, model, created_at FROM jobs "
+                    f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where}{clause} "
+                    f"ORDER BY {attached_first}COALESCE(watched, FALSE) DESC, (model IS NOT DISTINCT FROM ?) DESC, "
+                    f"created_at, rowid LIMIT 1",
+                    [now, *params, *extra, *attached, lane.loaded_model],
+                )
+
+            row = first(share_clause, share_params) if share_clause else None
+            # Only a provider at its share is waiting here: it may take the spare slot, after any
+            # other library's call that is within its share.
+            spare = False
+            if row is None:
+                row = first("", [])
+                spare = bool(share_clause) and row is not None
             later = db.execute_fetchone(
                 f"SELECT min(run_after) FROM jobs WHERE state = 'waiting' AND run_after > ? AND {where}",
                 [now, *params])[0]
@@ -1195,17 +1231,18 @@ class _Scheduler:
                 due = time.monotonic() + max(0.0, (ensure_utc(later) - ensure_utc(now)).total_seconds())
                 lane.look_again_at = min(lane.look_again_at or due, due)
             if row:
-                candidates.append((key, db, row))
-            elif later is None:
+                candidates.append((key, db, row, spare))
+            elif later is None and not held_back:
                 idle.append(key)
         if full_scan:
             with self._lock:
                 lane.libraries.difference_update(set(idle) - lane.rewoken)
         if not candidates:
             return None
-        # Across libraries the same rule: waited-for work first, then the loaded model, then the oldest.
-        candidates.sort(key=lambda c: (c[2][0] not in attached, c[2][3] != lane.loaded_model, c[2][4]))
-        return candidates[0]
+        # Across libraries the same rule: within its share first, then waited-for work, then the
+        # loaded model, then the oldest.
+        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, c[2][3] != lane.loaded_model, c[2][4]))
+        return candidates[0][:3]
 
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
         from fichero_server.db.manager import db_manager
