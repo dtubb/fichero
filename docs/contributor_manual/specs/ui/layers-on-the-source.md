@@ -291,6 +291,8 @@ statement's text and its review) stays in the Inspector, reached by selecting th
   a canvas's toolbar carry the same menu for their own pane; there is no shared global setting and
   no second control style. The sidebar's bottom-bar toggle (#5413) is a separate control that only
   hides sidebar rows; it never switches a layer.
+  The menu moves into the pane menu (What to Show ▸) under `panes-workspaces.md`'s
+  `panes.chrome.one-pane-menu` (#5435); the layers do not change with it.
 - `layers.toggle.remembered-per-pane` — **[OK]** each switch is remembered per pane, with workspace
   defaults: `@PaneStorage` keys `preview.annotationsEnabled`, `preview.regionsEnabled`,
   `imagePreview.inlineTextEnabled` (`ZoomableImagePreviewMac.swift:176-196`) and
