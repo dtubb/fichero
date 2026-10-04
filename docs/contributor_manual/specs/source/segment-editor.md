@@ -330,9 +330,14 @@ workspaces keep the image on. Built as `PaneConfig` layer values on those two Pr
 has several passes, the Source view draws the first that has boxes in this order: **the pass a person
 CHOSE as the page's working pass** (#5156; their explicit choice outranks the ladder, as the
 inspector's focused artifact does) → **hand-curated**
-(a person's pass, or any pass holding a box a person drew; the 2026-09-03 rule) → **imported from a
-file** (a PAGE, ALTO or folder import) → **machine** → **legacy artifact geometry** (boxes still read
-from an artifact, ranked among themselves by the 2026-08-25 type tiers). Newest first inside each.
+(a person's pass, or any pass holding a box a person drew; the 2026-09-03 rule) → **every other pass,
+newest first**, an import among them → **legacy artifact geometry** (boxes still read from an artifact,
+ranked among themselves by the 2026-08-25 type tiers). **An import has no rank of its own (ruled
+2026-10-04, #5443):** a PAGE, ALTO, TEI or folder import is just the first pass on the page, ranked by
+date like a machine's, and its maker is named where the file says it (the Mosquera DOCX draft was
+Qwen-VL's). Until then an "imported" tier sat above machine passes, so a geometry-free TEI import of a
+draft blanked Preview on 358 of 374 Mosquera pages. **A pass without shapes is passed over for drawing**
+(`ui.preview.draws-a-pass-with-shapes`): `rankedPasses` does not yet check for boxes (#5443).
 A pass with no artifact behind it is ranked, never dropped: an imported page's only pass has none,
 and dropping it is why an imported page showed its text and no boxes. The inspector's focused
 artifact still goes first when it has boxes (2026-08-27). Code: `OCRGeometrySelection.rankedPasses`.

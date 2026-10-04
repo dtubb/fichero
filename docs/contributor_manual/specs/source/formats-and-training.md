@@ -227,8 +227,11 @@ Rules for every format
   afterwards.
   **Provenance (#5150, 2026-09-28):** the pass, its segments and readings are `external_import`,
   never `human`; `actor` is who brought the file and `provider` what the FILE says made it (PAGE
-  Creator / Comments Producer / TranskribusMetadata, ALTO processingSoftware, TEI respStmt); it
-  ranks in the imported tier (`fichero-server/tests/unit/api/test_an_import_is_the_files.py`).
+  Creator / Comments Producer / TranskribusMetadata, ALTO processingSoftware, TEI respStmt); its
+  provenance is pinned by `fichero-server/tests/unit/api/test_an_import_is_the_files.py`. **It has no
+  rank of its own (ruled 2026-10-04, #5443):** an import is just the first pass, ranked by date among
+  the passes no person made or touched (`source.pass.working`); until then it ranked in an "imported"
+  tier above every machine pass.
 - `source.format.file-on-its-own-is-a-document` — **[OK]** (→ #5143, ruled 2026-10-01; on-screen check of the app's report pending) a TEI, PAGE
   or ALTO file imported **on its own** (File › Import, or a drop of the file alone: no folder of
   scans, no page to put it on) becomes **one document holding every page of the file**, in the
