@@ -326,3 +326,6 @@ The engine half can ship alone. It makes every client safe at once, including ag
 See the questions file. From this slice: who may undo whose step; how far back Command-Z
 reaches and whether it survives quitting; per person per library, not per window; redo keeps
 the id.
+
+## Triaged from the backlog (2026-10-04)
+- `undo.coverage-guard-measures-the-engine-inverse` — **[GAP]** (#5109) the undo guard separates 'no inverse anywhere' from 'engine inverse exists, app has not adopted it'; 6b7f91d9f removed the six comment false-positives.

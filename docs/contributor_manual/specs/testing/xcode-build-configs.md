@@ -79,3 +79,4 @@ class that stranded the harness.
 
 ## Triaged from the backlog (2026-10-04)
 - `config.shipping-configuration-is-tested` — **[GAP]** (#4226) a check exercises the configuration users get (DMG/App Store: UDS, sandbox, bookmarks), and the Swift gate and scripts/check_*.py guards are run together so neither can go red unseen.
+- `build.swiftlint-phase-reruns-on-change` — **[GAP]** (#5096) the SwiftLint build phase declares file inputs that change when a source changes, so a fixed lint error stops being reported.

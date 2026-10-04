@@ -76,7 +76,7 @@ authority URIs; and the static site's place and name pages.
 - `gazetteer.enrichment-kept-apart` — **[GAP]** (#5380) facts fetched from Wikidata or a gazetteer are
   claims sourced to it and the fetch date, in their own layer, never overwriting what the pages say;
   disagreements stand side by side, marked.
-- `names.merge-is-a-proposal` — **[GAP]** (#5380) likely duplicates are offered with evidence for and
+- `names.merge-is-a-proposal` — **[GAP]** (#5107, #5380) likely duplicates are offered with evidence for and
   against; nothing merges by itself; a merge keeps every form and passage and can be split again.
 - `gazetteer.quality-shown` — **[GAP]** (#5380) the lists show linked and unresolved mentions, conflicts,
   likely duplicates and unlinked entries, with the unresolved ones as a worklist.

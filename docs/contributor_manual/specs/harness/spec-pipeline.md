@@ -276,3 +276,6 @@ states (b=4, c=33, d=175, e=4, g=138) across 372 tagged behaviors in 26 specs; p
 is green against that baseline. `queue --limit 15` and `queue --kind retag` were also run
 against the real tree; illegal states and debt found are pipeline backlog to work down via
 `queue`/`brief`, not bugs in this script. See the worker's report for the full pasted output.
+
+## Triaged from the backlog (2026-10-04)
+- `spec.absent-tags-agree-with-tests` — **[GAP]** (#5112) a behaviour tagged absent has no test naming it; the 27 mismatches (8 GAP) are retagged.

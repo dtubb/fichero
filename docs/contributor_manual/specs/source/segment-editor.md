@@ -1416,7 +1416,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
 - `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
   adjusted.
 - `source.editor.cut` — **[GAP]** (#4941) a scissors stroke splits one or many lines at once.
-- `source.editor.join-group` — **[PARTIAL]** (#4941) selected segments can be merged; lines grouped into a region
+- `source.editor.join-group` — **[PARTIAL]** (#5159, #4941) selected segments can be merged; lines grouped into a region
   and ungrouped.
   **Join is ⌘J (ruled 2026-09-28):** the head's Join, offered while editing with two or more selected
   (`PreviewMarkupToolsRow`, was ⌘⌥C). ⌘J was free -- the only j chord is ⌃⌘J, Show Side Preview -- and

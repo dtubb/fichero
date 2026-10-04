@@ -440,3 +440,4 @@ Design content carried into this spec; files kept, not moved:
 - `audit.one-action-layer-all-surfaces` — **[GAP]** (#4166) CLI, AppleScript, MCP, Shortcuts, Spotlight and Siri are thin adapters over the one action registry, never parallel implementations (AppleScript run verbs exist, Shortcuts and Spotlight partial).
 - `audit.one-action-layer` — **[PARTIAL]** (#1848) every capability is one typed audited action reached by UI, chat tools, App Intents and tests; the spec's audit.* behaviours track the remaining gaps.
 - `actions.drop-resolves-to-typed-action` — **[GAP]** (#3707) every drop (associate, merge, move/copy, export) resolves to a typed, audited, undoable action; artifacts, annotations and pages have no move/reparent action yet.
+- `audit.params-carry-a-digest-not-content` — **[GAP]** (#5057) every action that takes content records a digest through the `audit_params` hook, not the content (24 remain; several done in b5025161a, 90d735417).

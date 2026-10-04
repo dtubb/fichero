@@ -318,7 +318,7 @@ very engine spawn those tests exist to exercise.
 
 ### E. Typed errors, not silent fallbacks
 
-- `engine.error-detail-reaches-the-caller` — **[BROKEN]** (#3931) 216 call sites (up from the
+- `engine.error-detail-reaches-the-caller` — **[BROKEN]** (#5094, #3931) 216 call sites (up from the
   issue's own count of 182, re-measured fresh this pass) discard the engine's error body via
   `case .undocumented(let statusCode, _)` — the underlying taxonomy
   (`AccessError.classify(statusCode:body:)`, `DenialBody.decode`) exists and works; these sites

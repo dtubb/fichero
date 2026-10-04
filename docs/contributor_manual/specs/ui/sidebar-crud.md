@@ -237,6 +237,8 @@ NOT this PR.
 - `sidebar.library-section-stable-placement` — **[GAP]** (#3336) the Library section (and any additional open libraries) renders in one stable position inside the sidebar column across launches and window states.
 - `sidebar.ipad-rotation-does-not-rebuild` — **[GAP]** (#2408) rotating an iPad does not re-run SidebarItemBuilder.build or rebuild the split view; verify with the InteractionProfile log on a device, then fix.
 - `sidebar.click-path-does-no-full-tree-walks` — **[PARTIAL]** (#4228) a sidebar click does no per-body full-forest walks (cached buckets, XOR signature, dictionary lookups landed in 9568619fb, d35a69f49); the window open/close beachball is not re-measured.
+- `move.no-cycle-covers-every-kind` — **[BROKEN]** (#5064) the Move to Folder menu and the drag path use one circularity check that covers every item kind, not documents only.
+- `dup.deep-tree-fits-the-memory-cap` — **[BROKEN]** (#5100) duplicating a 1,050-deep tree completes inside DuckDB's 1.5 GB cap.
 
 ## Future (ideas, not scheduled)
 - (#1380) Mail-style sidebar: counts, multi-select combined view, favorites section, smart All groups

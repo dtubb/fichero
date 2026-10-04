@@ -202,3 +202,6 @@ Existing coverage (kept, all pass today): `fichero/Tests/Unit/general/Views/Work
 
 ## Future (ideas, not scheduled)
 - (#4178) Rethink the workflow node-editor layout engine for clarity and enable chaining in the editor.
+
+## Triaged from the backlog (2026-10-04)
+- `wfnode.entity-types-from-the-edited-library` — **[BROKEN]** (#5133) workflow node configs read the entity types of the library being edited, not `globalLibrary`.

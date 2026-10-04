@@ -100,7 +100,7 @@ it token-efficiently with fabel/opus?
   readiness pass finds it. *Test:* the guardrails themselves; the real fix is including the
   full `--fast` sweep (or the specific guardrails a change's file paths touch) in whatever gate
   actually runs before a commit lands, not only at release time.
-- `orch.docs-paths-stay-accurate` — **[BROKEN]** (#4908) a doc that names a file path should
+- `orch.docs-paths-stay-accurate` — **[BROKEN]** (#5101, #4908) a doc that names a file path should
   name one that exists. `scripts/check_docs_paths.py` is currently RED: 5 of 14 named absent
   paths are unaccounted (9 already allowlisted). This class has been repeatedly flagged this
   session as pre-existing, unrelated baseline noise, never independently root-caused before now
@@ -139,6 +139,9 @@ it token-efficiently with fabel/opus?
 - `harness.ratchet-swift-side` — **[GAP]** (#4442) canvas frame time at scale, view body type-check time and other app-half numbers are measured and held.
 - `harness.ratchets-run-automatically` — **[GAP]** (#4445) every ratchet attaches to test runs or release artifacts without any opt-in or flag.
 - `harness.ratchet-ios-ipad` — **[GAP]** (#4466) iOS and iPad compile time, app size and test duration are ratcheted separately.
+- `orch.verify-python-does-not-deadlock` — **[BROKEN]** (#5071) `verify_python` completes: two derivative threads no longer contend on the db manager lock while one migrates inside it.
+- `orch.guardrail-suite-green-and-pinned` — **[GAP]** (#5106) every `check_*.py` guard is green or baselined with a reason, and each is pinned by a test (21 red, 26 unpinned on 2026-09-27).
+- `orch.swiftlint-ratchet-only-tightens` — **[BROKEN]** (#5111) the SwiftLint warning baseline only goes down; it was loosened six times (68 to 123) while actual is 185.
 
 ## Future (ideas, not scheduled)
 - (#2561) Separate bot GitHub identity for agent issues/comments; commits already carry Claude authorship by convention; process decision.

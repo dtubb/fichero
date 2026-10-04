@@ -509,7 +509,7 @@ Places and gazetteers
   PARTIAL: no screen.
 
 Places over time and in words
-- `source.geo.names-over-time` — **[PARTIAL]** (#5120) a place entity holds several names, each with
+- `source.geo.names-over-time` — **[PARTIAL]** (#5127, #5120) a place entity holds several names, each with
   a language, a script, a time span and the source that attests it.
   **Built 2026-09-28 (maps D6):** `KnowledgeEntity.names` -- text in its own script, romanized form,
   BCP 47 language as the source gives it, ISO 15924 script (the source's, else the letters'), a

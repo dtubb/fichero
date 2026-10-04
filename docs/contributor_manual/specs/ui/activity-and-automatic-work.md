@@ -1204,3 +1204,5 @@ Workflow-runner review, 2026-10-01 (read, one scheduled run reproduced, Kraken t
 
 ## Triaged from the backlog (2026-10-04)
 - `activity.voiceover-announcements` — **[GAP]** (#3724) import, indexing and workflow runs post an AccessibilityNotification announcement on started, completed and failed (only pane focus announces today, ContentView.swift:872).
+- `activity.run-control-is-global` — **[GAP]** (#5116) one global start, stop and pause over every file's steps, with per-file step tracking, for a library left running for days.
+- `activity.simple-for-its-reader` — **[GAP]** (#5117) Activity is redesigned from who reads it, not from the existing views.

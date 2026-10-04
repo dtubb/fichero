@@ -753,3 +753,8 @@ action record holding a researcher's words is ruled out.
 - (#3311) Strategy seed (diplomatic vs normalized fields, historical dates); already folded as background into historical-text-normalization.md, remaining open questions are Future
 - (#4637) Design-first brief for language/script/character-coverage tiers (loove, CLDR/Glottolog); owned by source/languages-scripts-signs.md and archival-data-model-plan.md, further work is Future
 - (#4638) Design-first brief for edition kinds/methodologies/export formats; edition picker tracked in archival-data-model-plan.md (P4), full methodology model is Future
+
+## Triaged from the backlog (2026-10-04)
+- `source.store.every-model-registered` — **[GAP]** (#5055) every persisted model is in `Database._all_schema_models`, so a library open creates every table and index.
+- `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
+- `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.
