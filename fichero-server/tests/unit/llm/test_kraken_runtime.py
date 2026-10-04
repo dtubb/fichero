@@ -106,10 +106,10 @@ def test_the_seam_is_the_only_importer_of_kraken_in_the_engine() -> None:
     the one lock/throttle seam."""
     # Scripts that never run inside the engine: they ship in a read package and run on Hugging Face
     # Jobs or a cluster node, in their own environment, where there is no engine seam to go through.
-    never_in_the_engine = {SRC_ROOT / "remote_read" / "runner.py"}
+    never_in_the_engine = {"fichero_server/remote_read/runner.py"}
     offenders: list[str] = []
     for path in sorted(scan_rglob(SRC_ROOT, "*.py")):
-        if path == KRAKEN_RUNTIME_PATH or path in never_in_the_engine:
+        if path == KRAKEN_RUNTIME_PATH or path.relative_to(SRC_ROOT).as_posix() in never_in_the_engine:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
