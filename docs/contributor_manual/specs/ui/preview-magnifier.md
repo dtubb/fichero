@@ -42,6 +42,26 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
 - `magnifier.right-click-dismiss` **[PARTIAL]** (implemented, unpinned; #4806) — right-clicking a placed loupe removes it.
 - `magnifier.follow-mouse-bar` **[GAP]** (#4716) — a bottom magnifier BAR that tracks the pointer and
   magnifies the strip under it (distinct from the round loupe), for scanning a line of text.
+- `magnifier.strip-follows-line-direction` **[PARTIAL]** (#5411) — the magnifier strip lies along the
+  page's lines: a horizontal strip under the page for horizontal lines, a vertical strip at the page's
+  trailing side for vertical (`ttb`/`btt`) lines, so a strip shows a stretch of ONE line rather than a slice
+  across many. The direction is the page's lines' resolved direction (`SegmentStore`, the same one the text
+  preview and the inline text use); the strip takes the direction most of the page's lines have, so it
+  does not jump sides as the pointer crosses a horizontal heading. No direction known: horizontal.
+  **Built 2026-10-04** (`MagnifierStrip.axis`, the strip's handle and size turned with it). Pinned by
+  `PreviewVerticalPageTests`. **Still PARTIAL:** the look on the chinese-vertical page.
+- `magnifier.strip-placement-is-the-persons` **[PARTIAL]** (#5411, ruled 2026-10-04) — the person decides
+  where the strip goes: at the side or at the bottom. Line direction (`strip-follows-line-direction`)
+  only sets the DEFAULT. An explicit choice wins over that default. Choosing Automatic hands the
+  decision back to the line direction. The control is one menu in the strip's own controls:
+  Automatic, Bottom, Side.
+  Only an explicit choice made in a pane is remembered, only for that pane, and across relaunches
+  (ruled 2026-10-04). A new pane, or a pane that never chose, starts on Automatic and follows its own
+  page's lines. Unlike other per-pane options (`panes.options-per-pane`), there is no shared value, so a
+  choice in one pane is never inherited by another.
+  **Built 2026-10-04** (`MagnifierStrip.Placement`, `MagnifierStrip.axis(placement:lineDirections:)`, the
+  per-pane map at `imagePreview.magnifierStripPlacement.byPane`). Pinned by `PreviewVerticalPageTests`.
+  **Still PARTIAL:** the look on screen.
 - `magnifier.per-source-memory` **[GAP]** (#4717) — a source remembers its loupe size/magnification, so
   returning to a hand you were working resumes where you were.
 - `magnifier.pdf-viewer-has-the-loupe-too` **[GAP]** (#2419, redirected from the legacy
@@ -61,6 +81,8 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
 | states-its-power | — | ❌ |
 | follow-mouse-bar | — | ❌ [GAP] |
 | per-source-memory | — | ❌ [GAP] |
+| strip-follows-line-direction | `PreviewVerticalPageTests` | ⚠ partial — the look on screen pending |
+| strip-placement-is-the-persons | `PreviewVerticalPageTests` | ⚠ partial — the look on screen pending |
 
 ## Open questions
 

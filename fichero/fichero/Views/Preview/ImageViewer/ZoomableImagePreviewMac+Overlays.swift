@@ -157,8 +157,13 @@ extension ZoomableImagePreview {
         // edit / annotation) now lives at the BOTTOM of the canvas via the
         // shared ReaderToolbar (#2423), so the image and PDF readers present
         // one identical, persistent bar.
-        ZStack(alignment: .bottomTrailing) {
-            VStack(spacing: 0) {
+        // The strip lies along the page's lines (#5411): a row under the page, or a column beside it.
+        // One AnyLayout, so turning it never rebuilds the image view.
+        let stripAxis: Axis = magnifierEnabled ? magnifierAxis : .horizontal
+        let stack: AnyLayout = stripAxis == .vertical
+            ? AnyLayout(HStackLayout(spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
+        return ZStack(alignment: .bottomTrailing) {
+            stack {
                 // An AI redraw is TEXT, so it renders in WebKit rather than
                 // through the image canvas (#4329's `WebContentCanvas`, which
                 // already draws sanitized SVG with scripts disabled). It has
@@ -224,7 +229,7 @@ extension ZoomableImagePreview {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
-                // Bottom magnifier panel
+                // The magnifier strip, along the page's lines (#5411): under the page, or beside it
                 if magnifierEnabled, let img = image {
                     Divider()
                     MagnifierPanelView(
@@ -246,9 +251,12 @@ extension ZoomableImagePreview {
                                 lockedPosition = cursorPosition
                             }
                             magnifierLocked.toggle()
-                        }
+                        },
+                        placement: magnifierPlacement,
+                        axis: stripAxis
                     )
-                    .frame(height: CGFloat(panelHeight))
+                    .frame(width: stripAxis == .vertical ? CGFloat(panelHeight) : nil,
+                           height: stripAxis == .vertical ? nil : CGFloat(panelHeight))
                 }
             }
             .background(Color(nsColor: .windowBackgroundColor))
@@ -292,6 +300,8 @@ extension ZoomableImagePreview {
             // from the bottom edge, so the cluster no longer needs to
             // dodge it).
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            // A strip beside the page (#5411) would sit under the cluster: keep the cluster on the page.
+            .padding(.trailing, stripAxis == .vertical ? CGFloat(panelHeight) : 0)
         }
         .overlay(alignment: .bottom) {
             // The quiet refusal (Daniel, 2026-09-04): a box-gated mark that

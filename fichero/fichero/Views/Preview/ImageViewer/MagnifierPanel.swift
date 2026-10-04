@@ -5,29 +5,125 @@ import UIKit
 #endif
 import SwiftUI
 
+/// Which way the magnifier strip lies (#5411, `magnifier.strip-follows-line-direction`): along the page's
+/// lines, so it shows a stretch of ONE line -- under the page for horizontal lines, beside it for vertical.
+enum MagnifierStrip {
+    /// Vertical when most of the page's resolved line directions are vertical (`ttb`, `btt`); otherwise,
+    /// on a tie, or with nothing resolved, horizontal. The page's majority, not the line under the
+    /// pointer, so the strip does not jump sides as the pointer crosses a heading.
+    static func axis(forLineDirections directions: [String]) -> Axis {
+        let vertical = directions.filter { $0 == "ttb" || $0 == "btt" }.count
+        return vertical * 2 > directions.count ? .vertical : .horizontal
+    }
+
+    /// Where the person put the strip (ruled 2026-10-04, `magnifier.strip-placement-is-the-persons`):
+    /// an explicit choice wins over the lines; Automatic is the line-direction default.
+    enum Placement: String, CaseIterable, Identifiable {
+        case automatic = ""
+        case bottom
+        case side
+
+        var id: String { rawValue }
+
+        /// What a pane stored. Nothing stored is Automatic. The strings are only ever written by this
+        /// menu, so an unknown one can only be a newer build's choice, and is read as Automatic too.
+        init(stored: String) { self = Placement(rawValue: stored) ?? .automatic }
+
+        var title: String {
+            switch self {
+            case .automatic: "Automatic"
+            case .bottom: "Bottom"
+            case .side: "Side"
+            }
+        }
+    }
+
+    /// Where each pane's choice is kept: a JSON map `pane leaf id → placement` that survives relaunch.
+    /// Deliberately NOT `@PaneStorage` (ruled 2026-10-04): that also writes a shared value a new pane
+    /// starts from, and a new pane must start on Automatic, following its own page's lines.
+    static let placementMapKey = "imagePreview.magnifierStripPlacement.byPane"
+
+    /// This pane's placement in `map`: its own choice, else Automatic. No pane: Automatic.
+    static func placement(in map: String, pane: UUID?) -> Placement {
+        Placement(stored: PaneScopedOption.value(map, pane: pane, shared: Placement.automatic.rawValue))
+    }
+
+    /// `map` with this pane's choice set. No pane: unchanged, since there is nowhere to remember it.
+    static func storing(_ placement: Placement, in map: String, pane: UUID?) -> String {
+        PaneScopedOption.setting(placement.rawValue, in: map, pane: pane)
+    }
+
+    static func axis(placement: Placement, lineDirections: [String]) -> Axis {
+        switch placement {
+        case .automatic: axis(forLineDirections: lineDirections)
+        case .bottom: .horizontal
+        case .side: .vertical
+        }
+    }
+}
+
 #if canImport(AppKit)
 
-// MARK: - Magnifier Panel (bottom bar - full width with zoom controls)
+// MARK: - Magnifier Panel (a strip along the page's lines, with zoom controls)
 
 struct MagnifierPanelView: View {
     let image: PlatformImage
     let cursorPosition: CGPoint
     let imageSize: CGSize
     @Binding var magnification: CGFloat
+    /// The strip's thickness: its height under the page, its width beside it.
     @Binding var panelHeight: CGFloat
     @Binding var isLocked: Bool
     var onLockToggle: () -> Void
+    /// Where the person put the strip, this pane's choice (`magnifier.strip-placement-is-the-persons`).
+    @Binding var placement: MagnifierStrip.Placement
+    /// `.vertical`: a strip at the page's trailing side, for vertical lines (#5411).
+    var axis: Axis = .horizontal
 
     private let minMagnification: CGFloat = 0.25
     private let maxMagnification: CGFloat = 32.0
     private let minHeight: CGFloat = 40
     private let maxHeight: CGFloat = 400
 
+    /// The handle leads the strip (its top under the page, its leading edge beside it), so it always faces
+    /// the page it resizes against.
+    private var stripLayout: AnyLayout {
+        axis == .vertical ? AnyLayout(HStackLayout(spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
+    }
+
+    /// The lock, thickness and zoom controls run along the strip: a column in a strip beside the page,
+    /// which is too narrow for them in a row.
+    private var controlsLayout: AnyLayout {
+        axis == .vertical ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))
+    }
+
+    /// Where the strip goes, the person's choice (ruled 2026-10-04): Automatic follows the page's lines.
+    private var placementMenu: some View {
+        Menu {
+            Picker("Strip Position", selection: $placement) {
+                ForEach(MagnifierStrip.Placement.allCases) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Image(systemName: axis == .vertical ? "rectangle.righthalf.inset.filled" : "rectangle.bottomhalf.inset.filled")
+                .font(.caption)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel("Strip Position")
+        .help("Where the magnifier strip goes: at the bottom, at the side, or Automatic (along the page's lines)")
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Resize handle at top
-            ResizeHandle(height: $panelHeight, minHeight: minHeight, maxHeight: maxHeight)
-                .help("Drag up or down to resize the magnifier strip (\(Int(minHeight))–\(Int(maxHeight))px)")
+        stripLayout {
+            // Resize handle on the side facing the page
+            ResizeHandle(height: $panelHeight, minHeight: minHeight, maxHeight: maxHeight, axis: axis)
+                .help(axis == .vertical
+                      ? "Drag left or right to resize the magnifier strip (\(Int(minHeight))–\(Int(maxHeight))px)"
+                      : "Drag up or down to resize the magnifier strip (\(Int(minHeight))–\(Int(maxHeight))px)")
 
             ZStack(alignment: .bottomTrailing) {
                 // Full width magnified view with scroll-to-zoom
@@ -66,7 +162,7 @@ struct MagnifierPanelView: View {
                 }
 
                 // Overlay controls and info
-                HStack(spacing: 12) {
+                controlsLayout {
                     // Lock button
                     Button(action: onLockToggle) {
                         Image(systemName: isLocked ? "lock.fill" : "lock.open")
@@ -79,8 +175,10 @@ struct MagnifierPanelView: View {
                           ? "Unlock magnifier — click to follow the cursor again"
                           : "Lock magnifier — click to hold the current spot while you move the cursor elsewhere")
 
+                    placementMenu
+
                     Divider()
-                        .frame(height: 12)
+                        .frame(width: axis == .vertical ? 12 : nil, height: axis == .vertical ? nil : 12)
 
                     // Height indicator
                     Text("\(Int(panelHeight))px")
@@ -89,7 +187,7 @@ struct MagnifierPanelView: View {
                         .help("Strip height. Drag the handle at the top edge of the strip to resize")
 
                     Divider()
-                        .frame(height: 12)
+                        .frame(width: axis == .vertical ? 12 : nil, height: axis == .vertical ? nil : 12)
 
                     // Zoom controls
                     HStack(spacing: 4) {
@@ -157,28 +255,33 @@ struct MagnifierPanelView: View {
 // MARK: - Resize Handle for Panel
 
 struct ResizeHandle: View {
+    /// The strip's thickness: its height under the page, its width beside it.
     @Binding var height: CGFloat
     let minHeight: CGFloat
     let maxHeight: CGFloat
+    /// `.vertical`: the strip stands beside the page, so the handle is a bar on its leading edge and a
+    /// drag to the left thickens it.
+    var axis: Axis = .horizontal
 
     @State private var isDragging = false
 
     var body: some View {
+        let vertical = axis == .vertical
         Rectangle()
             .fill(Color.gray.opacity(0.3))
-            .frame(height: 6)
+            .frame(width: vertical ? 6 : nil, height: vertical ? nil : 6)
             .overlay(
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color.gray.opacity(isDragging ? 0.8 : 0.5))
-                    .frame(width: 40, height: 4)
+                    .frame(width: vertical ? 4 : 40, height: vertical ? 40 : 4)
             )
             .contentShape(Rectangle())
             .gesture(
                 DragGesture()
                     .onChanged { value in
                         isDragging = true
-                        let newHeight = height - value.translation.height
-                        height = max(minHeight, min(maxHeight, newHeight))
+                        let delta = vertical ? value.translation.width : value.translation.height
+                        height = max(minHeight, min(maxHeight, height - delta))
                     }
                     .onEnded { _ in
                         isDragging = false
@@ -186,7 +289,7 @@ struct ResizeHandle: View {
             )
             .onHover { hovering in
                 if hovering {
-                    NSCursor.resizeUpDown.push()
+                    (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push()
                 } else {
                     NSCursor.pop()
                 }

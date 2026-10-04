@@ -1117,10 +1117,39 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   the real Chinese-vertical and Syriac pages (`SegmentLabelTests`, recorded by
   `test_reader_directions.py::test_the_page_text_s_directions_are_recorded_for_the_app_s_labels`).
   **Still PARTIAL:**
-  - the text fitted into boxes on the image (`InlineWordText`), which is not direction-aware;
+  - the text fitted into boxes on the image: the Mac image page's `InlineWords` now follows the line's
+    direction (`inline-text-in-its-direction`, #5411); the SwiftUI layer's `InlineWordText` (the PDF page
+    and iOS) still does not;
   - Mongolian, whose rotated letters want the text turned, not stacked;
   - the Inspector's own direction for Han, which waits on the resolve route measuring the page's lines
     (#5202, engine).
+- `source.editor.inline-text-in-its-direction` — **[PARTIAL]** (#5411) with Show Text Inline on, each
+  line's reading is set INSIDE its own box in the line's resolved direction -- the same direction the hover
+  label and the text preview use (`SegmentStore`'s line directions from the page text,
+  `labels-in-their-direction`), never a second guess from the characters. A `ttb` line is a column of
+  upright graphemes read top to bottom, centred in its box; the columns read right to left because each
+  sits in its own box. An `rtl` line is set from the box's right edge. Found on the chinese-vertical page,
+  where every column's reading was one horizontal string.
+  **Built 2026-10-04, Mac image page** (`InlineWords.layout`, the direction carried on
+  `DocumentOverlay.Box`). Pinned by `PreviewVerticalPageTests`. **Still PARTIAL:** the maintainer's look on
+  the chinese-vertical page; the PDF page and iOS (`InlineWordText`).
+- `source.editor.inline-text-fits-its-box` — **[PARTIAL]** (#5411) an inline reading is scaled to fit its
+  box in BOTH axes -- the box's height and width -- and never runs past it, at every zoom. A region under
+  lines sets no text of its own: its words are its lines', and its reading (every line joined) was being
+  drawn at the region's size, a page-tall list that overflowed the page at 21% and 47% zoom (a regression
+  from `regions-under-lines`). A region on a page without lines still sets its reading.
+  **Built 2026-10-04, Mac image page** (`InlineWords.fittedSize` fits both axes;
+  `DocumentOverlay.setsTextInline`). Pinned by `PreviewVerticalPageTests`. **Still PARTIAL:** the look on
+  screen.
+- `source.editor.hover-picks-the-line` — **[PARTIAL]** (#5411) resting the pointer on a line highlights
+  THAT line (the hover wash and outline of `thin-by-default`), and the hover label names it: the smallest
+  box under the pointer wins, as a click does. The SwiftUI hover label took the FIRST box containing the
+  pointer, which on a page with regions and lines is the region around every line.
+  **Built 2026-10-04:** one rule, `DocumentOverlay.smallestContaining`, used by the drawn hover
+  (`DocumentOverlayView`) and the hover label (`OCRGeometryOverlay`); the drawn hover's tracking area is
+  installed when the view joins its window, not only on the first geometry change. Pinned by
+  `PreviewVerticalPageTests`. **Still PARTIAL:** not reproduced on screen by the builder of this slice --
+  whether the overlay's tracking area was the whole of the missing hover needs the maintainer's look.
 - `source.editor.selection-shared` — **[PARTIAL]** (#4941) selecting a segment in the Source view, Reader or Inspector
   selects it in the others.
   **Two of the three pairs exist, by two different mechanisms** (read on disk 2026-09-27), and

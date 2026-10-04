@@ -30,6 +30,30 @@ extension ZoomableImagePreview {
         return marquees.rects
     }
 
+    /// This page's segment directions, resolved the ONE way the hover label, the inline text and the
+    /// magnifier strip all read them: `SegmentStore`'s, from the page text (#5199, #5411). Nil: unresolved.
+    var segmentDirections: (String?) -> String? {
+        guard let documentId, let segmentService else { return { _ in nil } }
+        let resolve = SegmentStore.shared(for: segmentService).directionResolver(documentId: documentId)
+        return { (id: String?) -> String? in id.flatMap(resolve) }
+    }
+
+    /// Which way the magnifier strip lies: where the person put it, else along most of the page's lines
+    /// (#5411, `magnifier.strip-placement-is-the-persons`, `magnifier.strip-follows-line-direction`).
+    var magnifierAxis: Axis {
+        var directions: [String] = []
+        if let documentId, let segmentService {
+            directions = Array((SegmentStore.shared(for: segmentService).directionsByDocument[documentId] ?? [:]).values)
+        }
+        return MagnifierStrip.axis(placement: magnifierPlacement.wrappedValue, lineDirections: directions)
+    }
+
+    /// This pane's strip placement, as the strip's menu reads and writes it.
+    var magnifierPlacement: Binding<MagnifierStrip.Placement> {
+        Binding(get: { MagnifierStrip.placement(in: magnifierStripPlacements, pane: paneLeafId) },
+                set: { magnifierStripPlacements = MagnifierStrip.storing($0, in: magnifierStripPlacements, pane: paneLeafId) })
+    }
+
     var documentOverlay: DocumentOverlay {
         let shown = displayedGeometryBoxes
         let all = frameMatchedGeometryBoxes
@@ -40,13 +64,16 @@ extension ZoomableImagePreview {
         // The same frame gates the SwiftUI washes had: the entry wash is anchored on the page's
         // own image, the linked words on the geometry they were measured on.
         let linkedFrameMatches = ocrGeometry.map { geometryFrameMatchesDisplay($0) } ?? false
+        // Only the inline text reads a box's direction, so the page is indexed only when it is on.
+        let direction: (String?) -> String? = inlineTextEnabled ? segmentDirections : { _ in nil }
         return DocumentOverlay(
-            boxes: shown.map {
-                .init(bbox: $0.box.bbox, confidence: $0.box.confidence, text: $0.box.text,
-                      showsText: inlineTextEnabled && OCRBoxConfidence.drawsInlineText($0.box.confidence),
-                      shapes: $0.box.shapes, noReading: $0.box.noReading,
-                      segmentId: $0.box.segmentId, kind: $0.box.level,
-                      regionId: $0.box.regionId, alternateTint: $0.box.alternateTint)
+            boxes: shown.map { (entry: (index: Int, box: OCRGeometryBox)) -> DocumentOverlay.Box in
+                .init(bbox: entry.box.bbox, confidence: entry.box.confidence, text: entry.box.text,
+                      showsText: inlineTextEnabled && OCRBoxConfidence.drawsInlineText(entry.box.confidence),
+                      shapes: entry.box.shapes, noReading: entry.box.noReading,
+                      segmentId: entry.box.segmentId, kind: entry.box.level,
+                      regionId: entry.box.regionId, alternateTint: entry.box.alternateTint,
+                      direction: direction(entry.box.segmentId))
             },
             selected: selected,
             selectedShapes: selectedIndices.map { all[$0].shapes },
