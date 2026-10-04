@@ -6127,6 +6127,151 @@
         }
       }
     },
+    "/api/sync-folders": {
+      "post": {
+        "tags": [
+          "sync-folders"
+        ],
+        "summary": "Tie the project to a folder on the engine's disk",
+        "description": "Write the project's outputs into the folder and keep them current as the work goes on: one\nsubfolder per format, one file per source named by its title and lasting id, its loss report\nbeside it. Writing is background work (paused by Pause Background Work); a file Fichero did not\nwrite is never overwritten. Refused (422) for a path that is not a full path on the engine's\ndisk or a format a synced folder does not hold.",
+        "operationId": "tie_folder_api_sync_folders_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TieRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tied"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "sync-folders"
+        ],
+        "summary": "The project's synced folders and their state",
+        "operationId": "list_folders_api_sync_folders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncFolderList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sync-folders/{folder_id}": {
+      "delete": {
+        "tags": [
+          "sync-folders"
+        ],
+        "summary": "Untie a synced folder (its files stay on disk)",
+        "operationId": "untie_folder_api_sync_folders__folder_id__delete",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tied"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/links/naming": {
       "get": {
         "tags": [
@@ -77539,6 +77684,97 @@
         "type": "object",
         "title": "StraightenOperationRequest"
       },
+      "SyncFolderList": {
+        "properties": {
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/SyncFolderStatus"
+            },
+            "type": "array",
+            "title": "Folders"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folders"
+        ],
+        "title": "SyncFolderList"
+      },
+      "SyncFolderStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "formats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Formats"
+          },
+          "last_written": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Last Written"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending",
+            "description": "files waiting to be written (their jobs are in Activity)"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "files Fichero wrote, relative to the folder"
+          },
+          "in_the_way": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "In The Way",
+            "description": "files in the way that Fichero did not write: left alone"
+          },
+          "changed_outside": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changed Outside",
+            "description": "files Fichero wrote that were changed outside: left alone"
+          },
+          "deleted_outside": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted Outside",
+            "description": "files Fichero wrote that were deleted outside: written again on the next change to their source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "formats",
+          "pending",
+          "files",
+          "in_the_way",
+          "changed_outside",
+          "deleted_outside"
+        ],
+        "title": "SyncFolderStatus",
+        "description": "`source.sync.status-in-inspector`: where it is, what it holds, and what needs a look."
+      },
       "SyncManifestResponse": {
         "properties": {
           "library_id": {
@@ -78157,6 +78393,42 @@
         ],
         "title": "ThreadListResponse",
         "description": "Response with list of execution threads."
+      },
+      "TieRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "A full path to a folder on the engine's disk; made if it is not there"
+          },
+          "formats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Formats",
+            "description": "What to write there: pagexml, alto and/or tei"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "formats"
+        ],
+        "title": "TieRequest"
+      },
+      "Tied": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "Tied"
       },
       "TierModelInfo": {
         "properties": {
