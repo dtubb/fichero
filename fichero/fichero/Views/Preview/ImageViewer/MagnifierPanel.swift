@@ -38,8 +38,20 @@ enum MagnifierStrip {
         }
     }
 
-    /// The pane option the choice is kept under (`@PaneStorage`: per pane, survives relaunch).
-    static let placementKey = "imagePreview.magnifierStripPlacement"
+    /// Where each pane's choice is kept: a JSON map `pane leaf id → placement` that survives relaunch.
+    /// Deliberately NOT `@PaneStorage` (ruled 2026-10-04): that also writes a shared value a new pane
+    /// starts from, and a new pane must start on Automatic, following its own page's lines.
+    static let placementMapKey = "imagePreview.magnifierStripPlacement.byPane"
+
+    /// This pane's placement in `map`: its own choice, else Automatic. No pane: Automatic.
+    static func placement(in map: String, pane: UUID?) -> Placement {
+        Placement(stored: PaneScopedOption.value(map, pane: pane, shared: Placement.automatic.rawValue))
+    }
+
+    /// `map` with this pane's choice set. No pane: unchanged, since there is nowhere to remember it.
+    static func storing(_ placement: Placement, in map: String, pane: UUID?) -> String {
+        PaneScopedOption.setting(placement.rawValue, in: map, pane: pane)
+    }
 
     static func axis(placement: Placement, lineDirections: [String]) -> Axis {
         switch placement {

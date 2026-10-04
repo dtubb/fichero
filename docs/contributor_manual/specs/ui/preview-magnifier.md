@@ -52,14 +52,16 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
   `PreviewVerticalPageTests`. **Still PARTIAL:** the look on the chinese-vertical page.
 - `magnifier.strip-placement-is-the-persons` **[PARTIAL]** (#5411, ruled 2026-10-04) — the person decides
   where the strip goes: at the side or at the bottom. Line direction (`strip-follows-line-direction`)
-  only sets the DEFAULT. An explicit choice wins over that default, and each pane remembers its own
-  choice across relaunches (`@PaneStorage`, `panes.options-per-pane`). Choosing Automatic hands the
+  only sets the DEFAULT. An explicit choice wins over that default. Choosing Automatic hands the
   decision back to the line direction. The control is one menu in the strip's own controls:
-  Automatic, Bottom, Side. As with every per-pane option, a new pane starts from the last choice made
-  anywhere.
+  Automatic, Bottom, Side.
+  Only an explicit choice made in a pane is remembered, only for that pane, and across relaunches
+  (ruled 2026-10-04). A new pane, or a pane that never chose, starts on Automatic and follows its own
+  page's lines. Unlike other per-pane options (`panes.options-per-pane`), there is no shared value, so a
+  choice in one pane is never inherited by another.
   **Built 2026-10-04** (`MagnifierStrip.Placement`, `MagnifierStrip.axis(placement:lineDirections:)`, the
-  `imagePreview.magnifierStripPlacement` pane option). Pinned by `PreviewVerticalPageTests`. **Still
-  PARTIAL:** the look on screen.
+  per-pane map at `imagePreview.magnifierStripPlacement.byPane`). Pinned by `PreviewVerticalPageTests`.
+  **Still PARTIAL:** the look on screen.
 - `magnifier.per-source-memory` **[GAP]** (#4717) — a source remembers its loupe size/magnification, so
   returning to a hand you were working resumes where you were.
 - `magnifier.pdf-viewer-has-the-loupe-too` **[GAP]** (#2419, redirected from the legacy

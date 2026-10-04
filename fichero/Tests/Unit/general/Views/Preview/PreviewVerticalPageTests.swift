@@ -116,23 +116,25 @@ struct PreviewVerticalPageTests {
         #expect(MagnifierStrip.axis(placement: .automatic, lineDirections: horizontal) == .horizontal)
     }
 
-    /// The choice is kept as the pane option `MagnifierStrip.placementKey` (`@PaneStorage`): what one pane
-    /// chose reads back for that pane, and does not change another's. Driven through `PaneScopedOption`,
-    /// the read and write rules `@PaneStorage` applies (its hosted round trip is
-    /// `LibraryOptionsPerPaneTests`).
-    @Test("strip-placement-is-the-persons: each pane remembers its own choice, as stored")
+    /// The choice is kept per pane in the map at `MagnifierStrip.placementMapKey`, with NO shared value
+    /// (ruled 2026-10-04): what one pane chose reads back for that pane, never changes another's, and a
+    /// pane that never chose (a new one included) reads Automatic, however many choices were made elsewhere.
+    @Test("strip-placement-is-the-persons: each pane remembers only its own choice; a pane that never chose is Automatic")
     func choicePersistsPerPane() {
         let left = UUID(), right = UUID()
         var map = "{}"
-        map = PaneScopedOption.setting(MagnifierStrip.Placement.side.rawValue, in: map, pane: left)
-        map = PaneScopedOption.setting(MagnifierStrip.Placement.bottom.rawValue, in: map, pane: right)
-        let shared = MagnifierStrip.Placement.automatic.rawValue
-        #expect(MagnifierStrip.Placement(stored: PaneScopedOption.value(map, pane: left, shared: shared)) == .side)
-        #expect(MagnifierStrip.Placement(stored: PaneScopedOption.value(map, pane: right, shared: shared)) == .bottom)
-        #expect(MagnifierStrip.Placement(stored: PaneScopedOption.value(map, pane: UUID(), shared: shared)) == .automatic,
-                "a pane that never chose takes the shared value")
-        #expect(MagnifierStrip.Placement(stored: "") == .automatic, "nothing stored is Automatic")
-        #expect(MagnifierStrip.placementKey == "imagePreview.magnifierStripPlacement", "renaming the key forgets every choice")
+        map = MagnifierStrip.storing(.side, in: map, pane: left)
+        map = MagnifierStrip.storing(.bottom, in: map, pane: right)
+        #expect(MagnifierStrip.placement(in: map, pane: left) == .side)
+        #expect(MagnifierStrip.placement(in: map, pane: right) == .bottom)
+        #expect(MagnifierStrip.placement(in: map, pane: UUID()) == .automatic,
+                "a new pane inherited another pane's choice")
+        #expect(MagnifierStrip.placement(in: "{}", pane: left) == .automatic, "nothing stored is Automatic")
+        // No pane: nothing is remembered, and the strip follows the lines.
+        #expect(MagnifierStrip.storing(.side, in: map, pane: nil) == map)
+        #expect(MagnifierStrip.placement(in: map, pane: nil) == .automatic)
+        #expect(MagnifierStrip.placementMapKey == "imagePreview.magnifierStripPlacement.byPane",
+                "renaming the key forgets every choice")
     }
 }
 #endif

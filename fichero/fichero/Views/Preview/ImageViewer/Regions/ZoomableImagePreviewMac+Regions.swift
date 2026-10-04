@@ -50,8 +50,8 @@ extension ZoomableImagePreview {
 
     /// This pane's strip placement, as the strip's menu reads and writes it.
     var magnifierPlacement: Binding<MagnifierStrip.Placement> {
-        Binding(get: { MagnifierStrip.Placement(stored: magnifierStripPlacement) },
-                set: { magnifierStripPlacement = $0.rawValue })
+        Binding(get: { MagnifierStrip.placement(in: magnifierStripPlacements, pane: paneLeafId) },
+                set: { magnifierStripPlacements = MagnifierStrip.storing($0, in: magnifierStripPlacements, pane: paneLeafId) })
     }
 
     var documentOverlay: DocumentOverlay {
