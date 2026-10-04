@@ -391,6 +391,12 @@ homeless until a map-view UI spec exists (#5128).
   and the move is the same saved move as in the library's Canvas mode (one layout per folder, one
   write path). Clicking a card selects that item, and the Preview then shows the item. Depends on
   `library.canvas.positions-persist`: a canvas that forgets what you moved teaches the wrong thing.
+- `library.modes.the-view-follows-the-node` — **[BROKEN]** (#5428) what a click in the sidebar opens
+  follows what was clicked. A folder or project opens its remembered container view (table, list,
+  canvas, …). A source (an image, a PDF) opens its Preview: the image with its layers. A canvas
+  remembered for a container never applies to a single source, which has no children to lay out, so
+  clicking an image never shows an empty canvas. Test through the real sidebar selection and the
+  view-mode store, not an injected mode.
 - `library.canvas.cards-take-clicks-and-drags` — **[PARTIAL]** (#5305) a press on a card selects it,
   drags it or (twice) zooms it; a press on the empty board draws a rubber band; pressing one card of a
   multiple selection moves the whole selection. Built 572719bca from the canvas's own hit test (the
