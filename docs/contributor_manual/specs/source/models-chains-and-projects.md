@@ -315,6 +315,7 @@ can say which version has it.
 | find documents in a folder | the pages of a folder, in order | proposed groupings: which pages make one document (a letter of three pages in an archive bundle), for a person to confirm with Group | prepare |
 | split into entries | a reading of a diary, register or ledger | entries (a dated diary entry, a register line), each a segment with its date | structure |
 | extract to a table | documents and the project's metadata fields (from their prototype) | one row per document or entry (seller, buyer, the person sold, price, date, place, for a sale record), each value tied to the text it came from, exportable as a spreadsheet | structure |
+| check | the proposals of one layer (readings, mentions, claims, links) + what they came from | for each proposal: confirmed, corrected (a new proposal naming the first) or rejected, with the checker's reasons, recorded at the checker's trust level (a person; a model checker such as Fable; never a person's level for a model) | the layer checked |
 | pull out passages | readings and a question or theme | excerpts, each with its source and place, gathered into a note or a collection | knowledge |
 
 "Read a page" is kept apart from "read a line" on purpose. Vision-language models mostly do the
@@ -1270,8 +1271,9 @@ Jobs and chains
 - `source.job.prepare-the-image` — **[GAP]** (#4949) preparing an image (crop, deskew, rotate,
   dewarp, adjust) is a job that makes a new rendition and never changes the original; later steps
   and segments name the rendition they used.
-- `source.job.split-pages` — **[GAP]** (#4949) splitting a spread or a strip of frames into ordered
+- `source.job.split-pages` — **[PARTIAL]** (#4949, #5382) *Built: the `split_pages` tool (51dbbfa93) cuts an open notebook at its gutter inside Apple Vision's outline and never a closed cover, pinned by `fichero-server/tests/unit/workflows/test_split_pages.py`; a recipe running it is #5390.* splitting a spread or a strip of frames into ordered
   pages is a job a recipe can name.
+- `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.
 - `source.job.describe-for-catalogue` — **[GAP]** (#5365) a step can propose values for the

@@ -40,3 +40,17 @@ def test_a_job_registers_once_and_must_explain_itself():
         jobs.register_job(jobs.get_job("find-lines"))
     with pytest.raises(ValueError):
         jobs.register_job(jobs.Job("x_new", "X", frozenset(), frozenset({"y"}), "z", "c", "  "))
+
+
+def test_check_is_a_job_a_recipe_can_name_after_any_layer(client):
+    """`source.job.check`: checking a layer's proposals (readings, names, statements, links) is a job a
+    recipe can name. WHY: the Mosquera notebooks' entities and statements are to be cleaned up and
+    checked before they are published; without a named step, a recipe cannot say a checker ran."""
+    from fichero_server.recipes.jobs import unmet_inputs
+
+    jobs = {j["id"]: j for j in client.get("/api/recipes/jobs").json()["items"]}
+    assert "check" in jobs and "layer" in jobs["check"]["settings"]
+    assert "never as a person" in jobs["check"]["description"]  # a model's check is labelled a model's
+    # Statements checked, then published: the chain is accepted as it stands.
+    assert unmet_inputs(["find-lines", "read-a-line", "find-names-tag-words", "find-statements",
+                         "check", "export", "publish"]) == []

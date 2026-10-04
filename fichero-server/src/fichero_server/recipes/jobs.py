@@ -146,6 +146,11 @@ _job("train-a-model", "Train a model", {"line_readings", "lines"}, {"model_card"
      "A Kraken reader or a YOLO detector trains on this Mac; larger models on Hugging Face Jobs or a "
      "cluster, if the project lets pages leave the Mac.", ("base", "where"))
 # --- Output ---------------------------------------------------------------------------------------
+# One job for every layer: which layer it checks (readings, names, statements, links) is a setting,
+# so `takes` names only what every check needs, the readings the proposals came from.
+_job("check", "Check", {"line_readings"}, {"verdicts"}, "check", _LIST,
+     "A person or a checker model confirms, corrects or rejects each proposal of a layer, with its reasons; a model's "
+     "check is recorded as that model's, never as a person's.", ("layer", "model", "prompt"))
 _job("export", "Export", {"line_readings"}, {"files"}, "output", "the files side by side",
      "Writes your work out in the formats you name (TEI, PAGE, ALTO, plain text, Markdown, Excel, "
      "RDF, a website), kept up to date if you choose a synced folder.", ("formats", "folder"))
