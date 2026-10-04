@@ -233,6 +233,41 @@ def _installed_models(spacy_module) -> set[str]:
         return set()
 
 
+class PipelineMissing(RuntimeError):
+    """A step is pinned to a spaCy pipeline that is not on this Mac (`runtime.spacy.pin-is-honoured`)."""
+
+
+def _stored_path(name: str):
+    from fichero_server.llm.local_models import spacy_pipeline_path
+
+    return spacy_pipeline_path(name)
+
+
+def _available(spacy_module, name: str, installed: set[str] | None = None) -> bool:
+    """In the model store, or bundled with the app (`runtime.spacy.store-first`)."""
+    return _stored_path(name) is not None or name in (installed if installed is not None else _installed_models(spacy_module))
+
+
+def _open(spacy_module, name: str):
+    """Load a pipeline from the model store by path when downloaded there, else the bundled one by name."""
+    stored = _stored_path(name)
+    return spacy_module.load(stored) if stored is not None else spacy_module.load(name)
+
+
+def _load_named(name: str):
+    """The pipeline a step is pinned to, and no other; raises when it is not on this Mac."""
+    key = f"model:{name}"
+    if key in _pipelines:
+        return _pipelines[key]
+    import spacy
+
+    if not _available(spacy, name):
+        raise PipelineMissing(f"the spaCy pipeline {name} is not on this Mac: download it (Settings, or the "
+                              f"project's Start plan) before running this step")
+    _pipelines[key] = _open(spacy, name)
+    return _pipelines[key]
+
+
 def is_pipeline_available(language: str) -> bool:
     """True when a spaCy model for ``language`` is installed, WITHOUT loading
     it. For a caller (#4823's import-time NLP draft) that needs to tell "the
@@ -250,7 +285,7 @@ def is_pipeline_available(language: str) -> bool:
         return False
     candidates = _MODEL_PREFERENCE.get(language) or _MODEL_PREFERENCE["en"]
     installed = _installed_models(spacy)
-    return any(model_name in installed for model_name in candidates)
+    return any(_available(spacy, model_name, installed) for model_name in candidates)
 
 
 def _load_pipeline(language: str):
@@ -294,10 +329,10 @@ def _load_pipeline(language: str):
 
     installed = _installed_models(spacy)
     for model_name in candidates:
-        if model_name not in installed:
+        if not _available(spacy, model_name, installed):
             continue
         try:
-            nlp = spacy.load(model_name)
+            nlp = _open(spacy, model_name)
         except OSError as exc:
             # Reported installed but did not load — try the next candidate
             # rather than giving up on the language entirely.
@@ -377,12 +412,13 @@ def normalize_language(language: str | None) -> str | None:
     return code if code in _MODEL_PREFERENCE else None
 
 
-def extract_entities(text: str, language: str | None = None) -> list[EntitySpan]:
+def extract_entities(text: str, language: str | None = None, model: str | None = None) -> list[EntitySpan]:
     """Run spaCy NER over ``text`` and return Fichero-typed spans.
 
-    ``language`` overrides the heuristic guess. Returns an empty list
-    when the model isn't available — callers should treat this as
-    "LLM gets to do all the work" and continue rather than fail.
+    ``language`` overrides the heuristic guess. ``model`` pins the pipeline: that one runs and no other, and
+    `PipelineMissing` is raised when it is not on this Mac (`runtime.spacy.pin-is-honoured`). Unpinned, returns
+    an empty list when no pipeline for the language is available — callers should treat this as "LLM gets to do
+    all the work" and continue rather than fail.
 
     Spans are deduplicated on (text, fichero_type) within a single
     call so identical mentions ("Davidson" appearing 6 times on the
@@ -397,7 +433,7 @@ def extract_entities(text: str, language: str | None = None) -> list[EntitySpan]
     # pipeline (see _spacy_lock). Concurrent callers queue here rather than
     # crashing — "delay not fail".
     with _spacy_lock:
-        nlp = _load_pipeline(lang)
+        nlp = _load_named(model) if model else _load_pipeline(lang)
         if nlp is None:
             return []
 

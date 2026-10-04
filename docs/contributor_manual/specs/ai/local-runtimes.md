@@ -83,7 +83,7 @@ because a Fichero recipe chains models from several ecosystems and must pin them
 | **Apple Speech** (`SFSpeechRecognizer`) | **Not bundled**: `workflows/tools/audio_base.py:193` imports `Speech`, and `pyobjc-framework-Speech` is not in `fichero-server/pyproject.toml` | — | — | — | — | **Factory audio default** (`db/app.py:78`, `apple-speech`) |
 | **Whisper** (mlx-whisper) | Installed **by pip at run time** into the MLX venv (`llm/mlx_runtime.py:247`): refused by the sandbox | **New Python process and model load per file** (`llm/whisper_runtime.py:319`); needs `ffmpeg`, not bundled (`:329-331`) | Metal | not measured | Six mlx-community repos pinned by revision *(review)*; `is_installed` checks only that the folder exists (`:179`) | Own `_DOWNLOAD_STATE` dict |
 | **MLX LLM/VLM** | `venv.EnvBuilder` + `pip install mlx-lm/mlx-vlm` at run time (`llm/mlx_runtime.py:222-237`): refused by the sandbox | A `mlx_vlm.server`/`mlx_lm server` child stays resident; 30–300 s cold start; no idle unload *(review)* | Metal | gate is size × 1.2 + 1.5 GB, an estimate (`settings.local-model-refused-before-it-loads`) | HF repo + commit SHA + completeness check: the best-pinned runtime | "Supported" ignores the sandbox: `FICHERO_SUBPROCESS_CAPABLE` defaults to `"1"` (`llm/local_inference.py:287`) |
-| **spaCy** | `es_core_news_sm`, `en_core_web_sm` 3.8.0 bundled as pinned wheels; others by `spacy.cli.download` (pip at run time) *(review)* | **Two caches load the same language twice** (`knowledge/spacy_ner.py:300`, `knowledge/spacy_svo.py:204`); `nlp(text)` per page 2–3 times, never `nlp.pipe` | CPU | not measured | wheel version | NLP stage not counted in progress |
+| **spaCy** | `es_core_news_sm`, `en_core_web_sm` 3.8.0 bundled as pinned wheels; others downloaded as data folders into the model store (2026-10-04) | **Two caches load the same language twice** (`knowledge/spacy_ner.py:300`, `knowledge/spacy_svo.py:204`); `nlp(text)` per page 2–3 times, never `nlp.pipe` | CPU | not measured | wheel version | NLP stage not counted in progress |
 | **Embeddings** (fastembed / ONNX) | `fastembed` bundled; **bge-m3** (default, `db/embeddings.py:349-361`) downloaded lazily on first embed | Resident while used; released after 600 s idle (#5283) | CPU ONNX, fp32, 64 passages a call *(review)* | ~1.5 GB resident | **No HF revision**; the "space contract" pins pooling and normalisation only; chosen by `FICHERO_EMBED_MODEL` | Downloads tab only |
 | **Tesseract** | **Not present.** Only `.box`/TSV are parsed | — | — | — | — | — |
 | **Cloud** (26 provider types) | langchain clients | per call; 12 pages at once in a run (7b5a4dc1e) | — | — | **bare model-id strings** | Keys: see below |
@@ -157,15 +157,17 @@ Rules that make it work:
 ### 2. How each runtime ships
 
 Code ships inside the app at build time; only **data** (weights, `traineddata`) downloads at
-run time. A spaCy language model is a pip package, so it counts as code: extra languages are
-bundled or not offered. Every runtime is in one of three
+run time. A spaCy pipeline is published as a package, but what it needs to run is its data folder
+(config, meta, weights): Fichero downloads that folder alone, as files, into the app's model store,
+and never installs or runs the package's code (ruled 2026-10-04). The languages that ship in the app
+stay bundled. Every runtime is in one of three
 states in a given build, and the card and the row say which:
 
 | State | Meaning | Runtimes |
 |---|---|---|
 | **bundled** | in the app; may need a weights download | Kraken, fastembed, spaCy (bundled languages), PyTorch; Tesseract once added (binary bundled, `traineddata` as data); MLX and mlx-whisper once bundled (open question 1) |
 | **OS** | comes with macOS; availability probed, never assumed | Apple Vision, the document reader, FoundationModels (needs Apple Intelligence on and a capable Mac), Speech (once `pyobjc-framework-Speech` is bundled) |
-| **unavailable in this build** | needs code installed at run time, which the sandbox refuses | MLX, mlx-whisper and extra spaCy languages **today** in the DMG and App Store builds; available in Debug |
+| **unavailable in this build** | needs code installed at run time, which the sandbox refuses | MLX and mlx-whisper **today** in the DMG and App Store builds; available in Debug (extra spaCy pipelines download as data: `runtime.spacy.pipelines-download-as-data`) |
 
 "Supported" is worked out from the build (a constant written by the bundle step), never from an
 environment default.
@@ -274,8 +276,8 @@ no library content; they are listed, become jobs, and stop when the person choos
 
 - `runtime.code-ships-at-build-time` — **[BROKEN]** (#5367, #4973) every runtime's code is in the
   app at build time; only weights and `traineddata` download. Today MLX and mlx-whisper are
-  installed by `venv.EnvBuilder` and pip at run time (`llm/mlx_runtime.py:222-247`) and extra spaCy
-  languages by `spacy.cli.download` *(review)*; the sandbox refuses all three.
+  installed by `venv.EnvBuilder` and pip at run time (`llm/mlx_runtime.py:222-247`); the sandbox refuses
+  both. (Extra spaCy pipelines no longer use pip: `runtime.spacy.pipelines-download-as-data`.)
 - `runtime.build-state-is-known` — **[BROKEN]** (#5367) the engine knows, from a constant written
   when it was bundled, which runtimes this build contains; the hardware check never reports a
   runtime supported because an environment variable was unset.
@@ -348,6 +350,21 @@ no library content; they are listed, become jobs, and stop when the person choos
   for every runtime, goes through one engine route family and is a `download-model` job; the five
   progress systems (MLX jobs, the install coordinator, `/local-models` background tasks, Whisper's
   `_DOWNLOAD_STATE`, fastembed's silent first-use download) are retired into it.
+- `runtime.spacy.pipelines-download-as-data` — **[OK]** (#5367; built: `download_spacy_pipeline`, the `download-model` job and `model.download` in `llm/local_models.py` and `api/routes/ai/local_models.py`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py`) a spaCy pipeline that is not bundled
+  downloads as files: its release archive is fetched, only the pipeline's data folder (its
+  `config.cfg`, `meta.json` and weights) is written into the model store (`<models>/spacy/<name>-<version>`),
+  nothing outside that folder is written, and an archive whose data folder holds code (a `.py`,
+  compiled module or link) or a path that leaves the folder, or one that is not the pipeline asked for (its meta names
+  another), is refused, writing nothing. It is loaded
+  from that folder by path; no package is installed and none of its code runs. Installed state, size
+  and delete then work as for Whisper and the search models (the bundled pipelines are listed as
+  bundled and cannot be deleted). The download is a `download-model` job on the network lane.
+- `runtime.spacy.store-first` — **[OK]** (#5367; built: `spacy_ner._open`, `spacy_svo`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py`) the names step and the statement grammar
+  (`knowledge/spacy_ner.py`, `knowledge/spacy_svo.py`) look for a pipeline in the model store first,
+  then among the bundled ones.
+- `runtime.spacy.pin-is-honoured` — **[OK]** (#5367, #4948; built: `spacy_ner._load_named` / `PipelineMissing`, the provider passes its pin; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py`) a step pinned to a spaCy pipeline runs that
+  pipeline and no other; if it is not on this Mac the step says so and does not run another in its
+  place (until 2026-10-04 the names step ignored its pin and took the language's preferred pipeline).
 - `runtime.load-is-visible` — **[GAP]** (#5359, #5370) loading a heavy model shows on the step's
   row with elapsed time; a step never sits silent while a model loads.
 - `runtime.call-records-the-card` — **[GAP]** (#4948) every call records on its page job, and on

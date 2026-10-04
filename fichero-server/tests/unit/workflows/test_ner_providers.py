@@ -57,7 +57,7 @@ def test_spacy_provider_clusters_aliases_and_sets_metadata(monkeypatch):
             label="PERSON",
         ),
     ]
-    monkeypatch.setattr(spacy_ner, "extract_entities", lambda text, language=None: spans)
+    monkeypatch.setattr(spacy_ner, "extract_entities", lambda text, language=None, model=None: spans)
 
     records = asyncio.run(provider.extract("Davidson [Deibinson] signed the deed."))
     assert len(records) == 1
@@ -80,7 +80,7 @@ def test_spacy_provider_cleans_dotted_surface_form(monkeypatch):
             label="PER",
         ),
     ]
-    monkeypatch.setattr(spacy_ner, "extract_entities", lambda text, language=None: spans)
+    monkeypatch.setattr(spacy_ner, "extract_entities", lambda text, language=None, model=None: spans)
 
     records = asyncio.run(provider.extract("…"))
     assert records[0].name == "Antonio de guzman"
@@ -99,7 +99,7 @@ def test_spacy_provider_trims_run_on_person_descriptor(monkeypatch):
             label="PER",
         ),
     ]
-    monkeypatch.setattr(spacy_ner, "extract_entities", lambda text, language=None: spans)
+    monkeypatch.setattr(spacy_ner, "extract_entities", lambda text, language=None, model=None: spans)
 
     records = asyncio.run(provider.extract("…"))
     assert records[0].name == "Antonio de Guzman"

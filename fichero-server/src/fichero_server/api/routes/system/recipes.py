@@ -487,6 +487,17 @@ class SkippedStep(BaseModel):
     why: str
 
 
+class StartDownload(BaseModel):
+    """A model a step needs that is not on this Mac, and the action that downloads it."""
+
+    runtime: str
+    model: str
+    steps: list[str]
+    size_mb: Optional[int] = None
+    action: str = Field(description="the action to invoke to download it (a download-model job on the network lane)")
+    params: dict[str, Any]
+
+
 class StartPlan(BaseModel):
     """What pressing Start would run, on how many pages, and every reason it cannot yet."""
 
@@ -496,6 +507,9 @@ class StartPlan(BaseModel):
     skipped: list[SkippedStep] = Field(description="steps Start skips, each with why; the others still run")
     offered: list[str] = Field(description="steps offered later (training), never run at Start")
     refusals: list[str] = Field(description="Start is refused while this is not empty")
+    downloads: list[StartDownload] = Field(default_factory=list, description=(
+        "models the steps are pinned to that are not on this Mac, each offered as a download "
+        "(source.recipe.missing-model-offered)"))
     estimate: StartEstimate
 
 
