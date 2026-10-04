@@ -234,6 +234,33 @@ Rules for every format
   tier above every machine pass. Built 2026-10-04, pinned by
   `fichero-server/tests/unit/api/test_an_import_has_no_rank_of_its_own.py` (an import beside a newer
   run, a person's choice, an outside edit from a synced folder that still waits to be chosen).
+- `source.reading.line-from-its-words` — **[PARTIAL]** (→ #5433, applying the 2026-09-28 ruling that
+  word readings retire in favour of LINE readings) a file that brings text only on its WORDS (an
+  ALTO `String@CONTENT`, an hOCR `ocrx_word`, a PAGE `Word/TextEquiv` under a line with none of its
+  own) gives each LINE a reading of the same kind: its words' readings joined with a space in the
+  order the line reads them, which is the file's order, and right to left across the page for a
+  right-to-left line (its direction as the cascade resolves it). The words keep their boxes and
+  their own readings; a line the file already gives text keeps exactly that text. The read seam
+  never answers "No reading" for a line whose words have text. **The conversion half:** a library
+  imported before this has its unread lines filled the same way when the running engine opens it,
+  in the existing whole-library conversion on open (`conversion_on_open`, #5222), once: a line that
+  has any reading of that kind is never touched. Seen on the Acceptance library's
+  `paderov-mm10/00000013.jpg`: every line said "Line N · No reading" while its words carried
+  "Počinagiſie knihy Geneſis".
+  Built 2026-10-04: `segment_readings.compose_line_readings` is the one path, called by
+  `format_import.write_page_into_library` for the new pass and by `conversion_on_open._run` for
+  the whole library, in chunks of 2,000 lines (batched reads, one transaction each, stopping
+  between chunks, so a quit loses at most a chunk and the next open carries on). The joined reading
+  is marked `producer_tool: line-from-its-words`, keeps the words' maker (never `human`), and is
+  never read twice: a sign's instances leave it out, the page's text takes the finest level that
+  has text, and the hOCR writer no longer writes a line's text beside its word spans.
+  Pinned by `fichero-server/tests/unit/formats/test_a_line_reads_from_its_words.py` (the real mm10
+  ALTO through the import route, the segment list and the readings route; a line with its own PAGE
+  TextEquiv unchanged; the words' boxes; a right-to-left line; the page text and ALTO/TEI/hOCR
+  exports hold each word once; the conversion on open, in chunks, twice; a stop between chunks).
+  **Why PARTIAL:** not yet checked on screen on the paderov page; hOCR and PAGE words-only files
+  take the same path but are not pinned by their own fixture; and the page's derived text still
+  reads a right-to-left line through its words in the file's order.
 - `source.format.file-on-its-own-is-a-document` — **[OK]** (→ #5143, ruled 2026-10-01; on-screen check of the app's report pending) a TEI, PAGE
   or ALTO file imported **on its own** (File › Import, or a drop of the file alone: no folder of
   scans, no page to put it on) becomes **one document holding every page of the file**, in the

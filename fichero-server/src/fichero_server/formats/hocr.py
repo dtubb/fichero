@@ -218,6 +218,10 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             "expressed",
         )
 
+    # Lines that hold words (#5433): their text is the words', written on the words. Writing the
+    # line's own text as well put every word on the page twice for any hOCR consumer -- the reader
+    # here skips it, a browser or another tool does not.
+    has_words = {s.parent_ref for s in page.segments if s.kind == "word" and s.parent_ref}
     by_ref: dict[str, Any] = {}
     for index, segment in enumerate(page.segments):
         css = KIND_CLASSES.get(segment.kind)
@@ -262,7 +266,14 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 "hOCR relies on HTML's `dir`, which is about display rather than the "
                 "source's own direction, so it is not written",
             )
-        if segment.readings:
+        if segment.readings and segment.kind == "line" and segment.ref in has_words:
+            report.note(
+                "text on a line with words",
+                1,
+                "hOCR carries a line's text in its word spans, so the line's own reading is not "
+                "written beside them (it would read twice)",
+            )
+        elif segment.readings:
             element.text = segment.readings[0][1]
         if len(segment.readings) > 1:
             report.note(
