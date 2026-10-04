@@ -96,7 +96,9 @@ class TestTheSignListAndItsInstances:
         doc, segment_id = mufi_page
         sign_id = _declare(db, segment_id).result["sign_id"]
         body = client.get(f"/api/signs/{sign_id}/instances").json()
-        stored = [r for r in db.all(ContentRepresentation) if r.document_id == doc.id and SIGN in (r.content or "")]
+        # A line's reading joined from its words (#5433) is the words' letters again: not an instance.
+        stored = [r for r in db.all(ContentRepresentation) if r.document_id == doc.id and SIGN in (r.content or "")
+                  and r.producer_tool != "line-from-its-words"]
         assert body["total"] == sum(r.content.count(SIGN) for r in stored)
         assert body["total"] >= 50
         assert {i["representation_id"] for i in body["items"]} == {r.id for r in stored}

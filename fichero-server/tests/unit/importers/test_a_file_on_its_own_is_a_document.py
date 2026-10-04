@@ -39,12 +39,16 @@ def _letters(text: str) -> int:
 
 def _letters_on(db, page: Document, words: bool = False) -> int:
     """The letters of the page's imported pass: the first reading of each segment that is not a word
-    (`words`: of every segment -- ALTO holds its text on words)."""
+    (`words`: of every segment -- ALTO holds its text on words). A line's reading joined from its
+    words (#5433, `source.reading.line-from-its-words`) is the same letters again, so it is not
+    counted: this counts what the FILE gave."""
     passes = [p for p in db.query(SegmentPass, document_id=page.id) if p.deleted_at is None]
     assert len(passes) == 1, f"{page.name}: one imported pass, got {len(passes)}"
     segments = {s.id: s for s in db.query(Segment, pass_id=passes[0].id)}
     first: dict[str, str] = {}
     for reading in db.query(ContentRepresentation, document_id=page.id):
+        if reading.producer_tool == "line-from-its-words":
+            continue
         if reading.segment_id in segments and (words or segments[reading.segment_id].kind != "word"):
             first.setdefault(reading.segment_id, reading.content or "")
     return sum(_letters(t) for t in first.values())

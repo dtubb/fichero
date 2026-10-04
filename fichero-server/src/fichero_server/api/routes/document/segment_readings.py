@@ -883,6 +883,91 @@ def _segment_order_key(row: Segment) -> tuple:
     return (1, 0, row.bbox_y, row.bbox_x, row.id)
 
 
+#: `producer_tool` of a line reading joined from its words (#5433), so it can be told from a reading
+#: the file gave the line itself.
+LINE_FROM_WORDS = "line-from-its-words"
+
+
+def _x_centre(row: Segment) -> float | None:
+    anchor = row.anchor
+    if anchor is not None and anchor.rect:
+        return anchor.rect[0] + anchor.rect[2] / 2
+    if anchor is not None and anchor.polygon:
+        return sum(point[0] for point in anchor.polygon) / len(anchor.polygon)
+    return None
+
+
+def line_readings_from_words(db: Database, *, pass_id: str | None = None) -> list[ContentRepresentation]:
+    """A reading for every line that has none of a kind its words have (#5433,
+    `source.reading.line-from-its-words`), NOT saved: the caller saves them in its own unit of work.
+
+    Word readings retire in favour of line readings (ruled 2026-09-28), and a file that gives text
+    only to its words (ABBYY/docWorks ALTO, hOCR, PAGE `Word/TextEquiv`) left every line "No
+    reading". The line's reading is its words' COUNTING readings joined with a space, in the order
+    the page reads them (the pass's `as-written` order, else box order, as `retired_word_readings`
+    walks them); a right-to-left line is joined right to left across the page, whichever way the
+    file listed its words. The ONE path for both the import (`write_page_into_library`, this pass)
+    and the conversion on open (`conversion_on_open`, every pass): a line with any reading of that
+    kind is never in `unread_lines_with_read_words`, so running it twice writes nothing.
+    """
+    pairs = db.unread_lines_with_read_words(pass_id)
+    if not pairs:
+        return []
+    lines = {row.id: row for row in db.query_in(Segment, "id", sorted({line_id for line_id, _ in pairs}))}
+    sequences: dict[str, dict[str, int] | None] = {}
+    documents: dict[str, tuple[Any, dict[str, Any]]] = {}
+    composed: list[ContentRepresentation] = []
+    for line_id, kind in pairs:
+        line = lines.get(line_id)
+        if line is None:
+            continue
+        words = [
+            row for row in db.query(Segment, parent_segment_id=line_id)
+            if row.kind == "word" and row.deleted_at is None
+        ]
+        if line.pass_id not in sequences:
+            sequences[line.pass_id] = _as_written_sequence(db, line.pass_id)
+        sequence = sequences[line.pass_id]
+        if sequence is not None and all(row.id in sequence for row in words):
+            words.sort(key=lambda row: (sequence[row.id], row.id))
+        else:
+            words.sort(key=_segment_order_key)
+        texts = counting_texts(db, words, kind)
+        words = [row for row in words if texts.get(row.id)]
+        if not words:
+            continue
+        if line.document_id not in documents:
+            document = db.get(Document, line.document_id)
+            documents[line.document_id] = (document, direction_rungs(db, document))
+        document, rungs = documents[line.document_id]
+        direction, _level = _direction_of(line, document, " ".join(texts[row.id] for row in words), None, rungs)
+        centres = [_x_centre(row) for row in words]
+        if direction == "rtl" and None not in centres:
+            words = [row for _centre, row in sorted(zip(centres, words), key=lambda pair: -pair[0])]
+        word_readings = [
+            reading for reading in db.query_in(ContentRepresentation, "segment_id", [row.id for row in words])
+            if reading.kind == kind
+        ]
+        made_by = {reading.provenance_kind for reading in word_readings}
+        # The words' maker when they agree, and never a person's: nobody typed this line.
+        provenance = made_by.pop() if len(made_by) == 1 else ProvenanceKind.unknown
+        if provenance is ProvenanceKind.human:
+            provenance = ProvenanceKind.unknown
+        composed.append(ContentRepresentation(
+            document_id=line.document_id,
+            segment_id=line.id,
+            kind=kind,
+            content=" ".join(texts[row.id] for row in words),
+            language=line.language,
+            script=line.script,
+            source_anchor=SourceAnchor(document_id=line.document_id, granularity="line"),
+            provenance_kind=provenance,
+            created_by=word_readings[0].created_by if word_readings else None,
+            producer_tool=LINE_FROM_WORDS,
+        ))
+    return composed
+
+
 def _why_omitted(
     db: Database, segment_id: str, pass_id: str, *, include_furniture: bool
 ) -> OmittedSegment:

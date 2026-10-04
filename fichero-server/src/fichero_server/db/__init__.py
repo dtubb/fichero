@@ -4864,6 +4864,30 @@ class Database(DatabaseEmbeddingMixin):
         )
         return [row[0] for row in rows]
 
+    def unread_lines_with_read_words(self, pass_id: str | None = None) -> list[tuple[str, str]]:
+        """`(line_id, kind)` for every live line with NO reading of `kind` whose live words have one
+        (#5433): the lines a words-only import left unread. One query, ids only -- it runs at every
+        running-engine open, and a library whose lines all read must answer that without loading
+        a row. `pass_id` narrows it to one pass (the import that just wrote it)."""
+        from fichero_server.models import ContentRepresentation
+        from fichero_server.models.segments import Segment
+
+        self._ensure_table(Segment)
+        self._ensure_table(ContentRepresentation)
+        segments = self._sql_table_name(Segment)
+        readings = self._sql_table_name(ContentRepresentation)
+        rows = self.execute_fetchall(
+            f"SELECT DISTINCT l.id, wr.kind FROM {segments} l "
+            f"JOIN {segments} w ON w.parent_segment_id = l.id AND w.kind = 'word' AND w.deleted_at IS NULL "
+            f"JOIN {readings} wr ON wr.segment_id = w.id "
+            "WHERE l.kind = 'line' AND l.deleted_at IS NULL "
+            + ("AND l.pass_id = $pass_id " if pass_id else "")
+            + f"AND NOT EXISTS (SELECT 1 FROM {readings} lr WHERE lr.segment_id = l.id AND lr.kind = wr.kind) "
+            "ORDER BY l.id, wr.kind",
+            {"pass_id": pass_id} if pass_id else None,
+        )
+        return [(row[0], row[1]) for row in rows]
+
     def reading_order_entry_rows(self, order_id: str) -> list[tuple[str, str, str | None, float]]:
         """Every entry of one reading order as `(entry_id, segment_id, parent_entry_id,
         position)`, unhydrated: the as-written walk needs only these four columns, for every
@@ -4883,7 +4907,8 @@ class Database(DatabaseEmbeddingMixin):
     def live_readings_containing(self, text: str) -> list[tuple[str, str | None, str | None, str]]:
         """Every live (unretracted) reading whose content contains `text`, as `(id, segment_id,
         document_id, content)`, by one query ordered by document then id (a declared sign's
-        instances, `source.sign.gather-instances`)."""
+        instances, `source.sign.gather-instances`). A line's reading joined from its words (#5433)
+        is left out: it is those words' letters again, and counting it would count each use twice."""
         from fichero_server.models import ContentRepresentation
 
         self._ensure_table(ContentRepresentation)
@@ -4892,7 +4917,8 @@ class Database(DatabaseEmbeddingMixin):
             for row in self.execute_fetchall(
                 f"SELECT id, segment_id, document_id, content FROM "
                 f"{self._sql_table_name(ContentRepresentation)} "
-                "WHERE retracted_at IS NULL AND strpos(content, $text) > 0 ORDER BY document_id, id",
+                "WHERE retracted_at IS NULL AND strpos(content, $text) > 0 "
+                "AND COALESCE(producer_tool, '') <> 'line-from-its-words' ORDER BY document_id, id",
                 {"text": text},
             )
         ]

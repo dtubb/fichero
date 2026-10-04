@@ -316,8 +316,9 @@ def test_a_declared_sign_on_the_mufi_page_is_recorded_for_the_app(db, client):
 
     # The sign lives in the readings (the file's strings): the first segment on the page, top-left
     # first, whose reading uses it.
+    # The FILE's strings: a line's reading joined from its words (#5433) is not one of them.
     using = {r.segment_id for r in db.all(ContentRepresentation)
-             if r.document_id == doc_id and "\uf1ac" in (r.content or "")}
+             if r.document_id == doc_id and "\uf1ac" in (r.content or "") and r.producer_tool != "line-from-its-words"}
     line = min((s for s in body["segments"] if s["id"] in using), key=lambda s: s["anchor"]["rect"])
     declared = client.post("/api/actions/invoke", json={"name": "sign.declare", "params": {
         "name": "MUFI abbreviation sign", "picture_segment_id": line["id"], "code_point": "U+F1AC",
