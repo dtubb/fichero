@@ -140,7 +140,9 @@ left to point at.
 ### What has not shipped (P1's schema half, P2, P3, P4)
 
 - `settings.mlx-runtime-honest-status` — **[BROKEN]** (#4303) a local runtime's status dot
-  must reflect whether it is actually provisioned/ready, not just "is local." Verified in
+  must reflect whether it is actually provisioned/ready, not just "is local." Owned for every
+  runtime by `runtime.status-from-the-endpoint` (`ai/local-runtimes.md`); this line is the MLX row's
+  symptom. Verified in
   code: `ProviderDetailView`'s status circle is
   `isLocalProvider || provider.hasApiKey ? Color.green : Color.orange` — an unprovisioned
   MLX renders the identical green dot as a ready one, because no `runtime_state` field

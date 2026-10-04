@@ -8,8 +8,9 @@
 >
 > Design-led (Testing Constitution). **Status: DRAFT — first pass 2026-09-20; revised
 > 2026-10-03 against the maintainer's rulings (`remote-compute.md`, "Ruled 2026-10-03";
-> `REVIEW-2026-10-03.md`).** A slice of the compute set: read `remote-compute.md` first. Every
-> behaviour is **[GAP]** with its issue; none is built. **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
+> `REVIEW-2026-10-03.md`).** A slice of the compute set: read `remote-compute.md` first. Each
+> behaviour carries its own tag and issue; the parts built since 2026-10-03 (training here and on
+> Hugging Face Jobs, reading at scale) are tagged where they are (corrected 2026-10-04). **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
 > outside services, with S-numbers from "Sources" in `remote-compute.md`.
 
 ## Intent

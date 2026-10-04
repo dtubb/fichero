@@ -15,9 +15,11 @@
 > #5241 (the image), #5336-#5338 (distillation), #5119 (the training loop), #5397 (training on
 > this Mac) and #5398 (Hugging Face Jobs first).
 > Tags: **[OK]** built and tested · **[PARTIAL]** built, partly proven · **[GAP]** intended,
-> never built · **[BROKEN]** code contradicts the rule. Every behaviour in this set is
-> **[GAP]** with its issue; none is built (searched 2026-10-03: no training, Hugging Face Jobs
-> or YOLO detector code in the engine).
+> never built · **[BROKEN]** code contradicts the rule. Each behaviour in this set carries its
+> own tag and issue. Built since 2026-10-03 (corrected 2026-10-04): training a Kraken reader on this
+> Mac and on Hugging Face Jobs, a vision LoRA on Hugging Face Jobs, reading at scale on Hugging Face
+> Jobs (`training/`, `remote_read/`), each a row in the one jobs table; no YOLO detector code and no
+> live Slurm submission.
 >
 > Every claim about Fichero's own code is marked **VERIFIED** (read in the file, line given)
 > or **INFERRED**. Every claim about an outside service carries a source in "Sources" and is

@@ -10,11 +10,11 @@
 > **VERIFIED** (file and line read), or **INFERRED** (follows from what was read, not run). Nothing
 > was run.
 >
-> This spec **widens** `ui/activity.md` (which owns run-list honesty) and takes the "one place for
-> all background work" question that `ui/workflows.md`, `ui/automation.md`,
-> `compute/jobs-and-fine-tuning.md` and `source/models-chains-and-projects.md` each touch but none
-> owns. It does not restate them; it cites them. Where this spec and `ui/activity.md` disagree, this
-> is newer and the older line should point here.
+> This spec owns the one place for all background work, a question `ui/workflows.md`,
+> `ui/automation.md`, `compute/jobs-and-fine-tuning.md` and `source/models-chains-and-projects.md`
+> each touch but none owns; it cites them rather than restating them. It absorbed `ui/activity.md`
+> on 2026-10-04 (the maintainer's ruling): that spec's behaviours are section I here, with their
+> ids unchanged, and that file is gone.
 >
 > Tags: **[OK]** built and pinned · **[PARTIAL]** exists, partly wired or unpinned · **[BROKEN]**
 > code contradicts the intent · **[GAP]** not built. `#ISSUE_<name>` marks an issue to file.
@@ -51,6 +51,25 @@ So:
    When something is **changed**, whatever was made from it is marked out of date and remade.
    Correcting a page's text remakes its embedding, its entities and its claims, without anyone
    asking; what a person has already curated is kept and flagged, never overwritten.
+
+### Ruled 2026-10-04 (the maintainer, after the spec audit; paraphrased)
+
+- **One tree, one queue, one start and stop.** Every kind of work (Kraken, spaCy, models served on
+  this Mac, cloud calls, Hugging Face and ACENET jobs, downloads, training) is a row in one tree,
+  queued in one place, started and stopped one way. A run's tree follows the path its graph took,
+  branches and sub-workflows included, and each running row says what it is doing now.
+- **The measures that matter** for a run, a step and a page are time to run, cost, greenhouse gas,
+  images run and steps run, rolled up the tree; they are the table's main columns. Greenhouse gas
+  is an estimate from energy and grid intensity, always with its basis, never invented.
+- **Times are absolute** everywhere.
+- **The popover is a summary**: running, waiting and the main reason, the last three errors, and
+  the Mac's state (memory pressure, heat, battery, in use); CPU and GPU figures come later.
+- **The Mac's own work** (downloads, installs, model loads) is global, not a project's; the window
+  can group by project, with the Mac's work as its own group.
+- **A run started by hand** waits only for memory and heat, and its row says so.
+- **Pins before OK:** a scheduler behaviour is re-tested through a route, an action or a real run
+  before it is tagged OK (see "Pinning").
+- `ui/activity.md` is folded in here (section I).
 
 ## Prior art (what we build on, and what we do differently)
 
@@ -216,6 +235,8 @@ engine's global library). Fields, in plain terms:
 | `waiting_reason` | plain words: "Paused by you", "Waiting for power", "Waiting for Kraken (another page is using it)", "Waiting for the network", "Waiting for model download" |
 | `lane`, `priority` | which resource it needs (below) and whether a person is waiting on it |
 | `progress` | current, total, and **what it is working on now** ("page 212 of 400: f. 103r") |
+| `working_on` | for a run, its current step; for a step, its current page and tool; for a page, the model it is calling or the lane it waits for |
+| measures | time to run, cost, greenhouse gas (with its basis), images run, steps run; each rolled up the tree |
 | `started_at`, `finished_at`, `elapsed`, `estimate` | time, and time remaining once there is a rate |
 | `cost` | tokens and money from the vendored price list (`llm/model_types.py`), summed up the tree |
 | `error` | the reason in words, and on which child |
@@ -241,12 +262,15 @@ naming the job ids that changed, one app store `JobsStore` that patches rows in 
 
 The Activity window (`ActivityMonitorWindow.swift`) becomes a SwiftUI `Table` with disclosure rows:
 
-- **Columns:** Name · Project · State (with the waiting reason) · Progress · Working on · Started ·
-  Time (elapsed, remaining) · Cost · Started by · Errors. Columns can be hidden and sorted, like
-  Activity Monitor; sorting and filtering are engine work.
-- **Rows** are every job of every kind in every open project, live first, then recent. A row
-  expands into its children: a workflow run into its steps, a step into its pages; a page's failed
-  line shows its error.
+- **Main columns, the measures** (ruled 2026-10-04): Time to run · Cost · Greenhouse gas · Images
+  run · Steps run, each rolled up the tree. **Then:** Name · Project · State (with its lane and
+  the waiting reason) · Working on · Started (an absolute time) · Started by · Errors. Columns can be
+  hidden and sorted, like Activity Monitor; sorting and filtering are engine work (#5415).
+- **Rows** are every job of every kind in every open project and the Mac's own work, live first,
+  then recent, grouped by project when the person asks, the Mac's work as its own group. A row
+  expands, with a disclosure triangle, into its children along the path its graph took
+  (`activity.jobs-follow-the-graph`): a run into its steps (branches taken, branches skipped,
+  sub-workflows), a step into its pages and remote jobs; a page's failed line shows its error.
 - **Filters:** Now · Waiting · Failed · Done today · All; a search field.
 - **Toolbar:** *Pause Background Work* / *Resume*; per-selection Pause, Resume, Cancel, Retry
   Failed, Show What It Made (opens the take-back list, `safety/run-take-back.md`), Delete from
@@ -254,7 +278,9 @@ The Activity window (`ActivityMonitorWindow.swift`) becomes a SwiftUI `Table` wi
 - **Selecting a row** shows its detail below the table (the run trace, the log, the model and
   prompt, cost by step), reusing `ActivityDetailView`/`RunTraceView`.
 - The **toolbar status island** stays as the summary ("Reading 212 of 400 · 3 waiting"), reading
-  the same store. The separate lists — `ActivityJobRow` in the sidebar mode, `IngestProgressView`,
+  the same store. Its **popover is a summary, not a list** (ruled 2026-10-04): what is running, what
+  is waiting and the main reason, the last three errors, and the Mac's state (memory pressure,
+  heat, battery, in use), read from the engine (`activity.popover.summary`). The separate lists — `ActivityJobRow` in the sidebar mode, `IngestProgressView`,
   `ConversionNotice`, Settings' download bars, `BackendWorkPill` — become views of the same rows or
   are retired. Whether the `.activity` sidebar mode survives at all is an open question.
 
@@ -270,7 +296,11 @@ The Activity window (`ActivityMonitorWindow.swift`) becomes a SwiftUI `Table` wi
   of `workflows.run.controls-are-fire-and-forget`, #4402). Controls are actions in the audited
   action layer, so they are reachable from the window, MCP and the command line alike.
 - **Work a person starts by hand while globally paused** runs, and the row says "Running although
-  background work is paused" (recommendation; open question 2).
+  background work is paused". A run started by hand waits only for memory and heat, never for
+  battery or for the person being at the Mac, and its row says which (ruled 2026-10-04,
+  `activity.throttle.hand-started-waits-for-memory-and-heat`).
+- **One start and stop:** every kind is started, paused, resumed, cancelled and retried through the
+  job routes and actions; a kind's own routes call them or are retired (`activity.pause.one-start-stop`).
 
 ### 4. Never in the way: lanes and throttling
 
@@ -396,11 +426,15 @@ workflow by hand: a hand run is a job like any other.
 
 - `activity.one-job-model` — **[PARTIAL]** (#5353) every kind of background work, in every
   project and the app, is a row in one `jobs` table with the same fields, read through one route
-  family and one change event. Built (2026-10-03): the `jobs` table in each project database and
-  one engine-wide scheduler (`execution/jobs.py`); its rows are listed by `/api/activity/jobs`
-  ("waiting", "running", recent "failed", each with its reason). One kind runs on it so far, the
-  correction re-embed (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: every other kind, parent and child jobs,
-  progress, cost, `/api/jobs` and `job.updated`.
+  family and one change event. Built (2026-10-03, 2026-10-04): the `jobs` table in each project
+  database and one engine-wide scheduler (`execution/jobs.py`); its rows are listed by
+  `/api/activity/jobs` and a job and everything under it by `/api/activity/jobs/{id}`. The kinds on
+  it: the correction re-embed, import stages (thumbnail, embed, NLP draft), Kraken pages, pages and
+  text calls of local and cloud models, the task kinds, synced-folder writes and reads, training
+  here and on Hugging Face, reading at scale, workflow runs with their steps, and batches (see
+  `activity.every-worker-is-a-row` for which workers are rows and which are not). Still a gap: the
+  Mac's own table for global work (`activity.global-work-is-the-macs`), the workers not yet on it,
+  and one change event `job.updated`.
 - `activity.jobs-are-a-tree` — **[PARTIAL]** (#5353) a job's children (steps, pages) are jobs;
   progress, time, cost and errors roll up the tree. Built (2026-10-04): a workflow run is a job row
   (its id is its thread id), each step a child, each page a step hands to a lane a grandchild;
@@ -413,6 +447,39 @@ workflow by hand: a hand run is a job like any other.
   its reason), its `tokens`, and its `cost_usd` from the vendored price list, null unless every
   call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Chat's model calls are rows too, outside any run
   (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). A batch is a job whose children are its runs (`fichero-server/tests/unit/jobs/test_batches_are_jobs.py`).
+- `activity.jobs-follow-the-graph` — **[PARTIAL]** (#5353, #5415) a run's tree follows the
+  path its graph took: one step for every node that ran, in order; a conditional route shows the
+  branch taken and the branches skipped (as skipped, not absent); parallel branches are siblings
+  under their run; a fanned-out step's pages are its children; a sub-workflow is a child run under
+  the step that called it, with its own steps and pages; a remote job a step sent is under that step
+  (`activity.remote-under-its-step`). Every running row says what it is **working on now**: a run,
+  its current step; a step, its current page and tool; a page, the model it is calling or the lane
+  it waits for. Built: run → step → page, and a sub-workflow as a child run with its steps and
+  pages (`fichero-server/tests/unit/jobs/test_runs_are_jobs.py`, `fichero-server/tests/unit/jobs/test_sub_workflows_are_child_runs.py`). Still a gap: routing
+  nodes are dropped, so the branch taken is not recorded (`execution/jobs.py:292,299`
+  `_ROUTING_NODES`); skipped branches are not shown; `working_on` is not a field of any row.
+- `activity.every-worker-is-a-row` — **[PARTIAL]** (#5359) every worker the engine runs is a row
+  with its state, lane and why it waits. Rows today: Kraken pages (`find-lines`, `read-a-line`),
+  pages and text calls of models served on this Mac and of cloud models (`read-a-page`,
+  `ask-a-model`, chat's calls included), embeddings (`embed`, `make-a-vector`, the reindex task),
+  the NLP draft at import (`nlp-draft`), the task kinds, synced-folder writes and reads, training here
+  and on Hugging Face (`train-on-this-mac`, `train-a-model`), reading at scale (`read-at-scale`),
+  gathering reasons, converting a model, workflow runs, steps and batches. **Not yet rows:** the
+  built-in Apple calls (Vision, Foundation Models: `llm.model_call_slot` takes no slot for a
+  built-in provider), spaCy, Whisper and other non-model tools inside a workflow (only their step
+  is a row), the NLP re-read after a correction (inside the re-embed row), ACENET jobs (not sent:
+  `remote_read/slurm.py` describes them), model downloads, installs, runtime provisioning and model
+  loads (`activity.global-work-is-the-macs`), conversion on open, ingest progress and
+  `/api/search/reindex`.
+- `activity.remote-under-its-step` — **[GAP]** (#5240, #5353) a remote job a run starts (a Hugging
+  Face Job, a cluster job) is a child of the step that sent it, its far-side state its own row's;
+  today reading at scale and training are top-level rows of their own.
+- `activity.global-work-is-the-macs` — **[GAP]** (#5359) downloads, installs, runtime provisioning
+  and model loads belong to the Mac, not a project: they are rows in the Mac's own jobs table (the
+  engine's global library), shown in the window's Global group. Today they are in-memory jobs shown
+  only in Settings (system 12 above). Absorbs the request `activity.first-use-download-is-a-job`
+  (`ai/local-runtimes.md`): a model fetched on first use is one of these rows, and the step that
+  needs it waits on it, saying so.
 - `activity.task-queue-grows-into-jobs` — **[OK]** (#5353) the task queue is already
   a persistent queue that resumes pending work (`workflows/tasks.py:153-176`); it becomes the jobs
   table rather than a thirteenth system being built beside it. Found 2026-10-03: nothing in the
@@ -426,12 +493,11 @@ workflow by hand: a hand run is a job like any other.
   The `TaskQueue` class it replaced (APScheduler, its own `background_tasks` table in a file of its
   own, never started) is deleted, with the tests that pinned it; the workers' own tests run them on
   their job host (`fichero-server/tests/unit/models/test_background_tasks.py`).
-- `activity.every-kind-reports` — **[PARTIAL]** (#5359) `/api/activity/jobs` merges
-  the derivative queue and running/failed workflow runs (`test_activity_jobs.py`); task-queue
-  tasks, batches, ingest tasks, conversion, search reindex, model downloads, runtime provisioning
-  and correction re-embeds report elsewhere or nowhere. Built (2026-10-03): the job rows are
-  merged too: correction re-embeds, Kraken pages, and each import stage (thumbnail, embed, NLP
-  draft), waiting ones as one row per stage with a count (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`).
+- `activity.every-kind-reports` — **[PARTIAL]** (#5359) every kind of work reports through
+  `/api/activity/jobs`, not a route or list of its own. Built: everything that is a row
+  (`activity.every-worker-is-a-row`) is listed there, with its state and reason
+  (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`, `fichero-server/tests/unit/jobs/test_tasks_on_the_lane.py`). Still a gap: ingest
+  progress, conversion on open, `/api/search/reindex` and model downloads report elsewhere.
 - `activity.kraken-mlx-inference-visible` — **[PARTIAL]** (#5359) Kraken and MLX
   inference shows as its workflow run's row, failures with their reason; which page it is on, and
   "waiting for Kraken", are not shown. Built (2026-10-03): every Kraken page a workflow reads
@@ -460,23 +526,57 @@ workflow by hand: a hand run is a job like any other.
 
 - `activity.window.all-projects` — **[PARTIAL]** (#5354) the Activity window merges
   every open library and the global one (`ActivityMonitorWindow.swift`); unpinned.
-- `activity.window.table` — **[GAP]** (#5354) the window is a table of every job of
-  every kind; today it is a list of workflow runs only, and background jobs appear only in the
-  sidebar mode and the toolbar popover.
-- `activity.window.expand` — **[GAP]** (#5354) a row expands into steps and pages; a
-  failed page shows its reason.
-- `activity.window.working-on` — **[GAP]** (#5354) a running row says what it is
-  working on now and how long remains.
-- `activity.window.cost` — **[GAP]** (→ #4343) a row shows what it cost, summed up the tree.
+- `activity.window.table` — **[GAP]** (#5415, #5354) the window is a table of every job of
+  every kind; today it is a list of workflow runs only (`Views/Activity/Window/ActivityMonitorWindow.swift:67`),
+  and background jobs appear only in the sidebar mode and the toolbar popover.
+- `activity.window.expand` — **[GAP]** (#5415, #5354) a row expands, with a disclosure triangle,
+  into its children as `activity.jobs-follow-the-graph` defines them; a failed page shows its
+  reason. The engine serves the tree (`GET /api/activity/jobs/{id}`); the app does not read it.
+- `activity.window.working-on` — **[GAP]** (#5415, #5354) a running row says what it is
+  working on now (as defined in `activity.jobs-follow-the-graph`) and how long remains.
+- `activity.window.cost` — **[PARTIAL]** (→ #4343, #5415) a row shows what it cost, summed up
+  the tree. Built in the engine: each node of `GET /api/activity/jobs/{id}` has `cost_usd`, null
+  unless every call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`).
+  Still a gap: the window shows it (`activity.window.measures`).
 - `activity.window.started-by` — **[GAP]** (#5354) a row says who or what started
   it: a person, the recipe, a schedule, a trigger, an assistant.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion
   pill, Settings' download bars and the jobs list are views of the same rows or are retired; no
   surface keeps its own progress list.
 - `activity.window.honest-state` — **[BROKEN]** (→ #4346, #4384) a spinner only for a job that is
-  running now; cited from `ui/activity.md`, where it is owned.
+  running now. The run list's own honesty behaviours are in section I
+  (`activity.spinner-reflects-process-liveness`, `activity.stale-runs-settle-across-restarts`).
 - `activity.window.what-it-made` — **[GAP]** (→ #5245) a finished job opens the list of what it made
   and can be taken back (`safety/run-take-back.md`).
+- `activity.window.measures` — **[PARTIAL]** (#5415) the measures that matter, per run, step and
+  page, rolled up the tree, are the table's main columns: **time to run, cost, greenhouse gas, images
+  run and steps run**. Built in the engine: each node of `GET /api/activity/jobs/{id}` has `seconds`,
+  `cost_usd` (null unless every call under it is priced), `tokens`, `failed`, and pages done and in
+  all (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Still a gap: greenhouse gas
+  (`activity.ghg.estimate-with-its-basis`), images run and steps run as counted measures, and the
+  window's columns.
+- `activity.ghg.estimate-with-its-basis` — **[GAP]** (#5420) each run, step and page carries its
+  greenhouse gas, rolled up the tree: an estimate from the energy it used times the grid intensity
+  where that energy was drawn. Energy on this Mac is its power draw over the job's time; on a remote
+  target, the target's stated hardware over the job's time. The figure always says its basis
+  (measured, estimate or unknown) and is never invented: the same rule as cost and as
+  `source.onboard.routes-for-the-volume`. A cloud call whose provider publishes no figure is unknown.
+- `activity.window.absolute-times` — **[GAP]** (#5415) times are absolute everywhere (started at a
+  clock time, finished at a clock time, elapsed and remaining as durations); no "just now". Today the
+  rows build relative words by hand (`Views/Activity/UnifiedActivityRow.swift:132`,
+  `Views/Activity/ActivityBrowserRow.swift:68`).
+- `activity.window.grouped-by-project` — **[GAP]** (#5415) the window can group its rows by
+  project; the Mac's own work (`activity.global-work-is-the-macs`) is a group of its own.
+- `activity.window.row-shows-lane-state-reason` — **[PARTIAL]** (#5415) every row shows its state,
+  its lane and, while it waits, why. Built: rows carry `state` and `reason`, and waiting rows say
+  why ("Paused by you", "Waiting for Kraken", "Waiting: memory is tight", "Waiting: you're using
+  the Mac"). Still a gap: no row carries its lane (neither the `jobs` table nor `JobTree` nor
+  `BackgroundJob` has it, `api/routes/system/activity.py:127-146`), and the app shows a reason only
+  on a failed row (`Views/Activity/ActivityJobsView.swift:64-81`).
+- `activity.popover.summary` — **[GAP]** (#5415) the toolbar popover is a summary, not a list:
+  what is running, what is waiting and the main reason why, the last three errors, and the Mac's
+  state (memory pressure, heat, battery, in use), read from the engine. CPU and GPU percentages
+  join it with `activity.lane.measures-processors`.
 
 ### C. Pause and start
 
@@ -489,33 +589,49 @@ workflow by hand: a hand run is a job like any other.
 - `activity.pause.global-survives-relaunch` — **[PARTIAL]** (#5355) a Mac paused at quit is
   paused at launch. Built: the switch is an app setting (`background_work_paused`), read by the
   scheduler before every job (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the click-around leg.
-- `activity.pause.per-job` — **[PARTIAL]** (#5356) workflow runs have pause, resume,
-  stop and delete (`RunControls.swift`); batches have pause, resume, cancel, retry
-  (`batch.py:346-408`); the task queue cancels only pending tasks; the derivative queue, ingest,
-  conversion and downloads (except MLX's cancel) have nothing. Built (2026-10-03): any row in the
-  `jobs` table can be paused, resumed and cancelled (`PUT /api/activity/jobs/{id}/paused`,
-  `POST /api/activity/jobs/{id}/cancel`): a job running here finishes its item and says so, a
-  training Job is cancelled on Hugging Face (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: retry, the window's
-  per-row controls, and pausing all waiting jobs of one kind at once.
+- `activity.pause.per-job` — **[PARTIAL]** (#5356) Pause, Resume and Cancel on any row, applying
+  to its children. Built (2026-10-03, 2026-10-04): any row in the `jobs` table can be paused,
+  resumed and cancelled (`PUT /api/activity/jobs/{id}/paused`, `POST /api/activity/jobs/{id}/cancel`);
+  a run's row reaches the run and its waiting pages and its sub-workflows; a training Job is
+  cancelled on Hugging Face (`fichero-server/tests/unit/jobs/test_job_queue.py`, `fichero-server/tests/unit/jobs/test_runs_are_jobs.py`,
+  `fichero-server/tests/unit/jobs/test_sub_workflows_are_child_runs.py`). Still a gap: the window's per-row controls (#5415),
+  retry, and pausing every waiting job of one kind at once; and kinds keep stop routes of their own
+  beside it (`activity.pause.one-start-stop`).
 - `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
-  boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for.
+  boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for. Owned
+  by `activity.run.stop-reaches-in-flight-calls`; this line points there.
 - `activity.pause.controls-are-actions` — **[PARTIAL]** (#5356) pause, resume, cancel
   and retry are audited actions, reachable from the window, MCP and the command line. Built: the
   global pause is the audited, undoable action `background.pause` (`fichero-server/tests/unit/jobs/test_job_queue.py`); per job, `job.pause`
   (undoable) and `job.cancel`; MCP tools `fichero_jobs`, `fichero_pause_background_work`,
   `fichero_job_pause`, `fichero_job_cancel` (`fichero-mcp/tests/test_mcp_server.py`). Still a gap:
   retry.
+- `activity.pause.one-start-stop` — **[PARTIAL]** (#5356) every kind of job is started, paused,
+  resumed, cancelled and retried through one pair of routes and actions (`/api/activity/jobs/{id}/…`,
+  `job.pause`, `job.cancel`); a kind's own routes are callers of it or are retired. Built: pause and
+  cancel on every row (`fichero-server/tests/unit/jobs/test_job_queue.py`, `fichero-server/tests/unit/jobs/test_runs_are_jobs.py`). Still a gap: runs keep their
+  own pause and stop routes (`/api/workflow-execution/…`), training its own cancel
+  (`/api/training/jobs/{id}/cancel`), gathering reasons its own (`/api/training/reasons/{id}/cancel`),
+  batches their own (`/api/batches/{id}/pause|cancel`), each beside the job route; and there is no
+  start or retry on it.
 
 ### D. Throttling
 
-- `activity.throttle.background-qos` — **[PARTIAL]** (#5358) the derivative pool
-  and conversion run at background QoS, Kraken at utility with torch threads capped; workflow
-  runs, scheduled runs (→ #4740), the task queue and the correction re-embed do not.
-- `activity.throttle.lanes` — **[PARTIAL]** (#5358) jobs run in lanes by resource
-  (local ML, images, network, database) with bounded concurrency; a waiting job says what it is
-  waiting for. Built: the local ML lane, one job at a time, each kind declaring its QoS class; a
-  job waiting on a Kraken page says "Waiting for Kraken" (`fichero-server/tests/unit/jobs/test_job_queue.py`); and the images lane,
-  two thumbnails at a time (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). Still a gap: the network and database lanes.
+- `activity.throttle.background-qos` — **[PARTIAL]** (#5358) background work runs at background
+  QoS on the efficiency cores, and heavy local work at utility QoS bounded by its lane. Built: every
+  job kind declares its QoS (background by default, `execution/jobs.py` `Kind.qos`); the derivative
+  stages, the correction re-embed, the task kinds and synced-folder work are background; Kraken
+  pages, local-model pages and training are utility, bounded by the local-model lane; a job a
+  person waits on runs at utility (`activity.throttle.watched-first`). Still a gap: workflow runs
+  started by themselves (schedules, triggers) are held by nothing of their own beyond the lanes
+  their model calls take (→ #4740).
+- `activity.throttle.lanes` — **[PARTIAL]** (#5358) jobs run in lanes by resource with bounded
+  concurrency, and a waiting job says what it is waiting for. Built: the local-model lane (one heavy
+  model at a time), images (two), network (four, with a share per provider), database (one),
+  remote, and recipes (`execution/jobs.py` `LANES`); a waiting job says why ("Waiting for Kraken",
+  "Paused by you", the throttle's reasons) (`fichero-server/tests/unit/jobs/test_job_queue.py`, `fichero-server/tests/unit/jobs/test_provider_share.py`).
+  Still a gap: the row does not show its lane (`activity.window.row-shows-lane-state-reason`), and
+  the scheduler behaviours are pinned below the public surface (see "Pinning").
 - `activity.lane.load-once` — **[PARTIAL]** (#5358, #5370) a heavy model is loaded once and kept resident
   while work for it remains, fed in batches; it is never reloaded per page or per call. Built for
   Kraken: its line finder and reader stay resident (`llm/kraken_runtime.py` `_resident`), and the
@@ -551,6 +667,11 @@ workflow by hand: a hand run is a job like any other.
   queued job can be marked watched, and goes first in its lane at utility QoS; a person's own small change marks its
   synced-folder rewrite so (`fichero-server/tests/unit/jobs/test_synced_folder.py`). Still a gap: other work a person
   waits for that is not handed in (an opened page).
+- `activity.throttle.hand-started-waits-for-memory-and-heat` — **[PARTIAL]** (#5358) a run a person
+  started by hand waits only for memory and heat, never for battery or for the person being at
+  the Mac, and its row says which it waits for. Built: a page a person waits for is held only by
+  memory pressure and a serious thermal state (`fichero-server/tests/unit/jobs/test_throttle.py`). Still a gap: it is pinned
+  below the public surface (see "Pinning"), and the window shows no waiting reason.
 - `activity.throttle.power-heat-memory` — **[PARTIAL]** (#5358) background lanes slow
   or wait in Low Power Mode, on low battery, under serious thermal state or memory pressure, and
   say so; no setting. Built (2026-10-04): the local-model lane holds a background job while
@@ -580,8 +701,9 @@ workflow by hand: a hand run is a job like any other.
   workflow run is flipped to `failed` on reopen (`workflows/activity.py:658-707`), although its
   checkpoints are on disk (`workflows/checkpointer.py`).
 - `activity.durable.paused-stays-paused` — **[BROKEN]** (#5357) a paused job is still
-  paused after relaunch; today it becomes failed (same code). Holds for rows in the `jobs` table
-  (`fichero-server/tests/unit/jobs/test_job_queue.py`); still broken for workflow runs, which are not jobs yet.
+  paused after relaunch. Holds for rows in the `jobs` table (`fichero-server/tests/unit/jobs/test_job_queue.py`). Broken for
+  workflow runs: their rows are jobs now, but on reopen the run sweep still turns every running,
+  accepted and paused run into a failed one (`workflows/activity_store.py:1469-1472`).
 - `activity.durable.poison-item` — **[PARTIAL]** (#5357) an item that fails three times is
   set aside with its reason and the job carries on. Built: a queued job interrupted by a quit or
   crash goes back to waiting and is set aside after three (`fichero-server/tests/unit/jobs/test_job_queue.py`); a job that raises fails
@@ -600,10 +722,10 @@ workflow by hand: a hand run is a job like any other.
   chain never runs by itself.
 - `activity.auto.on-add-from-recipe` — **[GAP]** (→ #4950, #4951) what runs when a source is added is
   what the project's recipe lists, after the first yes.
-- `activity.auto.reembed-on-change` — **[PARTIAL]** (#5360) a reading or segment
-  change re-derives the page text and re-embeds it (`page_text_cache.py`;
-  `tests/unit/api/test_page_content_is_a_cache.py`); off the queue, invisible, unthrottled, lost on
-  quit. A direct text edit re-embeds inline on the request.
+- `activity.auto.reembed-on-change` — **[PARTIAL]** (#5360) a reading or segment change
+  re-derives the page text and re-embeds it. Built: the re-embed is a queued job written in the
+  change's own transaction (`activity.correction-reembed-visible`, `actions/page_text_cache.py:366-376`).
+  Still a gap: a direct text edit (`PATCH` of `page_content`) re-embeds inline on the request.
 - `activity.auto.reextract-on-change` — **[PARTIAL]** (#5361) after a person
   corrects a page's text, its entities and claims are remade from the corrected text. Built
   (2026-10-03): where the library reads names automatically, a correction takes back the page's
@@ -611,9 +733,10 @@ workflow by hand: a hand run is a job like any other.
   read (`nlp_text_sha`), so unchanged pages and the open-time resume never re-read; a re-run
   extraction workflow misses the cache on changed text
   (`fichero-server/tests/unit/api/test_names_follow_a_correction.py`,
-  `fichero-server/tests/unit/workflows/test_cache_key_follows_the_page_text.py`). Still a gap: the
-  re-read runs on a background thread, not a queued visible job (#5359), and claims from LLM
-  workflows are not withdrawn when the workflow re-runs.
+  `fichero-server/tests/unit/workflows/test_cache_key_follows_the_page_text.py`). The re-read runs
+  inside the correction's queued re-embed job (`actions/page_text_cache.py:380-391`). Still a gap:
+  it is not a row of its own, and claims from LLM workflows are not withdrawn when the workflow
+  re-runs.
 - `activity.derived.names-its-inputs` — **[PARTIAL]** (→ #4925, #5360) pictures,
   search entries, vectors and word analysis name what they were made from (`source.derived.recomputable`);
   claims name their page and offsets but not the text version; entity mentions and NLP drafts name
@@ -691,12 +814,14 @@ code path.
 
 ### G. Workflow runs: defects
 
-- `activity.run.review-step-pauses` — **[BROKEN]** (#5371) a review step pauses the run and
-  waits for the person's answer, and the answer reaches the tool when the run resumes. Today the
-  node wrapper's catch-all turns LangGraph's interrupt into a failure (`workflows/builder.py:1347`),
-  and an `interrupt_before` ends the stream so the missing-exit check fails the run
-  (`execution/runner.py:2013-2022`). The only `interrupt()` call (`workflows/tools/catalogue.py:543`)
-  and the resume-with-answer path (`api/routes/workflow_execution/core.py:445`) are dead.
+- `activity.run.review-step-pauses` — **[PARTIAL]** (#5371, #5429) a review step pauses the run and
+  waits for the person's answer, and the answer reaches the tool when the run resumes. Built
+  (426fd3e8f): LangGraph's interrupt passes the node wrapper untouched, the runner settles a run
+  whose stream ends on an interrupt or a breakpoint as paused ("awaiting_review", with the
+  question), and resuming with the answer continues from the checkpoint
+  (`fichero-server/tests/unit/workflows/test_review_step_pauses_the_run.py`). Still a gap: the test
+  builds the graph by hand; the run through the execute and resume routes is not pinned (#5429).
+  (Corrected 2026-10-04: this line said BROKEN after #5371 had landed.)
 - `activity.run.scheduled-runs-execute` — **[OK]** (#5372) *Built (2026-10-04): a schedule's run and a file
   trigger's runs start through `runner.start_run` (`runner.run_and_wait`), the way a run by hand
   does, with their record, steps, usage and job row (`started_by` schedule or trigger), on the
@@ -772,6 +897,11 @@ code path.
   step that called it, as a child run of it in the job table, reached by its Stop and Pause
   (`fichero-server/tests/unit/jobs/test_sub_workflows_are_child_runs.py`). Still broken: chains have their own path, and the app has a client-side chain loop
   (#4949).
+- `activity.run.where-and-estimate` — **[GAP]** (#5240) before a run starts, the person can see where
+  it can run (this Mac, Hugging Face, ACENET, a cloud model) and, for each, its time to run, cost
+  and greenhouse gas, each measured, estimated or unknown, never invented. For a whole volume the
+  same figures come from `source.onboard.routes-for-the-volume`; `compute.job.choose-where` is the
+  chooser and cites this line.
 
 ### H. Workflow runs: efficiency
 
@@ -811,6 +941,45 @@ line post-processing. For 200 handwritten pages the stages today add up rather t
 - `activity.run.progress-on-purpose` — **[GAP]** (#5376) a run reports progress it writes on
   purpose (graph updates and explicit progress), not by translating LangGraph's every internal
   event (`execution/runner.py:305-316`, `:1677-1683`).
+
+### I. The run list (folded from `ui/activity.md`, 2026-10-04)
+
+`ui/activity.md` owned the run list's honesty. It is folded in here and deleted; its behaviours keep
+their ids. The run list is `ActivityStore.rebuildRuns` (`fichero/fichero/Models/ActivityStore.swift`),
+which merges live executions with each library's history and collects a library's load failure in
+`runLoadFailures`; `ActivityViewHelpers.swift` renders it.
+
+- `activity.store-owns-run-assembly` — **[PARTIAL]** (#3231, #493) `ActivityStore.rebuildRuns` merges live
+  and historical runs, sorts and dedupes; the view only renders `runs` and `runLoadFailures`. No
+  pinning test for `rebuildRuns` itself.
+- `activity.load-failures-are-honest` — **[PARTIAL]** (#3231) a library's failure to load its history
+  is collected into `runLoadFailures` and shown as a warning row naming the library, never dropped.
+  No pinning test.
+- `activity.change-events-patch-not-reload` — **[OK]** an activity change event updates the affected
+  row in place; only a real domain mutation goes to the domain stores; neither bumps
+  `refreshToken`. Pinned: `ActivityStoreTests.swift`, "folded change frame does NOT bump
+  refreshToken (no wholesale run reload)" (`fichero/Tests/Unit/general/Models/ActivityStoreTests.swift:177`).
+- `activity.spinner-reflects-process-liveness` — **[BROKEN]** (#4346) a spinner means the run is
+  alive and working now; after a run stops, its row has been seen keeping a spinner.
+- `activity.stale-runs-settle-across-restarts` — **[BROKEN]** (#4384, #5357) a run that died with its
+  process is settled at the next launch, and a paused or resumable run is not. The settle now
+  exists and settles too much: on reopen every running, accepted and paused run is turned into a
+  failed one (`workflows/activity_store.py:1469-1472`), although its checkpoints are on disk.
+- `activity.cancellation-boundary-generalized` — **[PARTIAL]** (→ #4402) Stop's check covers every
+  per-item tool loop, and Pause shares it. Owned by `activity.run.stop-reaches-in-flight-calls`.
+- `activity.standalone-window` — **[PARTIAL]** (#1264, #1559) a standalone Activity window, opened from
+  the Window menu, independent of the library window. Built: the window exists
+  (`Views/Activity/Window/ActivityMonitorWindow.swift`), a list of workflow runs across every open
+  library. What it shows is `activity.window.table` and the behaviours under it (#5415).
+- `activity.delete-by-workflow-run` — **[GAP]** (#1830) a run's outputs can be taken back without
+  touching sources or other runs. Owned by `safety/run-take-back.md`, reached from the window as
+  `activity.window.what-it-made`.
+- `activity.columns-move-into-activity-view` — **[GAP]** (#2277) a run's progress and state
+  columns live in the Activity window, not in the workflow node editor. Answered by
+  `activity.window.measures` and `activity.window.table` (#5415).
+- `activity.step-click-jumps-to-comparison` — **[GAP]** (#2277) clicking a step opens a comparison of
+  what it made. Undecided: comparison is now panes and a diff lens (`modes-to-panes.md`), so whether
+  a step opens that is open question 11.
 
 ### Migration order
 
@@ -865,19 +1034,33 @@ is done exactly once, and no artifact is written twice.
 The crash leg is the one that matters most: kill the engine mid-run with `SIGKILL`, relaunch, and
 assert every job resumed, none failed for being interrupted, none produced a duplicate row.
 
+### Pinning (ruled 2026-10-04)
+
+A behaviour here is tagged **[OK]** only when a test proves it through the public surface: a route,
+an audited action, an MCP tool, or a real run started the way the app starts one. Several
+scheduler behaviours are pinned today only by tests that drive the queue directly with made-up job
+kinds (`fichero-server/tests/unit/jobs/test_job_queue.py`: lanes, group-by-model, two heavy jobs
+never together, the poison item, a waiting job surviving a restart; `test_throttle.py`: the
+throttle's signals). They stay **[PARTIAL]** until the first slice after this spec's edit re-tests
+each one through a route, an action or a real run (#5429).
+
 ## Accessibility identifiers
 
 Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · `activity.row.<jobId>.disclosure`
   `activity.toolbar.pauseAll` · `activity.toolbar.resumeAll` · `activity.filter.<name>`
   `activity.row.<jobId>.pause` · `.resume` · `.cancel` · `.retry` · `.whatItMade`
+  `activity.group.<projectId>` · `activity.group.mac` · `activity.popover` · `activity.popover.macState`
 
 ## Open questions (with recommendations)
 
-1. **One table for the whole Mac, or one per project?** *Recommend:* one `jobs` table per project
+1. **One table for the whole Mac, or one per project?** *Ruled 2026-10-04:* the Mac's own work
+   (downloads, installs, model loads) is global, in the Mac's table, and the window groups by
+   project with the Mac's work as its own group. *Recommended before:* one `jobs` table per project
    database plus the same table in the global library for Mac-level work (downloads, runtimes);
    the window merges them, as it already merges libraries. A project carries its own queue when it
    moves to another Mac.
-2. **Does a hand-started run obey the global pause?** *Recommend:* no. Pausing means "stop working
+2. **Does a hand-started run obey the global pause?** *Ruled 2026-10-04:* a run started by hand
+   waits only for memory and heat, and says so. *Recommended before:* no. Pausing means "stop working
    by yourself"; a run the person just pressed is what they asked for. The row says it is running
    although background work is paused.
 3. **Re-extract after every correction, or only after the person leaves the page?** *Recommend:*
@@ -912,11 +1095,16 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
     and idempotency, so checkpoints shrink to the last one per run. If review steps are rare in the
     shipped recipes, a later review can ask whether a review step could itself be a job that waits
     on a person, which would leave LangGraph as the graph alone.
+11. **Does clicking a step open a comparison of what it made?** (from `ui/activity.md`, #2277)
+    Comparison is now panes and a diff lens (`modes-to-panes.md`), not the chat tab the issue was
+    written for. *Recommend:* a step's row offers "Show what it made", which opens the take-back list
+    (`activity.window.what-it-made`); comparing two runs' outputs is the panes' diff lens, opened
+    from there, not a second path.
+12. **What does clicking a row open?** (from `ui/activity.md`, #1264, #1559) *Recommend:* its detail
+    below the table (§2); a page's row also offers "Open the page".
 
 ## Requests to other specs (for the manager to route)
 
-- `ui/activity.md`: `activity.standalone-window` is now partly built (the Activity window exists,
-  `FicheroApp.swift:653`); point it here for the table.
 - `ui/workflows.md`: `workflows.run.pause-is-dead-end` and `.stuck-processing-on-cancel-fail` are
   answered by section E; `workflows.defaults.chains-not-persisted` (#3181) by retiring the legacy
   chain executor.
@@ -943,8 +1131,8 @@ Stale tags found by the 2026-10-01 workflow-runner review (corrections for those
 - `ui/workflows.md`, `workflows.run.cost-tracking-per-node` is tagged GAP; per-node usage is
   recorded at each step's end (`execution/runner.py:1640-1658`) with a run usage column, so it is
   PARTIAL.
-- `ui/workflows.md`, `workflows.run.controls-are-fire-and-forget`, and `ui/activity.md`,
-  `activity.cancellation-boundary-generalized` (both PARTIAL): accurate but understated; Stop does
+- `ui/workflows.md`, `workflows.run.controls-are-fire-and-forget`, and
+  `activity.cancellation-boundary-generalized` (section I; both PARTIAL): accurate but understated; Stop does
   not reach sub-workflows or economy HTR (#5375).
 - `ui/workflows.md`, `workflows.defaults.chains-not-persisted`: accurate. The app comment in
   `ContentView+WorkflowChainEngine.swift:9-12` that says chains persist is wrong; the engine's chain
@@ -952,8 +1140,8 @@ Stale tags found by the 2026-10-01 workflow-runner review (corrections for those
 - `ui/automation.md`, `automation.run-now`, `automation.run-history.backend` and
   `automation.schedule.crud` are tagged OK, but a scheduled or triggered single run crashes at graph
   build (#5372); only the routes are pinned. Retag `automation.run-now` BROKEN citing #5372.
-- `ui/activity.md`, `activity.stale-runs-settle-across-restarts` is BROKEN for a new reason: the
-  settle now exists, and it settles too much, failing paused and resumable runs (#5357).
+- Section I, the stale-runs behaviour: BROKEN for a new reason (the settle now exists, and it
+  settles too much, failing paused and resumable runs, #5357). Done in the fold.
 
 ## Sources
 
@@ -968,7 +1156,7 @@ Code read 2026-10-01: `api/routes/system/activity.py`, `importers/derivatives.py
 `models/knowledge.py:1719-1900`, `core/background_compute.py`; app: `Models/ActivityStore.swift`,
 `Views/Activity/Window/ActivityMonitorWindow.swift`, `Views/Activity/ActivityJobsView.swift`,
 `Views/Activity/RunControls.swift`, `Views/Components/LiveUpdatesPausedPill.swift`,
-`App/FicheroApp.swift:646-690`. Specs: `ui/activity.md`, `ui/workflows.md`, `ui/automation.md`,
+`App/FicheroApp.swift:646-690`. Specs: `ui/workflows.md`, `ui/automation.md`,
 `safety/run-take-back.md`, `compute/jobs-and-fine-tuning.md`,
 `source/models-chains-and-projects.md`, `source/segments-and-geometry.md`.
 

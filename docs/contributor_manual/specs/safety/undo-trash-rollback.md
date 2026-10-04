@@ -256,8 +256,8 @@ These are requests, not edits. The files belong to their authors.
 - **To `ui/menus-and-commands.md`:** it calls Command-Z through the record shipped. It is
   wired, and wrong in the four ways listed above. `undo.md` becomes the source for what
   Command-Z does.
-- **To `ui/activity.md`:** deleted runs join the Trash (slice 2); a run's own "take back"
-  control is slice 4.
+- **To `ui/activity-and-automatic-work.md`** (which absorbed `ui/activity.md`): deleted runs join
+  the Trash (slice 2); a run's own "take back" control is slice 4 (`activity.window.what-it-made`).
 
 ## How this is tested from the maintainer's side
 

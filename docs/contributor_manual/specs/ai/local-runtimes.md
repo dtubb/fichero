@@ -206,7 +206,8 @@ Each runtime reports through the one job model (`activity.one-job-model`), never
   sha256. A partial download is never installed.
 - **A first-use download inside a run** (bge-m3 on first embed, a Kraken reader fetched
   mid-workflow) is a child `download-model` job of the step, which waits with "Waiting for model
-  download" (`activity.first-use-download-is-a-job`, requested of the activity spec).
+  download" (`activity.global-work-is-the-macs`, which absorbed the request for
+  `activity.first-use-download-is-a-job`).
 - **Loading** a heavy model is visible on the step's row as "Loading <model>" with elapsed time, so
   a 30–300 s MLX warm-up or a 168 s Vision warm-up is never a silent stall.
 - **A call** belongs to its page job; it reports progress, the card id that answered, and, for a
@@ -303,10 +304,12 @@ no library content; they are listed, become jobs, and stop when the person choos
 
 ### C. Loading, residency and speed
 
-- `runtime.kraken.model-stays-loaded` — **[GAP]** (#5370) the segmenter and each reader are loaded
-  once per worker and reused; a document's pages go through one locked call. Today `blla.segment`
-  loads its net on every page and the reader is re-loaded by `models.load_any` on every page
-  (`llm/kraken_runtime.py:586,599-600`).
+- `runtime.kraken.model-stays-loaded` — **[PARTIAL]** (#5370) the segmenter and each reader are
+  loaded once per worker and reused; a document's pages go through one locked call. Built: the line
+  finder and the reader stay resident between pages (`llm/kraken_runtime.py:649` `_resident`), and
+  the local-model lane runs one reader's pages together (`activity.lane.load-once`, which owns the
+  rule; corrected 2026-10-04, this line said nothing was resident). Still a gap: batching pages into
+  one call, and several Kraken workers (`activity.run.kraken-workers`).
 - `runtime.kraken.post-processing-uses-the-cores` — **[GAP]** (#5370, #5358) Kraken's line
   post-processing (about 10 s of a 17–20 s page, on one core) is spread over the performance cores
   or overlapped with the next page's segmentation; measured before and after on the fixture pages.
@@ -343,6 +346,8 @@ no library content; they are listed, become jobs, and stop when the person choos
 - `runtime.memory-gates-compose` — **[GAP]** (#4987, #5358) one memory check, fed by the cards'
   resident sizes, replaces the per-runtime guards (Kraken's 2.5 GB free, MLX's estimate); it knows
   what is already resident (Kraken, the embedder, an MLX model) before admitting another.
+  The admitting rule is owned by `activity.lane.co-run-only-if-it-fits` and
+  `activity.throttle.power-heat-memory`; this line owns the per-runtime resident sizes it reads.
 
 ### D. Jobs, downloads and errors
 
@@ -350,6 +355,9 @@ no library content; they are listed, become jobs, and stop when the person choos
   for every runtime, goes through one engine route family and is a `download-model` job; the five
   progress systems (MLX jobs, the install coordinator, `/local-models` background tasks, Whisper's
   `_DOWNLOAD_STATE`, fastembed's silent first-use download) are retired into it.
+  The job is the Mac's own, not a project's, and shows in the window's Mac group
+  (`activity.global-work-is-the-macs`, which owns how it is shown); this line owns the one path and
+  the check of what was downloaded.
 - `runtime.spacy.pipelines-download-as-data` — **[OK]** (#5367; built: `download_spacy_pipeline`, the `download-model` job and `model.download` in `llm/local_models.py` and `api/routes/ai/local_models.py`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py`) a spaCy pipeline that is not bundled
   downloads as files: its release archive is fetched, only the pipeline's data folder (its
   `config.cfg`, `meta.json` and weights) is written into the model store (`<models>/spacy/<name>-<version>`),
@@ -367,6 +375,7 @@ no library content; they are listed, become jobs, and stop when the person choos
   place (until 2026-10-04 the names step ignored its pin and took the language's preferred pipeline).
 - `runtime.load-is-visible` — **[GAP]** (#5359, #5370) loading a heavy model shows on the step's
   row with elapsed time; a step never sits silent while a model loads.
+  A load is one of the Mac's own jobs (`activity.global-work-is-the-macs`).
 - `runtime.call-records-the-card` — **[GAP]** (#4948) every call records on its page job, and on
   what it made, the card id that answered (with the macOS build for Apple, the dated id for a cloud
   alias).
@@ -469,7 +478,7 @@ no library content; they are listed, become jobs, and stop when the person choos
   `.jobs-replace-capabilities` into its "Model cards" list (or point to them here); the activity
   spec already cites `source.model.runs-here`, which no spec defined until this one. Its recipe
   YAML pin forms are the split form of the card id.
-- `ui/activity-and-automatic-work.md`: add `activity.first-use-download-is-a-job` (a model fetched
+- `ui/activity-and-automatic-work.md`: *done 2026-10-04, absorbed into `activity.global-work-is-the-macs`.* Add `activity.first-use-download-is-a-job` (a model fetched
   on first use is a child `download-model` job and the step waits with "Waiting for model
   download") and `activity.recipe-adoption-prefetches` (adopting a recipe enqueues downloads for
   its missing pinned cards); its lane table should list Whisper, Tesseract, YOLO and the resident
