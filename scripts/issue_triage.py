@@ -7,6 +7,7 @@ are the source of truth; GitHub follows them.
     scripts/issue_triage.py                  # dry run: counts per bucket, writes a TSV
     scripts/issue_triage.py --apply done     # close the DONE bucket
     scripts/issue_triage.py --apply stale    # close the STALE bucket
+    scripts/issue_triage.py --check          # guard: exit 1 while any issue is STALE
 
 Buckets, first match wins:
   WAITING  labelled needs-your-decision / needs-your-test / residue        -> keep
@@ -69,6 +70,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--recent-days", type=int, default=14)
     parser.add_argument("--apply", choices=["done", "stale"])
+    parser.add_argument("--check", action="store_true",
+                        help="exit 1 if any open issue is STALE (the backlog rule, as a guard)")
     parser.add_argument("--tsv", default="/tmp/issue_triage.tsv")
     args = parser.parse_args()
 
@@ -81,6 +84,13 @@ def main() -> int:
     for name in ("WAITING", "TRACKED", "DONE", "RECENT", "STALE"):
         print(f"{name:8} {sum(1 for b, _ in rows if b == name)}")
     print(f"TSV: {args.tsv}")
+    if args.check:
+        stale = [i["number"] for b, i in rows if b == "STALE"]
+        if stale:
+            print(f"FAIL: {len(stale)} open issue(s) older than {args.recent_days} days that no spec "
+                  "behaviour cites. Give each a spec behaviour, or close it (see the TSV).")
+            return 1
+        print("OK: every open issue is tracked by a spec, recent, or waiting on the maintainer.")
 
     if args.apply:
         target = args.apply.upper()
