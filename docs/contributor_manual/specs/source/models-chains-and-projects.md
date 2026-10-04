@@ -1351,6 +1351,11 @@ Projects
   steps still run. A recipe with nothing runnable, or one that fails the recipe check, never starts.
 
 Profiles (the defaults section of a recipe)
+- `source.job.publish` — **[OK]** (#5390, #2535; built: the `publish` card in `recipes/start.py` and `recipes/runner.py`; tested in `fichero-server/tests/unit/recipes/test_publish_to_spec.py`) a recipe's `publish` step writes the project as a static
+  website (an 11ty project that builds with `npx @11ty/eleventy` and deploys to Netlify) through the one
+  site export (`export_service.export_eleventy_site`), into the folder its `where` setting names on the
+  engine's disk, as a card of a started recipe; publishing again rewrites that site in place. A step that
+  names no folder is skipped and says so. What the site shows of the checks is `source.check.on-the-site`.
 - `source.profile.is-a-prototype` — **[GAP]** (#4951) a recipe's profile is stored as a prototype
   the project inherits from; the followed recipe is the parent, the project's overrides its own
   values; any value can be overridden and shows where it came from.

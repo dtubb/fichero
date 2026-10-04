@@ -263,6 +263,13 @@ def export_eleventy_site(
     collections: set[str] = set()
     used_per_dir: dict[str, set[str]] = {}
     page_paths_by_id: dict[str, Path] = {}
+    checks = _checks_by_target(db)
+    _entities, site_claims = _knowledge_graph_rows(db, documents)
+    claims_by_doc: dict[str, list[KnowledgeClaim]] = {}
+    for claim in site_claims:
+        for doc_id in dict.fromkeys([claim.source_document_id, *claim.source_ids]):
+            if doc_id:
+                claims_by_doc.setdefault(doc_id, []).append(claim)
     for doc in documents:
         rel_parts = _collection_path_for(doc, by_id, root_id)
         if rel_parts:
@@ -280,7 +287,8 @@ def export_eleventy_site(
         filename = _unique_filename(_slugify(doc.name), used, ".md")
         page_path = doc_dir / filename
         page_path.write_text(
-            _render_eleventy_item(db, doc, asset_refs, rel_parts),
+            _render_eleventy_item(db, doc, asset_refs, rel_parts, statements=claims_by_doc.get(doc.id, []),
+                                  checks=checks),
             encoding="utf-8",
         )
         page_paths_by_id[doc.id] = page_path
@@ -313,6 +321,7 @@ def export_eleventy_site(
             page_records=page_records,
             page_paths_by_id=page_paths_by_id,
             result=result,
+            checks=checks,
         )
     search_page = src_dir / "search.md"
     search_page.write_text(
@@ -509,7 +518,9 @@ def _write_eleventy_knowledge_pages(
     page_records: list[dict[str, Any]],
     page_paths_by_id: dict[str, Path],
     result: EleventySiteExportResult,
+    checks: dict[str, list[Any]] | None = None,
 ) -> dict[str, list[tuple[str, str]]]:
+    checks = checks or {}
     entities_dir = src_dir / "entities"
     claims_dir = src_dir / "claims"
     boxes_dir = src_dir / "box-collections"
@@ -525,6 +536,7 @@ def _write_eleventy_knowledge_pages(
         page_paths_by_id=page_paths_by_id,
         src_dir=src_dir,
         result=result,
+        checks=checks,
     )
 
     claim_index = claims_dir / "index.md"
@@ -534,6 +546,7 @@ def _write_eleventy_knowledge_pages(
             page_path=claim_index,
             page_paths_by_id=page_paths_by_id,
             src_dir=src_dir,
+            checks=checks,
         ),
         encoding="utf-8",
     )
@@ -573,6 +586,7 @@ def _write_eleventy_entity_pages(
     page_paths_by_id: dict[str, Path],
     src_dir: Path,
     result: EleventySiteExportResult,
+    checks: dict[str, list[Any]] | None = None,
 ) -> list[tuple[str, str]]:
     links: list[tuple[str, str]] = []
     grouped: dict[str, list[dict[str, Any]]] = {}
@@ -589,6 +603,7 @@ def _write_eleventy_entity_pages(
                 page_path=path,
                 page_paths_by_id=page_paths_by_id,
                 src_dir=src_dir,
+                checks=(checks or {}).get(entity_id, []),
             ),
             encoding="utf-8",
         )
@@ -642,6 +657,7 @@ def _render_eleventy_entity_page(
     page_path: Path,
     page_paths_by_id: dict[str, Path],
     src_dir: Path,
+    checks: list[Any] | None = None,
 ) -> str:
     entity = records[0]
     lines = [
@@ -672,6 +688,9 @@ def _render_eleventy_entity_page(
             f"- {claim['text']} ({_eleventy_page_link(claim, page_path, page_paths_by_id, src_dir)})"
             for claim in related_claims
         )
+    if checks:
+        lines.extend(["", "## Checks", ""])
+        lines.extend(f"- {_check_words(check)}" for check in checks)
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -681,15 +700,15 @@ def _render_eleventy_claim_index(
     page_path: Path,
     page_paths_by_id: dict[str, Path],
     src_dir: Path,
+    checks: dict[str, list[Any]] | None = None,
 ) -> str:
     lines = ["---", 'title: "Claims"', "---", "", "# Claims", ""]
     if not records:
         lines.append("_No claims exported._")
         return "\n".join(lines).rstrip() + "\n"
-    lines.extend(
-        f"- {record['text']} ({_eleventy_page_link(record, page_path, page_paths_by_id, src_dir)})"
-        for record in records
-    )
+    for record in records:
+        lines.append(f"- {record['text']} ({_eleventy_page_link(record, page_path, page_paths_by_id, src_dir)})")
+        lines.extend(f"  - {_check_words(check)}" for check in (checks or {}).get(record["claim_id"], []))
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -893,6 +912,9 @@ def _render_eleventy_item(
     doc: Document,
     assets: Iterable[_AssetRef],
     collection_path: list[str],
+    *,
+    statements: list[KnowledgeClaim] = (),
+    checks: dict[str, list[Any]] | None = None,
 ) -> str:
     lines = [
         "---",
@@ -922,8 +944,39 @@ def _render_eleventy_item(
             )
     if not content and not artifacts and not list(assets):
         lines.extend(["_No text content available._", ""])
+    if statements:
+        # The statements found on this page, each with its checks where one has run (`source.check.on-the-site`).
+        lines.extend(["## Statements", ""])
+        for claim in sorted(statements, key=lambda c: c.text.lower()):
+            lines.append(f"- {claim.text}")
+            lines.extend(f"  - {_check_words(check)}" for check in (checks or {}).get(claim.id, []))
+        lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
+
+
+_VERDICT_WORDS = {"confirm": "confirmed", "correct": "corrected", "reject": "rejected"}
+
+
+def _checks_by_target(db: Database) -> dict[str, list[Any]]:
+    """Every check verdict, by the proposal it checked, oldest first (`source.check.on-the-site`)."""
+    from fichero_server.models.checking import CheckVerdict
+
+    out: dict[str, list[Any]] = {}
+    for verdict in sorted(db.query(CheckVerdict), key=lambda v: (v.created_at, v.id)):
+        out.setdefault(verdict.target_id, []).append(verdict)
+    return out
+
+
+def _check_words(verdict: Any) -> str:
+    """One check in words: the verdict, by whom and at which trust level, why, and what a correction offers."""
+    who = "a person" if verdict.trust == "person" else "a model"
+    said = f"Checked: {_VERDICT_WORDS.get(verdict.verdict, verdict.verdict)} by {verdict.checker} ({who}): {verdict.reasons}"
+    offered = (verdict.correction or {})
+    shown = offered.get("text") or offered.get("name")
+    if verdict.verdict == "correct" and shown:
+        said += f" Offered instead: {shown}"
+    return said
 
 
 def _render_eleventy_index(
