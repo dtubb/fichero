@@ -23,6 +23,24 @@ says exactly what to do and waits. A row never shows green unless Fichero has ju
 place and had an answer. On a cluster, Fichero never pretends a server is there: it shows
 jobs, and sessions with their time left.
 
+**Fichero itself drives the cluster (ruled 2026-10-04).** No agent is involved. Fichero holds its
+own SSH (`compute.connect.ssh-in-process`), with the key in the Keychain and the second factor
+passing through its own UI. It downloads its released image into the project folder, installs it
+and updates it (`compute.image.the-image-is-the-only-install`), stages packages and models
+(`compute.connect.stage-on-the-login-node`, `compute.connect.models-staged-before-a-job`), submits,
+watches (Activity rows), fetches and lands the results, and cleans up. An agent only ever drives
+Fichero through its MCP tools, as a person drives it through the screens
+(`compute.target.every-step-has-an-mcp-tool`).
+
+**The reference flow (Rorqual, connected by hand on 2026-10-04).** Adding a cluster in Settings ›
+Compute is these six steps, each shown in the app, and nothing is submitted from it
+(`compute.targets.add-submits-nothing`): make a dedicated key (`compute.secret.fichero-makes-the-key`);
+add it to CCDB, guided (`compute.secret.ccdb-guided`); the first login, through the password and the
+second factor (`compute.connect.second-factor-passes-through`); one connection kept open
+(`compute.connect.one-connection-reused`); a check that really checks, on the login node only
+(`compute.connect.check-really-checks`); and the target stored with no secret
+(`compute.target.no-secret-in-the-record`).
+
 ## What exists today
 
 - **A cluster as a reference, never a secret.** `HpcClusterConfig`: SSH host alias, username,
@@ -162,6 +180,18 @@ All [GAP]: designed, not built.
   never the secret; the routes never return one; the change broadcast never carries one.
   *Test:* save a target with a credential; assert the stored JSON, the route's answer, the
   `compute.updated` event and the server log contain no part of it.
+  A cluster's record holds the user, the host, the account and the project path (for example
+  `/project/def-dtubb`), and the name of its key.
+
+- `compute.targets.add-submits-nothing` — **[GAP]** (#5454, #5238) adding and checking a cluster
+  never submits a job: everything runs on the login node, and only commands that read. *Test:* on
+  the SSH-and-Slurm fixture, the add-and-check flow's command log holds no `sbatch` or `srun`.
+- `compute.target.every-step-has-an-mcp-tool` — **[PARTIAL]** (#5454) every cluster step has an MCP
+  tool, so an agent drives Fichero and never the cluster: make the key, add, check, install or update
+  the image, stage models, submit, status, fetch and land, cancel, and clean up. Built:
+  `fichero_hpc_clusters`, `fichero_hpc_configure_cluster`, `fichero_hpc_delete_cluster`,
+  `fichero_hpc_test_cluster` (today a dry run that returns a command and executes nothing) and
+  `fichero_hpc_dry_run_submit`. Missing: the rest.
 - `compute.target.change-is-audited-and-undoable` — **[GAP]** (#5238) adding, changing and removing a target are
   registered actions with an inverse; "check" and "install" are recorded as non-undoable, by
   name, with the reason. This closes the part of → #4907 that concerns these routes. *Test:*
@@ -177,6 +207,12 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   command it "would" run as if that were a result. *Existing data:* the present dishonest
   `test` route is replaced by this one. *Test:* against the SSH-and-Slurm fixture: all pass; with
   the fixture's scheduler stopped: SSH passes, `sinfo` fails, `ok` is false.
+  On an Alliance cluster the check runs on the login node only and reports, each as passed or failed
+  with its answer: the hostname; storage from `diskusage_report` (home, scratch and project, with
+  their quotas and use); Apptainer from `module avail apptainer` and its version; the GPU types from
+  `sinfo`, including MIG slices (a small model fits a slice); and fair share from `sshare` for each
+  account (for example `def-dtubb_gpu` and `def-dtubb_cpu`). Reference: Rorqual, 2026-10-04 (H100
+  80 GB and MIG slices of 10, 20 and 40 GB; a 10 TB project).
 - `compute.connect.dot-means-checked` — **[GAP]** (#5238) a row is green only when the last check passed **and**
   is recent; otherwise it shows when it last passed, or what failed. Opening Settings does not
   by itself contact a cluster (that would trigger a second-factor prompt). *Test:* pure Swift
@@ -217,6 +253,15 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   shown again. Removing the target deletes the private half.
   *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create,
   read public half twice (same), remove target, assert the secret is gone.
+  One key per cluster site (one site's clusters share it), in a file of its own; a passphrase, if
+  set, is kept in the Keychain (reference flow, 2026-10-04).
+
+- `compute.secret.ccdb-guided` — **[GAP]** (#5454, #5238) adding the public key to the cluster account
+  (CCDB on the Alliance) is guided in the app: the public half is copied, and the account page is
+  linked. A new key can take minutes to reach the clusters, so the app says so and retries the
+  connection on its own until it is accepted or the person stops it. *Test:* the SSH fixture
+  refuses the key twice, then accepts it: the attempt shows "waiting for the key to reach the
+  cluster", retries, and connects.
 - `compute.secret.never-in-a-recipe` — **[GAP]** (#5238, #4950) a recipe names a step's place only as
   `runs_on: cluster` (or `gpu-service`); the host, the person's account and the key belong to the
   person's target (key in the Keychain), bound by the project (`source.recipe.runs-on-binds-to-a-target`).
@@ -232,11 +277,16 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   a refusal or a time-out ends the attempt with that reason. *Test:* the SSH fixture configured
   with a keyboard-interactive second step: the prompt text reaches the caller; a wrong answer
   yields a typed failure.
+  For a push factor (Duo), the app says to approve on the phone. The app says which credential is
+  being asked for, because a wrong key passphrase falls back to the account password (seen on
+  Rorqual, 2026-10-04).
 - `compute.connect.one-connection-reused` — **[GAP]** (#5238) all commands to one cluster go through one open
   connection, so the person is asked for a second factor once for each working session. When
   it drops, anything that needs it pauses with "Sign in to *name* again"; jobs already on the
   cluster are unaffected. *Test:* ten commands, one authentication on the fixture's log; drop
   the connection mid-poll: job state becomes *waiting for sign-in*, not *failed*.
+  The connection is kept open for a working session (4 hours in the reference flow, like
+  ControlMaster), and the target's row says when it expires.
 - `compute.connect.automation-host-optional` — **[GAP]** (#5238) a cluster target may name an automation host.
   Then submit, poll and fetch use it with the restricted key and need no person; sessions and
   anything needing a forward still use the ordinary login. *Test:* with the fixture's

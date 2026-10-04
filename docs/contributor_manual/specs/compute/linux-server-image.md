@@ -22,6 +22,11 @@ of failing when tried. It runs with the network switched off, because that is wh
 compute node is. Nobody builds it by hand: the project's automation builds it, starts it, runs
 a job through it, and only then publishes it.
 
+On a cluster, Fichero itself installs it (ruled 2026-10-04): it downloads the released image into
+the project folder, installs it and updates it, with no agent and no hand-run commands
+(`compute.image.the-image-is-the-only-install`, `compute.connect.stage-on-the-login-node`). An agent
+only ever asks Fichero to do this, through its MCP tools (`compute.target.every-step-has-an-mcp-tool`).
+
 ## What exists today
 
 - A Dockerfile and a README: `fichero-server/docker/Dockerfile` (66 lines),

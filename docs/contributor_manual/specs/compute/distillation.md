@@ -338,7 +338,8 @@ Fichero is this one job: the bake-off at setup, a model scored when it lands
   and never from a page any candidate trained on.
 - `distill.eval.cer-variants` — **[GAP]** (#5441) each model is scored with CER as the community
   computes it and its variants (the normalisation policies: case, punctuation, abbreviations
-  expanded), per model, per page and per hand. Each figure names its policy.
+  expanded), per model, per page, per script and per hand, so an archive of many scripts and hands
+  is judged where it differs. Each figure names its policy.
 - `distill.eval.stored-on-the-model-node` — **[GAP]** (#5441, #5439) the results are stored on each
   model's card and shown on its node (`source.model.node-inspector`), so models are compared side by
   side. A later evaluation adds to them and never overwrites one.
