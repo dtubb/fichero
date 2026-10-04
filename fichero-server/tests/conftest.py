@@ -464,6 +464,15 @@ os.environ.setdefault("FICHERO_BASE_PATH", str(_test_base))
 _atexit.register(_shutil.rmtree, _test_base, True)
 
 from fichero_server.api.main import app  # noqa: E402
+# The library dependencies the routes were built with, taken with `app` (#5407). A test that
+# reloads `fichero_server.api.main` (the multi-user and auth tests do, to re-read their env) makes
+# NEW function objects that no route uses; the `client` fixture importing them at its own time
+# then keyed its overrides on those, so they did nothing: the real dependency ran, and a test that
+# names a library of its own got 404 -- only when a reloading test had run first.
+from fichero_server.api.main import get_library_database as _route_get_library_database  # noqa: E402
+from fichero_server.api.main import (  # noqa: E402
+    get_library_database_for_write as _route_get_library_database_for_write,
+)
 from fichero_server.db import db_manager  # noqa: E402
 from fichero_server.db.app import AppDatabase  # noqa: E402
 
@@ -726,7 +735,8 @@ def client(test_package, app_db):
     Also overrides the app database dependency to use the test app_db
     and the library database dependency to use the test package db.
     """
-    from fichero_server.api.main import get_library_database, get_library_database_for_write
+    get_library_database = _route_get_library_database
+    get_library_database_for_write = _route_get_library_database_for_write
     from fichero_server.api.routes.entity.entities import _digest_library_database
     from fichero_server.api.routes.ai.providers import get_app_database
 
