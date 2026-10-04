@@ -117,20 +117,40 @@ class HfJobsTarget:
         return min(priced)[1]
 
     def submit(self, job_key: str, *, script_args: list[str], script: Path = TRAINER,
-               flavor: str = DEFAULT_FLAVOR, timeout: str = DEFAULT_TIMEOUT) -> str:
-        """Start one of Fichero's trainer scripts on the sent data; returns the Job's id."""
+               flavor: str = DEFAULT_FLAVOR, timeout: str = DEFAULT_TIMEOUT,
+               dependencies: list[str] | None = None, labels: dict[str, str] | None = None) -> str:
+        """Start one of Fichero's scripts (a trainer, or the reading runner for one shard) on the sent
+        data; returns the Job's id. Every Job of one Fichero job carries its `fichero-job` label."""
         from huggingface_hub import Volume
 
         if not timeout:
             raise ValueError("a Hugging Face Job needs an explicit time limit (the service's default is 30 minutes)")
+        extra = {"dependencies": dependencies} if dependencies else {}
         info = self.api.run_uv_job(
             str(script), script_args=script_args, flavor=flavor, timeout=timeout,
-            labels={"fichero-job": job_key},
+            labels={**(labels or {}), "fichero-job": job_key},
             volumes=[Volume(type="bucket", source=self.bucket, mount_path=MOUNT)],
-            token=self.token,
+            token=self.token, **extra,
         )
         return info.id
 
+    def statuses(self, job_key: str) -> dict[str, FarStatus]:
+        """Every Job of one Fichero job, in ONE call (`compute.job.poll-is-gentle`): a reading run of a
+        hundred shards is not a hundred requests a minute."""
+        found: dict[str, FarStatus] = {}
+        for info in self.api.list_jobs(token=self.token):
+            if (getattr(info, "labels", None) or {}).get("fichero-job") != job_key:
+                continue
+            stage = str(getattr(info.status.stage, "value", info.status.stage))
+            found[info.id] = FarStatus(state=_STAGES.get(stage, RUNNING), stage=stage, message=info.status.message)
+        return found
+
+    def fetch_part(self, job_key: str, part: str, local_dir: str | Path) -> Path:
+        """Bring one part of the job's `out` folder home (one shard's results)."""
+        local = Path(local_dir)
+        local.mkdir(parents=True, exist_ok=True)
+        self.api.sync_bucket(f"{self._uri(job_key, 'out')}/{part}", str(local), token=self.token)
+        return local
 
     def status(self, far_id: str) -> FarStatus:
         info = self.api.inspect_job(job_id=far_id, token=self.token)

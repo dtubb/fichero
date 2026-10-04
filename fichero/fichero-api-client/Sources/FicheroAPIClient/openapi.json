@@ -5493,6 +5493,242 @@
         }
       }
     },
+    "/api/reading-at-scale": {
+      "post": {
+        "tags": [
+          "reading-at-scale"
+        ],
+        "summary": "Read pages on Hugging Face Jobs, many shards as one job",
+        "description": "Queue a `read-at-scale` job: the pages in scope (images here, or IIIF canvases by reference) are\npacked with the reader and Fichero's runner, sent to a private bucket of the person's Hugging Face\naccount, read in shards (at most `max_in_flight` at once), and each shard's PAGE files land as new\npasses as it finishes. Refused, with nothing queued, without `pages_may_leave` (403), without a\nHugging Face token (412), or with a reader that cannot run off this Mac (422).",
+        "operationId": "start_reading_at_scale_api_reading_at_scale_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadAtScaleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingStarted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reading-at-scale/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "reading-at-scale"
+        ],
+        "summary": "A reading run's shards and what landed",
+        "operationId": "reading_job_status_api_reading_at_scale_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingJobStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reading-at-scale/jobs/{job_id}/resend-failed": {
+      "post": {
+        "tags": [
+          "reading-at-scale"
+        ],
+        "summary": "Send a reading run's failed shards again, and only those",
+        "operationId": "resend_failed_shards_api_reading_at_scale_jobs__job_id__resend_failed_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Resend Failed Shards Api Reading At Scale Jobs  Job Id  Resend Failed Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reading-at-scale/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "reading-at-scale"
+        ],
+        "summary": "Stop a reading run (cancels its running shards on Hugging Face)",
+        "operationId": "cancel_reading_job_api_reading_at_scale_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Cancel Reading Job Api Reading At Scale Jobs  Job Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/links/naming": {
       "get": {
         "tags": [
@@ -68189,6 +68425,86 @@
         "title": "RAGModesResponse",
         "description": "Response listing available RAG modes."
       },
+      "ReadAtScaleRequest": {
+        "properties": {
+          "scope_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scope Ids",
+            "description": "Folders or pages to read: images here, or pages imported by reference over IIIF."
+          },
+          "reader": {
+            "type": "string",
+            "title": "Reader",
+            "description": "`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model).",
+            "default": "kraken"
+          },
+          "card": {
+            "type": "string",
+            "title": "Card",
+            "description": "The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo."
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "shard_size": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Shard Size",
+            "default": 50
+          },
+          "longest": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 256.0,
+            "title": "Longest",
+            "description": "Pixels on the longer side each image is read at.",
+            "default": 2000
+          },
+          "flavor": {
+            "type": "string",
+            "title": "Flavor",
+            "description": "Hugging Face hardware for each shard.",
+            "default": "t4-small"
+          },
+          "timeout": {
+            "type": "string",
+            "title": "Timeout",
+            "description": "Each shard's time limit; always sent.",
+            "default": "2h"
+          },
+          "max_in_flight": {
+            "type": "integer",
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Max In Flight",
+            "description": "Shards running at once.",
+            "default": 10
+          },
+          "pass_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Name"
+          },
+          "pages_may_leave": {
+            "type": "boolean",
+            "title": "Pages May Leave",
+            "description": "The person's yes for these pages (or their IIIF addresses) to go to Hugging Face.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_ids",
+          "card"
+        ],
+        "title": "ReadAtScaleRequest"
+      },
       "ReadableSentence": {
         "properties": {
           "text": {
@@ -68275,6 +68591,77 @@
           "representation_id"
         ],
         "title": "ReadingChoiceBody"
+      },
+      "ReadingJobStatus": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts",
+            "default": {}
+          },
+          "failed_shards": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Failed Shards",
+            "default": {}
+          },
+          "package": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Package"
+          },
+          "landing": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Landing"
+          },
+          "flavor": {
+            "type": "string",
+            "nullable": true,
+            "title": "Flavor"
+          },
+          "price_per_hour_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Price Per Hour Usd"
+          },
+          "step": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Step"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "state"
+        ],
+        "title": "ReadingJobStatus",
+        "description": "A reading run's row: its shards counted, the failed ones with their reasons, what landed."
       },
       "ReadingListResponse": {
         "properties": {
@@ -68732,6 +69119,29 @@
           "rate"
         ],
         "title": "ReadingScore"
+      },
+      "ReadingStarted": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "flavor": {
+            "type": "string",
+            "title": "Flavor"
+          },
+          "price_per_hour_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Price Per Hour Usd"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "flavor"
+        ],
+        "title": "ReadingStarted"
       },
       "RebuildRequest": {
         "properties": {

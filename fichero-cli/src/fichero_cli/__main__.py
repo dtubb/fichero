@@ -1418,10 +1418,17 @@ def import_legacy_archive_command(
 @app.command(name="import-iiif")
 def import_iiif_command(
     ctx: typer.Context,
-    iiif: Path = typer.Option(
+    iiif: str = typer.Option(
         ...,
         "--iiif",
-        help="Path to a IIIF Presentation 3.0 file or directory.",
+        help="A IIIF Presentation 3.0 file or directory, or the URL of a remote manifest or collection "
+        "(Presentation 2 or 3), imported by reference: pages point at their Image API services, no "
+        "image is downloaded.",
+    ),
+    sample: int = typer.Option(
+        None,
+        "--sample",
+        help="For a URL: stop after this many manifests (prove a recipe on a sample first).",
     ),
     library: Path = typer.Option(
         ...,
@@ -1475,7 +1482,8 @@ def import_iiif_command(
             token=token,
         ) as client:
             summary = import_iiif_via_http(
-                iiif_path=iiif,
+                iiif_path=iiif if iiif.startswith(("http://", "https://")) else Path(iiif),
+                max_manifests=sample,
                 library_path=library,
                 api_base=resolved_api,
                 token_file=token_file or DEFAULT_TOKEN_FILE,

@@ -16,7 +16,7 @@ set, so the same send carries both.
 from __future__ import annotations
 
 import json
-import xml.etree.ElementTree as ET
+from fichero_server.security.xml_security import parse_xml_string
 from pathlib import Path
 
 from PIL import Image
@@ -36,7 +36,7 @@ def _points(coords: str) -> list[tuple[float, float]]:
 
 def lines_of(page_xml: str) -> list[tuple[list[tuple[float, float]], str]]:
     """(polygon in pixels, text) for each TextLine with an outline and some text, in file order."""
-    root = ET.fromstring(page_xml)
+    root = parse_xml_string(page_xml)
     found = []
     for line in root.iter(f"{_NS}TextLine"):
         coords = line.find(f"{_NS}Coords")

@@ -53,6 +53,13 @@ class FakeApi:
     def cancel_job(self, **kw):
         self._record("cancel_job", **kw)
 
+    def list_jobs(self, **kw):
+        self._record("list_jobs", **kw)
+        job = lambda i, key, stage: SimpleNamespace(  # noqa: E731
+            id=i, labels={"fichero-job": key}, status=SimpleNamespace(stage=SimpleNamespace(value=stage), message=None))
+        return [job("a", "read-1", "COMPLETED"), job("b", "read-1", "ERROR"), job("c", "other", "RUNNING"),
+                SimpleNamespace(id="d", labels=None, status=SimpleNamespace(stage="RUNNING", message=None))]
+
 
 def _called(api, name):
     return [c for c in api.calls if c[0] == name]
@@ -147,3 +154,16 @@ def test_every_call_carries_the_token_and_nothing_else_does():
         assert kwargs.get("token") == "hf_secret", name
         visible = repr(args) + repr({k: v for k, v in kwargs.items() if k != "token"})
         assert "hf_secret" not in visible, name
+
+
+def test_every_shard_of_one_job_is_seen_in_one_call_and_carries_its_label():
+    """WHY (`compute.job.poll-is-gentle`, `.array-by-shard`): a reading run of a hundred shards asks
+    Hugging Face once a round, and finds its own Jobs by the `fichero-job` label, never another job's."""
+    api = FakeApi()
+    target = HfJobsTarget(token="hf_x", api=api)
+    target.submit("read-1", script_args=["--shard", "3"], labels={"fichero-shard": "3"}, dependencies=["torch"])
+    sent = _called(api, "run_uv_job")[0][2]
+    assert sent["labels"] == {"fichero-shard": "3", "fichero-job": "read-1"} and sent["dependencies"] == ["torch"]
+    seen = target.statuses("read-1")
+    assert {k: v.state for k, v in seen.items()} == {"a": hf_jobs.DONE, "b": hf_jobs.FAILED}
+    assert len(_called(api, "list_jobs")) == 1

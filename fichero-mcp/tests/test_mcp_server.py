@@ -42,6 +42,10 @@ EXPECTED_TOOLS = {
     "fichero_pause_background_work",
     "fichero_job_pause",
     "fichero_job_cancel",
+    "fichero_read_at_scale",
+    "fichero_reading_status",
+    "fichero_reading_resend_failed",
+    "fichero_reading_cancel",
     "fichero_compare_readings",
     "fichero_artifacts",
     "fichero_kg_entities",
@@ -396,6 +400,25 @@ def test_job_tools_send_the_engines_request(monkeypatch):
     assert json.loads(pause.content) == {"paused": True}
     assert json.loads(resume.content) == {"paused": False}
     assert (cancel.method, cancel.url.path) == ("POST", "/api/activity/jobs/j1/cancel")
+
+
+def test_reading_at_scale_tools_send_the_engines_request(monkeypatch):
+    """#5398: an agent can start, follow, re-send and stop a reading run the one way the engine
+    offers; the yes for the pages to leave is passed on from the person, never a default."""
+    import json
+
+    with _mock_client(monkeypatch, body={"job_id": "r1"}) as seen:
+        mcp_server.fichero_read_at_scale(["eap-1"], "fichero-trained/sergio", pages_may_leave=True, reader="vlm")
+        mcp_server.fichero_reading_status("r1")
+        mcp_server.fichero_reading_resend_failed("r1")
+        mcp_server.fichero_reading_cancel("r1")
+    start, status, resend, cancel = seen
+    assert (start.method, start.url.path) == ("POST", "/api/reading-at-scale")
+    body = json.loads(start.content)
+    assert body["pages_may_leave"] is True and body["reader"] == "vlm" and body["timeout"] == "2h"
+    assert (status.method, status.url.path) == ("GET", "/api/reading-at-scale/jobs/r1")
+    assert (resend.method, resend.url.path) == ("POST", "/api/reading-at-scale/jobs/r1/resend-failed")
+    assert (cancel.method, cancel.url.path) == ("POST", "/api/reading-at-scale/jobs/r1/cancel")
 
 
 def test_artifacts_builds_path_and_params(monkeypatch):

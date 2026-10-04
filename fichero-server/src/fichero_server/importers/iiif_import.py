@@ -169,7 +169,7 @@ def import_iiif(
 
 def import_iiif_via_http(
     *,
-    iiif_path: Path,
+    iiif_path: Path | str,
     library_path: Path,
     api_base: str = DEFAULT_API_BASE,
     token_file: Path = DEFAULT_TOKEN_FILE,
@@ -177,8 +177,10 @@ def import_iiif_via_http(
     copy_images: bool = False,
     ingest_mode: str | None = None,
     client: Any | None = None,
+    max_manifests: int | None = None,
 ) -> IIIFImportSummary:
-    """Convenience entry point for ``python -m fichero import-iiif``."""
+    """Convenience entry point for ``python -m fichero import-iiif``. A URL is imported by reference
+    (`import_iiif_url`); a path is read from disk as before."""
 
     library_str = str(library_path.expanduser())
     if client is None:
@@ -190,9 +192,11 @@ def import_iiif_via_http(
         transport = CliIIIFClient(client)
         if create_library:
             client.request("POST", "/api/library", json={"path": library_str})
+    if isinstance(iiif_path, str) and iiif_path.startswith(("http://", "https://")):
+        return import_iiif_url(transport, iiif_path, library_str, max_manifests=max_manifests)
     return import_iiif(
         transport,
-        iiif_path.expanduser(),
+        Path(iiif_path).expanduser(),
         library_str,
         copy_images=copy_images,
         ingest_mode=ingest_mode,
@@ -921,3 +925,173 @@ __all__ = [
     'tempfile',
     'urllib',
 ]
+
+
+# --------------------------------------------------------------------------------------------------
+# By reference, from a IIIF server (#5398 slice 2): a manifest or collection URL becomes documents that
+# point at their Image API services. No image is downloaded at import; a page-sized image is fetched
+# when a page is viewed (`db.storage.iiif_page_image`), and a reading job fetches its own.
+# --------------------------------------------------------------------------------------------------
+
+
+def _kind(obj: dict[str, Any]) -> str | None:
+    """A resource's type in one vocabulary: Presentation 3 says "Manifest", 2 says "sc:Manifest"."""
+    value = _json_type(obj)
+    return value.rsplit(":", 1)[-1] if value else None
+
+
+def _service_id(body: dict[str, Any]) -> str | None:
+    """The Image API service of a painting body (Presentation 3 `service`, 2 `service` or `@id`)."""
+    services = body.get("service")
+    for service in services if isinstance(services, list) else [services]:
+        if isinstance(service, dict) and (_kind(service) or "").lower().startswith(("imageservice", "image")):
+            return _json_id(service)
+        if isinstance(service, dict) and _json_id(service):
+            return _json_id(service)
+    return None
+
+
+def _painting_bodies(canvas: dict[str, Any]) -> list[dict[str, Any]]:
+    bodies: list[dict[str, Any]] = []
+    for page in canvas.get("items") or []:  # Presentation 3
+        for ann in page.get("items") or []:
+            if "painting" in _motivations(ann):
+                body = ann.get("body")
+                bodies.extend(b for b in (body if isinstance(body, list) else [body]) if isinstance(b, dict))
+    for image in canvas.get("images") or []:  # Presentation 2
+        resource = image.get("resource")
+        if isinstance(resource, dict):
+            bodies.append(resource)
+    return bodies
+
+
+def _rights(obj: dict[str, Any]) -> dict[str, Any]:
+    """What a manifest says about rights: Presentation 3 `rights` and `requiredStatement`, 2 `license`
+    and `attribution`."""
+    statement = obj.get("requiredStatement")
+    return {k: v for k, v in {
+        "rights": obj.get("rights") or obj.get("license"),
+        "required_statement": ({"label": _label_text({"label": statement.get("label")}),
+                                "value": _label_text({"label": statement.get("value")})}
+                               if isinstance(statement, dict) else None),
+        "attribution": _label_text({"label": obj.get("attribution")}) if obj.get("attribution") else None,
+    }.items() if v}
+
+
+def _remote_canvas_node(canvas: dict[str, Any], *, manifest: dict[str, Any], parent_external: str, corpus: str,
+                        sequence: int) -> dict[str, Any]:
+    canvas_id = _json_id(canvas) or f"{parent_external}/canvas/{sequence}"
+    bodies = _painting_bodies(canvas)
+    body = bodies[0] if bodies else {}
+    service = _service_id(body)
+    return {
+        "canonical_version": CANONICAL_VERSION,
+        "node_type": "page",
+        "external_id": _safe_external_id(canvas_id),
+        "parent_external_id": parent_external,
+        "corpus": corpus,
+        "name": _label_text(canvas) or f"Page {sequence}",
+        "sequence": sequence,
+        "page_label": _label_text(canvas) or str(sequence),
+        "date": _nav_date(canvas, _metadata_dict(canvas)) or _nav_date(manifest, _metadata_dict(manifest)),
+        "language": _language(canvas) or _language(manifest),
+        "text": None,
+        # An image with no local source: the page is an image, read by reference.
+        "images": [{"role": "original", "path": _json_id(body), "source_path": None, "is_representative": True,
+                    "metadata": {"iiif_service": service, "format": body.get("format"),
+                                 "width": body.get("width"), "height": body.get("height")}}] if bodies else [],
+        "entities": [],
+        "claims": [],
+        "metadata": {
+            "iiif_type": "Canvas",
+            "iiif_id": canvas_id,
+            "iiif_manifest": _json_id(manifest),
+            "iiif_service": service,
+            "iiif_image": _json_id(body),
+            "iiif_metadata": _metadata_dict(canvas),
+            # The canvas's own size: results read from a smaller fetched image are scaled to it.
+            "width": canvas.get("width"),
+            "height": canvas.get("height"),
+            "by_reference": True,
+            "provenance": "import",
+        },
+    }
+
+
+def parse_iiif_url(url: str, *, fetcher: Any | None = None, max_manifests: int | None = None) -> _ParsedIIIF:
+    """Read a remote IIIF manifest or collection (Presentation 2 or 3) into canonical nodes by reference.
+
+    A collection's manifests (and nested collections) are fetched one by one, politely
+    (`media.iiif_fetch.PoliteFetcher`); `max_manifests` stops early, for a sample before a whole archive.
+    """
+    from fichero_server.media.iiif_fetch import PoliteFetcher, urllib_get
+
+    fetcher = fetcher or PoliteFetcher(get=urllib_get)
+
+    def load(ref: str) -> dict[str, Any]:
+        return json.loads(fetcher.fetch(ref).decode("utf-8"))
+
+    root = load(url)
+    if _kind(root) == "Manifest":
+        collection = {"id": url, "type": "Collection", "label": root.get("label"), "items": [root]}
+    else:
+        collection = root
+    collection_external = _safe_external_id(_json_id(collection) or url)
+    collection_node = _collection_node(collection, collection_external, Path("."))
+    collection_node["metadata"].update({"source_assets": url, "iiif_rights": _rights(collection), "by_reference": True})
+    nodes = [collection_node]
+    warnings: list[str] = []
+    seen: set[str] = set()
+    sequence = 0
+    queue = list(collection.get("items") or collection.get("manifests") or [])
+    queue += list(collection.get("collections") or [])
+    while queue:
+        ref = queue.pop(0)
+        if max_manifests is not None and len(seen) >= max_manifests:
+            warnings.append(f"stopped after {max_manifests} manifests (a sample)")
+            break
+        ref_id = _json_id(ref) if isinstance(ref, dict) else str(ref)
+        if not ref_id or ref_id in seen:
+            continue
+        kind = _kind(ref) if isinstance(ref, dict) else None
+        try:
+            doc = ref if isinstance(ref, dict) and (ref.get("items") or ref.get("sequences")) else load(ref_id)
+        except Exception as exc:  # noqa: BLE001 -- one unreachable manifest is listed, not fatal
+            warnings.append(f"could not fetch {ref_id}: {exc}")
+            seen.add(ref_id)
+            continue
+        kind = _kind(doc) or kind
+        if kind == "Collection":
+            queue += list(doc.get("items") or doc.get("manifests") or []) + list(doc.get("collections") or [])
+            continue
+        seen.add(ref_id)
+        canvases = doc.get("items") or [c for s in doc.get("sequences") or [] for c in s.get("canvases") or []]
+        rights = _rights(doc)
+        for canvas in canvases:
+            sequence += 1
+            node = _remote_canvas_node(canvas, manifest=doc, parent_external=collection_external,
+                                       corpus=collection_external, sequence=sequence)
+            node["metadata"]["iiif_rights"] = rights
+            node["metadata"]["iiif_manifest_metadata"] = _metadata_dict(doc)
+            nodes.append(node)
+    return _ParsedIIIF(nodes=nodes, annotation_jobs=[], manifests_seen=len(seen), warnings=warnings)
+
+
+def import_iiif_url(client: ManifestApiClient, url: str, library_path: str, *, fetcher: Any | None = None,
+                    max_manifests: int | None = None) -> IIIFImportSummary:
+    """Import a remote IIIF manifest or collection by reference: documents that point at their Image API
+    services, no image downloaded, no preview warmed (a million canvases would mean a million fetches)."""
+    parsed = parse_iiif_url(url, fetcher=fetcher, max_manifests=max_manifests)
+    if len(parsed.nodes) < 2:
+        raise ValueError(f"No canvases found at {url}")
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".jsonl") as handle:
+        for node in parsed.nodes:
+            handle.write(json.dumps(node, ensure_ascii=False) + "\n")
+        handle.flush()
+        manifest_summary = import_manifest(client, Path(handle.name), library_path, ingest_mode="link",
+                                           write_transcript_artifacts=False, warm_previews=False)
+    summary = IIIFImportSummary.from_manifest_summary(iiif=Path(url.replace("://", "/")),
+                                                      manifest_summary=manifest_summary,
+                                                      manifests_seen=parsed.manifests_seen)
+    summary.warnings.extend(parsed.warnings)
+    return summary

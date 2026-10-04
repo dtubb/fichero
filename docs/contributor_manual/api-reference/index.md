@@ -600,6 +600,27 @@ model read and a person checked), the Job's `last_lines` when it ends, and, once
 `POST /api/training/jobs/{job_id}/cancel` stops it (`training.cancel`): a job not started ends at
 once; a running one is cancelled on Hugging Face at its next look and ends `cancelled`.
 
+### Reading at scale (Hugging Face Jobs)
+
+`POST /api/reading-at-scale` queues a `read-at-scale` job (#5398 slice 2,
+`specs/compute/jobs-and-fine-tuning.md`): the pages under `scope_ids` (images here, or IIIF canvases
+imported by reference, fetched where the job runs at `longest` pixels) are packed with the `reader`
+(`kraken` or `vlm`, named by `card`) and Fichero's runner, sent once to a private bucket of the
+person's Hugging Face account, and read in shards of `shard_size`, at most `max_in_flight` at once,
+each on `flavor` with an explicit `timeout`. As each shard finishes, its PAGE files land as new passes
+through `format.import` (a IIIF page's lines on its canvas); a page whose result already landed is not
+landed again. One row in `GET /api/activity/jobs`, on the remote lane. Refused, with nothing queued,
+without `pages_may_leave: true` (403), without a Hugging Face token (412), or with a reader that cannot
+run off this Mac (422). Through the audited, non-undoable action `reading.start_at_scale`.
+
+`GET /api/reading-at-scale/jobs/{job_id}` follows it: `state`, the `reason` in words, the shard
+`counts` (pending, submitted, landed, failed), each failed shard's reason and last lines, the
+`package` (sources, shards, pages skipped and why) and the `landing` counts.
+
+`POST /api/reading-at-scale/jobs/{job_id}/resend-failed` sends the failed shards again, and only those
+(`reading.resend_failed`; 409 while the run is still going). `POST /api/reading-at-scale/jobs/{job_id}/cancel`
+stops it (`reading.cancel_at_scale`): its running shards are cancelled on Hugging Face.
+
 ### Workflow run comparison
 
 `GET /api/workflow-execution/comparisons` diffs what two runs produced from

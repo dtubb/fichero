@@ -258,26 +258,26 @@ All [GAP]: designed, not built.
 
 ### The package
 
-- `compute.package.least-needed` — **[GAP]** (#5239) a package holds only the objects its kind of work needs, by
+- `compute.package.least-needed` — **[PARTIAL]** (#5239; built for a read package (#5398, `remote_read/package.py`): sources, the reader, the runner; not yet for other kinds) a package holds only the objects its kind of work needs, by
   the table above. *Test:* for a segmentation job over 3 of 40 sources: exactly 3 images, no
   database object, no text. For a fine-tune: exactly the training set's objects.
-- `compute.package.is-a-sync-manifest` — **[GAP]** (#5239) a package's `manifest.json` is a `SyncManifest`; its
+- `compute.package.is-a-sync-manifest` — **[PARTIAL]** (#5239; built for a read package (#5398)) a package's `manifest.json` is a `SyncManifest`; its
   objects are `SyncObject`s with sha256 and size. `BundleManifest`, `build_bundle_manifest` and
   `write_manifest` are removed from `remote_jobs.py`, and the dry-run route builds a package
   instead. *Existing data:* none is stored in the old shape (VERIFIED above). *Test:* the old
   names no longer import; the dry-run answer lists object hashes.
-- `compute.package.no-paths-cross` — **[GAP]** (#5239) no absolute path from the Mac appears in `job.json`,
+- `compute.package.no-paths-cross` — **[PARTIAL]** (#5239; built for a read package (#5398): document ids and `images/<sha256>`) no absolute path from the Mac appears in `job.json`,
   `manifest.json` or any log line sent to a target; inputs are named by source id and sha256.
   *Test:* build a package from a library under a temp folder; assert that folder's path is in
   none of the package's text files.
-- `compute.package.names-its-models` — **[GAP]** (#5239) `job.json` names every model the work will use by card
+- `compute.package.names-its-models` — **[PARTIAL]** (#5239; built for a read package (#5398): the reader by card) `job.json` names every model the work will use by card
   id and version, so staging (`compute.connect.models-staged-before-a-job`) can happen before
   submit and a job never discovers a missing model half-way. *Test:* a workflow with two model
   steps yields two model entries.
-- `compute.package.is-a-projection` — **[GAP]** (#5239) a package is never the record: it can be deleted at any
+- `compute.package.is-a-projection` — **[PARTIAL]** (#5239; built for a read package (#5398): byte-identical for the same state) a package is never the record: it can be deleted at any
   time and made again, and two packages made from the same project state and the same job
   are byte-identical. *Test:* build twice, compare hashes.
-- `compute.package.no-secrets` — **[GAP]** (#5239) no token, key or provider API key is ever in a package or a
+- `compute.package.no-secrets` — **[PARTIAL]** (#5239; built for a read package (#5398): a step needing a key cannot be sent) no token, key or provider API key is ever in a package or a
   job script. Work that needs a cloud provider's key cannot be sent to a target; it is refused
   with "this step needs your *provider* key, which never leaves this Mac". *Test:* a workflow
   with an OpenRouter step is refused before packaging; a scan of a built package for the
@@ -344,7 +344,7 @@ All [GAP]: designed, not built.
   skipped. *Existing data:* the ledger is append-only and is never rewritten. *Test:* land
   twice; line count unchanged the second time; the training export
   (`episodes.export_training_pairs`) sees the remote calls.
-- `compute.land.only-the-mac-writes` — **[GAP]** (#5239) the far side produces a result package and never writes
+- `compute.land.only-the-mac-writes` — **[PARTIAL]** (#5239; built for reading at scale (#5398): the runner writes PAGE files; the Mac lands them) the far side produces a result package and never writes
   to a project; every change is an audited action run by the Mac's server. *Test:* a result
   package that tries to name an action outside the allowed list for its job kind is refused
   whole.
@@ -356,10 +356,10 @@ All [GAP]: designed, not built.
   machine-made, with job id, target id, model card and version, and the sending person as
   responsible. A `created_by` or similar field inside the package is ignored. This is the rule
   of → #4869 applied here. *Test:* a package claiming `created_by: human` lands as machine-made.
-- `compute.land.never-overwrites` — **[GAP]** (#5239) results arrive as a new pass or new readings; no existing
+- `compute.land.never-overwrites` — **[PARTIAL]** (#5239; built for reading at scale (#5398): each page lands as a new pass through `format.import`) results arrive as a new pass or new readings; no existing
   pass, reading, segment or claim is changed or removed by landing. *Test:* land onto a source
   with a person's pass; that pass's rows are byte-identical afterwards.
-- `compute.land.idempotent` — **[GAP]** (#5239) every line has an id made from the job id and its position;
+- `compute.land.idempotent` — **[PARTIAL]** (#5239; built for reading at scale (#5398) by the PAGE file's checksum, not yet by line id: a page already landed is counted, not landed again) every line has an id made from the job id and its position;
   landing a package again adds nothing and reports "already landed". *Test:* land twice; row
   counts equal.
 - `compute.land.whole-source-or-none` — **[GAP]** (#5239) a failure while landing one source undoes that source's
@@ -369,11 +369,11 @@ All [GAP]: designed, not built.
   source lands as a new pass marked with the version it was computed from. *Data:* the version
   in each result line, against the segment versions of `source-model.md` slice 5. *Test:* edit
   a page after sending; the landed pass carries the old version and a visible mark.
-- `compute.land.orphans-set-aside` — **[GAP]** (#5239) a line whose source or segment no longer exists (and has
+- `compute.land.orphans-set-aside` — **[PARTIAL]** (#5239; built for reading at scale (#5398) at page level: a page deleted while the run ran is counted `set_aside`) a line whose source or segment no longer exists (and has
   no forwarding note) is kept in `<server state dir>/compute/jobs/<job_id>/set-aside.jsonl`,
   counted on the job with the reason, and never dropped silently. *Test:* delete one of three
   sources while the job is away.
-- `compute.land.completed-means-landed` — **[GAP]** (#5239) a job is *done* only when its result package has been
+- `compute.land.completed-means-landed` — **[PARTIAL]** (#5239; built for reading at scale (#5398): a shard is `landed` only after its pages landed; the run is done when every shard landed or failed) a job is *done* only when its result package has been
   fetched, verified and landed. Built as a pure rule for Slurm (VERIFIED
   `remote_jobs.py:281-293`); this id makes it true for every kind of target. *Test:* the state
   machine never reaches *done* from *finished there* without a landing record.
