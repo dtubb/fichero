@@ -50,6 +50,9 @@ remains **[GAP]** there today (the paragraph still renders in the Inspector,
 that ruling will eventually redirect into; see section D below for the plain statement of the
 Statements/Claims overlap the maintainer asked about.
 
+The layers drawn on a page and on each line in the lines mode (#5414) — translation, names,
+statements, notes — are specified once, for every page surface, in `layers-on-the-source.md`.
+
 Surfaces: `ReaderLens` (`Views/Reader/Surfaces/ReaderLens.swift`), `ReaderTab`
 (`Views/Reader/Surfaces/ReaderTab.swift`), `KGSurfaceTab`
 (`Views/Reader/Knowledge/DocumentKGSurface.swift`), `DocumentKGWebPane` (the WebKit host for

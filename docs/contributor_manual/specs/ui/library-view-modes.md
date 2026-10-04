@@ -454,6 +454,9 @@ homeless until a map-view UI spec exists (#5128).
   first-class, attributable, undoable action. None of these were found built. The epic's own
   open design questions (shared vs. per-scope z-position, adornments as a new type vs.
   reused folders, link-type vocabulary) remain genuinely open, not decided by this pass.
+  A page card drawing the page's layers (boxes, names, statements, notes) is specified in
+  `layers-on-the-source.md` (`layers.canvas2d.page-card-draws-layers`,
+  `layers.canvas3d.page-card-draws-layers`).
 - `library.space.wiring-completeness` — **[PARTIAL]** (#3089) `.space` IS a live selectable
   mode today, offered wherever `.canvas` is (`ContentView+StateLayout.swift:84,89`) and
   mounted via `spaceModeView`. Not verified: a View-menu "Space" entry with a ⌘5 shortcut (no

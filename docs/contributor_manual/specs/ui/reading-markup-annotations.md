@@ -20,6 +20,9 @@ the companion to [[reader-overlay-frame-identity]], which pins only WHERE a mark
 transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling doc
 `agent-work/design/reading-markup-coding-system.md` (Daniel, 2026-08-30).
 
+Annotations are drawn on the page as the Notes layer of `layers-on-the-source.md`, which also
+says how that layer is switched and shown on the canvases.
+
 ## Intent (the design)
 
 - One annotation record per mark, anchored to a source span or region, with a **closed** set of kinds.

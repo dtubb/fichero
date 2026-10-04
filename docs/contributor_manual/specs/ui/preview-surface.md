@@ -31,6 +31,10 @@ authoritative answer for what each SELECTION KIND shows in Preview (a workflow's
 schedule's detail view, and so on). This spec is downstream of that matrix; it does not
 re-litigate which selections reach Preview.
 
+**What is drawn ON a page** (translation, names, statements, notes and the other layers, and
+how they are switched) is owned by `layers-on-the-source.md`, one layer model that Preview, the
+Reader's lines mode and the canvases all draw.
+
 **Two sibling specs own adjacent, NOT absorbed, territory:** `preview-magnifier.md` owns the
 loupe/magnifier instrument entirely — this spec never restates its behaviors, only mounts the
 canvas the loupe sits over. `reader-overlay-frame-identity.md` owns keeping a highlight or box
