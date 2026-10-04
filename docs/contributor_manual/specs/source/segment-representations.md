@@ -242,3 +242,6 @@ slice-0 proves the pattern and the creative director approves.
 - Is `Transcription` a first-class record now, or does slice-0 read the existing
   transcription text and defer the multi-edition table to #4638?
 - Which standard is the slice-0 export target — ALTO (line/word geometry) or PageXML?
+
+## Triaged from the backlog (2026-10-04)
+- `segment.test.artifact-type-contract-clean` — **[GAP]** (#4910) check_artifact_type_contract passes: entity_merge_proposals is produced and queried by name.

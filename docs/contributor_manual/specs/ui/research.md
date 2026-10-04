@@ -506,3 +506,6 @@ Design content carried into this spec; files kept, listed here per program instr
 - (#2081) Library node model: prototypes, aliases and entities-as-nodes (Tinderbox-for-archives); canonical for cluster
 - (#2291) In-app agent operating Projects/Milestones/Tasks from chat; agent-surface vision, not current work.
 - (#2314) Three chat modes (Simple/RAG/Agent) with an on-device router; chat-surface nice-to-have.
+
+## Triaged from the backlog (2026-10-04)
+- `research.uitest.click-around-plan-save` — **[GAP]** (#4727) an XCUITest opens a chat, takes the Plan invitation, Save as Workspace, and sees the Plan tab list tasks (research.planpromotestoworkspace).

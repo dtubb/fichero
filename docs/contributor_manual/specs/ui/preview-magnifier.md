@@ -22,7 +22,7 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
 
 ## Behaviors
 
-- `magnifier.parks-where-left` **[PARTIAL]** (implemented, unpinned; #4806) — the loupe stays where you put it and does not ride the
+- `magnifier.parks-where-left` **[PARTIAL]** (#1461) (implemented, unpinned; #4806) — the loupe stays where you put it and does not ride the
   cursor; ⌥-click parks it at the click. (Daniel, 2026-09-01: "it should live where you leave it".)
   `TrackingImageView.swift`.
 - `magnifier.option-summons-transient` **[PARTIAL]** (implemented, unpinned; #4806) — holding ⌥ alone summons a transient loupe while

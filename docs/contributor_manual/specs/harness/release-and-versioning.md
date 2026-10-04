@@ -276,3 +276,5 @@ evidence backs.
 - (#4273) Release speed pass (shared SPM derived data, parallel Apple round-trips); optimisation, not behaviour.
 - (#2584) Split local-ML deps into an optional plugin pack to slim the bundle; optimization, not scheduled
 - (#2663) Replace Python image/PDF deps with native Apple APIs to shrink the embedded engine; bundle-size optimization
+- (#2865) In-process CPython embedding on iOS/iPad (PEP 730) needs wheels for lancedb/duckdb; a future epic, blocked on dependencies.
+- (#2878) tvOS target with focus-based UX; depends on iOS embedding (#2865), future milestone.

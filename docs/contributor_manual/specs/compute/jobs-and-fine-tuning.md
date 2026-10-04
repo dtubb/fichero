@@ -425,7 +425,7 @@ needs them.
   records on the set and on the job's card how many it left out and why, by flag. A set built before
   the check ran says so. The Mosquera teacher set of 2026-10-04 (55 photos, 4,793 lines) had no such
   check and carried shifted lines; both trainings on it were cancelled to retrain on a checked set.
-- `compute.tune.kraken-recognition` — **[PARTIAL]** (#5240) *Built on Hugging Face Jobs (#5398): `ketos train -f page -q early` from a base reader card, best model returned; on this Mac and in the image, and held-out scores, not built.* a `train-kraken-recognition` job runs `ketos train` on the
+- `compute.tune.kraken-recognition` — **[PARTIAL]** (#4621, #5240) *Built on Hugging Face Jobs (#5398): `ketos train -f page -q early` from a base reader card, best model returned; on this Mac and in the image, and held-out scores, not built.* a `train-kraken-recognition` job runs `ketos train` on the
   training set, from a base model card or from nothing, and returns the best model, its log,
   and character and word error rates on the held-out part. *Data:* the training set's split
   (`source.train.split-by-manuscript`). *Test:* a tiny set in the cpu image for two epochs

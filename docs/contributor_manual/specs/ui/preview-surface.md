@@ -306,3 +306,4 @@ every open milestone, only the ones already flagged as candidates.
 - `preview.image-pixel-size-not-points` — **[GAP]** (#4613) absolute-size consumers (crop_child, RegionInteraction) use pixel size, never NSImage(data:).size points that honour DPI metadata.
 - `preview.cursor-position-orientation` — **[GAP]** (#4614) ImageWithCursorTracking.cursorPosition names its normalized orientation (top-left) so consumers stop flipping privately.
 - `preview.pdf-reader-scroll-sync` — **[GAP]** (#1253) Scrolling the Reader transcript moves Preview's PDF to the matching page and vice versa.
+- `preview.fetch-once-per-document` — **[GAP]** (#4572) one document load fetches thumbnails, source bytes and annotations once, shared across surfaces (annotations 9x, PDF 3x, thumbnails 2x measured).

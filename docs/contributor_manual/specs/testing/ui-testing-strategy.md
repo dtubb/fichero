@@ -293,11 +293,13 @@ community: pointfreeco/swift-snapshot-testing, EmergeTools/SnapshotPreviews.
 
 ## Triaged from the backlog (2026-10-04)
 - `uitest.every-surface-every-interaction` — **[GAP]** (#4464) every surface (library, sidebar, inspector lists) supports drag and drop, VoiceOver, arrow keys and menus, and a test per surface proves each interaction.
-- `uitest.no-source-string-tests` — **[GAP]** (#4267, #4492) Swift guards assert behaviour, not source spelling; a source-string test must be rewritten to run the behaviour (17 of 18 gate failures in one run were spelling tests).
+- `uitest.no-source-string-tests` — **[GAP]** (#4447, #4267, #4492) Swift guards assert behaviour, not source spelling; a source-string test must be rewritten to run the behaviour (17 of 18 gate failures in one run were spelling tests).
 - `uitest.claim-annotation-store-instantiated` — **[GAP]** (#4510) ClaimStore and AnnotationStore are constructed and exercised in tests, not only source-text inspected.
 - `uitest.split-subscript-guardrail` — **[GAP]** (#4534) scripts/check_split_subscript.py flags an unguarded [1] on components(separatedBy:)/split in test code, with a firing fixture (script does not exist).
 - `uitest.drop-loader-chokepoint-guardrail` — **[GAP]** (#4543) scripts/check_drop_loader_chokepoint.py forbids NSItemProvider load calls outside ExternalFileDropLoader and SidebarDropProviderReader, with a firing fixture (script does not exist).
 - `ui-testing.restored-state-launch` — **[GAP]** (#4761) a UI test relaunches with saved window state and the app is still running with library.content.ready after 40 s.
+- `uitest.platform-lanes-mac-ipad-iphone` — **[GAP]** (#4173) real XCUITest suites for Mac, iPad and iPhone with a launch smoke test per platform and per-surface flows, run in a GUI session.
+- `uitest.ipad-cli-mcp-legs` — **[GAP]** (#4250) fichero-ipad.xctestplan runs the real unit target plus a simulator smoke leg (gate ios), and a CLI and MCP pytest leg round-trips list/import/search/export on a seeded library.
 
 ## Future (ideas, not scheduled)
 - (#4174) Measured pathway to 100% coverage: xccov and coverage.py in the gates, ratchet rule, deterministic seams for LangChain.

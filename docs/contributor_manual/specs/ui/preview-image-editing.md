@@ -271,3 +271,6 @@ Legacy milestone #168 does not reach zero this pass: of 16 open issues, 6 fit an
 #315, 1 redirects to `segment-representations.md`, 7 are verify-close (evidence posted,
 left OPEN for the maintainer, none closed here), and 2 go to maintainer triage — 9 remain on
 #168. Not closed.
+
+## Future (ideas, not scheduled)
+- (#1174) Lightroom-style stage/variant navigator (A>B>C) in the Document Inspector; no spec owns it, product vision not current work.

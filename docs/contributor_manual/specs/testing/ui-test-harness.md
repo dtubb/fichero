@@ -166,3 +166,4 @@ run before the fix, per systematic-debugging.
 - `harness.smoke-is-a-gate-leg` — **[GAP]** (#4542) 'gate smoke' runs scripts/ux_smoke.py against a built Dev Local app, archives screenshots, and is NOT ARMED only when no app exists.
 - `harness.runner-spawns-engine` — **[GAP]** (#4646) the sandboxed xctest runner provisions the session engine (or the harness spawns it outside the runner) so functional UI tests run instead of silently skipping.
 - `perf.stall-ratchet-in-the-gate` — **[GAP]** (#4550) the main-thread stall baseline (scripts/stall_baseline.json, check_hang_ratchet.py) fails the gate when hang count, total stall or worst hang grows; the script exists but no gate script invokes it.
+- `harness.launch-gate-fails-fast-with-verdict` — **[GAP]** (#3958) RunAllTests under Dev Embedded returns a verdict (green or a named failure) within a bounded time; a broken engine fails the launch gate instead of hanging.

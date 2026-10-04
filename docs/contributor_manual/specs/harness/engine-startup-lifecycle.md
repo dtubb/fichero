@@ -223,7 +223,7 @@ very engine spawn those tests exist to exercise.
   over a live one refuses to start, 7c00a47ed, bugs lane). The owning app (`engine_owner`) is named too:
   "from Fichero.app in /Applications", or "started from a script". `EngineSocketConflictTests` ran
   green 2026-09-28.
-- `engine.orphan-sweep-precedes-spawn-decision` — **[PARTIAL]** (#4896) the sweep that
+- `engine.orphan-sweep-precedes-spawn-decision` — **[PARTIAL]** (#4570, #4896) the sweep that
   terminates orphaned engines COMPLETES before the app decides to spawn its own. Built:
   `resolvePortConflict()` (`EmbeddedBackendService+Ports.swift`) awaits the detached sweep's
   value before the port preflight and before returning `.spawnOurs`; the spawn happens only
@@ -414,3 +414,7 @@ filed during Pass 1) — none closed, none recommended for closure by this pass.
 - `engine.llm-no-local-inference-mlx-cycle` — **[GAP]** (#4080) llm/local_inference.py and llm/mlx_model_store.py do not import each other (still mutual lazy imports at local_inference.py:119,636 and mlx_model_store.py:216), with a cold-import test.
 - `engine.library-scope-stopped-on-every-removal` — **[GAP]** (#4218) every path that drops a LibraryReference from openLibraries stops its security scope first; paired-remote adoption (LibraryManager+Helpers.swift:274 removeAll) still does not.
 - `engine.cold-start-defers-eager-imports` — **[PARTIAL]** (#4690) the engine's cold start defers route-module imports and pre-yield work and the prewarm waits for a quiet app (landed in 90413d77e, f3ea56d51, 36d323719, b85bb009d); app-side pre-spawn and readiness-probe time is not measured.
+- `engine.launch-to-authenticated-ready-profiled` — **[GAP]** (#4538) Dev Local launch reaches first authenticated ready in a measured budget, with the time before LibraryManager init (about 19s) profiled and ratcheted.
+- `engine.startup-never-shows-outage-before-first-connect` — **[GAP]** (#4560) the content pane shows a connecting state, not Cannot Reach the Server, until the first connection has actually failed.
+- `engine.foreign-engine-stops-respawn` — **[GAP]** (#4561) after the first identityMismatch the spawn supervisor stops respawning and surfaces the foreign-engine decision once.
+- `engine.readiness-probe-proves-routes` — **[GAP]** (#4874) the readiness probe exercises a representative route set, not only that the process answers health.

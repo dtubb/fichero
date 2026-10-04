@@ -362,3 +362,4 @@ updater running.
 - (#256) Promote approved AI surfaces to release once the AI acceptance gate passes; a release-tier decision, not current work.
 - (#1873) Fichero+ subscription screen, StoreKit 2, only if ever monetized; revisit post-1.0
 - (#1160) visionOS and iPad annotation clients; vision, no target exists
+- (#4912) Whether a Mac App Store target is still wanted (project.pbxproj has none; check_mac_app_store_target fails); a product-scope decision for the maintainer.

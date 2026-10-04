@@ -132,6 +132,13 @@ it token-efficiently with fabel/opus?
 - `harness.no-compat-facades` — **[GAP]** (#4085) a check fails if a re-export shim module returns (folders.py still is one), and contributors have a Python import map.
 - `harness.no-dead-types` — **[GAP]** (#3961) DocumentHierarchy in Models/DocumentStoreTypes.swift (used only by DocumentStoreAndSidebarTypesTests) is deleted with its tests and its check_dead_files baseline entry.
 - `orch.gate-unit-runs-lint` — **[GAP]** (#4861) `gate unit` runs the SwiftLint ratchet and selects Swift Testing by suite name, so an error-level lint violation or a mis-selected filter cannot ride through.
+- `harness.native-controls-first` — **[GAP]** (#4259) use the platform control or standard behaviour; custom chrome only where the platform has no answer, each exception named.
+- `harness.swiftui-first-platform-layers-marked` — **[GAP]** (#4367) AppKit/UIKit only where SwiftUI cannot, isolated in a file named for the platform with a comment saying why.
+- `harness.ratchet-peak-memory` — **[GAP]** (#4440) the gate records peak memory per leg and fails on growth past the best seen.
+- `harness.ratchet-launch-time` — **[GAP]** (#4441) app pre-main/launch and engine cold start (import to serving) are measured every run and held to their best.
+- `harness.ratchet-swift-side` — **[GAP]** (#4442) canvas frame time at scale, view body type-check time and other app-half numbers are measured and held.
+- `harness.ratchets-run-automatically` — **[GAP]** (#4445) every ratchet attaches to test runs or release artifacts without any opt-in or flag.
+- `harness.ratchet-ios-ipad` — **[GAP]** (#4466) iOS and iPad compile time, app size and test duration are ratcheted separately.
 
 ## Future (ideas, not scheduled)
 - (#2561) Separate bot GitHub identity for agent issues/comments; commits already carry Claude authorship by convention; process decision.

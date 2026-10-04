@@ -30,7 +30,7 @@ shipped app breaks on config no test covered. And because the harness forces
     disposable library (isolation).
   - `FICHERO_FORCE_UDS_PATH` — dev fast-loop socket.
   Anything set in a test but NOT in this allowlist is a drift bug.
-- `testenv.parity-guardrail` [MISSING] (#4786) — a `check_*.py` that fails when the test engine
+- `testenv.parity-guardrail` [MISSING] (#4645, #4786) — a `check_*.py` that fails when the test engine
   sets an env var the briefcase doesn't know, unless it's in the allowlist; and warns when
   the briefcase relies on a var no test ever sets.
 

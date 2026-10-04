@@ -579,6 +579,9 @@ built and pinned by an EXTENDED existing test. Ready for the CD's review; not ye
 ## Future (ideas, not scheduled)
 - (#1872) Edit toggle, overflow menu and up/down result navigation in toolbars (Apple Passwords style)
 - (#3289) On-device FoundationModels client reusing the fm-bridge JSON contract and Vision OCR at capture on iOS; MLX deferred; later iOS work.
+- (#1926) Multiplatform universal app umbrella (iPhone/iPad/Mac one codebase); iOS target exists, remaining work tracked by iPad parity behaviours, so the epic is a vision umbrella.
+- (#3327) Localize the interface into Spanish, French, Portuguese via String Catalog; no .xcstrings exists, a later requirement.
+- (#3672) iPad/iPhone device-tested interaction feel (momentum, rubber-banding, etc.); needs a TestFlight build and Daniel on a device, not current Mac work.
 
 ## Triaged from the backlog (2026-10-04)
 - `commands.copy-cut-paste-everywhere` — **[GAP]** (#4257) Copy, cut and paste work on whatever is focused with the richest pasteboard types.

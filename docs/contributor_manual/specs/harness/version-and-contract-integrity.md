@@ -174,6 +174,7 @@ document is deliberate. `SourceAnchor.document_id` stays required.
 - `contract.rest-convention-offenders-fixed` — **[GAP]** (#4266) POST /registry/update-access becomes PATCH/PUT and the get_tool_prompt operation (POST /workflows/tools/{tool_name}/prompt) becomes GET, then their KNOWN_VIOLATIONS entries in check_rest_conventions.py are removed.
 - `contract.coverage-matrix-known-gaps-clean` — **[GAP]** (#4212) check_endpoint_coverage_matrix.py KNOWN_GAPS has no stale entries (8 still reported clean, was 30).
 - `contract.coverage-matrix-checks-call-sites` — **[GAP]** (#4213) the endpoint coverage matrix verifies the generated operation call sites, not a path string in a doc comment.
+- `contract.no-hand-maintained-mirror-models` — **[GAP]** (#4608) Swift uses generated OpenAPI types directly; ToolInfo (Models/WorkflowToolTypes.swift:18) and its convertToToolInfo mirror are retired.
 
 ## Future (ideas, not scheduled)
 - (#4680) SearchMatchSource.kg identifier_name rename would defeat the graph-attribution wire guardrail; keep as lint exemption, not current work.

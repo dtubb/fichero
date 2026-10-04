@@ -540,12 +540,17 @@ resolved and moved; the other three's status is corrected below.
 - (#1972) Future section: image keywords, ratings and thumbs up/down curation in batch from browse/detail surfaces; issue itself says "future only".
 - (#4460) Future section: product decision on what order shift-click extends along on a spatial canvas (needs a total order); blocks canvas shift-click only.
 - (#2290) 3D UMAP/t-SNE archive landscape over the existing LanceDB embeddings as one more spatial view-mode; product vision, not current work.
+- (#2100) iPhone compact layout (split view to stack by size class); iOS adaptive shell is a later device-tested milestone, not current Mac work.
+- (#2807) iOS first-run parity is a product decision (document as intended or build a compact first run); spec section H holds it, not scheduled.
 
 ## Triaged from the backlog (2026-10-04)
 - `library.inspector-scales-to-50k` — **[GAP]** (#1790) Opening the inspector on a large folder (50k+ images) loads entities paged and non-blocking with a real loading state.
 - `library.input.type-select` — **[GAP]** (#3689) list, table, grid and search-result rows support type-to-jump alongside arrows, Return to open and space to select (arrow navigation itself is library.input.keyboard-grammar-is-explicit-per-mode).
 - `library.input.one-grammar-every-mode` — **[GAP]** (#4412) list, icons, columns, table, canvas, 3D and graph answer shortcuts, click/modifier selection and trackpad gestures the same way, pinned by one matrix test.
-- `library.perf.page-click-never-stalls-main` — **[PARTIAL]** (#4574) clicking between PDF pages never blocks the main thread over ~1s and a superseded load costs nothing; cancel-superseded and single-flight images landed (31c6756f1, 7a189c2b0) but the latest baseline worst is 1860 ms.
+- `library.perf.page-click-never-stalls-main` — **[PARTIAL]** (#4280, #4574) clicking between PDF pages never blocks the main thread over ~1s and a superseded load costs nothing; cancel-superseded and single-flight images landed (31c6756f1, 7a189c2b0) but the latest baseline worst is 1860 ms.
 - `views.space-shares-canvas-position` — **[GAP]** (#2391) the Space (3D) mode zooms in as far as Canvas and shares one xpos/ypos per node with it.
 - `library.chrome.clear-data-for-selection` — **[GAP]** (#4581) a selection of documents offers one audited, undoable Clear Data action that removes extracted text, entity links (orphaned entities deleted), artifacts and dates for those pages, with no per-kind picker (ruled 2026-08-19).
 - `library.drag.across-libraries-copies-and-out-to-finder` — **[GAP]** (#4311) dragging items to another library copies them (never moves, through the audited layer under the acting user, respecting permissions), and dragging to the Desktop or Finder exports regular files.
+- `library.drop-and-select-show-feedback-immediately` — **[GAP]** (#4235) dropping a folder or selecting one shows something the same frame (placeholder or selection), then streams data, with no dead interval.
+- `library.list.scroll-is-smooth` — **[GAP]** (#4593) list rows compute nothing per frame (date formatting, thumbnail decode, filters hoisted or cached) so scrolling holds frame rate.
+- `library.perf.no-main-thread-stall-over-33ms` — **[PARTIAL]** (#4602) the ranked stalls (secondaryBarButtons, graph churn, entityKindSection) are removed; entities-tab stall fixed in d58a72d42, the rest unverified.

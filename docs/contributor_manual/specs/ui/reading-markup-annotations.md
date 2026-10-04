@@ -186,3 +186,7 @@ says how that layer is switched and shown on the canvases.
   `api/routes/system/views.py` (annotations representation), `api/routes/document/documents.py` (jsonld export)
 - Client: `fichero/fichero/Models/AnnotationStore.swift`, `Services/AnnotationService+*.swift`,
   `Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift` (check cycle)
+
+## Triaged from the backlog (2026-10-04)
+- `markup.image-annotations-like-pdf` — **[GAP]** (#1745) highlight, underline and note work on image pages through the same annotation model and UI as PDF pages, anchored with the W3C selector.
+- `markup.copy-crop-refuses-honestly` — **[GAP]** (#4616) Copy Crop on an empty or non-text crop shows a brief reason instead of silently returning (AnnotationsInspectorPane.swift:155).

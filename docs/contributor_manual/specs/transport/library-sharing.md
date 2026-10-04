@@ -136,3 +136,5 @@ Each failure: an issue, fixed one at a time, its behaviour above re-tagged.
 - (#2899) fichero-web keystone (browser access under a per-user token, writes via the audited registry); no web client exists and auth has no web-login route; Future section of library-sharing
 - (#3123) fichero-web HttpOnly cookie session /api/auth/web-login + CSRF guard; not in the server (grep finds no web-login), prerequisite for an unscheduled web reader; Future of library-sharing
 - (#4219) Retire LibraryReference.deinit's scope stop so the nonisolated hole closes (deinit still present at LibraryManager.swift:481); a cleanup follow-up to the #4216 lock, Future
+- (#2162) iOS connection stack (NWBrowser discovery, QR scan, Keychain token, SPKI-pinned URLSession, optional mTLS/UDS); later with the iPhone/iPad app.
+- (#3778) iOS-initiated pairing (tap discovered Mac, Mac shows number, enter it); blocked on the SPKI pinning question.

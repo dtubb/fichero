@@ -751,3 +751,6 @@ None: this slice has no screen. The future map-view UI spec owns them.
 3. PROJ's database is several megabytes. Ship it through `pyproj`, or through DuckDB Spatial
    (which bundles PROJ and GDAL and also gives GeoPackage writing)? Recommended: DuckDB Spatial,
    one native dependency for queries, CRS and GeoPackage, subject to its size in the bundle.
+
+## Triaged from the backlog (2026-10-04)
+- `source.geo.map-view-georeference-overlay` — **[GAP]** (#1755) a page marked as a map can be laid over a real basemap by control points (2D, several maps at once) and later on a 3D globe; the map surface waits on the map-view UI spec (#5128).
