@@ -360,9 +360,9 @@ name search (`db/__init__.py:772-842`).
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Swift) | y | layer state → stroke; anchor ladder fallback; direction of a text layer; menu entries per pane | `fichero/Tests/Unit/general/Views/Preview/LayersOnTheSourceTests.swift` (to write) |
+| Pure rule (Swift) | y | layer state → stroke; anchor ladder fallback; direction of a text layer; menu entries per pane | LayersOnTheSourceTests (to write, in the Swift unit tests under Views/Preview) |
 | Availability (Swift) | y | the What to show menu offers every layer on Preview, lines mode and canvases | same |
-| Backend (pytest) | y | per-page layers read; mention and statement anchors written with segment and reading; translation readings per line; `claim.transition` refuses a machine | `fichero-server/tests/unit/api/test_layers_on_the_source.py` (to write) |
+| Backend (pytest) | y | per-page layers read; mention and statement anchors written with segment and reading; translation readings per line; `claim.transition` refuses a machine | test_layers_on_the_source (to write, in the engine unit tests under api) |
 | MCP | y | the layers read is a tool | `fichero-mcp/tests/test_mcp_full.py` |
 | CLI | y | `fichero` reads a page's layers | `fichero-cli/tests/` |
 | Click-around (XCUITest, Mac) | y | turn Names on, click a mark, the Inspector shows the entity card | `fichero/Tests/UI/` |

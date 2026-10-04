@@ -479,6 +479,7 @@ nav:
               - Preview Image Editing: contributor_manual/specs/ui/preview-image-editing.md
               - Preview Magnifier (Loupe): contributor_manual/specs/ui/preview-magnifier.md
               - Preview Surface: contributor_manual/specs/ui/preview-surface.md
+              - Layers on the Source: contributor_manual/specs/ui/layers-on-the-source.md
               - Reader Overlay Frame Identity: contributor_manual/specs/ui/reader-overlay-frame-identity.md
               - Reader View: contributor_manual/specs/ui/reader-view.md
               - Reading Markup & Annotations: contributor_manual/specs/ui/reading-markup-annotations.md
