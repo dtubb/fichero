@@ -515,10 +515,11 @@ class TestSearchReindex:
 
 class TestWorkflowRun:
     @pytest.fixture
-    def manager(self, tmp_path, monkeypatch):
+    def manager(self, tmp_path, monkeypatch, db):
+        """Installed as the library's batch manager (`get_batch_manager(db)`, one per library, #5374)."""
         mgr = BatchManager(str(tmp_path / "workflow_run_test.duckdb"))
-        monkeypatch.setattr(batch_routes, "_batch_manager", mgr)
-        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda: object())
+        monkeypatch.setitem(batch_routes._batch_managers, str(db.path), mgr)
+        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda db: object())
         return mgr
 
     def _stub_execute(self, manager, monkeypatch, final_status=BatchStatus.COMPLETED):

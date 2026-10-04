@@ -1199,7 +1199,7 @@ async def batch_apply_image_operation(
         {"workflow_id": "image.batch_apply", "items": inputs, "max_concurrent": 1},
         ctx,
     )
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
     batch = await manager.get_batch(created.result["batch_id"])
     if batch is None:
         raise HTTPException(status_code=500, detail="Batch persistence failed")
@@ -1288,7 +1288,7 @@ async def undo_batch_image_operation(
     ctx: "ActionContext" = Depends(action_context),
 ) -> BatchImageUndoResponse:
     """Reverse every completed derived child recorded by an image batch."""
-    batch = await get_batch_manager().get_batch(batch_id)
+    batch = await get_batch_manager(db).get_batch(batch_id)
     if batch is None or batch.workflow_id != "image.batch_apply":
         raise HTTPException(status_code=404, detail="Image batch not found")
     child_ids = [
