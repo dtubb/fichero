@@ -119,6 +119,26 @@ statement's text and its review) stays in the Inspector, reached by selecting th
   `3D/...+Thumbnails.swift:32-47`), which today draws a thumbnail and nothing on it. Both
   canvases are RealityKit; #4192's SceneKit wording for 2D is superseded in the code
   (`CanvasOrtho2DRenderer.swift:20-23`, "2D stays RealityKit").
+- `layers.colour.pane-chooses-meaning` — **[GAP]** (#5426) the pane's "What to show" menu picks
+  what a box's colour means: **reading order** (the default; a smooth gradient from the first
+  line in the order to the last, so a line out of order breaks the run and stands out),
+  **region**, **who made it** (a model or a person), or **confidence**. Remembered per pane, in
+  system colours that adapt to Light, Dark and Increase Contrast. Today a box takes its region's
+  colour from a hash of the region id into a twelve-colour palette (`SelectionStyle.regionColour`,
+  `Regions/SelectionStyle.swift:46`, drawn at `DocumentOverlayView.swift:207`; #5200), which looks
+  random on a Kraken page where every line is its own region.
+- `layers.spread.show-one-page` — **[GAP]** (#5427) a Preview pane can show a two-page photograph
+  whole, or only its left or right page, by cropping the view to that page's region; no record
+  changes. This is the alternative to the gutter split, which makes child page documents. Every
+  layer still draws on its ink through the crop (`reader-overlay-frame-identity.md`). **The crop
+  has no source today:** `split_pages` (`workflows/tools/split_pages.py`) finds Apple Vision's
+  document outline and each page's box, but stores a page's box only when it cuts, as a child
+  document's `region_in_parent` (`persist_workflow_child_regions`, :155-158); a proposed split (an
+  unclear gutter) or a cover keeps its boxes only in the run's output, and the four-corner outline
+  is not stored as geometry (`source/image-preparation.md` `prep.find-the-page`, [PARTIAL],
+  #5382). **Engine work:** finding the pages stores each page's region on the photograph as a
+  segment of granularity `page`, with its decision and confidence, and the outline as geometry,
+  without cutting; making child documents stays a separate step.
 - `layers.text.follows-line-direction` — **[GAP]** (#5411) any layer that draws text on the page
   (inline text, a translation, a name label) is laid out in its line's direction and fitted to the
   line's box. Today `InlineWords.draw` is always horizontal from `rect.minX`
@@ -364,7 +384,7 @@ window drew no boxes (`ImportedPageDrawsItsBoxesTests.swift:382-387`).
 
 ## Ruled 2026-10-04
 
-The maintainer answered this spec's six questions; the behaviours above are written to match.
+The maintainer answered this spec's six questions, and added two rulings (7 and 8); the behaviours above are written to match.
 
 1. **Scope:** build every layer in this spec, steadily, in the slices of the Plan below.
 2. **Translation:** the text a Preview shows is chosen per pane, so several Previews can stand side
@@ -381,6 +401,12 @@ The maintainer answered this spec's six questions; the behaviours above are writ
 6. **Switching:** layers are switched per pane, in each pane's "What to show" menu; the sidebar's
    bottom-bar toggle (#5413) is separate and only hides sidebar rows
    (`layers.toggle.one-menu-per-surface`).
+7. **Box colours:** the pane chooses what a box's colour means (reading order, region, who made
+   it, confidence); reading order, as a gradient from first to last, is the default
+   (`layers.colour.pane-chooses-meaning`).
+8. **One page of a spread:** Preview can show the whole photograph or just its left or right page
+   by cropping the view to that page's region, with no change to records, as an alternative to
+   splitting it into child documents (`layers.spread.show-one-page`).
 
 ## Plan
 
@@ -407,6 +433,9 @@ regenerated; app slices drive the real host and store, never injected services.
 | 16 | An empty layer says so | `layers.toggle.empty-layer-says-so` | the read says which layers are empty on this page | dimmed toggle, "None on this page" | Swift | 2 (#4941) |
 | 17 | The 2D canvas card | `layers.canvas2d.page-card-draws-layers` | — | a full-detail page card reads the layers and draws them through its image frame | Swift renderer test on a card's child entities | 2, 4; full-texture tier (#3105, #4931) |
 | 18 | The 3D canvas card | `layers.canvas3d.page-card-draws-layers` | — | the same for the 3D renderer | Swift renderer test | 17 (#4192) |
+| 19 | Colour means what the pane chooses | `layers.colour.pane-chooses-meaning` | — (reading order, provenance and confidence already in the read) | the menu's colour choice, stored per pane; a reading-order gradient by default | Swift pure rule: a gradient along the order, an out-of-order pair breaks it; the real host draws the default | 2, 3 (#5426) |
+| 20 | Pages of a spread found, not cut | `layers.spread.show-one-page` (engine half) | finding the pages stores each page region as a `page` segment on the photograph, with decision and confidence, and the outline as geometry; no children made | — | pytest: a proposed split stores two page regions and makes no child | — (#5427, #5382) |
+| 21 | Show one page of a spread | `layers.spread.show-one-page` (app half) | — | Whole, Left page, Right page in the pane menu when page regions exist; the crop is a view transform | Swift: the crop changes no record; boxes stay on their ink | 3, 20 (#5427) |
 
-Order: slices 1, 2, 6, 7, 10 and 11 are engine work with no dependency on each other and can run in
+Order: slices 1, 2, 6, 7, 10, 11 and 20 are engine work with no dependency on each other and can run in
 parallel lanes with disjoint files; the app slices follow the read (2 → 3).
