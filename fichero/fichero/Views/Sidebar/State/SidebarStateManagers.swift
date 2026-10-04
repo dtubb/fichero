@@ -274,4 +274,10 @@ class SidebarSelectionState {
             selectedDestinations = sidebarCollapsedSelection(primary: dest)
         }
     }
+
+    /// A click on a project (library) row (#5422). The row sits outside `List(selection:)`
+    /// (#160), so its tap is the one writer of both halves: the highlight and the routed primary.
+    func selectProject(_ libraryId: UUID) {
+        selectedItemId = SidebarDestination.library(libraryId).serializedID
+    }
 }

@@ -37,6 +37,8 @@ struct LibrarySectionHeader: View {
     let library: LibraryManager.LibraryReference
     let itemCount: Int
     var isCurrentLibrary: Bool = false
+    /// The project row is the sidebar's selection (#5422): it paints the grey platter.
+    var isSelected: Bool = false
     /// Import callback. The mode matters (#4459 family, live-repro
     /// 2026-08-04): URLs the loader staged into a `fichero-drop-*` temp
     /// directory must be COPY-ingested before the directory is torn down,
@@ -66,7 +68,9 @@ struct LibrarySectionHeader: View {
             // modes not just folders") — the ENTIRE row solid accent while
             // targeted, never the old label-bounded 0.25 wash that made the
             // library header's target look different from a folder's.
-            .sidebarDropHighlight(isDropTargeted)
+            // ONE `listRowBackground` writer for this row, the drop target AND the selection
+            // (#5422): a second writer on the label meant only one of the two could ever show.
+            .sidebarDropHighlight(isDropTargeted, selected: isSelected)
             // ONE drop handler (#4401 follow-up). There used to be two on this
             // same view — an `.onDrop(of: [.fileURL])` that imported, and a
             // `.dropDestination(for: SidebarDragID.self)` that moved — and

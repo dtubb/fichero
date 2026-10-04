@@ -56,19 +56,18 @@ extension ContentView {
         // from a previous folder can resolve to a child of the new folder
         // (when ids happen to be present in the new folder's children),
         // suppressing the folder inspector. (#712)
-        // EXCEPT the library-root row: clicking "/library" is a re-root of
-        // the listing, not a folder change — clearing there cascaded
-        // detailDocument = nil and blanked the preview while an image was
-        // still selected (#4299).
-        if BrowserSelectionPreviewPolicy.shouldClearBrowseContext(onSidebarItemChangeTo: newFolderId) {
-            browserSelection.removeAll()
-            // #4523: a NEW library container is a new browse context, so the
-            // remembered run selection is stale scope — drop it. Navigation to
-            // workflow/chain/section rows does NOT reach this branch, which is
-            // the carve-out that lets "select a file, click the workflow, Run"
-            // keep the file as the run's scope instead of the whole folder.
-            windowState.preservedDocumentSelection = []
-        }
+        // A PROJECT row too (#5422, `sidebar.project.click-selects-and-inspects`):
+        // the project is now the selection and the Inspector shows it, so a grid
+        // pick left over from before cannot stand in for it. This retires
+        // #4299's carve-out, which kept that pick when the row only re-rooted
+        // the listing.
+        browserSelection.removeAll()
+        // #4523: a NEW library container is a new browse context, so the
+        // remembered run selection is stale scope — drop it. Navigation to
+        // workflow/chain/section rows does NOT reach this branch, which is
+        // the carve-out that lets "select a file, click the workflow, Run"
+        // keep the file as the run's scope instead of the whole folder.
+        windowState.preservedDocumentSelection = []
 
         // Drive the inspector from sidebar selection so clicking a folder
         // (or any document row) in the sidebar populates the inspector.

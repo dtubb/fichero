@@ -170,39 +170,9 @@ final class LayoutModeTests: XCTestCase {
         }
     }
 
-    // MARK: - #4299 — clicking the "/library" row must not blank the preview
-
-    /// A `doc:` folder row IS a browse-context change: the stale grid selection
-    /// must clear so the folder inspector shows (#712 semantics preserved).
-    func testDocRowSelectionClearsBrowseContext() {
-        XCTAssertTrue(
-            BrowserSelectionPreviewPolicy.shouldClearBrowseContext(
-                onSidebarItemChangeTo: "doc:folder-1"
-            )
-        )
-    }
-
-    /// The library-root row ("/library", serialized "library:<UUID>") only
-    /// re-roots the listing. Clearing selection there cascaded
-    /// `detailDocument = nil` and blanked the pane while an image was still
-    /// selected — the #4299 regression.
-    func testLibraryRootRowPreservesBrowseContext() {
-        XCTAssertFalse(
-            BrowserSelectionPreviewPolicy.shouldClearBrowseContext(
-                onSidebarItemChangeTo: "library:6F2A0A6E-2C2B-4B49-9E9B-000000000000"
-            )
-        )
-    }
-
-    /// Every other sidebar destination keeps today's clearing behavior.
-    func testNonLibraryRowsClearBrowseContext() {
-        for itemId in ["entities-browser", "activity-browser", "workflows-browser", "folder:Chats:Chat", nil] {
-            XCTAssertTrue(
-                BrowserSelectionPreviewPolicy.shouldClearBrowseContext(onSidebarItemChangeTo: itemId),
-                "\(itemId ?? "nil") must keep the #712 clearing behavior"
-            )
-        }
-    }
+    // MARK: - #4299 — the preview keeps its document through a reload
+    // (The project row's own clearing rule moved with #5422: a project click is now a
+    // selection, so it clears the grid pick like a folder row, `ProjectRowInspectsTests`.)
 
     /// The composed #4299 scenario: after the library-row click preserves the
     /// selection, the canvas policy still resolves the selected image even

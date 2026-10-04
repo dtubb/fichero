@@ -18,6 +18,7 @@ extension SidebarView {
             library: library,
             totalCount: totalCount,
             isCurrentLibrary: library.id == windowState.libraryId,
+            isSelected: selectionState.selectedDestinations.contains(.library(library.id)),
             onFileDrop: { [library] urls, mode in
                 handleLibraryHeaderDrop(urls, mode: mode, library: library)
             },
@@ -32,8 +33,7 @@ extension SidebarView {
             onTap: {
                 // The header is OUTSIDE List selection (#160) — its tap is
                 // the one writer of both selection halves for this row.
-                selectionState.selectedDestinations = [.library(library.id)]
-                selectedItemId = sidebarLibrarySelectionId(library.id)
+                selectionState.selectProject(library.id)
                 if windowState.libraryId != library.id { windowState.libraryId = library.id }
                 sidebarMode = .library
                 viewMode = .library(nil)
