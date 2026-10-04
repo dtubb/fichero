@@ -1,6 +1,8 @@
 @testable import Fichero
 import FicheroAPIClient
+import AppKit
 import Foundation
+import PDFKit
 import Testing
 
 /// `reader.order.reveal-line-in-preview` (#5424): double-clicking a line in the Order tab or the
@@ -138,6 +140,44 @@ struct LineRevealTests {
         #expect(InspectorPath.Hold.inspected(inspectorSees(), held: pageHold) == [block])
     }
 
+    /// WHY (ruled 2026-10-04): a PDF page's Preview must zoom too, from the SAME reveal -- the rect
+    /// `RegionSelection.reveal` holds -- through the PDF view's own zoom path. A real `PDFView` over a
+    /// one-page document is driven: the line's reveal rect sets a scale that fits the line, hands zoom
+    /// to the user (so PDFKit stops re-fitting), and scrolls the line's page rect into view.
+    @Test func aPDFPageRevealZoomsThePDFViewToTheLine() async throws {
+        let store = try await loadedStore()
+        let line = try #require(store.segments(documentId: "doc-0001").first { $0.kind == "line" })
+        let pdfPane = RegionSelection()
+        window(linkedTo: pdfPane).revealSegments([line.id], documentId: "doc-0001", store: store)
+        let rect = try #require(pdfPane.revealRect)
+
+        let image = NSImage(size: NSSize(width: 600, height: 800))
+        image.lockFocus(); NSColor.white.setFill(); NSRect(x: 0, y: 0, width: 600, height: 800).fill(); image.unlockFocus()
+        let page = try #require(PDFPage(image: image))
+        let document = PDFDocument()
+        document.insert(page, at: 0)
+        let view = PDFView(frame: NSRect(x: 0, y: 0, width: 400, height: 400))
+        view.document = document
+        view.autoScales = true
+        let zoom = PDFZoomController()
+        zoom.pdfView = view
+        var handedToUser: Bool?
+        zoom.onManualZoomChanged = { handedToUser = $0 }
+
+        zoom.zoom(toNormalized: rect)
+
+        let crop = page.bounds(for: .cropBox)
+        let target = try #require(PDFZoomController.pageRect(forNormalized: rect, on: page))
+        #expect(abs(target.minX - (crop.minX + rect[0] * crop.width)) < 0.5, "the drawn box's page rect")
+        #expect(abs(target.maxY - (crop.minY + (1 - rect[1]) * crop.height)) < 0.5, "y flipped to page space")
+        let fit = min(400 / (rect[2] * crop.width * 1.12), 400 / (rect[3] * crop.height * 1.12))
+        let expected = min(max(fit, view.minScaleFactor), view.maxScaleFactor)
+        #expect(abs(view.scaleFactor - expected) < 0.01, "zoomed to fit the line")
+        #expect(view.scaleFactor > 400 / 800, "closer than the whole page")
+        #expect(!view.autoScales)
+        #expect(handedToUser == true, "PDFKit stops re-fitting the page over the zoom")
+    }
+
     /// WHY: "one reveal action, shared by every surface" -- a surface that grew its own select-and-zoom
     /// would pass every test above and still drift. Each surface's handler must call the one action.
     @Test func everySurfaceCallsTheOneRevealAction() throws {
@@ -146,5 +186,7 @@ struct LineRevealTests {
             .contains("windowState?.revealSegments("))
         #expect(try AppSource.code("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
             .contains("zoomToNormalizedRegion(rect)"))
+        #expect(try AppSource.code("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
+            .contains("zoom.zoom(toNormalized: rect)"))
     }
 }

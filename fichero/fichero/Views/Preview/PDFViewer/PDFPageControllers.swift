@@ -49,6 +49,36 @@ final class PDFZoomController {
         view.autoScales = false
         view.scaleFactor = 1.0
     }
+
+    /// Zoom so a revealed line fills the view (#5424): `rect` is `RegionSelection.reveal`'s normalized,
+    /// top-left, DISPLAY-space rect -- the one the image Preview zooms to. A small margin keeps a
+    /// sliver of page around it, as `zoomToNormalizedRegion` does for images.
+    func zoom(toNormalized rect: [Double]) {
+        guard rect.count >= 4, rect[2] > 0, rect[3] > 0, let view = pdfView, let page = view.currentPage,
+              let target = Self.pageRect(forNormalized: rect, on: page) else { return }
+        let crop = page.bounds(for: .cropBox).size
+        let quarterTurn = (page.rotation / 90) % 2 != 0
+        let shown = quarterTurn ? CGSize(width: crop.height, height: crop.width) : crop
+        let margin: CGFloat = 1.12
+        let fit = min(
+            view.bounds.width / (rect[2] * shown.width * margin),
+            view.bounds.height / (rect[3] * shown.height * margin)
+        )
+        guard fit.isFinite, fit > 0 else { return }
+        onManualZoomChanged?(true)
+        view.autoScales = false
+        view.scaleFactor = min(max(fit, view.minScaleFactor), view.maxScaleFactor)
+        view.go(to: target, on: page)
+    }
+
+    /// The page-space rect (unrotated, crop-offset) for a normalized display-space rect: the mapping
+    /// `applyOCRBoxes` draws the boxes with, so the zoom lands on the box that is drawn.
+    static func pageRect(forNormalized rect: [Double], on page: PDFPage) -> CGRect? {
+        let crop = page.bounds(for: .cropBox)
+        return PDFRegionGeometry.pageRect(
+            normalized: PDFRegionGeometry.unrotated(normalized: rect, rotation: page.rotation), pageSize: crop.size
+        )?.offsetBy(dx: crop.minX, dy: crop.minY)
+    }
 }
 
 // MARK: - PDF Page Controller
