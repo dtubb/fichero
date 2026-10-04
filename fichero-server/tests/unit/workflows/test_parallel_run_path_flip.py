@@ -39,6 +39,7 @@ import pytest
 from fichero_server.execution import runner
 from fichero_server.workflows import registry
 from fichero_server.workflows.builder import (
+    REMOTE_VISION_FAN_OUT_CONCURRENCY,
     VISION_FAN_OUT_CONCURRENCY,
     _make_fan_out_function,
     build_graph,
@@ -222,7 +223,10 @@ async def test_parallel_fan_out_bounds_concurrency(temp_db, monkeypatch):
     VISION_FAN_OUT_CONCURRENCY — the semaphore (not the Send count) is what
     bounds peak heavy memory, so this scales to thousands of files.
     """
-    n_files = VISION_FAN_OUT_CONCURRENCY * 5  # 20 files, well over the cap of 4
+    # The workflow's model is hosted (openai), so its pages share the HOSTED cap: twelve at a time since
+    # #5264 (a hosted model is not a local GPU). Four is the local cap. Either way the bound holds.
+    cap = REMOTE_VISION_FAN_OUT_CONCURRENCY
+    n_files = cap * 3  # well over the cap
     files = [f"/scan-{i}.pdf" for i in range(n_files)]
     documents = [{"id": f"page-{i}", "path": files[i]} for i in range(n_files)]
 
@@ -276,9 +280,9 @@ async def test_parallel_fan_out_bounds_concurrency(temp_db, monkeypatch):
         f"expected {n_files} per-file results, got {len(artifacts)}"
     )
     # ...but never more than the cap in flight at once.
-    assert peak_in_flight <= VISION_FAN_OUT_CONCURRENCY, (
+    assert peak_in_flight <= cap, (
         f"semaphore did not bound fan-out: peak {peak_in_flight} in-flight "
-        f"exceeded cap {VISION_FAN_OUT_CONCURRENCY}"
+        f"exceeded cap {cap}"
     )
     # Sanity: the run actually overlapped branches (otherwise the bound is vacuous).
     assert peak_in_flight > 1, (
