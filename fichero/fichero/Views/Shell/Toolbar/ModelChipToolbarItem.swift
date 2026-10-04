@@ -68,7 +68,7 @@ struct ModelChipToolbarItem: View {
     /// with a reason can be argued with; an absent row cannot.
     ///
     /// Built by the ONE shared list-builder (spec RATIFIED 2026-09-15,
-    /// docs/contributor_manual/specs/ui/model-selector-consistency.md) so this
+    /// docs/contributor_manual/specs/ai/ai-settings.md, section M) so this
     /// surface can never drift from the workflow bar's tier-first,
     /// provider+model-deduped list.
     private var pickableModels: [SharedModelChoice] {

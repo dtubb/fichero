@@ -22,7 +22,7 @@
 >   harness's own environment contract and Debug/Release/Dev-Embedded build-configuration rules.
 >   This spec cites specific launch-path bugs the harness exposed, without restating the harness
 >   contract itself.
-> - `ai/provider-keys.md` — API-key persistence, verification, and the Keychain-and-engine sync
+> - `ai/ai-settings.md` (section K, provider keys) — API-key persistence, verification, and the Keychain-and-engine sync
 >   fix. This spec notes only that keys are pushed to the engine as part of the connect sequence
 >   (`EngineLifecycleController+ProviderKeys.swift`), not how keys themselves are stored/verified.
 
@@ -285,7 +285,7 @@ very engine spawn those tests exist to exercise.
   route group) or is an acceptable cost of a monolithic FastAPI app is an open question for
   whoever owns this spec's approval, not decided here.
 - `engine.provider-keys-pushed-every-connect` — **[PARTIAL, cross-referenced, not restated]**
-  (→ #4534; see `ai/provider-keys.md` for the pinning, not duplicated here) `finishSuccessfulConnect`
+  (→ #4534; see `ai/ai-settings.md` (section K, provider keys) for the pinning, not duplicated here) `finishSuccessfulConnect`
   pushes app-owned provider keys to the engine on every successful connect
   (`supplyProviderKeysToEngine`, `EngineLifecycleController+ProviderKeys.swift`) — the mechanics
   of key storage/verification, and that spec's own test citation, are that spec's territory.

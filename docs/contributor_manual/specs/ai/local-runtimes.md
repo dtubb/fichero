@@ -25,7 +25,7 @@
 >   resident, its batching and accelerator, its measured memory, how it reports as a job, how its
 >   models are found and verified, its honest status, and its keys and egress.
 >
-> `ai/ai-settings.md` owns the Settings surface (rows, tabs) and `ai/provider-keys.md` owns where a
+> `ai/ai-settings.md` owns the Settings surface (rows, tabs) and `ai/ai-settings.md` owns where a
 > key lives. Neither is restated here; where this spec needs them to change, it says so under
 > "Requests to other specs".
 
@@ -235,7 +235,7 @@ means Ready and nothing else.
 
 ### 7. Keys and egress
 
-Keys are `ai/provider-keys.md`'s; this spec needs one thing from it: the status a row shows is
+Keys are `ai/ai-settings.md`'s; this spec needs one thing from it: the status a row shows is
 read through the same lookup a call uses. Egress is `source.egress.one-gate`'s; this spec lists
 where the runtimes call out, so the gate can cover them: every langchain factory caller, the
 fm-bridge (local), Fichero's own fetches (the weekly price list from GitHub, Zenodo and Hub
@@ -246,32 +246,8 @@ no library content; they are listed, become jobs, and stop when the person choos
 
 ### A. Identity and pinning (cards)
 
-- `source.model.card-id` — **[GAP]** (#4948) every card has one id `<runtime>:<source>@<version>`
-  as section 1 sets out; recipes, role defaults, runtime configurations, the making record and
-  jobs store it; no surface stores a bare model name. Today there are five schemes (MLX repo+SHA,
-  Whisper repo+revision, Kraken DOI, an embedding "space contract", bare cloud strings) and a
-  sixth reference, `$profile:`.
-- `source.model.cloud-pin-is-honest` — **[GAP]** (#4948) a cloud card pins the provider's dated id
-  where one exists; an alias is `pinnable: false`, a recipe step naming it is marked as able to
-  change, and each reading records the dated id the provider returned.
-- `source.model.weights-verified` — **[GAP]** (#4948) a downloaded model is checked against its
-  card's files and checksums before it is installed; a partial download is never installed. Today
-  Kraken loads the newest `.mlmodel` in a folder with no checksum and Whisper's `is_installed`
-  checks only that a folder exists (`llm/whisper_runtime.py:179`).
-- `source.model.embedding-space-has-revision` — **[GAP]** (#4948) the embedding card id includes the
-  weights' revision and the vector-space key includes the card id, so a weights update is a new
-  space. Today bge-m3 has no revision pinned (`db/embeddings.py`).
-- `source.model.runs-here` — **[GAP]** (#4948, #5367) a card states its runtime, whether that
-  runtime is bundled, OS or unavailable in this build, its measured resident memory (or a labelled
-  estimate), its processor, and whether this Mac can run it now; "supported" is never derived from
-  an environment default (today `FICHERO_SUBPROCESS_CAPABLE` defaults to `"1"`,
-  `llm/local_inference.py:287`). The activity spec's co-run rule reads these numbers.
-- `source.model.licence-filled` — **[GAP]** (#4948) every card in Fichero's own catalogue has a real
-  licence and licence class; "user-managed" is only for a model the person added by hand. Today
-  every managed model but blla and bge-m3 says "user-managed" *(review)*.
-- `source.model.jobs-replace-capabilities` — **[GAP]** (#4948) a card's jobs replace the capability
-  words and name-sniffing; "recognition-only" (reads a page, takes no prompt) is a job fact, not a
-  hard-coded list.
+The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weights-verified`, `embedding-space-has-revision`, `runs-here`, `licence-filled`, `jobs-replace-capabilities`) moved to the one card's home, `source/models-chains-and-projects.md`, on 2026-10-04. What stays here is how a runtime honours a card.
+
 
 ### B. Shipping in the sandboxed build
 
@@ -385,43 +361,13 @@ no library content; they are listed, become jobs, and stop when the person choos
 
 ### E. Honest status
 
-- `runtime.status-from-the-endpoint` — **[BROKEN]** (#5367, #4303) every local row's status comes
-  from `/api/providers/local-runtimes`, which is built (`api/routes/ai/provider_models.py:1274`)
-  and called by no Swift code; synthetic rows hard-code `enabled=True, has_api_key=True`
-  *(review)*. Widens `settings.mlx-runtime-honest-status` from MLX to every runtime.
-- `runtime.status-covers-every-runtime` — **[GAP]** (#5367) the endpoint reports every runtime,
-  including Apple's four (with Apple Intelligence's on/off state), embeddings, Tesseract and the
-  local servers (by probing them), with the build state and a reason.
-- `runtime.unavailable-says-so` — **[BROKEN]** (#5367, #4973) in a sandboxed build a runtime that
-  needs code at run time is shown as "Unavailable in this build" with the reason, never offered as
-  Download or Provision.
-- `runtime.defaults-name-working-runtimes` — **[BROKEN]** (#5367) the factory defaults name only
-  runtimes present in the build, and a tier that promises a prompt never defaults to a
-  recognition-only card; today the audio default is `apple-speech` (not bundled) and the
-  `$vision_*` tiers default to `apple-vision`, which ignores prompts (`db/app.py:68-78`).
+Moved to the one Settings home, `ai/ai-settings.md` ("Runtime status"), on 2026-10-04: `runtime.status-from-the-endpoint`, `runtime.status-covers-every-runtime`, `runtime.unavailable-says-so`, `runtime.defaults-name-working-runtimes`.
+
 
 ### F. Keys and egress
 
-- `keys.status-sees-supplied-keys` — **[BROKEN]** (#5369) every key-status read (provider list,
-  catalogue, chat availability) uses the same lookup as a call, including keys the app supplies;
-  today `keychain.has_api_key` (`security/keychain.py:303`) reads only the engine keychain.
-- `keys.add-provider-uses-the-one-store` — **[BROKEN]** (#5369) a key entered while adding a
-  provider is written to the app's Keychain and supplied in memory, never to the engine keychain
-  (`AddProviderSheet+Helpers.swift` → `api/routes/ai/providers.py` *(review)*).
-- `source.egress.every-call-site` — **[BROKEN]** (#5368) every model call goes through the gate;
-  today `chat_with_tools` (`llm/__init__.py:2971`) and `structured_output` call
-  `get_langchain_model` without it. A guardrail test lists every caller of the model factory.
-- `source.egress.no-silent-cloud-fallback` — **[PARTIAL]** (#5368) no resolver falls back to a cloud
-  model; it refuses, naming what to configure. Fixed for the chat route in 7feee5872 and pinned by
-  `test_chat_never_falls_back_to_the_cloud.py`; the retrieval query compiler's library-database
-  lookup is not yet re-checked *(review: `retrieval/query_compiler.py:148`)*.
-- `source.egress.setting-is-reachable` — **[GAP]** (#5368, #4951) the project's egress rule is set
-  in setup and the Inspector and is what `is_local_only()` reads; today it reads `local_only_ai`,
-  which nothing writes.
-- `source.egress.fichero-own-fetches-listed` — **[GAP]** (#5368) Fichero's own fetches (the weekly
-  price list, Hub and Zenodo searches, tokenizers for language fit, model downloads) are listed in
-  Settings, carry no library content, run as jobs, and stop when the person chooses to work
-  offline.
+Moved on 2026-10-04: the two key behaviours to `ai/ai-settings.md` ("Keys a runtime needs"); the four egress behaviours to the one egress home beside `source.egress.one-gate` in `source/models-chains-and-projects.md`.
+
 
 ## Test matrix
 
@@ -486,7 +432,7 @@ no library content; they are listed, become jobs, and stop when the person choos
 - `ai/ai-settings.md`: `settings.mlx-runtime-honest-status` widens to `runtime.status-from-the-endpoint`;
   add a Tesseract row, an Embeddings row and the Apple rows; `settings.one-catalog-unification`'s
   download half is `runtime.one-download-path`.
-- `ai/provider-keys.md`: `keys.one-store-of-truth` is [OK] for Settings but has a sibling path
+- `ai/ai-settings.md`: `keys.one-store-of-truth` is [OK] for Settings but has a sibling path
   (Add Provider, #5369); `keys.status-sees-supplied-keys` and `keys.add-provider-uses-the-one-store`
   belong in its list.
 - `compute/jobs-and-fine-tuning.md` (Kraken "in its own environment by subprocess") and

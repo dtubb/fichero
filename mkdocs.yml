@@ -378,9 +378,8 @@ nav:
           - Open Questions Digest: contributor_manual/specs/OPEN-QUESTIONS.md
           - Spec Template: contributor_manual/specs/_TEMPLATE.md
           - AI:
-              - AI Settings: contributor_manual/specs/ai/ai-settings.md
+              - Settings, AI (providers, keys, runtimes, targets, downloads): contributor_manual/specs/ai/ai-settings.md
               - Local Runtimes & Providers: contributor_manual/specs/ai/local-runtimes.md
-              - Provider API Keys: contributor_manual/specs/ai/provider-keys.md
           - Compute:
               - Remote Compute (foundation): contributor_manual/specs/compute/remote-compute.md
               - The Linux Server Image: contributor_manual/specs/compute/linux-server-image.md
@@ -388,7 +387,6 @@ nav:
               - What Leaves, Transfer & Results: contributor_manual/specs/compute/transfer-and-results.md
               - Jobs, Engines, Fine-tuning & Publishing: contributor_manual/specs/compute/jobs-and-fine-tuning.md
               - Teaching Small Models from Big Ones: contributor_manual/specs/compute/distillation.md
-              - Review 2026-10-03 (rulings, build order): contributor_manual/specs/compute/REVIEW-2026-10-03.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Export:
@@ -476,7 +474,6 @@ nav:
               - Automation: contributor_manual/specs/ui/automation.md
               - Library View Modes: contributor_manual/specs/ui/library-view-modes.md
               - Menus & Commands: contributor_manual/specs/ui/menus-and-commands.md
-              - Model / Provider Selector Consistency: contributor_manual/specs/ui/model-selector-consistency.md
               - Modes → Panes: contributor_manual/specs/ui/modes-to-panes.md
               - Panes & Workspaces: contributor_manual/specs/ui/panes-workspaces.md
               - Preview Image Editing: contributor_manual/specs/ui/preview-image-editing.md

@@ -1,6 +1,7 @@
-# AI Settings — Design Spec (#TBD)
+# Settings, AI — providers, keys, local runtimes, compute targets and downloads — Design Spec (#TBD)
 
 > Milestone: ai-settings
+> **One home (ruled 2026-10-04).** Every behaviour of Settings' AI pane lives here: the provider rows, the keys (folded from `ai/provider-keys.md`, section K), the one model list and row used everywhere (folded from `ui/model-selector-consistency.md`, section M), each runtime's status and the keys a runtime needs (moved from `ai/local-runtimes.md`), where work runs (moved from `compute/targets-and-connection.md`) and model downloads. How a runtime ships and loads stays in `ai/local-runtimes.md`; how a target connects stays in `compute/targets-and-connection.md`; a download's progress is a job row (`ui/activity-and-automatic-work.md`).
 > Manual: TBD — the user manual's Settings section needs "Configuring AI providers": every
 > provider (cloud and on-device) is a row you pick from one list; a row's own detail carries
 > whatever makes it work — a key, a download, a Start/Stop.
@@ -14,7 +15,7 @@
 > contradicts the intent (needs an issue).
 >
 > **Provider API keys are OUT OF SCOPE here** — persistence, verification, and security of a
-> key once entered are `ai/provider-keys.md`'s (→ #4815, → #4816, → #4818, → #4819, → #4820,
+> key once entered are section K's (→ #4815, → #4816, → #4818, → #4819, → #4820,
 > → #4821). This spec owns the SURFACE (rows, tabs, catalog) the key field lives inside.
 
 ## Intent (the design)
@@ -107,7 +108,7 @@ left to point at.
   controls for a local one — never a second window or pane. Pinned:
   `ProvidersTabLayoutTests.testAPIKeyEntryRemainsReachableFromTheProviderDetailPane`
   (key entry survived the row unification — the surface itself, not whether saving it
-  persists, which is `ai/provider-keys.md`'s).
+  persists, which is section K's).
 - `settings.shared-model-row` — **[OK]** every model-picking surface (the island, the
   workflow bar, chat, Settings) renders the SAME row component; no surface hand-draws its
   own competing row shape. Pinned:
@@ -149,7 +150,7 @@ left to point at.
   exists on `ProviderResponse` to tell them apart. This is a verified sub-symptom of #4303's
   broader "MLX appears non-functional" report — a user has no visual signal that MLX needs
   provisioning before it will work. Unchanged by the recent Test Connection three-state fix
-  landed on the provider-keys milestone (`provider-keys.md`): that fix reworked the DETAIL
+  landed on the provider-keys milestone (now section K): that fix reworked the DETAIL
   view's test-result icon (`KeyTestOutcome`), not this row. `ProviderSettingsRow`'s own status
   dot (the provider LIST, distinct from the detail view) uses the identical stateless
   boolean — `isLocalProvider || provider.hasApiKey ? Color.green : Color.orange` — and still
@@ -195,6 +196,39 @@ left to point at.
   claim generalized to every provider, not four separate gaps. `settings.mlx-runtime-honest-
   status` above is the MLX-specific case of this same pattern, already tracked there.
 
+### Runtime status (moved from `ai/local-runtimes.md` §E, 2026-10-04)
+
+- `runtime.status-from-the-endpoint` — **[BROKEN]** (#5367, #4303) every local row's status comes
+  from `/api/providers/local-runtimes`, which is built (`api/routes/ai/provider_models.py:1274`)
+  and called by no Swift code; synthetic rows hard-code `enabled=True, has_api_key=True`
+  *(review)*. Widens `settings.mlx-runtime-honest-status` from MLX to every runtime.
+- `runtime.status-covers-every-runtime` — **[GAP]** (#5367) the endpoint reports every runtime,
+  including Apple's four (with Apple Intelligence's on/off state), embeddings, Tesseract and the
+  local servers (by probing them), with the build state and a reason.
+- `runtime.unavailable-says-so` — **[BROKEN]** (#5367, #4973) in a sandboxed build a runtime that
+  needs code at run time is shown as "Unavailable in this build" with the reason, never offered as
+  Download or Provision.
+- `runtime.defaults-name-working-runtimes` — **[BROKEN]** (#5367) the factory defaults name only
+  runtimes present in the build, and a tier that promises a prompt never defaults to a
+  recognition-only card; today the audio default is `apple-speech` (not bundled) and the
+  `$vision_*` tiers default to `apple-vision`, which ignores prompts (`db/app.py:68-78`).
+
+### Keys a runtime needs (moved from `ai/local-runtimes.md` §F, 2026-10-04)
+
+- `keys.status-sees-supplied-keys` — **[BROKEN]** (#5369) every key-status read (provider list,
+  catalogue, chat availability) uses the same lookup as a call, including keys the app supplies;
+  today `keychain.has_api_key` (`security/keychain.py:303`) reads only the engine keychain.
+- `keys.add-provider-uses-the-one-store` — **[BROKEN]** (#5369) a key entered while adding a
+  provider is written to the app's Keychain and supplied in memory, never to the engine keychain
+  (`AddProviderSheet+Helpers.swift` → `api/routes/ai/providers.py` *(review)*).
+
+### Where work runs (moved from `compute/targets-and-connection.md`, 2026-10-04)
+
+- `compute.target.lives-in-ai-settings` — **[GAP]** (#5238) targets appear in Settings, AI, in a section titled
+  "Where work runs", as rows that each carry their own controls, in the way provider rows do
+  (`settings.provider-detail-carries-its-own-controls`). Connecting, checking and removing a target stay in `compute/targets-and-connection.md`. *Test:* availability leg: the section and its Add control are
+  reachable.
+
 ## Dead-simple-UX check (no needless toggles)
 
 No new user-facing toggle was found in this surface beyond what a provider's own nature
@@ -234,7 +268,7 @@ re-home** = not really about this Settings surface at all; belongs on a differen
 | # | Title | Disposition |
 |---|---|---|
 | 284 | Re-enable Settings tabs (General/Backend/Models) after 0.0.2 | recommend-close — the tabs this refers to (General/Backend/Models) are long gone from the current tab set; looks stale |
-| 484 | Wire: Providers + API Keys | recommend-close — providers + keys are wired (`ProvidersView`, `provider_keys.py`); superseded by what's built + `ai/provider-keys.md` |
+| 484 | Wire: Providers + API Keys | recommend-close — providers + keys are wired (`ProvidersView`, `provider_keys.py`); superseded by what's built + section K |
 | 485 | Wire: Local Models | recommend-close — local models are wired (`local_inference.py`, `LocalRuntimeModelsView`) |
 | 752 | Settings → Local Models tab: enable + download/manage local model weights | recommend-close — built (local runtime rows + download/manage controls) |
 | 853 | Apple Intelligence: proactive token budgeting | recommend re-home — an Apple Intelligence capability, not a Settings-surface concern |
@@ -252,7 +286,7 @@ re-home** = not really about this Settings surface at all; belongs on a differen
 | 2268 | Providers/Models belong in Settings window + configurable defaults + model location | recommend-close — largely done (they ARE in Settings, with a Defaults tab) |
 | 2291 | Projects/Milestones/Tasks as agent-operable objects | recommend re-home — unrelated to AI Settings |
 | 2314 | Three chat modes (Simple/RAG/Agent) | recommend re-home — a chat-surface feature, not Settings |
-| 2444 | Expose Translate (DeepL) as a workflow tool/node | recommend re-home — DeepL is already a working provider (real Test Connection probe, per `ai/provider-keys.md`); this is about workflow-node exposure, not Settings |
+| 2444 | Expose Translate (DeepL) as a workflow tool/node | recommend re-home — DeepL is already a working provider (real Test Connection probe, per section K); this is about workflow-node exposure, not Settings |
 | 2450 | Xcode-style activity status widget in toolbar | recommend re-home — unrelated to AI Settings |
 | 3411 | Settings: Fonts & Colors controls | recommend re-home — not an AI-provider concern at all; looks mis-filed on this milestone |
 | 4268 | Embeddings run automatically after import, visible as activity | recommend re-home — an embeddings-pipeline/background-processing behavior, not the Settings surface |
@@ -270,7 +304,7 @@ was closed or moved beyond this list).
 ## Legacy milestone fold, pass 2 (#20, #126, #257 — 24 open issues, selected by NUMBER)
 
 Every body read fresh at HEAD (2026-09-19), including areas that moved this week: provider
-keys are their own spec now (`ai/provider-keys.md`); Kraken's runtime is verified working with
+keys live in section K now; Kraken's runtime is verified working with
 the gap being import-time wiring (`importer.md`'s `importer.segmentation-automatic-no-toggle`,
 #4822); pytz is declared. **No issue among these 24 mentions Kraken, HPC, or remote compute** —
 a negative result stated plainly, not assumed.
@@ -284,7 +318,7 @@ milestone instead of being an arrow-pointer to elsewhere.
 
 ### Redirected to an existing spec
 
-- **#484** ("Wire: Providers + API Keys") → `ai/provider-keys.md`. Its own acceptance
+- **#484** ("Wire: Providers + API Keys") → section K. Its own acceptance
   checklist (add a provider, enter a key, Test Connection, browse the catalog) is that spec's
   subject exactly, and largely already built there (`keys.test-connection-real-probe`,
   the Keychain-and-engine sync fix 101a67cde).
@@ -342,7 +376,7 @@ milestone instead of being an arrow-pointer to elsewhere.
   there without evidence.
 - **#2444** (expose Translate/DeepL as a workflow tool/node) — a workflow-node-exposure
   question, not a Settings one; DeepL itself is already a working provider per
-  `ai/provider-keys.md`.
+  section K.
 - **#3411** (Fonts & Colors settings controls for library/reader/labels/inspector/editor) —
   genuinely mis-filed on this milestone, per the historical map's own read, confirmed again
   this pass: this is general app typography/appearance, not an AI-provider concern, and no
@@ -410,3 +444,502 @@ issue superseded, never close it myself); posted as verify-close above.
    `settings.one-catalog-unification` above is not decided here.
 5. Is the three-tab target (Defaults · Providers · Advanced) still right, or does Embeddings
    getting a provider row change what "Downloads retiring" even means?
+
+## K. Provider keys (folded from `ai/provider-keys.md`, 2026-10-04)
+
+### Intent (the design)
+
+A researcher enters a provider's API key once, in Settings, and it keeps working across
+every future launch — a restart never quietly reverts to an old or deleted key. Removing a
+key removes it, permanently, not until the next relaunch. There is exactly ONE place a local
+engine's keys live; a remote engine's keys are that host's own business, never the app's. And
+the app never claims a key works unless it actually checked: a "connection valid" green check
+means a real probe answered, never "some non-empty string was present."
+
+### Why this spec exists
+
+A field report surfaced two verified defects with no spec behind either of them:
+
+- **#4815** — every app launch re-pushes a stale, once-migrated copy of a provider's key to
+  the engine, silently undoing a Settings save or a Settings remove. A whole afternoon of
+  OpenRouter `401`s traced to exactly this: the key was fixed by hand in Settings, worked for
+  70 consecutive calls, then the next launch resurrected the old, broken key.
+- **#4816** — Test Connection reports success for any provider with no real probe wired
+  (OpenRouter among them) the moment the key field is non-empty, regardless of whether the
+  key is valid. A user who followed the app's own "Update API key in Settings" advice, then
+  ran Test Connection and saw a green check, had no way to know the check meant nothing.
+
+Both share one root cause worth naming once: a claim ("this key is saved", "this connection
+works") that nothing in the code actually verifies.
+
+### Two stores of truth (the shape of #4815)
+
+- **App-owned Keychain** (`ProviderKeyStore.swift`, service `app.fichero.fichero.provider-keys`)
+  — written exactly once, by a one-time migration off the engine's legacy keychain item
+  (`migrateFromLegacyIfNeeded`); after that, `.alreadyOwned` forever. Pushed to the engine on
+  EVERY connect (`EngineLifecycleController+ProviderKeys.swift`).
+- **Settings' own path** (`ProvidersView+ProviderDetailView.swift`'s `saveAPIKey`/
+  `removeAPIKey`) never touches the app-owned Keychain at all — it only calls the HTTP
+  `providerService.setAPIKey`/`deleteAPIKey`, which reach the engine's OWN legacy keychain
+  copy and its in-memory supplied-keys dict, never `ProviderKeyStore`.
+
+So a Settings save/remove changes the engine's copy for the rest of that session, and the
+next launch's connect sequence re-pushes whatever the app-owned Keychain item still holds —
+the value from the original migration, unaffected by anything Settings has done since.
+
+### Behaviors
+
+#### Persistence (#4815)
+
+- `keys.one-store-of-truth` — **[OK]** (101a67cde, #4815 closed) a local engine's key lives in
+  exactly one place the app treats as authoritative (the app Keychain). Before the fix there
+  were two: the app-owned Keychain item (written once, at migration) and the engine's own
+  legacy Keychain item + in-memory supply (written by every Settings save/remove and
+  re-supplied on every connect) — `grep ProviderKeyStore fichero/fichero` found only the three
+  launch-push call sites and the migration itself; `store`/`remove` had no production caller
+  from Settings. Pinned:
+  `ProviderAPIServiceKeyPersistenceTests.testSetAPIKeySuccessStoresTheTrimmedKey`,
+  `::testSetAndDeleteAPIKeySkipTheKeychainForARemoteEngine`,
+  `::testSupplyAPIKeyToEngineBodyNeverReferencesTheKeychainClosures`,
+  `::testSupplyAPIKeyToEngineHasExactlyOneCaller` (all 4 read in full and confirmed to assert
+  exactly this — `fichero/Tests/Unit/general/Services/ProviderAPIServiceKeyPersistenceTests.swift`).
+- `keys.settings-save-survives-relaunch` — **[OK]** (101a67cde, #4815 closed) saving a new key
+  in Settings stays in effect after the next launch. Pinned:
+  `ProviderAPIServiceKeyPersistenceTests.testSetAPIKeySuccessStoresTheTrimmedKey`,
+  `::testStaleKeyRegression_settingsSaveIsReflectedByTheNextEngineSupply` (the regression test
+  named in the issue itself: a stale key seeded, a new one saved, the launch push's own
+  read-then-supply shape reads back the NEW value, never the stale one),
+  `::testSetAPIKeySuccessButKeychainFailureThrowsDistinctErrorWithNoKeyMaterial`. Honest gap:
+  the suite cannot re-read the WIRE body to independently confirm the engine received the
+  trimmed value byte-for-byte — the generated client sends this POST as an upload task, whose
+  body a `URLProtocol` stub cannot see (the same limitation `BatchServiceTests.swift` already
+  documents). What IS proven: `setAPIKey`
+  computes ONE `trimmed` local and passes that SAME value to both the engine call and the
+  Keychain closure (a source contract, `testSetAPIKeyTrimsOnceForBothTheEngineAndTheKeychain`)
+  plus the closure receiving the expected trimmed string dynamically — the closest honest
+  proof available without the wire-body seam.
+- `keys.remove-survives-relaunch` — **[OK]** (101a67cde, #4815 closed) removing a key in
+  Settings stays removed after the next launch. Pinned:
+  `ProviderAPIServiceKeyPersistenceTests.testDeleteAPIKeySuccessRemovesTheKeyAndLeavesNothingForTheNextLaunchPush`.
+- `keys.launch-supplies-to-engine` — **[PARTIAL]** (#4819, implemented, unpinned) the app supplies
+  every candidate provider's app-owned key to the engine on every connect
+  (`EngineLifecycleController+ProviderKeys.swift:27-66`,
+  `supplyProviderKeysToEngine()`) — this mechanism is real and IS what makes the launch-push
+  problem above visible (it works correctly, from a stale source). No Swift test exercises
+  `supplyProviderKeysToEngine()` directly; `ProviderKeyStoreTests.swift` only covers the
+  underlying `ProviderKeyStore` primitives it calls, not the connect-time supply loop itself.
+- `keys.remote-engine-not-app-business` — **[PARTIAL]** (#4820, implemented, unpinned) a remote
+  engine's provider keys are that host's own configuration; the app must never push its local
+  Keychain keys to one. `supplyProviderKeysToEngine()` guards this explicitly
+  (`guard !EngineConfig.engineProvisioningStrategy().connectsToRemoteHost else { return }`,
+  `EngineLifecycleController+ProviderKeys.swift:28-31`) — real code, but no test asserts the
+  guard actually short-circuits for a remote-configured engine.
+
+#### Verification (#4816)
+
+- `keys.test-connection-real-probe` — **[OK]** (bca344581 app half; 35c4b53f1 + 5a9676909
+  engine; #4816 closed) Test Connection only reports success when the app made a real network
+  call to the provider and the provider confirmed the key, and a wrong/rate-limited/down
+  endpoint never reads as a bad key. Provider breakdown (engine side): **real probes** —
+  `apple_vision`, `apple_intelligence` (system checks), `ollama`, `lmstudio` (server
+  reachability, no key involved), `openai`, `huggingface`, `google`, `groq`, `deepl` (the five
+  original probes, now applying the same "only 401/403 means a bad key" rule), plus NINE
+  added: `openrouter`, `anthropic` (a real authenticated request, no longer prefix-only),
+  `mistral`, `together`, `deepseek`, `xai`, `perplexity`, `fireworks`, `cohere`. **Still
+  unverifiable from here**: `azure`, `bedrock`, `dashscope` — these report a distinct "saved,
+  could not verify" state rather than a false green check. The rule throughout: only a
+  `401`/`403` (or a provider's own documented bad-key status — Google's `400`, kept as its
+  real signal) means the key is bad; any OTHER non-2xx status means "could not verify," never
+  "invalid." On the app side, `KeyTestOutcome.from(success:verified:)` is the pure derivation
+  (read `KeyTestOutcomeTests.swift` in full — exhaustive over all 6 `(success, verified)`
+  combinations, including a `nil` `verified` from an engine with no opinion yet correctly
+  landing on "saved, not verified," never a positive claim) that
+  `ProvidersView+ProviderDetailView.swift` now renders from instead of `result.success` alone.
+  Pinned:
+  `test_routes_provider_keys.py::test_connection_test_real_probe_success_sets_verified`,
+  `::test_connection_test_real_probe_401_fails_unverified`,
+  `::test_connection_test_real_probe_network_failure_reports_connectivity`,
+  `::test_connection_test_real_probe_non_auth_status_is_unverified_not_failed`,
+  `::test_connection_test_key_never_appears_in_response_or_logs`,
+  `KeyTestOutcomeTests.testSuccessAndVerifiedTrueIsVerified`,
+  `.testSuccessAndVerifiedFalseIsSavedNotVerified`,
+  `.testSuccessAndVerifiedNilIsSavedNotVerified`,
+  `.testFailureAndVerifiedTrueIsStillFailed`,
+  `.testFailureAndVerifiedFalseIsFailed`, `.testFailureAndVerifiedNilIsFailed`.
+- `keys.untested-provider-reports-not-verified` — **[OK]** (bca344581, #4816 closed) an
+  untested provider reports a distinct "not verified" state and renders as neutral, never a
+  green check — built on both sides now: the engine emits `ConnectionTestResponse.verified:
+  bool | None` as a third state distinct from `success`
+  (`test_connection_test_untested_provider_reports_saved_not_verified`, "Key saved — this
+  provider cannot be verified from here", `azure`/`bedrock`/`dashscope`); the app derives
+  `KeyTestOutcome` from the pair rather than keying its icon on `result.success` alone. Pinned:
+  `test_routes_provider_keys.py::test_connection_test_untested_provider_reports_saved_not_verified`,
+  `KeyTestOutcomeTests.testSavedNotVerifiedTintIsNeverGreen`,
+  `.testVerifiedTintIsGreenAndFailedTintIsRed`, `.testEachOutcomeHasADistinctIcon`,
+  `.testProviderDetailViewDoesNotKeyTheTestIconOnSuccessAlone` (a source-scan guarding the
+  regression directly: the old binary `result.success ? "checkmark..." : "xmark..."` ternary
+  must never come back). **What remains, honestly:** the PROVIDER LIST row's own status dot
+  (`ProviderSettingsRow`) is unaffected by any of this — it is stateless and never sees a Test
+  Connection result at all, still `isLocalProvider || provider.hasApiKey ? .green : .orange`
+  (verified in code today). That gap belongs to `ai/ai-settings.md`'s local-runtime honest
+  status behavior on the ai-settings milestone, a different behavior, unchanged by this fix.
+
+#### Redirected from the legacy "Settings - Models & Providers" milestone
+
+- **#484** ("Wire: Providers + API Keys") — redirected while folding `ai-settings.md`'s pass
+  2. Its own acceptance checklist (add a provider, enter an API key, Test Connection, browse
+  the model catalog) is verify-close against `keys.test-connection-real-probe` above and the
+  provider-management surface this spec already documents — not re-litigated as a fresh claim
+  here since #484 itself names no gap beyond what's already built or already tracked.
+
+#### Legacy milestone fold — "Settings - Models & Providers - HPC" (#240), 2026-09-19
+
+Two of the milestone's seven issues in this spec's scope are genuinely this spec's own subject;
+the rest belong to `ai-settings.md` or maintainer triage (folded there, not restated here).
+
+- **#4631** ("Google AI: availability + model-list parity") and **#4632** ("Hugging Face:
+  availability + model-list parity") — each names two asks. The AVAILABILITY half ("shown iff
+  key configured + reachable") is a verify-close against `keys.test-connection-real-probe`
+  above, which already does exactly this for every registered provider, Google AI and Hugging
+  Face included — evidence posted on both, left open. The MODEL-LIST-PARITY half ("== Settings
+  across surfaces") is NOT this spec's claim — it's `ai-settings.md`'s
+  `settings.one-catalog-unification` (GAP), cross-referenced there, not duplicated here.
+
+#### Apple Vision as an OCR/vision capability
+
+- `keys.apple-vision-is-a-capability-not-only-a-key-check` — **[GAP]** (#2060, redirected
+  from the legacy "Importer" milestone while folding `importer.md`'s pass 2) `apple_vision` is
+  already a recognized provider with a real connection probe
+  (`keys.test-connection-real-probe` above), but this issue's actual ask is broader: using
+  Apple's Vision framework as an on-device OCR/vision ENGINE the importer or a workflow can
+  choose, alongside cloud OCR providers — not only a settings-row key check. Whether Vision is
+  wired as a selectable OCR/transcription engine anywhere in the import or workflow path was
+  not verified this pass; the provider-key surface and the actual capability are two different
+  questions, and this behavior is the capability one.
+
+- `keys.key-never-in-logs` — **[PARTIAL]** (#4821) the app-supplied in-process key is never logged:
+  `supply_api_key` (`fichero-server/src/fichero_server/security/provider_keys.py:39-58`)
+  logs only the provider name and the fact of supply, explicitly documented ("Never log the
+  key") and pinned by
+  `test_supplied_provider_keys.py::test_the_key_is_never_logged`. The two other paths that
+  touch a key value — `set_provider_api_key_impl`'s route-level logging
+  (`api/routes/ai/provider_keys.py:114,120`, logs only the provider name) and
+  `keychain.py`'s `set_api_key`/`delete_api_key` debug/warning lines (`keychain.py:266-299`,
+  also provider-name-only) — were read and confirmed to never log the key value either, but
+  neither has a dedicated test guarding it, hence PARTIAL rather than a blanket OK. A second
+  pin lands with the Test Connection probe work: `test_routes_provider_keys.py::test_connection_test_key_never_appears_in_response_or_logs`
+  (a sentinel key never appears in the response body, its JSON serialization, or the log
+  capture, across a real probe path).
+- `keys.argv-exposure` — **[GAP]** (#4818) `keychain.py:253-265` passes the plaintext key as
+  `-w <key>` in argv to `/usr/bin/security add-generic-password`, visible to any other
+  process on the machine (e.g. `ps`) for the subprocess's brief lifetime. Needs a design
+  decision (stdin-based write, or a non-shelling-out primitive) before it can be fixed.
+
+#### Mid-run correctness
+
+- `keys.per-call-key-resolution` — **[OK]** a workflow already in progress must pick up a
+  key change without a process restart. `llm.get_api_key(provider)`
+  (`fichero-server/src/fichero_server/llm/__init__.py:1222-1246`) resolves per call through a
+  process-level cache that both the Keychain write path (`keychain.py`'s
+  `_invalidate_llm_api_key_cache`) and the app-supplied path
+  (`provider_keys.py`'s `_invalidate_llm_cache`) bust on every write/supply/forget. Pinned:
+  `test_llm_api_key_cache.py::TestKeychainWriteInvalidatesCache::test_set_api_key_invalidates_cache`,
+  `::test_delete_api_key_invalidates_cache`,
+  `test_supplied_provider_keys.py::test_supplying_a_key_busts_the_resolution_cache`.
+
+### Test matrix
+
+| Leg | This surface? | Pins | File |
+|-----|---------------|------|------|
+| Pure rule (Swift) | y | `ProviderKeyStore` primitives (store/read/remove/trim/migrate) | `fichero/Tests/Unit/general/Services/ProviderKeyStoreTests.swift` |
+| Availability (Swift) | y | `supplyProviderKeysToEngine()` pushes the CURRENT app-owned key, including after a Settings save/remove; remote-engine guard short-circuits | proposed, no file yet — the #4815 regression test |
+| Backend (pytest) | y | per-call key resolution + cache invalidation on write/supply/forget | `fichero-server/tests/unit/security/test_llm_api_key_cache.py`, `test_supplied_provider_keys.py` |
+| Backend (pytest) | y | `/test` returns a real probe result per provider, `not_verified` for the rest | `fichero-server/tests/unit/api/test_routes_provider_keys.py` (`test_connection_test_real_probe_success_sets_verified`, `test_connection_test_untested_provider_reports_saved_not_verified`) |
+| Click-around (XCUITest) | n | this is a Settings + engine-connect contract, not a full-app flow worth a dedicated UI test yet | — |
+
+Hard-gate: `keys.settings-save-survives-relaunch`, `keys.remove-survives-relaunch`,
+`keys.test-connection-real-probe` — these three are exactly what the field report broke.
+
+### Open questions
+
+1. Does the app-side fix (`saveAPIKey`/`removeAPIKey` also writing/removing
+   `ProviderKeyStore`) fully retire the engine's own legacy-keychain write path
+   (`provider_keys.py:143-148`'s own docstring already says the app-supplied POST should be
+   memory-only), or does that engine-side cleanup wait for a separate pass?
+2. `keys.untested-provider-reports-not-verified`: does "not verified" ever get its own real
+   probe over time (starting with OpenRouter, per #4816's fix), or does the provider list
+   grow faster than probes can be written, making "not verified" a permanent honest floor for
+   most entries?
+3. Should `anthropic`'s format-only check be reclassified as "not verified" too, since it
+   makes no network call, or does prefix-validity count as a legitimate lightweight probe
+   distinct from the `else` branch's true no-check?
+4. `keys.argv-exposure` (#4818): stdin-based `security` invocation, or move off shelling out
+   to `/usr/bin/security` entirely in favor of a Swift-side write only (the app already owns
+   `SecItem` calls directly in `ProviderKeyStore.swift`) — does the engine need to write a
+   keychain item at all once #4815 lands, or does #4815's fix make the engine-side Keychain
+   write dead code?
+5. `keys.launch-supplies-to-engine`/`keys.remote-engine-not-app-business`: worth a dedicated
+   Swift test now, or fold into the same regression test #4815 already calls for?
+
+### Legacy milestone note
+
+"Settings - Models & Providers" (#20) is the maintainer's own 55-row triage queue and was not
+touched beyond moving #4815/#4816 off it. Of its other open issues, only **#484 "Wire:
+Providers + API Keys"** is really about provider KEYS specifically (title search across the
+milestone) — everything else on it is about models, embeddings, MLX, or the broader Settings
+UI, not key persistence/verification. Flagged for the maintainer's fold-in decision, not
+moved.
+
+## M. One model list and row, everywhere (folded from `ui/model-selector-consistency.md`, 2026-10-04)
+
+Folded from `ui/model-selector-consistency.md` on 2026-10-04 (its DRAFT of 2026-09-15). The brief: the model and key picker differed between the document island, the workflow bar and Settings; the island's looked best, and the others should match it. `[PROPOSED]` tags were replaced with real ones on folding.
+
+### Intent (the design)
+
+Choosing which model runs is ONE decision the user makes in several places. Wherever it appears — the
+window's model chip, the workflow bar's per-step picker, a chat toolbar, a comparison sheet — it must
+look and behave the SAME: same rows, same family glyph, same cost display, same grouping, same
+"configured tiers first," same vision/selection awareness. Settings is the one different job (it
+MANAGES the catalog — add/remove/configure keys), but even it renders the same ROW so a model looks
+identical whether you're picking it or configuring it. One picker component, one list policy, one row.
+
+This is the same "one source, many surfaces" principle as [[menus-and-commands]] and the workspace
+consolidation.
+
+---
+
+### Current architecture (grounded, 2026-09-15) — ~7 pickers, 3 list-builders
+
+There is no shared picker. At least seven implementations render "choose a model":
+
+| Surface | File | Shape | List logic |
+|---|---|---|---|
+| **Document island (REFERENCE)** | `Shell/Toolbar/ModelChipToolbarItem.swift` (`ModelChipToolbarItem` + `ModelFamilyMark` + `ModelPickerRow`) | compact chip → popover | selection-aware (vision vs text tier); loads its own provider cache on menu-open |
+| Workflow bar (per step) | `Shell/Toolbar/WorkflowBarModelPicker.swift` (+ `WorkflowBarModelTier`) | Menu | configured tiers first, then provider-grouped, deduped on **provider+model**, vision flag + cost |
+| Settings | `Settings/AI/AIProviders/AIModelSelectionView.swift` (+ `AIModelCatalog`, `ModelRowView`) | full filtered list | filter (capabilities/mode) + sort (cost/…) + search + add-model — a MANAGEMENT view |
+| Chat toolbar | `Chat/ChatViewToolbar.swift` (`ChatModelPicker`) | Menu | its own |
+| Comparison | `Chat/ModelComparison/ModelPickerSheet.swift` | sheet | its own |
+| Workflow node | `Workflow/Nodes/ModelPicker.swift`, `NodeProviderModelSelector.swift` | inline | its own |
+
+**Finding S1 — three different list-builders for the same list.** The island loads a provider cache
+on open; the workflow bar has a pure tier-first/provider-grouped/deduped builder; Settings has a
+filter+sort pipeline. They each claim to use "the same provider cache the Run Workflow menu uses,"
+but assemble and order it differently — so the same account can show different models, in a different
+order, at different (or no) cost, depending on where you look.
+
+**Finding S2 — the ROW is drawn three ways.** The island's `ModelPickerRow` + `ModelFamilyMark`
+(family glyph, tier, vision hint) is the nicest; the workflow bar draws its own menu rows; Settings'
+`ModelRowView` draws its own with cost/capabilities. A model has three faces.
+
+**Finding S3 — vision/selection awareness is island-only.** Only `ModelChipToolbarItem` narrows to
+vision-capable models when a page is selected. The workflow bar carries a `visionFlag` but the chat
+and node pickers don't consistently. Awareness should be a property of the shared component.
+
+**Finding S4 — cost display is inconsistent.** Settings and the workflow bar show per-million cost;
+the island shows tier/family; chat shows neither. Cost is a first-class decision input and should
+render the same everywhere it's shown.
+
+---
+
+### Proposed design — one picker, one list policy, one row (build on the island)
+
+#### 1. Extract the island's row as the shared row — **[PROPOSED]**
+`ModelFamilyMark` + `ModelPickerRow` (the reference's row: family glyph · name · tier · vision hint ·
+cost) become a shared component every surface renders — the island, workflow bar, chat, comparison
+node, AND Settings' management list (same row, plus its add/remove affordance). No surface hand-draws
+a model row.
+
+#### 2. One pure list-builder — **[PROPOSED]**
+Generalize `WorkflowBarModelPicker`'s already-pure builder (configured tiers first → provider-grouped
+→ deduped on **provider+model** → vision flag → cost, with a tiers-only fallback when the cache is
+empty) into the ONE model-list function. The island, workflow bar, chat and node pickers all call it;
+Settings' management view filters/sorts ON TOP of the same base list. Selection/vision-awareness is a
+parameter (the island passes "vision" when a page is selected), not a fork.
+
+#### 3. One picker component, two presentations — **[PROPOSED]**
+A single `ModelPicker` view (the island's chip+popover as the canonical presentation) with a compact
+mode (chip, for toolbar/workflow-bar/chat) and, where a sheet is warranted (comparison), the same
+rows in a sheet. Settings keeps its management chrome but hosts the shared rows. One component, so
+grouping, family marks, cost and vision awareness can't drift.
+
+#### 4. Provider/API-key affordance is consistent — **[PROPOSED]**
+Adding/choosing a provider key surfaces the same way from every picker (a "Manage providers…" route
+into Settings), so a picker that finds no configured model always offers the same next step, never a
+dead empty menu (mirrors `SidebarContextMenuPolicyTests`' never-silently-empty rule).
+
+---
+
+### Behaviors (each → one pinning test)
+
+- `models.one-list-policy` — **[PARTIAL]** (#4883; built: `SharedModelListBuilder` with `SharedModelListBuilderTests`; not yet every picker) every picker's base list comes from the ONE pure builder;
+  same account → same models, same order, same dedupe (provider+model), everywhere. *Test:* pure
+  unit tests over the builder (extend the existing `WorkflowBarModelPicker` list tests): tier-first
+  order, provider+model dedupe, tiers-only fallback, vision filter narrows correctly.
+- `models.one-row` — **[PARTIAL]** (#4883; built: `SharedModelRow` with `ModelRowSourceGuardrailTests`; not yet every surface) the island, workflow bar, chat and Settings render the SAME row
+  component (family mark + name + tier + cost). *Test:* a source guardrail that no surface defines
+  its own model-row struct once the shared one exists.
+- `models.vision-awareness` — **[GAP]** (#4883) a page/vision selection narrows every picker to
+  vision-capable models identically. *Test:* the builder's vision-filter unit test, plus the island's
+  existing selection→tier resolution test.
+- `models.cost-shown-consistently` — **[GAP]** (#4883) where cost is shown it is the same value and
+  format across surfaces. *Test:* a formatter unit test + a render check.
+- `models.never-empty-offers-providers` — **[GAP]** (#4883) a picker with no configured model always
+  offers the Manage-providers route, never a silent empty menu. *Test:* pure policy test (the
+  `SidebarContextMenuPolicyTests` fallback shape).
+
+---
+
+### Maintainer test, 2026-09-19 morning
+
+Evidence for the "~7 pickers, 3 list-builders" finding above, plus a fourth captured picker and
+a ruling.
+
+- `models.four-pickers-today` — **[BROKEN]** (#4883) what each of four surfaces shows today, as
+  observed live (workflow bar, centre island, Settings > AI > Defaults, and — newly
+  captured, screenshot 9.40.17 — the workflow node's config popover):
+
+  | Picker | Shows today |
+  |---|---|
+  | Workflow bar | flat text list, "Use the default (model)" first, each row a name + a loose tag mixing capability/size/provider ("Vision", "Text", "Large", "apple", "openrouter", "huggingface", "spacy", "kraken", "whisper"); no icons, no prices; unavailable models greyed |
+  | Centre island | provider icon, name, price per million tokens in/out, an eye icon for vision-capable models, a tick on the current one, provider name at the right, "AI Settings..." link at the bottom |
+  | Settings > AI > Defaults | grouped under provider headings (Apple Intelligence, Hugging Face, ...), full ids ("datalab-to/chandra-ocr-2"), descriptive names ("Apple Vision (OCR)"), a "None" row |
+  | Workflow node config popover | lists ONLY the role defaults, each with a generic "?" icon and no provider icon: Default, $small, $large, $vision_small, $vision_medium, $vision_large; lists NO concrete models at all |
+
+  Four different shapes, confirming Finding S1/S2 above with a fourth data point rather than
+  the three already catalogued. Whether a row shows price, capability, provider, or all three
+  remains an open DESIGN question (see "Open questions," item three, below) — not decided by this finding.
+- `models.four-pickers-four-sources` — **[PARTIAL]** (#4883) cause, verified at each file at the
+  time this behavior was written: four pickers, four different data sources, not just four
+  different rows/layouts, with the workflow bar's `modelPinMenu` (hand-drawn `Button` rows, no
+  `SharedModelRow`/`SharedModelChoice` use) the one outlier surface. **Updated 2026-09-19
+  (705e65cf1)**: per that commit's own account, five of the six picker surfaces already shared
+  `SharedModelListBuilder` before this fix — the "zero adoption" framing above is stale, corrected
+  here. This commit closes the workflow bar's own remaining gap: its model control is now the
+  same popover idiom the step inspector uses, rendering `SharedModelRow`, and its two hand-drawn
+  menus (`modelMenu`, `modelPinMenu`) are deleted outright. **Which source is canonical is NOT an
+  open question** — the node popover's own code already cites the ruling:
+  `docs/contributor_manual/specs/ui/workflow-node-config.md`'s
+  `nodeconfig.model.same-list-as-settings` (ruled 2026-09-08, `[OK]`, pinned
+  `NodeModelListParityTests`) states pickers offer the user-CONFIGURED models, because the live
+  catalog used to let a node pick a model its provider does not actually serve → a 404 at run.
+  PARTIAL, not OK: **NOT SEEN ON SCREEN** (the fixing commit's own words — build passes, tests
+  pass, "how the popover and its rows look on screen" is unverified); the island's own catalog
+  source and Settings' own row are still open per the maintainer's own outstanding questions
+  (below). Pinned: `SharedModelListBuilderTests` (17 cases), `NodeModelListParityTests`,
+  `AISettingsSelectionTests`, `ModelRowSourceGuardrailTests` — all executed through Xcode per
+  the commit, all passing.
+- `models.role-defaults-always-offered` — **[PARTIAL, RULED]** (#4883) every model picker offers
+  the ROLE DEFAULTS (small, large, vision small, and so on) as choices ALONGSIDE concrete models
+  — in the workflow bar and the document island the maintainer must be able to choose "small",
+  "large", "vision small", etc, not only a named model. The one shared picker (§"Proposed
+  design" above) should have two groups: role defaults (resolved to whatever Settings > AI >
+  Defaults currently names, and SAYING which model that is) and concrete models. At the time
+  this behavior was written, only the workflow node popover offered role defaults, and it
+  offered ONLY those, no concrete models — the opposite gap. **Updated 2026-09-19 (705e65cf1)**:
+  role defaults now have ONE home, `SharedModelListBuilder.roleDefaultAliases(from:
+  includeVision:)` — it builds `$small`/`$large`/the three vision aliases from `AIDefaults`,
+  each naming the concrete model it resolves to today (or "not set"); no such resolver existed
+  before. The node popover's own private `aliasOptions` is deleted and now takes the shared
+  rows; the workflow bar's new popover offers every role default alongside the concrete models
+  (picking a role default stores the ALIAS, not the resolved model, so a run-level override
+  never silently freezes — a text alias chosen on a vision step raises, and the bar already
+  marks that choice unsuitable). Still open, per the maintainer, and NOT decided here: how the
+  ISLAND offers role defaults (it stores a CONCRETE (provider, model) pair only —
+  `ModelChipToolbarItem.swift:259`, `select(_:)` — it is where a role default GETS its value, so
+  it cannot hold a role alias today) and what SETTINGS' own row should show. **NOT SEEN ON
+  SCREEN** — same disclaimer as `models.four-pickers-four-sources` above.
+- `models.node-popover-vision-check-diverges` — **[BROKEN]** (#4694) the workflow node config
+  popover says "No vision-capable providers available" in orange on a vision node
+  (screenshot 9.40.17), while the other three pickers on the same machine show vision-capable
+  models as available (apple-vision, claude-opus-5, and others with the eye icon) at the same
+  time. **Cause: UNVERIFIED — two candidates, both consistent with the code, neither confirmed
+  against what the maintainer's machine actually returned.** (a) Stale-capabilities path:
+  `NodePopover+Comparison.swift:28-32` derives `supportsVision` from the SAVED rows'
+  `capabilities`; the id-based heuristic (`idLooksVisionCapable`) runs only when `capabilities`
+  is empty — so a saved row with a non-empty `capabilities` set that happens to lack "vision"
+  is marked not-vision-capable even if the island's live catalog flags the same model as
+  vision-capable. This is a catalog-content divergence, not a load race. (b) Empty-providers
+  path: `loadProviders()` (`:8-23`) only appends a provider when `provider.enabled` is true and
+  `listProviderModels` succeeds — the screenshot shows the popover listing NO concrete models
+  at all, only role defaults, which equally fits zero enabled/configured providers returned, or
+  an unhandled throw into the function's own `catch`. Both are named; neither is the confirmed
+  cause. #4694 already names the same CLASS of bug ("Node picker filters providers on the
+  provider-level vision flag") — evidence added there rather than duplicated as a new issue.
+- `models.chat-picker-uses-the-shared-builder` — **[PARTIAL]** (#4900) the chat toolbar's model
+  picker (`ChatViewToolbar.swift`, `ChatModelPicker`) renders the shared
+  `SharedModelListBuilder`/`SharedModelRow` spine, not its own inline picker. Built: `21820e8d2`
+  (82 insertions, 31 deletions). PARTIAL because nothing tests it — the commit's own message
+  states outright: "No tests reference this surface." A high-traffic surface (every chat
+  window's model picker) with zero coverage of the rewrite. The test shape that would catch a
+  regression: drive the picker through the real shared builder and assert the rendered choice
+  set, PLUS an explicit companion asserting the chat toolbar's production call site still
+  routes through it rather than a re-inlined picker — the same pure-function-plus-
+  call-site-routing pairing `AISettingsSelectionTests` uses for its own
+  "productionCallSiteRoutesOnlyThroughThePureFunction" check.
+
+### RATIFIED 2026-09-15 (evening, CD)
+
+- **Adopt the shared spine.** One shared ROW (the island's `ModelFamilyMark` / `ModelPickerRow`) +
+  one pure list-builder (generalize `WorkflowBarModelPicker`'s tier-first / provider-grouped /
+  provider+model-deduped / vision+cost builder). Every surface — island, workflow bar, chat,
+  comparison, nodes — renders both. The ~7 divergent pickers collapse to one spine. Land
+  subtractively (shared row → shared builder → per-surface adoption), each step pinned by a pure
+  list-builder test. Keep the builder PURE (the island fetches its own cache outside the
+  `LibraryWorkspaceRoot` env, #4448) — don't bake an environment read into it.
+- **Settings uses the SAME picker — direct, one-step selection.** In the Settings window you choose a
+  model the SAME way as the island: the shared picker (chip → popover of the shared rows), picked
+  directly — NOT "open a menu, then a submenu" to drill to a model. Settings keeps its management
+  affordances (add/remove providers, keys, filters) around that picker, but the act of CHOOSING the
+  active/default model is the one shared component, so it looks and behaves identically to the island.
+  (This supersedes "Settings reuses the ROW only" — it reuses the whole picker for selection.)
+- **Platform = iPad / Mac / iOS first-class** (matches [[menus-and-commands]]): the shared row +
+  builder must render correctly on all three; test each.
+
+### Open questions (still open)
+
+1. **Chip vs menu vs sheet** — **ANSWERED 2026-09-19 (705e65cf1)**: the workflow bar's model
+   control is now the same popover idiom the step inspector uses (not a `Menu`), rendering
+   `SharedModelRow`; its `Choose Model` right-click menu item opens the same popover. Not seen
+   on screen yet, per that commit's own disclaimer.
+2. **Settings' scope** — Settings manages keys/catalog (a superset job). Confirm it reuses the shared
+   ROW only, keeping its filter/sort/add chrome — not that it collapses into the picker.
+3. **Cost everywhere?** — should the island show per-million cost too (it shows tier/family today), or
+   is cost a workflow-bar/settings concern where budget matters most? **Candidate answer recorded,
+   not decided here** (from the source-model spec work, branch `spec/page-model`, `specs/source/
+   models-chains-and-projects.md` — not in this tree): a row could show what a "model card" knows
+   — what it suits (languages/scripts/periods), whether it's local or cloud, and a licence class —
+   alongside or instead of price/capability/provider. See `ai-settings.md`'s own Open Question 5
+   for the model-card shape this candidate answer depends on.
+4. **Node vs step pickers** — the workflow NODE pickers (`ModelPicker`, `NodeProviderModelSelector`)
+   and the workflow BAR picker — one component for both, or do nodes need more (provider+model+params)?
+5. **How does the island offer role defaults?** (`models.role-defaults-always-offered`) The island is
+   verified to store only a resolved concrete `(provider, model)` pair — it IS where $medium/
+   $visionMedium get their value, so it cannot itself hold a role-alias sentinel the way the node
+   popover's `aliasOptions` do. Does picking "$medium" from the island mean "show me what $medium
+   currently resolves to, then let me change that value" (the island stays the editor of the
+   default), or does the shared picker need a genuinely separate role-alias affordance the island
+   does not have today?
+
+---
+
+### Ponytail review (2026-09-15)
+
+The lazy, correct move is to promote what already works, not add a new abstraction: the island's
+`ModelFamilyMark`/`ModelPickerRow` is the nicest row — make it the shared one; the workflow bar
+ALREADY has the pure list-builder with dedupe/tiers/vision/cost — make it THE one and delete the other
+list logics. Net change is deletions plus a couple of extractions, not a new picker framework.
+
+Watch-outs:
+- **Settings is a different job** (management), not just a picker — reuse its ROW, don't force it into
+  the chip. Collapsing them would lose the add/remove/key affordances.
+- **Data source boundary** — the island fetches its own cache because a toolbar item lives OUTSIDE the
+  `LibraryWorkspaceRoot` env tree (`ModelChipToolbarItem` documents this #4448 boundary). The shared
+  list-builder must stay PURE (takes `[LLMProvider]` + tier defaults), so each host feeds it from
+  wherever it legitimately gets the cache — don't bake an environment read into the shared component.
+- **Don't over-unify presentation** — chip, menu and sheet are legitimately different containers for
+  different contexts; share the rows and the list policy, not necessarily one container.
+- Land it in increments (shared row first → shared list-builder → per-surface adoption), each pinned
+  by an extended existing test, exactly like the menu and workspace programs.
+
+**Verdict:** adopt the island's row + the workflow bar's pure list-builder as the shared spine;
+Settings reuses the row; land subtractively. Ready for CD review, not yet code.

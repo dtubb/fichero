@@ -13,7 +13,7 @@ func configuredNodeProviderId(_ node: WorkflowNode) -> String? {
 
 /// Provider and model selection for workflow nodes — the one-step `SharedModelRow`
 /// picker (spec RATIFIED 2026-09-15,
-/// docs/contributor_manual/specs/ui/model-selector-consistency.md), replacing the
+/// docs/contributor_manual/specs/ai/ai-settings.md, section M), replacing the
 /// old Provider→Model two-dropdown DRILL-DOWN (`ModelPicker`, "Spine B"). A single
 /// chip opens a popover that lists every configured model grouped by provider,
 /// each drawn by `SharedModelRow` — the same row Settings, the island and the

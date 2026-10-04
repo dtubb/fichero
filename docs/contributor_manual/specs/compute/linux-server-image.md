@@ -7,7 +7,7 @@
 >
 > Design-led (Testing Constitution). **Status: DRAFT — first pass 2026-09-20; revised
 > 2026-10-03 against the maintainer's rulings (`remote-compute.md`, "Ruled 2026-10-03";
-> `REVIEW-2026-10-03.md`).** A slice of the compute set: read `remote-compute.md` first. Every
+> the review appendix in `remote-compute.md`).** A slice of the compute set: read `remote-compute.md` first. Every
 > behaviour is **[GAP]** with its issue (#5241); none is built. Claims about our code are **VERIFIED** with a line or **INFERRED**; claims about
 > outside services are **CITED** (S-numbers refer to "Sources" in `remote-compute.md`) or
 > **UNVERIFIED**.

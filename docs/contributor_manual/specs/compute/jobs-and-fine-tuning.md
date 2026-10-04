@@ -8,7 +8,7 @@
 >
 > Design-led (Testing Constitution). **Status: DRAFT — first pass 2026-09-20; revised
 > 2026-10-03 against the maintainer's rulings (`remote-compute.md`, "Ruled 2026-10-03";
-> `REVIEW-2026-10-03.md`).** A slice of the compute set: read `remote-compute.md` first. Each
+> the review appendix in `remote-compute.md`).** A slice of the compute set: read `remote-compute.md` first. Each
 > behaviour carries its own tag and issue; the parts built since 2026-10-03 (training here and on
 > Hugging Face Jobs, reading at scale) are tagged where they are (corrected 2026-10-04). **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
 > outside services, with S-numbers from "Sources" in `remote-compute.md`.
@@ -369,6 +369,17 @@ needs them.
   costlier place is chosen only when the A/B evidence on the project's pages (error rate, cost,
   speed, carbon, trainability) is shown for it. *Test:* a Kraken recipe on a 16 GB Mac resolves to
   this Mac; a 3B LoRA recipe resolves to the bound Hugging Face target, with the reason.
+- `compute.tune.start-sheet` — **[GAP]** (#5440) fine-tuning and distilling start from one sheet,
+  opened from the recipe or onboarding (what the person is trying to do) or from a model's node
+  (`source.model.node-actions`). It shows every place the work can run (this Mac, Hugging Face,
+  ACENET's cluster, a cloud service), each with its time, cost and greenhouse gas marked measured,
+  estimate or unknown (`activity.run.where-and-estimate`, `activity.ghg.estimate-with-its-basis`),
+  and the base the recipe picked (`source.recipe.picks-the-tuning-base`). Today the training routes
+  have no caller in the app; Sergio's runs are made by API and CLI.
+- `compute.tune.local-mlx-shown-never-default` — **[GAP]** (#5440, #5240) fine-tuning a vision or
+  language model with MLX on this Mac is offered with its estimated time, because it is slow, and is
+  never the default route; only the person chooses it. This narrows `compute.tune.where-cheapest-first`
+  for MLX; Kraken recognition may still default to this Mac.
 - `compute.tune.proven-on-huggingface-first` — **[GAP]** (#5398) a training recipe is first run on Hugging Face
   Jobs and counts as proven when two runs reach the same held-out CER within a stated noise
   band; the proof (dates, image digest, hardware, CER) is recorded on the recipe before it is run
@@ -421,7 +432,7 @@ needs them.
   rank, learning rate, epochs and the prompt form, and returns the adapter, its log and scores.
   A recipe is a shareable file in the sense of `source.recipe.is-a-file` (→ #4950). *Test:* a
   tiny model and a tiny set, in automation on CPU for a few steps, yields an adapter that
-  loads; the full path is a named-machine test.
+  loads; the full path is a named-machine test. The base is the recipe's pick from the catalogue (`source.recipe.picks-the-tuning-base`, about 3B, #5442); today the request defaults to `Qwen/Qwen3-VL-8B-Instruct`.
 - `compute.tune.survives-the-time-limit` — **[GAP]** (#5240) a training job longer than its time limit saves a
   checkpoint on the scheduler's warning signal, is re-queued under the same job id, and resumes
   from the checkpoint; the job's row reads "running (part 2)". *Test:* fixture with a

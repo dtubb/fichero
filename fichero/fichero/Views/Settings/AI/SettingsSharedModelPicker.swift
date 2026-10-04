@@ -7,7 +7,7 @@ private let pickerLogger = Logger(subsystem: "app.fichero.fichero", category: "S
 /// One Defaults slot's model chooser, on the SHARED picker row so a model in
 /// Settings looks identical to the same model in the document island and the
 /// workflow bar (spec RATIFIED 2026-09-15,
-/// docs/contributor_manual/specs/ui/model-selector-consistency.md).
+/// docs/contributor_manual/specs/ai/ai-settings.md, section M).
 ///
 /// This replaces the old Provider→Model two-dropdown DRILL-DOWN (`ModelPicker`,
 /// "Spine B") the creative director's ruling forbids: choosing a model is now

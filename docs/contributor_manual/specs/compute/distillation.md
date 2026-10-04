@@ -6,7 +6,7 @@
 > whether the small one is good enough, and when Fichero still asks the big one.
 >
 > Design-led (Testing Constitution). **Status: DRAFT; revised 2026-10-03 against the maintainer's
-> rulings (`remote-compute.md`, "Ruled 2026-10-03"; `REVIEW-2026-10-03.md`).** Builds on `jobs-and-fine-tuning.md`
+> rulings (`remote-compute.md`, "Ruled 2026-10-03"; the review appendix in `remote-compute.md`).** Builds on `jobs-and-fine-tuning.md`
 > (training jobs, LoRA, MLX conversion, #5240), `transfer-and-results.md` (the egress gate and
 > landing results), `source/formats-and-training.md` (training sets, measuring against ground
 > truth, #4947) and `source/models-chains-and-projects.md` (model cards, #4948). It is the design
@@ -315,6 +315,63 @@ Tests for `distill.reasoning.*` and `distill.set.keeps-reasons`:
   coordinates.
 - `distill.scale.rounds-stop-on-evidence` — **[GAP]** (#5404) a round that does not beat the last on
   the fixed held-out pages by more than the noise band is not adopted, and the loop says why.
+
+### Evaluation against out-of-the-box models (the one home, ruled 2026-10-04, #5441)
+
+A trained model is only worth keeping if it beats what can be downloaded. Every evaluation in
+Fichero is this one job: the bake-off at setup, a model scored when it lands
+(`compute.tune.scored-against-your-own-pages`) and a student measured against people
+(`distill.measure.against-people`).
+
+- `distill.eval.job` — **[GAP]** (#5441) an evaluation job reads a project's held-out pages with each
+  candidate model and scores them. It is one job, with a row per model and per page, on the lanes
+  (`activity.jobs-are-a-tree`). The pieces exist: CER scoring (`character_error_rate` and
+  `score_run_against_reference` in `workflows/transcription_accuracy.py`), `POST /api/training/reasons-ab`
+  (answer-only against reasoning students) and model comparison. No job runs a candidate set over
+  held-out pages and keeps the scores.
+- `distill.eval.candidates-out-of-the-box` — **[GAP]** (#5441) the candidates are the project's trained
+  models and out-of-the-box small vision and OCR models (Qwen3-VL-2B and 4B, dots.ocr, PaddleOCR-VL,
+  Nanonets-OCR2-3B; see `source.model.vision-base-catalogue`). They are drawn from onboarding and the
+  recipe (language, script, hand, page count), preferring models under 8B, as the recipe decides.
+- `distill.eval.held-out-checked-pages` — **[GAP]** (#5441, #5404) scores come only from held-out pages
+  a person or Fable checked, with the check's trust level recorded (`distill.scale.check-trust-levels`),
+  and never from a page any candidate trained on.
+- `distill.eval.cer-variants` — **[GAP]** (#5441) each model is scored with CER as the community
+  computes it and its variants (the normalisation policies: case, punctuation, abbreviations
+  expanded), per model, per page and per hand. Each figure names its policy.
+- `distill.eval.stored-on-the-model-node` — **[GAP]** (#5441, #5439) the results are stored on each
+  model's card and shown on its node (`source.model.node-inspector`), so models are compared side by
+  side. A later evaluation adds to them and never overwrites one.
+
+The bake-off (moved from `source/models-chains-and-projects.md` on 2026-10-04) is this evaluation
+run at setup, before the recipe is fixed:
+
+- `source.onboard.bakeoff` — **[GAP]** (#4948, #4951) the bake-off runs the rule-proposed
+  candidates on the chosen ground-truth pages and shows, per candidate, error per hand and page
+  kind, whole-volume cost, local or remote, speed, carbon estimate and trainability, ranked in the
+  fixed order; the person confirms the winner; the ranking stays on the cards and can be re-run.
+- `source.onboard.bakeoff-combinations` — **[GAP]** (#4951) for a chain of steps (find lines then
+  read; read then correct) the bake-off ranks whole combinations, at most three per step and at
+  most nine combinations after pruning by summed rule rank, all on the same pages.
+- `source.onboard.bakeoff-records-combination` — **[GAP]** (#4950) the confirmed combination sets
+  each step's model in the recipe, and its measurement is kept on the cards and in the recipe's
+  measurements.
+- `source.onboard.bakeoff-tesseract-baseline` — **[GAP]** (#4951) for print or typescript, when
+  Tesseract has data for the language, a Tesseract combination is in every bake-off; for
+  handwriting it is never proposed.
+- `source.onboard.bakeoff-minimum` — **[GAP]** (#4951) the bake-off needs at least 100 corrected
+  lines on at least two pages; below that it says how many more are needed and is offered again
+  when there are enough.
+- `source.onboard.bakeoff-is-a-job` — **[GAP]** (#4951, #5352) the bake-off runs as a job in
+  Activity; the person can leave setup while it runs; the first automatic run waits until the
+  winner is confirmed or the bake-off is skipped.
+- `source.onboard.bakeoff-skippable` — **[GAP]** (#4951) skipping the bake-off keeps the
+  rule-ranked recommendation, and each such step shows "not measured on this project" in the
+  Inspector until a bake-off runs.
+- `source.onboard.bakeoff-random-sample` — **[GAP]** (#4951) the bake-off draws a random sample stratified
+  across folders, hands and page kinds, at least 20 pages and 100 corrected lines where the project
+  has them, shows each rank with its line count and confidence range, and marks candidates within
+  one CER point "too close to call".
 
 ## Documentation matrix, preview harness, accessibility identifiers, UX completeness
 
