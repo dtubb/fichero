@@ -78,14 +78,14 @@ extension ContentView {
                     pinnedLibrary.wrappedValue = pin
                         ? PinnedLibraryScope(
                             documents: activeSearchQuery == nil ? selectedDocuments : searchResultDocuments,
-                            folderId: sidebarSelectionState.selectedItemId
+                            folderId: libraryPaneFolderId
                         )
                         : nil
                 }
             ),
             folderId: LibraryPanePin.effectiveFolderId(
                 pinned: pinnedLibrary.wrappedValue,
-                live: sidebarSelectionState.selectedItemId
+                live: libraryPaneFolderId
             ),
             onRequestFocus: { focusedPane = .content; paneFocusHint = .content },
             onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },

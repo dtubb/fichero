@@ -35,6 +35,12 @@ extension ContentView {
             if let selected = Self.windowSelectionAfterSidebarApply(doc) {
                 windowState.preservedDocumentSelection = selected
             }
+            // A source opens in its folder, selected there, in the Preview (#5428). The sidebar
+            // routes the folder (`routeDocumentSelection`); this half selects and shows it.
+            if let open = SidebarSourceOpen.plan(for: doc, previewShowing: paneVisibility.canvas) {
+                browserSelection = open.selection
+                if open.opensPreview { setPaneVisible(.canvas, true) }
+            }
         }
     }
 }
