@@ -164,3 +164,47 @@ def test_source_recipe_done_is_not_redone(client, db, pages, tmp_path, lines):  
     assert r.status_code == 200, r.text
     _finished(client, r.json()["started"]["job_id"])
     assert sorted(lines.found) == ["p0.png", "p1.png", "p2.png"], "redo runs the step on every page"
+
+
+READ_PAGE = {"id": "read", "job": "read-a-page", "model": GEMINI, "runs_on": "cloud:openrouter"}
+
+
+def test_source_chain_checked_before_run__a_page_reading_meets_the_names_step(client, db, pages, tmp_path,  # noqa: F811
+                                                                            monkeypatch, lines):  # noqa: F811
+    """source.chain.checked-before-run: "finding names, finding statements, checking and exporting take readings of
+    the lines **or** a reading of the whole page, so a recipe that reads whole pages passes; one that gives neither
+    is refused, naming both." Also source.recipe.done-is-not-redone for reading a page: a page already read by the
+    step's own model is not read again."""
+    names = {"id": "names", "job": "find-names-tag-words"}
+    check = {"id": "check", "job": "check", "settings": {"layer": "claims"}, "model": GEMINI,
+             "runs_on": "cloud:openrouter"}
+    _save(client, _recipe(tmp_path, READ_PAGE, names, check))
+    plan = client.get("/api/recipes/project/start").json()
+    assert plan["refusals"] == [], plan["refusals"]
+
+    _save(client, _recipe(tmp_path, names))
+    (refusal,) = client.get("/api/recipes/project/start").json()["refusals"]
+    assert "line_readings or page_reading" in refusal, refusal
+
+    import fichero_server.llm as llm
+
+    reads = []
+
+    async def read_a_page(images, prompt, config, **kw):
+        reads.append(config.model)
+        return "Sepan quantos esta carta vieren"
+
+    monkeypatch.setattr(llm, "vision", read_a_page)
+    _save(client, _recipe(tmp_path, READ_PAGE))
+    run = _finished(client, _start(client))
+    assert run["state"] == "done", run
+    read_card = client.get("/api/recipes/project/start").json()["runs"][0]
+    assert (read_card["done"], read_card["of"]) == (2, 2), read_card
+    assert reads and set(reads) == {"google/gemini-3-flash-preview"}
+    first = len(reads)
+    _finished(client, _start(client))
+    assert len(reads) == first, "a page already read by this model is not read again"
+    other = {**READ_PAGE, "model": {"cloud": "openrouter", "model": "qwen/qwen3-vl-8b"}}
+    _save(client, _recipe(tmp_path, other))
+    read_card = client.get("/api/recipes/project/start").json()["runs"][0]
+    assert (read_card["done"], read_card["of"]) == (0, 2), "a page read by another model is not read by this one"

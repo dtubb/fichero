@@ -307,15 +307,15 @@ can say which version has it.
 | describe / classify a picture | a segment's picture | a description, or classes | reading |
 | translate / transliterate / normalise | a reading | a reading | reading |
 | transcribe speech | a stretch of a recording | a reading, with timings | reading |
-| find names; tag words | a reading | mentions on stretches of it; word-level analysis | entities |
+| find names; tag words | a reading, of the lines or of the whole page | mentions on stretches of it; word-level analysis | entities |
 | make a vector | a reading, or a picture | a vector | vectors |
-| find statements | readings (with their mentions) | claims: subject, relation, object, each naming the stretch of text it came from | graph |
+| find statements | readings, of the lines or of the whole page (with their mentions) | claims: subject, relation, object, each naming the stretch of text it came from | graph |
 | describe for the catalogue | a page or document | proposed values for the project's metadata fields, for a person to confirm | catalogue |
 | train a model | a training set of checked work | a model card for a new detector or reader, measured on held-out pages | train |
 | find documents in a folder | the pages of a folder, in order | proposed groupings: which pages make one document (a letter of three pages in an archive bundle), for a person to confirm with Group | prepare |
 | split into entries | a reading of a diary, register or ledger | entries (a dated diary entry, a register line), each a segment with its date | structure |
 | extract to a table | documents and the project's metadata fields (from their prototype) | one row per document or entry (seller, buyer, the person sold, price, date, place, for a sale record), each value tied to the text it came from, exportable as a spreadsheet | structure |
-| check | the proposals of one layer (readings, mentions, claims, links) + what they came from | for each proposal: confirmed, corrected (a new proposal naming the first) or rejected, with the checker's reasons, recorded at the checker's trust level (a person; a model checker such as Fable; never a person's level for a model) | the layer checked |
+| check | the proposals of one layer (readings, mentions, claims, links) + what they came from (readings of the lines or of the whole page) | for each proposal: confirmed, corrected (a new proposal naming the first) or rejected, with the checker's reasons, recorded at the checker's trust level (a person; a model checker such as Fable; never a person's level for a model) | the layer checked |
 | pull out passages | readings and a question or theme | excerpts, each with its source and place, gathered into a note or a collection | knowledge |
 
 "Read a page" is kept apart from "read a line" on purpose. Vision-language models mostly do the
@@ -330,7 +330,7 @@ first, and cannot be trusted to keep shapes; Kraken and its kin do the second.
 | enrich from linked data | linked entities | facts fetched from a SPARQL endpoint, as claims whose source is that endpoint, kept apart from what the pages say | graph | `kg/kg-enrichment.md` |
 | work out dates | readings and mentions of dates | normalised dates (any calendar, as a day count) with the text they came from | graph | `historical-text-normalization.md` |
 | attribute hands | segments and their pictures | proposed hand attributions with certainty | reading | `readings-and-apparatus.md` |
-| export | a project, folder or selection | files in the formats the step names, all from the one export stream (PAGE, ALTO, TEI, hOCR, plain text, IIIF, Markdown, Word, PDF, Excel, CSV, Parquet, JSONL, RDF, a static Eleventy site, training sets), with provenance and, if asked, the recipe | output | `formats-and-training.md`, `export/exporter.md` |
+| export | a project, folder or selection (its readings, of the lines or of the whole page) | files in the formats the step names, all from the one export stream (PAGE, ALTO, TEI, hOCR, plain text, IIIF, Markdown, Word, PDF, Excel, CSV, Parquet, JSONL, RDF, a static Eleventy site, training sets), with provenance and, if asked, the recipe | output | `formats-and-training.md`, `export/exporter.md` |
 | publish | a folder | a IIIF published folder, a static site, or RDF behind the SPARQL console | output | `iiif.md`, `explore/networks.md` |
 
 SPARQL itself is a way of **asking** the knowledge graph, not a step that changes anything; a
@@ -1280,8 +1280,14 @@ Jobs and chains
   project's metadata fields from a page or document, for a person to confirm.
 - `source.chain.is-a-workflow` — **[GAP]** (#4949) a chain is a workflow; the second chaining
   mechanism that ships today (`execution/chaining.py`) is folded into the workflow graph and retired.
-- `source.chain.checked-before-run` — **[GAP]** (#4949) a chain whose steps do not fit (what one
+- `source.chain.checked-before-run` — **[PARTIAL]** (#4949) a chain whose steps do not fit (what one
   gives is not what the next takes) is refused before it runs, naming the step and the missing input.
+  A job may take one of several kinds: finding names, finding statements, checking and exporting take
+  readings of the lines **or** a reading of the whole page, so a recipe that reads whole pages passes;
+  one that gives neither is refused, naming both. **Built 2026-10-04 (recipes):** `unmet_inputs`
+  (`recipes/jobs.py`), a `takes` entry `line_readings|page_reading` met by either; pinned by
+  `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`. Chains (workflows) are not yet
+  checked this way.
 - `source.chain.segments-to-any-reader` — **[GAP]** (#4949) one general step cuts each segment's
   picture and hands it to any model that can do the next job, writing readings back on the same
   segments; `economy_htr`, `align_transcript`, `merge_geometry` and Kraken's segment-and-read are
@@ -1355,7 +1361,8 @@ Projects
 Profiles (the defaults section of a recipe)
 - `source.recipe.done-is-not-redone` — **[OK]** (#5390; built: `recipes/done.py`, the plan's `done`/`of`/`note` and Start's `redo`; tested in `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`) a started recipe does not run a step again on a
   page that already has its output: splitting, on a photograph already cut into pages; finding lines, on a page
-  with a pass that has lines; reading, on a page with a pass read by the step's own model. The Start plan says,
+  with a pass that has lines; reading lines, on a page with a pass read by the step's own model; reading a page, on
+  a page with a transcription saved by the step's own model. The Start plan says,
   for each such step, "already done on N of M pages", and the run does only the rest, unless the person names
   the steps to redo when pressing Start. A step that cannot tell (names, statements, checks, export, publish)
   runs on every page, and the plan says so. The pages a step runs on are worked out when it starts, so pages a
