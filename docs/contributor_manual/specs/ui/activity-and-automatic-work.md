@@ -534,9 +534,15 @@ workflow by hand: a hand run is a job like any other.
   time.
 - `activity.throttle.watched-first` — **[GAP]** (#5358) a job a person is waiting
   on goes first in its lane at utility QoS.
-- `activity.throttle.power-heat-memory` — **[GAP]** (#5358) background lanes slow
+- `activity.throttle.power-heat-memory` — **[PARTIAL]** (#5358) background lanes slow
   or wait in Low Power Mode, on low battery, under serious thermal state or memory pressure, and
-  say so; no setting.
+  say so; no setting. Built (2026-10-04): the local-model lane holds a background job while
+  macOS's memory pressure is at warn or above, the thermal state is serious, the Mac is on battery
+  or in Low Power Mode, or there was input in the last 30 s; the row says which ("Waiting: memory
+  is tight", "Waiting: you're using the Mac") and the job runs when it clears. A page a person is
+  waiting for waits only for memory and heat (`execution/throttle.py`,
+  `fichero-server/tests/unit/jobs/test_throttle.py`). Still a gap: slowing rather than waiting,
+  the other lanes, and a job already running (a long one checks at its own boundaries: training).
 
 ### E. Durability
 

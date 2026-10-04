@@ -233,6 +233,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/execution/cancellation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/chaining.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/runner.py
+$(SRCROOT)/../fichero-server/src/fichero_server/execution/throttle.py
 $(SRCROOT)/../fichero-server/src/fichero_server/export_service.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/alto.py

@@ -318,6 +318,9 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
             raise WorkflowCancelled(run_id)
 
 
+#: How soon the model lane looks again at a job held by the throttle.
+THROTTLE_LOOK_AGAIN_SECONDS = 5.0
+
 #: Longest the lane is held for one model call before it carries on regardless (a caller that
 #: vanished without letting go must not wedge the lane for good).
 HOLD_LIMIT_SECONDS = 900.0
@@ -714,8 +717,25 @@ class _Scheduler:
     def _claim(self, lane: _Lane) -> tuple[str, Any, tuple, Any] | None:
         """Pick the next job for this lane and mark it running, as one step among its threads."""
         with lane.pick:
-            while (picked := self._next(lane)) is not None:
+            # Heavy local work waits while the Mac needs itself (`activity.throttle.power-heat-
+            # memory`). Background jobs wait on all four signals, so while any holds, only work a
+            # person is waiting for is looked at; each held row says why, and the lane looks again.
+            held = None
+            if lane.name == "local-ml":
+                from fichero_server.execution.throttle import why_wait
+
+                held = why_wait(person_waiting=False)
+                if held:
+                    self._say_why_background_waits(lane, held)
+                    lane_look_again = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+            while (picked := self._next(lane, background=held is None)) is not None:
                 key, db, row = picked
+                if lane.name == "local-ml":
+                    reason = why_wait(person_waiting=True)  # memory and heat hold even these
+                    if reason:
+                        db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'waiting'", [reason, row[0]])
+                        lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                        return None
                 with self._lock:
                     handed_in = self._attached.pop(row[0], None)
                 if handed_in is not None and not handed_in[1].set_running_or_notify_cancel():
@@ -729,13 +749,30 @@ class _Scheduler:
                      if handed_in is not None and is_paused() else None, row[0]],
                 )
                 return key, db, row, handed_in
+            if held:
+                lane.look_again_at = lane_look_again
             return None
 
-    def _next(self, lane: _Lane) -> tuple[str, Any, tuple] | None:
+    def _say_why_background_waits(self, lane: _Lane, reason: str) -> None:
         from fichero_server.db.manager import db_manager
 
-        # Stored kinds run unless paused; handed-in work runs whenever its caller is waiting.
-        stored = [] if is_paused() else [
+        stored = [name for name, kind in KINDS.items() if kind.run is not None and kind.lane == lane.name]
+        with self._lock:
+            keys = list(lane.libraries)
+        for key in keys:
+            db = db_manager.open_database(key)
+            if db is not None and stored:
+                db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND kind IN "
+                           f"({', '.join('?' for _ in stored)}) AND reason IS DISTINCT FROM ?",
+                           [reason, *stored, reason])
+
+    def _next(self, lane: _Lane, *, background: bool = True) -> tuple[str, Any, tuple] | None:
+        from fichero_server.db.manager import db_manager
+
+        # Stored kinds run unless paused or held by the throttle; handed-in work runs whenever its
+        # caller is waiting. Only a scan that looked at every kind may forget an idle library.
+        full_scan = background and not is_paused()
+        stored = [] if not full_scan else [
             name for name, kind in KINDS.items() if kind.run is not None and kind.lane == lane.name]
         with self._lock:
             keys = list(lane.libraries)
@@ -790,8 +827,9 @@ class _Scheduler:
                 candidates.append((key, db, row))
             else:
                 idle.append(key)
-        with self._lock:
-            lane.libraries.difference_update(set(idle) - lane.rewoken)
+        if full_scan:
+            with self._lock:
+                lane.libraries.difference_update(set(idle) - lane.rewoken)
         if not candidates:
             return None
         # Across libraries the same rule: the loaded model first, then the oldest.
