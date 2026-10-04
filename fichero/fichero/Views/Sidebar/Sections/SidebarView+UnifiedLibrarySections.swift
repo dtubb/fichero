@@ -103,19 +103,12 @@ extension SidebarView {
                     buckets: buckets
                 )
             } label: {
+                // The header paints the SAME grey platter as every other row
+                // (#110, 2026-08-09), on the LABEL, never the DisclosureGroup
+                // (#4229: the group's frame is the header plus its expanded
+                // subtree). The header's own `sidebarDropHighlight` is the one
+                // writer for both drop and selection (#5422).
                 libraryDisclosureLabel(library: library, totalCount: totalCount)
-                    // The header paints the SAME grey platter as every other
-                    // row (Daniel #110, 2026-08-09: "it shouldn't have the
-                    // global as green background") — without this override the
-                    // native EMPHASIZED accent platter draws, the one fill the
-                    // whole sidebar grammar exists to replace. On the LABEL,
-                    // never the DisclosureGroup (#4229: the group's frame is
-                    // the header plus its expanded subtree).
-                    .sidebarDropHighlight(
-                        false,
-                        selected: selectionState.selectedDestinations
-                            .contains(.library(library.id))
-                    )
             }
             // NO .tag — deliberately OUTSIDE List selection (#160, 2026-08-09:
             // 'sidebar should not have green when global library is selected').

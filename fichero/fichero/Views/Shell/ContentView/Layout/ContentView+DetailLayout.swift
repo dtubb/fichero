@@ -568,6 +568,10 @@ extension ContentView {
                         "Select a single item to inspect it. Multi-item editing is coming."
                     )
                 )
+            } else if let projectId = sidebarSelectionState.inspectedProjectId(browserSelection: browserSelection),
+                      let project = libraryManager.getLibrary(id: projectId) {
+                // A project row is the selection: the Inspector shows the project (#5422).
+                ProjectInspector(library: project)
             } else if activeWorkflowItem != nil {
                 // #4882: a Library row's workflow-node selection gets the
                 // SAME Inspector the sidebar's `.workflow` mode gets below —

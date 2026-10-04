@@ -23,6 +23,7 @@ struct LibraryHeaderRow: View {
     let library: LibraryManager.LibraryReference
     let totalCount: Int
     let isCurrentLibrary: Bool
+    var isSelected: Bool = false
     let onFileDrop: ([URL], IngestMode) -> Bool
     let onSidebarItemDrop: ([String], SidebarDropModifiers) -> Void
     /// Where a refused or unreadable drop is reported. This row has no
@@ -150,6 +151,7 @@ struct LibraryHeaderRow: View {
             library: library,
             itemCount: totalCount,
             isCurrentLibrary: isCurrentLibrary,
+            isSelected: isSelected,
             // Nil callbacks make LibrarySectionHeader reject the drop (its
             // handlers `guard let` the closure) — viewers can't import/reparent.
             onFileDrop: canWrite ? onFileDrop : nil,
