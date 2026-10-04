@@ -379,6 +379,18 @@
         "response_model": "BackgroundPauseResponse"
       },
       {
+        "method": "GET",
+        "path": "/activity/jobs/{job_id}",
+        "operation_id": "get_job_tree_api_activity_jobs__job_id__get",
+        "summary": "Get Job Tree",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "JobTree"
+      },
+      {
         "method": "POST",
         "path": "/activity/jobs/{job_id}/cancel",
         "operation_id": "cancel_job_api_activity_jobs__job_id__cancel_post",
@@ -10581,6 +10593,16 @@
         "query_params": [],
         "request_model": "TrainKrakenRequest",
         "response_model": "TrainingStarted"
+      },
+      {
+        "method": "POST",
+        "path": "/training/kraken/here",
+        "operation_id": "start_kraken_training_here_api_training_kraken_here_post",
+        "summary": "Train a Kraken reader on this Mac, gently",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TrainKrakenHereRequest",
+        "response_model": "TrainingStartedHere"
       },
       {
         "method": "POST",

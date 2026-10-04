@@ -255,6 +255,13 @@ class TestAPagesTextIsDerivedInOnePass:
         _correct(db, page, row)  # one stored reading beside the provisional ones
         [pass_row] = [p for p in db.all(SegmentPass) if p.document_id == page.id]
         rows = [r for r in db.all(Segment) if r.pass_id == pass_row.id and r.deleted_at is None]
+        # A converted line whose reading is stored is not offered again as its artifact's echo
+        # (768c12865), so take one other line's stored reading away: its provisional reading is the
+        # one the batch must still give, exactly as the single-row path does.
+        from fichero_server.models import ContentRepresentation
+        other = next(r for r in rows if r.id != row.id and list(db.query(ContentRepresentation, segment_id=r.id)))
+        for rep in db.query(ContentRepresentation, segment_id=other.id):
+            db.delete(rep)
 
         batch = sr._readings_for_live_rows(db, rows, page.id, {})
         for r in rows:
