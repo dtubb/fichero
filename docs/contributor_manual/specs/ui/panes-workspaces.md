@@ -976,6 +976,126 @@ math, not a mounted pane" lesson.
   regression is a genuine relaunch-with-restored-state test (an XCUITest or a state-restoration
   test harness), not a lighter substitute.
 
+### G. Pane chrome: one pane menu, linked panes (ruled 2026-10-04)
+
+> **Ruled by the maintainer, 2026-10-04.** There is too much window chrome. As iTerm does, most
+> per-pane controls move into **one pane menu**, opened from the pane head's **+** or by
+> right-clicking the pane head. It holds split, close, the pane-kind picker, the view mode, "What
+> to show", pin, and **Link**. Linking two panes (Link… in one, then the other) gives both the
+> same light tint, and they follow each other's zoom, position, page and magnifier, in page
+> coordinates; unlinking is in the same menu. This settles the design of the maintainer's
+> earlier "drag to connect" proposal (`panes.library.drag-to-connect`, rulings of 2026-09-19).
+> The breadcrumb shows only on a pinned pane, where it says something the window toolbar does
+> not. This section also answers this spec's open question "Sync granularity" (a link group).
+>
+> **Before and after, a Preview head (the maintainer's example).** Before, an unpinned Preview
+> head reads `[more] [close] [kind ▾] [↑ ‹ 1/2 ›] [paderov-mm10 › 00000013.jpg] [edit] [zoom] [pin]`
+> while the window toolbar already shows `00000013.jpg`. After, it reads
+> `[kind icon] [↑ ‹ 1/2 ›] [pin] [+]`:
+>
+> | Control today | Where it is today | After |
+> |---|---|---|
+> | more (overflow) | `PaneHead.swift` controls capsule, folds when narrow | **retired**: the pane menu is the one overflow |
+> | close ✕ | identity capsule, `PaneHead.swift:156-185` | **pane menu** (Close Pane; ⌘W-style shortcut kept) |
+> | kind ▾ | `PaneKindSelector.swift:15` | **pane menu** (Show In This Pane ▸); the head keeps only the kind's icon as a label |
+> | ↑ up to parent, ‹ 1/2 › page stepper | `PreviewHeadSelectorGroup`, `PreviewHeadControls.swift:14-84` | **stays** on the head: it is navigation used constantly |
+> | breadcrumb | breadcrumb capsule, `PaneHead.swift:194-224` | **hidden unless the pane is pinned** |
+> | edit (Edit Segments) | `PreviewHeadLensControls.swift:113-123` | **pane menu**, inside What to show (where it already also sits, `ReaderToolbar.swift:236-241`) |
+> | zoom (zoom-controls toggle ⌘⌥E) | `PreviewHeadControls.swift:170-188` | **pane menu** (View ▸ Zoom Controls; shortcut kept) |
+> | renditions ▲▼ and menu | `PreviewHeadControls.swift:139-217` | **pane menu** (Rendition ▸); swipe up and down kept |
+> | pin | `PaneHead.swift:411-430` | **stays** on the head, and is also in the pane menu |
+> | + (split only today) | `PaneChromeMenu.swift:14` | **becomes the pane menu's button** |
+> | What to show (`previewWhatToShow`) | the bottom quiet bar, `ReaderToolbar.swift:217-256` | **pane menu** (What to Show ▸) |
+
+Inventory of today's per-pane chrome (2026-10-04, read from the code):
+`PaneHead` (`Views/Shell/PaneHead/PaneHead.swift:28`, bar height 40, `PaneHeadMetrics` :495-512) is
+the one head, used by Library (`LibraryView+PaneHead.swift:54`), Preview
+(`ContentView+PreviewPaneHead.swift:86-153`), Reader (`ReadingPaneView.swift:465-523`), Chat
+(`ChatView+PaneChrome.swift:25`), Segments (`SegmentsPaneView.swift:134,160`) and the workflow
+editor (`WorkflowEditor.swift:141`). Footers are not shared: Preview's quiet bar (`ReaderToolbar`
+on `MiniToolbar`, image `ZoomableImagePreviewMac+Overlays.swift:128`, PDF
+`PDFPageWithToolbar.swift:557-576`, which repeats close, title and pin), the Library's action bar
+(`LibraryView+BottomActionBar.swift:43`, its + adds an item), Chat's (`ChatView+PaneChrome.swift:57`,
+its + is New Chat); the Reader has none. A right-click on the breadcrumb lists other libraries and
+the path (`PaneHead.swift:213-243`); only the Reader head has a whole-head context menu
+(`ReadingPaneView.swift:507-521`). Note: `panes.vertical-no-breadcrumb` above says the per-pane
+breadcrumb was retired; the code has one again in every head, and the window title and subtitle
+also show the path (`ContentView+RootLayout.swift:311-317`).
+
+- `panes.chrome.one-pane-menu` — **[GAP]** (#5435) every pane head has a **+** that opens the
+  pane menu, and right-clicking anywhere on the pane head opens the same menu. Its entries, in
+  order: Split Right, Split Below; Show In This Pane ▸ (the kind); View ▸ (the kind's view mode
+  and lens); What to Show ▸ (the layers, `layers-on-the-source.md`); Pin; Link… / Unlink; Close
+  Pane. A kind that lacks an entry shows it disabled, never a different menu. Today the + offers
+  split only (`PaneChromeMenu.swift:14`) and What to show sits in Preview's footer.
+- `panes.chrome.head-keeps-only-what-moves` — **[GAP]** (#5435) a pane head keeps only the kind's
+  icon, the controls used constantly on that kind (Preview: up to parent and the page stepper),
+  pin and +. Everything else in the table above moves into the pane menu, and the more/overflow
+  capsule is retired. A footer that only repeats a head or menu entry (the PDF footer's close,
+  title and pin) is removed. Prerequisite for `panes.chrome.head-and-footer-not-shared` (#4880),
+  since less chrome leaves one component to tune.
+- `panes.chrome.breadcrumb-only-when-pinned` — **[GAP]** (#5437) the breadcrumb shows only on a
+  pinned pane; on an unpinned pane it repeats the window toolbar and is hidden.
+- `panes.pin.in-the-pane-list` — **[GAP]** (#5437) a pane's pin is stored once, in the pane list
+  (`PaneScope.isPinned`, `Models/PaneList.swift:69`, today never read), and read by every kind.
+  Today pin is per-view `@State` in five places (`LibraryPanePin`, `ContentView+Navigation.swift:402`;
+  `PreviewPanePin`, `ContentView+DetailLayout.swift:666-690`; a second, separate PDF pin,
+  `PDFPageWithToolbar.swift:69-74`; the Reader, `ReadingPaneView.swift:179-183`; Chat).
+- `panes.link.from-the-pane-menu` — **[GAP]** (#5436, #4881) choosing Link… in one pane's menu and
+  then clicking another pane adds it to that pane's link group; every pane in a group takes the
+  group's light tint (#4666), distinct from any other group's; Unlink in a pane's menu takes that
+  pane out of its group. A group is stored in the pane list with its pane ids, so a saved
+  workspace keeps it. Prerequisite:
+  `panes.model.per-pane-scope-and-kind-unread` (#4887): `PaneScope` (`PaneList.swift:54`) is stored
+  and every live read discards it (`ContentView+PaneSpecs.swift:198,351`).
+- `panes.link.follow-in-page-coordinates` — **[GAP]** (#5436, #4726) linked panes follow each
+  other's zoom, position and page, expressed in page coordinates (one kind of link: a group
+  shares whatever its panes can, and a Library in the group shares its selection), so an image, a crop of it (one
+  page of a spread, `layers-on-the-source.md` `layers.spread.show-one-page`), a translation of it
+  and a canvas card of it stay on the same spot. Today no zoom, position or page sync exists;
+  the image keeps position image-normalised (`Models/PreviewImageGeometry.swift:18-20`), PDF and
+  Reader keep only a page number (`PDFPageWithToolbar.swift:38`, `ReadingPaneView.swift:184,216`),
+  and the canvas camera is in world coordinates per scope (`CanvasArrangement.swift:203-217`).
+- `panes.link.magnifier-follows` — **[GAP]** (#5436, #4726) in linked panes the magnifier follows
+  too: its point and its zoom in one pane show the same page spot in the other pane's magnifier
+  strip. Each pane keeps its own strip placement (at the side or the bottom, following the line's
+  direction, #5411). The instrument itself stays owned by `preview-magnifier.md`.
+
+**Plan (each slice one reviewable commit with its tests):**
+
+| # | Slice | Spec ids | Work | Pinned by | Depends on |
+|---|---|---|---|---|---|
+| 1 | Pin in the pane list | `panes.pin.in-the-pane-list` | every kind reads `PaneScope.isPinned`; the PDF's second pin removed | Swift: pin round-trips through the list; one pin per pane | #4887 (`PaneScope` read) |
+| 2 | Breadcrumb only when pinned | `panes.chrome.breadcrumb-only-when-pinned` | `PaneHead` hides the breadcrumb capsule unless pinned | Swift: unpinned head has no crumb, pinned has | 1 |
+| 3 | The pane menu | `panes.chrome.one-pane-menu` | `PaneChromeMenu` becomes the full menu; the head's right-click opens it; entries per kind | Swift: every head mounts it, same order per kind; click-around: split and close from it | — |
+| 4 | Heads slimmed | `panes.chrome.head-keeps-only-what-moves`, `panes.chrome.head-floats-or-is-a-row`, `panes.chrome.footer-only-for-list-actions` | the moved controls leave the heads and the PDF footer; the overflow retires; What to show leaves the footer | Swift guardrail: a head mounts only its listed controls; the a11y ids still reach the menu entries | 3 |
+| 5 | Link and unlink | `panes.link.from-the-pane-menu` | a link group in the pane list; Link… pick mode; tint per group; selection shared within a group | Swift: link stored and saved with a workspace; click-around: link, see tint, unlink | 3, #4887 |
+| 6 | Follow in page coordinates | `panes.link.follow-in-page-coordinates` | one page-coordinate mapping per kind (image, crop, PDF, Reader page, canvas card); linked panes publish and apply zoom, position, page | Swift pure: page point round-trips image ↔ crop ↔ canvas; click-around: zoom one, the other follows | 5 |
+| 7 | Magnifier follows | `panes.link.magnifier-follows` | the magnifier's point and zoom published in page coordinates; each pane draws its own strip placement | Swift: the other strip shows the same page spot | 6, #4725 (per-pane magnifier), #5411 (strip direction) |
+
+**Ruled 2026-10-04 (the four pane-chrome questions; the maintainer took each recommendation):**
+
+1. **Where head controls live:** over image-like panes (Preview, canvas) they float over the
+   content and fade when the pointer is idle; on list and text panes (Library, Reader) they are a
+   thin row (`panes.chrome.head-floats-or-is-a-row`).
+2. **Links are groups:** Link… adds a pane to the other pane's group, and the whole group shares
+   one tint (`panes.link.from-the-pane-menu`).
+3. **One kind of link:** a group shares whatever its panes can share: zoom, position, page,
+   magnifier and selection (`panes.link.follow-in-page-coordinates`).
+4. **Footers:** a pane has a footer only where a list has its own actions (the Library's add,
+   Chat's new chat), built on the one shared component; every other footer is removed
+   (`panes.chrome.footer-only-for-list-actions`).
+
+- `panes.chrome.head-floats-or-is-a-row` — **[GAP]** (#5435) on Preview and canvas panes the head's
+  remaining controls float over the content as a light overlay that fades when the pointer is
+  idle and returns when it moves; on Library and Reader panes they are a thin row above the
+  content. Today every head is a floating glass capsule bar 40 points high over a reserved row
+  (`PaneHead.swift`, `PaneHeadMetrics` :495-512).
+- `panes.chrome.footer-only-for-list-actions` — **[GAP]** (#5435, #4880) a footer appears only on a
+  pane whose list has its own actions (Library: add; Chat: new chat), built on the one shared
+  component; Preview's quiet bar (image and PDF) and every other footer are removed, their
+  entries living in the pane menu.
+
 ## Known bugs to fix (already observed by the creative director)
 
 1. ~~**Claims don't reset on library change**~~ — **FIXED 5b709aca0** (F5): Claims + Entities
@@ -1366,7 +1486,7 @@ workspaces store a `PaneList`, the window is *always* a `PaneList`, the Bool-vis
   subject pickers surface the full set — and are there types beyond the current enum the
   creative director wants (objects, works, dates-as-subjects)? (Ties `kg-interactions`
   claim-richness.)
-- **Sync granularity.** Is magnifier sync a per-window toggle, a per-pair binding, or a
+- **Sync granularity.** (ANSWERED 2026-10-04 in section G: a link group, `panes.link.*`.) Is magnifier sync a per-window toggle, a per-pair binding, or a
   per-pane opt-in?
 - **Workspace scope.** Does a saved workspace capture a live selection (these four people)
   or only the pane layout, rehydrating selection from context?
