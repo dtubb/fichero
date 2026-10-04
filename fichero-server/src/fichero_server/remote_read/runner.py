@@ -158,7 +158,8 @@ READERS = {"kraken": kraken_reader, "vlm": vlm_reader}
 # --- the shard ---------------------------------------------------------------------------------------
 
 def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], list[dict[str, Any]]] | None = None,
-              get: Callable | None = None, device: str = "cuda:0") -> dict[str, Any]:
+              get: Callable | None = None, device: str = "cuda:0",
+              sleep: Callable[[float], None] = time.sleep) -> dict[str, Any]:
     from PIL import Image
 
     sys.path.insert(0, str(package / "_fichero"))
@@ -171,7 +172,7 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
     folder.mkdir(parents=True, exist_ok=True)
     outcome_path = folder / "_outcome.json"
     outcome = json.loads(outcome_path.read_text(encoding="utf-8")) if outcome_path.exists() else {"sources": {}}
-    fetcher = PoliteFetcher(get=get or urllib_get)
+    fetcher = PoliteFetcher(get=get or urllib_get, sleep=sleep)
     read = reader or READERS[step["reader"]](package, step, device)
     started = time.time()
     for index in indices:
