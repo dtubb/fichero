@@ -7,7 +7,8 @@
 > appear in Preview, the Reader's lines mode and on a canvas card.
 
 > Design-led (Testing Constitution). **Status: DRAFT** (2026-10-04), written from the code at
-> `lane/lead` 658b398de. Not yet reviewed by the maintainer.
+> `lane/lead` 658b398de. The maintainer ruled on its six questions on 2026-10-04 (see "Ruled
+> 2026-10-04" below): build all of it, in the slices of the Plan.
 > Tags: **[OK]** behaves this way today · **[PARTIAL]** part built or not wired · **[BROKEN]** the
 > code contradicts the line · **[GAP]** intended, not built. Every non-[OK] line cites an issue.
 
@@ -72,12 +73,28 @@ statement's text and its review) stays in the Inspector, reached by selecting th
 
 ### A. One layer model, every page surface
 
-- `layers.model.one-read` — **[GAP]** (#4941) the layers for a page come from one engine read
+- `layers.model.one-read` — **[GAP]** (#5418) the layers for a page come from one engine read
   that returns, per layer, the items on that page with their anchor (segment id with its live
   shape, or segment id plus reading id plus character span) and their state (who made it,
   curation state). Every surface draws from that read. Today each overlay is gathered separately
   in Swift (`ZoomableImagePreviewMac+Regions.swift:33-66` builds `DocumentOverlay` from boxes,
   annotations and marquees), and there is no engine read for layers.
+- `layers.anchor.most-precise` — **[GAP]** (#5418) a mark sits on the most precise anchor its
+  item has, on this ladder, finest first:
+  1. **stroke**: a path inside a segment (`SourceAnchor` shapes, `models/anchors.py:366-447`);
+  2. **character**: a span in a named reading (`segment_id`, `representation_id`,
+     `char_start`/`char_end`), or a character segment;
+  3. **word**: a word segment;
+  4. **line**: a line segment;
+  5. **paragraph or region**: a region segment;
+  6. **page**: the page, with no place on it.
+  **Fallback:** when a rung cannot be resolved now, the mark drops to the next rung that can,
+  and the hover says so ("placed on its line; the exact words were not found"). A span whose
+  reading has changed is carried over only by matching its characters, else reported as unplaced
+  (`replace_stretch`, `readings.py:637-692`); a deleted segment is drawn at its stored shape
+  through the one resolver (`source.point.anchor-names-its-segment`). A position is never guessed.
+  Today items reach different rungs (see the inventory below): entities stop at the page,
+  statements at a page-text span with no segment.
 - `layers.preview.draws-today` — **[OK]** Preview draws four layers today from one
   `DocumentOverlay` value through one AppKit `DocumentOverlayView`: segment boxes and shapes (with
   OCR confidence as stroke opacity and dashing, `DocumentOverlayView.swift:216-240`), regions,
@@ -124,12 +141,17 @@ statement's text and its review) stays in the Inspector, reached by selecting th
   machine actor through `_assert_a_person`, `content_representations.py:676-730`). With no choice,
   the counting reading is worked out by the project rule (`source.reading.chosen-is-worked-out`,
   [OK], #4934).
-- `layers.translation.shown-beside-or-instead` — **[GAP]** (#2093) with the Translation layer on,
-  the Reader's lines mode shows the line's counting translation under its transcription, and
-  Preview's inline text shows the translation in place of the transcription (one inline text at a
-  time on the image, so the two never overprint). A line with no translation shows nothing, not
-  the transcription in its place. Today Preview's inline text is the OCR box text only
-  (`OCRGeometryOverlay.swift:117`) and never a translation.
+- `layers.translation.chosen-per-pane` — **[GAP]** (#2093) each Preview pane chooses, in its own
+  "What to show" menu, which text it draws inline: a transcription, another transcription, or a
+  translation (one text per pane, so texts never overprint). A window can hold three Previews side
+  by side (the image; the original transcription with the image off; the translation), or several
+  transcriptions and a translation. A line with no reading of the chosen kind shows nothing, not
+  another text in its place. Today Preview's inline text is the OCR box text only
+  (`OCRGeometryOverlay.swift:117`) and never a translation; per-pane storage already exists
+  (`layers.toggle.remembered-per-pane`).
+- `layers.translation.lines-mode-shows-several` — **[GAP]** (#5414) the Reader's lines mode can show
+  more than one text under each line's image (for example the transcription, then the
+  translation), each labelled by its kind and language, in the order chosen in its menu.
 - `layers.translation.model-makes-one-per-line` — **[GAP]** (#3325) a model translates as a job,
   line by line: the recipe job `translate-transliterate-normalise` (`recipes/jobs.py:114-116`,
   line readings in, line readings out) writes one `translation` reading per line, made from that
@@ -207,7 +229,7 @@ statement's text and its review) stays in the Inspector, reached by selecting th
   for a selected line, a person can confirm or reject it. It goes through the existing audited,
   undoable action `claim.transition` (`claim/curation.py:1456`) or `claim.batch_transition` for
   several; no second path.
-- `layers.statements.only-a-person-curates` — **[GAP]** (#4868) `claim.transition` refuses a
+- `layers.statements.only-a-person-curates` — **[GAP]** (#5416) `claim.transition` refuses a
   machine actor, as `reading.choose` does (`_assert_a_person`). Today its request defaults
   `reviewed_by` to `"human"` (`claim/curation.py:49-57`) and no refusal of a machine actor was
   found, so a model calling it would be recorded as a person's review.
@@ -220,9 +242,9 @@ statement's text and its review) stays in the Inspector, reached by selecting th
   `epistemic_status`; entities carry `curation_state` (unreviewed, verified, rejected, merged) and an
   `attribution_chain`; readings carry `provenance_kind` and their producer. Pinned for entities:
   `kg.entity.says-who-made-it` ([OK], `kg-tables.md`).
-- `layers.state.drawn` — **[GAP]** (#1659) every knowledge layer draws state the same way: a
-  model's unreviewed item is dashed, an item a person made or confirmed is solid, and a rejected
-  item is not drawn. The hover says it in words ("Proposed by <model>, not reviewed").
+- `layers.state.drawn` — **[GAP]** (#5417) every knowledge layer draws state the same way: a
+  model's item is dashed until a person confirms it, solid once confirmed (or when a person made
+  it), and hidden once rejected. The hover says it in words ("Proposed by <model>, not reviewed").
 
 ### F. Notes as a layer
 
@@ -231,18 +253,24 @@ statement's text and its review) stays in the Inspector, reached by selecting th
   (`Views/Preview/ImageViewer/AnnotationMarkRendering.swift`), anchored to a span (`targets[]`,
   segment plus character range in its counting reading, `models/knowledge.py:1588`), a region or a
   page. Owned by `reading-markup-annotations.md`; this spec only lists it as the Notes layer.
-- `layers.notes.research-notes-on-the-page` — **[GAP]** (#2102) a research note (the Zettel `Note`,
-  `models/knowledge.py:1405`) can be placed on a page, region, line or span and then appears in the
-  Notes layer. Today a `Note` links only to documents and a page (`linked_document_ids`, `page_id`,
-  `:1433`), with no region or span; an `AgentNote` has a span but no segment and is drawn nowhere.
+- `layers.notes.placed-note-is-an-annotation` — **[GAP]** (#2102) a note placed on a page, region,
+  line or span is an anchored `Annotation` of kind `note` (anchored on the ladder of
+  `layers.anchor.most-precise`); a research note (the Zettel `Note`, `models/knowledge.py:1405`)
+  links to that annotation rather than carrying an anchor of its own, so there is one pointing
+  mechanism. Today the annotation side is built; a `Note` links only to documents and a page
+  (`linked_document_ids`, `page_id`, `:1433`) and cannot link to an annotation, and an
+  `AgentNote` has a span but no segment and is drawn nowhere.
 
 ### G. Show and hide
 
 - `layers.toggle.one-menu-per-surface` — **[PARTIAL]** (#4941) the layers are switched in the
   surface's existing "What to show" menu (`previewWhatToShow`, `Views/Reader/ReaderToolbar.swift:217-253`:
   Show Image, Annotations, Word Bounding Boxes, Regions, Text Inline, then Edit Segments). New
-  layers join it as toggles: Translation, Names, Statements, Notes. The Reader's lines mode and a
-  canvas's toolbar carry the same menu; there is no second control style.
+  layers join it as toggles: Names, Statements, Notes, and the pane's choice of text
+  (`layers.translation.chosen-per-pane`). Layers are switched per pane: the Reader's lines mode and
+  a canvas's toolbar carry the same menu for their own pane; there is no shared global setting and
+  no second control style. The sidebar's bottom-bar toggle (#5413) is a separate control that only
+  hides sidebar rows; it never switches a layer.
 - `layers.toggle.remembered-per-pane` — **[OK]** each switch is remembered per pane, with workspace
   defaults: `@PaneStorage` keys `preview.annotationsEnabled`, `preview.regionsEnabled`,
   `imagePreview.inlineTextEnabled` (`ZoomableImagePreviewMac.swift:176-196`) and
@@ -288,15 +316,15 @@ name search (`db/__init__.py:772-842`).
 | Translation | per-line kind and choice exist; no writer | line-by-line job writes readings; a reading's direction from its script | #3325, #4938 |
 | Names (entities) | document / page only | extractor stores one anchored support per mention (segment, reading, span) | #4932, #1659 |
 | Statements | page-text offsets, no segment | extractor fills `segment_id` and `representation_id` on the anchor | #4932 |
-| Notes | annotations anchored; research notes not | a research note takes an anchor, or links to an annotation | #2102 |
-| Any layer on any surface | gathered per overlay in Swift | one per-page layers read (`layers.model.one-read`) | #4941 |
+| Notes | annotations anchored; research notes not | a research note links to a `note` annotation | #2102 |
+| Any layer on any surface | gathered per overlay in Swift | one per-page layers read (`layers.model.one-read`) | #5418 |
 | Canvas cards | thumbnail only | full-detail texture plus the layers read | #3105, #4192 |
 
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Swift) | y | layer state → stroke; direction of a text layer; menu entries per surface | `fichero/Tests/Unit/general/Views/Preview/LayersOnTheSourceTests.swift` (to write) |
+| Pure rule (Swift) | y | layer state → stroke; anchor ladder fallback; direction of a text layer; menu entries per pane | `fichero/Tests/Unit/general/Views/Preview/LayersOnTheSourceTests.swift` (to write) |
 | Availability (Swift) | y | the What to show menu offers every layer on Preview, lines mode and canvases | same |
 | Backend (pytest) | y | per-page layers read; mention and statement anchors written with segment and reading; translation readings per line; `claim.transition` refuses a machine | `fichero-server/tests/unit/api/test_layers_on_the_source.py` (to write) |
 | MCP | y | the layers read is a tool | `fichero-mcp/tests/test_mcp_full.py` |
@@ -321,43 +349,64 @@ window drew no boxes (`ImportedPageDrawsItsBoxesTests.swift:382-387`).
 ## Accessibility identifiers
 
 - `previewWhatToShow` — the existing menu (built).
-- `previewShowTranslation`, `previewShowNames`, `previewShowStatements`, `previewShowNotes` — the new
+- `previewInlineTextChoice`, `previewShowNames`, `previewShowStatements`, `previewShowNotes` — the new
   toggles.
 - `layers.mark.<layer>.<id>` — a drawn mark, so the click-around test can click a name or a
   statement count.
 
 | Control (a11y id) | Label | Tooltip/help text | Verified by |
 |---|---|---|---|
-| `previewShowTranslation` | Show Translation | Each line's translation, in place of its text on the image and under it in lines | [GAP] |
+| `previewInlineTextChoice` | Text on the Page | Which text this pane draws on each line: a transcription or a translation | [GAP] |
 | `previewShowNames` | Show Names | Where people, places and things are named on this page | [GAP] |
 | `previewShowStatements` | Show Statements | Lines that support a statement, with how many | [GAP] |
 | `previewShowNotes` | Show Notes | Notes placed on this page, a region, a line or a stretch of text | [GAP] |
 
-## Open questions for the maintainer
 
-1. **Which layers first?** (a) the three you asked for (Translation, Names, Statements), which all
-   need engine work first; (b) the ones the engine can already place on a line with no new data
-   (editorial facts, hands, reading order numbers, control points); (c) the layer model plus
-   Translation now, then Names and Statements once the extractor writes segment anchors.
-   **Recommend (c):** translation's data shape exists and needs one job; Names and Statements wait
-   on the same anchor work (#4932), so build that once for both.
-2. **Translation on the image: beside or instead?** (a) Preview's inline text swaps to the
-   translation, and the lines mode shows both, one under the other; (b) Preview shows both on the
-   image, translation under each line; (c) translation only in the lines mode and the Reader, never
-   on the image. **Recommend (a):** two texts on one line box overprint, and the lines mode has
-   room for both.
-3. **How fine should a name's place be?** (a) a span in a named reading of the segment, falling
-   back to the whole segment; (b) the segment only. **Recommend (a):** spans already survive
-   re-transcription by matching (`replace_stretch`, `readings.py:637-692`), and a segment-only
-   mark cannot underline a word in a long line.
-4. **How are a model's marks shown?** (a) dashed until a person confirms, solid after, rejected
-   hidden; (b) hidden until a person confirms; (c) drawn alike, the state only in the hover.
-   **Recommend (a):** the page shows what the model proposed without passing it off as checked.
-5. **A note on the page: which record?** (a) a placed note is an annotation of kind `note` (already
-   anchored to a span or region), and a research note links to it; (b) the research note itself
-   gains an anchor. **Recommend (a):** one anchored record, no second pointing mechanism.
-6. **One control style?** (a) each page surface keeps the "What to show" menu (toolbar), and the
-   sidebar's knowledge-row control (#5413) stays a separate single toggle in the bottom bar;
-   (b) one shared layers setting across Preview, the lines mode and the canvases; (c) a toggle
-   button per layer in the bottom bar. **Recommend (a):** layers are a property of the pane you are
-   looking at, as `source.editor.two-switches` ruled; the sidebar control hides rows, not marks.
+## Ruled 2026-10-04
+
+The maintainer answered this spec's six questions; the behaviours above are written to match.
+
+1. **Scope:** build every layer in this spec, steadily, in the slices of the Plan below.
+2. **Translation:** the text a Preview shows is chosen per pane, so several Previews can stand side
+   by side (the image, a transcription, a translation), and the lines mode can show more than one
+   text under each line (`layers.translation.chosen-per-pane`,
+   `layers.translation.lines-mode-shows-several`).
+3. **A model's marks:** dashed until a person confirms them, solid once confirmed, hidden once
+   rejected (`layers.state.drawn`).
+4. **Where a mark sits:** on the most precise anchor available, on the ladder stroke, character,
+   word, line, paragraph or region, page, dropping a rung when a finer one cannot be resolved
+   (`layers.anchor.most-precise`).
+5. **Notes:** a note placed on the source is an anchored annotation of kind `note`; research notes
+   link to it (`layers.notes.placed-note-is-an-annotation`).
+6. **Switching:** layers are switched per pane, in each pane's "What to show" menu; the sidebar's
+   bottom-bar toggle (#5413) is separate and only hides sidebar rows
+   (`layers.toggle.one-menu-per-surface`).
+
+## Plan
+
+Each slice is one reviewable commit with its tests. Engine slices land with the contract
+regenerated; app slices drive the real host and store, never injected services.
+
+| # | Slice | Spec ids | Engine work | App work | Pinned by | Depends on |
+|---|---|---|---|---|---|---|
+| 1 | A model cannot review a claim | `layers.statements.only-a-person-curates` | `claim.transition`, `claim.batch_transition`, `claim.batch_curation` refuse a machine actor; the reviewer is the context's actor | — | pytest: refused as a workflow or agent, recorded as the person otherwise | — (#5416) |
+| 2 | The page layers read | `layers.model.one-read`, `layers.anchor.most-precise` | one route per page returning boxes, regions, annotations and their state, each on its finest resolvable rung with the fallback named; MCP tool; CLI command | — | pytest contract and ladder fallback (a changed reading drops a span to its line); MCP; CLI | — (#5418) |
+| 3 | Preview draws from the read | `layers.preview.draws-today` | — | `DocumentOverlay` built from the read; what is drawn does not change | `ImportedPageDrawsItsBoxesTests` stays green; a test that the real host reads the route | 2 |
+| 4 | State drawn one way | `layers.state.drawn` | — | dashed, solid, hidden by state; the hover in words | Swift pure rule; one click-around: confirm turns dashed to solid | 3 (#5417) |
+| 5 | Text follows its line | `layers.text.follows-line-direction` | — | inline text laid out in the line's direction and fitted to its box | Swift layout rule on a vertical and a right-to-left line | 3 (#5411) |
+| 6 | A reading's direction | `layers.translation.target-direction` | a reading's direction worked out from its script; the reading rung of `resolve_direction` filled | — | pytest: English translation of a vertical line reads left to right | — (#4938) |
+| 7 | A model translates line by line | `layers.translation.model-makes-one-per-line` | `translate-transliterate-normalise` wired in `WORKFLOW_FOR_JOB`; writes one `translation` reading per line from its counting transcription, recorded as the model's | — | pytest with a stub model: one reading per line, provenance the model's, choice untouched | — (#3325) |
+| 8 | Each pane picks its text | `layers.translation.chosen-per-pane` | the layers read carries the chosen kind's readings | the menu's text choice, stored per pane | Swift: two panes, two texts; pytest: read by kind | 2, 3, 5, 6, 7 (#2093) |
+| 9 | Lines mode carries layers and several texts | `layers.reader.lines-mode-draws-layers`, `layers.translation.lines-mode-shows-several`, `layers.translation.person-types-one` | — | the #5414 lines mode draws the read on each strip; several texts under a line; a typed translation saved through the one save action | Swift against the real store; save is a person's reading of kind `translation` | 2, 8; #5414's lines mode (#5209) |
+| 10 | Statements anchored to a line | `layers.statements.anchored-to-a-passage` | the extractor fills `segment_id` and `representation_id` on a claim's anchor | — | pytest: an extracted claim names its line and reading | — (#4932) |
+| 11 | Names anchored to a span | `layers.entities.engine-knows-where-a-name-is`, `layers.entities.read-per-segment` | NER and the extractor write one supporting source per mention (segment, reading, span), the model's | — | pytest: a name extracted twice on a page has two anchored mentions; `/segments/{id}/statements` returns them | — (#4932, #1659) |
+| 12 | The Names layer | `layers.entities.shown-on-text-and-image`, `layers.entities.hover-and-click` | the read carries mentions | underline on text, wash on image; click selects the entity, the Inspector shows its card | Swift; click-around: click a name, the card shows | 4, 11 (#1659) |
+| 13 | The Statements layer | `layers.statements.which-lines-carry-them`, `layers.statements.confirm-or-reject-from-the-passage` | the read carries claims per line | line marks with a count; the Inspector's Statements section confirms or rejects through `claim.transition` | Swift; click-around: reject hides the mark | 1, 4, 10 (#4932, #4834) |
+| 14 | Placed notes | `layers.notes.placed-note-is-an-annotation` | a research note links to a `note` annotation | the Notes layer shows linked research notes on their annotation | pytest link; Swift draw | 2 (#2102) |
+| 15 | Layers already on lines | candidate layers: editorial facts, hands, reading order numbers, control points | each added to the read (one commit per layer) | each drawn, with its toggle | pytest per layer; Swift per layer | 2, 3 (#4935, #5161, #4941, #4933) |
+| 16 | An empty layer says so | `layers.toggle.empty-layer-says-so` | the read says which layers are empty on this page | dimmed toggle, "None on this page" | Swift | 2 (#4941) |
+| 17 | The 2D canvas card | `layers.canvas2d.page-card-draws-layers` | — | a full-detail page card reads the layers and draws them through its image frame | Swift renderer test on a card's child entities | 2, 4; full-texture tier (#3105, #4931) |
+| 18 | The 3D canvas card | `layers.canvas3d.page-card-draws-layers` | — | the same for the 3D renderer | Swift renderer test | 17 (#4192) |
+
+Order: slices 1, 2, 6, 7, 10 and 11 are engine work with no dependency on each other and can run in
+parallel lanes with disjoint files; the app slices follow the read (2 → 3).
