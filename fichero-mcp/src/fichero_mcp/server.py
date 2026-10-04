@@ -513,6 +513,7 @@ def fichero_train_vision_lora(
     timeout: str = "8h",
     epochs: int = 2,
     not_for_release: bool = True,
+    arm: str = "answer",
 ) -> Any:
     """Distil a teacher's line readings into a local vision model: a LoRA on ``base_repo`` (bf16; Qwen3-VL
     8B by default, or any image-text-to-text model such as Qwen/Qwen2.5-VL-7B-Instruct or
@@ -523,12 +524,19 @@ def fichero_train_vision_lora(
     Sends an archive's pages to another company and costs money (a 24 GB GPU for hours): pass
     ``pages_may_leave=True`` only when the PERSON has said yes for this project, and report the
     ``flavor`` and ``price_per_hour_usd`` it answers with. Follow it with ``fichero_training_status``.
+
+    ``arm`` (#4642) is what the student learns to write: ``answer`` (the transcription), ``why`` (a
+    palaeographer's reasons, then the transcription), ``thinking`` (its thinking, then the transcription)
+    or ``review`` (a draft's review). The answer is always the CHECKED text, so ``teacher`` is then the
+    checked pass's model; reasons come from the episode ledger. Train two arms on the same lines to
+    compare them.
     """
     with _mutating_client() as client:
         return client.train_vision_lora({
             "scope_ids": scope_ids, "teacher": teacher, "held_out_ids": held_out_ids or [], "name": name,
             "language": language, "base_repo": base_repo, "flavor": flavor, "timeout": timeout,
             "epochs": epochs, "pages_may_leave": pages_may_leave, "not_for_release": not_for_release,
+            "arm": arm,
         })
 
 

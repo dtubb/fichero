@@ -53,26 +53,93 @@ def lines_of(page_xml: str) -> list[tuple[list[tuple[float, float]], str]]:
     return [(polygon, text) for _id, polygon, text in lines_with_ids(page_xml)]
 
 
-def write_line_pairs(set_dir: str | Path, *, language: str | None = None) -> int:
-    """Add `lines/` and `pairs.jsonl` to a training set; returns the number of pairs."""
+#: The arms of the reasons A/B (`distill.reasoning.two-arms`): the same lines, the same checked answer.
+AB_ARMS = ("answer", "why", "thinking")
+ARMS = (*AB_ARMS, "review")
+MAX_TRACE_CER = 0.10
+
+
+def _within(checked: str, teacher: str | None, limit: float) -> bool:
+    """The teacher's own reading is within `limit` CER of the checked one: its reasons are for the right
+    reading (`distill.reasoning.answer-is-checked`)."""
+    from fichero_server.workflows.transcription_accuracy import RunComparisonError, character_error_rate
+
+    if not teacher:
+        return False
+    try:
+        return character_error_rate(checked, teacher).cer <= limit
+    except RunComparisonError:
+        return False
+
+
+def arms_for(line_id: str, text: str, language: str | None, traces: dict[str, dict], reviews: dict[str, dict],
+             max_trace_cer: float, dropped: dict[str, int]) -> dict[str, dict[str, str]]:
+    """The (prompt, answer) of each arm this line has. The answer is ALWAYS the checked text; the
+    teacher's reasons ride with it only where the teacher read the line within `max_trace_cer`."""
+    from fichero_server.training import reasons
+
+    arms = {"answer": {"prompt": prompt_for(1, language), "answer": json.dumps([text], ensure_ascii=False)}}
+    trace = traces.get(line_id)
+    if trace is not None:
+        if _within(text, trace.get("text"), max_trace_cer):
+            why = {k: trace.get(k) for k in ("letterforms", "abbreviations", "uncertain")}
+            arms["why"] = {"prompt": reasons.prompt_for(reasons.READ, 1, language),
+                           "answer": json.dumps([{**why, "text": text}], ensure_ascii=False)}
+            if trace.get("thinking"):
+                arms["thinking"] = {"prompt": prompt_for(1, language),
+                                    "answer": f"<think>\n{trace['thinking']}\n</think>\n\n" + arms["answer"]["answer"]}
+        else:
+            dropped["why"] += 1
+            dropped["thinking"] += bool(trace.get("thinking"))
+    review = reviews.get(line_id)
+    if review is not None and review.get("draft") is not None:
+        if _within(text, review.get("text"), max_trace_cer):
+            verdict = "agree" if review["draft"] == text else "corrected"
+            arms["review"] = {"prompt": reasons.prompt_for(reasons.REVIEW, 1, language, [review["draft"]]),
+                              "answer": json.dumps([{"verdict": verdict, "text": text, "why": review.get("why")}],
+                                                   ensure_ascii=False)}
+        else:
+            dropped["review"] += 1
+    return arms
+
+
+def write_line_pairs(set_dir: str | Path, *, language: str | None = None, traces: dict[str, dict] | None = None,
+                     reviews: dict[str, dict] | None = None, max_trace_cer: float = MAX_TRACE_CER) -> int:
+    """Add `lines/` and `pairs.jsonl` to a training set; returns the number of pairs.
+
+    With a palaeographer's `traces` and `reviews` (`training.reasons.traces_by_line`), each pair also
+    carries the arms its line has, and `in_every_arm` marks the lines every reasoning arm of the set
+    covers, so an answer-only and a reasoning student can be trained on the same lines."""
     root = Path(set_dir)
     manifest = json.loads((root / MANIFEST).read_text(encoding="utf-8"))
     (root / LINES_DIR).mkdir(exist_ok=True)
-    prompt = prompt_for(1, language)
-    count = 0
+    reasoned = traces is not None or reviews is not None
+    dropped = dict.fromkeys(ARMS, 0)
+    rows = []
+    for page in manifest["pages"]:
+        image = Image.open(root / page["image"])
+        image.load()
+        stem = Path(page["xml"]).stem
+        for index, (line_id, polygon, text) in enumerate(
+                lines_with_ids((root / page["xml"]).read_text(encoding="utf-8")), 1):
+            name = f"{LINES_DIR}/{stem}_{index:03d}.jpg"
+            crop_line(image, polygon).save(root / name, format="JPEG", quality=90)
+            row = {"image": name, "prompt": prompt_for(1, language), "answer": json.dumps([text], ensure_ascii=False),
+                   "document_id": page["document_id"], "line": index, "line_id": line_id}
+            if reasoned:
+                row["arms"] = arms_for(line_id, text, language, traces or {}, reviews or {}, max_trace_cer, dropped)
+            rows.append(row)
+    if reasoned:
+        present = [arm for arm in AB_ARMS if any(arm in r["arms"] for r in rows)]
+        for row in rows:
+            row["in_every_arm"] = all(arm in row["arms"] for arm in present)
+        manifest["arms"] = {arm: sum(arm in r["arms"] for r in rows) for arm in ARMS}
+        manifest["arms_dropped_outside_cer"] = dropped
+        manifest["max_trace_cer"] = max_trace_cer
+        manifest["lines_in_every_arm"] = sum(r["in_every_arm"] for r in rows)
     with (root / PAIRS).open("w", encoding="utf-8") as out:
-        for page in manifest["pages"]:
-            image = Image.open(root / page["image"])
-            image.load()
-            stem = Path(page["xml"]).stem
-            for index, (polygon, text) in enumerate(lines_of((root / page["xml"]).read_text(encoding="utf-8")), 1):
-                name = f"{LINES_DIR}/{stem}_{index:03d}.jpg"
-                crop_line(image, polygon).save(root / name, format="JPEG", quality=90)
-                out.write(json.dumps({"image": name, "prompt": prompt,
-                                      "answer": json.dumps([text], ensure_ascii=False),
-                                      "document_id": page["document_id"], "line": index},
-                                     ensure_ascii=False) + "\n")
-                count += 1
-    manifest["line_pairs"] = count
+        for row in rows:
+            out.write(json.dumps(row, ensure_ascii=False) + "\n")
+    manifest["line_pairs"] = len(rows)
     (root / MANIFEST).write_text(json.dumps(manifest, indent=1), encoding="utf-8")
-    return count
+    return len(rows)

@@ -77471,6 +77471,32 @@
             "minimum": 2.0,
             "title": "Rank",
             "default": 16
+          },
+          "arm": {
+            "type": "string",
+            "enum": [
+              "answer",
+              "why",
+              "thinking",
+              "review"
+            ],
+            "title": "Arm",
+            "description": "What the student learns to write (#4642): the checked transcription alone, with a palaeographer's reasons, with its thinking, or a review of a draft. Reasons come from the episode ledger (training.reasons); the answer is always the checked text.",
+            "default": "answer"
+          },
+          "max_trace_cer": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Max Trace Cer",
+            "description": "A palaeographer's reasons are kept only where its own reading of the line is within this CER of the checked one.",
+            "default": 0.1
+          },
+          "all_lines": {
+            "type": "boolean",
+            "title": "All Lines",
+            "description": "Train an A/B arm on every line it has, not only the lines every reasoning arm covers.",
+            "default": false
           }
         },
         "type": "object",

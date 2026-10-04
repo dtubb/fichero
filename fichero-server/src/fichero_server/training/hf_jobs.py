@@ -181,7 +181,8 @@ def kraken_args(job_key: str, *, base_file: str | None, model_name: str) -> list
     return ["--data", f"{root}/data", "--out", f"{root}/out", "--base", base_file or "", "--name", model_name]
 
 
-def lora_args(job_key: str, *, base_repo: str, epochs: int, rank: int) -> list[str]:
+def lora_args(job_key: str, *, base_repo: str, epochs: int, rank: int, arm: str = "answer",
+              all_lines: bool = False) -> list[str]:
     root = job_root(job_key)
     return ["--data", f"{root}/data", "--out", f"{root}/out", "--base", base_repo,
-            "--epochs", str(epochs), "--rank", str(rank)]
+            "--epochs", str(epochs), "--rank", str(rank), "--arm", arm, *(["--all-lines"] if all_lines else [])]

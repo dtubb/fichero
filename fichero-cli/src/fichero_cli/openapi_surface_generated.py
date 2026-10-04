@@ -15294,6 +15294,8 @@ def register_generated_openapi_commands(
     @target_app.command("train-a-vision-model-with-lora-on-hugging-face-jobs-landed-here-as-mlx")
     def training_train_a_vision_model_with_lora_on_hugging_face_jobs_landed_here_as_mlx_post(
         ctx: typer.Context,
+        all_lines: Optional[bool] = typer.Option(None, "--all-lines/--no-all-lines", help="Request field: all_lines."),
+        arm: Optional[str] = typer.Option(None, "--arm", help="Request field: arm."),
         base_licence: Optional[str] = typer.Option(None, "--base-licence", help="Request field: base_licence."),
         base_repo: Optional[str] = typer.Option(None, "--base-repo", help="Request field: base_repo."),
         display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
@@ -15302,6 +15304,7 @@ def register_generated_openapi_commands(
         held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
         keep_merged_here: Optional[bool] = typer.Option(None, "--keep-merged-here/--no-keep-merged-here", help="Request field: keep_merged_here."),
         language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        max_trace_cer: Optional[float] = typer.Option(None, "--max-trace-cer", help="Request field: max_trace_cer."),
         name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
         not_for_release: Optional[bool] = typer.Option(None, "--not-for-release/--no-not-for-release", help="Request field: not_for_release."),
         pages_may_leave: Optional[bool] = typer.Option(None, "--pages-may-leave/--no-pages-may-leave", help="Request field: pages_may_leave."),
@@ -15316,6 +15319,8 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/training/vision-lora"
             params = None
             payload = _build_json_payload({
+                "all_lines": all_lines,
+                "arm": arm,
                 "base_licence": base_licence,
                 "base_repo": base_repo,
                 "display_name": display_name,
@@ -15324,6 +15329,7 @@ def register_generated_openapi_commands(
                 "held_out_ids": held_out_ids,
                 "keep_merged_here": keep_merged_here,
                 "language": language,
+                "max_trace_cer": max_trace_cer,
                 "name": name,
                 "not_for_release": not_for_release,
                 "pages_may_leave": pages_may_leave,
@@ -15333,6 +15339,8 @@ def register_generated_openapi_commands(
                 "teacher": teacher,
                 "timeout": timeout,
             }, {
+                "all_lines": {'type': 'boolean', 'title': 'All Lines', 'description': 'Train an A/B arm on every line it has, not only the lines every reasoning arm covers.', 'default': False, 'x-cli-required': False},
+                "arm": {'type': 'string', 'enum': ['answer', 'why', 'thinking', 'review'], 'title': 'Arm', 'description': "What the student learns to write (#4642): the checked transcription alone, with a palaeographer's reasons, with its thinking, or a review of a draft. Reasons come from the episode ledger (training.reasons); the answer is always the checked text.", 'default': 'answer', 'x-cli-required': False},
                 "base_licence": {'type': 'string', 'nullable': True, 'title': 'Base Licence', 'description': "The base's licence, carried on the card; none: from Fichero's list of vision bases, or 'not checked'.", 'x-cli-required': False},
                 "base_repo": {'type': 'string', 'title': 'Base Repo', 'description': 'The bf16 base on the Hub: any image-text-to-text model (Qwen3-VL 8B by default; Qwen2.5-VL 7B, chandra and others are valid).', 'default': 'Qwen/Qwen3-VL-8B-Instruct', 'x-cli-required': False},
                 "display_name": {'type': 'string', 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
@@ -15341,6 +15349,7 @@ def register_generated_openapi_commands(
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'Pages kept home as the test; never sent.', 'x-cli-required': False},
                 "keep_merged_here": {'type': 'boolean', 'title': 'Keep Merged Here', 'description': "Also keep the merged Hugging Face weights on this Mac (~17 GB for 8B); they are always kept in the job's bucket.", 'default': False, 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The pages' language, given to the student as the line reader gives it.", 'x-cli-required': False},
+                "max_trace_cer": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Max Trace Cer', 'description': "A palaeographer's reasons are kept only where its own reading of the line is within this CER of the checked one.", 'default': 0.1, 'x-cli-required': False},
                 "name": {'type': 'string', 'title': 'Name', 'description': 'A short name: the model lands as fichero-trained/<name>.', 'default': 'student', 'x-cli-required': False},
                 "not_for_release": {'type': 'boolean', 'title': 'Not For Release', 'description': 'The trained model may not be released.', 'default': True, 'x-cli-required': False},
                 "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages to go to Hugging Face.", 'default': False, 'x-cli-required': False},

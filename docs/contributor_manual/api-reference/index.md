@@ -582,6 +582,12 @@ model, its licence recorded) on the cheapest listed GPU that fits unless a `flav
 back on this Mac, the merged model converted to 4-bit MLX on the local ML lane and landed as
 `fichero-trained/<name>`: one card, two builds (MLX here; the merged Hugging Face weights and adapter
 in the job's bucket for Linux GPUs; `keep_merged_here` keeps a copy on this Mac too). The same refusals. Through `training.start_vision_lora`.
+`arm` (#4642) chooses what the student learns to write: `answer` (the transcription), `why` (a
+palaeographer's reasons, then the transcription), `thinking` (its thinking, then the transcription) or
+`review` (a review of a draft reading). The answer is always the checked text; the reasons come from the
+episode ledger (`training.reasons`) and are kept only where the palaeographer's own reading is within
+`max_trace_cer` of the checked one; the A/B arms train on the lines every reasoning arm covers unless
+`all_lines`. The set's arm counts and drops are on the job.
 
 `GET /api/training/jobs/{job_id}` follows it: `state`, the `reason` in words, its `phase` and
 `history`, the Job's `far_id` on Hugging Face, the training set's counts (including how many lines a
