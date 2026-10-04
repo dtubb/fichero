@@ -1201,3 +1201,6 @@ Workflow-runner review, 2026-10-01 (read, one scheduled run reproduced, Kraken t
 
 ## Future (ideas, not scheduled)
 - (#4044) A bottom Xcode-debug-area style strip showing multiple running agents' progress and tool calls; new chrome, not current work.
+
+## Triaged from the backlog (2026-10-04)
+- `activity.voiceover-announcements` — **[GAP]** (#3724) import, indexing and workflow runs post an AccessibilityNotification announcement on started, completed and failed (only pane focus announces today, ContentView.swift:872).

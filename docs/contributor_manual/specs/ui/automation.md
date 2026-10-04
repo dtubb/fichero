@@ -218,3 +218,4 @@ not a coherent new surface needing its own spec.
 
 ## Future (ideas, not scheduled)
 - (#4171) fichero:// deep link for every view: copy link, bookmark, script, click-through from Inspector.
+- (#255) Promoting Automation from dev to beta is future work per automation.feature-gated; route-tier tests landed in PR #1629 but the flag stays dev.

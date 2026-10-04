@@ -268,6 +268,7 @@ evidence backs.
 - `release.lane.github-before-testflight` — **[GAP]** (#4272) the GitHub release (tag, notes, DMG, appcast) publishes as soon as the DMG staples, before the App Store/TestFlight leg (release-all.sh:802 still runs it last).
 - `release.gate.ready-for-first-real-user` — **[GAP]** (#4421) the Ann gate checklist (no data loss, no 'what on earth' moments, ...) is a named release gate with its evidence.
 - `release.update.announces-in-app-not-a-window` — **[GAP]** (#4433) an available update shows as a quiet in-app indicator, never a modal over the user's work (SparkleUpdater.swift uses the standard driver, no gentle reminders).
+- `release.verify-embedded-launch-local-signing` — **[GAP]** (#4333) scripts/verify_embedded_launch.sh packages the engine with ad-hoc signing (or a resolvable identity) instead of failing on a UUID-form identity's Team ID.
 
 ## Future (ideas, not scheduled)
 - (#4255) Trademark notice is in LICENSING.md:20; formal wordmark registration is an external legal step, not code.

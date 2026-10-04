@@ -1653,6 +1653,9 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - `panes.builtin.every-workspace-renders-in-ci` — **[GAP]** (#4670) a test renders each built-in workspace at a small fixed size and fails on a cyclic or unsatisfiable layout, proven by a deliberately cyclic fixture.
 - `shell.no-appkit-progressview-layout-fault` — **[GAP]** (#3354, #3382) launch and library use log no 'AppKitProgressView maximum length ... min <= max' fault; no indeterminate ProgressView sits in a fixed-size frame (SidebarRowLabelCore.swift:105-151 still does), guarded by ProgressViewUsageTests.
 - `panes.selection.one-vocabulary-across-surfaces` — **[GAP]** (#4563) the toolbar island, sidebar and bottom bar agree on the selection (no singular 'Page 1' for a multi-selection) and the Library shows a sidebar multi-selection as selected; the sidebar platter half is built.
+- `shell.accessibility-labels` — **[GAP]** (#3691) every control and custom view has a meaningful accessibilityLabel, correct traits and grouping; icon-only buttons are labelled.
+- `shell.dynamic-type` — **[GAP]** (#3694) text scales with the system Larger Text setting using semantic styles, composing with the reader font-size override, without breaking layouts.
+- `shell.system-accessibility-settings` — **[GAP]** (#3695) Reduce Motion and Increase Contrast are honoured (only ImmersiveReaderView and SkeletonPlaceholder read reduce-motion today).
 
 ## Future (ideas, not scheduled)
 - (#1640) Library and reading-surface toolbars compress when narrow like the inspector mini-toolbar (Reader uses ViewThatFits; Library does not)

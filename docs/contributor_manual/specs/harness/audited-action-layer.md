@@ -437,3 +437,5 @@ Design content carried into this spec; files kept, not moved:
 - `audit.research-source-actions` — **[GAP]** (#4435) the research source-create and browser-save mutations are audited actions with an inverse (`_invert_source_to_delete`), so they are undoable, not just logged.
 - `actions.no-residual-direct-mutations` — **[GAP]** (#4084) a generated audit lists every handler that mutates outside a registered action with ChangeSpec and inverse (or a stated non-invertible reason).
 - `audit.cli-writes-go-over-http` — **[GAP]** (#2884) CLI corpus importers and writes run through the audited registry over HTTP, not in-process.
+- `audit.one-action-layer-all-surfaces` — **[GAP]** (#4166) CLI, AppleScript, MCP, Shortcuts, Spotlight and Siri are thin adapters over the one action registry, never parallel implementations (AppleScript run verbs exist, Shortcuts and Spotlight partial).
+- `audit.one-action-layer` — **[PARTIAL]** (#1848) every capability is one typed audited action reached by UI, chat tools, App Intents and tests; the spec's audit.* behaviours track the remaining gaps.

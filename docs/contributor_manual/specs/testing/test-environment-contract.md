@@ -80,12 +80,15 @@ n/a (infrastructure spec).
 
 ## Triaged from the backlog (2026-10-04)
 - `testenv.one-mcp-test-tree` — **[GAP]** (#4480) fichero-mcp is tested from one tree only; the stale copy under fichero-server/tests/unit/mcp is removed or made the same suite (it still exists).
-- `testenv.no-defaults-leak` — **[GAP]** (#4103, #4578) tests never create UserDefaults suites in the shipping app container, and a sweep removes the ~180 test.purge.* plists.
+- `testenv.no-defaults-leak` — **[GAP]** (#4234, #4103, #4578) tests never create UserDefaults suites in the shipping app container, and a sweep removes the ~180 test.purge.* plists.
 - `testenv.full-suite-completes` — **[GAP]** (#4039) a full engine pytest run finishes without a hang (the perf test is bounded, not skipped) and without shared-app middleware errors at setup.
 - `testenv.no-modal-in-hosted-tests` — **[GAP]** (#4270) a hosted unit test never raises a user-visible save panel or alert; save paths are pointed at a temp directory.
 - `testenv.no-real-files-touched` — **[GAP]** (#4537) tests running in the app container never write real container files (e.g. .api-key) without save/restore; a sweep and guardrail cover the class.
 - `testenv.expect-message-is-comment` — **[GAP]** (#4698) a guardrail fails before a build when a Swift Testing #expect/Issue.record message is a concatenation or String variable.
 - `testenv.load-insensitive-unit-tests` — **[GAP]** (#4793) WebKit-backed ReaderTranscriptWrapTests and ServiceHostReconfigurationTests:78 do not fail the gate under machine load.
+- `testenv.engine-leg-fits-footprint` — **[GAP]** (#4916) the gate's engine leg completes under the 4096 MB footprint ceiling (scripts/gate GATE_FOOTPRINT_MB) by sharding the engine suite across processes.
+- `testenv.transport-error-tests-use-stubs` — **[GAP]** (#4207) twelve service suites that assert transport error mapping use a stub transport, not real DNS/network.
+- `testenv.guardrails-fail-on-stale-baseline` — **[GAP]** (#3339) every scripts/check_*.py returns nonzero when a KNOWN_VIOLATIONS or baseline entry is stale (check_native_controls.py and check_feature_flags.py warn and return 0).
 
 ## Future (ideas, not scheduled)
 - (#4425) Design principle: what must not be forgotten lives in the gate, advice lives in skills.

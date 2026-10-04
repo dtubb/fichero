@@ -209,3 +209,6 @@ rather than only being tracked.
 or an explicit resync has no prior row to splice against (see
 `observable.wholesale-replacement-only-on-identity-change` above). Filed as its own allowlist
 class rather than a special-cased exemption from the mutating-verb scan.
+
+## Triaged from the backlog (2026-10-04)
+- `data.store-wraps-app-endpoints` — **[PARTIAL]** (#3677) every app-facing endpoint has a store-layer accessor; batches 1-3 landed and backend-only long-tail endpoints are allowlisted.
