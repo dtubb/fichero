@@ -440,7 +440,7 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
    generic document-status refresh mechanism (`DocumentStore+StatusRefresh.swift`) with
    nothing embedding-specific? Not verified this pass — a real open question, not a
    confirmed gap.
-2. Once Kraken segmentation and the free NLP layer both run at import
+2. **Answered** (design lead 2026-10-04, by the existing design): The curation guard already runs inside the one KG writer import uses (`importers/nlp_draft.py`, `workflows/curation_guard.py`), so there is no separate pass. Once Kraken segmentation and the free NLP layer both run at import
    (`importer.segmentation-automatic-no-toggle`, `importer.nlp-auto-at-import`), does the
    curation-persists-and-constrains-imports checker become part of THIS pipeline (import-time
    entity resolution) or stay a `kg/kg-enrichment.md`-owned pass that runs just after?

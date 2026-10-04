@@ -1157,6 +1157,7 @@ receiving the same scope is one call or several. Settled and not reopened here: 
 (a person's line outranks a machine's), the compact text form rather than SVG, and cutting the
 picture to the shape.
 - **Answered** (design lead 2026-10-04, applying the spec's lean): (2) A character stretch inside one reading is addressed by the anchor's text-position form, with no new segment.
+- **Answered** (design lead 2026-10-04, by the existing design): (3) A tool is given only the working pass's reading (ruled 2026-09-26, "What a tool is given"), and the maker tag is built as `provenance_kind`.
 - **Answered** (design lead 2026-10-04, applying the spec's lean): (4) Sending the same scope to more than one model is several calls, one per model, fanned out.
 
 ## Triaged from the backlog (2026-10-04)

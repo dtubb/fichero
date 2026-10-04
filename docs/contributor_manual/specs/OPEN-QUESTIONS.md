@@ -108,8 +108,8 @@ _(The spec lives at `source/segment-representations.md`.)_ All three answered 20
       lead, 2026-10-04).
 - [x] Release always runs the full UI suite, beta on release branches, dev a smoke run on every
       push (design lead, 2026-10-04).
-- [ ] Model cache: one committed/seeded fixture model for embeddings tests, or point tests at
-      the developer's real `~/.cache` (fast but not hermetic)?
+- [x] Model cache: tests use the developer's cached model offline and skip with a reason when
+      it is missing (#5188; by the existing design, 2026-10-04).
 
 ### ui-test-harness.md
 
@@ -204,6 +204,7 @@ the spec's lean)". Questions in these specs not listed here stay open in the spe
   `workflows`; edge legality before the move; presets issue filed (#4738); #4396 re-check stands;
   typed steps after tracing duplicates and fixing `kraken_model` drift.
 
-Not answered (the code or a ruling already does something else): importer's curation checker
-placement; segments' several-readings maker line; spec-pipeline rule (g) strict-only; test
-embeddings fixture model.
+Answered by the existing design (2026-10-04): the importer's curation guard runs inside the one
+KG writer, no separate pass; a tool gets only the working pass's reading and the maker tag is
+built; spec-pipeline rule (g) keeps baseline + reasoned allowlist; test embeddings use the
+developer's cached model offline (#5188).
