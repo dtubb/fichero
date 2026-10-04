@@ -220,7 +220,7 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
 
 ### E. Cross-surface invariant
 
-- `kg.entity.xsurface.same-line` — the same claim renders the same statement line in
+- `kg.entity.xsurface.same-line` — **[GAP]** (#1936) the same claim renders the same statement line in
   the inspector entity pane, the ontology `ClaimSummaryCard`, and the entity digest:
   one composer (`ClaimSummaryCard.svoTriple` + `ClaimLine.text`), tested once as an
   invariant over a fixture claim set, not per surface. Pinned:

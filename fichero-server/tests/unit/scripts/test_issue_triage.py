@@ -33,7 +33,8 @@ def test_spec_tags_decide_tracked_and_done(tmp_path):
         "prose that mentions #40 without a tag\n"
         "- `x.five` — **[GAP]** the behaviour\n  ISSUE: #60 on the continuation line\n\nlater prose #70\n"
         "- `x.six` [MISSING] — an unbolded tag (#80)\n"
-        "- `x.seven` — **[GAP/BROKEN]** compound (#90)\n- `x.eight` — **[PROPOSED]** (#91)\n")
+        "- `x.seven` — **[GAP/BROKEN]** compound (#90)\n- `x.eight` — **[PROPOSED]** (#91)\n"
+        "- `x.nine` — **[BROKEN-partial]** hyphenated (#92)\n")
     (tmp_path / "_TEMPLATE.md").write_text("- `t` — **[GAP]** (#50)\n")
     cited = _mod.spec_citations(tmp_path)
     assert _mod.bucket(_issue(10, "2026-01-01"), cited, TODAY, 14) == "TRACKED"
@@ -45,6 +46,7 @@ def test_spec_tags_decide_tracked_and_done(tmp_path):
     assert 70 not in cited, "prose after the behaviour ends is not"
     assert cited.get(80) == {"MISSING"}, "some specs write the tag without bold"
     assert cited.get(90) == {"GAP"} and cited.get(91) == {"PROPOSED"}, "compound and proposed tags track"
+    assert cited.get(92) == {"BROKEN"}, "a hyphenated tag tracks"
 
 
 def test_waiting_and_recent_are_kept():

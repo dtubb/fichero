@@ -10,7 +10,6 @@
     "docs/contributor_manual/specs/kg/kg-entity-inspector.md::kg.entity.select.never-another-entity",
     "docs/contributor_manual/specs/kg/kg-entity-inspector.md::kg.entity.statements.loading-state",
     "docs/contributor_manual/specs/kg/kg-entity-inspector.md::kg.entity.statements.row-shows-source-label",
-    "docs/contributor_manual/specs/kg/kg-entity-inspector.md::kg.entity.xsurface.same-line",
     "docs/contributor_manual/specs/kg/kg-interactions.md::kg.interact.comment",
     "docs/contributor_manual/specs/kg/kg-interactions.md::kg.interact.context-menu-full",
     "docs/contributor_manual/specs/kg/kg-interactions.md::kg.interact.drag",
