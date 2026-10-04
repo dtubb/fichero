@@ -285,12 +285,6 @@ def record_batch(db: "Database", batch_id: str, *, status: str, name: str | None
                 reason=reason, name=name)
 
 
-def set_parent(db: "Database", job_id: str, parent_id: str) -> None:
-    """Make a job a child of another (a batch's item run of its batch). Later writes keep it."""
-    _ensure(db)
-    db.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", [parent_id, job_id])
-
-
 def record_step(db_path: str | Path, thread_id: str, node_id: str, *, status: str, name: str | None = None,
                 reason: str | None = None) -> None:
     """A step's row, a child of its run's."""
@@ -780,8 +774,15 @@ def delete_job(db: "Database", job_id: str) -> None:
     db.execute("DELETE FROM jobs WHERE id = ?", [job_id])
 
 
+def set_started_by(db: "Database", job_id: str, started_by: str) -> None:
+    """Who or what started a job (a schedule, a trigger), when its row was written by its kind."""
+    _ensure(db)
+    db.execute("UPDATE jobs SET started_by = ? WHERE id = ?", [started_by, job_id])
+
+
 def set_parent(db: "Database", job_id: str, parent_id: str) -> None:
-    """Hang a job under another (a started recipe's step runs under the recipe's row)."""
+    """Hang a job under another (a started recipe's step runs under the recipe's row; a batch's
+    item run under its batch). Later writes of the row keep it."""
     _ensure(db)
     db.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", [parent_id, job_id])
 

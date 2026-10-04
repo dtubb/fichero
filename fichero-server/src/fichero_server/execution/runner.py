@@ -847,7 +847,7 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
 
 
 async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRequest, thread_id: str,
-                    *, parent_job: str | None = None) -> threading.Event:
+                    *, parent_job: str | None = None, started_by: str | None = None) -> threading.Event:
     """Start a run: the one way every run starts, by hand or as a batch's item (#5374,
     `activity.run.one-way-to-run`). Registers its event hub, writes its run record, and runs it on
     a DEDICATED WORKER THREAD with its own event loop (#1000): a tool node's blocking work can
@@ -880,10 +880,13 @@ async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRe
             "inputs": request.inputs,
         },
     )
-    if parent_job:
+    if parent_job or started_by:
         from fichero_server.execution import jobs  # noqa: PLC0415
 
-        jobs.set_parent(db, thread_id, parent_job)
+        if parent_job:
+            jobs.set_parent(db, thread_id, parent_job)
+        if started_by:  # a schedule, a trigger (`started_by` on the job)
+            jobs.set_started_by(db, thread_id, started_by)
     finished = threading.Event()
 
     def _run_workflow_thread() -> None:
@@ -905,6 +908,54 @@ async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRe
         daemon=True,
     ).start()
     return finished
+
+
+_background_loop: Any = None
+_background_loop_lock = threading.Lock()
+
+
+def on_background_loop(coro: Any) -> Any:
+    """Run a coroutine on the engine's one background event loop, a daemon thread of its own, off
+    the API's loop (#1000) and not tied to the request that asked for it: a schedule run now, the
+    work a file trigger's events start. Callable from any thread (a watcher's included). Returns a
+    `concurrent.futures.Future`, cancellable."""
+    import asyncio  # noqa: PLC0415
+
+    global _background_loop
+    with _background_loop_lock:
+        if _background_loop is None or not _background_loop.is_running():
+            loop = asyncio.new_event_loop()
+            started = threading.Event()
+
+            def serve() -> None:
+                asyncio.set_event_loop(loop)
+                loop.call_soon(started.set)
+                loop.run_forever()
+
+            threading.Thread(target=serve, name="engine-background-loop", daemon=True).start()
+            started.wait(10)
+            _background_loop = loop
+    return asyncio.run_coroutine_threadsafe(coro, _background_loop)
+
+
+async def run_and_wait(db: Database, workflow: Workflow, inputs: dict[str, Any], *,
+                       thread_id: str | None = None, parent_job: str | None = None,
+                       started_by: str | None = None) -> tuple[str, str | None]:
+    """Run a workflow through `start_run` and wait for it, for a caller that is itself background
+    work (a schedule, a file trigger, a batch's item): the same run a person starts by hand, with
+    its record, steps, usage and job row. The inputs go through the execute route's own validator.
+    Returns the run's final status and its error, if any."""
+    import asyncio  # noqa: PLC0415
+    from uuid import uuid4  # noqa: PLC0415
+
+    thread_id = thread_id or f"thread-{uuid4().hex[:12]}"
+    request = ExecuteWorkflowRequest(workflow_id=workflow.id, inputs=dict(inputs or {}), thread_id=thread_id)
+    finished = await start_run(db, workflow, request, thread_id, parent_job=parent_job, started_by=started_by)
+    await asyncio.to_thread(finished.wait)
+    run = await get_activity_tracker(str(db.path)).store.get_workflow_run(thread_id)
+    status = getattr(run, "status", None) or "failed"
+    error = getattr(run, "error", None) or (None if status == "completed" else f"the run ended {status}")
+    return status, error
 
 
 async def _run_workflow_in_background(

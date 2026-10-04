@@ -56,14 +56,13 @@ async def test_scheduler_sync_workflow_store_runs_due_schedule(tmp_path, monkeyp
     )
     calls = []
 
-    async def fake_execute_workflow(*, workflow, inputs):
+    async def fake_run_and_wait(db, workflow, inputs, **kwargs):
+        # A scheduled run is a run of the one runner (#5372, #5374): what it is handed is recorded.
         calls.append((workflow.id, inputs))
-        return {"outputs": {"ok": True}}
+        return "completed", None
 
-    monkeypatch.setattr(
-        "fichero_server.workflows.builder.execute_workflow",
-        fake_execute_workflow,
-    )
+    monkeypatch.setattr("fichero_server.execution.runner.run_and_wait", fake_run_and_wait)
+    monkeypatch.setattr("fichero_server.db.manager.db_manager.get_database", lambda path: SimpleNamespace())
 
     schedule = await scheduler.create_schedule(
         name="run once",
@@ -132,10 +131,10 @@ async def test_scheduler_tracks_fire_and_forget_tasks(tmp_path, monkeypatch):
     await scheduler.trigger_now(schedule.schedule_id)
 
     assert len(scheduler._bg_tasks) == 1
-    task = next(iter(scheduler._bg_tasks))
+    task = next(iter(scheduler._bg_tasks))  # the run, on the engine's background loop (#5374)
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
-        await task
+        await asyncio.wrap_future(task)
 
 
 def test_scheduler_cache_is_bounded(tmp_path):
@@ -173,15 +172,14 @@ async def test_file_watcher_sync_workflow_store_trigger_executes(tmp_path, monke
     executed = asyncio.Event()
     calls = []
 
-    async def fake_execute_workflow(*, workflow, inputs):
+    async def fake_run_and_wait(db, workflow, inputs, **kwargs):
+        # A triggered run is a run of the one runner (#5372, #5374): what it is handed is recorded.
         calls.append((workflow.id, inputs["file_path"]))
         executed.set()
-        return {"outputs": {"ok": True}}
+        return "completed", None
 
-    monkeypatch.setattr(
-        "fichero_server.workflows.builder.execute_workflow",
-        fake_execute_workflow,
-    )
+    monkeypatch.setattr("fichero_server.execution.runner.run_and_wait", fake_run_and_wait)
+    monkeypatch.setattr("fichero_server.db.manager.db_manager.get_database", lambda path: SimpleNamespace())
     watched = tmp_path / "watched"
     watched.mkdir()
     source = watched / "in.txt"
@@ -213,7 +211,7 @@ def _a_run_that_ends(status: str, error: str | None = None):
     writes the run's record as the runner would and ends at once."""
     import threading
 
-    async def start_run(db, workflow, request, thread_id, *, parent_job=None):
+    async def start_run(db, workflow, request, thread_id, *, parent_job=None, started_by=None):
         from fichero_server.workflows.activity import get_activity_tracker
 
         store = get_activity_tracker(str(db.path)).store

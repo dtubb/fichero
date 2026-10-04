@@ -697,12 +697,13 @@ code path.
   and an `interrupt_before` ends the stream so the missing-exit check fails the run
   (`execution/runner.py:2013-2022`). The only `interrupt()` call (`workflows/tools/catalogue.py:543`)
   and the resume-with-answer path (`api/routes/workflow_execution/core.py:445`) are dead.
-- `activity.run.scheduled-runs-execute` — **[BROKEN]** (#5372) a scheduled or file-triggered run
-  executes through the same path as a run started by hand. Today `_run_single`
-  (`workflows/scheduler.py:486-496`) and `_execute_single` (`workflows/file_watcher.py:541-550`)
-  pass the stored workflow, whose nodes are dicts, to `build_graph`, which fails with
-  "'dict' object has no attribute 'label'". That path also has no checkpointer, run row, cancel,
-  document settle or usage (`workflows/builder.py:2446-2499`).
+- `activity.run.scheduled-runs-execute` — **[OK]** (#5372) *Built (2026-10-04): a schedule's run and a file
+  trigger's runs start through `runner.start_run` (`runner.run_and_wait`), the way a run by hand
+  does, with their record, steps, usage and job row (`started_by` schedule or trigger), on the
+  engine's background loop rather than the request's; and a file trigger fires at all (its
+  watcher's thread asked for an event loop it did not have, which ended the watcher, and an
+  extension named with its dot matched nothing) (`fichero-server/tests/unit/jobs/test_scheduled_and_triggered_runs.py`).* a scheduled or file-triggered run
+  executes through the same path as a run started by hand.
 - `activity.run.resume-once` — **[BROKEN]** (#5373) resuming a run that is already running is
   refused. Today `/threads/{id}/resume` never checks, so two clicks start two workers on one
   checkpoint thread (`api/routes/workflow_execution/core.py:452-570`).
@@ -764,9 +765,9 @@ code path.
   reused.
 - `activity.run.one-way-to-run` — **[BROKEN]** (#5374, → #4949) every run, whether by hand, batch,
   chain, schedule, trigger or sub-workflow, goes through the runner and writes jobs. Built
-  (2026-10-04): by hand and a batch's items both start through `runner.start_run` (`fichero-server/tests/unit/jobs/test_batches_are_jobs.py`). Still
-  broken: chains, schedules, triggers and sub-workflows each have their own path, and the app has a
-  client-side chain loop.
+  (2026-10-04): by hand, a batch's items, a schedule and a file trigger all start through
+  `runner.start_run` (`fichero-server/tests/unit/jobs/test_batches_are_jobs.py`, `fichero-server/tests/unit/jobs/test_scheduled_and_triggered_runs.py`). Still broken: chains and
+  sub-workflows each have their own path, and the app has a client-side chain loop (#4949).
 
 ### H. Workflow runs: efficiency
 
