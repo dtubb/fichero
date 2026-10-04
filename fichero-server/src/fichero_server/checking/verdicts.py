@@ -1,4 +1,4 @@
-"""`check.verdict`: the one audited action that records a verdict, whoever checks (`source.check.*`).
+"""`check.verdict`'s work: the one audited action that records a verdict, whoever checks (`source.check.*`).
 
 Trust is the server's: a person writing directly is `person`; a run, an agent (MCP) or a named checker
 model is `model` (`source.check.model-never-a-person`). A model's verdict never curates or verifies: a
@@ -8,28 +8,11 @@ the statement's own action (`source.check.person-checks-the-same-way`).
 """
 from __future__ import annotations
 
-from typing import Any, Literal
-
-from pydantic import BaseModel, ConfigDict
-
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action
-from fichero_server.models.checking import CheckVerdict
+from typing import Any
 
 
-class CheckVerdictParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")  # no `trust`, no `checker`: the server's to set
-
-    layer: Literal["readings", "claims", "entities"]
-    target_id: str
-    verdict: Literal["confirm", "correct", "reject"]
-    reasons: str
-    correction: dict[str, Any] | None = None
-    replacement_id: str | None = None
-    #: The model whose verdict this is, written by a check run; a person's own verdict names none.
-    checker_model: str | None = None
-    episode_id: str | None = None
-    #: A reading not yet stored (it still lives in a run's output) is found through its line.
-    segment_id: str | None = None
+from fichero_server.actions.registry import ActionContext, ChangeSpec
+from fichero_server.models.checking import CheckVerdict, CheckVerdictParams  # noqa: F401  (re-exported)
 
 
 def trust_of(ctx: ActionContext, checker_model: str | None) -> str:
@@ -64,8 +47,8 @@ def _proposal(db: Any, params: CheckVerdictParams) -> str | None:
     return getattr(row, "source_document_id", None)
 
 
-@action("check.verdict", CheckVerdictParams, domains=["check"], undoable=False)
-def _action_verdict(db: Any, params: CheckVerdictParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+def record_verdict(db: Any, params: CheckVerdictParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """The work of `check.verdict` (registered by `api/routes/check.py`, so it is known at app start)."""
     from fichero_server.models.knowledge import ClaimCurationState, KnowledgeClaim
 
     trust = trust_of(ctx, params.checker_model)

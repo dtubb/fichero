@@ -10,24 +10,18 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, Field
 
 from fichero_server.execution import jobs
+from fichero_server.models.compute_requests import (  # noqa: F401  (re-exported)
+    ContenderSpec,
+    GatherReasonsRequest,
+    ReasonsABRequest,
+)
 
 KIND = "gather-reasons"
 KIND_AB = "reasons-ab"
-
-
-class GatherReasonsRequest(BaseModel):
-    scope_ids: list[str] = Field(description="Folders or pages whose checked lines are asked about.")
-    checked: str = Field(description="The model id of the CHECKED pass (its lines and their right readings).")
-    provider: str = Field(description="The teacher's provider, e.g. openrouter, gemini, omlx.")
-    model: str = Field(description="The teacher: a reasoning vision model, e.g. Qwen3-VL-8B-Thinking.")
-    held_out_ids: list[str] = Field(default_factory=list, description="Pages kept as the test: never asked about.")
-    language: str | None = None
-    prompt_file: str | None = Field(None, description="The recipe's prompt file; none uses Fichero's own.")
 
 
 def _job(db: Any, job_id: str, kind: str = KIND) -> dict[str, Any]:
@@ -88,24 +82,6 @@ def request_cancel(db: Any, job_id: str) -> str:
 def status(db: Any, job_id: str, kind: str = KIND) -> dict[str, Any]:
     row = _job(db, job_id, kind)
     return {"job_id": job_id, "state": row["state"], "reason": row["reason"], **json.loads(row["detail"] or "{}")}
-
-
-class ContenderSpec(BaseModel):
-    label: str
-    provider: str
-    model: str
-    arm: Literal["answer", "why", "thinking"] = Field("answer", description="How it is asked: as it was trained.")
-    role: Literal["student", "teacher", "baseline"] = "student"
-
-
-class ReasonsABRequest(BaseModel):
-    checked: str = Field(description="The model id of the CHECKED pass: the right readings.")
-    held_out_ids: list[str] = Field(description="The held-out checked pages: no arm trained on them.")
-    contenders: list[ContenderSpec] = Field(min_length=2, description="The answer-only student, the reasoning "
-                                            "students, the teacher and a cheap baseline.")
-    language: str | None = None
-    noise_band: float = Field(0.005, ge=0.0, le=1.0, description="A reasoning student is adopted only if it beats "
-                              "the answer-only one by more than this CER.")
 
 
 def start_ab(db: Any, request: ReasonsABRequest, *, started_by: str) -> dict[str, str]:

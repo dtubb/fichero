@@ -15,26 +15,14 @@ import json
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, Field
 
 from fichero_server.execution import jobs
+from fichero_server.models.checking import CheckRunRequest  # noqa: F401  (re-exported)
 
 KIND = "check"
 COUNTS = ("confirm", "correct", "reject", "unanswered")
-
-
-class CheckRunRequest(BaseModel):
-    layer: Literal["readings", "claims", "entities"] = Field(description="Which layer's proposals to check.")
-    scope_ids: list[str] = Field(description="Folders, pages or documents: their lines, or their statements and entities.")
-    provider: str = Field(description="The checker's provider, e.g. openrouter, omlx.")
-    model: str = Field(description="The checker model, e.g. a palaeographer such as Fable.")
-    prompt_file: str | None = Field(None, description="The recipe's prompt for this card; none uses Fichero's own.")
-    language: str | None = None
-    kind: str = Field("transcription", description="readings: the kind of reading checked.")
-    pass_model: str | None = Field(None, description="readings: check the lines of this model's pass, not the "
-                                   "page's newest.")
 
 
 def _job(db: Any, job_id: str) -> dict[str, Any]:
@@ -65,7 +53,7 @@ def _words(counts: dict[str, int]) -> str:
 
 async def _check(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dict[str, Any]:
     import fichero_server.api.routes.document.content_representations  # noqa: F401  (representation.create)
-    import fichero_server.checking.verdicts  # noqa: F401  (check.verdict)
+    import fichero_server.api.routes.check  # noqa: F401  (registers check.verdict)
     from fichero_server import llm
     from fichero_server.actions.registry import ActionContext, registry
     from fichero_server.checking import cards

@@ -25,11 +25,17 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Callable
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from fichero_server.execution import jobs
+from fichero_server.models.compute_requests import (  # noqa: F401  (re-exported)
+    TrainKrakenHereRequest,
+    TrainKrakenRequest,
+    TrainVisionLoraRequest,
+    _TrainRequest,
+)
 
 KIND = "train-a-model"
 TARGET = "huggingface-jobs"
@@ -38,62 +44,7 @@ POLL_SECONDS = 60.0
 NOT_FOR_RELEASE_NOTE = "No release was recorded for the pages it was trained on; it is not released."
 
 
-class _TrainRequest(BaseModel):
-    """What every training card asks: which pages teach, which teacher, which test."""
-
-    scope_ids: list[str] = Field(description="Folders or pages whose teacher-read lines are the lessons.")
-    teacher: str = Field(description="The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.")
-    held_out_ids: list[str] = Field(default_factory=list, description="Pages kept home as the test; never sent.")
-    display_name: str | None = None
-    pages_may_leave: bool = Field(False, description="The person's yes for these pages to go to Hugging Face.")
-    not_for_release: bool = Field(True, description="The trained model may not be released.")
-    release_note: str | None = None
-
-
-class TrainKrakenRequest(_TrainRequest):
-    """The Kraken card: a recognition model fine-tuned with `ketos train`."""
-
-    base: str | None = Field(None, description="The Kraken reader to start from (a model id); none trains from nothing.")
-    name: str = Field("reader", description="A short name for the trained reader's file.")
-    flavor: str = Field("t4-small", description="Hugging Face hardware.")
-    timeout: str = Field("4h", description="The Job's time limit; always sent (the service's default is 30 minutes).")
-
-
-class TrainVisionLoraRequest(_TrainRequest):
-    """The vision-model card: a LoRA on a vision-language model, landed on this Mac as MLX 4-bit."""
-
-    base_repo: str = Field("Qwen/Qwen3-VL-8B-Instruct", description="The bf16 base on the Hub: any image-text-to-text "
-                           "model (Qwen3-VL 8B by default; Qwen2.5-VL 7B, chandra and others are valid).")
-    base_licence: str | None = Field(None, description="The base's licence, carried on the card; none: from Fichero's "
-                                     "list of vision bases, or 'not checked'.")
-    keep_merged_here: bool = Field(False, description="Also keep the merged Hugging Face weights on this Mac "
-                                   "(~17 GB for 8B); they are always kept in the job's bucket.")
-    language: str | None = Field(None, description="The pages' language, given to the student as the line reader gives it.")
-    name: str = Field("student", description="A short name: the model lands as fichero-trained/<name>.")
-    flavor: str | None = Field(None, description="Hugging Face hardware; none chooses the cheapest that fits a 7B LoRA.")
-    timeout: str = Field("8h", description="The Job's time limit; always sent.")
-    epochs: int = Field(2, ge=1, le=20)
-    rank: int = Field(16, ge=2, le=256)
-    arm: Literal["answer", "why", "thinking", "review"] = Field(
-        "answer", description="What the student learns to write (#4642): the checked transcription alone, with "
-        "a palaeographer's reasons, with its thinking, or a review of a draft. Reasons come from the episode "
-        "ledger (training.reasons); the answer is always the checked text.")
-    max_trace_cer: float = Field(0.10, ge=0.0, le=1.0, description="A palaeographer's reasons are kept only where "
-                                 "its own reading of the line is within this CER of the checked one.")
-    all_lines: bool = Field(False, description="Train an A/B arm on every line it has, not only the lines every "
-                            "reasoning arm covers.")
-
-
 #: The cards a training job can be, by the name its row records.
-class TrainKrakenHereRequest(_TrainRequest):
-    """The Kraken card, trained on this Mac. Nothing leaves it."""
-
-    base: str | None = Field(None, description="The Kraken reader to start from (a model id); none trains from nothing.")
-    name: str = Field("reader", description="A short name for the trained reader's file.")
-    epochs: int | None = Field(None, ge=1, description="A fixed number of epochs; none stops when it stops improving.")
-    batch_size: int = Field(4, ge=1, le=64, description="Lines per step; small keeps memory down on a 16 GB Mac.")
-
-
 CARDS: dict[str, type[_TrainRequest]] = {"kraken": TrainKrakenRequest, "vision-lora": TrainVisionLoraRequest}
 
 

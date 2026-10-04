@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.core.timeutil import utc_now
 
@@ -35,3 +35,31 @@ class CheckVerdict(BaseModel):
     run_id: str | None = None
     episode_id: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
+
+
+class CheckRunRequest(BaseModel):
+    layer: Literal["readings", "claims", "entities"] = Field(description="Which layer's proposals to check.")
+    scope_ids: list[str] = Field(description="Folders, pages or documents: their lines, or their statements and entities.")
+    provider: str = Field(description="The checker's provider, e.g. openrouter, omlx.")
+    model: str = Field(description="The checker model, e.g. a palaeographer such as Fable.")
+    prompt_file: str | None = Field(None, description="The recipe's prompt for this card; none uses Fichero's own.")
+    language: str | None = None
+    kind: str = Field("transcription", description="readings: the kind of reading checked.")
+    pass_model: str | None = Field(None, description="readings: check the lines of this model's pass, not the "
+                                   "page's newest.")
+
+
+class CheckVerdictParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # no `trust`, no `checker`: the server's to set
+
+    layer: Literal["readings", "claims", "entities"]
+    target_id: str
+    verdict: Literal["confirm", "correct", "reject"]
+    reasons: str
+    correction: dict[str, Any] | None = None
+    replacement_id: str | None = None
+    #: The model whose verdict this is, written by a check run; a person's own verdict names none.
+    checker_model: str | None = None
+    episode_id: str | None = None
+    #: A reading not yet stored (it still lives in a run's output) is found through its line.
+    segment_id: str | None = None

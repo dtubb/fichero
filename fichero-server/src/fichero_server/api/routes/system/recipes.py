@@ -17,12 +17,40 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
-from fichero_server.recipes.project import read_project_setup, write_project_setup
 
 from fichero_server.recipes.assemble import PURPOSE_STEPS, PURPOSES, Answers, assemble
-from fichero_server.recipes.cards import seed_cards
-from fichero_server.recipes.jobs import all_jobs
-from fichero_server.recipes.recipe import check_recipe
+
+
+# The recipe store, cards, job registry and check load on first use, not at app start (#3950); the purposes
+# (`recipes.assemble`, standard library only) are read at start, for the schema's descriptions.
+def read_project_setup(library: Path) -> dict[str, Any]:
+    from fichero_server.recipes.project import read_project_setup as read
+
+    return read(library)
+
+
+def write_project_setup(library: Path, answers: Any, recipe: Any) -> None:
+    from fichero_server.recipes.project import write_project_setup as write
+
+    write(library, answers, recipe)
+
+
+def seed_cards() -> Any:
+    from fichero_server.recipes.cards import seed_cards as seed
+
+    return seed()
+
+
+def all_jobs() -> Any:
+    from fichero_server.recipes.jobs import all_jobs as jobs
+
+    return jobs()
+
+
+def check_recipe(recipe: Any) -> list[str]:
+    from fichero_server.recipes.recipe import check_recipe as check
+
+    return check(recipe)
 
 router = APIRouter(prefix="/recipes")
 

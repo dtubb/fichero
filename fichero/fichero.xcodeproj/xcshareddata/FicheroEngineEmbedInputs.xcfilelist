@@ -380,6 +380,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/anchors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/campaigns.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/canvas.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/checking.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/compute_requests.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/editorial.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/geo.py
