@@ -71,9 +71,9 @@ release-gate UI run.
 n/a (infrastructure spec).
 
 ## Open questions for the creative director
-- Where does the shared engine `.env` base live, and does the test harness read it +
+- **Answered** (design lead 2026-10-04, applying the spec's lean): One shared base file, with the harness layering only the allowlisted overrides. Where does the shared engine `.env` base live, and does the test harness read it +
   layer the allowlisted overrides (vs. re-listing env in Swift)?
-- Which tiers get a full UI run vs. a smoke run (release always; beta on release branches;
+- **Answered** (design lead 2026-10-04, applying the spec's lean): Release always runs the full UI suite, beta on release branches, and dev runs a smoke run on every push. Which tiers get a full UI run vs. a smoke run (release always; beta on release branches;
   dev every push)?
 - Model cache: one committed/seeded fixture model for embeddings tests, or point tests at
   the developer's real `~/.cache` (fast but not hermetic)?

@@ -1156,8 +1156,11 @@ rule shows up there when the page holds several readings. (4) whether **more tha
 receiving the same scope is one call or several. Settled and not reopened here: the trust order
 (a person's line outranks a machine's), the compact text form rather than SVG, and cutting the
 picture to the shape.
+- **Answered** (design lead 2026-10-04, applying the spec's lean): (2) A character stretch inside one reading is addressed by the anchor's text-position form, with no new segment.
+- **Answered** (design lead 2026-10-04, applying the spec's lean): (4) Sending the same scope to more than one model is several calls, one per model, fanned out.
 
 ## Triaged from the backlog (2026-10-04)
+- `source.tool.each-model-gets-its-own-call` **[GAP]** (#5026): when the same scope goes to more than one model, each model gets its own call, fanned out, never one combined call.
 - `segments.claims-carry-box-anchor` — **[GAP]** (#970) a claim extracted from transcribed text carries the box/segment it was read from
 - `geometry.review-word-boxes-on-ink` — **[GAP]** (#4615) word boxes in the Transcription Review artifact sit over the right ink (data-side defect on 9_Hoja_534_Recto).
 - `source.pass.nothing-drawable-never-covers` **[BROKEN]** (#4955): a result whose shapes are all unusable (zero width or height) never hides a lower-ranked result that has boxes to draw, and the page says the chosen result had no usable shapes. (Items 1-3 and the audit-id fix landed in cb304e65a.)

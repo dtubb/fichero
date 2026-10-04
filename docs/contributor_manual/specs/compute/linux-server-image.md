@@ -255,9 +255,9 @@ All [GAP]: designed, not built. "Data" names what the behaviour reads or writes.
 
 ## Open questions
 
-1. **A third image for fine-tuning?** *Proposal: decide from the first build's measured sizes.
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Decide from the first build's measured sizes, with one GPU image if it fits. **A third image for fine-tuning?** *Proposal: decide from the first build's measured sizes.
    One gpu image if it fits the build machine; otherwise split the training libraries out.*
-2. **The base.** *Proposal: NVIDIA's CUDA runtime image of the version PyTorch's current wheels
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): NVIDIA's CUDA runtime image matching PyTorch's current wheels, with the versions pinned and recorded at build. **The base.** *Proposal: NVIDIA's CUDA runtime image of the version PyTorch's current wheels
    are built against, because Alliance H100 nodes are reported to need a recent PyTorch
    (UNVERIFIED, S17). The exact versions are pinned at build time and recorded, not chosen here.*
 3. **Should the Mac engine also stop installing Kraken on demand**, now that PyTorch is in the

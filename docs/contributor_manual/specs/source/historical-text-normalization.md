@@ -357,18 +357,18 @@ a specific behavior above beyond this cross-reference, pending their own design 
 
 ## Open questions (for the creative director / maintainer, not decided here)
 
-1. Which of the four existing folding schemes (`_fold_for_search` NFD, `_entity_writer._fold_
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Delegate to one shared fold and retire the others behind it. Which of the four existing folding schemes (`_fold_for_search` NFD, `_entity_writer._fold_
    accents` NFKD, `multilingual.normalize_text` NFKC, and this spec's still-unbuilt phase-1
    canonicalization) should phase 1 actually add, replace, or delegate to? Building a fifth
    without deciding this multiplies the class #3320 itself warned against.
-2. Should #3323 (cross-script entity variants) and #3326 (transliteration/romanization) merge
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, merge them into one delivery, since both need anyascii. Should #3323 (cross-script entity variants) and #3326 (transliteration/romanization) merge
    into one delivery, since both need `anyascii` for related ends? (Raised as `histnorm.
    transliteration.romanization` above.)
 3. Backfilling `date_original`/`date_jdn` onto EXISTING documents via the (unwired) `date_extract`
    tool — an explicit, opt-in run the maintainer chooses, never automatic — needs the same kind
    of sign-off #3077 (unicode path backfill) required before touching real library data
    (constraint 3).
-4. `undate`/EDTF evaluation (#4364): if it covers what `histdate.py` already does, does the
+4. **Answered** (design lead 2026-10-04, applying the spec's lean): Layer EDTF as an export and display format over the existing date storage. `undate`/EDTF evaluation (#4364): if it covers what `histdate.py` already does, does the
    hand-rolled module get replaced outright (iterate-never-replace tension: this would be a
    genuine case for replacing internals while keeping the tested contract), or does EDTF become
    an export/display format layered on the existing JDN-range storage?
@@ -425,3 +425,6 @@ superseded; that judgement is the maintainer's.
 **Net effect:** #265 dropped from 19 open to 5 (verified via `gh api .../milestones/265`'s
 `open_issues`) — exactly the five design-first epics; #317 (historical-text-normalization) now
 holds 14 open issues, all cited by a behavior above. No milestone reached zero this pass.
+
+## Triaged from the backlog (2026-10-04)
+- `histnorm.one-shared-fold` **[GAP]** (#3320): search, entity matching and multilingual normalisation all delegate to one shared text fold, and the other folding functions retire behind it.

@@ -174,7 +174,7 @@ says how that layer is switched and shown on the canvases.
 
 ## Open questions
 
-1. Tag/coding query: the endpoint shape (`?tag=`, multiple tags AND/OR, a tag vocabulary?).
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Several tags combined with AND or OR, with no fixed vocabulary. Tag/coding query: the endpoint shape (`?tag=`, multiple tags AND/OR, a tag vocabulary?).
 2. Library-wide review: is it a workspace (a `PaneList` of the annotations representation across the
    library) or a dedicated view? (Ties to panes-workspaces.)
 3. Ratings 4–5: the model allows them but the check gesture only reaches 3 — are 4–5 reachable, and how?

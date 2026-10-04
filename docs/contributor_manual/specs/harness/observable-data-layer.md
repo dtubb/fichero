@@ -191,15 +191,15 @@ rather than only being tracked.
 
 ## Open questions
 
-1. `observable.change-stream-applies-granularly`: artifact (and most other domain) change
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): The engine adds item-level ids to the change events. `observable.change-stream-applies-granularly`: artifact (and most other domain) change
    events carry only `document_ids`, not item ids. Does the fix belong on the ENGINE side
    (the event payload gains item-level ids) or the CLIENT side (a scoped re-fetch of just the
    named document's rows, still cheaper than the current full-scope reload)? #4824 raises this
    without resolving it.
-2. `observable.no-per-item-refresh-loop`: worth its own guardrail (a source-scan for a
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): Fix the one instance directly and add a guard only if it recurs. `observable.no-per-item-refresh-loop`: worth its own guardrail (a source-scan for a
    `store.refresh()`/`.reload()` call inside a `for`/`ForEach` loop body), or is `SidebarActions.swift`'s
    instance narrow enough to fix directly without a new standing check?
-3. Is `docs/contributor_manual/architecture/fichero/observable_data_layer.md` (the existing
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Keep them separate: the architecture doc is the rule in prose, this spec is the rule made testable. Is `docs/contributor_manual/architecture/fichero/observable_data_layer.md` (the existing
    architecture doc `check_view_endpoint_access.py` already cites) folded into this spec, or
    do the two stay separate (architecture doc = the rule in prose, this spec = the rule made
    testable)?
@@ -211,4 +211,5 @@ or an explicit resync has no prior row to splice against (see
 class rather than a special-cased exemption from the mutating-verb scan.
 
 ## Triaged from the backlog (2026-10-04)
+- `observable.change-events-carry-item-ids` **[GAP]** (#4824): the engine's change events name the item ids they touch, not only `document_ids`, so a store can update just those rows.
 - `data.store-wraps-app-endpoints` — **[PARTIAL]** (#3677) every app-facing endpoint has a store-layer accessor; batches 1-3 landed and backend-only long-tail endpoints are allowlisted.

@@ -118,7 +118,7 @@ it token-efficiently with fabel/opus?
    milestone) enough?~~ **Answered 2026-10-04:** on demand (see Rulings).
 2. ~~fabel's role: reserve it for visible Xcode UI iteration, or also for cheap bulk writing?~~
    **Answered 2026-10-04:** visible UI iteration (see Rulings).
-3. **Agents/skills audit:** there are ~31 agents and ~138 skills loaded. Many overlap
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, as a separate short task. **Agents/skills audit:** there are ~31 agents and ~138 skills loaded. Many overlap
    (multiple code-reviewers, multiple session-start variants, several planning skills). Worth a
    pass to cut the ones we never invoke — separate short task, listed as a follow-up below.
 4. **For the maintainer (#4911):** `check_docs_publication` finds new pages under

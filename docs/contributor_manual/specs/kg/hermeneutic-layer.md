@@ -243,7 +243,7 @@ confirms they are live, not hypothetical.
    rendition once it has a source anchor (mirrors the readable-representation ruling that the
    Reader shows content, the Inspector shows curation); (c) both — Inspector for the list/edit
    surface, Reader for a linked interpretation's highlighted passage once anchored.
-2. **Should an interpretation be linkable to a claim/passage before or after it gets a source
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, wire the app's create form to send the claim or passage now, and build the anchors later. **Should an interpretation be linkable to a claim/passage before or after it gets a source
    anchor?** The engine already accepts `claim_id`/`passage_text` on create — wiring the APP's
    create form to send them is a small, standalone fix; a full char-span/rect anchor
    (`hermeneutic.interpretation-has-source-anchor`) is a bigger, separate piece of work. They
@@ -260,7 +260,7 @@ confirms they are live, not hypothetical.
    record its OWN interpretation (as opposed to a human's) is a decision the creative director
    wants made now or deferred alongside the broader per-model tool-grant work
    (`research.md`'s `research.per-model-tool-grants`).
-5. **Does `hermeneutic.claim-type-and-quotation-kind-are-modelled-not-editable` belong to this
+5. **Answered** (design lead 2026-10-04, applying the spec's lean): It belongs in the claim-editing spec. **Does `hermeneutic.claim-type-and-quotation-kind-are-modelled-not-editable` belong to this
    spec or to a claim-editing spec (`kg-tables.md`'s claim CRUD section)?** It's about the
    `KnowledgeClaim` model, not `Interpretation` — included here because #4692 framed it as part
    of the same "rich model, thin reach" finding, but it may belong split out.

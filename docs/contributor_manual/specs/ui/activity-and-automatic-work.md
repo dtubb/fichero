@@ -1118,7 +1118,7 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
 6. **Kraken at import: on by default?** The 2026-09-04 ruling says yes; the code never wired it.
    *Recommend:* it becomes one line of the starter recipes for handwritten material, so the
    decision is per project, not a global toggle.
-7. **Should throttling yield to the person actively typing?** Spotlight does; it costs a little
+7. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, for the local-ML lane only. **Should throttling yield to the person actively typing?** Spotlight does; it costs a little
    throughput. *Recommend:* yes for the local-ML lane only.
 8. **How long is history kept?** *Recommend:* done jobs collapse to their top row after a day and
    are kept for 30 days; failed jobs stay until dismissed; the record (audit log) keeps everything
@@ -1133,7 +1133,7 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
    cluster's own message, the log tail) show in the row like any other. Its result lands through
    the one landing path (`compute.land.*`). The same inputs fingerprint stops a training or
    inference job being sent twice for unchanged inputs.
-10. **How much of LangGraph stays once runs are jobs?** *Recommend:* the graph, `Send` fan-out,
+10. **Answered** (design lead 2026-10-04, applying the spec's lean): The graph, fan-out, cross-step state and interrupt for review steps stay, and nothing else. **How much of LangGraph stays once runs are jobs?** *Recommend:* the graph, `Send` fan-out,
     cross-step state and `interrupt()` for review steps; nothing else. Page jobs carry durability
     and idempotency, so checkpoints shrink to the last one per run. If review steps are rare in the
     shipped recipes, a later review can ask whether a review step could itself be a job that waits

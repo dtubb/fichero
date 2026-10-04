@@ -556,11 +556,11 @@ needs them.
 
 ## Open questions
 
-1. **One default engine for each kind of work, as in the table.** *Proposal: agreed.*
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Agreed as in the table. **One default engine for each kind of work, as in the table.** *Proposal: agreed.*
 2. **Blackfish: learn, not use.** *Answered 2026-10-04 (#5458): Fichero's own headless engine
    (Apptainer, the recipe package through Slurm) comes first; Blackfish is just another endpoint.
    See `remote-compute.md`, "Ruled 2026-10-04".*
-3. **Shard size.** *Proposal: 50 sources by default, a setting on the job; to be re-set from a
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): 50 sources by default (the request's `shard_size` already defaults to 50), a setting on the job, re-set after measuring the maintainer's own pages. **Shard size.** *Proposal: 50 sources by default, a setting on the job; to be re-set from a
    measurement on the maintainer's own pages.*
 4. **Answered** (this spec, answered and revised 2026-10-03): A choice on the request, Qwen3-VL 8B by default, after Kraken and YOLO. **Base model for the first language or vision fine-tune.** *Answered 2026-10-03: a small
    Qwen-VL-class model (for example Qwen2.5-VL 3B) with LoRA; the choice is a card, so nothing is
@@ -576,10 +576,10 @@ needs them.
    of the merged weights is deleted unless `keep_merged_here`; the bucket keeps the merged weights
    and adapter as the Hugging Face build a Linux GPU reads with. Converting in the Job instead would
    avoid the ~17 GB download but put an Apple-only step on a Linux GPU; open.
-6. **Publishing lives in the exporter and model-card specs.** *Proposal: move the eight
+6. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, the eight publishing behaviours move once their owners agree, keeping only `compute.publish.is-separate-and-asked-again` here. **Publishing lives in the exporter and model-card specs.** *Proposal: move the eight
    `compute.publish.*` behaviours there once their owners agree, keeping only
    `compute.publish.is-separate-and-asked-again` here.*
-7. **Distilling a small palaeography vision model (#4642)** is a customer of this slice, not
+7. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, it stays its own design issue and is a customer of this slice through `train-lora`. **Distilling a small palaeography vision model (#4642)** is a customer of this slice, not
    part of it. *Proposal: it stays its own design issue and names `train-lora` as its means.*
 
 ## Triaged from the backlog (2026-10-04)

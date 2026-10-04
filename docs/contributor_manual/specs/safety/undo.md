@@ -327,5 +327,7 @@ See the questions file. From this slice: who may undo whose step; how far back C
 reaches and whether it survives quitting; per person per library, not per window; redo keeps
 the id.
 
+**Answered** (design lead 2026-10-04, applying the spec's lean): Redo of a create returns the same thing with the same id, never a new copy.
+
 ## Triaged from the backlog (2026-10-04)
 - `undo.coverage-guard-measures-the-engine-inverse` — **[GAP]** (#5109) the undo guard separates 'no inverse anywhere' from 'engine inverse exists, app has not adopted it'; 6b7f91d9f removed the six comment false-positives.

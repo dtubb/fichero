@@ -748,7 +748,7 @@ None: this slice has no screen. The future map-view UI spec owns them.
    stored in WGS 84.** The input CRS stays explicit, because converting correctly depends on it.
    The recommendation here had been "as entered", and the ruling overrides it. The design and
    `source.geo.crs-stored-as-wgs84` now follow the ruling.
-3. PROJ's database is several megabytes. Ship it through `pyproj`, or through DuckDB Spatial
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): DuckDB Spatial (which also gives GeoPackage), bundled at build time, subject to its size in the bundle. PROJ's database is several megabytes. Ship it through `pyproj`, or through DuckDB Spatial
    (which bundles PROJ and GDAL and also gives GeoPackage writing)? Recommended: DuckDB Spatial,
    one native dependency for queries, CRS and GeoPackage, subject to its size in the bundle.
 

@@ -530,10 +530,10 @@ either way (shared components), but scope of the cross-platform tests depends on
    sure.") Decide alongside the submenu structure.
 1. **Sort's home** — View ▸ Sort submenu, or nearer the data (the toolbar sort control is the primary
    already)? Where should the *menu* copy live?
-2. **How far to unify contextual menus now?** Reuse the existing components everywhere is the end
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): The worst offenders first (create, delete, export) and the long tail later. **How far to unify contextual menus now?** Reuse the existing components everywhere is the end
    state; is a full migration in scope, or convert the worst offenders (creation verbs, delete,
    export) first and leave the long tail?
-3. **Reader/Image verbs** — keep them context-published from the active pane (current pattern) and
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Shared components, with the pane as the run context. **Reader/Image verbs** — keep them context-published from the active pane (current pattern) and
    *mirror* into the bar, or centralize as shared components with the pane as run-context?
 
 ---

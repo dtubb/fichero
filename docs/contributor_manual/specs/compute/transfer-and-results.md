@@ -417,4 +417,4 @@ agree in the app".
    default on a machine we control, on by default on a cluster and on Hugging Face.*
 4. **Should a send be refused outright for a project that has not answered the community
    question?** *Proposal: yes; it is asked at the first send, so nobody is blocked for long.*
-5. **An agent cannot say yes.** *Proposal: agreed as a hard rule.*
+5. **Answered** (design lead 2026-10-04, applying the spec's lean): Agreed as a hard rule: an agent can never say yes to sending a project's pages off the Mac. **An agent cannot say yes.** *Proposal: agreed as a hard rule.*

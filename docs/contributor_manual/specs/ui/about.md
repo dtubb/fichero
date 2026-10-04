@@ -163,15 +163,16 @@ UI test, not missing labels.
 ## Open questions for the creative director
 - **Tagline sign-off.** The tagline is the website sentence (2026-09-02); confirm it is the final copy
   or supply the "literary-carpentry" wording the #2557 NOTE still references.
-- **Copyright single-sourcing (#3234).** The bundle `NSHumanReadableCopyright` is still empty in all
+- **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, the copyright is single-sourced in the same build configuration as the version. **Copyright single-sourcing (#3234).** The bundle `NSHumanReadableCopyright` is still empty in all
   configs, so the Swift AGPL fallback is what ships. Folding copyright into the same xcconfig as
   `MARKETING_VERSION` (deferred with #3234) would make the bundle branch live again.
 - **Help menu.** A Help menu with a website/docs link is the conventional home for the repo link; the
   app registers none today. In scope for About, or its own surface?
-- **Milestone name.** This spec declares `Milestone: about`; confirm/create the matching GitHub
+- **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, create the `about` GitHub milestone to match the spec. **Milestone name.** This spec declares `Milestone: about`; confirm/create the matching GitHub
   milestone before flipping to APPROVED (spec name == milestone name == test tag).
 
 ## Triaged from the backlog (2026-10-04)
+- `about.copyright-single-sourced` **[GAP]** (#3234): the bundle copyright is set in the same build configuration as the version, so About shows it from the bundle rather than the Swift fallback.
 - `about.semantic-fonts` — **[GAP]** (#1969) Every Text uses a semantic font style; 76 .font(.system(size:)) uses remain and must be removed.
 - `about.all-text-selectable` — **[GAP]** (#4256) Every displayed text in the app is selectable and copyable.
 - `about.ios-icon` — **[GAP]** (#4334) The iOS app icon renders correctly on device (masking, scale, padding).

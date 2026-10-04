@@ -88,7 +88,7 @@ Hard-gate: `transport.same-result` (the cross-transport invariant) + `transport.
 
 ## Open questions
 
-1. `transport.event-delivery` (#4511): write the Swift change-stream test — is the MainActor
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Re-verify once, then write the test. `transport.event-delivery` (#4511): write the Swift change-stream test — is the MainActor
    default-isolation fix (landed for `FicheroTests`, MEMORY
    `test-target-needs-mainactor-default-isolation`) enough to unblock #4511, or does #4511 need
    its own re-verification first? (Tracked; not this pass.)

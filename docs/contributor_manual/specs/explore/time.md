@@ -152,3 +152,5 @@ load (a project's claims bin without a cap and without pegging the machine).
 Not blocking: relative dates and claim calendars (extend the claim model now, or later?); what
 "together" means by default in a storyline; HTML or native for storylines and arcs (a
 recommendation is given above; the memory cost is the deciding fact).
+
+**Answered** (design lead 2026-10-04, applying the spec's lean): Storylines and arcs follow the spec's recommendation (HTML first), decided by the measured memory cost.

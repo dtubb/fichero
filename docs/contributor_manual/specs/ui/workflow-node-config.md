@@ -172,7 +172,7 @@ Everything else is the larger design, pinned in later waves.
 
 ## Open questions
 
-1. **Recorded request, not decided here** (from the source-model spec work, branch
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes to typed inputs and outputs, chains checked before they run and one general segment-cut-and-hand-off step, after tracing the duplicate paths first and fixing the `kraken_model` parameter drift (see `workflows.md`). **Recorded request, not decided here** (from the source-model spec work, branch
    `spec/page-model`, `specs/source/models-chains-and-projects.md` — not in this tree): that
    workflow steps declare a job with a TYPED input and output, that a chain is checked before
    it runs, and that ONE general segment-cut-and-hand-off step replace what the request

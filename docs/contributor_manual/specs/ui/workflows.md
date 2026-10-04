@@ -454,19 +454,19 @@ the highest-leverage, cheapest tests to land first, ahead of any XCUITest.
 
 ## Open questions for the creative director
 
-1. **Should `workflow-node-config.md` fold wholesale into this spec, or stay a
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Keep it a separate spec with its own milestone, `workflow-node-config`. **Should `workflow-node-config.md` fold wholesale into this spec, or stay a
    separate sub-spec it's cross-referenced from?** Recommendation: keep it
    separate for now (it's APPROVED and shipped; folding it in would force a
    Status downgrade or a split-status file) but give it its own
    `Milestone: workflow-node-config` so it stops being a milestone-orphan, and
    have this spec's milestone `workflows` be the umbrella the creative
    director tracks both under.
-2. **Which of the two open "Workflow View" (#252, 24 open) and "Workflows"
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): Rename #252 to `workflows` and close the duplicate. **Which of the two open "Workflow View" (#252, 24 open) and "Workflows"
    (29 open) milestones becomes the canonical `workflows` milestone this spec
    points at?** Recommendation: rename #252 to `workflows` (larger, more
    actively triaged) and re-target #… 's open issues onto it, closing the
    duplicate.
-3. **Is the canvas edge-legality fix (engine-owned table, client consumes it)
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Before the canvas moves to a Preview pane. **Is the canvas edge-legality fix (engine-owned table, client consumes it)
    worth doing before or after the modes-to-panes canvas-relocation
    (increment 2)?** Recommendation: before — moving the canvas to a narrower
    Preview pane (per modes-to-panes) makes a wrong, silently-drawable edge even
@@ -476,17 +476,17 @@ the highest-leverage, cheapest tests to land first, ahead of any XCUITest.
    runnable" affordance while they're built out?** Recommendation: hide
    immediately — a palette entry that fails at graph-build time is worse than
    an absent one; re-add as each tool ships a real `@register_tool`.
-5. **Does `workflows.defaults.duplication-regrown` (near-duplicate presets)
+5. **Answered** (design lead 2026-10-04, applying the spec's lean): File it now as a small scoped issue; it is filed as #4738. **Does `workflows.defaults.duplication-regrown` (near-duplicate presets)
    get its own issue now, or wait for the broader "Workflow verification
    program" (#4369) to surface it as one of its findings?** Recommendation:
    file it now as a small, scoped issue — pruning is cheap and #4369 is a
    large audit that may not land soon.
-6. **Is `workflows.run.wrong-scope-runs-whole-folder` (#4396) actually closed
+6. **Answered** (design lead 2026-10-04, applying the spec's lean): Re-check by hand before trusting the tag; that re-check was done on 2026-09-18 and is pinned by `WorkflowEditorRunGateTests`, so the [OK] stands. **Is `workflows.run.wrong-scope-runs-whole-folder` (#4396) actually closed
    by the `widensBeyondSelection` confirm/cancel flow already in
    `WorkflowEditor.swift:33-36`, or still reproducible?** This spec could not
    confirm live behavior this session (no running engine); needs a quick
    manual re-check before the behavior tag is trusted either way.
-7. **Recorded request, not decided here** (from the source-model spec work, branch
+7. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes to typed inputs and outputs, chains checked before they run and one general segment-cut-and-hand-off step, after tracing the duplicate paths first and fixing the `kraken_model` parameter drift. **Recorded request, not decided here** (from the source-model spec work, branch
    `spec/page-model`, `specs/source/models-chains-and-projects.md` — not in this tree): that
    workflow steps declare a job with a TYPED input and output, that a chain is checked before
    it runs (not only at each node's own runtime), and that ONE general "cut each segment's
