@@ -41,6 +41,9 @@ final class RecipeSetupStore {
     private(set) var jobs: [String: Components.Schemas.JobInfo] = [:]
     private(set) var isAssembling = false
     private(set) var errorMessage: String?
+    /// What the engine worked out for each chosen script: direction, whether it may be vertical,
+    /// its bundled font (`source.onboard.derives-not-asks`). Keyed by ISO 15924 code.
+    private(set) var derivedScripts: [String: Components.Schemas.ScriptFacts] = [:]
 
     private let client: FicheroClient
 
@@ -184,6 +187,57 @@ final class RecipeSetupStore {
     /// containers and the typed answers and recipe are the same JSON.
     private static func convert<From: Encodable, To: Decodable>(_ value: From, to type: To.Type) throws -> To {
         try JSONDecoder().decode(type, from: JSONEncoder().encode(value))
+    }
+
+    /// One answer from setup's language or script search, as the field shows it.
+    struct CodeChoice: Hashable {
+        let code: String
+        let name: String
+        /// Where it came from, shown under the name: a dialect's language, a Glottolog code.
+        let detail: String?
+    }
+
+    /// Search every language the engine knows: ISO 639-3 joined with Glottolog
+    /// (`source.onboard.widget-and-search`). A languoid with no BCP 47 tag is added as a private-use
+    /// tag carrying its glottocode, so nothing a person picks is lost.
+    func searchLanguages(_ query: String) async -> [CodeChoice] {
+        do {
+            guard case .ok(let ok) = try await client.api.searchLanguagesApiRecipesLanguagesGet(
+                query: .init(q: query, limit: 8)) else { return [] }
+            return try ok.body.json.items.map { match in
+                let code = match.code ?? match.glottocode.map { "und-x-\($0)" } ?? match.name
+                let detail = [match.language.map { "dialect of \($0)" }, match.glottocode.map { "Glottolog \($0)" }]
+                    .compactMap { $0 }.joined(separator: " · ")
+                return CodeChoice(code: code, name: match.name, detail: detail.isEmpty ? nil : detail)
+            }
+        } catch {
+            if !error.isCancellationError { errorMessage = "Could not search languages: \(error.localizedDescription)" }
+            return []
+        }
+    }
+
+    /// Search every ISO 15924 script.
+    func searchScripts(_ query: String) async -> [CodeChoice] {
+        do {
+            guard case .ok(let ok) = try await client.api.searchScriptsApiRecipesScriptsGet(
+                query: .init(q: query, limit: 8)) else { return [] }
+            return try ok.body.json.items.map { CodeChoice(code: $0.code, name: $0.name, detail: nil) }
+        } catch {
+            if !error.isCancellationError { errorMessage = "Could not search scripts: \(error.localizedDescription)" }
+            return []
+        }
+    }
+
+    /// Ask the engine what it works out for the chosen scripts, rather than asking the person.
+    func loadDerived() async {
+        guard !scripts.isEmpty else { derivedScripts = [:]; return }
+        do {
+            guard case .ok(let ok) = try await client.api.derivedFactsApiRecipesDerivedGet(
+                query: .init(scripts: scripts.joined(separator: ","))) else { return }
+            for facts in try ok.body.json.scripts { derivedScripts[facts.script] = facts }
+        } catch {
+            if !error.isCancellationError { errorMessage = "Could not work out the scripts: \(error.localizedDescription)" }
+        }
     }
 
     /// The job registry, once: each step's plain explanation comes from here.

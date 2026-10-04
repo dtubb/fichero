@@ -116,10 +116,15 @@ struct RecipeMaterialFields: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            CodeSearchField(title: "Languages", prompt: "Name or BCP 47 tag, e.g. es",
-                            catalogue: CodeCatalogue.languages, codes: $store.languages)
+            CodeSearchField(title: "Languages", prompt: "Name, BCP 47 tag or glottocode, e.g. es",
+                            search: store.searchLanguages, codes: $store.languages)
             CodeSearchField(title: "Scripts", prompt: "Name or ISO 15924 code, e.g. Latn",
-                            catalogue: CodeCatalogue.scripts, codes: $store.scripts)
+                            search: store.searchScripts, codes: $store.scripts)
+            ForEach(store.scripts, id: \.self) { code in
+                if let facts = store.derivedScripts[code] {
+                    DerivedScriptRow(facts: facts)
+                }
+            }
             Picker("Material", selection: $store.material) {
                 ForEach(RecipeSetupStore.materials, id: \.self) { Text($0.capitalized).tag($0) }
             }
@@ -149,28 +154,42 @@ struct RecipeMaterialFields: View {
             }
         }
         .task { await store.loadJobs() }
+        .task(id: store.scripts) { await store.loadDerived() }
     }
 }
 
-/// A field that adds codes by searching names or typing the code itself.
-/// Suggestions come from Foundation's locale data; any code typed is accepted
-/// as is, since the engine checks it (a language with no locale is still a
-/// language).
+/// What the engine worked out for one script, shown rather than asked
+/// (`source.onboard.derives-not-asks`): direction, a bundled font, and, for a script that may be
+/// written vertically, the one thing only the pages can settle.
+private struct DerivedScriptRow: View {
+    let facts: Components.Schemas.ScriptFacts
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(facts.script): \(facts.direction == "rtl" ? "right to left" : "left to right")")
+                .help(facts.directionFrom)
+            if let font = facts.font {
+                Text("Shown in \(font)").help(facts.fontFrom)
+            }
+            if facts.mayBeVertical {
+                Label("May be written in vertical columns: check a page.", systemImage: "text.alignleft")
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+}
+
+/// A field that adds codes by searching names or typing the code itself. Suggestions come from
+/// the engine's catalogue (every ISO 639-3 language with Glottolog's, every ISO 15924 script); any
+/// code typed is accepted as is, since the engine checks it.
 private struct CodeSearchField: View {
     let title: String
     let prompt: String
-    let catalogue: [CodeCatalogue.Entry]
+    let search: (String) async -> [RecipeSetupStore.CodeChoice]
     @Binding var codes: [String]
     @State private var query = ""
-
-    private var matches: [CodeCatalogue.Entry] {
-        let needle = query.trimmingCharacters(in: .whitespaces)
-        guard !needle.isEmpty else { return [] }
-        return Array(catalogue.filter {
-            !codes.contains($0.code)
-                && ($0.code.localizedCaseInsensitiveContains(needle) || $0.name.localizedCaseInsensitiveContains(needle))
-        }.prefix(6))
-    }
+    @State private var matches: [RecipeSetupStore.CodeChoice] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -179,10 +198,17 @@ private struct CodeSearchField: View {
                     .labelsHidden()
                     .onSubmit { add(matches.first?.code ?? query.trimmingCharacters(in: .whitespaces)) }
             }
-            ForEach(matches, id: \.code) { match in
-                Button("\(match.name) (\(match.code))") { add(match.code) }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
+            ForEach(matches.filter { !codes.contains($0.code) }, id: \.self) { match in
+                Button {
+                    add(match.code)
+                } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("\(match.name) (\(match.code))")
+                        if let detail = match.detail { Text(detail).foregroundStyle(.secondary) }
+                    }
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
             }
             if !codes.isEmpty {
                 HStack {
@@ -196,35 +222,21 @@ private struct CodeSearchField: View {
                 }
             }
         }
+        .task(id: query) {
+            let needle = query.trimmingCharacters(in: .whitespaces)
+            guard !needle.isEmpty else { matches = []; return }
+            try? await Task.sleep(for: .milliseconds(200))  // typing: ask once the person pauses
+            guard !Task.isCancelled else { return }
+            matches = await search(needle)
+        }
     }
 
     private func add(_ code: String) {
         guard !code.isEmpty, !codes.contains(code) else { return }
         codes.append(code)
         query = ""
+        matches = []
     }
-}
-
-// ponytail: Foundation knows ~30 scripts and the ISO 639 languages; an engine
-// catalogue (Glottolog, all of ISO 15924) would replace this when it exists.
-/// Language and script names from Foundation, for search only.
-private enum CodeCatalogue {
-    struct Entry: Hashable {
-        let code: String
-        let name: String
-    }
-
-    static let languages: [Entry] = Locale.LanguageCode.isoLanguageCodes
-        .map(\.identifier)
-        .filter { $0.count == 2 }
-        .compactMap { code in Locale.current.localizedString(forLanguageCode: code).map { Entry(code: code, name: $0) } }
-        .sorted { $0.name < $1.name }
-
-    static let scripts: [Entry] = Set(
-        Locale.availableIdentifiers.compactMap { Locale(identifier: $0).language.script?.identifier }
-    )
-        .compactMap { code in Locale.current.localizedString(forScriptCode: code).map { Entry(code: code, name: $0) } }
-        .sorted { $0.name < $1.name }
 }
 
 /// The Start step: what the recipe will run, on how many pages, what it costs, and any step

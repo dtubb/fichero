@@ -106,6 +106,57 @@ struct RecipeSetupStoreTests {
         #expect(store.errorMessage == nil)
     }
 
+    /// WHY (source.onboard.widget-and-search): setup's language search is the engine's catalogue,
+    /// ISO 639-3 with Glottolog. A dialect must keep its language's tag and say whose dialect it is;
+    /// a language only Glottolog knows has no BCP 47 tag and must not be dropped or given a wrong one.
+    @Test("language search keeps a dialect's language and a Glottolog-only language's code")
+    func languageSearchKeepsDialectsAndGlottologOnlyLanguages() async throws {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            #expect(request.url?.path == "/api/recipes/languages")
+            #expect(request.url?.query?.contains("q=andean") == true)
+            return Self.reply(request, 200, """
+            {"items":[{"code":"es","name":"Andean Spanish","glottocode":"ande1249","level":"dialect","language":"Spanish"},
+                      {"code":null,"name":"Kakataibo","glottocode":"kaka1265","level":"language","language":null}],
+             "count":2}
+            """)
+        }
+
+        let found = await store.searchLanguages("andean")
+
+        #expect(found.map(\.code) == ["es", "und-x-kaka1265"])
+        #expect(found.first?.detail == "dialect of Spanish · Glottolog ande1249")
+        #expect(store.errorMessage == nil)
+    }
+
+    /// WHY (source.onboard.derives-not-asks): direction and fonts are worked out, not asked. If the
+    /// store dropped what the engine derived, setup would ask about Syriac's direction or show it
+    /// in a font without its letters.
+    @Test("the facts derived for each chosen script are kept by script")
+    func derivedFactsAreKeptByScript() async throws {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            #expect(request.url?.path == "/api/recipes/derived")
+            #expect(request.url?.query?.removingPercentEncoding?.contains("scripts=Syrc,Jpan") == true)
+            return Self.reply(request, 200, """
+            {"scripts":[
+               {"script":"Syrc","direction":"rtl","direction_from":"worked out from the script (Syrc)",
+                "may_be_vertical":false,"font":"Noto Sans Syriac","font_from":"Fichero's bundled Noto Sans Syriac (SIL OFL)"},
+               {"script":"Jpan","direction":"ltr","direction_from":"worked out from the script (Jpan)",
+                "may_be_vertical":true,"font":null,"font_from":"the system font draws it"}],
+             "mac":{"chip":"Apple M1","memory_gb":16,"from":"sysctl"},"keys":[],
+             "targets":[{"id":"this-mac","title":"This Mac","from":"always"}]}
+            """)
+        }
+        store.scripts = ["Syrc", "Jpan"]
+
+        await store.loadDerived()
+
+        #expect(store.derivedScripts["Syrc"]?.direction == "rtl")
+        #expect(store.derivedScripts["Syrc"]?.font == "Noto Sans Syriac")
+        #expect(store.derivedScripts["Jpan"]?.mayBeVertical == true)
+    }
+
     /// WHY: a step explains itself with the job registry's own words
     /// (source.onboard.topics-written-once). If the store did not key the
     /// registry by job id, setup would show bare ids instead of the explanation
