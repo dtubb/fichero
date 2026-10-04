@@ -786,11 +786,9 @@ def write_page_into_library(
         db.save_many(readings)
         # A line the file gave no text while its words have some reads its words joined (#5433,
         # `source.reading.line-from-its-words`): the same path the conversion on open takes.
-        from fichero_server.api.routes.document.segment_readings import line_readings_from_words
+        from fichero_server.api.routes.document.segment_readings import compose_line_readings
 
-        composed = line_readings_from_words(db, pass_id=pass_row.id)
-        if composed:
-            db.save_many(composed)
+        compose_line_readings(db, pass_id=pass_row.id)
 
     # What the file's editor SAID about stretches of the text (#5179): unclear, lost, restored,
     # supplied, superfluous, added -- editorial facts on the reading this import just made, the

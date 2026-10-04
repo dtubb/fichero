@@ -247,13 +247,17 @@ Rules for every format
   has any reading of that kind is never touched. Seen on the Acceptance library's
   `paderov-mm10/00000013.jpg`: every line said "Line N · No reading" while its words carried
   "Počinagiſie knihy Geneſis".
-  Built 2026-10-04: `segment_readings.line_readings_from_words` is the one path, called by
+  Built 2026-10-04: `segment_readings.compose_line_readings` is the one path, called by
   `format_import.write_page_into_library` for the new pass and by `conversion_on_open._run` for
-  the whole library; the joined reading is marked `producer_tool: line-from-its-words`, keeps the
-  words' maker (never `human`), and a sign's instances leave it out so a use is counted once.
+  the whole library, in chunks of 2,000 lines (batched reads, one transaction each, stopping
+  between chunks, so a quit loses at most a chunk and the next open carries on). The joined reading
+  is marked `producer_tool: line-from-its-words`, keeps the words' maker (never `human`), and is
+  never read twice: a sign's instances leave it out, the page's text takes the finest level that
+  has text, and the hOCR writer no longer writes a line's text beside its word spans.
   Pinned by `fichero-server/tests/unit/formats/test_a_line_reads_from_its_words.py` (the real mm10
   ALTO through the import route, the segment list and the readings route; a line with its own PAGE
-  TextEquiv unchanged; the words' boxes; a right-to-left line; the conversion on open, twice).
+  TextEquiv unchanged; the words' boxes; a right-to-left line; the page text and ALTO/TEI/hOCR
+  exports hold each word once; the conversion on open, in chunks, twice; a stop between chunks).
   **Why PARTIAL:** not yet checked on screen on the paderov page; hOCR and PAGE words-only files
   take the same path but are not pinned by their own fixture; and the page's derived text still
   reads a right-to-left line through its words in the file's order.

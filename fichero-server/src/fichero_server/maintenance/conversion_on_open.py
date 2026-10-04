@@ -85,14 +85,11 @@ def _run(db: Any, package_path: Path, stop_event: threading.Event) -> None:
 
         record_missing_box_origins(db, should_stop=stop_event.is_set)
         # #5433: lines a words-only import left unread get their words joined, once. The same
-        # path the import takes now; a line with a reading is never touched again.
-        from fichero_server.api.routes.document.segment_readings import line_readings_from_words
+        # path the import takes now, one transaction per chunk of lines, stopping between chunks;
+        # a line with a reading is never touched again, so the next open carries on.
+        from fichero_server.api.routes.document.segment_readings import compose_line_readings
 
-        if not stop_event.is_set():
-            with db.transaction():
-                composed = line_readings_from_words(db)
-                if composed:
-                    db.save_many(composed)
+        compose_line_readings(db, should_stop=stop_event.is_set)
     except Exception:  # noqa: BLE001 -- a background thread: logged; anchors read the block meanwhile
         logger.exception("recording converted box origins or composing line readings stopped: %s", package_path)
 

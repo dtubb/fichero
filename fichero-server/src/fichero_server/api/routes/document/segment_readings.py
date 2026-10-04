@@ -897,34 +897,76 @@ def _x_centre(row: Segment) -> float | None:
     return None
 
 
-def line_readings_from_words(db: Database, *, pass_id: str | None = None) -> list[ContentRepresentation]:
-    """A reading for every line that has none of a kind its words have (#5433,
-    `source.reading.line-from-its-words`), NOT saved: the caller saves them in its own unit of work.
+#: Lines composed per unit of work (#5433). An archive of ~80,000 pages is ~2M lines: each chunk is
+#: a handful of batched queries and ONE transaction, so a quit mid-way loses at most a chunk, and the
+#: next open carries on from what is still unread.
+LINE_CHUNK = 2000
+
+
+def compose_line_readings(
+    db: Database, *, pass_id: str | None = None, should_stop: Any = None, chunk: int | None = None,
+) -> int:
+    """Give every line with no reading of a kind its words have that reading, joined from its words
+    (#5433, `source.reading.line-from-its-words`). Returns how many readings were written.
 
     Word readings retire in favour of line readings (ruled 2026-09-28), and a file that gives text
     only to its words (ABBYY/docWorks ALTO, hOCR, PAGE `Word/TextEquiv`) left every line "No
-    reading". The line's reading is its words' COUNTING readings joined with a space, in the order
-    the page reads them (the pass's `as-written` order, else box order, as `retired_word_readings`
-    walks them); a right-to-left line is joined right to left across the page, whichever way the
-    file listed its words. The ONE path for both the import (`write_page_into_library`, this pass)
-    and the conversion on open (`conversion_on_open`, every pass): a line with any reading of that
-    kind is never in `unread_lines_with_read_words`, so running it twice writes nothing.
+    reading". THE ONE PATH for the import (`write_page_into_library`, its pass) and the conversion on
+    open (`conversion_on_open`, the whole library, `should_stop` checked between chunks). A line with
+    any reading of that kind is never a candidate, so running it again writes nothing, and a run
+    stopped between chunks resumes at the next open for free.
     """
-    pairs = db.unread_lines_with_read_words(pass_id)
-    if not pairs:
-        return []
-    lines = {row.id: row for row in db.query_in(Segment, "id", sorted({line_id for line_id, _ in pairs}))}
+    size = chunk or LINE_CHUNK
+    after: tuple[str, str] | None = None
+    written = 0
+    while not (should_stop is not None and should_stop()):
+        rows = db.unread_lines_with_read_words(pass_id, after=after, limit=size)
+        if not rows:
+            break
+        with db.transaction():
+            composed = _line_readings_for(db, [(line_id, kind) for _pass, line_id, kind in rows])
+            if composed:
+                db.save_many(composed)
+        written += len(composed)
+        after = (rows[-1][0], rows[-1][1])
+        if len({line_id for _pass, line_id, _kind in rows}) < size:
+            break
+    return written
+
+
+def _line_readings_for(db: Database, pairs: list[tuple[str, str]]) -> list[ContentRepresentation]:
+    """The readings for one chunk of `(line_id, kind)`, NOT saved. Batched: the lines, their words,
+    the words' readings and their choices are one `query_in` each, grouped here.
+
+    The line's reading is its words' COUNTING readings joined with a space, in the order the page
+    reads them (the pass's `as-written` order, else box order, as `retired_word_readings` walks
+    them); a right-to-left line is joined right to left across the page, whichever way the file
+    listed its words. No word of a candidate line can be retired (#5190 retires words only under a
+    person's LINE reading, and these lines have none), so the counting answer needs no retirement.
+    """
+    line_ids = sorted({line_id for line_id, _kind in pairs})
+    lines = {row.id: row for row in db.query_in(Segment, "id", line_ids)}
+    words_of: dict[str, list[Segment]] = {}
+    for row in db.query_in(Segment, "parent_segment_id", line_ids):
+        if row.kind == "word" and row.deleted_at is None:
+            words_of.setdefault(row.parent_segment_id, []).append(row)
+    word_ids = [row.id for rows in words_of.values() for row in rows]
+    readings_of: dict[tuple[str, str], list[ContentRepresentation]] = {}
+    for reading in db.query_in(ContentRepresentation, "segment_id", word_ids):
+        readings_of.setdefault((reading.segment_id, reading.kind), []).append(reading)
+    choices_of: dict[tuple[str, str], list[ReadingChoice]] = {}
+    for choice in db.query_in(ReadingChoice, "segment_id", word_ids):
+        choices_of.setdefault((choice.segment_id, choice.kind), []).append(choice)
+    rule = project_record_rule(db)
     sequences: dict[str, dict[str, int] | None] = {}
     documents: dict[str, tuple[Any, dict[str, Any]]] = {}
+
     composed: list[ContentRepresentation] = []
     for line_id, kind in pairs:
         line = lines.get(line_id)
         if line is None:
             continue
-        words = [
-            row for row in db.query(Segment, parent_segment_id=line_id)
-            if row.kind == "word" and row.deleted_at is None
-        ]
+        words = list(words_of.get(line_id, []))
         if line.pass_id not in sequences:
             sequences[line.pass_id] = _as_written_sequence(db, line.pass_id)
         sequence = sequences[line.pass_id]
@@ -932,23 +974,29 @@ def line_readings_from_words(db: Database, *, pass_id: str | None = None) -> lis
             words.sort(key=lambda row: (sequence[row.id], row.id))
         else:
             words.sort(key=_segment_order_key)
-        texts = counting_texts(db, words, kind)
-        words = [row for row in words if texts.get(row.id)]
+        texts: dict[str, ContentRepresentation] = {}
+        for row in words:
+            items = readings_of.get((row.id, kind), [])
+            if not items:
+                continue
+            answer = resolve_counting(
+                rule, choices_of.get((row.id, kind), []), [_candidate(_reading_read_from_row(i)) for i in items],
+            )
+            counted = next((i for i in items if i.id == answer.representation_id), None)
+            if counted is not None and counted.content:
+                texts[row.id] = counted
+        words = [row for row in words if row.id in texts]
         if not words:
             continue
         if line.document_id not in documents:
             document = db.get(Document, line.document_id)
             documents[line.document_id] = (document, direction_rungs(db, document))
         document, rungs = documents[line.document_id]
-        direction, _level = _direction_of(line, document, " ".join(texts[row.id] for row in words), None, rungs)
+        direction, _level = _direction_of(line, document, " ".join(texts[row.id].content for row in words), None, rungs)
         centres = [_x_centre(row) for row in words]
         if direction == "rtl" and None not in centres:
             words = [row for _centre, row in sorted(zip(centres, words), key=lambda pair: -pair[0])]
-        word_readings = [
-            reading for reading in db.query_in(ContentRepresentation, "segment_id", [row.id for row in words])
-            if reading.kind == kind
-        ]
-        made_by = {reading.provenance_kind for reading in word_readings}
+        made_by = {texts[row.id].provenance_kind for row in words}
         # The words' maker when they agree, and never a person's: nobody typed this line.
         provenance = made_by.pop() if len(made_by) == 1 else ProvenanceKind.unknown
         if provenance is ProvenanceKind.human:
@@ -957,12 +1005,12 @@ def line_readings_from_words(db: Database, *, pass_id: str | None = None) -> lis
             document_id=line.document_id,
             segment_id=line.id,
             kind=kind,
-            content=" ".join(texts[row.id] for row in words),
+            content=" ".join(texts[row.id].content for row in words),
             language=line.language,
             script=line.script,
             source_anchor=SourceAnchor(document_id=line.document_id, granularity="line"),
             provenance_kind=provenance,
-            created_by=word_readings[0].created_by if word_readings else None,
+            created_by=texts[words[0].id].created_by,
             producer_tool=LINE_FROM_WORDS,
         ))
     return composed

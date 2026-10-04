@@ -23,6 +23,7 @@ from lxml import etree
 
 import fichero_server.api.main  # noqa: F401  (registers every action and route)
 from fichero_server.actions.registry import ActionContext, registry
+from fichero_server.api.routes.document import segment_readings
 from fichero_server.db import Database
 from fichero_server.db.manager import DatabaseManager
 from fichero_server.formats import read_page
@@ -143,6 +144,28 @@ class TestWordsOnlyGiveTheLineAReading:
         assert line["text"] == "שלום עולם"
 
 
+class TestNothingReadsTheLineTwice:
+    def test_the_page_text_and_every_export_hold_each_word_once(self, db, client):
+        """The sweep (fix then siblings): now that a words-only line has a reading AND its words do,
+        anything that writes every reading would put the line on the page twice. The page's text
+        (search, embeddings, extraction and CER all read it) takes the finest level; PAGE XML holds
+        line and word TextEquiv by design, one per level; hOCR wrote the line's text beside its word
+        spans, so any hOCR consumer read every word twice, until the writer skipped it."""
+        from fichero_server.api.routes.document.segment_readings import document_text
+        from fichero_server.page_export import export_page
+
+        doc_id = _page(db)
+        pass_id = _upload(client, doc_id, "00000013.xml", WORDS_ONLY_ALTO.read_bytes())
+        once = WORDS_ONLY_ALTO.read_text().count('CONTENT="sollen"')
+        assert once >= 1
+
+        assert document_text(db, doc_id).text.count("sollen") == once
+        assert (db.get(Document, doc_id).page_content or "").count("sollen") == once
+        for fmt in ("alto", "tei", "hocr"):
+            written = export_page(db, doc_id, fmt, pass_id=pass_id).data.decode("utf-8")
+            assert written.count("sollen") == once, f"{fmt} export writes the line's words twice"
+
+
 class TestALineTheFileReadIsUnchanged:
     def test_a_line_with_its_own_text_keeps_exactly_that_text(self, db, client):
         """PAGE XML gives the line its own TextEquiv beside its words'. That text is the line's
@@ -165,6 +188,9 @@ class TestTheConversionOnOpenFillsAnExistingLibrary:
         conversion on open (#5222's one path) fills them, once: a second open adds nothing, and a
         line the file gave text is left alone."""
         monkeypatch.delenv("FICHERO_SKIP_PROJECT_CONVERSION", raising=False)
+        # Chunks smaller than the page's 27 lines, so the open must walk several (an archive of
+        # ~80,000 pages is ~2M lines and is never one transaction).
+        monkeypatch.setattr(segment_readings, "LINE_CHUNK", 10)
         from tests.unit.maintenance.test_project_conversion_resume import _snapshot_stub
 
         package = tmp_path / "Acceptance.fichero"
@@ -200,6 +226,38 @@ class TestTheConversionOnOpenFillsAnExistingLibrary:
         finally:
             conversion_on_open.stop(None)
             manager.close_all()
+
+
+class TestItWorksInChunksAndStopsBetweenThem:
+    def test_a_stop_after_the_first_chunk_leaves_the_rest_for_the_next_open(self, db, monkeypatch):
+        """A quit mid-way (the library closing sets the stop event) must lose at most one chunk and
+        leave nothing half-written: the first chunk's lines read, the others are still unread, and
+        the next run fills exactly those. Without chunks a 2M-line archive is one transaction that a
+        quit throws away whole; without the stop check, closing a library waits for all of it."""
+        monkeypatch.setattr(segment_readings, "LINE_CHUNK", 10)
+        doc_id = _page(db)
+        ctx = ActionContext(actor="historian", library_path=None, is_bootstrap=True)
+        registry.invoke(db, "format.import", {"document_id": doc_id, "path": str(WORDS_ONLY_ALTO)}, ctx)
+        lines = {row.id for row in db.query(Segment, document_id=doc_id) if row.kind == "line"}
+        for reading in db.query(ContentRepresentation, document_id=doc_id):
+            if reading.segment_id in lines:
+                db.delete(reading)
+        assert len(lines) > 10, "the fixture must hold more lines than a chunk"
+
+        asked = []
+
+        def stop_after_the_first_chunk() -> bool:
+            asked.append(True)
+            return len(asked) > 1
+
+        written = segment_readings.compose_line_readings(db, should_stop=stop_after_the_first_chunk)
+
+        def read_lines() -> set[str]:
+            return {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id)} & lines
+
+        assert written == 10 and len(read_lines()) == 10, "a stop between chunks must keep exactly one chunk"
+        assert segment_readings.compose_line_readings(db) == len(lines) - 10
+        assert read_lines() == lines
 
 
 def _open_and_wait(manager: DatabaseManager, package: Path) -> Database:
