@@ -10508,6 +10508,16 @@
       },
       {
         "method": "POST",
+        "path": "/training/kraken/here",
+        "operation_id": "start_kraken_training_here_api_training_kraken_here_post",
+        "summary": "Train a Kraken reader on this Mac, gently",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TrainKrakenHereRequest",
+        "response_model": "TrainingStartedHere"
+      },
+      {
+        "method": "POST",
         "path": "/training/vision-lora",
         "operation_id": "start_vision_lora_training_api_training_vision_lora_post",
         "summary": "Train a vision model with LoRA on Hugging Face Jobs, landed here as MLX",

@@ -64,7 +64,8 @@ KRAKEN_MODEL_PREFIX = "kraken:"
 #: Modules that register kinds, imported before the first scan so a job left waiting at quit runs
 #: after relaunch even before anything in this session enqueues one.
 _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
-                 "fichero_server.training.job", "fichero_server.workflows.task_workers")
+                 "fichero_server.training.job", "fichero_server.workflows.task_workers",
+                 "fichero_server.training.local")
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
 #: never holds the local ML lane.
@@ -99,6 +100,12 @@ _ENSURED: set[str] = set()
 
 class JobCancelled(Exception):
     """Raised by a job's run when it was stopped: the row ends `cancelled`, not `failed`."""
+
+
+class JobDeferred(Exception):
+    """Raised by a long job's run when it stops to come back later (memory got tight, background
+    work was paused, a person is waiting for other work): the row goes back to `waiting` with the
+    reason, and the attempt is not counted against it. The job resumes from its own checkpoint."""
 
 
 @dataclass(frozen=True)
@@ -665,6 +672,11 @@ class _Scheduler:
                    "WHERE id = ? AND state = 'waiting'", [utc_now(), job_id])
         return True
 
+    def someone_is_waiting(self) -> bool:
+        """Whether work a person is waiting for has been handed to the lane (a long job steps aside)."""
+        with self._lock:
+            return bool(self._attached)
+
     def _fail_attached(self, exc: BaseException) -> None:
         with self._lock:
             waiting, self._attached = self._attached, {}
@@ -810,6 +822,9 @@ class _Scheduler:
                 where += f" AND NOT ({held})"
                 params += held_params
             lane.look_again_at = quiet_from  # look again when the spell ends
+        # Work a person is waiting for goes first (`activity.throttle.watched-first`): a long
+        # background job that stepped aside for it must not take the lane straight back.
+        attached_first = f"(id IN ({', '.join('?' for _ in attached)})) DESC, " if attached else ""
         candidates = []
         idle = []
         for key in keys:
@@ -820,8 +835,8 @@ class _Scheduler:
             row = db.execute_fetchone(
                 f"SELECT id, kind, subject, model, created_at FROM jobs "
                 f"WHERE state = 'waiting' AND {where} "
-                f"ORDER BY (model IS NOT DISTINCT FROM ?) DESC, created_at, rowid LIMIT 1",
-                [*params, lane.loaded_model],
+                f"ORDER BY {attached_first}(model IS NOT DISTINCT FROM ?) DESC, created_at, rowid LIMIT 1",
+                [*params, *attached, lane.loaded_model],
             )
             if row:
                 candidates.append((key, db, row))
@@ -832,8 +847,8 @@ class _Scheduler:
                 lane.libraries.difference_update(set(idle) - lane.rewoken)
         if not candidates:
             return None
-        # Across libraries the same rule: the loaded model first, then the oldest.
-        candidates.sort(key=lambda c: (c[2][3] != lane.loaded_model, c[2][4]))
+        # Across libraries the same rule: waited-for work first, then the loaded model, then the oldest.
+        candidates.sort(key=lambda c: (c[2][0] not in attached, c[2][3] != lane.loaded_model, c[2][4]))
         return candidates[0]
 
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
@@ -858,6 +873,8 @@ class _Scheduler:
             result = handed_in[0]() if handed_in is not None else kind.run(db, subject)
         except JobCancelled as exc:
             state, reason, error = "cancelled", str(exc) or "Stopped by you", exc
+        except JobDeferred as exc:
+            state, reason, error = "waiting", str(exc), exc
         except Exception as exc:  # noqa: BLE001 -- recorded on the row, and handed to whoever waits
             logger.warning("job %s (%s on %s) failed: %s", job_id, kind_name, subject, exc)
             state, reason, error = "failed", str(exc) or type(exc).__name__, exc
@@ -865,6 +882,12 @@ class _Scheduler:
             _current.job_id = None
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
+        if state == "waiting":  # deferred: not finished; it comes back, and its watchers wait on
+            if db_manager.open_database(key) is db:
+                db.execute("UPDATE jobs SET state = 'waiting', reason = ?, attempts = attempts - 1 WHERE id = ?",
+                           [reason, job_id])
+            lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+            return
         with self._lock:
             waiting = self._watchers.pop(job_id, [])
         if handed_in is not None:

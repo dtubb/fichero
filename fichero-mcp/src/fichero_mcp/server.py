@@ -501,6 +501,33 @@ def fichero_train_kraken(
 
 
 @mcp.tool()
+def fichero_train_kraken_here(
+    scope_ids: list[str],
+    teacher: str,
+    held_out_ids: Optional[list[str]] = None,
+    base: Optional[str] = None,
+    name: str = "reader",
+    epochs: Optional[int] = None,
+    not_for_release: bool = True,
+) -> Any:
+    """Train a Kraken reader on THIS Mac from the lines a teacher model read (distillation).
+
+    The same set and settings as ``fichero_train_kraken``, but nothing leaves the Mac and nothing is
+    paid. It runs gently, for as long as it takes: it holds while the person is using the Mac, while
+    it is hot or on battery, lets memory go when memory is tight, steps aside for work the person is
+    waiting for, and carries on from its last finished epoch. ``epochs`` fixes the number of epochs;
+    leave it out to stop when the reader stops improving. Returns the job id; follow it with
+    ``fichero_training_status`` (its ``measured`` field: peak memory, device, epochs, time) and stop it
+    with ``fichero_training_cancel``.
+    """
+    with _mutating_client() as client:
+        return client.train_kraken_here({
+            "scope_ids": scope_ids, "teacher": teacher, "held_out_ids": held_out_ids or [],
+            "base": base, "name": name, "epochs": epochs, "not_for_release": not_for_release,
+        })
+
+
+@mcp.tool()
 def fichero_train_vision_lora(
     scope_ids: list[str],
     teacher: str,

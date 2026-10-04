@@ -15252,6 +15252,53 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("train-a-kraken-reader-on-this-mac-gently")
+    def training_train_a_kraken_reader_on_this_mac_gently_post(
+        ctx: typer.Context,
+        base: Optional[str] = typer.Option(None, "--base", help="Request field: base."),
+        batch_size: Optional[int] = typer.Option(None, "--batch-size", help="Request field: batch_size."),
+        display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
+        epochs: Optional[int] = typer.Option(None, "--epochs", help="Request field: epochs."),
+        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        not_for_release: Optional[bool] = typer.Option(None, "--not-for-release/--no-not-for-release", help="Request field: not_for_release."),
+        pages_may_leave: Optional[bool] = typer.Option(None, "--pages-may-leave/--no-pages-may-leave", help="Request field: pages_may_leave."),
+        release_note: Optional[str] = typer.Option(None, "--release-note", help="Request field: release_note."),
+        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+        teacher: str = typer.Option(..., "--teacher", help="Request field: teacher."),
+    ) -> None:
+        """Train a Kraken reader on this Mac, gently (POST /api/training/kraken/here)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/kraken/here"
+            params = None
+            payload = _build_json_payload({
+                "base": base,
+                "batch_size": batch_size,
+                "display_name": display_name,
+                "epochs": epochs,
+                "held_out_ids": held_out_ids,
+                "name": name,
+                "not_for_release": not_for_release,
+                "pages_may_leave": pages_may_leave,
+                "release_note": release_note,
+                "scope_ids": scope_ids,
+                "teacher": teacher,
+            }, {
+                "base": {'type': 'string', 'nullable': True, 'title': 'Base', 'description': 'The Kraken reader to start from (a model id); none trains from nothing.', 'x-cli-required': False},
+                "batch_size": {'type': 'integer', 'maximum': 64.0, 'minimum': 1.0, 'title': 'Batch Size', 'description': 'Lines per step; small keeps memory down on a 16 GB Mac.', 'default': 4, 'x-cli-required': False},
+                "display_name": {'type': 'string', 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
+                "epochs": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Epochs', 'description': 'A fixed number of epochs; none stops when it stops improving.', 'x-cli-required': False},
+                "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'Pages kept home as the test; never sent.', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'description': "A short name for the trained reader's file.", 'default': 'reader', 'x-cli-required': False},
+                "not_for_release": {'type': 'boolean', 'title': 'Not For Release', 'description': 'The trained model may not be released.', 'default': True, 'x-cli-required': False},
+                "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages to go to Hugging Face.", 'default': False, 'x-cli-required': False},
+                "release_note": {'type': 'string', 'nullable': True, 'title': 'Release Note', 'x-cli-required': False},
+                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages whose teacher-read lines are the lessons.', 'x-cli-required': True},
+                "teacher": {'type': 'string', 'title': 'Teacher', 'description': 'The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("train-a-vision-model-with-lora-on-hugging-face-jobs-landed-here-as-mlx")
     def training_train_a_vision_model_with_lora_on_hugging_face_jobs_landed_here_as_mlx_post(
         ctx: typer.Context,

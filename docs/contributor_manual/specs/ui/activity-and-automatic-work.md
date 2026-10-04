@@ -532,8 +532,11 @@ workflow by hand: a hand run is a job like any other.
   step can run at the same time when memory allows; two steps on the same processor do not.
 - `activity.lane.idle-unload` — **[GAP]** (#5358) a resident model with no work is unloaded after a short idle
   time.
-- `activity.throttle.watched-first` — **[GAP]** (#5358) a job a person is waiting
-  on goes first in its lane at utility QoS.
+- `activity.throttle.watched-first` — **[PARTIAL]** (#5358) a job a person is waiting
+  on goes first in its lane at utility QoS. Built (2026-10-04): handed-in work (a page of a run a
+  person started) is ordered first on the local-model lane, and a long background job (training)
+  steps aside for it at its next batch (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`). Still a gap: work a person
+  waits for that is not handed in (an opened page).
 - `activity.throttle.power-heat-memory` — **[PARTIAL]** (#5358) background lanes slow
   or wait in Low Power Mode, on low battery, under serious thermal state or memory pressure, and
   say so; no setting. Built (2026-10-04): the local-model lane holds a background job while
@@ -541,8 +544,9 @@ workflow by hand: a hand run is a job like any other.
   or in Low Power Mode, or there was input in the last 30 s; the row says which ("Waiting: memory
   is tight", "Waiting: you're using the Mac") and the job runs when it clears. A page a person is
   waiting for waits only for memory and heat (`execution/throttle.py`,
-  `fichero-server/tests/unit/jobs/test_throttle.py`). Still a gap: slowing rather than waiting,
-  the other lanes, and a job already running (a long one checks at its own boundaries: training).
+  `fichero-server/tests/unit/jobs/test_throttle.py`). A long job checks at its own boundaries: training on this Mac holds
+  at every batch while the Mac is in use, hot or on battery, and lets memory go when it is tight
+  (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`). Still a gap: slowing rather than waiting, and the other lanes.
 
 ### E. Durability
 

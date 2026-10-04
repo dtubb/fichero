@@ -600,6 +600,20 @@ model read and a person checked), the Job's `last_lines` when it ends, and, once
 `POST /api/training/jobs/{job_id}/cancel` stops it (`training.cancel`): a job not started ends at
 once; a running one is cancelled on Hugging Face at its next look and ends `cancelled`.
 
+### Training a reader on this Mac
+
+`POST /api/training/kraken/here` queues the same Kraken card on this Mac (`train-on-this-mac`, the
+audited action `training.start_here`): the same training set and `ketos train` settings, nothing
+sent and nothing paid. It runs on the local-model lane inside the engine (a child process of the
+sandboxed engine cannot start), on the CPU (Kraken's CTC loss has no Apple GPU kernel), at utility
+priority with bounded threads. It holds while the Mac is in use, hot or on battery; lets memory go
+and goes back to waiting when memory is tight, background work is paused or a person waits for
+other work; and resumes from its last finished epoch (`ketos train --resume`, checked on Kraken
+7.1.1). Body: the Kraken card's fields without the Hugging Face ones, plus `epochs` (none: stop
+when it stops improving) and `batch_size`. `GET /api/training/jobs/{job_id}` follows it, with
+`measured` (peak resident memory, what training added, device, threads, epochs, seconds), and
+`POST /api/training/jobs/{job_id}/cancel` stops it at its next step. MCP: `fichero_train_kraken_here`.
+
 ### Workflow run comparison
 
 `GET /api/workflow-execution/comparisons` diffs what two runs produced from

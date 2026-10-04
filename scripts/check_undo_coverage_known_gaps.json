@@ -1,4 +1,5 @@
 {
+  "POST /api/training/kraken/here": "not undoable by design (training.start_here, audited, undoable=False): training that ran has run; it is stopped with the cancel route, and its landed reader is removed like any reader (#5397)",
   "PUT /api/activity/jobs/{job_id}/paused": "undoable in the engine (job.pause, audited with an inverse: pause <-> resume); the app has no per-job control yet to register it (#5356)",
   "POST /api/activity/jobs/{job_id}/cancel": "a stop is not undone: a cancelled job is queued again by whatever needs it (job.cancel is audited); the app has no per-job control yet (#5356)",
   "PUT /api/settings/compute": "an app preference (priority, device), not library data: setting it again is the undo, as for the other settings routes",

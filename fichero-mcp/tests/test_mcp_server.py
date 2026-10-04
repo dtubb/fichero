@@ -38,6 +38,7 @@ EXPECTED_TOOLS = {
     "fichero_train_vision_lora",
     "fichero_training_status",
     "fichero_training_cancel",
+    "fichero_train_kraken_here",
     "fichero_jobs",
     "fichero_pause_background_work",
     "fichero_job_pause",
@@ -354,6 +355,18 @@ def test_compare_readings_refuses_an_ambiguous_side(monkeypatch):
         with pytest.raises(ValueError):
             mcp_server.fichero_compare_readings("p", reference_pass_id="a")
     assert seen == []
+
+
+def test_training_here_sends_the_engines_request(monkeypatch):
+    """#5397: an agent can start training on this Mac the one way the engine offers. WHY: nothing
+    leaves the Mac on this path, so the tool must not send a pages-may-leave yes it was never given."""
+    with _mock_client(monkeypatch, body={"job_id": "j1"}) as seen:
+        mcp_server.fichero_train_kraken_here(["folder-1"], "google/gemini-3-flash-preview", held_out_ids=["p4"],
+                                             epochs=3)
+    (start,) = seen
+    assert (start.method, start.url.path) == ("POST", "/api/training/kraken/here")
+    body = json.loads(start.content)
+    assert body["held_out_ids"] == ["p4"] and body["epochs"] == 3 and "pages_may_leave" not in body
 
 
 def test_training_tools_send_the_engines_request(monkeypatch):

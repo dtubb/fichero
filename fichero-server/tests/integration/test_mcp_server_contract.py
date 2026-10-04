@@ -40,6 +40,7 @@ EXPECTED_TOOLS = {
     "fichero_train_vision_lora",
     "fichero_training_status",
     "fichero_training_cancel",
+    "fichero_train_kraken_here",
     "fichero_jobs",
     "fichero_pause_background_work",
     "fichero_job_pause",
