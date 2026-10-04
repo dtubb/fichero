@@ -270,17 +270,6 @@ def provisional_readings(
     ]
 
 
-def _not_already_stored(stored: list[ReadingRead], provisional: list[ReadingRead]) -> list[ReadingRead]:
-    """The artifact's readings, less any a stored reading already says word for word.
-
-    A run that writes its pass keeps its artifact too, so the same line came back twice -- the
-    stored reading and its own echo -- and a PAGE export wrote two identical TextEquivs for every
-    line of a training set. A stored reading that DIFFERS (a correction) leaves the machine's
-    original offered beside it: that is history, not an echo."""
-    said = {(r.kind, r.content) for r in stored if not r.provisional}
-    return [r for r in provisional if (r.kind, r.content) not in said]
-
-
 def _reading_read_from_row(row: ContentRepresentation) -> ReadingRead:
     return ReadingRead(
         id=row.id,
@@ -338,7 +327,7 @@ def readings_of_segment(
             continue
         seen.add(row.id)
         items.append(_reading_read_from_row(row))
-    items.extend(_not_already_stored(items, provisional_readings(db, live_id, artifact_memo=artifact_memo)))
+    items.extend(provisional_readings(db, live_id, artifact_memo=artifact_memo))
     return items
 
 
@@ -456,13 +445,12 @@ def _readings_for_live_rows(
         pass_row = passes[row.pass_id]
         if pass_row is None or not pass_row.source_artifact_id:
             continue
-        by_segment[row.id].extend(_not_already_stored(
-            by_segment[row.id],
+        by_segment[row.id].extend(
             provisional_readings(
                 db, row.id, allowed_kinds=kinds, artifact_memo=artifact_memo,
                 located=(artifact(pass_row.source_artifact_id), box_index),
-            ),
-        ))
+            )
+        )
     return by_segment
 
 

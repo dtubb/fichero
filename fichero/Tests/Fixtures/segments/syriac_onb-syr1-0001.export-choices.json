@@ -99,6 +99,7 @@
    "order_name": "as-written",
    "reading_kind": "transcription",
    "segment_count": 16,
+   "machine_made_unchosen": 12,
    "notes": []
   },
   "losses": [
@@ -111,6 +112,11 @@
     "what": "baseline",
     "count": 12,
     "why": "hOCR's baseline is a polynomial relative to the line's box, not a polyline, so a polyline baseline cannot be written without inventing a fit"
+   },
+   {
+    "what": "machine-made",
+    "count": 12,
+    "why": "lines whose reading a machine made and nobody has chosen: not yet reviewed, and not the record"
    }
   ]
  },

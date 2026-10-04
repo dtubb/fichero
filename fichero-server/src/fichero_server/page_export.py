@@ -152,6 +152,11 @@ def page_from_library(
             i for i in readings_of_segment(db, row.id)
             if i.kind == reading_kind and not i.retracted and i.id not in retired
         ]
+        # A run that writes its pass keeps its artifact too, so the read seam offers a line's
+        # stored reading AND its artifact echo. The export writes the words once: an echo that a
+        # stored reading says word for word is dropped; a correction keeps the machine's original.
+        said = {i.content for i in items if not i.provisional}
+        items = [i for i in items if not (i.provisional and i.content in said)]
         counted = (
             counting_by_kind(db, row.id, items, rule=rule, retired_memo=retired_memo).get(reading_kind)
             if items else None
