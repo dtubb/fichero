@@ -68,9 +68,9 @@ class TestDownloadDispatch:
 
 
 class TestDeleteDispatch:
-    def test_deleting_a_spacy_model_refuses_with_pip_guidance(self, client):
-        # No patch: spaCy delete honestly refuses (pip package), which the route
-        # surfaces as a 409 rather than a fake success.
+    def test_deleting_a_bundled_spacy_model_refuses(self, client):
+        # No patch: a bundled spaCy pipeline ships in the app (runtime.spacy.pipelines-download-as-data), so its
+        # delete honestly refuses, which the route surfaces as a 409 rather than a fake success.
         r = client.delete("/api/local-inference/models/es_core_news_sm")
         assert r.status_code == 409
-        assert "pip uninstall" in r.json()["detail"]
+        assert "bundled with the app" in r.json()["detail"]

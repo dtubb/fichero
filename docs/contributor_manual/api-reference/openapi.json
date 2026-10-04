@@ -53001,6 +53001,11 @@
             "type": "integer",
             "title": "Embeddings"
           },
+          "spacy": {
+            "type": "integer",
+            "title": "Spacy",
+            "default": 0
+          },
           "total": {
             "type": "integer",
             "title": "Total"
@@ -54459,6 +54464,11 @@
           "model_id": {
             "type": "string",
             "title": "Model Id"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id"
           }
         },
         "type": "object",
@@ -78180,6 +78190,50 @@
         "title": "SparqlResponseRow",
         "description": "One SPARQL result row. Bindings keyed by query variable name."
       },
+      "StartDownload": {
+        "properties": {
+          "runtime": {
+            "type": "string",
+            "title": "Runtime"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "size_mb": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Size Mb"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "the action to invoke to download it (a download-model job on the network lane)"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          }
+        },
+        "type": "object",
+        "required": [
+          "runtime",
+          "model",
+          "steps",
+          "action",
+          "params"
+        ],
+        "title": "StartDownload",
+        "description": "A model a step needs that is not on this Mac, and the action that downloads it."
+      },
       "StartEstimate": {
         "properties": {
           "pages": {
@@ -78290,6 +78344,14 @@
             "type": "array",
             "title": "Refusals",
             "description": "Start is refused while this is not empty"
+          },
+          "downloads": {
+            "items": {
+              "$ref": "#/components/schemas/StartDownload"
+            },
+            "type": "array",
+            "title": "Downloads",
+            "description": "models the steps are pinned to that are not on this Mac, each offered as a download (source.recipe.missing-model-offered)"
           },
           "estimate": {
             "$ref": "#/components/schemas/StartEstimate"

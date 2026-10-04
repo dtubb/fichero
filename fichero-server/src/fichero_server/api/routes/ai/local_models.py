@@ -5,7 +5,9 @@ Endpoints for managing locally-downloaded AI models (Whisper, embeddings, spaCy)
 Models are stored in ~/Library/Application Support/Fichero/models/
 """
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+
+from fichero_server.actions.registry import ChangeSpec, action
 from pydantic import BaseModel
 
 from fichero_server.models import (
@@ -148,6 +150,7 @@ def download_model(
     model_type: str,
     model_id: str,
     background_tasks: BackgroundTasks,
+    request: Request,
 ) -> DownloadStartedResponse:
     """Start downloading a model in the background.
 
@@ -175,6 +178,23 @@ def download_model(
         runtime = audio_runtime_status()
         if not runtime["ready"]:
             raise HTTPException(status_code=409, detail=str(runtime["reason"]))
+    elif model_type == "spacy":
+        # A pipeline downloads as files, as a `download-model` job on the network lane of the open library
+        # (`runtime.spacy.pipelines-download-as-data`).
+        from pathlib import Path as _Path
+
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.api.auth import request_actor
+        from fichero_server.api.main import get_library_database_for_write
+
+        db = get_library_database_for_write(request, request.headers.get("x-fichero-library-path", ""))
+        ctx = ActionContext(actor=request_actor(request), library_path=str(_Path(db.path).parent))
+        try:
+            result = registry.invoke(db, "model.download", {"runtime": "spacy", "model": model_id}, ctx)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return DownloadStartedResponse(status="queued", model_type=model_type, model_id=model_id,
+                                       job_id=result.result["job_id"])
     elif model_type == "embeddings":
         if model_id not in EMBEDDINGS_MODELS:
             raise HTTPException(
@@ -202,10 +222,33 @@ def delete_model(model_type: str, model_id: str) -> DeleteModelResponse:
     """
     from fichero_server.llm.local_models import LocalModelManager
 
-    if model_type not in ("whisper", "embeddings"):
+    if model_type not in ("whisper", "embeddings", "spacy"):
         raise HTTPException(status_code=400, detail=f"Unknown model type: {model_type}")
 
     mgr = LocalModelManager()
-    freed = mgr.delete_model(model_type, model_id)
+    from fichero_server.llm.local_models import BundledModel
+
+    try:
+        freed = mgr.delete_model(model_type, model_id)
+    except BundledModel as exc:  # a bundled spaCy pipeline ships in the app
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return DeleteModelResponse(status="ok", freed_bytes=freed)
+
+
+
+class ModelDownloadParams(BaseModel):
+    """``model.download`` params: which runtime's model to download."""
+
+    runtime: str
+    model: str
+
+
+@action("model.download", ModelDownloadParams, domains=["models"], undoable=False)
+def _action_model_download(db, params: ModelDownloadParams, ctx):
+    """Queue a `download-model` job on the network lane (`runtime.spacy.pipelines-download-as-data`)."""
+    from fichero_server.llm.local_models import enqueue_download
+
+    job_id = enqueue_download(db, params.runtime, params.model, started_by=ctx.actor or "owner")
+    return {"job_id": job_id, "runtime": params.runtime, "model": params.model}, ChangeSpec(
+        domains=["models"], target_ids=[job_id], after={"job_id": job_id})

@@ -151,8 +151,8 @@ class TestInstallDispatch:
 
 
 class TestDelete:
-    def test_spacy_delete_refuses_with_pip_guidance(self):
-        with pytest.raises(RuntimeError, match="pip uninstall"):
+    def test_spacy_delete_refuses_a_bundled_pipeline(self):
+        with pytest.raises(RuntimeError, match="bundled with the app"):
             cat.get_local_model_coordinator().delete("es_core_news_sm")
 
     def test_whisper_delete_frees_bytes(self, monkeypatch):

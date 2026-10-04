@@ -2361,6 +2361,8 @@ class DiskUsageResponse(BaseModel):
 
     whisper: int
     embeddings: int
+    #: Downloaded spaCy pipelines in the model store (bundled ones are not counted: the app cannot free them).
+    spacy: int = 0
     total: int
 
 
@@ -2370,6 +2372,8 @@ class DownloadStartedResponse(BaseModel):
     status: str
     model_type: str
     model_id: str
+    #: The `download-model` job, when the download is one (spaCy pipelines).
+    job_id: str | None = None
 
 
 class DeleteModelResponse(BaseModel):

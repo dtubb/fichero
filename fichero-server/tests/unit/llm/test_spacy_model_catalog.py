@@ -109,17 +109,19 @@ class TestWritesRefuseRatherThanPretend:
         monkeypatch.setattr(mod, "_spacy_runtime_available", lambda: False)
         # A download that quietly does nothing is the shape a user reads as
         # "it worked".
-        with pytest.raises(RuntimeError, match="nowhere to go"):
+        with pytest.raises(RuntimeError, match="nothing to run it"):
             manager.download_spacy_model("es_core_news_sm")
 
-    def test_delete_says_it_is_pip_s_job(self, manager):
-        with pytest.raises(RuntimeError, match="pip uninstall"):
+    def test_a_bundled_pipeline_cannot_be_deleted(self, manager):
+        # Bundled pipelines ship inside the app (runtime.spacy.pipelines-download-as-data): nothing to remove.
+        with pytest.raises(RuntimeError, match="bundled with the app"):
             manager.delete_spacy_model("es_core_news_sm")
 
-    def test_disk_usage_does_not_count_what_it_cannot_free(self, manager):
+    def test_disk_usage_counts_downloaded_pipelines_only(self, manager):
+        # Downloaded pipelines are files in the store and count; bundled ones the app cannot free and do not.
         usage = manager.total_disk_usage()
-        assert set(usage) == {"whisper", "embeddings", "total"}
-        assert usage["total"] == usage["whisper"] + usage["embeddings"]
+        assert set(usage) == {"whisper", "embeddings", "spacy", "total"}
+        assert usage["total"] == usage["whisper"] + usage["embeddings"] + usage["spacy"]
 
 
 class TestItActuallyShips:

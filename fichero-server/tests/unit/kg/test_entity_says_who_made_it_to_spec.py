@@ -25,7 +25,7 @@ def spacy_finds_names(monkeypatch):
     """spaCy's NER: every known name that occurs in the text, as spaCy would report it."""
     from fichero_server.knowledge import spacy_ner
 
-    def extract(text, language=None):
+    def extract(text, language=None, model=None):
         return [spacy_ner.EntitySpan(text=n, fichero_type=t, start=text.index(n), end=text.index(n) + len(n),
                                      label="PER" if t == "person" else "LOC")
                 for n, t in NAMES.items() if n in text]

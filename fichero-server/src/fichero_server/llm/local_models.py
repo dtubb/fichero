@@ -14,6 +14,7 @@ Storage layout:
 Models are app-wide (shared across all .fichero libraries).
 """
 
+import json
 import logging
 import shutil
 from dataclasses import dataclass, field
@@ -156,6 +157,87 @@ SPACY_MODELS: dict[str, dict] = {
                 "Portuguese-language material.",
     },
 }
+
+
+#: The version of every pipeline Fichero downloads: the one built for the spaCy this engine bundles (3.8).
+SPACY_PIPELINE_VERSION = "3.8.0"
+
+
+def SPACY_RELEASE_URL(name: str, version: str) -> str:  # noqa: N802 -- a constant in spirit; a test points it at a file
+    """Where a spaCy pipeline's release archive lives (spaCy's own model releases)."""
+    return (f"https://github.com/explosion/spacy-models/releases/download/{name}-{version}/"
+            f"{name}-{version}-py3-none-any.whl")
+
+
+#: What never belongs in a pipeline's data folder (`runtime.spacy.pipelines-download-as-data`).
+_CODE_SUFFIXES = (".py", ".pyc", ".pyo", ".pyd", ".so", ".dylib", ".dll", ".pth", ".sh", ".exe")
+
+
+def spacy_pipeline_path(name: str) -> Path | None:
+    """The pipeline's data folder in the model store, when it has been downloaded."""
+    folder = MODELS_BASE / "spacy" / f"{name}-{SPACY_PIPELINE_VERSION}"
+    return folder if (folder / "config.cfg").is_file() else None
+
+
+def _dir_bytes(folder: Path) -> int:
+    return sum(f.stat().st_size for f in folder.rglob("*") if f.is_file())  # one model folder
+
+
+def download_spacy_pipeline(name: str) -> Path:
+    """Fetch the pipeline's release archive and write ONLY its data folder (config, meta, weights) into the store.
+    Never installs the package or runs any of its code. Refuses, writing nothing, an archive whose data folder
+    holds code or a link, or a member that would land outside it."""
+    import shutil
+    import stat
+    import tempfile
+    import urllib.request
+    import zipfile
+
+    if name not in SPACY_MODELS:
+        raise ValueError(f"Unknown spaCy model: {name}")
+    version = SPACY_PIPELINE_VERSION
+    target = MODELS_BASE / "spacy" / f"{name}-{version}"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    prefix = f"{name}/{name}-{version}/"
+    with tempfile.TemporaryDirectory(dir=target.parent) as tmp:
+        archive = Path(tmp) / "release.whl"
+        with urllib.request.urlopen(SPACY_RELEASE_URL(name, version), timeout=60) as response, \
+                open(archive, "wb") as out:
+            shutil.copyfileobj(response, out)
+        with zipfile.ZipFile(archive) as z:
+            members = [m for m in z.infolist() if m.filename.startswith(prefix) and m.filename != prefix]
+            if not members:
+                raise RuntimeError(f"refused: the archive for {name} has no data folder {prefix!r}")
+            staged = Path(tmp) / "data"
+            for m in members:
+                rel = m.filename[len(prefix):]
+                parts = Path(rel).parts
+                if rel.startswith("/") or ".." in parts:
+                    raise RuntimeError(f"refused: {m.filename!r} would land outside the data folder")
+                if stat.S_ISLNK(m.external_attr >> 16) or rel.lower().endswith(_CODE_SUFFIXES):
+                    raise RuntimeError(f"refused: the data folder holds code or a link ({m.filename!r})")
+            for m in members:
+                if not m.is_dir():
+                    dest = staged / m.filename[len(prefix):]
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(z.read(m))
+        meta = json.loads((staged / "meta.json").read_text()) if (staged / "meta.json").is_file() else {}
+        if not (staged / "config.cfg").is_file() or f"{meta.get('lang')}_{meta.get('name')}" != name:
+            raise RuntimeError(f"refused: the data folder is not the pipeline {name} (no config, or meta names "
+                               f"{meta.get('lang')}_{meta.get('name')})")
+        if target.exists():
+            shutil.rmtree(target)
+        staged.rename(target)
+    return target
+
+
+class BundledModel(RuntimeError):
+    """A model that ships inside the app: there is nothing a delete could remove."""
+
+
+def spacy_pipeline_available(name: str) -> bool:
+    """In the model store, or bundled with the app."""
+    return spacy_pipeline_path(name) is not None or name in _spacy_installed_models()
 
 
 def _spacy_installed_models() -> set[str]:
@@ -525,19 +607,20 @@ class LocalModelManager:
         installed = _spacy_installed_models() if runtime else set()
         results = []
         for model_id, info in SPACY_MODELS.items():
-            is_downloaded = model_id in installed
+            stored = spacy_pipeline_path(model_id)
+            bundled = model_id in installed
+            is_downloaded = stored is not None or bundled
             results.append(
                 LocalModelInfo(
                     model_id=model_id,
                     model_type=ModelType.SPACY.value,
                     display_name=model_id,
-                    # Package size is not measurable without walking
-                    # site-packages per model; the catalog's figure is the
-                    # honest one and it is labelled as expected, not actual.
-                    size_bytes=info["disk_mb"] * 1_000_000 if is_downloaded else 0,
+                    # A downloaded pipeline is files in our store and is measured; a bundled one ships in the app,
+                    # where the catalog's figure is the honest one.
+                    size_bytes=(_dir_bytes(stored) if stored else info["disk_mb"] * 1_000_000 if bundled else 0),
                     is_downloaded=is_downloaded,
                     expected_size_mb=info["disk_mb"],
-                    path=None,
+                    path=str(stored) if stored else None,
                     metadata=info,
                     note=info["note"],
                     available=runtime,
@@ -553,29 +636,21 @@ class LocalModelManager:
         return results
 
     def download_spacy_model(self, model_id: str) -> None:
-        """Install a spaCy model package.
-
-        Raises rather than half-succeeding: without the runtime there is
-        nothing to install INTO, and a download that quietly does nothing is
-        the shape a user reads as "it worked".
-        """
-        if model_id not in SPACY_MODELS:
-            raise ValueError(f"Unknown spaCy model: {model_id}")
+        """Download a spaCy pipeline's data folder into the store (`download_spacy_pipeline`); never pip."""
         if not _spacy_runtime_available():
-            raise RuntimeError(
-                "spaCy is not installed in this engine, so its models have "
-                'nowhere to go. Install the extra first: pip install -e ".[kg]"'
-            )
-        from spacy.cli import download as spacy_download
-
-        spacy_download(model_id)
+            raise RuntimeError("spaCy is not in this engine, so a pipeline has nothing to run it")
+        download_spacy_pipeline(model_id)
 
     def delete_spacy_model(self, model_id: str) -> int:
-        """Not ours to delete — say so instead of pretending."""
-        raise RuntimeError(
-            f"{model_id} is a pip package, not a file in this app's model "
-            f"store. Remove it with: pip uninstall {model_id}"
-        )
+        """Delete a downloaded pipeline's folder; a bundled one ships in the app and is not ours to delete."""
+        import shutil
+
+        stored = spacy_pipeline_path(model_id)
+        if stored is None:
+            raise BundledModel(f"{model_id} is bundled with the app (or not downloaded): nothing to delete")
+        freed = _dir_bytes(stored)
+        shutil.rmtree(stored)
+        return freed
 
     def list_all(self) -> list[LocalModelInfo]:
         """List all models across all types."""
@@ -593,13 +668,14 @@ class LocalModelManager:
         """
         whisper_bytes = _whisper_total_bytes()
         embeddings_bytes = sum(m.size_bytes for m in self.list_embeddings_models())
-        # spaCy models are pip packages, not files in our store, so they
-        # are listed but deliberately NOT counted here: this number answers
-        # "how much disk can this app free", and it cannot free those.
+        # Downloaded spaCy pipelines are files in our store and count; the bundled ones ship in the app and do not
+        # (this number answers "how much disk can this app free").
+        spacy_bytes = sum(m.size_bytes for m in self.list_spacy_models() if m.path)
         return {
             "whisper": whisper_bytes,
             "embeddings": embeddings_bytes,
-            "total": whisper_bytes + embeddings_bytes,
+            "spacy": spacy_bytes,
+            "total": whisper_bytes + embeddings_bytes + spacy_bytes,
         }
 
     def download_model(self, model_type: str, model_id: str) -> None:
@@ -636,3 +712,32 @@ class LocalModelManager:
             return self.delete_spacy_model(model_id)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
+
+
+# --- The download-model job (`runtime.spacy.pipelines-download-as-data`) ------------------------------------------
+DOWNLOAD_KIND = "download-model"
+
+
+def register_job_kinds() -> None:
+    from fichero_server.execution import jobs
+
+    if DOWNLOAD_KIND not in jobs.KINDS or jobs.KINDS[DOWNLOAD_KIND].run is None:
+        jobs.register_kind(DOWNLOAD_KIND, lambda db, subject: _run_download(subject), model=None, lane="network",
+                           name="Download a model")
+
+
+def _run_download(subject: str) -> None:
+    runtime, _, name = subject.partition(":")
+    if runtime != "spacy":
+        raise ValueError(f"no download for {subject!r}")
+    LocalModelManager().download_spacy_model(name)
+
+
+def enqueue_download(db, runtime: str, name: str, *, started_by: str = "owner") -> str:
+    """Queue a `download-model` job on the network lane; one waiting job per model."""
+    from fichero_server.execution import jobs
+
+    if runtime != "spacy" or name not in SPACY_MODELS:
+        raise ValueError(f"no download for {runtime}:{name}")
+    register_job_kinds()
+    return jobs.enqueue(db, DOWNLOAD_KIND, f"{runtime}:{name}", started_by=started_by, watched=True)

@@ -167,10 +167,30 @@ def plan_start(recipe: dict | None, *, stays_local: bool) -> dict[str, Any]:
         runs.append(entry)
     # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
     refusals = check_recipe(recipe)
+    downloads = missing_models(runs)
+    refusals += [f"steps {', '.join(d['steps'])} need the {d['runtime']} model {d['model']} ({d['size_mb']} MB), "
+                 f"which is not on this Mac: download it first" for d in downloads]
     if not runs and not refusals:
         refusals.append("nothing in this recipe can run yet: every step is skipped (see why)")
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
-            "offered": offered, "refusals": refusals}
+            "offered": offered, "refusals": refusals, "downloads": downloads}
+
+
+def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The downloadable models the plan's steps are pinned to that are not on this Mac
+    (`source.recipe.missing-model-offered`): today spaCy pipelines, each offered as a `download-model` job."""
+    from fichero_server.llm.local_models import SPACY_MODELS, spacy_pipeline_available
+
+    out: dict[str, dict[str, Any]] = {}
+    for run in runs:
+        name = run.get("model_override")
+        if run.get("provider_override") != "spacy" or not name or spacy_pipeline_available(name):
+            continue
+        entry = out.setdefault(name, {"runtime": "spacy", "model": name, "steps": [],
+                                      "size_mb": SPACY_MODELS.get(name, {}).get("disk_mb"),
+                                      "action": "model.download", "params": {"runtime": "spacy", "model": name}})
+        entry["steps"] += run["steps"]
+    return list(out.values())
 
 
 def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
