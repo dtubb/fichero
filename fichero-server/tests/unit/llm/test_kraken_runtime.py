@@ -104,9 +104,12 @@ def test_the_seam_is_the_only_importer_of_kraken_in_the_engine() -> None:
     ONLY inside `kraken_runtime.py` — anywhere else means a second, un-
     reviewed place the engine touches Kraken's heavy C extensions outside
     the one lock/throttle seam."""
+    # Scripts that never run inside the engine: they ship in a read package and run on Hugging Face
+    # Jobs or a cluster node, in their own environment, where there is no engine seam to go through.
+    never_in_the_engine = {SRC_ROOT / "remote_read" / "runner.py"}
     offenders: list[str] = []
     for path in sorted(scan_rglob(SRC_ROOT, "*.py")):
-        if path == KRAKEN_RUNTIME_PATH:
+        if path == KRAKEN_RUNTIME_PATH or path in never_in_the_engine:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
