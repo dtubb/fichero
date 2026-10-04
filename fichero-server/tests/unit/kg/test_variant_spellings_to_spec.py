@@ -152,3 +152,21 @@ def test_kg_entity_variant_spellings_proposed__the_review_item_shows_both_names_
     (pair,) = _pairs(client)
     assert (pair["survivor_name"], pair["candidate_name"]) == ("Juan de Mosquera", "Don Juan de Mosqera")
     assert "'Don Juan de Mosqera'" in pair["reason"] and "'Juan de Mosquera'" in pair["reason"], pair["reason"]
+
+
+def test_kg_entity_variant_spellings_proposed__only_direct_pairs_each_with_its_own_basis(client, db):
+    """kg.entity.variant-spellings-proposed: "each pair of entities whose own names match, never two that are only
+    joined through a third (an entity holding a stray name of a second, which is a variant of a third, does not
+    make the first and third a pair); each pair says why ... in its method: `name_variant` for a spelling variant,
+    `duplicate_name` for the same name or a name both hold"."""
+    _person(db, "Jose Dionisio de Villar", aliases=["francisco de paz"], corroboration_count=9)
+    _person(db, "Francisco de Paz", corroboration_count=5)
+    _person(db, "Francisco de Pas")
+    proposed = client.post(DEDUPE, json={"spelling_variants": True, "propose": True}).json()
+    pairs = {frozenset((p["survivor_name"], p["candidate_name"])): p for p in _pairs(client)}
+    assert set(pairs) == {frozenset(("Jose Dionisio de Villar", "Francisco de Paz")),
+                          frozenset(("Francisco de Paz", "Francisco de Pas"))}, set(pairs)
+    assert proposed["proposals_queued"] == 2
+    assert pairs[frozenset(("Jose Dionisio de Villar", "Francisco de Paz"))]["method"] == "duplicate_name"
+    assert pairs[frozenset(("Francisco de Paz", "Francisco de Pas"))]["method"] == "name_variant"
+    assert "written differently" not in pairs[frozenset(("Jose Dionisio de Villar", "Francisco de Paz"))]["reason"]

@@ -559,8 +559,8 @@ class ManualPairRequest(BaseModel):
     survivor_entity_id: str
     candidate_entity_id: str
     reason: str | None = None
-    #: Who proposes the pair: a person (`manual`) or the variant-spellings check (`name_variant`).
-    method: Literal["manual", "name_variant"] = "manual"
+    #: Who proposes the pair: a person (`manual`) or the variant-spellings check (`name_variant`, `duplicate_name`).
+    method: Literal["manual", "name_variant", "duplicate_name"] = "manual"
     score: float = Field(default=0.5, ge=0.0, le=1.0, description="How alike the two are; 0.5 when a person queues it")
 
 

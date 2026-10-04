@@ -280,6 +280,36 @@ def _entity_groups(
     return groups
 
 
+def _direct_basis(a: KnowledgeEntity, b: KnowledgeEntity) -> str | None:
+    """Why two entities' own names match, or None."""
+    if normalize_name(a.canonical_name) == normalize_name(b.canonical_name):
+        return BASIS_NORMALIZED_NAME
+    names_a = {normalize_name(n) for n in [a.canonical_name, *a.aliases]} - {""}
+    names_b = {normalize_name(n) for n in [b.canonical_name, *b.aliases]} - {""}
+    if names_a & names_b:
+        return BASIS_ALIAS_COLLISION
+    if spelling_key(a.canonical_name) and spelling_key(a.canonical_name) == spelling_key(b.canonical_name):
+        return BASIS_SPELLING
+    return None
+
+
+def direct_pairs(group: EntityMergeGroup) -> list[tuple[KnowledgeEntity, KnowledgeEntity, str, float]]:
+    """The pairs to propose for a group (`kg.entity.variant-spellings-proposed`): each member against the
+    best-ranked member its OWN names match, never one it is joined to only through a third (proposing every
+    member against the survivor chained strangers together through a stray alias). One pair per member, so a
+    name written three ways is two pairs, not three: (the one more likely to stay, the other, basis, similarity)."""
+    members = sorted([group.survivor, *group.absorbed], key=_entity_survivor_rank, reverse=True)
+    out = []
+    for rank, member in enumerate(members):
+        for better in members[:rank]:
+            basis = _direct_basis(better, member)
+            if basis:
+                ratio = SequenceMatcher(None, normalize_name(better.canonical_name), normalize_name(member.canonical_name))
+                out.append((better, member, basis, round(ratio.ratio(), 4)))
+                break
+    return out
+
+
 def _claim_statement_key(claim: KnowledgeClaim) -> str:
     """One comparable statement key per claim: SVO when present, else text."""
     if claim.predicate_verb or claim.object_phrase:

@@ -160,8 +160,12 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   abbreviations of names (`Fran.co`/`Francisco`, `Xpoval`/`Cristóbal`, `Glz`/`González`); and titles (`Don`,
   `Doña`, `Capitán`, `Fray`). An abbreviation is read as one only where it is written as one: with a point or a raised letter (`Fran.co`, `Pº`), or a contraction that is no word (`Xpoval`, `Glz`); a plain word is the word (the surname `Franco` is not `Fran.co`). A number is never set aside (`Dredge No. 1` and `Dredge No. 3` stay apart), nor is
   any other letter. The check first answers with what it found (how many entities, how many groups, which names),
-  writing nothing; asked to propose, it puts each pair into the entity review queue (`/api/kg/review/pairs`,
-  method `name_variant`, with the two names in its reason, each in full as written, titles included), where accepting is the audited merge and
+  writing nothing; asked to propose, it puts into the entity review queue (`/api/kg/review/pairs`) one pair for
+  each entity, with the likeliest-to-stay entity whose own names match its own, never two that are only joined
+  through a third (a name written three ways is two pairs): an entity holding a stray
+  name of a second, which is a variant of a third, does not make the first and third a pair; each pair says
+  why in its reason, with the two names in full as written, titles included, and in its method: `name_variant`
+  for a spelling variant, `duplicate_name` for the same name or a name both hold. Accepting is the audited merge and
   rejecting is remembered: a pair already proposed, accepted or rejected is never proposed again. Asking it to
   merge the variants itself is refused. Curated (reviewed) entities are proposed like any other, since a person
   decides each pair; rejected and already-merged ones never are.

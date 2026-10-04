@@ -1302,29 +1302,27 @@ async def dedupe_entities(
 
 
 def _propose_pairs(db: Database, plan: list[EntityMergeGroup], ctx: ActionContext) -> int:
-    """Each (survivor, absorbed) pair into the review queue through `review.queue`, unless that pair was
-    ever queued before (pending, accepted or rejected: a person's decision is remembered)."""
-    from difflib import SequenceMatcher
-
-    from fichero_server.knowledge.dedupe import BASIS_SPELLING, normalize_name
+    """Each direct pair of the plan (`direct_pairs`: two entities whose own names match) into the review queue
+    through `review.queue`, unless that pair was ever queued before (pending, accepted or rejected: a person's
+    decision is remembered)."""
+    from fichero_server.knowledge.dedupe import BASIS_SPELLING, direct_pairs
     from fichero_server.models.knowledge import EntityMatchCandidate
 
     seen = {frozenset((c.survivor_entity_id, c.candidate_entity_id)) for c in db.query(EntityMatchCandidate)}
+    why = {BASIS_SPELLING: "the same name written differently", "normalized-name": "the same name",
+           "alias-collision": "a name both hold"}
     queued = 0
     for group in plan:
-        for member in group.absorbed:
-            if frozenset((group.survivor.id, member.id)) in seen:
+        for keep, other, basis, score in direct_pairs(group):
+            if frozenset((keep.id, other.id)) in seen:
                 continue
-            a, b = group.survivor.canonical_name, member.canonical_name
-            why = ("the same name written differently" if group.basis == BASIS_SPELLING
-                   else f"a duplicate ({group.basis})")
             registry.invoke(db, "review.queue", {
-                "survivor_entity_id": group.survivor.id, "candidate_entity_id": member.id,
-                "method": "name_variant" if group.basis == BASIS_SPELLING else "manual",
-                "score": round(SequenceMatcher(None, normalize_name(a), normalize_name(b)).ratio(), 4),
-                "reason": f"{b!r} and {a!r}: {why}",
+                "survivor_entity_id": keep.id, "candidate_entity_id": other.id,
+                "method": "name_variant" if basis == BASIS_SPELLING else "duplicate_name",
+                "score": score,
+                "reason": f"{other.canonical_name!r} and {keep.canonical_name!r}: {why[basis]}",
             }, ctx)
-            seen.add(frozenset((group.survivor.id, member.id)))
+            seen.add(frozenset((keep.id, other.id)))
             queued += 1
     return queued
 
