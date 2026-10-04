@@ -173,6 +173,12 @@ class JobTree(BaseModel):
     parent_id: Optional[str] = None
     done: int = Field(description="pages (or other leaf jobs) under this one that are done")
     total: int = Field(description="pages (or other leaf jobs) under this one in all")
+    failed: int = Field(0, description="pages (or other leaf jobs) under this one that failed; each says why")
+    seconds: Optional[float] = Field(None, description="how long it took, start to finish (or until now)")
+    tokens: int = Field(0, description="the model tokens used under this one")
+    cost_usd: Optional[float] = Field(
+        None, description="what its model calls cost, from the vendored price list; null unless every one is priced")
+    unpriced_models: list[str] = Field(default_factory=list, description="models under it the price list does not know")
     children: list["JobTree"] = Field(default_factory=list)
 
 

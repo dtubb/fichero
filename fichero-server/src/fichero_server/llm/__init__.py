@@ -454,6 +454,12 @@ def _record_usage(
         if method is not None:
             entry["method"] = method
         bucket.append(entry)
+    # And on the job row of the lane slot the call was made in (#5353), for the run tree's cost.
+    from fichero_server.execution import jobs
+
+    jobs.note_usage({"provider": provider, "model": model, "kind": kind, "input_tokens": input_tokens,
+                     "output_tokens": output_tokens, "total_tokens": total_tokens,
+                     "cache_read_tokens": cache_read_tokens, "estimated": estimated})
 
     marker = "~" if estimated else ""
     estimated_suffix = " (estimated)" if estimated else ""
@@ -1382,16 +1388,18 @@ async def _remote_llm_call_slot(config: LLMConfig) -> AsyncIterator[None]:
     OS's own) takes no slot."""
     from fichero_server.llm.providers import get_provider_info
 
+    from fichero_server.execution import jobs
+
     provider = (config.provider or "").strip().lower()
     info = get_provider_info(provider)
     if info is not None and info.is_builtin:
+        jobs.forget_call_row()
         yield
         return
     from fichero_server.observability.episodes import _episode_library_path
 
     library = _episode_library_path.get()
     if library:
-        from fichero_server.execution import jobs
         from fichero_server.workflows.node_context import get_current_node
 
         node = get_current_node()
@@ -1402,6 +1410,7 @@ async def _remote_llm_call_slot(config: LLMConfig) -> AsyncIterator[None]:
         ):
             yield
         return
+    jobs.forget_call_row()
     if _is_local_or_builtin_provider(config.provider):
         yield
         return

@@ -60271,6 +60271,38 @@
             "title": "Total",
             "description": "pages (or other leaf jobs) under this one in all"
           },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "description": "pages (or other leaf jobs) under this one that failed; each says why",
+            "default": 0
+          },
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds",
+            "description": "how long it took, start to finish (or until now)"
+          },
+          "tokens": {
+            "type": "integer",
+            "title": "Tokens",
+            "description": "the model tokens used under this one",
+            "default": 0
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd",
+            "description": "what its model calls cost, from the vendored price list; null unless every one is priced"
+          },
+          "unpriced_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unpriced Models",
+            "description": "models under it the price list does not know"
+          },
           "children": {
             "items": {
               "$ref": "#/components/schemas/JobTree"

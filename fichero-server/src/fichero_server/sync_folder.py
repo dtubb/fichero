@@ -471,17 +471,22 @@ def _watch(db: Any, folder: dict[str, Any] | None) -> None:
                 return  # a temporary file being written, or a loss report
             from fichero_server.db.manager import db_manager
 
-            library = db_manager.open_database(key)
-            if library is not None:  # closed: it is read again when it opens
-                _queue_read(library, folder_id)
+            # One watcher serves every folder: an error here must not end it for all of them.
+            try:
+                library = db_manager.open_database(key)
+                if library is not None:  # closed: it is read again when it opens
+                    _queue_read(library, folder_id)
+            except Exception:  # noqa: BLE001 -- logged; the folder is read again on open
+                logger.warning("synced folder %s: a change could not be queued", folder_id, exc_info=True)
 
     with _watch_lock:
-        if folder_id in _watches:
+        if folder_id in _watches and _observer is not None and _observer.is_alive():
             return
-        if _observer is None:
+        if _observer is None or not _observer.is_alive():
             _observer = Observer()
             _observer.daemon = True
             _observer.start()
+            _watches.clear()  # what the old one watched is watched again as each folder asks
         _watches[folder_id] = _observer.schedule(Changed(), folder["path"], recursive=True)
 
 

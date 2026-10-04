@@ -408,8 +408,10 @@ workflow by hand: a hand run is a job like any other.
   Stop on the run's row reach the run and its waiting pages (`fichero-server/tests/unit/jobs/test_runs_are_jobs.py`). The rows follow the
   run's own record (spec step 3, read-only). Built (2026-10-04): a text model's calls in a run
   (entity and claim extraction, summaries, every tool that calls `llm.chat` or its structured
-  forms) are rows under their step, kind `ask-a-model` (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`). Still a gap: time, cost and errors
-  rolled up; chat outside a run; batches.
+  forms) are rows under their step, kind `ask-a-model` (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`). Built (2026-10-04): time,
+  cost and errors roll up: each row has its `seconds`, the pages under it that `failed` (each with
+  its reason), its `tokens`, and its `cost_usd` from the vendored price list, null unless every
+  call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Still a gap: chat outside a run; batches.
 - `activity.task-queue-grows-into-jobs` — **[OK]** (#5353) the task queue is already
   a persistent queue that resumes pending work (`workflows/tasks.py:153-176`); it becomes the jobs
   table rather than a thirteenth system being built beside it. Found 2026-10-03: nothing in the
