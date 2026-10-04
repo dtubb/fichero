@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import shutil
-import xml.etree.ElementTree as ET
+from fichero_server.security.xml_security import parse_xml_string
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -105,7 +105,7 @@ def teacher_pass(db: Any, document_id: str, teacher: str) -> Any | None:
 
 def read_lines(page_xml: str) -> int:
     """TextLines with a baseline and some text: what `ketos train -f page` can learn from."""
-    root = ET.fromstring(page_xml)
+    root = parse_xml_string(page_xml)
     count = 0
     for line in root.iter(f"{_PAGE_NS}TextLine"):
         text = "".join(u.text or "" for u in line.iter(f"{_PAGE_NS}Unicode"))
