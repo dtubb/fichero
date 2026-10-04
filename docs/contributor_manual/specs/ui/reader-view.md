@@ -406,6 +406,7 @@ recommendation for which one carries the work.
 - `reader.voiceover-paragraph-to-note` — **[GAP]** (#3693) an accessibility action captures the current paragraph into a Reader note.
 - `reader.select-all-selects-the-readers-text` — **[GAP]** (#4376) with the Reader focused, ⌘A selects all of the Reader's text; the Library half is built (library.chrome.select-all-follows-the-visible-surface) and the Reader half has no code or test.
 - `reader.scope.current-page-only-is-one-click` — **[GAP]** (#5005) the Reader has a visible switch between the whole folder and just the selected page (the scope lens: selection, peers, parent, children).
+- `reader.order.reveal-line-in-preview` **[BROKEN]** (#5424): double-clicking a line in the Order tab or the Order pane, or clicking a line in the Reader, scrolls and zooms the linked Preview to that line and selects its box. One reveal action, shared by every surface. Tested through the real selection store.
 
 ## Future (ideas, not scheduled)
 - (#973) Book-native page numbers and chapter markers for book-shaped sources; backend detection feature, no current spec owner

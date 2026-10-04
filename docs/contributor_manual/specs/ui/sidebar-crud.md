@@ -241,6 +241,7 @@ NOT this PR.
 - `dup.deep-tree-fits-the-memory-cap` — **[BROKEN]** (#5100) duplicating a 1,050-deep tree completes inside DuckDB's 1.5 GB cap.
 - `sidebar.expand-is-instant` — **[GAP]** (#5277) expanding a sidebar folder draws its children at once from a prefetched light listing and publishes per folder, not as a store-wide re-render (the one-level look-ahead landed in 3c696d7aa; the light listing and per-folder publish remain).
 - `sidebar.one-selection-one-fetch` — **[BROKEN]** (#4995) one sidebar selection fetches the document, its children and thumbnails once (loadChildren and document fetch single-flight, handleSelection once); the four-builds half landed in 75ddc9d03.
+- `sidebar.project.click-selects-and-inspects` **[BROKEN]** (#5422): clicking a project row in the sidebar shows the row selected and switches the Inspector to the project itself: its name, location, recipe and Set Up…, sharing and counts. Tested through the real selection store.
 
 ## Future (ideas, not scheduled)
 - (#1380) Mail-style sidebar: counts, multi-select combined view, favorites section, smart All groups
