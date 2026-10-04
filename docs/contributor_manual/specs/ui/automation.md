@@ -217,6 +217,7 @@ not a coherent new surface needing its own spec.
 - `automation.run.history-inspector-tab` — **[GAP]** (#1474) the document inspector lists the workflow runs that ran on this document and lets the user delete (or disable) a run's results, as the image history does
 - `automation.applescript.debug-dictionary-loads` — **[BROKEN]** (#5258) the Debug build's FicheroDebug.sdef includes Fichero.sdef by a path that resolves inside the built bundle, so every scripting command works in Debug.
 - `automation.applescript.every-command-smoke-tested` — **[GAP]** (#5259) a test launches the built app (Debug and Release, isolated engine and fixture library) and runs every command in Fichero.sdef through osascript, asserting each result.
+- `automation.schedule.runs-on-chosen-documents` **[BROKEN]** (#5410): a schedule can name the pages or folder it runs on, typed as the run's own inputs, and triggering it runs on exactly those; the schedule editor shows what it runs on. Today POST /api/schedules with selected_doc_ids is refused with 422.
 
 ## Future (ideas, not scheduled)
 - (#4171) fichero:// deep link for every view: copy link, bookmark, script, click-through from Inspector.

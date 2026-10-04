@@ -2070,3 +2070,6 @@ Not verified in this pass: what Apple Vision does with handwriting,
 right-to-left, vertical text and single-line pictures (to be probed at run time); a fair
 comparison of line-by-line against whole-page reading by vision-language models; whether the
 Hugging Face revisions in the example exist (they are illustrative).
+
+## Triaged from the backlog (2026-10-04)
+- `source.segments.align-page-text-to-lines` **[GAP]** (#5217): when a page's text belongs to the page and not to its lines, the Segments list says so ('text on the page, not aligned to lines') and offers one Align Text to Lines tool, as a dialog or a tool option, whose result is a pass the person confirms. It runs by itself only where the match is known to be perfect, such as a reliable import. (Ruled 2026-10-01; tension with `source.job.tie-text-to-lines`, which aligns automatically.)

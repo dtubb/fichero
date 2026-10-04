@@ -81,7 +81,7 @@ n/a (infrastructure spec).
 ## Triaged from the backlog (2026-10-04)
 - `testenv.one-mcp-test-tree` — **[GAP]** (#4480) fichero-mcp is tested from one tree only; the stale copy under fichero-server/tests/unit/mcp is removed or made the same suite (it still exists).
 - `testenv.no-defaults-leak` — **[GAP]** (#4234, #4103, #4578) tests never create UserDefaults suites in the shipping app container, and a sweep removes the ~180 test.purge.* plists.
-- `testenv.full-suite-completes` — **[GAP]** (#4039) a full engine pytest run finishes without a hang (the perf test is bounded, not skipped) and without shared-app middleware errors at setup.
+- `testenv.full-suite-completes` — **[GAP]** (#5249, #4039) a full engine pytest run finishes without a hang (the perf test is bounded, not skipped) and without shared-app middleware errors at setup.
 - `testenv.no-modal-in-hosted-tests` — **[GAP]** (#4270) a hosted unit test never raises a user-visible save panel or alert; save paths are pointed at a temp directory.
 - `testenv.no-real-files-touched` — **[GAP]** (#4537) tests running in the app container never write real container files (e.g. .api-key) without save/restore; a sweep and guardrail cover the class.
 - `testenv.expect-message-is-comment` — **[GAP]** (#4698) a guardrail fails before a build when a Swift Testing #expect/Issue.record message is a concatenation or String variable.
@@ -90,6 +90,10 @@ n/a (infrastructure spec).
 - `testenv.transport-error-tests-use-stubs` — **[GAP]** (#4207) twelve service suites that assert transport error mapping use a stub transport, not real DNS/network.
 - `testenv.guardrails-fail-on-stale-baseline` — **[GAP]** (#3339) every scripts/check_*.py returns nonzero when a KNOWN_VIOLATIONS or baseline entry is stale (check_native_controls.py and check_feature_flags.py warn and return 0).
 - `testenv.export-route-tests-order-independent` — **[BROKEN]** (#5309) test_routes_export's MarkdownFolderExport and EleventySiteExport tests mount their routes whatever ran before them (an earlier module reloading fichero_server.api.main must not unmount export routes).
+- `testenv.tests-never-write-the-real-registry` **[BROKEN]** (#5266): no test adds a library to the person's real engine registry: UI tests open their seed and untitled libraries through an engine with its own temporary home, a guard fails a run that adds to the real registry, and an explicit, reported prune removes entries whose package no longer exists.
+- `testenv.unit-suite-runs-in-minutes` **[BROKEN]** (#5294): the Python unit suite finishes in minutes on a quiet machine, as it once did (5 min 53 s), not hours: the FastAPI app is built once per auth posture and reused rather than reloaded twice per test (16 files do it today), and the suite's slowest tests are listed with --durations so a regression shows.
+- `testenv.apple-vision-fixture-tests-read-the-page` **[BROKEN]** (#5378): the palaeography fixture's three Apple Vision tests read the gold page and score a real CER, not ~1.0; when Vision cannot run (a locked session, the runner's context) they skip and say why instead of failing.
+- `testenv.unit-tests-order-independent` **[BROKEN]** (#5407): every engine unit test passes in a combined run as it does alone: no earlier test leaves a module cache, env var, supplied key, reloaded app or old jobs-table schema behind, and waits are event-driven rather than on background queues. Today test_star_yields_directories_like_rglob, test_nothing_is_persisted, the query-ratchet task-list test and the Gemini two-pass test fail only in combined runs.
 
 ## Future (ideas, not scheduled)
 - (#4425) Design principle: what must not be forgotten lives in the gate, advice lives in skills.

@@ -159,3 +159,6 @@ CER comparison. Later: a bound volume (curved pages) and a damaged Istmina page.
 
 ## Future (ideas, not scheduled)
 - (#4368) Native Apple image ops (book-spread split, border cleanup, bg removal) replacing OpenCV paths
+
+## Triaged from the backlog (2026-10-04)
+- `prep.prepared-image-attached-as-rendition` **[BROKEN]** (#5386): Prepare Images for OCR saves its result as a rendition of the page it prepared, as Split's parts become children, never only as a scratch file the library does not point at. (JPEG stays JPEG, e62aa3bae, and run scratch is removed, 70e882c81. Contradicts the [OK] `prep.never-changes-the-original`, which says every result is a rendition.)

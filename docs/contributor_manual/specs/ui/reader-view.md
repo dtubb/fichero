@@ -407,6 +407,7 @@ recommendation for which one carries the work.
 - `reader.select-all-selects-the-readers-text` — **[GAP]** (#4376) with the Reader focused, ⌘A selects all of the Reader's text; the Library half is built (library.chrome.select-all-follows-the-visible-surface) and the Reader half has no code or test.
 - `reader.scope.current-page-only-is-one-click` — **[GAP]** (#5005) the Reader has a visible switch between the whole folder and just the selected page (the scope lens: selection, peers, parent, children).
 - `reader.order.reveal-line-in-preview` **[BROKEN]** (#5424): double-clicking a line in the Order tab or the Order pane, or clicking a line in the Reader, scrolls and zooms the linked Preview to that line and selects its box. One reveal action, shared by every surface. Tested through the real selection store.
+- `reader.page.header-icon-drags-the-page` **[GAP]** (#5290): the page header's one icon is a proxy icon: dragging it carries the page out, with the same payload as dragging the page from the Library. (The file name or 'file.pdf › Page N' title and the single icon landed in f75912435.)
 
 ## Future (ideas, not scheduled)
 - (#973) Book-native page numbers and chapter markers for book-shaped sources; backend detection feature, no current spec owner

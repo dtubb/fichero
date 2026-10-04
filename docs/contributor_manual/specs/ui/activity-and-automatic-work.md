@@ -900,7 +900,7 @@ code path.
   files in economy HTR. Today it runs a synchronous loop on the run's event loop with no progress
   callback (`workflows/tools/economy_htr.py:296`), so Stop waits for the whole step and the log goes
   quiet.
-- `activity.run.stop-reaches-in-flight-calls` — **[BROKEN]** (#5375, → #4402) Stop ends an
+- `activity.run.stop-reaches-in-flight-calls` — **[BROKEN]** (#5392, #5375, → #4402) Stop ends an
   in-flight Kraken page or model call rather than waiting for it. Today nothing passes cancellation
   into Kraken's lock and joined thread (`llm/kraken_runtime.py:499-556`) or into a model's HTTP call.
   Built (2026-10-03): Stop reaches a Kraken page still waiting for the lane: its row is cancelled

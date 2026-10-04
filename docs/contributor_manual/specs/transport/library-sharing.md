@@ -128,6 +128,7 @@ Each failure: an issue, fixed one at a time, its behaviour above re-tagged.
 - `sharing.acl-status-when-multiuser-off` — **[GAP]** (#3335) with Multi-user off the Library ACL row reads "not enforcing per-library access" instead of a red Server error (ShareSettingsView+Security.swift shows authzError in red).
 - `sharing.ios-discovers-host` — **[GAP]** (#3371) an iOS/iPad client browses Bonjour, lists verified reachable Mac engine candidates and shows stale ones as failed, without persisting trust.
 - `sharing.stale-note-edit-is-refused-and-offered-a-choice` — **[GAP]** (#5348) a note or document edit made against an old version is refused 409 and the app offers keep-mine, take-theirs or compare (the notes PATCH check landed in 9339a2e7d; the Swift editor and PUT /api/documents/{id} remain).
+- `sharing.ios.unpaired-phone-opens-on-connect` **[BROKEN]** (#5396): an iPhone that has never paired opens on a welcome screen with Connect to a Mac (Bonjour list, QR or address), then the project list, never an empty 'Nothing Selected' view or a server-down error. Its screens are laid out for a phone: one navigation bar, a sidebar that survives landscape, no offline chat pane and no internal α/β/δ markers.
 
 ## Future (ideas, not scheduled)
 - (#2029) Multi-writer concurrency and presence: design pass explicitly last, after users and attribution land.

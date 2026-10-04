@@ -459,3 +459,6 @@ regenerated; app slices drive the real host and store, never injected services.
 
 Order: slices 1, 2, 6, 7, 10, 11 and 20 are engine work with no dependency on each other and can run in
 parallel lanes with disjoint files; the app slices follow the read (2 → 3).
+
+## Triaged from the backlog (2026-10-04)
+- `layers.boxes.visible-with-order-numbers` **[GAP]** (#5288): segment boxes are easy to see at a glance on a dark, busy manuscript page, not faint dashes, and the layers menu has an option, off by default and kept per pane, to label each line with its reading-order number and each region with its region order. (Colour by reading order is `layers.colour.pane-chooses-meaning`.)

@@ -488,3 +488,4 @@ Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 
 ## Triaged from the backlog (2026-10-04)
 - `source.format.export-page-as-offers-every-choice` **[GAP]** (#5162): File > Export Page As lists every format the engine writes, lets the person choose the pass, reading order and reading kind, and works on iOS as on the Mac. (Inspector > Making's Export landed in 08e6dc8b8; file extensions in bb1d5b5d7.)
+- `source.format.corpus-fills-the-missing-shapes` **[GAP]** (#5248): the test corpus has a 10-20 page sample, with a README row naming source and licence, for Cyrillic (Digital Peter), Catalan and Latin (AMSMB), Portuguese and Latin (iForal), Arabic in four hands (BADAM), dense commentary layout, SegmOnto ALTO (HTRomance) and a ~600-page local-only scale set; only non-NC files are vendored, and each download waits for the maintainer's OK.

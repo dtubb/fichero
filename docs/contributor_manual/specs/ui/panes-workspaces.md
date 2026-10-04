@@ -205,8 +205,9 @@ the Mail default. The Mail layout is just one composition the reliable system ca
 Findings from the creative director running the chat-in-sidebar build. Chat-in-sidebar
 itself works (committed c4a22c2b5). The rest are the workspace/pane defects to pin+fix.
 
-- `panes.chat.toggle-in-sidebar-top` — **[GAP]** (#4970) (→ #4705 increment 6) the chat show/hide toggle
-  should sit at the TOP of the sidebar, to the LEFT of the sidebar (panel) button — not the
+- `panes.chat.toggle-in-sidebar-top` — **[GAP]** (#4970) (→ #4705 increment 6; the side is superseded by
+  #5292, `panes.sidebar.title-bar-holds-sidebar-chat-and-add`: Chat sits to the RIGHT) the chat show/hide toggle
+  should sit at the TOP of the sidebar, beside the sidebar (panel) button — not the
   sparkles button in the main toolbar.
 - `panes.sidebar-button.in-sidebar-section` — **[GAP]** (#4735) the sidebar toggle button belongs IN
   the sidebar's own top-left section (Xcode-style), not floating in the main window toolbar's
@@ -693,7 +694,7 @@ the browse→read flow down the centre.
   `NavigatorMiniMap.swift` (`Views/Preview/ImageViewer/`), which is an image-viewer zoom
   navigator inside a single pane (`preview-magnifier.md`'s territory) — not a second PANE
   showing an overview of a first one. Not built.
-- `panes.options-per-pane` — **[PARTIAL]** (#4689) (→ #5280, ruled 2026-10-01) each pane remembers its
+- `panes.options-per-pane` — **[PARTIAL]** (#5233, #4689) (→ #5280, ruled 2026-10-01) each pane remembers its
   own filter and metadata settings: two panes of one kind set different values and neither
   overwrites the other, and both survive a relaunch. A new pane starts from the last choice made
   anywhere, as a new Finder window does (`PaneStorage`: a pane-id → value map beside the shared
@@ -1665,6 +1666,10 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - `panes.new-tab.sidebar-keeps-its-width` **[BROKEN]** (#5013): a new tab opens with the sidebar at the width the window already uses, not about twice as wide.
 - `panes.visibility.show-brings-back-the-same-pane` **[BROKEN]** (#5027): hiding a pane and showing it again brings back the same pane, in its old place, at its old size, with its own kind and view, not a new pane at the end of the row.
 - `panes.head.kind-name-comes-from-the-kind` **[GAP]** (#5062): a pane head's kind chooser always shows the name of the kind the pane really is, because the name comes from the kind and is never passed separately.
+- `panes.inspector.sidebar-material` **[GAP]** (#5226): the Inspector column (and its tab strip) sits on the same translucent system material as the sidebar, as Xcode's inspector and NetNewsWire do, so both side columns look like one family in light and dark mode with text contrast intact.
+- `panes.click-answers-in-its-own-frame` **[GAP]** (#5253): a click in the Reader, the Inspector, the Segments pane, a Preview page turn or a pane-kind switch changes the clicked thing in the same frame; whatever follows (another pane, an image, an engine call) comes after, with a visible loading state if it takes more than a moment. Each seam is timed in InteractionProfile. (The Library half landed in 12c9c23ef, 261485d4c.)
+- `panes.sidebar.title-bar-holds-sidebar-chat-and-add` **[GAP]** (#5292): the sidebar's title-bar area holds, left to right, Show/Hide Sidebar fixed at the far left, Show/Hide Chat beside it, and a large + pull-down carrying New Folder and Import ▸ Link, Copy, Move Files…; when the sidebar hides, Chat and + go with it and the sidebar button stays put. (Orders the chat button right of the sidebar button, unlike `panes.chat.toggle-in-sidebar-top`.)
+- `panes.head.kind-picker-matches-the-view-menu` **[GAP]** (#5297): the pane head's view picker lists Icons, List, Table and Columns as the View menu now does (ruled 2026-09-30 and built there in 1762871ce): each with its icon and a native checkmark, in shortcut order.
 
 ## Future (ideas, not scheduled)
 - (#1640) Library and reading-surface toolbars compress when narrow like the inspector mini-toolbar (Reader uses ViewThatFits; Library does not)

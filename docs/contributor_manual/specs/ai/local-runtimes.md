@@ -447,3 +447,5 @@ Moved on 2026-10-04: the two key behaviours to `ai/ai-settings.md` ("Keys a runt
 
 ## Triaged from the backlog (2026-10-04)
 - `runtime.apple-intelligence-prewarm` — **[GAP]** (#853) the Apple Intelligence runtime is prewarmed at engine start so the first workflow run is not cold (contentTagging already shipped at fichero-server/bin/fm-bridge/FmBridge.swift:403; prewarm absent).
+- `runtime.each-proven-on-a-real-page` **[GAP]** (#5267): MLX (a small vision model on one page, Whisper on a short clip), Kraken, YOLO and spaCy each have a smoke run that does the real work on a real page or paragraph in the weekly schedule on the maintainer's Mac, none of them costs anything at launch, and MLX's failure on the maintainer's setup is named or fixed.
+- `runtime.mlx.serves-the-model-a-step-asks-for` **[GAP]** (#5388): when a step names a managed local model the local server is not serving, the server loads that model (when it fits) and the work is grouped by model, following load-once, instead of refusing. (Refusal by name, a5286dc80; the CLI wait, 78d48ec4b; workflow run --model, 74e62f9a1.)

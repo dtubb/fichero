@@ -1649,3 +1649,6 @@ the click-around leg is still to be filled at approval):
 
 Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 `source-model.md`.
+
+## Triaged from the backlog (2026-10-04)
+- `source.editor.multi-selection-moves-together` **[GAP]** (#5236): with several boxes selected, each shows its marquee without handles, and dragging inside any of them moves the whole set together as one ⌘Z. (Handles only on a single selection landed in 18d1c3b8b.)

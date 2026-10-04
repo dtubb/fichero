@@ -304,7 +304,7 @@ All [GAP]: designed, not built.
   *cancelled by the cluster*) and the last lines of the far side's output, fetched before the
   job folder is cleaned. *Data:* Slurm's state (`TIMEOUT`, `OUT_OF_MEMORY`, `NODE_FAIL`…;
   VERIFIED mapping `:246-263`) and the package mode's exit record. *Test:* one for each reason.
-- `compute.job.cancel-everywhere` — **[GAP]** (#5240) cancelling a job stops sending, cancels it on the target,
+- `compute.job.cancel-everywhere` — **[GAP]** (#5412, #5240) cancelling a job stops sending, cancels it on the target,
   fetches nothing more, cleans the far side, and lands nothing that was not already landed.
   *Test:* cancel in each state.
 - `compute.job.survives-the-app-quitting` — **[GAP]** (#5240) a job on a target carries on while the Mac sleeps
@@ -572,3 +572,6 @@ needs them.
    `compute.publish.is-separate-and-asked-again` here.*
 7. **Distilling a small palaeography vision model (#4642)** is a customer of this slice, not
    part of it. *Proposal: it stays its own design issue and names `train-lora` as its means.*
+
+## Triaged from the backlog (2026-10-04)
+- `compute.job.another-engine-never-fails-what-it-cannot-reach` **[BROKEN]** (#5449): an engine that opens a library and cannot reach a running job's target (for example it cannot read the Hugging Face token) leaves the job as it is and says it cannot follow it here, never marks it failed; cancelling a job whose remote run may still be going cancels it on the target.
