@@ -107,49 +107,41 @@ class TestSurvivorRankIgnoresDescriptors:
     def _person_rows(self, db):
         return db.query(KnowledgeEntity, entity_type=EntityType.person)
 
-    def test_clean_form_wins_when_it_arrives_second(self, db):
+    def test_descriptor_form_is_proposed_when_it_arrives_second(self, db):
+        """#5409 (`kg.entity.models-propose-merges`): 'indio Pablo García' and 'Pablo García' are only alike, so a model run does not
+        fold one into the other; the second is a new entity and the pair waits in the review queue for a person.
+        This used to merge them, which is a model curating."""
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first = upsert_entity(
-            db, canonical_name="indio Pablo García", entity_type=EntityType.person
-        )
-        second = upsert_entity(
-            db, canonical_name="Pablo García", entity_type=EntityType.person
-        )
-        assert second == first  # merged, one entity
-        rows = self._person_rows(db)
-        assert len(rows) == 1
-        assert rows[0].canonical_name == "Pablo García"
+        first = upsert_entity(db, canonical_name='indio Pablo García', entity_type=EntityType.person)
+        second = upsert_entity(db, canonical_name='Pablo García', entity_type=EntityType.person)
+        assert first != second
+        assert db.get(KnowledgeEntity, first).aliases == []
+        assert {(x, y) for x, y, _ in _proposed(db)} == {('indio Pablo García', 'Pablo García')}
 
-    def test_clean_form_wins_when_it_arrives_first(self, db):
+    def test_descriptor_form_is_proposed_when_it_arrives_first(self, db):
+        """#5409 (`kg.entity.models-propose-merges`): 'Pablo García' and 'indio Pablo García' are only alike, so a model run does not
+        fold one into the other; the second is a new entity and the pair waits in the review queue for a person.
+        This used to merge them, which is a model curating."""
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first = upsert_entity(
-            db, canonical_name="Pablo García", entity_type=EntityType.person
-        )
-        second = upsert_entity(
-            db, canonical_name="indio Pablo García", entity_type=EntityType.person
-        )
-        assert second == first
-        rows = self._person_rows(db)
-        assert len(rows) == 1
-        assert rows[0].canonical_name == "Pablo García"
+        first = upsert_entity(db, canonical_name='Pablo García', entity_type=EntityType.person)
+        second = upsert_entity(db, canonical_name='indio Pablo García', entity_type=EntityType.person)
+        assert first != second
+        assert db.get(KnowledgeEntity, first).aliases == []
+        assert {(x, y) for x, y, _ in _proposed(db)} == {('Pablo García', 'indio Pablo García')}
 
-    def test_a_genuinely_fuller_name_still_promotes(self, db):
-        # The descriptor strip must NOT defeat the real superset rule.
+    def test_a_fuller_name_is_proposed_not_merged(self, db):
+        """#5409 (`kg.entity.models-propose-merges`): 'Daniel Mosquera' and 'Daniel Mosquera Lozano' are only alike, so a model run does not
+        fold one into the other; the second is a new entity and the pair waits in the review queue for a person.
+        This used to merge them, which is a model curating."""
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first = upsert_entity(
-            db, canonical_name="Daniel Mosquera", entity_type=EntityType.person
-        )
-        upsert_entity(
-            db, canonical_name="Daniel Mosquera Lozano", entity_type=EntityType.person
-        )
-        rows = self._person_rows(db)
-        assert len(rows) == 1
-        assert rows[0].canonical_name == "Daniel Mosquera Lozano"
-        assert rows[0].id == first
-
+        first = upsert_entity(db, canonical_name='Daniel Mosquera', entity_type=EntityType.person)
+        second = upsert_entity(db, canonical_name='Daniel Mosquera Lozano', entity_type=EntityType.person)
+        assert first != second
+        assert db.get(KnowledgeEntity, first).aliases == []
+        assert {(x, y) for x, y, _ in _proposed(db)} == {('Daniel Mosquera', 'Daniel Mosquera Lozano')}
 
 class TestUpsertEntity:
     def test_creates_new_entity_when_absent(self, db):
@@ -351,36 +343,17 @@ class TestFuzzyEntityMatch:
     on a fallback path so a rephrased title collapses into the
     existing entity instead of creating a new one."""
 
-    def test_event_rephrasing_collapses_to_one_entity(self, db):
-        """The Preface monologue cluster — titles share the same noun
-        phrase ("Racial Economic Exclusion") with only the verb
-        rephrased (Account / Monologue). These collapse on token-set
-        similarity.
-
-        Note: titles that diverge in the core noun phrase (e.g.
-        Exclusion → Marginalization) do NOT collapse — pure
-        SequenceMatcher can't bridge that semantic gap. Tracked as a
-        follow-up at #897 for embedding-based / splink-based
-        entity resolution.
-        """
+    def test_event_rephrasing_is_proposed_not_merged(self, db):
+        """#5409 (`kg.entity.models-propose-merges`): "Narrator's Account of Racial Economic Exclusion" and "Narrator's Monologue on Racial Economic Exclusion" are only alike, so a model run does not
+        fold one into the other; the second is a new entity and the pair waits in the review queue for a person.
+        This used to merge them, which is a model curating."""
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first_id = upsert_entity(
-            db,
-            canonical_name="Narrator's Account of Racial Economic Exclusion",
-            entity_type=EntityType.event,
-        )
-        second_id = upsert_entity(
-            db,
-            canonical_name="Narrator's Monologue on Racial Economic Exclusion",
-            entity_type=EntityType.event,
-        )
-        assert first_id == second_id, (
-            "expected near-identical rephrasings to collapse to one entity"
-        )
-        # Survivor accumulates the rephrasing as an alias.
-        loaded = db.get(KnowledgeEntity, first_id)
-        assert "Narrator's Monologue on Racial Economic Exclusion" in (loaded.aliases or [])
+        first = upsert_entity(db, canonical_name="Narrator's Account of Racial Economic Exclusion", entity_type=EntityType.event)
+        second = upsert_entity(db, canonical_name="Narrator's Monologue on Racial Economic Exclusion", entity_type=EntityType.event)
+        assert first != second
+        assert db.get(KnowledgeEntity, first).aliases == []
+        assert {(x, y) for x, y, _ in _proposed(db)} == {("Narrator's Account of Racial Economic Exclusion", "Narrator's Monologue on Racial Economic Exclusion")}
 
     def test_distinct_events_stay_separate(self, db):
         """Two events with low token overlap remain distinct rows."""
@@ -455,32 +428,19 @@ class TestEmbeddingMatch:
         assert hits[0][0] == entity_id
         assert hits[0][1] > 0.98, "exact semantic text → high cosine"
 
-    def test_semantic_divergence_collapses_at_high_cosine(self, db):
-        """The #897 follow-up: titles that share the underlying claim
-        but diverge in surface noun phrase should still collapse via
-        embedding similarity.
-
-        "Narrator's Account of Racial Economic Exclusion" should
-        embed close to "Narrator's Monologue on Race and Economic
-        Marginalization" — both describe the same conceptual scene.
-        """
+    def test_semantic_divergence_is_proposed_at_high_cosine(self, db):
+        """#5409 (`kg.entity.models-propose-merges`): two titles the vector model puts close together are a
+        proposal for a person (method `embedding_cosine`), never a merge a model makes."""
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first_id = upsert_entity(
-            db,
-            canonical_name="Narrator's Account of Racial Economic Exclusion",
-            entity_type=EntityType.event,
-            description="A Black narrator describes systemic exclusion from stable employment.",
-        )
-        second_id = upsert_entity(
-            db,
-            canonical_name="Narrator's Monologue on Race and Economic Marginalization",
-            entity_type=EntityType.event,
-            description="A Black narrator describes systemic exclusion from stable employment.",
-        )
-        # Same description → embedding cosine should be high enough to
-        # cross the AUTO_MERGE_THRESHOLD even with divergent titles.
-        assert first_id == second_id
+        description = "A Black narrator describes systemic exclusion from stable employment."
+        first_id = upsert_entity(db, canonical_name="Narrator's Account of Racial Economic Exclusion",
+                                 entity_type=EntityType.event, description=description)
+        second_id = upsert_entity(db, canonical_name="Narrator's Monologue on Race and Economic Marginalization",
+                                  entity_type=EntityType.event, description=description)
+        assert first_id != second_id
+        assert _proposed(db) == {("Narrator's Account of Racial Economic Exclusion",
+                                  "Narrator's Monologue on Race and Economic Marginalization", "embedding_cosine")}
 
     def test_genuinely_distinct_events_stay_separate_under_embeddings(self, db):
         """The dual obligation: don't auto-merge events that are
@@ -1377,37 +1337,29 @@ class TestAdminQualifierDedup:
     break the contract by collapsing distinct geographic features.
     """
 
-    def test_chocó_and_chocó_department_collapse(self, db):
+    def test_chocó_and_chocó_department_is_proposed_not_merged(self, db):
+        """#5409 (`kg.entity.models-propose-merges`): 'Chocó' and 'Chocó department' are only alike, so a model run does not
+        fold one into the other; the second is a new entity and the pair waits in the review queue for a person.
+        This used to merge them, which is a model curating."""
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first = upsert_entity(
-            db, canonical_name="Chocó",
-            entity_type=EntityType.location,
-        )
-        second = upsert_entity(
-            db, canonical_name="Chocó department",
-            entity_type=EntityType.location,
-        )
-        assert first == second
-        # Both surface forms preserved as aliases
-        loaded = db.get(KnowledgeEntity, first)
-        assert "Chocó department" in (loaded.aliases or [])
+        first = upsert_entity(db, canonical_name='Chocó', entity_type=EntityType.location)
+        second = upsert_entity(db, canonical_name='Chocó department', entity_type=EntityType.location)
+        assert first != second
+        assert db.get(KnowledgeEntity, first).aliases == []
+        assert {(x, y) for x, y, _ in _proposed(db)} == {('Chocó', 'Chocó department')}
 
-    def test_leading_article_collapses(self, db):
+    def test_leading_article_is_proposed_not_mergeds(self, db):
+        """#5409 (`kg.entity.models-propose-merges`): 'Atrato' and 'el Atrato' are only alike, so a model run does not
+        fold one into the other; the second is a new entity and the pair waits in the review queue for a person.
+        This used to merge them, which is a model curating."""
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first = upsert_entity(
-            db, canonical_name="Atrato",
-            entity_type=EntityType.location,
-        )
-        second = upsert_entity(
-            db, canonical_name="el Atrato",
-            entity_type=EntityType.location,
-        )
-        assert first == second
-        loaded = db.get(KnowledgeEntity, first)
-        # The surface "el Atrato" lands in aliases
-        assert any("Atrato" in a for a in (loaded.aliases or []))
+        first = upsert_entity(db, canonical_name='Atrato', entity_type=EntityType.location)
+        second = upsert_entity(db, canonical_name='el Atrato', entity_type=EntityType.location)
+        assert first != second
+        assert db.get(KnowledgeEntity, first).aliases == []
+        assert {(x, y) for x, y, _ in _proposed(db)} == {('Atrato', 'el Atrato')}
 
     def test_distinct_features_dont_collapse(self, db):
         """'Chocó' (department) and 'Chocó River' must NOT merge —
@@ -1435,18 +1387,17 @@ class TestAdminQualifierDedup:
             # in aliases as expected by either path.
             assert "Chocó" in [loaded.canonical_name, *loaded.aliases]
 
-    def test_spanish_departamento_collapses(self, db):
+    def test_spanish_departamento_is_proposed_not_mergeds(self, db):
+        """#5409 (`kg.entity.models-propose-merges`): 'Antioquia' and 'Antioquia departamento' are only alike, so a model run does not
+        fold one into the other; the second is a new entity and the pair waits in the review queue for a person.
+        This used to merge them, which is a model curating."""
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first = upsert_entity(
-            db, canonical_name="Antioquia",
-            entity_type=EntityType.location,
-        )
-        second = upsert_entity(
-            db, canonical_name="Antioquia departamento",
-            entity_type=EntityType.location,
-        )
-        assert first == second
+        first = upsert_entity(db, canonical_name='Antioquia', entity_type=EntityType.location)
+        second = upsert_entity(db, canonical_name='Antioquia departamento', entity_type=EntityType.location)
+        assert first != second
+        assert db.get(KnowledgeEntity, first).aliases == []
+        assert {(x, y) for x, y, _ in _proposed(db)} == {('Antioquia', 'Antioquia departamento')}
 
     def test_different_types_dont_collapse_via_admin(self, db):
         """Type-conflict detection runs BEFORE admin-qualifier dedup.
@@ -1596,6 +1547,11 @@ class TestStage4RaceRecovery:
                 and kwargs.get("canonical_name") == "RaceTest"
                 and kwargs.get("entity_type") == EntityType.event):
                 skip_first["done"] = True
+                return []
+            # And the exact-name stage's same-type read (#5409), which would otherwise find `older` too.
+            if (skip_first["done"] and not skip_first.get("same_type")
+                    and set(kwargs) == {"entity_type"} and kwargs["entity_type"] == EntityType.event):
+                skip_first["same_type"] = True
                 return []
             return original_query(model, **kwargs)
 
@@ -1824,41 +1780,44 @@ class TestAccentDedupIntegration:
         rows = db.query(KnowledgeEntity, entity_type=EntityType.person)
         assert len(rows) == 1
 
-    def test_typo_suffix_collapses_to_one_entity(self, db, monkeypatch):
+    def test_typo_suffix_is_proposed_not_merged(self, db, monkeypatch):
+        """#5409 (`kg.entity.models-propose-merges`): 'San Pablo' and 'San Pabloo' are only alike, so a model run does not
+        fold one into the other; the second is a new entity and the pair waits in the review queue for a person.
+        This used to merge them, which is a model curating."""
         self._disable_embeddings(monkeypatch)
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first = upsert_entity(
-            db, canonical_name="San Pablo", entity_type=EntityType.location
-        )
-        second = upsert_entity(
-            db, canonical_name="San Pabloo", entity_type=EntityType.location
-        )
-        assert first == second
+        first = upsert_entity(db, canonical_name='San Pablo', entity_type=EntityType.location)
+        second = upsert_entity(db, canonical_name='San Pabloo', entity_type=EntityType.location)
+        assert first != second
+        assert db.get(KnowledgeEntity, first).aliases == []
+        assert {(x, y) for x, y, _ in _proposed(db)} == {('San Pablo', 'San Pabloo')}
 
-    def test_ocr_drift_collapses_to_one_entity(self, db, monkeypatch):
+    def test_ocr_drift_is_proposed_not_merged(self, db, monkeypatch):
+        """#5409 (`kg.entity.models-propose-merges`): 'Negra' and 'Negria' are only alike, so a model run does not
+        fold one into the other; the second is a new entity and the pair waits in the review queue for a person.
+        This used to merge them, which is a model curating."""
         self._disable_embeddings(monkeypatch)
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first = upsert_entity(
-            db, canonical_name="Negra", entity_type=EntityType.location
-        )
-        second = upsert_entity(
-            db, canonical_name="Negria", entity_type=EntityType.location
-        )
-        assert first == second
+        first = upsert_entity(db, canonical_name='Negra', entity_type=EntityType.location)
+        second = upsert_entity(db, canonical_name='Negria', entity_type=EntityType.location)
+        assert first != second
+        assert db.get(KnowledgeEntity, first).aliases == []
+        assert {(x, y) for x, y, _ in _proposed(db)} == {('Negra', 'Negria')}
 
-    def test_single_token_suffix_noise_collapses_to_one_entity(self, db, monkeypatch):
+    def test_single_token_suffix_noise_is_proposed_not_merged(self, db, monkeypatch):
+        """#5409 (`kg.entity.models-propose-merges`): 'Cedro' and 'Cedroito' are only alike, so a model run does not
+        fold one into the other; the second is a new entity and the pair waits in the review queue for a person.
+        This used to merge them, which is a model curating."""
         self._disable_embeddings(monkeypatch)
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
-        first = upsert_entity(
-            db, canonical_name="Cedro", entity_type=EntityType.location
-        )
-        second = upsert_entity(
-            db, canonical_name="Cedroito", entity_type=EntityType.location
-        )
-        assert first == second
+        first = upsert_entity(db, canonical_name='Cedro', entity_type=EntityType.location)
+        second = upsert_entity(db, canonical_name='Cedroito', entity_type=EntityType.location)
+        assert first != second
+        assert db.get(KnowledgeEntity, first).aliases == []
+        assert {(x, y) for x, y, _ in _proposed(db)} == {('Cedro', 'Cedroito')}
 
     def test_distinct_places_stay_separate(self, db, monkeypatch):
         self._disable_embeddings(monkeypatch)
@@ -1968,46 +1927,6 @@ class TestMergeVectorFailureIsLoud:
     stale vector quietly degrades future fuzzy matches.
     """
 
-    def test_merge_vector_failure_logs_and_still_merges(
-        self, db, monkeypatch, caplog
-    ):
-        import logging
-
-        from fichero_server.knowledge import entity_vectors
-        from fichero_server.workflows.tools._entity_writer import upsert_entity
-
-        # Force the SequenceMatcher (Stage 3) fuzzy-merge path: no embedding
-        # decision, and a fuzzy variant (not an exact name) so we land in the
-        # alias-refresh block that re-indexes the vector — not the Stage 1
-        # exact-match early return.
-        monkeypatch.setattr(entity_vectors, "find_similar", lambda **_: [])
-
-        first = upsert_entity(
-            db, canonical_name="San Pablo", entity_type=EntityType.location
-        )
-
-        # The merge-path vector refresh blows up; the catalogue must stay up.
-        def _boom(**_):
-            raise RuntimeError("vector backend down")
-
-        monkeypatch.setattr(entity_vectors, "index_entity", _boom)
-
-        with caplog.at_level(logging.WARNING):
-            # Typo-suffix variant → Stage 3 SequenceMatcher merge, which
-            # re-indexes the vector (the path that used to swallow failures).
-            second = upsert_entity(
-                db, canonical_name="San Pabloo", entity_type=EntityType.location
-            )
-
-        # Merge still happened (same id, catalogue not taken down)...
-        assert first == second
-        # ...and the failure was surfaced loudly, not swallowed.
-        assert any(
-            "failed to refresh merged entity vector" in r.message
-            for r in caplog.records
-        ), "merge-path vector failure must be logged, not silently passed"
-
-
 class TestFollowMergeChain:
     """#5079: a mention of a merged-away spelling resolves to the LIVE entity, however many merges deep."""
 
@@ -2092,3 +2011,11 @@ class TestFollowMergeChain:
         assert pairs["beta ruiz"] == live.id
         assert gone.id not in pairs.values()
 
+
+def _proposed(db) -> set[tuple[str, str, str]]:
+    """The pending review pairs, as (survivor name, candidate name, method): what a model run proposes instead of
+    merging (`kg.entity.models-propose-merges`, #5409)."""
+    from fichero_server.models.knowledge import EntityMatchCandidate, KnowledgeEntity as _KE
+
+    return {(db.get(_KE, c.survivor_entity_id).canonical_name, db.get(_KE, c.candidate_entity_id).canonical_name,
+             getattr(c.method, "value", c.method)) for c in db.query(EntityMatchCandidate)}

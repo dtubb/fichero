@@ -47,16 +47,12 @@ class TestUpsertMergesTrueVariants:
 
 
 class TestSurvivorRank:
-    def test_more_complete_name_becomes_canonical(self, db):
-        # A token-superset merge keeps the FULLER name as canonical, not the
-        # first-seen shorter one — "Daniel Mosquera Lozano", not "Daniel
-        # Mosquera"; the shorter form survives as an alias.
+    def test_a_fuller_name_is_proposed_not_merged(self, db):
+        # #5409 (`kg.entity.models-propose-merges`): "Daniel Mosquera Lozano" may or may not be "Daniel Mosquera";
+        # a model run does not decide. Two entities, and the pair waits for a person.
         upsert_entity(db, canonical_name="Daniel Mosquera", entity_type=EntityType.person)
         upsert_entity(db, canonical_name="Daniel Mosquera Lozano", entity_type=EntityType.person)
-        assert _person_names(db) == ["Daniel Mosquera Lozano"]
-        ent = db.query(KnowledgeEntity, entity_type=EntityType.person)[0]
-        assert "Daniel Mosquera" in (ent.aliases or [])
-
+        assert _person_names(db) == ["Daniel Mosquera", "Daniel Mosquera Lozano"]
 
 class TestUpsertKeepsDistinctPeople:
     def test_shared_surname_different_first_name_never_merges(self, db):
@@ -130,10 +126,11 @@ class TestDivergentSurnamesStaySeparate:
         upsert_entity(db, canonical_name="García Pérez", entity_type=EntityType.person)
         assert len(_person_names(db)) == 2
 
-    def test_terminal_surname_spelling_variant_still_merges(self, db):
-        # Over-correction guard: a spelling variant of the SAME terminal surname
-        # is one person, not two — must still merge.
+    def test_terminal_surname_spelling_variant_is_proposed(self, db):
+        # #5409: "Juan Peres" is likely "Juan Pérez", but likely is a person's call: proposed, not merged.
+        # (An accent alone, "Juan Perez", is the same name and is added: see the exact-name stage.)
         a = upsert_entity(db, canonical_name="Juan Pérez", entity_type=EntityType.person)
         b = upsert_entity(db, canonical_name="Juan Peres", entity_type=EntityType.person)
-        assert a == b
-        assert len(_person_names(db)) == 1
+        c = upsert_entity(db, canonical_name="Juan Perez", entity_type=EntityType.person)
+        assert a != b and c == a
+        assert len(_person_names(db)) == 2

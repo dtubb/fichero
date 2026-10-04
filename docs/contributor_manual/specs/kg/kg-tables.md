@@ -134,6 +134,14 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   `::TestSplitEntity::test_split_moves_aliases`,
   `::TestSplitEntityAction::test_split_is_undoable_via_the_existing_undo_endpoint`) and the CLI
   (`entity split`) are built; the sheet is unmounted in the app.
+- `kg.entity.models-propose-merges` — **[OK]** (#5409; built: the exact-name stage of `_upsert_entity_matched` in `workflows/tools/_entity_writer.py`, whose vector and SequenceMatcher stages now only propose; tested in `fichero-server/tests/unit/kg/test_models_propose_merges_to_spec.py`) a model run never decides that two names are one
+  entity. Writing what it found, it adds the name to an existing entity of the same type only when the two are
+  the same name once case, accents, punctuation and spacing are set aside, or when the name is already one of
+  that entity's names; otherwise it makes a new entity. A name that is only similar to an existing one (`Don Tomas
+  Polo` and `Don Joaquin Polo`, `Chocó department` and `Chocó`, two names a vector model puts close together) is
+  a new entity, and the pair goes into the entity review queue for a person to accept or reject, with what made
+  them similar (method `embedding_cosine` or `similar_name`, and the score) in its reason. A person creating an
+  entity is unchanged.
 - `kg.entity.says-who-made-it` — **[OK]** (#4869, #4868; built: `KnowledgeEntity.add_attribution`, `upsert_entity(asserted_by=)` from the names card and `_write_kg_rows`, the `editor` entry in `entity.create`/`entity.update`, `GET /api/entities?run_id=`, `entity.take_back_run` in `api/routes/kg/nlp_draft_purge.py`; tested in `fichero-server/tests/unit/kg/test_entity_says_who_made_it_to_spec.py`. Not yet naming their run: the citation and book-index writers, extract-all's additional entities, and merge/dedup's re-upsert; the import-time NLP draft names spaCy and its model but has no run) every entity says who put it in the knowledge graph,
   in its `attribution_chain`, the field that already says who asserted a claim: a model run as an `extractor`
   entry naming the provider, the model, the run (`run_id`) and when (`at`); a person as an `editor` entry naming

@@ -1921,46 +1921,34 @@ def _upsert_entity_matched(
             canonical_name, prior_type_val, new_type_val,
         )
 
-    # Stage 1.7 — Admin-qualifier dedup (#1114 issue 2)
-    # --------------------------------------------------
-    # Catch "Chocó" vs "Chocó department" cases that the existing
-    # SequenceMatcher / token-set fuzzy match misses (score 0.5 for
-    # one-token-in-two-tokens) before paying the embedding-stage
-    # cost. Deterministic, cheap, no model variance — runs even when
-    # vectors are unavailable.
-    same_type_for_admin = db.query(
-        KnowledgeEntity, entity_type=entity_type,
-    )
-    for ent in same_type_for_admin:
-        if _admin_qualifier_match(canonical_name, ent.canonical_name):
-            logger.info(
-                "upsert_entity: admin-qualifier merge %r → %s (%r) (#1114)",
-                canonical_name, ent.id, ent.canonical_name,
-            )
-            # Fold the new surface form into the existing entity's
-            # aliases so the original phrasing is preserved.
-            seen_folded: dict[str, str] = {}
-            for surface in list(ent.aliases or []) + [canonical_name] + list(aliases or []):
-                if not surface or not surface.strip():
-                    continue
-                key = surface.strip().casefold()
-                if key not in seen_folded:
-                    seen_folded[key] = surface.strip()
-            canonical_key = ent.canonical_name.strip().casefold()
-            ent.aliases = sorted(
-                v for k, v in seen_folded.items() if k != canonical_key
-            )
-            db.save(ent)
-            _record_source_page(db, ent, source_document_id)  # #1562
-            return ent.id
+    # Stage 1.6 — the same name written alike (`kg.entity.models-propose-merges`, #5409)
+    # -----------------------------------------------------------------------------------
+    # A model run adds a name to an existing entity only when the two are the same name once case,
+    # accents, punctuation and spacing are set aside, or the name is already one of its names. Every
+    # merely SIMILAR match below (admin qualifier, vector neighbour, SequenceMatcher) makes a new
+    # entity and proposes the pair for a person; a model never decides two names are one.
+    from fichero_server.knowledge.dedupe import normalize_name
+
+    same_type = db.query(KnowledgeEntity, entity_type=entity_type)
+    key = normalize_name(canonical_name)
+    if key:
+        for ent in same_type:
+            if ent.merged_into_id is None and key in {normalize_name(n) for n in [ent.canonical_name, *ent.aliases]}:
+                if canonical_name not in [ent.canonical_name, *ent.aliases]:
+                    ent.aliases = sorted({*ent.aliases, canonical_name})
+                    db.save(ent)
+                _record_source_page(db, ent, source_document_id)  # #1562
+                return ent.id
+
+    # _pending_review: (survivor_id, score, survivor_name, method) when a merely similar entity exists;
+    # written after stage 4 creates the new entity, so the pair names a real candidate id.
+    _pending_review: Optional[tuple[str, float, str, str]] = None
+
+    # ponytail: the admin-qualifier matcher ("Chocó" / "Chocó department") is not consulted here: every name it
+    # catches, the SequenceMatcher stage below catches too, and both only propose now.
 
     # Stage 2: embedding cosine. Lazy-imports the model on first call;
     # subsequent calls are free. Failures fall through to stage 3.
-    matched: Optional[KnowledgeEntity] = None
-    # _pending_review: (survivor_id, score, survivor_name) when we hit
-    # the review band; consumed AFTER stage 4 creates the new entity
-    # so the EntityMatchCandidate row references a real candidate id.
-    _pending_review: Optional[tuple[str, float, str]] = None
     try:
         from fichero_server.knowledge import entity_vectors
 
@@ -1971,20 +1959,18 @@ def _upsert_entity_matched(
             description=description,
             top_k=3,
         )
-        if hits:
+        if hits and _pending_review is None:
             best_id, best_score, best_name = hits[0]
             if best_score >= entity_vectors.AUTO_MERGE_THRESHOLD and _lexical_agreement(
                 canonical_name, best_name
             ):
-                # Precision gate passed (#1907): cosine is in the
-                # auto-merge band AND the surface forms agree lexically
-                # (accent/spacing variant or shared content tokens).
-                matched = db.get(KnowledgeEntity, best_id)
-                if matched is not None:
-                    logger.info(
-                        "upsert_entity: embedding auto-merge %r → %s (%r, cosine=%.3f)",
-                        canonical_name, best_id, best_name, best_score,
-                    )
+                # #5409: even close and lexically alike, a vector neighbour is a proposal for a person,
+                # never a merge a model makes.
+                logger.info(
+                    "upsert_entity: embedding cosine %.3f for %r ~ %r — proposed for review (#5409)",
+                    best_score, canonical_name, best_name,
+                )
+                _pending_review = (best_id, best_score, best_name, "embedding_cosine")
             elif best_score >= entity_vectors.AUTO_MERGE_THRESHOLD:
                 # Precision gate FAILED (#1907): cosine alone would
                 # merge, but the surface forms materially differ
@@ -1997,7 +1983,7 @@ def _upsert_entity_matched(
                     "auto-merge (#1907)",
                     best_score, canonical_name, best_name,
                 )
-                _pending_review = (best_id, best_score, best_name)
+                _pending_review = (best_id, best_score, best_name, "embedding_cosine")
             elif best_score >= entity_vectors.REVIEW_THRESHOLD:
                 # Mid-band: surface for the human review queue (#377 /
                 # #899 Phase D). We DON'T auto-merge here — false
@@ -2009,93 +1995,20 @@ def _upsert_entity_matched(
                     "%r ~ %s (%r, cosine=%.3f) — queued for human review",
                     canonical_name, best_id, best_name, best_score,
                 )
-                _pending_review = (best_id, best_score, best_name)
+                _pending_review = (best_id, best_score, best_name, "embedding_cosine")
     except Exception as exc:
         # Vector backend unhealthy — don't take down the catalogue.
         logger.warning("upsert_entity: embedding stage failed: %s", exc)
 
     # Stage 3: SequenceMatcher floor. Only run when embeddings didn't
     # decide a merge; mirrors the 0.0.2 behaviour as a safety net.
-    if matched is None:
-        same_type = db.query(KnowledgeEntity, entity_type=entity_type)
-        matched = _fuzzy_match_existing(same_type, canonical_name)
-        if matched is not None:
-            logger.info(
-                "upsert_entity: SequenceMatcher fallback merged "
-                "%r → %s (%r)",
-                canonical_name, matched.id, matched.canonical_name,
-            )
+    if _pending_review is None:
+        similar = _fuzzy_match_existing([e for e in same_type if e.merged_into_id is None], canonical_name)
+        if similar is not None:
+            from difflib import SequenceMatcher
 
-    if matched is not None:
-        # Fold the new surface form + aliases into the existing entity.
-        # Case-fold for dedup so "Artisanal mining" and "artisanal mining"
-        # don't both end up in the aliases list (#986 reproduced
-        # "Artisanal mining" + alias "artisanal mining" on the same
-        # entity). We keep the FIRST-seen surface form per case-folded
-        # key (typically the better-capitalised variant from the source
-        # text).
-        # Survivor-rank: keep the MORE COMPLETE name as canonical. When the
-        # incoming name's tokens strictly contain the matched one's ("Daniel
-        # Mosquera Lozano" ⊃ "Daniel Mosquera"), promote the fuller name so it
-        # wins over first-seen; the shorter form is retained as an alias.
-        # Compare DESCRIPTOR-STRIPPED cores so "indio Pablo García" doesn't
-        # out-rank the clean "Pablo García"; a genuinely fuller name
-        # ("Daniel Mosquera Lozano" ⊃ "Daniel Mosquera") still promotes.
-        old_canonical = matched.canonical_name
-        incoming_tokens = _core_name_tokens(canonical_name)
-        current_tokens = _core_name_tokens(old_canonical)
-        promote = incoming_tokens > current_tokens
-        if not promote and incoming_tokens == current_tokens:
-            # Same core name — the two differ only by leading/trailing
-            # descriptor tokens. Prefer the CLEANER (fewer raw tokens) form, so
-            # an already-stored "indio Pablo García" yields to "Pablo García".
-            incoming_raw = len(_tokenise_lower(_fold_accents(canonical_name)))
-            current_raw = len(_tokenise_lower(_fold_accents(old_canonical)))
-            promote = incoming_raw < current_raw
-        if promote:
-            matched.canonical_name = canonical_name
-
-        seen_folded: dict[str, str] = {}
-        surfaces = list(matched.aliases or []) + [canonical_name] + list(aliases or [])
-        if promote:
-            surfaces.append(old_canonical)  # the shorter name survives as an alias
-        for surface in surfaces:
-            if not surface or not surface.strip():
-                continue
-            key = surface.strip().casefold()
-            if key not in seen_folded:
-                seen_folded[key] = surface.strip()
-        # Drop the canonical itself + any case variant of it.
-        canonical_key = matched.canonical_name.strip().casefold()
-        matched.aliases = sorted(
-            v for k, v in seen_folded.items() if k != canonical_key
-        )
-        db.save(matched)
-        # Refresh the vector to reflect the new alias set — the
-        # encoded description grows with each merged occurrence so
-        # future matches keep improving.
-        try:
-            from fichero_server.knowledge import entity_vectors
-
-            entity_vectors.index_entity(
-                db=db,
-                entity_id=matched.id,
-                entity_type=entity_type,
-                canonical_name=matched.canonical_name,
-                description=matched.description,
-            )
-        except Exception as exc:
-            # #2507: don't swallow silently — a stale alias-merge vector
-            # degrades future fuzzy matches. Log loudly like the new-entity
-            # index path below; the catalogue stays up either way.
-            logger.warning(
-                "upsert_entity: failed to refresh merged entity vector "
-                "(id=%s): %s",
-                matched.id,
-                exc,
-            )
-        _record_source_page(db, matched, source_document_id)  # #1562
-        return matched.id
+            score = SequenceMatcher(None, normalize_name(canonical_name), normalize_name(similar.canonical_name)).ratio()
+            _pending_review = (similar.id, round(score, 4), similar.canonical_name, "similar_name")
 
     # Stage 4: create a brand-new entity + index its vector.
     entity = KnowledgeEntity(
@@ -2191,7 +2104,7 @@ def _upsert_entity_matched(
     # newly-created entity. Reviewer decides later via the review
     # queue API. (#899 Phase D / #377)
     if _pending_review is not None:
-        survivor_id, score, survivor_name = _pending_review
+        survivor_id, score, survivor_name, method = _pending_review
         try:
             from fichero_server.models.knowledge import (
                 EntityMatchCandidate,
@@ -2202,11 +2115,12 @@ def _upsert_entity_matched(
                 survivor_entity_id=survivor_id,
                 candidate_entity_id=entity.id,
                 score=float(score),
-                method=PendingMatchMethod.embedding_cosine,
+                method=PendingMatchMethod(method),
                 state=PendingMatchState.pending,
                 reason=(
-                    f"embedding cosine {score:.3f} between "
-                    f"{canonical_name!r} and {survivor_name!r}"
+                    f"embedding cosine {score:.3f} between {canonical_name!r} and {survivor_name!r}"
+                    if method == "embedding_cosine" else
+                    f"similar names ({score:.2f}): {canonical_name!r} and {survivor_name!r}"
                 ),
             ))
         except Exception as exc:

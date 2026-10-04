@@ -1641,6 +1641,10 @@ class PendingMatchMethod(str, Enum):
     graph_context = "graph_context"
     #: The same name written differently (`kg.entity.variant-spellings-proposed`).
     name_variant = "name_variant"
+    #: A model run's name that only looks like an existing one (`kg.entity.models-propose-merges`).
+    similar_name = "similar_name"
+    #: The variant check's same-name and alias-collision pairs (`kg.entity.variant-spellings-proposed`).
+    duplicate_name = "duplicate_name"
 
 
 class EntityMatchCandidate(BaseModel):
