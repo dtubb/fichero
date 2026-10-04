@@ -28,6 +28,41 @@ catalog, not several disagreeing lists, and a provider's status dot is never gre
 thing it names is actually ready. Settings surfaces preferences, not plumbing — no toggle a
 user can't explain the consequence of.
 
+## Ruled 2026-10-04 (the maintainer, while testing the dev build)
+
+Paraphrased. These narrow the 2026-08-24 target; where they differ, these win.
+
+- **Models live here.** Downloaded or imported, every model (Kraken, YOLO, spaCy, vision and
+  text models, LoRA adapters) is managed in Settings. A model a training node produces appears
+  here the same way.
+- **Training does not live here.** Training, fine-tuning, evaluating and publishing are a node in
+  the sidebar with their own history (#5439). Settings only lists the result.
+- **Places to run work are configuration, so they live here:** this Mac, Hugging Face, a cluster
+  such as Rorqual, an endpoint (Blackfish may be one). Adding a cluster is the guided flow in
+  `compute/targets-and-connection.md`; Fichero itself holds the connection.
+- **Downloads and installs are jobs** that belong to the Mac, shown in Activity's Mac group
+  (`activity.global-work-is-the-macs`), never a progress bar private to Settings.
+- **Open: AI settings in the sidebar.** The maintainer wondered whether more of the AI settings
+  should move to the sidebar instead of one window. Recommendation: configuration (providers,
+  keys, runtimes, places to run) stays in Settings; work (training nodes) is in the sidebar.
+
+- `settings.models.import` — **[GAP]** (#5460) a model you already have (a Kraken or YOLO file,
+  a spaCy pipeline, a vision model or LoRA from a Hugging Face repo id) is imported, validated,
+  stored with its provenance and licence (and whether release is allowed), and becomes pickable
+  wherever that kind of model is. *Test:* importing a fixture Kraken model through the route
+  lists it in the catalogue with its licence and origin; a file that is not a model is refused
+  with the reason.
+- `settings.models.training-is-not-here` — **[GAP]** (#5439) Settings has no training controls;
+  the catalogue row of a trained model links to the training node that made it. *Test:* the
+  catalogue entry for a model with a training provenance carries the node id.
+- `settings.compute.places-to-run` — **[GAP]** (#5454) the Compute section lists this Mac,
+  Hugging Face, clusters and endpoints as one list with an honest status each, and adds a
+  cluster through the guided flow. *Test:* the targets route returns all four kinds with a
+  status that is the check's result, never assumed.
+- `settings.downloads-are-jobs` — **[GAP]** (#5415) a download or install started here is a job
+  in the Mac's group of the jobs table, pausable and cancellable there. *Test:* starting a model
+  download through the route creates a `download-model` job row with no library.
+
 ## Why this spec exists
 
 "Settings - Models & Providers" (GitHub milestone #20) accumulated 28 open issues over more

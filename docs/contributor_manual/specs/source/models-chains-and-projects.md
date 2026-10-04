@@ -1878,15 +1878,21 @@ A model is a thing the project has, like an entity or a workflow, so it is a nod
 The node shows its card (`source.model.one-card`); nothing is kept only for display. Where the node
 kind sits in the sidebar is the sidebar's (`ui/modes-to-panes.md`, `ui/sidebar-crud.md`; #4335).
 
-- `source.model.node-in-sidebar` — **[GAP]** (#5439, #4335) every trained or downloaded model, of
-  every kind (Kraken, spaCy, YOLO, vision and OCR models, MLX builds), is a node in the sidebar.
-- `source.model.node-inspector` — **[GAP]** (#5439) selecting a model shows its Inspector, read from
-  its card: what it is; where it came from (a base and its training set, or a download); its scores
-  on held-out pages (`distill.eval.stored-on-the-model-node`); its size; where it can run
+Corrected by the maintainer, 2026-10-04: models do NOT generally live in the sidebar. They live in
+Settings, downloaded or imported (`settings.models.import`, #5460). **Training** is the sidebar
+node; a model appears in the sidebar only inside a training node, as its base or what it produced.
+
+- `source.model.node-in-sidebar` — **[GAP]** (#5439, #4335) training is a node in the sidebar; the
+  base model and every model a run produced show inside it. A model with no training stays in
+  Settings only.
+- `source.model.node-inspector` — **[GAP]** (#5439) selecting a model inside a training node shows its
+  Inspector, read from its card: what it is; where it came from (a base and its training set); its
+  scores on held-out pages (`distill.eval.stored-on-the-model-node`); its size; where it can run
   (`source.model.runs-here`); its licence and its release flag.
-- `source.model.node-actions` — **[GAP]** (#5439) from the node a person can fine-tune or distil it
-  again (the start sheet, `compute.tune.start-sheet`), test it (an evaluation job,
-  `distill.eval.job`) and delete it, through the one audited action layer.
+- `source.model.node-actions` — **[GAP]** (#5439) from the training node a person can train, fine-tune
+  or distil again (the start sheet, `compute.tune.start-sheet`), test (an evaluation job,
+  `distill.eval.job`) and publish, through the one audited action layer. The node keeps the history:
+  every run, its data set, its scores and the model it produced.
 
 ### The vision base a fine-tune starts from (ruled 2026-10-04, #5442)
 
