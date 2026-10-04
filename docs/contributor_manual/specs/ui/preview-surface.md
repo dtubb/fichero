@@ -205,6 +205,21 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   every pass with shapes, so the page shows the Gemini reading of Kraken's lines it already has.
   Pinned by `fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`. PARTIAL until seen on
   screen on C01_005 and C01_052.
+- `ui.preview.draws-what-the-segments-list-lists` — **[PARTIAL]** (#5463; owner: the engine) With every
+  box switch on, Preview draws every box of the page's working pass, the same pass the Segments list
+  lists and the page's text reads, whatever other result the page has beside it. On a Marshall diary
+  page the list showed Apple Vision's words and Preview drew none of them while a Detect Segments
+  (Kraken) run was going: the segment list (`GET /api/segments/document/{id}`, which the canvas reads)
+  counted a run's result not yet made a pass as a candidate for the working pass, and the Order list
+  and `document_text` did not. Newest by date, the run's result took the mark, and Preview drew it.
+  **Built 2026-10-04:** on a page with real passes, the segment list's working pass comes from the
+  real passes, as the Order list's and the text's do; an unconverted result counts only when a person
+  corrected it, or when the page has no pass yet. Once the run's result becomes a pass, all three move
+  to it together. Pinned by `fichero-server/tests/unit/api/test_preview_draws_the_pass_the_strip_lists.py`
+  and, through the real image preview in the library window's tree, by
+  `ImportedPageDrawsItsBoxesTests.testTheWordsTheSegmentsListListsAreDrawnBesideAnUnconvertedRun`.
+  PARTIAL until seen on screen on the Marshall page. Box colours are not part of this behaviour: their
+  meaning waits on `layers.colour.pane-chooses-meaning` (#5426).
 
 ## PASS 2 — the fold (9 waiting issues, every body read fresh)
 

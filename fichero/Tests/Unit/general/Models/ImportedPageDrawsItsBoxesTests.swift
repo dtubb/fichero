@@ -438,6 +438,46 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertTrue(json.hasPrefix("{\"pages\":[{\"boxes\":["), json)
     }
 
+    /// #5463: the maintainer's diary page listed its Apple Vision words in the Segments list, every box
+    /// switch on, and the Preview drew none of them while a Detect Segments (Kraken) run was going. The
+    /// run's result, saved and not yet a pass, took the engine's `working` mark on the segment list
+    /// (newest by date) though the list and the text read the words' pass; the canvas follows that mark,
+    /// so it drew the run's lines. The engine's answer for that page -- recorded by
+    /// `test_preview_draws_the_pass_the_strip_lists.py` -- played through the REAL image preview in the
+    /// library window's tree: the boxes drawn are exactly the working pass's four words, none of the run's
+    /// lines. Breaks if the engine marks the unconverted run again, or the canvas stops following the mark.
+    func testTheWordsTheSegmentsListListsAreDrawnBesideAnUnconvertedRun() async throws {
+        let library = try hostedLibrary()
+        RecordedEngine.body = try Data(
+            contentsOf: fixtures().appendingPathComponent("diary_words_beside_an_unconverted_run.route.json")
+        )
+        let route = try XCTUnwrap(JSONSerialization.jsonObject(with: RecordedEngine.body) as? [String: Any])
+        let passes = try XCTUnwrap(route["passes"] as? [[String: Any]])
+        let working = try XCTUnwrap(passes.first { $0["working"] as? Bool == true }?["id"] as? String)
+        let segments = try XCTUnwrap(route["segments"] as? [[String: Any]])
+        let words = segments.filter { $0["pass_id"] as? String == working }
+        XCTAssertEqual(words.map { $0["kind"] as? String }, ["word", "word", "word", "word"], "the strip's four words")
+        XCTAssertTrue(passes.contains { $0["provisional"] as? Bool == true }, "beside the run's unconverted result")
+        let wanted = Set(words.compactMap { $0["id"] as? String })
+
+        let window = hostInWindow(
+            ZoomableImagePreview(documentId: "doc-0001", renderedImage: NSImage(size: NSSize(width: 1000, height: 1400))),
+            library: library
+        )
+        defer { window.contentView = nil }
+        let root = try XCTUnwrap(window.contentView)
+        var overlay: DocumentOverlayView?
+        for _ in 0..<500 {
+            root.layoutSubtreeIfNeeded()
+            overlay = Self.firstSubview(DocumentOverlayView.self, in: root)
+            if let drawn = overlay?.overlay.boxes, !drawn.isEmpty { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let drawn = try XCTUnwrap(overlay, "the preview mounted its overlay").overlay.boxes
+        XCTAssertEqual(Set(drawn.compactMap(\.segmentId)), wanted, "every word the list lists is drawn, and nothing else")
+        XCTAssertEqual(drawn.map(\.kind), ["word", "word", "word", "word"])
+    }
+
     /// #5192 on a PDF page: the recorded Syriac segments drawn on the corpus's real PDF page are named to
     /// accessibility by the PDF view itself (`PinchOwningPDFView.accessibilityChildren`), one
     /// `SegmentBox-<id>` per region and line, placed by the squares' own rule, the selected one marked.
