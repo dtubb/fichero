@@ -298,15 +298,15 @@ library and into the one it came from), against real manifests from at least two
 
 All four answered 2026-10-04 by taking each recommendation; see Rulings. Kept for the reasoning.
 
-1. **Cache size.** A fixed cap (for example 2 GB) with least-recently-used eviction, or a share
+1. **Answered** (maintainer 2026-10-04: IIIF approved as recommended): As the spec recommends. **Cache size.** A fixed cap (for example 2 GB) with least-recently-used eviction, or a share
    of free disk? Recommendation: a share of free disk with a floor, because the Air showed how
    little room a small Mac has.
-2. **Models on remote pages.** Fetch at full resolution every run, or keep the full image after
+2. **Answered** (maintainer 2026-10-04: IIIF approved as recommended): As the spec recommends. **Models on remote pages.** Fetch at full resolution every run, or keep the full image after
    the first run? Recommendation: keep it for as long as the source is in use, and evict it with
    the cache.
-3. **Proxying remote images** for viewers of a shared library who cannot reach the institution.
+3. **Answered** (maintainer 2026-10-04: IIIF approved as recommended): As the spec recommends. **Proxying remote images** for viewers of a shared library who cannot reach the institution.
    Recommendation: no; the manifest points at the original. Revisit if a real case appears.
-4. **The storage call for a remote page.** Today the storage layer resolves local files
+4. **Answered** (maintainer 2026-10-04: IIIF approved as recommended): As the spec recommends. **The storage call for a remote page.** Today the storage layer resolves local files
    (`db/storage.py`). A remote page needs one call that both kinds of page answer (pixels for a
    page, a region and a size), so the Preview, thumbnails and model runs have one caller. Its shape
    is designed before `iiif.import.by-reference` is built, not during it.

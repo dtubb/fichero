@@ -347,24 +347,24 @@ updater running.
 All eight answered by the maintainer 2026-10-04 (#5299): each takes the recommendation written
 below; 7 and 8 now have answers of their own. See Rulings. Kept for the reasoning.
 
-1. **What is in Release?** Recommended: move workflows, providers, activity, batches, the
+1. **Answered** (maintainer 2026-10-04: release channels all as recommended; client hides unserved features; feature flags internal): Workflows, providers, activity, batches etc. move to release; KG, curation, chains stay beta (as recommended). **What is in Release?** Recommended: move workflows, providers, activity, batches, the
    workflow file tools, the Settings General tab and the library and search advanced views to
    release; leave the knowledge graph, curation and workflow chains at beta. (#3917 is this
    question.)
-2. **The public download's default channel.** Recommended: Alpha now, as today; move it when the
+2. **Answered** (maintainer 2026-10-04: release channels all as recommended; client hides unserved features; feature flags internal): Alpha now, moved when the first build is called a release. **The public download's default channel.** Recommended: Alpha now, as today; move it when the
    first build is called a release.
-3. **Is Dev offered to everyone?** The direction names all four. The alternative is to show Dev
+3. **Answered** (maintainer 2026-10-04: release channels all as recommended; client hides unserved features; feature flags internal): All four channels offered. **Is Dev offered to everyone?** The direction names all four. The alternative is to show Dev
    only when the binary's default is Dev or a hidden default is set. Recommended: all four.
-4. **Relaunch.** Recommended: never forced; the change applies at the next launch, with a
+4. **Answered** (maintainer 2026-10-04: release channels all as recommended; client hides unserved features; feature flags internal): Never forced; applies at next launch with a Relaunch Now button. **Relaunch.** Recommended: never forced; the change applies at the next launch, with a
    Relaunch Now button.
-5. **Two things or one?** One popup sets both features and updates. The alternative is a second
+5. **Answered** (maintainer 2026-10-04: release channels all as recommended; client hides unserved features; feature flags internal): One popup sets both features and updates. **Two things or one?** One popup sets both features and updates. The alternative is a second
    control so a person can take early builds without early features. Recommended: one.
-6. **App Store and TestFlight tiers.** Recommended: App Store is Release, fixed; TestFlight
+6. **Answered** (maintainer 2026-10-04: release channels all as recommended; client hides unserved features; feature flags internal): App Store fixed at Release; TestFlight keeps its archive tier, no switch. **App Store and TestFlight tiers.** Recommended: App Store is Release, fixed; TestFlight
    stays at the tier baked at archive (Dev today), with no switch.
-7. **A shared or remote engine.** An iPhone, or a second Mac, connected to another Mac's engine
+7. **Answered** (maintainer 2026-10-04: release channels all as recommended; client hides unserved features; feature flags internal): A client hides features the host's channel does not serve. **A shared or remote engine.** An iPhone, or a second Mac, connected to another Mac's engine
    gets that engine's routes. Should a client on a less stable channel hide what the host's
    channel does not serve, or show it and report the 404? Not designed here.
-8. **The per-feature defaults** (`resetToV001`, `fichero.features.*`). With the channel as the
+8. **Answered** (maintainer 2026-10-04: release channels all as recommended; client hides unserved features; feature flags internal): Per-feature flags stay as an internal gate only. **The per-feature defaults** (`resetToV001`, `fichero.features.*`). With the channel as the
    one gate a person sees, do these stay as an internal second gate, or go?
 
 ## Rulings (design lead)

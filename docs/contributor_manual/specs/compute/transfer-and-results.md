@@ -410,7 +410,7 @@ agree in the app".
 1. **Is the community question right, and are its three answers right?** *Proposal: as written;
    the wording is the maintainer's to change, and the rights slice may later replace it with
    something richer (Local Contexts labels).*
-2. **Does a yes cover later sends of the same kind to the same target?** *Answered 2026-10-03:
+2. **Answered** (this spec, answered 2026-10-03): Egress is asked once per project; the yes covers every send from it. **Does a yes cover later sends of the same kind to the same target?** *Answered 2026-10-03:
    egress is asked once per project; the yes covers every send from it.*
 3. **Remove shared objects at once, or keep them for the next job?** *Proposal: keep until no
    unfinished job names them; "remove everything when done" is a choice on the sheet, off by

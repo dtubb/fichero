@@ -1994,20 +1994,20 @@ To be filled at approval. The legs this slice will need, so the gap is visible:
 ## Open questions (with recommendations)
 
 Ruled 2026-10-01 (former questions 1-4):
-- **Training can be automatic when the person chose it in setup.** Onboarding offers training as
+- **Answered** (this spec, ruled 2026-10-01): Training runs automatically only if chosen in setup; otherwise offered, never started. **Training can be automatic when the person chose it in setup.** Onboarding offers training as
   part of the recipe, with a good default (for example: distil from a large model such as a
   frontier LLM as the teacher, then fine-tune a small one); if chosen, the train step runs when its
   condition is met. If not chosen, it is offered when the condition is met, never started.
   (`source.recipe.train-never-automatic` is refined accordingly.)
-- **A recipe change never changes the person's data by itself.** When the recipe a project follows
+- **Answered** (this spec, ruled 2026-10-01): A new recipe version shows an update symbol; re-runs are offered only after the person updates. **A recipe change never changes the person's data by itself.** When the recipe a project follows
   has a new version, the Inspector shows an update symbol; clicking it shows the diff and updates
   the recipe; only then is a re-run of existing pages offered, as one job with its estimate. Nothing
   runs out of the blue.
-- **Ask once about the cloud, and don't ask too much.** Whether pages may leave the Mac is asked
+- **Answered** (this spec, ruled 2026-10-01): Asked once per project and visible in the recipe editor. **Ask once about the cloud, and don't ask too much.** Whether pages may leave the Mac is asked
   once for the project, at setup or at the first cloud use, whichever comes first, and is always
   visible and changeable in the recipe editor (every cloud step is marked there). It is not asked
   again per provider or per step.
-- **The bake-off must be useful; Fichero decides the sample.** It asks for a good number of
+- **Answered** (this spec, ruled 2026-10-01): Random stratified sample of at least 20 pages and 100 corrected lines, with confidence ranges. **The bake-off must be useful; Fichero decides the sample.** It asks for a good number of
   pages, or uses them all, and draws a **random, stratified sample** (across folders, hands and
   page kinds) of at least 20 pages where the project has them, with at least 100 corrected lines;
   each rank shows its line count and a confidence range, and candidates within one point of CER

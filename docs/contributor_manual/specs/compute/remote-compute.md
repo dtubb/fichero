@@ -603,14 +603,14 @@ is the unit; the milestone is `remote-compute`; jobs first, sessions later; Krak
 first fine-tunes; Hugging Face Jobs is the first target for training; ACENET is second. They are
 kept below, marked, so the record stays whole.*
 
-1. **What is a collection?** *Answered 2026-10-03: the project is the unit; a job is sent a
+1. **Answered** (this spec's Rulings 2026-10-03): The project is the unit; a job is sent a selection of a project's sources. **What is a collection?** *Answered 2026-10-03: the project is the unit; a job is sent a
    selection of a project's sources. This set no longer uses "collection".*
-2. **The name of this set and its milestone.** *Proposal: `remote-compute`, files in
+2. **Answered** (this spec's Rulings 2026-10-03): The milestone is remote-compute, files in specs/compute/, ids compute.*. **The name of this set and its milestone.** *Proposal: `remote-compute`, files in
    `specs/compute/`, behaviour ids `compute.*`.*
-3. **Build "send a job" first, everywhere; sessions second; a remote server that holds a
+3. **Answered** (this spec's Rulings 2026-10-03): Jobs first, sessions later, a remote server holding a project last. **Build "send a job" first, everywhere; sessions second; a remote server that holds a
    project last.** *Proposal: yes, in the build order above. It gives fine-tuning and batch
    work on every kind of target soonest, and needs the least new app work.*
-4. **On a cluster, no long-lived server: jobs and time-limited sessions only.** *Proposal:
+4. **Answered** (maintainer 2026-10-04: cluster = own headless engine first, chain of Slurm jobs, project stays on Mac): The cluster runs a chain of Slurm jobs with Fichero's headless engine; the project stays on the Mac. **On a cluster, no long-lived server: jobs and time-limited sessions only.** *Proposal:
    agreed as the honest limit. A whole `fichero-server` holding a project is for machines we
    control.*
 5. **A key Fichero makes and keeps**, rather than the person's own SSH set-up. The person pastes
@@ -622,17 +622,17 @@ kept below, marked, so the record stays whole.*
 7. **One inference engine for each kind of work.** *Proposal: on the Mac, MLX as today. On Linux
    with a GPU, vLLM: inside the job for batch work, as a session for watched work. Kraken and
    layout models load directly in the job's own process. Fine-tuning is always a job.*
-8. **The first fine-tune to build is Kraken's**, then a language or vision model with LoRA.
+8. **Answered** (this spec's Rulings 2026-10-03): Kraken and YOLO are the first fine-tunes, then a vision model with LoRA. **The first fine-tune to build is Kraken's**, then a language or vision model with LoRA.
    *Proposal: yes. Kraken's result needs no conversion and the maintainer's own corrected pages
    are the training set.*
 9. **The walkthrough needs Docker Desktop on the maintainer's Mac.** *Proposal: agreed, with a
    half-day trial of whether the sandboxed build can drive it; if not, one pasted command.*
-10. **What is asked before a project leaves.** *Proposal: a sheet that names what, how much,
+10. **Answered** (compute/transfer-and-results.md answer 2026-10-03; maintainer 2026-10-04: rights = permissions enforce): Egress is asked once per project and covers every send; rights are enforced by permissions. **What is asked before a project leaves.** *Proposal: a sheet that names what, how much,
     where, who runs that place and how long it stays; a yes that is remembered for that
     project and that target; nothing sent from a project marked "may not leave"; and
     until the rights slice is unblocked, nothing is excluded automatically and the sheet says
     so.*
-11. **Hugging Face.** *Proposal: the Hub as a registry first (private by default, gated where
+11. **Answered** (this spec's Rulings 2026-10-03): Hugging Face Jobs is the first training target; ACENET second. **Hugging Face.** *Proposal: the Hub as a registry first (private by default, gated where
     access must be approved, takedown described honestly as slow), built on the exporter.
     Hugging Face Jobs as a compute target later. Spaces and Inference Endpoints not used.*
 12. **Zenodo for Kraken models and ground truth.** The field's convention is Zenodo and the
@@ -654,7 +654,7 @@ kept below, marked, so the record stays whole.*
     in `ai/ai-settings.md` as a simplification to weigh after this set's first three slices.*
 16. **Apple's on-device model adapters** are left out of this set. *Proposal: agreed; one
     adapter fits one system-model version and shipping one needs an entitlement.*
-17. **Which cluster first?** ACENET's own cluster, Siku, has about eleven GPUs (CITED, S7). The
+17. **Answered** (maintainer 2026-10-04: own allocation only): Only a cluster where the maintainer has his own account and allocation (ACENET second after Hugging Face Jobs). **Which cluster first?** ACENET's own cluster, Siku, has about eleven GPUs (CITED, S7). The
     national clusters have hundreds. *Proposal: whichever the maintainer has an account and an
     allocation on; the spec names none. Please say which.*
 

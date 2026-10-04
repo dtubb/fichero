@@ -562,7 +562,7 @@ needs them.
    See `remote-compute.md`, "Ruled 2026-10-04".*
 3. **Shard size.** *Proposal: 50 sources by default, a setting on the job; to be re-set from a
    measurement on the maintainer's own pages.*
-4. **Base model for the first language or vision fine-tune.** *Answered 2026-10-03: a small
+4. **Answered** (this spec, answered and revised 2026-10-03): A choice on the request, Qwen3-VL 8B by default, after Kraken and YOLO. **Base model for the first language or vision fine-tune.** *Answered 2026-10-03: a small
    Qwen-VL-class model (for example Qwen2.5-VL 3B) with LoRA; the choice is a card, so nothing is
    hard-wired. It comes after the Kraken and YOLO path.* *Revised 2026-10-03 (maintainer): the base is a
    choice on the request, Qwen3-VL 8B (Apache-2.0) by default, Qwen2.5-VL 7B or another family after a

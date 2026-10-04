@@ -387,7 +387,7 @@ measurement and the cascade's routing are pinned with known confidences and outc
 
 ## Open questions
 
-1. **First job to distil.** Line reading is the best-trodden path and has the most corrected data.
+1. **Answered** (this spec, ruled 2026-10-03; sergio rulings 2026-10-03): Kraken reader and YOLO detector first, tested on the Sergio notebooks, trained on Hugging Face Jobs first. **First job to distil.** Line reading is the best-trodden path and has the most corrected data.
    Layout (YOLO) is second. **The first test is the Sergio notebooks project** (one hand, 374 page
    photographs, a Qwen-VL draft and a frontier-model draft to check; `fichero-projects`). A second
    customer is a researcher who has corrected many VLM transcriptions in his library: his

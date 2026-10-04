@@ -1652,7 +1652,7 @@ the click-around leg is still to be filled at approval):
 
 ## Open questions
 
-Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
+**Answered** (source/source-model.md Rulings 2026-09-19 item 18 + Still open 1 (approved 2026-09-27)): Segments pane approved, built with slice 13. Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 `source-model.md`. #5114 and #5115 are answered; see Rulings.
 
 ## Rulings

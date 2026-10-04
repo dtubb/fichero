@@ -76,11 +76,10 @@ Hard-gate: `cite.docs-resolve` (no orphan citations — a claimed source must ex
 
 ## Open questions for the creative director
 None outstanding: all four are answered (see Rulings).
-1. ~~Citation syntax in Markdown docs~~ — Pandoc `[@key]` (maintainer, 2026-10-04).
-2. ~~Flag UNUSED `.bib` entries too?~~ — yes (design lead, 2026-10-04).
-3. ~~Code-dependency credits in the `.bib` or a separate file?~~ — a separate generated file
-   (design lead, 2026-10-04).
-4. ~~The app's surface now, or docs first?~~ — docs first (design lead, 2026-10-04).
+1. **Answered** (maintainer 2026-10-04: Pandoc citations): Pandoc-style [@key]. Citation syntax in Markdown docs — Pandoc-style `[@key]`, or a plainer `{{cite:key}}`?
+2. **Answered** (design lead 2026-10-04, applying the spec's own lean): Yes, unused entries are flagged too. Should the guardrail also flag UNUSED `.bib` entries (dead references), or only orphans?
+3. **Answered** (design lead 2026-10-04, applying the spec's own lean): A separate generated file from the manifests; the `.bib` is for scholarship. Do code-dependency credits live in the same `.bib` or a separate generated file?
+4. **Answered** (design lead 2026-10-04, applying the spec's own lean): Docs first; the export makes the app surface cheap later. Is the app's "where this comes from" surface in scope now, or docs-only first?
 
 ## Triaged from the backlog (2026-10-04)
 - `cite.generated-client-transport` — **[GAP]** (#3254) bibliography, reference and render-citation calls go through the generated OpenAPI client with typed returns; EntityService+Bibliography.swift still uses untyped `endpointData` Data (citationUsages already migrated, EntityService.swift:116).

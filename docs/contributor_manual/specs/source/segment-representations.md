@@ -240,15 +240,15 @@ slice-0 proves the pattern and the creative director approves.
 
 - **Ruled 2026-10-04 (design lead, applying the spec's own lean):** a representation is both a
   file payload (like the existing `_segment_image` derivatives) and a metadata row. `Transcription`
-  is already first-class: the passes are the transcription record (`source-model.md`).
+  is already first-class: the passes and their readings on segments are the transcription record (`source-model.md`).
 - **Answered by what is built (2026-10-04):** ALTO and PAGE XML both export today
   (`fichero_server/api/routes/document/page_export.py`; `formats/alto.py`, `formats/pagexml.py`).
 
 ## Open questions for the creative director
 None outstanding; all three are answered (see Rulings).
-- ~~Where do representations physically live?~~ Both: file payload + metadata row.
-- ~~Is `Transcription` a first-class record now?~~ Yes: the passes are the transcription record.
-- ~~Which standard is the slice-0 export target?~~ Both ALTO and PAGE XML export today.
+- **Answered** (design lead 2026-10-04, applying the spec's own lean): Both, a file payload and a metadata row. Where do representations physically live?
+- **Answered** (source/source-model.md Rulings 2026-09-20): Text lives as readings on segments. Is `Transcription` a first-class record now?
+- **Answered** (source/source-model.md Rulings 2026-09-19 item 19): PageXML, TEI and ALTO all first. Which standard is the slice-0 export target?
 
 ## Triaged from the backlog (2026-10-04)
 - `segment.test.artifact-type-contract-clean` — **[GAP]** (#4910) check_artifact_type_contract passes: entity_merge_proposals is produced and queried by name.

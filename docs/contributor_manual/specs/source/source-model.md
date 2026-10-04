@@ -734,8 +734,8 @@ action record holding a researcher's words is ruled out.
    with the Library's listing and the Source view's editor. **Approved 2026-09-27; built with
    slice 13.** Its design is part of that slice, and new shapes are escalated rather than
    assumed.
-2. **The Library pane's name** once a library is a project (for the rename spec).
-3. **Who may see restricted material among editors**: every editor, or only those a rights
+2. **Answered** (naming ruling 2026-10-03): Library becomes Project. **The Library pane's name** once a library is a project (for the rename spec).
+3. **Answered** (maintainer 2026-10-04: rights = permissions enforce): Rights records are enforced through permissions. **Who may see restricted material among editors**: every editor, or only those a rights
    record names?
 4. **The order of building.** Decided after the spec is whole (ruled). What depends on what:
    segment records with ids and passes; the anchor's new shapes; matches and forwarding

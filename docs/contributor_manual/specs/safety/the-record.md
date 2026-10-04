@@ -208,5 +208,5 @@ are already outside the chain on their branch, so a purge can reach those today.
 
 ## Open questions
 
-See the questions file. From this slice: words in the record (jointly with the source-model
+**Answered** (source/source-model.md Rulings 2026-09-20 item 5): No words in the chained record; content part outside the chain that a purge can blank. See the questions file. From this slice: words in the record (jointly with the source-model
 set); the record is never trimmed; the older record retires.

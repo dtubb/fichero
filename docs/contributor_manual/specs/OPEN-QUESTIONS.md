@@ -53,11 +53,11 @@ _(The spec lives at `source/archival-data-model-plan.md`.)_
       cascade to the folder (maintainer, 2026-10-04).
 - [x] **Where representations physically live** — both: file payload + metadata row (design
       lead, 2026-10-04).
-- [x] **Is Transcription first-class now** — yes: the passes are the transcription record
-      (design lead, 2026-10-04).
+- [x] **Is Transcription first-class now** — yes: text lives as readings on segments, in passes
+      (source-model rulings 2026-09-20).
 - [ ] **Store responsibility** — DuckDB (relational) vs LanceDB (vectors) vs rdflib/SPARQL
       (graph): which store owns which slot, and how they stay in sync (ties Exporter #4640)?
-- [ ] **New milestones?** — "Segments & Anchors" and/or "Provenance, Versions & Credit", or
+- [x] **New milestones?** — one milestone for the source-model set (source-model rulings 2026-09-19 item 21). Was: "Segments & Anchors" and/or "Provenance, Versions & Credit", or
       keep everything under the existing surface milestones? (Decomposition on #4639.)
 - [x] **P0 export target** — answered by what is built: ALTO and PAGE XML both export today.
 
@@ -98,7 +98,7 @@ None outstanding (no "Open questions" section in the spec).
 
 _(The spec lives at `source/segment-representations.md`.)_ All three answered 2026-10-04:
 - [x] Representations = **file payload + metadata row** (design lead).
-- [x] `Transcription` is first-class already: **the passes are the transcription record** (design lead).
+- [x] `Transcription` is first-class already: **text lives as readings on segments**, in passes (source-model rulings 2026-09-20).
 - [x] Export target: **ALTO and PAGE XML both export today** (answered by what is built).
 
 ---

@@ -393,12 +393,12 @@ Moved on 2026-10-04: the two key behaviours to `ai/ai-settings.md` ("Keys a runt
    mlx-vlm and mlx-whisper with pip into a private environment the first time it is used
    (`llm/mlx_runtime.py:222-247,296`). That works in Debug and is refused by the sandboxed DMG, so
    the answer is to bundle those packages at build time and keep the oMLX provider as it is.
-2. **Speech: which runtime?** *Ruled 2026-10-01:* speech is a choice of options, like any job,
+2. **Answered** (this spec, ruled 2026-10-01): Speech is a choice of options (Apple, Whisper, MMS), cheapest covering the language starts. **Speech: which runtime?** *Ruled 2026-10-01:* speech is a choice of options, like any job,
    chosen by the same rules and A/B: Apple's on-device speech recognition (bundled so it works in
    the sandbox; macOS 26's newer speech analyser where available), Whisper (99 languages), and a
    more multilingual model for languages Whisper lacks (Meta's MMS, over 1,100 languages). The
    cheapest local option that covers the language starts; the others are one A/B away.
-3. **Cloud aliases in recipes.** *Ruled 2026-10-01:* allowed, marked "can change" in the recipe
+3. **Answered** (this spec, ruled 2026-10-01): Allowed, marked 'can change', with the dated version recorded on each reading. **Cloud aliases in recipes.** *Ruled 2026-10-01:* allowed, marked "can change" in the recipe
    editor, with the dated version that actually answered recorded on each reading.
 4. **Apple Vision's strips: conditional or always?** They became a base pass on 2026-08-23 because
    they found lines the first pass missed. *Recommend:* measure on the fixture pages whether a

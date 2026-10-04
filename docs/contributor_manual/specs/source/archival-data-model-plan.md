@@ -238,24 +238,22 @@ on segments" in the foundation.
 - **2026-10-04 (maintainer): profile detection.** A page's archival profile is detected from the
   page and its recipe, shown to the person, and editable; a change can cascade to the folder.
 - **Ruled 2026-10-04 (design lead, applying the spec's own lean):** a representation is both a
-  file payload and a metadata row. Transcription is already first-class: the passes are the
-  transcription record (`source-model.md`), so no separate multi-edition table is owed here.
+  file payload and a metadata row. Transcription is already first-class: text lives as readings
+  on segments, in passes (`source-model.md`, rulings of 2026-09-20), so no separate transcription
+  table is owed here.
 - **Answered by what is built (2026-10-04):** ALTO and PAGE XML both export today, one page at a
   time (`fichero_server/api/routes/document/page_export.py`, "Export one page as PAGE XML, ALTO or
   TEI"; writers in `fichero_server/formats/alto.py` and `pagexml.py`), so neither is "first".
 
 ## 7. Open questions to talk through
-- ~~**Profile detection** — user-picked only, or auto-detected from the page? Editable after?~~
-  **Answered 2026-10-04:** detected, shown, editable, can cascade to the folder (see Rulings).
-- ~~**Where representations physically live**~~ — **Answered 2026-10-04:** both, file payload +
-  metadata row (see Rulings).
-- ~~**Is Transcription first-class now**~~ — **Answered 2026-10-04:** yes, as passes (see Rulings).
+- **Answered** (maintainer 2026-10-04: archival profile detected + editable): Detected from the page and editable after. **Profile detection** — user-picked only, or auto-detected from the page? Editable after?
+- **Answered** (design lead 2026-10-04, applying the spec's own lean): Both, a file payload and a metadata row. **Where representations physically live** — derivative files (like `_segment_image`), a table, or both?
+- **Answered** (source/source-model.md Rulings 2026-09-20 (readings on segments, slice 8)): Text lives as readings on segments; no separate transcription table. **Is Transcription first-class now** (P2) or does P0 read the existing transcription text and defer the multi-edition table?
 - **Store responsibility** — DuckDB (relational) vs LanceDB (vectors) vs rdflib/SPARQL
   (graph): which store owns which slot, and how they stay in sync (ties Exporter #4640)?
-- **New milestones?** — "Segments & Anchors" and/or "Provenance, Versions & Credit", or
+- **Answered** (source/source-model.md Rulings 2026-09-19 item 21): One milestone for the source-model set. **New milestones?** — "Segments & Anchors" and/or "Provenance, Versions & Credit", or
   keep everything under the existing surface milestones? (Decomposition on #4639.)
-- ~~**P0 export target** — ALTO or PageXML first?~~ **Answered by what is built:** both export
-  today (see Rulings).
+- **Answered** (source/source-model.md Rulings 2026-09-19 item 19): PageXML, TEI and ALTO all built first on one mapping system. **P0 export target** — ALTO or PageXML first?
 
 ---
 

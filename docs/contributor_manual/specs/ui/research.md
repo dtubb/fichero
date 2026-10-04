@@ -440,7 +440,7 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
 
 ## Open questions (max 7)
 
-1. **Where does the embedded browser render once `ResearchWorkspaceView` retires?** —
+1. **Answered** (ui/modes-to-panes.md Rulings 2026-09-18): In the Source/Preview pane, no browser pane kind. **Where does the embedded browser render once `ResearchWorkspaceView` retires?** —
    RESOLVED (creative-director ruling, 2026-09-18, third round, `modes-to-panes.md`
    Rulings): inside the Source/Preview pane as `PaneSurface.webBrowser`, no browser pane
    kind, no tab strip of its own. See `research.embedded-browser-home-surface` above.
@@ -469,7 +469,7 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
    Recommendation: defer past this milestone; the role-based allowlist is a sufficient
    authority boundary for the DRAFT surface, and a per-tool UI is real design work of its
    own (#2887).
-6. **Does `research.plan-tab-is-only-plan-surface` retire `ResearchWorkspaceView` in this
+6. **Answered** (ui/modes-to-panes.md increments 5a-5c, #4719): Retired in modes-to-panes' increments. **Does `research.plan-tab-is-only-plan-surface` retire `ResearchWorkspaceView` in this
    milestone or `modes-to-panes.md`'s?** — ANSWERED: `modes-to-panes.md`'s, in increments
    5a/5b/5c (`ResearchWorkspaceView`/`ResearchProjectListView` both retire there). This
    spec does not duplicate that increment plan — it tracks the behavior id

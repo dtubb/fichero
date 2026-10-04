@@ -531,16 +531,16 @@ and its baseline.
 
 All four answered 2026-10-04 by taking each recommendation; see Rulings. Kept for the reasoning.
 
-1. **Where does this live in the app?** As its own view mode for a project ("Signs"), holding
+1. **Answered** (maintainer 2026-10-04: undeciphered scripts approved as recommended): As the spec recommends. **Where does this live in the app?** As its own view mode for a project ("Signs"), holding
    the list, marks, groups and analyses, with the analysis charts in Explore. Or spread across
    the Inspector, the Segments pane and Explore. Recommendation: a Signs view for the list and
    marks, and Explore for analyses, linked both ways.
-2. **Which image encoder ships first?** A general self-supervised encoder works on day one but
+2. **Answered** (maintainer 2026-10-04: undeciphered scripts approved as recommended): As the spec recommends. **Which image encoder ships first?** A general self-supervised encoder works on day one but
    knows nothing about the script. A fine-tuned one needs identified marks. Recommendation: ship
    the general one, and make fine-tuning a job (cluster or Mac) once a project has enough marks.
-3. **Default counting rule** for identifications in a project with students: the adjudicated one
+3. **Answered** (maintainer 2026-10-04: undeciphered scripts approved as recommended): As the spec recommends. **Default counting rule** for identifications in a project with students: the adjudicated one
    only, or also the most certain human one when nobody has adjudicated? Recommendation: the
    adjudicated one, else the most certain human one, with the rule shown on every result.
-4. **Reference corpora** for baselines: does Fichero ship some (a known language, a
+4. **Answered** (maintainer 2026-10-04: undeciphered scripts approved as recommended): As the spec recommends. **Reference corpora** for baselines: does Fichero ship some (a known language, a
    non-linguistic sign system), or does each project bring its own? Recommendation: ship two small
    openly licensed ones, and let projects add their own.

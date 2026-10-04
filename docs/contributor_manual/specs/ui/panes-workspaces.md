@@ -1521,7 +1521,7 @@ workspaces store a `PaneList`, the window is *always* a `PaneList`, the Bool-vis
   subject pickers surface the full set — and are there types beyond the current enum the
   creative director wants (objects, works, dates-as-subjects)? (Ties `kg-interactions`
   claim-richness.)
-- **Sync granularity.** (ANSWERED 2026-10-04 in section G: a link group, `panes.link.*`.) Is magnifier sync a per-window toggle, a per-pair binding, or a
+- **Answered** (this spec section G `panes.link.*`; maintainer 2026-10-04: pane linking by colour chips): A link group shown by colour chips. **Sync granularity.** (ANSWERED 2026-10-04 in section G: a link group, `panes.link.*`.) Is magnifier sync a per-window toggle, a per-pair binding, or a
   per-pane opt-in?
 - **Workspace scope.** Does a saved workspace capture a live selection (these four people)
   or only the pane layout, rehydrating selection from context?

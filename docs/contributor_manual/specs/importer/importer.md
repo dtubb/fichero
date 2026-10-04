@@ -435,7 +435,7 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
 
 ## Open questions
 
-1. Is the `pending` → `completed` transition after deferred embedding surfaced to the user
+1. **Answered** (maintainer 2026-10-04: failed index → Activity + health): Indexing state, including failure, shows in Activity and health. Is the `pending` → `completed` transition after deferred embedding surfaced to the user
    anywhere (a status badge, a "not yet searchable" hint), or does it rely entirely on the
    generic document-status refresh mechanism (`DocumentStore+StatusRefresh.swift`) with
    nothing embedding-specific? Not verified this pass — a real open question, not a
