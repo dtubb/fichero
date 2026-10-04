@@ -428,13 +428,40 @@ class StartRecord(BaseModel):
     recipe_version: Optional[str] = None
     workflows: list[str]
     pages: int
+    job_id: Optional[str] = Field(default=None, description="the recipe run Start queued (`run-a-recipe`)")
+
+
+class StartRun(BaseModel):
+    """One card Start runs, in order: a shipped workflow, a check run, or the project's synced folder."""
+
+    steps: list[str]
+    job: str
+    card: str = Field(description="workflow, check or export")
+    runs_on: str
+    workflow: Optional[str] = None
+    workflow_id: Optional[str] = None
+    provider_override: Optional[str] = None
+    model_override: Optional[str] = None
+    layer: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    prompt: Optional[str] = None
+    folder: Optional[str] = None
+    formats: Optional[list[str]] = None
+
+
+class SkippedStep(BaseModel):
+    step: str
+    why: str
 
 
 class StartPlan(BaseModel):
     """What pressing Start would run, on how many pages, and every reason it cannot yet."""
 
     started: Optional[StartRecord] = Field(default=None, description="the first yes, once given")
+    runs: list[StartRun] = Field(description="what Start runs, in order")
     workflows: list[StartWorkflow]
+    skipped: list[SkippedStep] = Field(description="steps Start skips, each with why; the others still run")
     offered: list[str] = Field(description="steps offered later (training), never run at Start")
     refusals: list[str] = Field(description="Start is refused while this is not empty")
     estimate: StartEstimate
@@ -472,7 +499,9 @@ async def start_project(
     ctx: ActionContext = Depends(action_context),
 ) -> StartPlan:
     """The first yes: record that the person pressed Start, on which recipe version (audited,
-    undoable). Refused with 422, naming each step, while the plan has refusals."""
+    undoable), and run the recipe over the project's material as one `run-a-recipe` job
+    (`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.
+    Refused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run)."""
     try:
         registry.invoke(db, "project.start", {}, ctx)
     except ValueError as exc:
@@ -497,14 +526,58 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
         plan = _start_plan(db)
         if plan["refusals"]:
             raise ValueError("Start is refused: " + "; ".join(plan["refusals"]))
+        from fichero_server.recipes import runner
+
         recipe = read_project_setup(library)["recipe"] or {}
+        runner.register_job_kinds()
         record = {
             "started_at": utc_now_iso(timespec="seconds"),
             "recipe_id": recipe.get("id"),
             "recipe_version": recipe.get("version"),
             "workflows": [w["workflow"] for w in plan["workflows"]],
             "pages": plan["estimate"]["pages"],
+            "job_id": runner.enqueue(db, plan, documents=None, started_by=ctx.actor or "owner"),
         }
     write_start(library, record)
     return {"started": record}, ChangeSpec(domains=["project"], target_ids=[], before={"started": before},
                                            after={"started": record}, emit_type="project.started")
+
+
+class RecipeRunStep(BaseModel):
+    steps: list[str]
+    card: str
+    state: str = Field(description="waiting, running, done, failed or not run")
+    child_id: Optional[str] = Field(default=None, description="the step's own job: a workflow run or a check run")
+    why: Optional[str] = None
+
+
+class RecipeRunStatus(BaseModel):
+    job_id: str
+    state: str
+    reason: Optional[str] = None
+    documents: Optional[list[str]] = Field(default=None, description="the pages an import brought; none: all")
+    steps: list[RecipeRunStep]
+    skipped: list[SkippedStep]
+
+
+class RecipeRuns(BaseModel):
+    items: list[RecipeRunStatus]
+
+
+@router.get("/project/runs", response_model=RecipeRuns)
+async def recipe_runs(db: Database = Depends(get_library_database)) -> RecipeRuns:
+    """The project's recipe runs, newest first: Start's, and one for each import after it."""
+    from fichero_server.recipes import runner
+
+    return RecipeRuns(items=[RecipeRunStatus(**r) for r in runner.runs(db)])
+
+
+@router.get("/project/runs/{job_id}", response_model=RecipeRunStatus)
+async def recipe_run_status(job_id: str, db: Database = Depends(get_library_database)) -> RecipeRunStatus:
+    """A started recipe's run: each card's state and its own job, and the steps it skipped, with why."""
+    from fichero_server.recipes import runner
+
+    try:
+        return RecipeRunStatus(**runner.status(db, job_id))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

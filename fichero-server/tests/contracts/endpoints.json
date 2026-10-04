@@ -8467,6 +8467,28 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/project/runs",
+        "operation_id": "recipe_runs_api_recipes_project_runs_get",
+        "summary": "Recipe Runs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RecipeRuns"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/project/runs/{job_id}",
+        "operation_id": "recipe_run_status_api_recipes_project_runs__job_id__get",
+        "summary": "Recipe Run Status",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RecipeRunStatus"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/project/start",
         "operation_id": "get_start_plan_api_recipes_project_start_get",
         "summary": "Get Start Plan",

@@ -12306,7 +12306,7 @@
           "recipes"
         ],
         "summary": "Start Project",
-        "description": "The first yes: record that the person pressed Start, on which recipe version (audited,\nundoable). Refused with 422, naming each step, while the plan has refusals.",
+        "description": "The first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).",
         "operationId": "start_project_api_recipes_project_start_post",
         "parameters": [
           {
@@ -12337,6 +12337,71 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StartPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/project/runs": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Recipe Runs",
+        "description": "The project's recipe runs, newest first: Start's, and one for each import after it.",
+        "operationId": "recipe_runs_api_recipes_project_runs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeRuns"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/project/runs/{job_id}": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Recipe Run Status",
+        "description": "A started recipe's run: each card's state and its own job, and the steps it skipped, with why.",
+        "operationId": "recipe_run_status_api_recipes_project_runs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeRunStatus"
                 }
               }
             }
@@ -70706,6 +70771,108 @@
         "title": "RecipeCard",
         "description": "The facts on the chosen model's card that setup shows (`source.onboard.proposes-chain`)."
       },
+      "RecipeRunStatus": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "documents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Documents",
+            "description": "the pages an import brought; none: all"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeRunStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedStep"
+            },
+            "type": "array",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "state",
+          "steps",
+          "skipped"
+        ],
+        "title": "RecipeRunStatus"
+      },
+      "RecipeRunStep": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "card": {
+            "type": "string",
+            "title": "Card"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "waiting, running, done, failed or not run"
+          },
+          "child_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Child Id",
+            "description": "the step's own job: a workflow run or a check run"
+          },
+          "why": {
+            "type": "string",
+            "nullable": true,
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "card",
+          "state"
+        ],
+        "title": "RecipeRunStep"
+      },
+      "RecipeRuns": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeRunStatus"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "RecipeRuns"
+      },
       "RecipeStep": {
         "properties": {
           "id": {
@@ -76829,6 +76996,24 @@
         ],
         "title": "SimilarEntity"
       },
+      "SkippedStep": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "why"
+        ],
+        "title": "SkippedStep"
+      },
       "SnapshotDeleteResponse": {
         "properties": {
           "deleted": {
@@ -77819,12 +78004,28 @@
             "nullable": true,
             "description": "the first yes, once given"
           },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/StartRun"
+            },
+            "type": "array",
+            "title": "Runs",
+            "description": "what Start runs, in order"
+          },
           "workflows": {
             "items": {
               "$ref": "#/components/schemas/StartWorkflow"
             },
             "type": "array",
             "title": "Workflows"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedStep"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "description": "steps Start skips, each with why; the others still run"
           },
           "offered": {
             "items": {
@@ -77848,7 +78049,9 @@
         },
         "type": "object",
         "required": [
+          "runs",
           "workflows",
+          "skipped",
           "offered",
           "refusals",
           "estimate"
@@ -77882,6 +78085,12 @@
           "pages": {
             "type": "integer",
             "title": "Pages"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id",
+            "description": "the recipe run Start queued (`run-a-recipe`)"
           }
         },
         "type": "object",
@@ -77891,6 +78100,92 @@
           "pages"
         ],
         "title": "StartRecord"
+      },
+      "StartRun": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "card": {
+            "type": "string",
+            "title": "Card",
+            "description": "workflow, check or export"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On"
+          },
+          "workflow": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow"
+          },
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id"
+          },
+          "provider_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider Override"
+          },
+          "model_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Override"
+          },
+          "layer": {
+            "type": "string",
+            "nullable": true,
+            "title": "Layer"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "prompt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prompt"
+          },
+          "folder": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder"
+          },
+          "formats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Formats"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "job",
+          "card",
+          "runs_on"
+        ],
+        "title": "StartRun",
+        "description": "One card Start runs, in order: a shipped workflow, a check run, or the project's synced folder."
       },
       "StartWorkflow": {
         "properties": {

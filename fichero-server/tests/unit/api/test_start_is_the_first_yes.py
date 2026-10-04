@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from fichero_server.models import ActionAudit, Document, DocType
 
 RECIPE = {"fichero_recipe": 1, "id": "t/kraken", "version": "0.2.0", "title": "t", "steps": [
@@ -18,6 +20,14 @@ RECIPE = {"fichero_recipe": 1, "id": "t/kraken", "version": "0.2.0", "title": "t
 ]}
 CLOUD_STEP = {"id": "correct", "job": "correct", "model": {"cloud": "openai", "model": "gpt-5"},
               "runs_on": "cloud:openai"}
+
+
+@pytest.fixture(autouse=True)
+def hold_the_run(monkeypatch):
+    """Start now queues the recipe's run (#5390); these tests pin the yes itself, so the run waits."""
+    from fichero_server.execution import jobs
+
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
 
 
 def _save(client, recipe, cloud_allowed=False):
@@ -61,11 +71,16 @@ def test_start_records_the_first_yes_and_can_be_taken_back(client, db, test_pack
     assert client.get("/api/recipes/project/start").json()["started"] is None
 
 
-def test_a_refused_start_names_the_step_and_records_nothing(client, test_package):
-    """A project that keeps its pages here refuses the cloud step by name; no yes is written."""
+def test_a_refused_start_names_why_and_records_nothing(client, test_package):
+    """A project that keeps its pages here skips the cloud step by name (#5390); a recipe with nothing
+    left to run is refused and no yes is written."""
     _save(client, {**RECIPE, "steps": RECIPE["steps"] + [CLOUD_STEP]}, cloud_allowed=False)
+    plan = client.get("/api/recipes/project/start").json()
+    assert any(s["step"] == "correct" and "off this Mac" in s["why"] for s in plan["skipped"])
+    only_conditional = {**RECIPE["steps"][0], "when": {"spreads_detected": True}}
+    _save(client, {**RECIPE, "steps": [only_conditional]}, cloud_allowed=False)
     r = client.post("/api/recipes/project/start")
-    assert r.status_code == 422 and "step correct" in r.text and "off this Mac" in r.text
+    assert r.status_code == 422 and "nothing" in r.text
     assert not (Path(test_package) / "recipe" / "started.yaml").exists()
 
 

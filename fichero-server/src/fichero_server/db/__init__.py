@@ -4905,6 +4905,14 @@ class Database(DatabaseEmbeddingMixin):
             "AND COALESCE(d.node_kind, '') <> 'workflow' AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND "
             "NOT EXISTS (SELECT 1 FROM documents c WHERE c.parent_id = d.id AND c.deleted_at IS NULL)))")[0][0])
 
+    def unit_of_work_ids(self) -> list[str]:
+        """The ids `unit_of_work_count` counts, in creation order: what a started recipe runs over."""
+        return [row[0] for row in self.execute_fetchall(
+            "SELECT d.id FROM documents d WHERE d.deleted_at IS NULL "
+            "AND COALESCE(d.node_kind, '') <> 'workflow' AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND "
+            "NOT EXISTS (SELECT 1 FROM documents c WHERE c.parent_id = d.id AND c.deleted_at IS NULL))) "
+            "ORDER BY d.created_at, d.id")]
+
     def table_row_counts(self) -> dict[str, int]:
         """Every table in this library and its row count.
 

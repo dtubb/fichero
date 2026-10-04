@@ -283,5 +283,7 @@
   "POST /api/check/runs/{job_id}/cancel": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
   "POST /api/check/verdicts": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
   "GET /api/check/verdicts": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
-  "POST /api/mcp/tools/check/verdicts": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet"
+  "POST /api/mcp/tools/check/verdicts": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
+  "GET /api/recipes/project/runs": "recipe execution (#5390): engine and API first; the app's Start screen shows the plan, but its run's own view is not built yet",
+  "GET /api/recipes/project/runs/{job_id}": "recipe execution (#5390): engine and API first; the app's Start screen shows the plan, but its run's own view is not built yet"
 }
