@@ -409,6 +409,7 @@ nav:
               - Dev Orchestration Harness: contributor_manual/specs/harness/dev-orchestration-harness.md
               - Engine Startup & Shutdown Lifecycle: contributor_manual/specs/harness/engine-startup-lifecycle.md
               - Observable Data Layer: contributor_manual/specs/harness/observable-data-layer.md
+              - Surfaces from OpenAPI: contributor_manual/specs/harness/surfaces-from-openapi.md
               - Spec Pipeline: contributor_manual/specs/harness/spec-pipeline.md
               - Git / Worktree / GitHub Workflow: contributor_manual/specs/harness/git-worktree-workflow.md
               - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md

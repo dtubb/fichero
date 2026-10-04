@@ -1,0 +1,115 @@
+# Surfaces from OpenAPI — Design Spec (#5453)
+
+> Milestone: SwiftUI/Engine - OpenAPI
+> Manual: TBD — the reference manual's MCP and CLI pages must say every tool and command comes
+> from the engine's contract, and list the toolsets.
+> Status: DRAFT
+
+## Intent (the design)
+
+Everything Fichero can do is an engine route in one OpenAPI contract
+(`fichero-server/tests/contracts/openapi.json`, 831 operations). The CLI is already generated
+from that contract (`fichero-server/scripts/generate_openapi_cli.py` writes
+`fichero-cli/src/fichero_cli/openapi_surface_generated.py`: one command per operation). The MCP
+is not. About fifty tools are written by hand in `fichero-mcp/src/fichero_mcp/` and fall behind
+every time a route is added. So an agent driving a recipe finds no tool for training, evaluation,
+clusters or the recipe itself (#5453), and someone has to write each missing one.
+
+The MCP is generated the same way as the CLI, from the same contract. Adding a route adds its
+tool. An agent picks **toolsets** (OpenAPI tags) at start, so it sees the tools for its job and
+not all 831. Hand-written tools retire as generated ones cover their routes: one route, one tool.
+
+Two surfaces drive the app rather than the engine, and they are not routes:
+
+- AppleScript: `fichero/fichero/Fichero.sdef`.
+- App Intents: `fichero/fichero/Intents/`, which run on Mac, iPhone and iPad.
+
+Their verbs open a node, select, reveal a line, or open a pane or Inspector tab. Each verb calls
+the same store method the click calls. They are how an agent, a script or a UI test checks what
+a person would see. This is the only way to drive iPhone and iPad from outside.
+
+## Prior art / best practices
+
+- The CLI generator in this repo is the model. Its exclusion list (stream and debug routes) and
+  its `x-cli-required` handling of request bodies are reused, not rebuilt.
+- FastMCP 2.x (`fastmcp`) has `FastMCP.from_openapi`. It is not installed: we run the official
+  `mcp` SDK (`mcp.server.fastmcp`, pinned `<2` in `fichero-mcp/pyproject.toml`). A second MCP
+  framework for one feature costs more than a generator of about 200 lines writing calls to
+  `FicheroClient.request`.
+- GitHub's MCP server exposes toolsets chosen at start (`--toolsets`). Tags as toolsets follow that
+  convention.
+- App Intents (`AppIntent`, `AppShortcutsProvider`) are Apple's cross-platform automation surface.
+  Shortcuts and XCUITest both drive them.
+
+## Behaviors
+
+### A. MCP generated from the contract
+
+- `openapi.mcp.one-tool-per-operation` **[MISSING]** (#5453) every operation in the contract, outside the
+  shared exclusion list, has exactly one MCP tool. It is named from its tag and operation, and its
+  description and parameter docs come from the route's summary, description and schema. The tool
+  makes one `FicheroClient.request` call and holds no logic of its own.
+- `openapi.mcp.toolsets-by-tag` **[MISSING]** (#5453) the MCP server starts with `--toolsets`, a list of
+  OpenAPI tags, and lists only those tags' tools. The default is the recipe golden path: recipes,
+  training, segments, documents, activity, local-models and hpc. `--toolsets all` lists every tool.
+- `openapi.mcp.current-with-the-contract` **[MISSING]** (#5453) a guard regenerates the MCP module and fails
+  if it differs from the committed one, as the CLI's does. A route added without regenerating
+  fails the gate.
+- `openapi.mcp.one-route-one-tool` **[MISSING]** (#5453) no route has both a generated tool and a
+  hand-written one. A guard lists any hand-written tool whose route a generated tool covers. That
+  hand-written tool is removed, or kept only where it composes several routes, and then says
+  which routes.
+- `openapi.mcp.mutations-act-as-the-agent` **[PARTIAL]** (#5453) a generated tool that changes data
+  calls as the agent account (`_agent_client` in `fichero-mcp/src/fichero_mcp/server.py`), so the
+  audit log names the agent. Reads may use the default client. Today only the hand-written
+  mutating tools do this.
+- `openapi.mcp.errors-reach-the-agent` **[MISSING]** (#5453) a refused or failed call returns the
+  engine's typed error (status and detail) as an MCP tool error. It is never an empty result.
+
+### B. CLI (already generated)
+
+- `openapi.cli.one-command-per-operation` **[OK]** `generate_openapi_cli.py` writes one command per
+  operation, pinned by the `test_cli_generated_*` integration tests.
+
+### C. Driving the app: AppleScript and App Intents
+
+- `openapi.ui.verbs-are-the-click` **[MISSING]** (#5453) each UI verb (open a node, select nodes,
+  reveal a line in Preview, open a pane, show an Inspector tab) is an `AppIntent` in shared code.
+  It calls the same store method its click calls, never a second path. On the Mac the same verb is
+  an AppleScript command.
+- `openapi.ui.verbs-on-every-device` **[MISSING]** (#5453) the UI verbs build and run on Mac, iPhone and
+  iPad. A UI test on each device drives at least *open a node* and *reveal a line* through its
+  intent and checks what is on screen.
+- `openapi.ui.mcp-reaches-the-verbs` **[MISSING]** (#5453) on the Mac, MCP `ui` tools call the AppleScript
+  verbs (`fichero-mcp/src/fichero_mcp/ui_control.py` grows from its four commands). An agent can
+  then check on screen what it did through the engine tools.
+- `openapi.applescript.engine-verbs-from-the-contract` **[GAP]** (#5453) any AppleScript command that
+  reaches the engine calls the generated Swift client, never a hand-built URL (see
+  `automation.applescript.*` in `ui/automation.md` for the dictionary's own checks: #5258, #5259).
+
+### D. The golden path is drivable
+
+- `openapi.golden-path.every-step-has-a-tool` **[GAP]** (#5453) every step of
+  `recipe.distil.golden-path` (recipe, Start plan, the teacher-line check, the clean set,
+  training, evaluation, model nodes, cluster submit and status) has a route and therefore a
+  generated tool. A missing route is engine work, filed against the step's own spec.
+
+## Test matrix
+
+| Leg | This surface? | Pins | File |
+|-----|---------------|------|------|
+| Pure rule (Python) | y | generator: naming, exclusions, toolsets | planned: a generated-MCP test in `fichero-mcp/tests/` |
+| Backend (pytest) | y | a generated tool calls the live route and returns its result | same |
+| MCP | y | toolsets list the right tools; errors are typed | same |
+| CLI | y | one command per operation | `fichero-server/tests/integration/test_cli_generated_*` |
+| Click-around (XCUITest, Mac) | y | an intent drives what the click drives | planned |
+| iPhone (iOS) | y | open a node, reveal a line through intents | planned |
+| iPad | y | same | planned |
+
+## Order of work
+
+1. The generator plus toolsets plus the drift guard (A1–A3), with tests.
+2. Retire the hand-written tools that are now covered (A4), and move mutations to the agent
+   account (A5).
+3. UI verbs as App Intents and AppleScript commands (C).
+4. Fill the golden path's missing routes (D), each in its owning spec.
