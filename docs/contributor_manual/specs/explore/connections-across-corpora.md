@@ -130,7 +130,7 @@ All of it is proposals and hypotheses, scored against baselines, never applied o
 
 ## Behaviors
 
-- `xcorpus.compare.named-sets` — **[GAP]** (#5341) two or more corpora (folders, projects,
+- `xcorpus.compare.named-sets` — **[GAP]** (#5340, #5341) two or more corpora (folders, projects,
   searches, selections) can be compared without copying them, each with its language, script and
   period from the cascade.
 - `xcorpus.link.proposed-with-evidence` — **[GAP]** (#5341) a method returns proposed links,

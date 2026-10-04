@@ -292,3 +292,6 @@ library and into the one it came from), against real manifests from at least two
    (`db/storage.py`). A remote page needs one call that both kinds of page answer (pixels for a
    page, a region and a size), so the Preview, thumbnails and model runs have one caller. Its shape
    is designed before `iiif.import.by-reference` is built, not during it.
+
+## Triaged from the backlog (2026-10-04)
+- `iiif.import.json-type-strips-compact-prefixes` — **[GAP]** (#5405) iiif_import._json_type strips `sc:`, `oa:` and `dctypes:` prefixes so a v2 canvas reads as Canvas, and the test that pins `sc:Canvas` is updated.

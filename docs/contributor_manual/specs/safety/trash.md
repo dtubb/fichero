@@ -107,7 +107,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
 
 ### B. Out of the way while it is there
 
-- `safety.trash.every-read-leaves-it-out` — **[GAP]** (#5243) a thing in the Trash appears in no list, count,
+- `safety.trash.every-read-leaves-it-out` — **[GAP]** (#5406, #5243) a thing in the Trash appears in no list, count,
   search, graph, dataset, chat context or export. Reads go through one seam that leaves trashed
   rows out unless the caller asks for the Trash by name. *Why a seam:* the defect found twice
   already (→ #4960, and documents in exports) is a mark that is written and not read. *Data:*

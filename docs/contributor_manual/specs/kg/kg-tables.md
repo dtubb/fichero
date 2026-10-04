@@ -532,3 +532,5 @@ current status.
 
 ## Triaged from the backlog (2026-10-04)
 - `kg.claim-dates-anchor-warrant-visible` — **[GAP]** (#4659) claim tables and inspector show and let the user author dates (time_start/date_values), source_anchor, Toulmin warrant and structured location.
+- `kg.tables.research-layout-follows-entity-or-claim` — **[GAP]** (#4978) clicking an entity or a claim fills a related-library-items list, and clicking one opens it in the Preview at the highlighted place.
+- `kg.tables.claims-held-in-a-store` — **[GAP]** (#4984) the Claims table's data lives in an observable store like the entities, so rebuilding the view never refetches from nothing.

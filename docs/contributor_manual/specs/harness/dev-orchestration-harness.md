@@ -142,6 +142,7 @@ it token-efficiently with fabel/opus?
 - `orch.verify-python-does-not-deadlock` — **[BROKEN]** (#5071) `verify_python` completes: two derivative threads no longer contend on the db manager lock while one migrates inside it.
 - `orch.guardrail-suite-green-and-pinned` — **[GAP]** (#5106) every `check_*.py` guard is green or baselined with a reason, and each is pinned by a test (21 red, 26 unpinned on 2026-09-27).
 - `orch.swiftlint-ratchet-only-tightens` — **[BROKEN]** (#5111) the SwiftLint warning baseline only goes down; it was loosened six times (68 to 123) while actual is 185.
+- `orch.swiftlint-warnings-drained` — **[GAP]** (#5113) the 186 SwiftLint warnings (84 file_length first) are drained a file at a time and the ratchet baseline only tightens; 11 gone so far.
 
 ## Future (ideas, not scheduled)
 - (#2561) Separate bot GitHub identity for agent issues/comments; commits already carry Claude authorship by convention; process decision.

@@ -279,3 +279,4 @@ against the real tree; illegal states and debt found are pipeline backlog to wor
 
 ## Triaged from the backlog (2026-10-04)
 - `spec.absent-tags-agree-with-tests` — **[GAP]** (#5112) a behaviour tagged absent has no test naming it; the 27 mismatches (8 GAP) are retagged.
+- `pipeline.github-hygiene-milestones-labels-needs-your-test` — **[GAP]** (#5461) remaining legacy milestones are folded into spec milestones or justified, needs-your-test issues are re-checked and stale status labels retired so every open issue has a milestone.

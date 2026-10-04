@@ -468,6 +468,11 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
 - `importer.capture-upload-is-idempotent` — **[GAP]** (#3280) a mobile capture upload is one idempotent request keyed by a client-generated id, so a retry after a half-finished upload or a post-upload edit never creates a duplicate document (MobileCaptureQueue.swift:197 still does import then update).
 - `import.dock-drop-folder-reliable` — **[GAP]** (#4182) dropping a folder on the Dock icon imports it cleanly and the sidebar updates live.
 - `import.content-pane-drop-scoped` — **[GAP]** (#4458) the external-file drop target attaches to the content column only, not the whole NavigationSplitView including the sidebar.
+- `importer.alto-multi-page-reads-every-page` — **[GAP]** (#5310) a multi-page ALTO file imported on its own brings in every `<Page>` through an `alto.read_pages` used by import_file_as_pages, each page's lines under its own page, as TEI already does.
+- `importer.move-import-leaves-file-at-destination` — **[BROKEN]** (#5313) after a MOVE import the file is at its destination and gone from the source, pinned by test_ingest_file_mode_link_copy_move_apply, which fails today with FileNotFoundError.
+- `importer.image-ingest-limit-200-megapixels` — **[GAP]** (#5183) the ingest decompression-bomb limit rises from 50 to 200 MP (loaders/image_loader.py), and images above about 64 MP are shown through tiles or downsampled previews so memory stays bounded.
+- `importer.copy-mode-drop-pairs-layout-with-image` — **[GAP]** (#5220) a COPY-mode drop of loose files pairs a layout file with its image like link and move do (case-blind pairing landed in ad8b7c4bc, e6db06f05, 964470d1b).
+- `importer.derivative-source-found-for-resumed-documents` — **[BROKEN]** (#5408) resuming derivatives finds each pending document's source (SM_NPQ_C01_* on the Sergio library fail with 'source not found') or says why.
 
 ## Future (ideas, not scheduled)
 - (#1233) GHC/ACENET already-catalogued corpus is a demo/test dataset awaiting the Source Archives home; Future section, not current engine work.

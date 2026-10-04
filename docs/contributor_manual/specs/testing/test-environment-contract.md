@@ -89,6 +89,7 @@ n/a (infrastructure spec).
 - `testenv.engine-leg-fits-footprint` — **[GAP]** (#4916) the gate's engine leg completes under the 4096 MB footprint ceiling (scripts/gate GATE_FOOTPRINT_MB) by sharding the engine suite across processes.
 - `testenv.transport-error-tests-use-stubs` — **[GAP]** (#4207) twelve service suites that assert transport error mapping use a stub transport, not real DNS/network.
 - `testenv.guardrails-fail-on-stale-baseline` — **[GAP]** (#3339) every scripts/check_*.py returns nonzero when a KNOWN_VIOLATIONS or baseline entry is stale (check_native_controls.py and check_feature_flags.py warn and return 0).
+- `testenv.export-route-tests-order-independent` — **[BROKEN]** (#5309) test_routes_export's MarkdownFolderExport and EleventySiteExport tests mount their routes whatever ran before them (an earlier module reloading fichero_server.api.main must not unmount export routes).
 
 ## Future (ideas, not scheduled)
 - (#4425) Design principle: what must not be forgotten lives in the gate, advice lives in skills.

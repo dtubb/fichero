@@ -154,3 +154,7 @@ To be filled at approval.
 
 Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 `source-model.md`.
+
+## Triaged from the backlog (2026-10-04)
+- `source.rights.engine-wide-stores-follow-the-library` — **[GAP]** (#5181) engine-wide stores that mention a library's content (agent write audit, PyKEEN jobs and predictions, etc.) are filtered by that library's permissions, and truly global settings are owner-only.
+- `source.rights.claims-with-only-denied-evidence-are-hidden` — **[GAP]** (#5182) a claim whose only evidence is a denied page is hidden, and one also supported by a readable page stays showing only the readable evidence, across entity, claim and project reads.

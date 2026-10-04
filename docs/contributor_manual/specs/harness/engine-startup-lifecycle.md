@@ -418,3 +418,5 @@ filed during Pass 1) — none closed, none recommended for closure by this pass.
 - `engine.startup-never-shows-outage-before-first-connect` — **[GAP]** (#4560) the content pane shows a connecting state, not Cannot Reach the Server, until the first connection has actually failed.
 - `engine.foreign-engine-stops-respawn` — **[GAP]** (#4561) after the first identityMismatch the spawn supervisor stops respawning and surfaces the foreign-engine decision once.
 - `engine.readiness-probe-proves-routes` — **[GAP]** (#4874) the readiness probe exercises a representative route set, not only that the process answers health.
+- `engine.stays-warm-between-launches-opt-in` — **[GAP]** (#5272) an engine that outlives quit so launch dials it warm is an advanced-user option, off by default, allowed only under an idle memory ceiling (models unloaded when idle); the idle footprint is measured before any design.
+- `engine.idle-footprint-ceiling` — **[GAP]** (#4999) an idle embedded engine unloads torch, spaCy and onnxruntime models and holds a small footprint (2.3 GB seen idle after launch).

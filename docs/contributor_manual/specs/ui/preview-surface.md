@@ -307,3 +307,4 @@ every open milestone, only the ones already flagged as candidates.
 - `preview.cursor-position-orientation` — **[GAP]** (#4614) ImageWithCursorTracking.cursorPosition names its normalized orientation (top-left) so consumers stop flipping privately.
 - `preview.pdf-reader-scroll-sync` — **[GAP]** (#1253) Scrolling the Reader transcript moves Preview's PDF to the matching page and vice versa.
 - `preview.fetch-once-per-document` — **[GAP]** (#4572) one document load fetches thumbnails, source bytes and annotations once, shared across surfaces (annotations 9x, PDF 3x, thumbnails 2x measured).
+- `preview.canvas.page-swipe-is-instant` — **[GAP]** (#5003) swiping to the next page shows the image at once, with the text's attributed string built off the main thread and the artifacts fetched once.

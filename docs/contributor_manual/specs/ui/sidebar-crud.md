@@ -239,6 +239,8 @@ NOT this PR.
 - `sidebar.click-path-does-no-full-tree-walks` — **[PARTIAL]** (#4228) a sidebar click does no per-body full-forest walks (cached buckets, XOR signature, dictionary lookups landed in 9568619fb, d35a69f49); the window open/close beachball is not re-measured.
 - `move.no-cycle-covers-every-kind` — **[BROKEN]** (#5064) the Move to Folder menu and the drag path use one circularity check that covers every item kind, not documents only.
 - `dup.deep-tree-fits-the-memory-cap` — **[BROKEN]** (#5100) duplicating a 1,050-deep tree completes inside DuckDB's 1.5 GB cap.
+- `sidebar.expand-is-instant` — **[GAP]** (#5277) expanding a sidebar folder draws its children at once from a prefetched light listing and publishes per folder, not as a store-wide re-render (the one-level look-ahead landed in 3c696d7aa; the light listing and per-folder publish remain).
+- `sidebar.one-selection-one-fetch` — **[BROKEN]** (#4995) one sidebar selection fetches the document, its children and thumbnails once (loadChildren and document fetch single-flight, handleSelection once); the four-builds half landed in 75ddc9d03.
 
 ## Future (ideas, not scheduled)
 - (#1380) Mail-style sidebar: counts, multi-select combined view, favorites section, smart All groups

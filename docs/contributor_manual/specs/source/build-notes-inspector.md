@@ -219,3 +219,5 @@ Hands and Making, the facts with engine data behind them.
 
 ## Triaged from the backlog (2026-10-04)
 - `inspector.attributes.entities-as-lozenges` — **[PARTIAL]** (#4422) the Attributes strip shows nothing by default (shipped, c83036b5c); entities as blue lozenges instead of a count row, and user-added attributes (stars, keywords), are still to build.
+- `inspector.artifacts-never-404-for-a-selected-folder` — **[BROKEN]** (#5306) the Inspector asks for artifacts only with an id the open library holds, so a selected folder reads an empty list, never 'Couldn't load artifacts 404'; not yet reproduced.
+- `inspector.reveal-does-not-change-the-subject` — **[BROKEN]** (#4981) clicking a statement in the Inspector reveals its source in the Preview without replacing the Inspector's subject: selection and evidence are two things.

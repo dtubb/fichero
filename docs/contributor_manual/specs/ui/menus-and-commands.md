@@ -589,3 +589,5 @@ built and pinned by an EXTENDED existing test. Ready for the CD's review; not ye
 - `commands.every-control-has-help` — **[GAP]** (#4163) every toolbar item, button and icon control carries a .help tooltip, enforced by a guard script so new controls cannot ship without one.
 - `commands.pane-focus-navigation` — **[GAP]** (#3686, #4165) focus moves between sidebar, library, Preview, Reader and Inspector by keyboard, and every feature has a documented, conflict-free shortcut.
 - `menus.shortcuts-complete-and-discoverable` — **[GAP]** (#3687) every navigation and common action has a menu-bar key equivalent so shortcuts are discoverable from the menus, with no conflicts.
+- `menus.toolbar.markup-item-no-chevron-icon-and-text-default` — **[GAP]** (#5275) the markup toolbar item is one icon with no down chevron (tools stay on click, long-press and the menu bar) and a fresh launch with no saved preference shows toolbar items as icon and text.
+- `menus.library-view-submenu-named-like-finder` — **[GAP]** (#5002) the Library's view style (as Icons ... as Space) is named and placed like Finder's (a 'Library View' submenu) so it is not mistaken for Workspaces.

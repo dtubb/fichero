@@ -405,6 +405,7 @@ recommendation for which one carries the work.
 - `reader.voiceover-paragraphs` — **[GAP]** (#3692) VoiceOver reads the archive text paragraph by paragraph and a custom rotor navigates by paragraph.
 - `reader.voiceover-paragraph-to-note` — **[GAP]** (#3693) an accessibility action captures the current paragraph into a Reader note.
 - `reader.select-all-selects-the-readers-text` — **[GAP]** (#4376) with the Reader focused, ⌘A selects all of the Reader's text; the Library half is built (library.chrome.select-all-follows-the-visible-surface) and the Reader half has no code or test.
+- `reader.scope.current-page-only-is-one-click` — **[GAP]** (#5005) the Reader has a visible switch between the whole folder and just the selected page (the scope lens: selection, peers, parent, children).
 
 ## Future (ideas, not scheduled)
 - (#973) Book-native page numbers and chapter markers for book-shaped sources; backend detection feature, no current spec owner
