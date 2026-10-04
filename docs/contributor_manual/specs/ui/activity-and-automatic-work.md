@@ -412,7 +412,7 @@ workflow by hand: a hand run is a job like any other.
   cost and errors roll up: each row has its `seconds`, the pages under it that `failed` (each with
   its reason), its `tokens`, and its `cost_usd` from the vendored price list, null unless every
   call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Chat's model calls are rows too, outside any run
-  (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). Still a gap: batches.
+  (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). A batch is a job whose children are its runs (`fichero-server/tests/unit/jobs/test_batches_are_jobs.py`).
 - `activity.task-queue-grows-into-jobs` — **[OK]** (#5353) the task queue is already
   a persistent queue that resumes pending work (`workflows/tasks.py:153-176`); it becomes the jobs
   table rather than a thirteenth system being built beside it. Found 2026-10-03: nothing in the
@@ -715,11 +715,13 @@ code path.
 - `activity.run.resume-keeps-model` — **[BROKEN]** (#5373) a resumed run uses the model the person
   chose. Today resume builds a fresh request and drops the provider and model override
   (`core.py:542-546`).
-- `activity.run.batch-off-the-request` — **[BROKEN]** (#5374) a batch runs on the engine's work
+- `activity.run.batch-off-the-request` — **[OK]** (#5374) *Built (2026-10-04): a batch runs on a worker
+  thread of its own and its event stream follows it, so a client that disconnects stops listening, not
+  the batch; each item is a run started by `runner.start_run`, the way every run by hand starts, with its
+  run record, steps, usage and timeline; the batch is a job whose children are its runs; and the
+  batch routes use the library's own database (they used the app's, where no workflow is) (`fichero-server/tests/unit/jobs/test_batches_are_jobs.py`).* a batch runs on the engine's work
   path, not on the API's event loop, survives the client disconnecting, and writes a run record per
-  item. Today it runs inside the SSE response generator (`api/routes/workflow/batch.py:309-343`),
-  which can freeze the API (#1000), and its items run on their own loop with no run rows, usage,
-  timeline or scope (`execution/batch.py:684-692`).
+  item.
 - `activity.run.stop-reaches-sub-workflows` — **[BROKEN]** (#5375) Stop and Pause reach a
   sub-workflow. Today the child gets its own task id, so its cancel check is never true
   (`workflows/subworkflow.py:443-468`).
@@ -761,8 +763,10 @@ code path.
   key includes the workflow and node ids, so the same page and model in another workflow is never
   reused.
 - `activity.run.one-way-to-run` — **[BROKEN]** (#5374, → #4949) every run, whether by hand, batch,
-  chain, schedule, trigger or sub-workflow, goes through the runner and writes jobs. Today there are
-  six paths (the table above) and a client-side chain loop in the app.
+  chain, schedule, trigger or sub-workflow, goes through the runner and writes jobs. Built
+  (2026-10-04): by hand and a batch's items both start through `runner.start_run` (`fichero-server/tests/unit/jobs/test_batches_are_jobs.py`). Still
+  broken: chains, schedules, triggers and sub-workflows each have their own path, and the app has a
+  client-side chain loop.
 
 ### H. Workflow runs: efficiency
 
@@ -790,7 +794,9 @@ line post-processing. For 200 handwritten pages the stages today add up rather t
   local-model lane (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`). Built (2026-10-04): a share per provider: while another provider's
   call waits, one provider's calls hold at most all but one of the network lane's slots, so a
   provider stuck on a rate limit gives a slot to another's as soon as one of its calls ends; with
-  no other provider waiting, it keeps the whole lane (`fichero-server/tests/unit/jobs/test_provider_share.py`). Chat's calls take the same lanes and share the same cap
+  no other provider waiting, it keeps the whole lane (`fichero-server/tests/unit/jobs/test_provider_share.py`). Its ceiling: a newcomer
+  that arrives while one provider holds every slot waits for that provider's next call to end, which
+  for a stuck call is as long as its timeout. Chat's calls take the same lanes and share the same cap
   (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). Still a gap: a provider's own stated rate limit.* the cap on concurrent model calls is one per
   Mac, shared by every run. Today it is per run: the semaphore is rebound to each run's event loop
   (`workflows/builder.py:91-127`), and three runs measured 12 calls at once against a cap of 4.

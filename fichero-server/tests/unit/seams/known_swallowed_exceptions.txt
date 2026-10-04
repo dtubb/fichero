@@ -77,7 +77,6 @@ db/storage_snapshots.py::_load_all_snapshot_records 1
 db/storage_snapshots.py::run_due_scheduled_snapshots 1
 db/storage_snapshots.py::snapshot_library 1
 errors.py::log_and_recover.decorator.wrapper 1
-execution/batch.py::BatchManager.execute_batch.execute_item._settle_item_documents 1
 execution/chaining.py::ChainExecutor._emit_event 1
 execution/runner.py::_estimate_run_cost 2
 execution/runner.py::_run_workflow_in_background 4

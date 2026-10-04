@@ -7,14 +7,18 @@ Endpoints for managing batch workflow executions:
 - Retry failed items
 """
 
+import asyncio
 import json
 import logging
+import threading
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
+from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.db import Database
 from fichero_server.db.app import get_db_path
 from fichero_server.execution.batch import (
     BatchEvent,
@@ -32,23 +36,30 @@ from fichero_server.models import BatchListResponse
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/batches", tags=["batches"])
 
-# Singleton batch manager
+# One batch manager per library: a batch's workflow, its runs and their documents are the
+# library's, so its rows are kept in the library's own database (#5374). It was one manager on the
+# APP database, where no workflow is, so a batch started from these routes could not find its
+# workflow (`WorkflowStore` was even handed a path where it takes a database).
+_batch_managers: dict[str, BatchManager] = {}
 _batch_manager: Optional[BatchManager] = None
 
 
-def get_batch_manager() -> BatchManager:
-    """Get or create the batch manager singleton."""
+def get_batch_manager(db: Any = None) -> BatchManager:
+    """The library's batch manager; with no library, the old app-database one (image editing's)."""
     global _batch_manager
-    if _batch_manager is None:
-        db_path = get_db_path()
-        _batch_manager = BatchManager(db_path)
-    return _batch_manager
+    if db is None:
+        if _batch_manager is None:
+            _batch_manager = BatchManager(get_db_path())
+        return _batch_manager
+    key = str(db.path)
+    if key not in _batch_managers:
+        _batch_managers[key] = BatchManager(key)
+    return _batch_managers[key]
 
 
-def get_workflow_store() -> WorkflowStore:
-    """Get workflow store instance."""
-    db_path = get_db_path()
-    return WorkflowStore(db_path)
+def get_workflow_store(db: Any) -> WorkflowStore:
+    """The library's workflows."""
+    return WorkflowStore(db)
 
 
 # Pydantic models for API
@@ -241,15 +252,59 @@ class BatchEventResponse(BaseModel):
 # API Endpoints
 
 
+def _run_off_the_request(batch_id: str, events: Any) -> StreamingResponse:
+    """Run a batch on a worker thread of its own, off the API's event loop, and stream its events
+    to whoever is listening (`activity.run.batch-off-the-request`, #5374): a client that
+    disconnects stops listening, not the batch. A thread-safe hub (the runs' own) fans the events
+    out; one that listens late gets what it missed."""
+    from fichero_server.execution.runner import WorkflowEventHub  # noqa: PLC0415
+
+    hub = WorkflowEventHub()
+
+    def run() -> None:
+        async def follow() -> None:
+            try:
+                async for event in events():
+                    hub.put(f"data: {BatchEventResponse.from_event(event).model_dump_json()}\n\n")
+            except Exception as e:  # noqa: BLE001 -- said on the stream, as before, and logged
+                logger.exception("batch %s stopped: %s", batch_id, e)
+                error_event = {"batch_id": batch_id, "event_type": "error", "error": str(e)}
+                hub.put(f"data: {json.dumps(error_event)}\n\n")
+            finally:
+                hub.put(None)
+
+        asyncio.run(follow())
+
+    threading.Thread(target=run, name=f"batch-{batch_id}", daemon=True).start()
+
+    async def stream():
+        subscriber = hub.subscribe()
+        try:
+            while (line := await asyncio.to_thread(subscriber.get)) is not None:
+                yield line
+        finally:
+            hub.unsubscribe(subscriber)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.post("", response_model=BatchResponse)
-async def create_batch(request: CreateBatchRequest) -> BatchResponse:
+async def create_batch(request: CreateBatchRequest, db: Database = Depends(get_library_database_for_write)) -> BatchResponse:
     """
     Create a new batch execution.
 
     The batch is created in PENDING status and must be started with
     the /execute endpoint or the /progress SSE endpoint.
     """
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
 
     if not request.items:
         raise HTTPException(status_code=400, detail="At least one item is required")
@@ -269,9 +324,10 @@ async def list_batches(
     status: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
+    db: Database = Depends(get_library_database),
 ) -> list[BatchResponse]:
     """List all batches with optional status filtering."""
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
 
     filter_status = BatchStatus(status) if status else None
     batches = await manager.list_batches(
@@ -282,9 +338,9 @@ async def list_batches(
 
 
 @router.get("/{batch_id}", response_model=BatchResponse)
-async def get_batch(batch_id: str, include_items: bool = True) -> BatchResponse:
+async def get_batch(batch_id: str, include_items: bool = True, db: Database = Depends(get_library_database)) -> BatchResponse:
     """Get batch details by ID."""
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
 
     batch = await manager.get_batch(batch_id)
     if not batch:
@@ -294,9 +350,9 @@ async def get_batch(batch_id: str, include_items: bool = True) -> BatchResponse:
 
 
 @router.get("/{batch_id}/progress", response_model=BatchProgressResponse)
-async def get_batch_progress(batch_id: str) -> BatchProgressResponse:
+async def get_batch_progress(batch_id: str, db: Database = Depends(get_library_database)) -> BatchProgressResponse:
     """Get current progress for a batch."""
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
 
     batch = await manager.get_batch(batch_id)
     if not batch:
@@ -306,47 +362,26 @@ async def get_batch_progress(batch_id: str) -> BatchProgressResponse:
 
 
 @router.post("/{batch_id}/execute")
-async def execute_batch(batch_id: str):
+async def execute_batch(batch_id: str, db: Database = Depends(get_library_database_for_write)):
     """
     Execute a batch with Server-Sent Events progress streaming.
 
     Returns an SSE stream of batch events.
     """
-    manager = get_batch_manager()
-    store = get_workflow_store()
+    manager = get_batch_manager(db)
+    store = get_workflow_store(db)
 
     batch = await manager.get_batch(batch_id)
     if not batch:
         raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
 
-    async def event_generator():
-        try:
-            async for event in manager.execute_batch(batch_id, store):
-                response = BatchEventResponse.from_event(event)
-                yield f"data: {response.model_dump_json()}\n\n"
-        except Exception as e:
-            error_event = {
-                "batch_id": batch_id,
-                "event_type": "error",
-                "error": str(e),
-            }
-            yield f"data: {json.dumps(error_event)}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    return _run_off_the_request(batch_id, lambda: manager.execute_batch(batch_id, store))
 
 
 @router.post("/{batch_id}/pause", response_model=BatchResponse)
-async def pause_batch(batch_id: str) -> BatchResponse:
+async def pause_batch(batch_id: str, db: Database = Depends(get_library_database_for_write)) -> BatchResponse:
     """Pause a running batch."""
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
 
     try:
         batch = await manager.pause_batch(batch_id)
@@ -356,47 +391,26 @@ async def pause_batch(batch_id: str) -> BatchResponse:
 
 
 @router.post("/{batch_id}/resume")
-async def resume_batch(batch_id: str):
+async def resume_batch(batch_id: str, db: Database = Depends(get_library_database_for_write)):
     """
     Resume a paused batch with SSE progress streaming.
 
     Returns an SSE stream of batch events.
     """
-    manager = get_batch_manager()
-    store = get_workflow_store()
+    manager = get_batch_manager(db)
+    store = get_workflow_store(db)
 
     batch = await manager.get_batch(batch_id)
     if not batch:
         raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
 
-    async def event_generator():
-        try:
-            async for event in manager.resume_batch(batch_id, store):
-                response = BatchEventResponse.from_event(event)
-                yield f"data: {response.model_dump_json()}\n\n"
-        except Exception as e:
-            error_event = {
-                "batch_id": batch_id,
-                "event_type": "error",
-                "error": str(e),
-            }
-            yield f"data: {json.dumps(error_event)}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    return _run_off_the_request(batch_id, lambda: manager.resume_batch(batch_id, store))
 
 
 @router.post("/{batch_id}/cancel", response_model=BatchResponse)
-async def cancel_batch(batch_id: str) -> BatchResponse:
+async def cancel_batch(batch_id: str, db: Database = Depends(get_library_database_for_write)) -> BatchResponse:
     """Cancel a running or paused batch."""
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
 
     try:
         batch = await manager.cancel_batch(batch_id)
@@ -406,47 +420,26 @@ async def cancel_batch(batch_id: str) -> BatchResponse:
 
 
 @router.post("/{batch_id}/retry")
-async def retry_batch(batch_id: str):
+async def retry_batch(batch_id: str, db: Database = Depends(get_library_database_for_write)):
     """
     Retry failed items in a batch with SSE progress streaming.
 
     Returns an SSE stream of batch events.
     """
-    manager = get_batch_manager()
-    store = get_workflow_store()
+    manager = get_batch_manager(db)
+    store = get_workflow_store(db)
 
     batch = await manager.get_batch(batch_id)
     if not batch:
         raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
 
-    async def event_generator():
-        try:
-            async for event in manager.retry_failed_items(batch_id, store):
-                response = BatchEventResponse.from_event(event)
-                yield f"data: {response.model_dump_json()}\n\n"
-        except Exception as e:
-            error_event = {
-                "batch_id": batch_id,
-                "event_type": "error",
-                "error": str(e),
-            }
-            yield f"data: {json.dumps(error_event)}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    return _run_off_the_request(batch_id, lambda: manager.retry_failed_items(batch_id, store))
 
 
 @router.delete("/{batch_id}")
-async def delete_batch(batch_id: str) -> BatchDeletedResponse:
+async def delete_batch(batch_id: str, db: Database = Depends(get_library_database_for_write)) -> BatchDeletedResponse:
     """Delete a batch and its items."""
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
 
     batch = await manager.get_batch(batch_id)
     if not batch:
@@ -630,7 +623,7 @@ def _invert_delete(
 def _action_create_batch(
     db: Any, params: CreateBatchParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
     batch = _run_async(
         manager.create_batch(
             workflow_id=params.workflow_id,
@@ -659,7 +652,7 @@ def _action_create_batch(
 def _action_delete_batch(
     db: Any, params: DeleteBatchParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
 
     async def _run() -> tuple[Optional[str], Optional[dict]]:
         existing = await manager.get_batch(params.batch_id)
@@ -698,7 +691,7 @@ def _action_restore_batch(
     db: Any, params: RestoreBatchParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     """Inverse of batch.delete — re-insert a snapshotted batch + its items."""
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
     batch = _batch_from_snapshot(params.snapshot)
 
     async def _run() -> None:
@@ -726,7 +719,7 @@ def _action_restore_batch(
 def _action_pause_batch(
     db: Any, params: PauseBatchParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
     batch = _run_async(manager.pause_batch(params.batch_id))
     after = _batch_snapshot(batch)
     spec = ChangeSpec(
@@ -748,7 +741,7 @@ def _action_pause_batch(
 def _action_cancel_batch(
     db: Any, params: CancelBatchParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    manager = get_batch_manager()
+    manager = get_batch_manager(db)
 
     async def _run() -> tuple[Optional[str], BatchExecution]:
         before_batch = await manager.get_batch(params.batch_id)
@@ -782,8 +775,8 @@ def _action_execute_batch(
     The live-progress SSE route above stays the UI path; this single-shot
     action is what chat tools (#1847) / App Intents (#1837) / tests drive.
     """
-    manager = get_batch_manager()
-    store = get_workflow_store()
+    manager = get_batch_manager(db)
+    store = get_workflow_store(db)
 
     async def _run() -> tuple[Optional[dict], Optional[dict]]:
         before_batch = await manager.get_batch(params.batch_id)
@@ -815,8 +808,8 @@ def _action_resume_batch(
     db: Any, params: ResumeBatchParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     """Resume a paused batch to completion (drains the SSE generator)."""
-    manager = get_batch_manager()
-    store = get_workflow_store()
+    manager = get_batch_manager(db)
+    store = get_workflow_store(db)
 
     async def _run() -> tuple[Optional[dict], Optional[dict]]:
         before_batch = await manager.get_batch(params.batch_id)
@@ -853,8 +846,8 @@ def _action_retry_batch(
     the extracted ``manager.reset_failed_items`` so the transition stays one
     proven code path with the streaming retry route.
     """
-    manager = get_batch_manager()
-    store = get_workflow_store()
+    manager = get_batch_manager(db)
+    store = get_workflow_store(db)
 
     async def _run() -> tuple[Optional[dict], Optional[dict]]:
         before_batch = await manager.get_batch(params.batch_id)
@@ -913,8 +906,8 @@ def _action_workflow_run(
     ``/api/batches/{id}`` for results — the one-call equivalent of the UI's
     create-then-execute two-step.
     """
-    manager = get_batch_manager()
-    store = get_workflow_store()
+    manager = get_batch_manager(db)
+    store = get_workflow_store(db)
 
     async def _run() -> Optional[BatchExecution]:
         batch = await manager.create_batch(

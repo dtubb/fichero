@@ -35,29 +35,6 @@ from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.activity_store import duckdb_connection_lock
 from fichero_server.workflows.workflow_store import WorkflowStore
 
-# Passthrough wrappers (#3950).
-#
-# Deferring these imports must not remove them as MODULE ATTRIBUTES: tests
-# patch `fichero_server.execution.batch.<name>`, which needs (1) the attribute to exist for mock.patch,
-# and (2) the call site to resolve it as a module GLOBAL so the patch takes
-# effect. A function-local import satisfies neither and would let those tests
-# pass while silently running the real implementation.
-
-
-def create_compiled_app(*args, **kwargs):
-    """Passthrough to fichero_server.workflows.runtime.create_compiled_app; imports it on first call (#3950)."""
-    from fichero_server.workflows.runtime import create_compiled_app as _impl  # noqa: PLC0415
-
-    return _impl(*args, **kwargs)
-
-
-def build_initial_state(*args, **kwargs):
-    """Passthrough to fichero_server.workflows.runtime.build_initial_state; imports it on first call (#3950)."""
-    from fichero_server.workflows.runtime import build_initial_state as _impl  # noqa: PLC0415
-
-    return _impl(*args, **kwargs)
-
-
 logger = logging.getLogger(__name__)
 MAX_BATCH_CACHE_SIZE = 512
 
@@ -191,7 +168,7 @@ class BatchEvent:
     timestamp: datetime = field(default_factory=utc_now)
 
 
-def _validate_batch_item_inputs(inputs: dict[str, Any], workflow_id: str) -> None:
+def _validate_batch_item_inputs(inputs: dict[str, Any], workflow_id: str) -> Any:
     """Refuse a stored batch item the execute boundary would reject (#4500).
 
     Constructs the item as an `ExecuteWorkflowRequest` — the same model every
@@ -208,7 +185,7 @@ def _validate_batch_item_inputs(inputs: dict[str, Any], workflow_id: str) -> Non
     )
 
     try:
-        ExecuteWorkflowRequest(workflow_id=workflow_id, inputs=dict(inputs or {}))
+        return ExecuteWorkflowRequest(workflow_id=workflow_id, inputs=dict(inputs or {}))
     except Exception as exc:
         raise ValueError(
             f"batch item inputs would not pass workflow execution validation: {exc}"
@@ -584,62 +561,23 @@ class BatchManager:
             )
             return
 
-        # Build the graph once via shared runtime helper.
-        compiled_graph, _ = create_compiled_app(
-            workflow_def,
-            db_path=self.db_path,
-            enable_parallel=True,
-        )
+        # Each item is a run of the one runner (#5374, `activity.run.one-way-to-run`): its own run
+        # record, steps, usage and timeline, its job row a child of the batch's, and the runner's
+        # own completion of its documents. The batch only starts the runs, a few at a time, and
+        # follows them.
+        from fichero_server.db.manager import db_manager
+        from fichero_server.execution import jobs
+        from fichero_server.execution.runner import start_run
+
+        library_db = db_manager.get_database(str(Path(self.db_path).parent))
+        await asyncio.to_thread(jobs.record_batch, library_db, batch_id, status="running",
+                                name=workflow_def.name)
 
         # Create tasks for pending items
         pending_items = [i for i in batch.items if i.status == BatchItemStatus.PENDING]
 
         async def execute_item(item: BatchItem):
-            """Execute a single batch item."""
-
-            async def _settle_item_documents(final_status: str, **extra) -> None:
-                """#4315: failed/cancelled items must not strand their
-                documents at Status.processing — revert to pending with a
-                provenance entry. Best-effort."""
-                try:
-                    from fichero_server.db.manager import db_manager
-                    from fichero_server.workflows.completion import (
-                        collect_processed_document_ids,
-                        finalize_run_documents,
-                    )
-
-                    snapshot = await compiled_graph.aget_state(
-                        {"configurable": {"thread_id": item.thread_id}}
-                    )
-                    item_db = db_manager.get_database(
-                        str(Path(self.db_path).parent)
-                    )
-                    finalize_run_documents(
-                        item_db,
-                        collect_processed_document_ids(
-                            getattr(snapshot, "values", None)
-                        ),
-                        final_status,
-                        workflow_run={
-                            "thread_id": item.thread_id,
-                            "batch_id": batch_id,
-                            "item_index": item.item_index,
-                            "workflow_id": batch.workflow_id,
-                            "workflow_name": workflow_def.name,
-                            "result": {"status": final_status, **extra},
-                            "started_at": item.started_at,
-                            "completed_at": datetime.now(timezone.utc),
-                        },
-                    )
-                except Exception as settle_exc:
-                    logger.warning(
-                        "Batch %s item %s document finalize (%s) failed: %s",
-                        batch_id,
-                        item.item_index,
-                        final_status,
-                        settle_exc,
-                    )
-
+            """Run a single batch item as a run of the runner, and wait for it."""
             # Check for cancellation
             if self._cancel_events[batch_id].is_set():
                 item.status = BatchItemStatus.CANCELLED
@@ -655,101 +593,29 @@ class BatchManager:
             async with self._semaphores[batch_id]:
                 item.status = BatchItemStatus.RUNNING
                 item.started_at = datetime.now(timezone.utc)
-
                 try:
-                    # Execute with LangGraph
-                    config = {"configurable": {"thread_id": item.thread_id}}
-                    # #4500: validation used to happen only at CREATE time, in
-                    # `CreateBatchRequest`. Execute is a DIFFERENT ENTRY POINT —
-                    # it reads STORED items — so a batch persisted before that
-                    # validation existed, or written by any other path, ran here
-                    # unchecked and could resolve zero documents while reporting
-                    # success. That is #4467's shape at batch scale, and worse,
-                    # because nobody watches a batch.
-                    #
-                    # Re-runs the SAME validator rather than a second copy of
-                    # its rules: the item's inputs are constructed as an
-                    # `ExecuteWorkflowRequest`, exactly as at create time, so
-                    # whatever that boundary refuses is refused here too and
-                    # anything added to it later is inherited.
-                    _validate_batch_item_inputs(item.inputs, batch.workflow_id)
-                    initial_state = build_initial_state(
-                        item.inputs,
-                        library_path=str(Path(self.db_path).parent),
-                        metadata={"batch_id": batch_id, "item_index": item.item_index},
-                    )
-                    # #4313/#4317: the item's thread_id is its run id — tools
-                    # stamp it onto artifacts, and the per-file fan-out checks
-                    # it against the shared cancellation registry.
-                    initial_state["task_id"] = item.thread_id
-
-                    # Run the graph
-                    async for _ in compiled_graph.astream(initial_state, config):
-                        # Check for pause/cancel during execution
-                        if self._cancel_events[batch_id].is_set():
-                            item.status = BatchItemStatus.CANCELLED
-                            item.completed_at = datetime.now(timezone.utc)
-                            # #4315: settle docs this item left processing.
-                            await _settle_item_documents("cancelled")
-                            return
-
-                    item.status = BatchItemStatus.COMPLETED
+                    # #4500: execute is a different entry point from create; the stored inputs go
+                    # through the same validator a direct execute uses, and become its request.
+                    request = _validate_batch_item_inputs(item.inputs, batch.workflow_id)
+                    request.thread_id = item.thread_id
+                    finished = await start_run(library_db, workflow_def, request, item.thread_id,
+                                               parent_job=batch_id)
+                    await asyncio.to_thread(finished.wait)
+                    run = await get_activity_tracker(str(library_db.path)).store.get_workflow_run(item.thread_id)
+                    status = getattr(run, "status", None) or "failed"
                     item.completed_at = datetime.now(timezone.utc)
-
-                    # This item's full pipeline is done — flip its documents
-                    # (and their page children) from processing → completed.
-                    # Tool nodes leave docs in `processing` mid-pipeline so the
-                    # per-page green check no longer appears after just the
-                    # first step (#1282). Scoped to THIS item's documents so
-                    # concurrent items don't complete each other's pages.
-                    try:
-                        from fichero_server.db.manager import db_manager
-                        from fichero_server.workflows.completion import (
-                            collect_created_artifact_ids,
-                            collect_processed_document_ids,
-                            complete_run_documents,
-                        )
-
-                        snapshot = await compiled_graph.aget_state(config)
-                        snapshot_values = getattr(snapshot, "values", None)
-                        run_doc_ids = collect_processed_document_ids(snapshot_values)
-                        run_artifact_ids = collect_created_artifact_ids(snapshot_values)
-                        item_db = db_manager.get_database(str(Path(self.db_path).parent))
-                        complete_run_documents(
-                            item_db,
-                            run_doc_ids,
-                            workflow_run={
-                                "batch_id": batch_id,
-                                "item_index": item.item_index,
-                                "workflow_id": batch.workflow_id,
-                                "workflow_name": workflow_def.name,
-                                "provider": workflow_def.provider,
-                                "model": workflow_def.model,
-                                "result": {"status": item.status.value},
-                                "started_at": item.started_at,
-                                "completed_at": item.completed_at,
-                            },
-                            artifact_ids=run_artifact_ids,
-                        )
-                        # document.updated is broadcast inside
-                        # complete_run_documents (centralised for both paths,
-                        # #2518) — no per-caller emit needed here.
-                    except Exception as completion_exc:
+                    if status == "completed":
+                        item.status = BatchItemStatus.COMPLETED
+                    elif status == "cancelled":
+                        item.status = BatchItemStatus.CANCELLED
+                    else:
                         item.status = BatchItemStatus.FAILED
-                        item.error = f"Document completion failed: {completion_exc}"
-                        logger.exception(
-                            "Batch %s item %s document completion failed",
-                            batch_id,
-                            item.item_index,
-                        )
-
+                        item.error = getattr(run, "error", None) or f"the run ended {status}"
                 except Exception as e:
                     item.status = BatchItemStatus.FAILED
                     item.error = str(e)
                     item.completed_at = datetime.now(timezone.utc)
                     logger.error(f"Batch {batch_id} item {item.item_index} failed: {e}")
-                    # #4315: settle docs this item left processing.
-                    await _settle_item_documents("failed", error=str(e)[:500])
 
         # Execute items with progress tracking
         event_queue: asyncio.Queue[BatchEvent] = asyncio.Queue()
@@ -853,6 +719,7 @@ class BatchManager:
 
         batch.completed_at = datetime.now(timezone.utc)
         await self._save_batch(batch)
+        await asyncio.to_thread(jobs.record_batch, library_db, batch_id, status=batch.status.value)
         duration_ms = None
         if batch.started_at and batch.completed_at:
             duration_ms = (batch.completed_at - batch.started_at).total_seconds() * 1000
@@ -902,6 +769,13 @@ class BatchManager:
             progress=batch.get_progress(),
         )
 
+    def _record_batch_row(self, batch_id: str, status: str) -> None:
+        """The batch's job row follows its record (#5374)."""
+        from fichero_server.db.manager import db_manager
+        from fichero_server.execution import jobs
+
+        jobs.record_batch(db_manager.get_database(str(Path(self.db_path).parent)), batch_id, status=status)
+
     async def pause_batch(self, batch_id: str) -> BatchExecution:
         """Pause a running batch."""
         batch = await self.get_batch(batch_id)
@@ -916,6 +790,7 @@ class BatchManager:
 
         batch.status = BatchStatus.PAUSED
         await self._save_batch(batch)
+        await asyncio.to_thread(self._record_batch_row, batch_id, batch.status.value)
         self.activity_tracker.batch_paused(
             batch_id=batch_id,
             workflow_id=batch.workflow_id,
@@ -981,6 +856,7 @@ class BatchManager:
         batch.status = BatchStatus.CANCELLED
         batch.completed_at = datetime.now(timezone.utc)
         await self._save_batch(batch)
+        await asyncio.to_thread(self._record_batch_row, batch_id, batch.status.value)
         self.activity_tracker.batch_cancelled(
             batch_id=batch_id,
             workflow_id=batch.workflow_id,

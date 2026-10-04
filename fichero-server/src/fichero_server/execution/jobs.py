@@ -232,7 +232,9 @@ PAUSING = "Pausing at its next step"
 STOPPING = "Stopping at its next step"
 register_kind("workflow", None, model=None, name="Workflow run", cancel=_cancel_run, pause=_pause_run)
 register_kind("workflow-step", None, model=None, name="Step")
-RUN_KINDS = ("workflow", "workflow-step")
+# A batch: one workflow over many items, each item a run of the one runner, its child (#5374).
+register_kind("batch", None, model=None, name="Batch")
+RUN_KINDS = ("workflow", "workflow-step", "batch")
 #: The run record's words for its state -> the job table's.
 _RUN_STATES = {"accepted": "waiting", "running": "running", "completed": "done", "failed": "failed",
                "cancelled": "cancelled", "paused": "paused"}
@@ -267,6 +269,26 @@ def record_run(db_path: str | Path, thread_id: str, *, status: str, name: str | 
         return
     _record(db, thread_id, kind="workflow", subject=thread_id, parent_id=None, state=_RUN_STATES[status],
             reason=reason, name=name)
+
+
+#: The batch record's words for its state -> the job table's.
+_BATCH_STATES = {"pending": "waiting", "running": "running", "paused": "paused", "completed": "done",
+                 "partial_failure": "done", "failed": "failed", "cancelled": "cancelled"}  # partly failed:
+# done, its failed runs counted under it
+
+
+def record_batch(db: "Database", batch_id: str, *, status: str, name: str | None = None,
+                 reason: str | None = None) -> None:
+    """A batch's row follows the batch's own record; its runs are its children (`set_parent`)."""
+    if status in _BATCH_STATES:
+        _record(db, batch_id, kind="batch", subject=batch_id, parent_id=None, state=_BATCH_STATES[status],
+                reason=reason, name=name)
+
+
+def set_parent(db: "Database", job_id: str, parent_id: str) -> None:
+    """Make a job a child of another (a batch's item run of its batch). Later writes keep it."""
+    _ensure(db)
+    db.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", [parent_id, job_id])
 
 
 def record_step(db_path: str | Path, thread_id: str, node_id: str, *, status: str, name: str | None = None,

@@ -953,7 +953,8 @@ class TestExecuteWorkflow:
             "inputs": {"selected_doc_ids": [selected_doc_id]},
         }
 
-        # Keep the route hermetic WITHOUT breaking the event loop. The earlier
+        # The run starts in `runner.start_run`, the one way a run starts (#5374): the patches
+        # are on the runner. Keep the route hermetic WITHOUT breaking the event loop. The earlier
         # version patched ``core.threading.Thread`` to a MagicMock — but
         # ``core`` does ``import threading``, so that replaced the *global*
         # ``threading.Thread``. The route ``await``s ``save_workflow_run`` (which
@@ -975,10 +976,10 @@ class TestExecuteWorkflow:
             return thread
 
         with patch(
-            "fichero_server.api.routes.workflow_execution.core.threading.Thread",
+            "fichero_server.execution.runner.threading.Thread",
             side_effect=_spy_thread,
         ), patch(
-            "fichero_server.api.routes.workflow_execution.core._run_workflow_in_background",
+            "fichero_server.execution.runner._run_workflow_in_background",
             new=AsyncMock(return_value=None),
         ):
             r = client.post("/api/workflow-execution/execute", json=payload)
@@ -1019,10 +1020,10 @@ class TestExecuteWorkflow:
             return real_thread_cls(*args, **kwargs)
 
         with patch("builtins.print") as print_spy, patch(
-            "fichero_server.api.routes.workflow_execution.core.threading.Thread",
+            "fichero_server.execution.runner.threading.Thread",
             side_effect=_spy_thread,
         ), patch(
-            "fichero_server.api.routes.workflow_execution.core._run_workflow_in_background",
+            "fichero_server.execution.runner._run_workflow_in_background",
             new=AsyncMock(return_value=None),
         ):
             r = client.post("/api/workflow-execution/execute", json=payload)

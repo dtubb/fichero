@@ -208,38 +208,33 @@ async def test_file_watcher_sync_workflow_store_trigger_executes(tmp_path, monke
     assert calls == [(workflow.id, str(source))]
 
 
+def _a_run_that_ends(status: str, error: str | None = None):
+    """Stands in for `runner.start_run`: each batch item is a run of the runner (#5374); this one
+    writes the run's record as the runner would and ends at once."""
+    import threading
+
+    async def start_run(db, workflow, request, thread_id, *, parent_job=None):
+        from fichero_server.workflows.activity import get_activity_tracker
+
+        store = get_activity_tracker(str(db.path)).store
+        await store.save_workflow_run(thread_id=thread_id, workflow_id=workflow.id,
+                                      workflow_name=workflow.name, status=status)
+        if error:
+            await store.update_workflow_run(thread_id, status=status, error=error)
+        finished = threading.Event()
+        finished.set()
+        return finished
+
+    return start_run
+
+
 @pytest.mark.asyncio
-async def test_batch_item_execution_accepts_string_db_path(tmp_path, monkeypatch):
-    """#2131: batch execution must wrap string db_path before reading parent."""
-    manager = BatchManager(str(tmp_path / "batch.duckdb"))
-    batch = await manager.create_batch(
-        workflow_id="wf-1",
-        items_inputs=[{"value": 1}],
-    )
-
-    class FakeGraph:
-        async def astream(self, initial_state, config):
-            yield {"node-1": {"completed_nodes": ["node-1"]}}
-
-        async def aget_state(self, config):
-            return SimpleNamespace(values={})
-
-    monkeypatch.setattr(
-        "fichero_server.execution.batch.create_compiled_app",
-        lambda *a, **k: (FakeGraph(), None),
-    )
-    monkeypatch.setattr(
-        "fichero_server.workflows.completion.collect_processed_document_ids",
-        lambda values: [],
-    )
-    monkeypatch.setattr(
-        "fichero_server.workflows.completion.complete_run_documents",
-        lambda *a, **k: None,
-    )
-    monkeypatch.setattr(
-        "fichero_server.db.manager.db_manager.get_database",
-        lambda path: SimpleNamespace(),
-    )
+async def test_batch_item_execution_accepts_string_db_path(db, monkeypatch):
+    """#2131: batch execution must wrap a string db_path before reading its parent (the library
+    its runs belong to). An item whose run completes is a completed item."""
+    manager = BatchManager(str(db.path))
+    batch = await manager.create_batch(workflow_id="wf-1", items_inputs=[{"value": 1}])
+    monkeypatch.setattr("fichero_server.execution.runner.start_run", _a_run_that_ends("completed"))
 
     events = [
         event.event_type
@@ -253,35 +248,13 @@ async def test_batch_item_execution_accepts_string_db_path(tmp_path, monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_batch_records_document_completion_failure(tmp_path, monkeypatch):
-    """A completed graph is not a completed batch item until documents persist."""
-    manager = BatchManager(str(tmp_path / "batch_completion_failure.duckdb"))
+async def test_batch_records_document_completion_failure(db, monkeypatch):
+    """A run that finished its graph but failed to persist its documents is not a completed batch
+    item: the item fails with the run's own reason (the runner completes the documents, #5374)."""
+    manager = BatchManager(str(db.path))
     batch = await manager.create_batch(workflow_id="wf-1", items_inputs=[{"value": 1}])
-
-    class FakeGraph:
-        async def astream(self, initial_state, config):
-            yield {"node-1": {"completed_nodes": ["node-1"]}}
-
-        async def aget_state(self, config):
-            return SimpleNamespace(values={})
-
-    monkeypatch.setattr(
-        "fichero_server.execution.batch.create_compiled_app",
-        lambda *a, **k: (FakeGraph(), None),
-    )
-    monkeypatch.setattr(
-        "fichero_server.workflows.completion.collect_processed_document_ids", lambda values: []
-    )
-    monkeypatch.setattr(
-        "fichero_server.db.manager.db_manager.get_database", lambda path: SimpleNamespace()
-    )
-
-    def fail_completion(*_args, **_kwargs):
-        raise RuntimeError("document write failed")
-
-    monkeypatch.setattr(
-        "fichero_server.workflows.completion.complete_run_documents", fail_completion
-    )
+    monkeypatch.setattr("fichero_server.execution.runner.start_run",
+                        _a_run_that_ends("failed", "Document completion failed: document write failed"))
 
     events = [
         event.event_type
