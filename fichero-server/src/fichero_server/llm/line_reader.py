@@ -57,11 +57,15 @@ def prompt_for(n: int, language: str | None = None) -> str:
     return PROMPT.format(n=n, language=hint)
 
 
-def _crop(page: Image.Image, box: OCRGeometryBox) -> str:
+def _crop_data_uri(page: Image.Image, polygon_px: list) -> str:
     """`crop_line` as a JPEG data URI."""
     buf = io.BytesIO()
-    crop_line(page, box.metadata["polygon_px"]).save(buf, format="JPEG", quality=90)
+    crop_line(page, polygon_px).save(buf, format="JPEG", quality=90)
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def _crop(page: Image.Image, box: OCRGeometryBox) -> str:
+    return _crop_data_uri(page, box.metadata["polygon_px"])
 
 
 def lines_per_call(config) -> int:

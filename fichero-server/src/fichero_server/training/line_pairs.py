@@ -34,16 +34,23 @@ def _points(coords: str) -> list[tuple[float, float]]:
     return [tuple(float(v) for v in pair.split(",")) for pair in coords.split()]
 
 
-def lines_of(page_xml: str) -> list[tuple[list[tuple[float, float]], str]]:
-    """(polygon in pixels, text) for each TextLine with an outline and some text, in file order."""
+def lines_with_ids(page_xml: str) -> list[tuple[str, list[tuple[float, float]], str]]:
+    """(PAGE id, polygon in pixels, text) for each TextLine with an outline and some text, in file order.
+    Fichero's writer gives a line the id of its segment (`formats.harness.xml_id`), so the same line
+    is found again in the episode ledger."""
     root = parse_xml_string(page_xml)
     found = []
     for line in root.iter(f"{_NS}TextLine"):
         coords = line.find(f"{_NS}Coords")
         text = "".join(u.text or "" for u in line.iter(f"{_NS}Unicode")).strip()
         if coords is not None and coords.get("points") and text:
-            found.append((_points(coords.get("points")), text))
+            found.append((line.get("id") or "", _points(coords.get("points")), text))
     return found
+
+
+def lines_of(page_xml: str) -> list[tuple[list[tuple[float, float]], str]]:
+    """(polygon in pixels, text) for each TextLine with an outline and some text, in file order."""
+    return [(polygon, text) for _id, polygon, text in lines_with_ids(page_xml)]
 
 
 def write_line_pairs(set_dir: str | Path, *, language: str | None = None) -> int:
