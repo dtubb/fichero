@@ -21,7 +21,6 @@ import pytest
 from fichero_server.execution import jobs, throttle
 from fichero_server.training import job as remote_job
 from fichero_server.training import local
-from fichero_server.training.local import TrainKrakenHereRequest
 from tests.unit.training.test_kraken_training_set import TEACHER, _page
 
 
@@ -96,12 +95,13 @@ def notebook(db, tmp_path, monkeypatch):
     return folder, held
 
 
-def _start(db, notebook):
+def _start(client, notebook):
+    """Start it the way the app, the CLI and MCP do: `POST /api/training/kraken/here`."""
     folder, held = notebook
-    local.register_job_kinds()
-    request = TrainKrakenHereRequest(scope_ids=[folder.id], teacher=TEACHER, held_out_ids=[held.id],
-                                     name="sergio", epochs=2)
-    return local.start(db, request, started_by="historian")["job_id"]
+    r = client.post("/api/training/kraken/here", json={"scope_ids": [folder.id], "teacher": TEACHER,
+                                                       "held_out_ids": [held.id], "name": "sergio", "epochs": 2})
+    assert r.status_code == 200, r.text
+    return r.json()["job_id"]
 
 
 def _row(db, job_id):
@@ -118,11 +118,15 @@ def _wait_for(predicate, seconds=30.0):
     return False
 
 
-def test_two_epochs_under_the_lane_wait_out_memory_pressure_and_resume_without_repeating_one(db, notebook, mac, ketos):
-    """WHY (the spec's own test): under memory pressure a training run must let go of its memory,
+def test_compute_tune_on_this_mac__waits_on_memory_pressure_then_resumes_without_repeating_an_epoch(db, client, notebook, mac, ketos):
+    """Behaviour `compute.tune.on-this-mac`, the spec's own test: "a tiny set trains under the lane with a fake
+    memory-pressure signal: it waits, then resumes without repeating an epoch." Through the API and the real
+    scheduler; Kraken's trainer is the fake (the real one is pinned at the end of this file).
+
+    WHY (the spec's own test): under memory pressure a training run must let go of its memory,
     not hold it while the Mac swaps; and when it comes back it must carry on from its last
     finished epoch, never train one twice."""
-    job_id = _start(db, notebook)
+    job_id = _start(client, notebook)
     assert ketos.after_first_epoch.wait(30)
     mac["memory"] = True
     ketos.go.set()
@@ -140,13 +144,17 @@ def test_two_epochs_under_the_lane_wait_out_memory_pressure_and_resume_without_r
     assert detail["phase"] == "done" and detail["reader_id"].startswith("kraken-trained-")
 
 
-def test_the_landed_card_carries_what_the_run_measured(db, notebook, mac, ketos):
-    """WHY (`compute.tune.measured-on-16gb`): whether a reader is worth training here depends on what
+def test_compute_tune_measured_on_16gb__the_card_has_the_runs_figures(db, client, notebook, mac, ketos):
+    """Behaviour `compute.tune.measured-on-16gb`: "every training run records its peak memory and what it used
+    (CPU, GPU, Neural Engine) on the job and on the resulting card ... the card of a trained model has those
+    fields filled from the run, never typed by hand."
+
+    WHY (`compute.tune.measured-on-16gb`): whether a reader is worth training here depends on what
     it cost this Mac; the figures come from the run, never typed by hand."""
     from fichero_server.llm.kraken_runtime import _marker_path
 
     ketos.go.set()
-    job_id = _start(db, notebook)
+    job_id = _start(client, notebook)
     assert _wait_for(lambda: _row(db, job_id)[0] == "done")
     reader = json.loads(jobs.read_job(db, job_id)["detail"])["reader_id"]
     card = json.loads(_marker_path(reader).read_text())["trained"]
@@ -156,10 +164,13 @@ def test_the_landed_card_carries_what_the_run_measured(db, notebook, mac, ketos)
     assert measured["peak_resident_mb"] > 0 and measured["seconds"] >= 0
 
 
-def test_while_the_mac_is_in_use_training_holds_where_it_is_and_loses_nothing(db, notebook, mac, ketos):
-    """WHY: someone typing is a reason to stop using the CPU, not to throw away the epoch in hand.
+def test_compute_tune_on_this_mac__waits_while_the_mac_is_in_use_and_loses_nothing(db, client, notebook, mac, ketos):
+    """Behaviour `compute.tune.on-this-mac`: "it waits on ... active use"; and
+    `activity.throttle.power-heat-memory`: background work "wait[s] ... and say[s] so".
+
+    WHY: someone typing is a reason to stop using the CPU, not to throw away the epoch in hand.
     Training holds at the batch it is on, says so, and carries on in the same run."""
-    job_id = _start(db, notebook)
+    job_id = _start(client, notebook)
     assert ketos.after_first_epoch.wait(30)
     mac["in_use"] = True
     ketos.go.set()
@@ -170,10 +181,12 @@ def test_while_the_mac_is_in_use_training_holds_where_it_is_and_loses_nothing(db
     assert ketos.epochs_run == [0, 1] and ketos.calls == 1
 
 
-def test_training_steps_aside_for_a_page_someone_is_waiting_for(db, notebook, mac, ketos):
-    """WHY: training holds the lane for hours; a Kraken page from a run the person just pressed
+def test_activity_throttle_watched_first__training_steps_aside_for_a_waited_for_page(db, client, notebook, mac, ketos):
+    """Behaviour `activity.throttle.watched-first`: "a job a person is waiting on goes first in its lane".
+
+    WHY: training holds the lane for hours; a Kraken page from a run the person just pressed
     must not wait for all of it. Training stops at the next batch, the page runs, training resumes."""
-    job_id = _start(db, notebook)
+    job_id = _start(client, notebook)
     assert ketos.after_first_epoch.wait(30)
     page = jobs.submit(db, "find-lines", "asked-for", model="kraken:blla", fn=lambda: "lines")
     ketos.go.set()
@@ -182,9 +195,12 @@ def test_training_steps_aside_for_a_page_someone_is_waiting_for(db, notebook, ma
     assert ketos.epochs_run == [0, 1] and ketos.calls == 2
 
 
-def test_cancel_stops_training_at_the_next_batch(db, client, notebook, mac, ketos):
-    """WHY: a person stopping a run that holds the Mac must see it stop, not run its epochs out."""
-    job_id = _start(db, notebook)
+def test_activity_pause_per_job__cancel_stops_training_at_its_next_step(db, client, notebook, mac, ketos):
+    """Behaviour `activity.pause.per-job`: "Pause, Resume, Cancel on any row ... Cancel stops at the next item."
+    Through `POST /api/activity/jobs/{id}/cancel`.
+
+    WHY: a person stopping a run that holds the Mac must see it stop, not run its epochs out."""
+    job_id = _start(client, notebook)
     assert ketos.after_first_epoch.wait(30)
     r = client.post(f"/api/activity/jobs/{job_id}/cancel")
     assert r.status_code == 200 and r.json()["state"] == "running"  # stops at its next batch
@@ -193,8 +209,11 @@ def test_cancel_stops_training_at_the_next_batch(db, client, notebook, mac, keto
     assert ketos.epochs_run == [0]
 
 
-def test_the_api_starts_it_and_follows_it_with_what_it_measured(db, client, notebook, mac, ketos):
-    """WHY: the app, the CLI and MCP start and follow it through the same audited action and the
+def test_compute_tune_on_this_mac__started_and_followed_through_the_api(db, client, notebook, mac, ketos):
+    """Behaviour `compute.tune.on-this-mac` through its surface: `POST /api/training/kraken/here` starts it,
+    `GET /api/training/jobs/{id}` follows it with what it measured.
+
+    WHY: the app, the CLI and MCP start and follow it through the same audited action and the
     same status the Hugging Face card uses; the status carries the run's measurements."""
     folder, held = notebook
     ketos.go.set()
@@ -210,8 +229,11 @@ def test_the_api_starts_it_and_follows_it_with_what_it_measured(db, client, note
     assert bad.status_code == 422
 
 
-def test_kraken_7s_best_model_file_lands(tmp_path):
-    """WHY: Kraken 7's `ketos train` names its best model `best_<score>.safetensors` in its output
+def test_compute_tune_model_comes_back_as_a_card__kraken_7s_best_file_lands(tmp_path):
+    """Behaviour `compute.tune.model-comes-back-as-a-card`: "a returned model lands as a model file and a
+    card". No surface of its own: landing runs inside a training job; this pins the file it picks.
+
+    WHY: Kraken 7's `ketos train` names its best model `best_<score>.safetensors` in its output
     folder; landing looked only for `<name>_best.*` (Kraken 5 and 6) and would refuse every model
     Kraken 7 trains, here or on Hugging Face."""
     from fichero_server.training.landing import best_model_file
@@ -221,8 +243,12 @@ def test_kraken_7s_best_model_file_lands(tmp_path):
     assert best_model_file(tmp_path, "sergio").name == "best_0.9100.safetensors"
 
 
-def test_kraken_itself_stops_after_an_epoch_and_resumes_with_the_next(tmp_path):
-    """WHY: the fake above trusts that Kraken's trainer calls our callbacks and resumes from
+def test_compute_tune_on_this_mac__kraken_itself_resumes_without_repeating_an_epoch(tmp_path):
+    """Behaviour `compute.tune.on-this-mac` ("pause resumes from its last checkpoint") and S18 of
+    `compute.tune.survives-the-time-limit`, on Kraken itself. No surface: the trainer is called directly,
+    because the job path above fakes it.
+
+    WHY: the fake above trusts that Kraken's trainer calls our callbacks and resumes from
     `last.ckpt` at the next epoch. This runs Kraken 7 in this process on twelve tiny lines: a stop
     at the first batch of epoch 1, then a resume, trains epochs 0 and 1 once each."""
     pytest.importorskip("kraken")
