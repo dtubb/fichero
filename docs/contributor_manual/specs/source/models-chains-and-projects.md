@@ -1335,10 +1335,20 @@ Projects
 - `source.project.relaxed-never-changes-the-maker` — **[GAP]** (#4951) a relaxed project changes
   what counts as the record, never who made it: a machine's reading, pass or claim is stored and
   shown as a machine's in every project (the engine sets this; see → #4868, → #4869).
-- `source.project.automatic-after-first-yes` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** `GET /api/recipes/project/start` shows what Start would run and on how many pages; `POST` records the first yes (`recipe/started.yaml`: when, recipe id and version), audited and undoable, refused by step while the plan has refusals; nothing is run by it yet (the one job model and on-add are #5352); pinned by `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. nothing in a project runs by itself
+- `source.project.automatic-after-first-yes` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** `GET /api/recipes/project/start` shows what Start would run and on how many pages; `POST` records the first yes (`recipe/started.yaml`: when, recipe id and version), audited and undoable, refused while the plan has refusals (a recipe that fails the check, or nothing to run; a step it cannot run is skipped, #5390); and it runs the recipe (#5390, `source.recipe.start-runs-the-steps`); on-add after it is `source.onboard.just-do-it`; pinned by `fichero-server/tests/unit/api/test_start_is_the_first_yes.py` and `fichero-server/tests/unit/recipes/test_recipe_execution_to_spec.py`. nothing in a project runs by itself
   until the person presses Start at the end of setup (the first yes), which shows what will run,
   on how many pages, with an estimate; what it makes counts as the record only as the project's
   rule allows.
+- `source.recipe.start-runs-the-steps` — **[OK]** (#5390; built: `recipes/runner.py`, the `run-a-recipe` job; tested in `fichero-server/tests/unit/recipes/test_recipe_execution_to_spec.py`) pressing Start runs the recipe over the
+  project's material: its steps in order, each as the job its card names (a shipped workflow run for
+  finding lines, reading a line or a page, correcting, finding names and finding statements; a check
+  run for `check`; the project's synced folder for `export`), together as one `run-a-recipe` job in
+  Activity whose children are those runs; a step starts only when the one before it has finished,
+  and a step that fails stops the steps after it, saying which.
+- `source.recipe.step-skipped-says-why` — **[OK]** (#5390; built: `recipes/start.py` `skipped`; tested as above) a step Start cannot run (no model, a
+  condition Start cannot honour yet, a cloud step in a project that keeps its pages on this Mac, a
+  job no card runs yet) is skipped, and the plan and the recipe run name the step and why; the other
+  steps still run. A recipe with nothing runnable, or one that fails the recipe check, never starts.
 
 Profiles (the defaults section of a recipe)
 - `source.profile.is-a-prototype` — **[GAP]** (#4951) a recipe's profile is stored as a prototype
@@ -1360,9 +1370,10 @@ Purposes and layers
   lines only where it includes them (refines the NLP and Kraken rulings, 2026-10-01).
 - `source.onboard.offers-never-hides` — **[GAP]** (#4951) a purpose changes what is offered first
   and what runs by itself; every view and tool stays reachable in every project.
-- `source.onboard.just-do-it` — **[GAP]** (#4951) on a "just do it" purpose, after Start, new
-  material runs through the recipe's automatic steps with no further question.
-- `source.onboard.tools-not-automation` — **[GAP]** (#4951) on a "tools" purpose (edit, decipher,
+- `source.onboard.just-do-it` — **[OK]** (#4951, #5390; built: an import after Start queues one recipe run over its pages (`importers/derivatives.queue_derivatives`)) on a "just do it" purpose, after Start, new
+  material runs through the recipe's automatic steps with no further question: each import is one
+  `run-a-recipe` job over the pages it brought, and nothing runs for material already there.
+- `source.onboard.tools-not-automation` — **[PARTIAL]** (#4951; built: nothing runs at import on a tools purpose; offering its tools first is the app's) on a "tools" purpose (edit, decipher,
   train, not sure), nothing runs at import that the person did not ask for, and that purpose's
   tools are offered first.
 - `source.onboard.add-layer` — **[GAP]** (#4951) a layer or a language can be added later from the

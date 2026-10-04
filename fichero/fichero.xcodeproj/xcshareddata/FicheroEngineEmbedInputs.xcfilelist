@@ -380,6 +380,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/anchors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/campaigns.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/canvas.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/checking.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/compute_requests.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/editorial.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/geo.py
@@ -411,6 +412,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/names.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/project.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/recipe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/routes.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/cards.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/glottolog.txt.gz
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/iso15924.txt

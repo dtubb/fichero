@@ -545,7 +545,7 @@ async def mcp_check_verdict(
     (`source.check.model-never-a-person`), and a reject moves a statement no further than `shortlisted`."""
     from pathlib import Path
 
-    import fichero_server.checking.verdicts  # noqa: F401  (registers check.verdict)
+    import fichero_server.api.routes.check  # noqa: F401  (registers check.verdict)
 
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent), via_mcp=True)
     try:

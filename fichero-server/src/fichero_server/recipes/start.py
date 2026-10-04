@@ -22,9 +22,16 @@ WORKFLOW_FOR_JOB = {
     "read-a-line": "Transcribe (Kraken)",
     "read-a-page": "Transcribe HTR",
     "correct": "Paleographer Review",
+    "find-names-tag-words": "2 · Extract Entities",
+    "find-statements": "3 · Extract SVO → Claims",
 }
 #: Jobs whose workflow takes the step's model as a run-level provider/model override.
-_OVERRIDE_JOBS = frozenset({"read-a-page", "correct"})
+_OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements"})
+#: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`) and the project's
+#: synced folder (`source.sync.*`).
+OTHER_CARDS = {"check": "check", "export": "export"}
+#: Jobs that need no model.
+_NO_MODEL_JOBS = frozenset({"export"})
 #: Per-page token assumptions: the same ones the workflow cost estimate prices with (runner.py).
 _TOKENS_IN, _TOKENS_OUT = 1200, 300
 
@@ -45,6 +52,8 @@ def _override(pin: dict) -> tuple[str, str] | None:
     """(provider, model) a step's pin runs as, for a workflow that takes an override."""
     if set(pin) == {"cloud", "model"}:
         return str(pin["cloud"]), str(pin["model"])
+    if "spacy" in pin and set(pin) <= {"spacy", "version"}:  # names: spaCy is the entity tool's local reader
+        return "spacy", str(pin["spacy"])
     if set(pin) == {"hf", "revision"} and str(pin["hf"]).startswith("mlx-community/"):
         return "omlx", str(pin["hf"])
     return None
@@ -55,70 +64,95 @@ def _uses_cloud(step: dict) -> bool:
 
 
 def plan_start(recipe: dict | None, *, stays_local: bool) -> dict[str, Any]:
-    """The workflows Start would run, in order, and every reason it cannot start.
+    """What Start would run, in order, what it skips and why, and what refuses it outright.
 
-    Returns `{"workflows": [...], "offered": [...], "refusals": [...]}`. Each workflow entry names
-    the recipe steps it carries out, the shipped workflow (name and id), and the provider/model
-    override it runs with. `offered` lists steps that wait to be offered (train), never run at
-    Start (`source.recipe.train-never-automatic`). Start may go ahead only when `refusals` is empty.
+    Returns `{"runs": [...], "workflows": [...], "skipped": [...], "offered": [...], "refusals": [...]}`.
+    `runs` are the cards Start runs in order: a shipped workflow (name, id, provider/model override), a
+    check run (its layer and checker), or the project's synced folder (its folder and formats); `workflows`
+    is the workflow runs among them. A step that cannot run is SKIPPED with its reason, and the others
+    still run (`source.recipe.step-skipped-says-why`). `offered` lists steps that wait to be offered
+    (train), never run at Start (`source.recipe.train-never-automatic`). Start may go ahead only when
+    `refusals` is empty: a recipe that fails the recipe check, or one with nothing to run.
     """
     from fichero_server.workflows.default_workflows import preset_workflow_id
 
     from fichero_server.recipes.recipe import check_recipe
 
     if not recipe:
-        return {"workflows": [], "offered": [], "refusals": ["this project has no recipe yet: run setup first"]}
-    workflows: list[dict[str, Any]] = []
+        return {"runs": [], "workflows": [], "skipped": [], "offered": [],
+                "refusals": ["this project has no recipe yet: run setup first"]}
+    runs: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
     offered: list[str] = []
-    refusals: list[str] = []
+
+    def skip(sid: str, why: str) -> None:
+        skipped.append({"step": sid, "why": why})
+
     for step in recipe.get("steps") or []:
         sid, job = step.get("id", "?"), step.get("job", "")
         label = f"step {sid}"
         if step.get("offered_when"):
             offered.append(sid)
             continue
-        if step.get("gap") or not step.get("model"):
-            refusals.append(f"{label} has no model: {step.get('gap') or 'none is named'}")
+        if job not in _NO_MODEL_JOBS and (step.get("gap") or not step.get("model")):
+            skip(sid, f"{label} has no model: {step.get('gap') or 'none is named'}")
             continue
         if stays_local and _uses_cloud(step):
-            refusals.append(f"{label} would send pages off this Mac, and this project keeps its pages here")
+            skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here")
             continue
         if step.get("when"):
-            refusals.append(f"{label} runs only {sorted(step['when'])}; Start cannot honour a condition yet")
+            skip(sid, f"{label} runs only {sorted(step['when'])}; Start cannot honour a condition yet")
+            continue
+        pin = step.get("model") or {}
+        settings = step.get("settings") or {}
+        runs_on = step.get("runs_on") or "this-mac"
+        if job in OTHER_CARDS:
+            entry: dict[str, Any] = {"steps": [sid], "job": job, "card": OTHER_CARDS[job], "runs_on": runs_on}
+            if job == "check":
+                override = _override(pin)
+                if override is None:
+                    skip(sid, f"{label}: the check job cannot run the model {pin}")
+                    continue
+                entry.update(layer=settings.get("layer", "readings"), provider=override[0], model=override[1],
+                             prompt=step.get("prompt"))
+            else:
+                entry.update(folder=settings.get("folder"), formats=list(settings.get("formats") or []))
+            runs.append(entry)
             continue
         name = WORKFLOW_FOR_JOB.get(job)
         if name is None:
-            refusals.append(f"{label}: no shipped workflow does the job {job!r} yet")
+            skip(sid, f"{label}: no card runs the job {job!r} yet")
             continue
-        pin = step["model"]
-        entry: dict[str, Any] = {"steps": [sid], "job": job, "workflow": name,
-                                 "workflow_id": preset_workflow_id(name),
-                                 "provider_override": None, "model_override": None,
-                                 "runs_on": step.get("runs_on") or "this-mac"}
+        entry = {"steps": [sid], "job": job, "card": "workflow", "workflow": name,
+                 "workflow_id": preset_workflow_id(name), "provider_override": None, "model_override": None,
+                 "runs_on": runs_on}
         if job == "find-lines":
             if pin.get("kraken") != "blla":
-                refusals.append(f"{label}: {name} finds lines with Kraken's blla only, not {pin}")
+                skip(sid, f"{label}: {name} finds lines with Kraken's blla only, not {pin}")
                 continue
         elif job == "read-a-line":
             reader = _kraken_reader_for(pin)
             if reader is None:
-                refusals.append(f"{label}: the reader {pin} is not in the Kraken catalogue this Mac "
-                                "can fetch, so no workflow can read with it")
+                skip(sid, f"{label}: the reader {pin} is not in the Kraken catalogue this Mac "
+                          "can fetch, so no workflow can read with it")
                 continue
             entry["provider_override"], entry["model_override"] = KRAKEN_READER_PROVIDER, reader
             # Kraken finds its own lines before reading them: one run carries both steps.
-            if workflows and workflows[-1]["job"] == "find-lines":
-                entry["steps"] = workflows.pop()["steps"] + entry["steps"]
+            if runs and runs[-1]["job"] == "find-lines":
+                entry["steps"] = runs.pop()["steps"] + entry["steps"]
         elif job in _OVERRIDE_JOBS:
             override = _override(pin)
             if override is None:
-                refusals.append(f"{label}: {name} cannot run the model {pin}")
+                skip(sid, f"{label}: {name} cannot run the model {pin}")
                 continue
             entry["provider_override"], entry["model_override"] = override
-        workflows.append(entry)
+        runs.append(entry)
     # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
-    refusals.extend(check_recipe(recipe))
-    return {"workflows": workflows, "offered": offered, "refusals": refusals}
+    refusals = check_recipe(recipe)
+    if not runs and not refusals:
+        refusals.append("nothing in this recipe can run yet: every step is skipped (see why)")
+    return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
+            "offered": offered, "refusals": refusals}
 
 
 def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:

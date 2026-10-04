@@ -22,31 +22,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from pydantic import BaseModel, Field
 
 from fichero_server.execution import jobs
+from fichero_server.models.compute_requests import ReadAtScaleRequest  # noqa: F401  (re-exported)
 
 KIND = "read-at-scale"
 TARGET = "huggingface-jobs"
 POLL_SECONDS = 60.0
 #: A vision-model reader needs these where the Job runs (the runner's own header has Kraken).
 VLM_DEPENDENCIES = ["torch>=2.5", "transformers>=4.57,<5", "accelerate>=1.3"]
-
-
-class ReadAtScaleRequest(BaseModel):
-    scope_ids: list[str] = Field(description="Folders or pages to read: images here, or pages imported by reference over IIIF.")
-    reader: str = Field("kraken", description="`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model).")
-    card: str = Field(description="The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, "
-                      "its Hugging Face build), or a Hub repo.")
-    language: str | None = None
-    shard_size: int = Field(50, ge=1, le=10000)
-    longest: int = Field(2000, ge=256, le=10000, description="Pixels on the longer side each image is read at.")
-    flavor: str = Field("t4-small", description="Hugging Face hardware for each shard.")
-    timeout: str = Field("2h", description="Each shard's time limit; always sent.")
-    max_in_flight: int = Field(10, ge=1, le=500, description="Shards running at once.")
-    pass_name: str | None = None
-    pages_may_leave: bool = Field(False, description="The person's yes for these pages (or their IIIF addresses) to go "
-                                  "to Hugging Face.")
 
 
 class PagesMayNotLeave(PermissionError):

@@ -95,6 +95,7 @@ def queue_derivatives(
     *,
     library_path: str | Path,
     db: "Database | None" = None,
+    arrived: bool = True,
 ) -> list[Future]:
     """Queue derivative generation for freshly ingested documents: one job per
     stage and document, written in the caller's transaction when it has one.
@@ -113,6 +114,12 @@ def queue_derivatives(
         return []
 
     docs = list(docs)
+    if arrived and docs:
+        # New material: after Start, a "just do it" project runs its recipe over it (`source.onboard.just-do-it`).
+        # `arrived=False` is the library-open recovery of stranded pages, which are not new.
+        from fichero_server.recipes.runner import material_arrived
+
+        material_arrived(db if db is not None else _library_db(library), [doc.id for doc in docs])
     queued = [
         doc.id for doc in docs if needs_derivative(doc) or needs_embedding(doc)
     ]

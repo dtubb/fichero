@@ -12109,6 +12109,29 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("runs")
+    def recipes_runs_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Recipe Runs (GET /api/recipes/project/runs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/runs"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("run-status")
+    def recipes_run_status_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Recipe Run Status (GET /api/recipes/project/runs/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/recipes/project/runs/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-start-plan")
     def recipes_get_start_plan_get(
         ctx: typer.Context,

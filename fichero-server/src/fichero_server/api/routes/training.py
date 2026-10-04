@@ -16,17 +16,39 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.api.auth import action_context
 from fichero_server.db import Database
-from fichero_server.training import job as training_job
-from fichero_server.training.hf_jobs import NoHuggingFaceToken
-from fichero_server.training.job import (
-    PagesMayNotLeave,
+from fichero_server.models.compute_requests import (
+    GatherReasonsRequest,
+    ReasonsABRequest,
     TrainKrakenHereRequest,
     TrainKrakenRequest,
     TrainVisionLoraRequest,
 )
-from fichero_server.training import reasons_job
-from fichero_server.training.kraken_set import EmptyTrainingSet
-from fichero_server.training.reasons_job import GatherReasonsRequest, ReasonsABRequest
+
+
+# The training subsystem is imported when a request needs it, not at app start (#3950): the routes and
+# their actions are known at start; the work and its exceptions load on first use.
+def _training_job() -> Any:
+    from fichero_server.training import job
+
+    return job
+
+
+def _reasons_job() -> Any:
+    from fichero_server.training import reasons_job
+
+    return reasons_job
+
+
+def _no_token() -> type[Exception]:
+    from fichero_server.training.hf_jobs import NoHuggingFaceToken
+
+    return NoHuggingFaceToken
+
+
+def _empty_set() -> type[Exception]:
+    from fichero_server.training.kraken_set import EmptyTrainingSet
+
+    return EmptyTrainingSet
 
 router = APIRouter(prefix="/training")
 
@@ -68,17 +90,17 @@ class CancelTrainingParams(BaseModel):
 
 @action("training.start", TrainKrakenRequest, domains=["job"], undoable=False)
 def _action_start(db: Database, params: TrainKrakenRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    started = training_job.start(db, params, started_by=ctx.actor or "owner")
+    started = _training_job().start(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
-                               after={"job_id": started["job_id"], "kind": training_job.KIND},
+                               after={"job_id": started["job_id"], "kind": _training_job().KIND},
                                emit_type="job.created")
 
 
 @action("training.start_vision_lora", TrainVisionLoraRequest, domains=["job"], undoable=False)
 def _action_start_vision_lora(db: Database, params: TrainVisionLoraRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    started = training_job.start(db, params, started_by=ctx.actor or "owner")
+    started = _training_job().start(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
-                               after={"job_id": started["job_id"], "kind": training_job.KIND, "card": "vision-lora"},
+                               after={"job_id": started["job_id"], "kind": _training_job().KIND, "card": "vision-lora"},
                                emit_type="job.created")
 
 
@@ -94,7 +116,7 @@ def _action_start_here(db: Database, params: TrainKrakenHereRequest, ctx: Action
 
 @action("training.cancel", CancelTrainingParams, domains=["job"], undoable=False)
 def _action_cancel(db: Database, params: CancelTrainingParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    state = training_job.request_cancel(db, params.job_id)
+    state = _training_job().request_cancel(db, params.job_id)
     return {"job_id": params.job_id, "state": state}, ChangeSpec(
         domains=["job"], target_ids=[params.job_id], after={"job_id": params.job_id, "state": state},
         emit_type="job.updated")
@@ -113,11 +135,11 @@ async def start_kraken_training(
     not installed."""
     try:
         result = registry.invoke(db, "training.start", request.model_dump(), ctx)
-    except PagesMayNotLeave as exc:
+    except _training_job().PagesMayNotLeave as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except NoHuggingFaceToken as exc:
+    except _no_token() as exc:
         raise HTTPException(status_code=412, detail=str(exc)) from exc
-    except (EmptyTrainingSet, ValueError, RuntimeError) as exc:
+    except (_empty_set(), ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TrainingStarted(**result.result)
 
@@ -154,11 +176,11 @@ async def start_vision_lora_training(
     it. The same refusals as the Kraken card."""
     try:
         result = registry.invoke(db, "training.start_vision_lora", request.model_dump(), ctx)
-    except PagesMayNotLeave as exc:
+    except _training_job().PagesMayNotLeave as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except NoHuggingFaceToken as exc:
+    except _no_token() as exc:
         raise HTTPException(status_code=412, detail=str(exc)) from exc
-    except (EmptyTrainingSet, ValueError, RuntimeError) as exc:
+    except (_empty_set(), ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TrainingStarted(**result.result)
 
@@ -166,7 +188,7 @@ async def start_vision_lora_training(
 @router.get("/jobs/{job_id}", response_model=TrainingJobStatus, summary="A training job's phase and outcome")
 async def training_job_status(job_id: str, db: Database = Depends(get_library_database)) -> TrainingJobStatus:
     try:
-        row = training_job.status(db, job_id)
+        row = _training_job().status(db, job_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return TrainingJobStatus(**{k: v for k, v in row.items() if k in TrainingJobStatus.model_fields})
@@ -190,14 +212,14 @@ class ReasonsJobParams(BaseModel):
 
 @action("training.gather_reasons", GatherReasonsRequest, domains=["job"], undoable=False)
 def _action_gather_reasons(db: Database, params: GatherReasonsRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    started = reasons_job.start(db, params, started_by=ctx.actor or "owner")
+    started = _reasons_job().start(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
-                               after={"job_id": started["job_id"], "kind": reasons_job.KIND}, emit_type="job.created")
+                               after={"job_id": started["job_id"], "kind": _reasons_job().KIND}, emit_type="job.created")
 
 
 @action("training.cancel_reasons", ReasonsJobParams, domains=["job"], undoable=False)
 def _action_cancel_reasons(db: Database, params: ReasonsJobParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    state = reasons_job.request_cancel(db, params.job_id)
+    state = _reasons_job().request_cancel(db, params.job_id)
     return {"job_id": params.job_id, "state": state}, ChangeSpec(
         domains=["job"], target_ids=[params.job_id], after={"job_id": params.job_id, "state": state},
         emit_type="job.updated")
@@ -223,7 +245,7 @@ async def start_gathering_reasons(
 @router.get("/reasons/{job_id}", summary="A reasons job's counts in words and numbers")
 async def reasons_job_status(job_id: str, db: Database = Depends(get_library_database)) -> dict[str, Any]:
     try:
-        return reasons_job.status(db, job_id)
+        return _reasons_job().status(db, job_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -242,9 +264,9 @@ async def cancel_reasons_job(
 
 @action("training.measure_reasons_ab", ReasonsABRequest, domains=["job"], undoable=False)
 def _action_measure_ab(db: Database, params: ReasonsABRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    started = reasons_job.start_ab(db, params, started_by=ctx.actor or "owner")
+    started = _reasons_job().start_ab(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
-                               after={"job_id": started["job_id"], "kind": reasons_job.KIND_AB}, emit_type="job.created")
+                               after={"job_id": started["job_id"], "kind": _reasons_job().KIND_AB}, emit_type="job.created")
 
 
 @router.post("/reasons-ab", summary="Measure answer-only against reasoning students on held-out checked pages")
@@ -267,6 +289,6 @@ async def start_reasons_ab(
 @router.get("/reasons-ab/{job_id}", summary="The reasons A/B's scores and verdicts")
 async def reasons_ab_status(job_id: str, db: Database = Depends(get_library_database)) -> dict[str, Any]:
     try:
-        return reasons_job.status(db, job_id, reasons_job.KIND_AB)
+        return _reasons_job().status(db, job_id, _reasons_job().KIND_AB)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

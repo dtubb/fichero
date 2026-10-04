@@ -42,7 +42,6 @@ from fichero_server.security.keychain import has_api_key
 # just to register this router at startup.
 from fichero_server.models.node_aliases import DanglingAliasError, is_alias, resolve_alias
 from fichero_server.llm.providers import get_provider_info
-from fichero_server.llm.prompts import compose_system_prompt
 from fichero_server.retrieval.graph_rag import GraphAwareRetriever
 
 logger = logging.getLogger(__name__)
@@ -470,6 +469,9 @@ def _build_chat_system_prompt(has_context: bool) -> str:
         "Answer the user's question concisely. If no supporting documents are "
         "available, say you are answering from the user's prompt alone."
     )
+    # Imported here: the prompt library (and what it reads) loads on the first chat, not at app start (#3950).
+    from fichero_server.llm.prompts import compose_system_prompt
+
     return compose_system_prompt(role="chat", extra=extra)
 
 

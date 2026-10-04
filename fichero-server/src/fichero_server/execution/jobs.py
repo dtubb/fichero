@@ -68,11 +68,14 @@ KRAKEN_MODEL_PREFIX = "kraken:"
 _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
                  "fichero_server.training.job", "fichero_server.workflows.task_workers",
                  "fichero_server.remote_read.job", "fichero_server.training.reasons_job",
-                 "fichero_server.training.local", "fichero_server.sync_folder", "fichero_server.checking.job")
+                 "fichero_server.training.local", "fichero_server.sync_folder", "fichero_server.checking.job",
+                 "fichero_server.recipes.runner")
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
 #: never holds the local ML lane.
-LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4}
+#: `recipes`: a started recipe's run (#5390), which only waits on its steps' own jobs; one at a time, so two
+#: recipes never hold each other's checks.
+LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "recipes": 1}
 #: Finished jobs older than this are deleted when their library opens (spec open question 8).
 KEEP_FINISHED_DAYS = 30
 
@@ -683,6 +686,13 @@ def find_jobs(db: "Database", *, kinds: list[str], states: list[str] | None = No
 def delete_job(db: "Database", job_id: str) -> None:
     """Forget one finished job's row."""
     db.execute("DELETE FROM jobs WHERE id = ?", [job_id])
+
+
+def set_parent(db: "Database", job_id: str, parent_id: str) -> None:
+    """Hang a job under another (a started recipe's step runs under the recipe's row)."""
+    _ensure(db)
+    db.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", [parent_id, job_id])
+
 
 def _job_row(db: "Database", job_id: str) -> tuple[str, str]:
     _ensure(db)

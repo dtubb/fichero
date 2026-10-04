@@ -17,10 +17,22 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
-from fichero_server.remote_read import job as read_job
-from fichero_server.remote_read.job import PagesMayNotLeave, ReadAtScaleRequest
-from fichero_server.remote_read.package import NotSendable
-from fichero_server.training.hf_jobs import NoHuggingFaceToken
+from fichero_server.models.compute_requests import ReadAtScaleRequest
+
+
+# The reading subsystem is imported when a request needs it, not at app start (#3950).
+def _read_job() -> Any:
+    from fichero_server.remote_read import job
+
+    return job
+
+
+def _refusals() -> tuple[type[Exception], type[Exception]]:
+    """(no token, not sendable): the refusals a start answers with 412 and 422."""
+    from fichero_server.remote_read.package import NotSendable
+    from fichero_server.training.hf_jobs import NoHuggingFaceToken
+
+    return NoHuggingFaceToken, NotSendable
 
 router = APIRouter(prefix="/reading-at-scale")
 
@@ -56,19 +68,19 @@ def _job_change(job_id: str, emit: str, **after: Any) -> ChangeSpec:
 
 @action("reading.start_at_scale", ReadAtScaleRequest, domains=["job"], undoable=False)
 def _action_start(db: Database, params: ReadAtScaleRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    started = read_job.start(db, params, started_by=ctx.actor or "owner")
-    return started, _job_change(started["job_id"], "job.created", kind=read_job.KIND)
+    started = _read_job().start(db, params, started_by=ctx.actor or "owner")
+    return started, _job_change(started["job_id"], "job.created", kind=_read_job().KIND)
 
 
 @action("reading.resend_failed", ReadingJobParams, domains=["job"], undoable=False)
 def _action_resend(db: Database, params: ReadingJobParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    count = read_job.resend_failed(db, params.job_id)
+    count = _read_job().resend_failed(db, params.job_id)
     return {"job_id": params.job_id, "resent": count}, _job_change(params.job_id, "job.updated", resent=count)
 
 
 @action("reading.cancel_at_scale", ReadingJobParams, domains=["job"], undoable=False)
 def _action_cancel(db: Database, params: ReadingJobParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    state = read_job.request_cancel(db, params.job_id)
+    state = _read_job().request_cancel(db, params.job_id)
     return {"job_id": params.job_id, "state": state}, _job_change(params.job_id, "job.updated", state=state)
 
 
@@ -85,11 +97,11 @@ async def start_reading_at_scale(
     Hugging Face token (412), or with a reader that cannot run off this Mac (422)."""
     try:
         result = registry.invoke(db, "reading.start_at_scale", request.model_dump(), ctx)
-    except PagesMayNotLeave as exc:
+    except _read_job().PagesMayNotLeave as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except NoHuggingFaceToken as exc:
+    except _refusals()[0] as exc:
         raise HTTPException(status_code=412, detail=str(exc)) from exc
-    except (NotSendable, ValueError, RuntimeError) as exc:
+    except (_refusals()[1], ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return ReadingStarted(**result.result)
 
@@ -97,7 +109,7 @@ async def start_reading_at_scale(
 @router.get("/jobs/{job_id}", response_model=ReadingJobStatus, summary="A reading run's shards and what landed")
 async def reading_job_status(job_id: str, db: Database = Depends(get_library_database)) -> ReadingJobStatus:
     try:
-        row = read_job.status(db, job_id)
+        row = _read_job().status(db, job_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ReadingJobStatus(**{k: v for k, v in row.items() if k in ReadingJobStatus.model_fields})

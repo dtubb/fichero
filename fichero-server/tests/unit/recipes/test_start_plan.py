@@ -67,23 +67,28 @@ def test_a_repository_reader_runs_as_itself_and_an_unfetchable_one_is_refused_by
     assert not plan["refusals"], plan["refusals"]
     assert any(w.get("model_override") == "kraken-zenodo-21788410" for w in plan["workflows"])
     hf = {**READ, "model": {"hf": "someone/kraken-reader", "revision": "abc"}}
-    refused = plan_start(_recipe(LINES, hf), stays_local=True)["refusals"]
-    assert any(r.startswith("step read:") for r in refused), refused
+    skipped = plan_start(_recipe(LINES, hf), stays_local=True)["skipped"]
+    assert any(s["step"] == "read" and s["why"].startswith("step read:") for s in skipped), skipped
 
 
-def test_a_job_no_workflow_does_is_refused_by_name():
-    """Nothing runs except workflows: a step with no workflow behind it is named, not skipped."""
+def test_a_job_no_card_runs_is_skipped_by_name():
+    """`source.recipe.step-skipped-says-why` (#5390; was: refused). A step no card runs is skipped and
+    named; the others still run. Names with a spaCy pin now run as the entity workflow with spaCy."""
     names = {"id": "names", "job": "find-names-tag-words",
              "model": {"spacy": "es_core_news_sm", "version": "bundled"}}
-    plan = plan_start(_recipe(LINES, READ, names), stays_local=True)
-    assert any("step names" in r and "find-names-tag-words" in r for r in plan["refusals"])
+    dates = {"id": "dates", "job": "work-out-dates", "model": {"builtin": "dates"}}
+    plan = plan_start(_recipe(LINES, READ, names, dates), stays_local=True)
+    assert any(s["step"] == "dates" and "work-out-dates" in s["why"] for s in plan["skipped"])
+    assert plan["workflows"][-1]["workflow"] == "2 · Extract Entities"
+    assert (plan["workflows"][-1]["provider_override"], plan["workflows"][-1]["model_override"]) == (
+        "spacy", "es_core_news_sm")
 
 
 def test_a_project_that_keeps_pages_local_refuses_every_cloud_step():
     """`source.project.stays-local`: the refusal names the step and the rule; the same recipe in a
     project that allows the cloud plans the step with its provider and model."""
     local = plan_start(_recipe(LINES, READ, CLOUD_CORRECT), stays_local=True)
-    assert any("step correct" in r and "off this Mac" in r for r in local["refusals"])
+    assert any(s["step"] == "correct" and "off this Mac" in s["why"] for s in local["skipped"])
     allowed = plan_start(_recipe(LINES, READ, CLOUD_CORRECT), stays_local=False)
     assert allowed["refusals"] == []
     assert (allowed["workflows"][-1]["provider_override"], allowed["workflows"][-1]["model_override"]) == (
@@ -105,11 +110,13 @@ def test_a_recipe_that_fails_the_check_never_starts():
     assert any("never code or credentials" in r for r in plan["refusals"])
 
 
-def test_a_step_with_no_model_refuses_start():
-    """A gap the rules found (no model fits) must stop Start, not run the step's default."""
+def test_a_step_with_no_model_is_skipped_never_run_with_a_default():
+    """A gap the rules found (no model fits) skips the step, named with why (#5390; was: refused Start),
+    and never runs the step's default."""
     gap = {"id": "correct", "job": "correct", "gap": "no model fits this step"}
     plan = plan_start(_recipe(LINES, READ, gap), stays_local=True)
-    assert any("step correct has no model" in r for r in plan["refusals"])
+    assert any("step correct has no model" in s["why"] for s in plan["skipped"])
+    assert all("correct" not in r["steps"] for r in plan["runs"])
 
 
 def test_the_estimate_is_free_on_this_mac_and_never_guesses_an_unpriced_model():
