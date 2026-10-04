@@ -119,6 +119,20 @@ statement's text and its review) stays in the Inspector, reached by selecting th
   `3D/...+Thumbnails.swift:32-47`), which today draws a thumbnail and nothing on it. Both
   canvases are RealityKit; #4192's SceneKit wording for 2D is superseded in the code
   (`CanvasOrtho2DRenderer.swift:20-23`, "2D stays RealityKit").
+- `layers.text.font-from-script-and-period` — **[GAP]** (#5438) transcription text (inline on the
+  image, in the lines mode, in text panes; never the app's own chrome, which keeps semantic system
+  fonts) is drawn in the font setup derived for the library's script and period: Junicode for
+  medieval Latin (MUFI letters, long s), a Noto face for a script macOS lacks. Each pane's What to
+  show menu can change it, and the choice is remembered per library. It is the per-script `font`
+  fact of `source/languages-scripts-signs.md` `source.fonts.per-script` ([GAP], #5210), defaulted
+  at setup. **Today:** `GET /api/recipes/derived` names a bundled font per script
+  (`recipes/derived.py`, `FONT_SCRIPTS`), but none for Latin (`_SYSTEM_DRAWS`), with no period
+  input, and stores nothing (no `font` fact exists in the engine). Bundled, each SIL OFL 1.1 with
+  its licence text and `resources/fonts/PROVENANCE.md`: Junicode and Noto Sans Syriac (with
+  Western and Eastern), Mongolian, Coptic and Cherokee, Regular weight only
+  (`api/routes/system/fonts.py`; `source.fonts.bundled`, [PARTIAL], #5206). The inline text on the
+  image is drawn in `NSFont.systemFont` (`Regions/DocumentOverlayView.swift:351,354`), outside the
+  `BundledFonts` cascade the Inspector and labels already use.
 - `layers.colour.pane-chooses-meaning` — **[GAP]** (#5426) the pane's "What to show" menu picks
   what a box's colour means: **reading order** (the default; a smooth gradient from the first
   line in the order to the last, so a line out of order breaks the run and stands out),
@@ -386,7 +400,7 @@ window drew no boxes (`ImportedPageDrawsItsBoxesTests.swift:382-387`).
 
 ## Ruled 2026-10-04
 
-The maintainer answered this spec's six questions, and added two rulings (7 and 8); the behaviours above are written to match.
+The maintainer answered this spec's six questions, and added three rulings (7 to 9); the behaviours above are written to match.
 
 1. **Scope:** build every layer in this spec, steadily, in the slices of the Plan below.
 2. **Translation:** the text a Preview shows is chosen per pane, so several Previews can stand side
@@ -409,6 +423,9 @@ The maintainer answered this spec's six questions, and added two rulings (7 and 
 8. **One page of a spread:** Preview can show the whole photograph or just its left or right page
    by cropping the view to that page's region, with no change to records, as an alternative to
    splitting it into child documents (`layers.spread.show-one-page`).
+9. **Transcription font:** transcription text is drawn in the font setup derived for the
+   library's script and period, changeable in each pane's What to show menu and remembered per
+   library; the app's chrome keeps system fonts (`layers.text.font-from-script-and-period`).
 
 ## Plan
 
@@ -438,6 +455,7 @@ regenerated; app slices drive the real host and store, never injected services.
 | 19 | Colour means what the pane chooses | `layers.colour.pane-chooses-meaning` | — (reading order, provenance and confidence already in the read) | the menu's colour choice, stored per pane; a reading-order gradient by default | Swift pure rule: a gradient along the order, an out-of-order pair breaks it; the real host draws the default | 2, 3 (#5426) |
 | 20 | Pages of a spread found, not cut | `layers.spread.show-one-page` (engine half) | finding the pages stores each page region as a `page` segment on the photograph, with decision and confidence, and the outline as geometry; no children made | — | pytest: a proposed split stores two page regions and makes no child | — (#5427, #5382) |
 | 21 | Show one page of a spread | `layers.spread.show-one-page` (app half) | — | Whole, Left page, Right page in the pane menu when page regions exist; the crop is a view transform | Swift: the crop changes no record; boxes stay on their ink | 3, 20 (#5427) |
+| 22 | Transcription font from setup | `layers.text.font-from-script-and-period` | setup stores the derived font as the library's `font` fact per script, with a period rule (medieval Latin → Junicode); the layers read names the resolved font | inline text, lines mode and text panes draw through the resolved family and the `BundledFonts` cascade; the pane menu offers the bundled and project fonts, remembered per library | pytest: derived and stored for Latn + medieval; Swift: inline text uses the resolved family; per-library memory | 2, 3; `source.fonts.per-script` engine half (#5210) (#5438) |
 
 Order: slices 1, 2, 6, 7, 10, 11 and 20 are engine work with no dependency on each other and can run in
 parallel lanes with disjoint files; the app slices follow the read (2 → 3).
