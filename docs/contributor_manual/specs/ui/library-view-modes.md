@@ -539,6 +539,10 @@ resolved and moved; the other three's status is corrected below.
 - (#4339) Finder-style group-by in the Library sort menu; Library browsing feature
 - (#1972) Future section: image keywords, ratings and thumbs up/down curation in batch from browse/detail surfaces; issue itself says "future only".
 - (#4460) Future section: product decision on what order shift-click extends along on a spatial canvas (needs a total order); blocks canvas shift-click only.
+- (#2290) 3D UMAP/t-SNE archive landscape over the existing LanceDB embeddings as one more spatial view-mode; product vision, not current work.
 
 ## Triaged from the backlog (2026-10-04)
 - `library.inspector-scales-to-50k` — **[GAP]** (#1790) Opening the inspector on a large folder (50k+ images) loads entities paged and non-blocking with a real loading state.
+- `library.input.type-select` — **[GAP]** (#3689) list, table, grid and search-result rows support type-to-jump alongside arrows, Return to open and space to select (arrow navigation itself is library.input.keyboard-grammar-is-explicit-per-mode).
+- `library.input.one-grammar-every-mode` — **[GAP]** (#4412) list, icons, columns, table, canvas, 3D and graph answer shortcuts, click/modifier selection and trackpad gestures the same way, pinned by one matrix test.
+- `library.perf.page-click-never-stalls-main` — **[PARTIAL]** (#4574) clicking between PDF pages never blocks the main thread over ~1s and a superseded load costs nothing; cancel-superseded and single-flight images landed (31c6756f1, 7a189c2b0) but the latest baseline worst is 1860 ms.

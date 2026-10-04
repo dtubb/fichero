@@ -440,3 +440,6 @@ Moved on 2026-10-04: the two key behaviours to `ai/ai-settings.md` ("Keys a runt
   bundled, in-process Kraken (42a95db93).
 - `harness/engine-startup-lifecycle.md`: `engine.bundle-trim-litellm` is moot; the litellm package
   is gone and prices come from the vendored JSON.
+
+## Future (ideas, not scheduled)
+- (#2585) How the engine talks to optional plugin packs (MLX/OpenCV/KG): three mechanisms, try to drop OpenCV via Core Image/Vision; design note for a future plugin split.

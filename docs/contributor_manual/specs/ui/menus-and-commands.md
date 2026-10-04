@@ -578,9 +578,11 @@ built and pinned by an EXTENDED existing test. Ready for the CD's review; not ye
 
 ## Future (ideas, not scheduled)
 - (#1872) Edit toggle, overflow menu and up/down result navigation in toolbars (Apple Passwords style)
+- (#3289) On-device FoundationModels client reusing the fm-bridge JSON contract and Vision OCR at capture on iOS; MLX deferred; later iOS work.
 
 ## Triaged from the backlog (2026-10-04)
 - `commands.copy-cut-paste-everywhere` — **[GAP]** (#4257) Copy, cut and paste work on whatever is focused with the richest pasteboard types.
 - `commands.smart-paste` — **[GAP]** (#4258) Paste inspects the pasteboard: file URL imports, web URL offers capture, image data creates an image node.
 - `commands.every-control-has-help` — **[GAP]** (#4163) every toolbar item, button and icon control carries a .help tooltip, enforced by a guard script so new controls cannot ship without one.
-- `commands.pane-focus-navigation` — **[GAP]** (#4165) focus moves between sidebar, library, Preview, Reader and Inspector by keyboard, and every feature has a documented, conflict-free shortcut.
+- `commands.pane-focus-navigation` — **[GAP]** (#3686, #4165) focus moves between sidebar, library, Preview, Reader and Inspector by keyboard, and every feature has a documented, conflict-free shortcut.
+- `menus.shortcuts-complete-and-discoverable` — **[GAP]** (#3687) every navigation and common action has a menu-bar key equivalent so shortcuts are discoverable from the menus, with no conflicts.

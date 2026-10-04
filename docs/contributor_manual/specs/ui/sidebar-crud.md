@@ -229,6 +229,10 @@ NOT this PR.
 - `sidebar.no-bottom-entity-activity-workflow-sections` — **[GAP]** (#4102) the sidebar no longer renders the bottom Activity/Entities/Workflows/Automations sections; libraries are listed as their own separate section.
 - `launch.prunes-rejected-saved-library` — **[GAP]** (#4239) a saved library path the engine definitively rejects (403 roots) is pruned from the saved list and never retried in a session; UI-test libraries never persist into real preferences.
 - `sidebar.row-heights-agree` — **[GAP]** (#4476) library rows and item rows reach the same height by one mechanism (today 2pt apart via two), per the 2026-08-02 decision document.
+- `read.expand.streams-in-place-with-trailing-spinner` — **[GAP]** (#4564) opening a folder adds children in place with no entry animation, while a spinner shows at the trailing edge of the folder's own row (today it replaces the leading icon, SidebarRowLabelCore.swift:104).
+- `read.keyboard.arrow-descends-into-library-header` — **[GAP]** (#4566) down and right arrow move from a selected library header into its children, without swallowing all arrows via onMoveCommand (#560).
+- `read.keyboard.option-arrow-expands-collapses-subtree` — **[GAP]** (#4567) option-right expands and option-left collapses a row and all descendants, for every selected row (click versions exist: sidebarExpandSubtree/sidebarCollapseSubtree, keyboard not bound).
+- `read.selection.modifier-click-on-any-row-name` — **[GAP]** (#4571) cmd/shift/option-click on the NAME extends selection for page (leaf) rows and the library header too, and shift-click above the anchor ranges upward; disclosure rows are fixed (22424f614).
 
 ## Future (ideas, not scheduled)
 - (#1380) Mail-style sidebar: counts, multi-select combined view, favorites section, smart All groups

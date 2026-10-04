@@ -398,6 +398,8 @@ recommendation for which one carries the work.
 - `reader.page.selected-page-scope` — **[GAP]** (#4559) selecting one page of a PDF shows that page in breadcrumb, preview and Reader, and the Reader lists only that page, not the whole document transcript.
 - `reader.content-always-present` — **[GAP]** (#1445) Every page always shows a Content area (empty placeholder, never 'No transcript') and it refreshes live after Transcribe; same root cause as #5077.
 - `reader.webcontent-gpu-crash-free-switching` — **[GAP]** (#1615) Switching documents or folders never kills the WebKit GPU process; recovery exists (06a32b50a) but the cause is unproven.
+- `reader.ios.page-fills-pane` — **[GAP]** (#2497) on iPhone the reader page fits the available width with minimal margin, and double-tapping an icon in the library opens the preview (single tap selects).
+- `reader.keyboard.navigate-without-mouse` — **[GAP]** (#3688) in the Reader, keys move between pages, jump by paragraph, move focus between entities/claims and trigger source-reveal, wrapping the WebKit content.
 
 ## Future (ideas, not scheduled)
 - (#973) Book-native page numbers and chapter markers for book-shaped sources; backend detection feature, no current spec owner

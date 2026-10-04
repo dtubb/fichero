@@ -1651,6 +1651,8 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - `panes.location-bar-canonical` — **[GAP]** (#3405) The top location bar is the one clickable breadcrumb, shows human page names (never import filenames), and is Liquid Glass styled.
 - `panes.focus.active-pane-ring` — **[GAP]** (#3406) focusing a split pane briefly shows a focus ring and the top location bar and the sidebar-selection target follow the active pane, with no backend churn.
 - `panes.builtin.every-workspace-renders-in-ci` — **[GAP]** (#4670) a test renders each built-in workspace at a small fixed size and fails on a cyclic or unsatisfiable layout, proven by a deliberately cyclic fixture.
+- `shell.no-appkit-progressview-layout-fault` — **[GAP]** (#3354, #3382) launch and library use log no 'AppKitProgressView maximum length ... min <= max' fault; no indeterminate ProgressView sits in a fixed-size frame (SidebarRowLabelCore.swift:105-151 still does), guarded by ProgressViewUsageTests.
+- `panes.selection.one-vocabulary-across-surfaces` — **[GAP]** (#4563) the toolbar island, sidebar and bottom bar agree on the selection (no singular 'Page 1' for a multi-selection) and the Library shows a sidebar multi-selection as selected; the sidebar platter half is built.
 
 ## Future (ideas, not scheduled)
 - (#1640) Library and reading-surface toolbars compress when narrow like the inspector mini-toolbar (Reader uses ViewThatFits; Library does not)
