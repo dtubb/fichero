@@ -147,23 +147,23 @@ final class ConversionStatusStore {
         }
     }
 
-    static func snapshot(_ s: Components.Schemas.ConversionStatus) -> ConversionSnapshot {
+    static func snapshot(_ status: Components.Schemas.ConversionStatus) -> ConversionSnapshot {
         ConversionSnapshot(
-            running: s.running,
-            runId: s.runId,
-            verdict: s.verdict,
-            seconds: s.seconds,
-            pagesConverted: s.pagesConverted ?? 0,
-            pagesSkipped: s.pagesSkipped ?? 0,
-            pagesNotConverted: (s.pagesNotConverted ?? []).map { .init(documentId: $0.documentId, reason: $0.reason) },
-            pagesRemaining: s.pagesRemaining ?? 0,
-            snapshotPath: s.snapshotPath,
-            diskRequiredBytes: s.diskRequiredBytes,
-            diskAvailableBytes: s.diskAvailableBytes,
-            leftAsTheyWere: (s.leftAsTheyWere ?? []).map {
+            running: status.running,
+            runId: status.runId,
+            verdict: status.verdict,
+            seconds: status.seconds,
+            pagesConverted: status.pagesConverted ?? 0,
+            pagesSkipped: status.pagesSkipped ?? 0,
+            pagesNotConverted: (status.pagesNotConverted ?? []).map { .init(documentId: $0.documentId, reason: $0.reason) },
+            pagesRemaining: status.pagesRemaining ?? 0,
+            snapshotPath: status.snapshotPath,
+            diskRequiredBytes: status.diskRequiredBytes,
+            diskAvailableBytes: status.diskAvailableBytes,
+            leftAsTheyWere: (status.leftAsTheyWere ?? []).map {
                 .init(artifactType: $0.artifactType, count: $0.count, reason: $0.reason)
             },
-            seen: s.seen ?? false
+            seen: status.seen ?? false
         )
     }
 }
