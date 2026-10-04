@@ -986,7 +986,7 @@ math, not a mounted pane" lesson.
 > coordinates; unlinking is in the same menu. This settles the design of the maintainer's
 > earlier "drag to connect" proposal (`panes.library.drag-to-connect`, rulings of 2026-09-19).
 > The breadcrumb shows only on a pinned pane, where it says something the window toolbar does
-> not. This section also answers this spec's open question "Sync granularity" (a per-pair link).
+> not. This section also answers this spec's open question "Sync granularity" (a link group).
 >
 > **Before and after, a Preview head (the maintainer's example).** Before, an unpinned Preview
 > head reads `[more] [close] [kind ▾] [↑ ‹ 1/2 ›] [paderov-mm10 › 00000013.jpg] [edit] [zoom] [pin]`
@@ -1042,13 +1042,15 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   `PreviewPanePin`, `ContentView+DetailLayout.swift:666-690`; a second, separate PDF pin,
   `PDFPageWithToolbar.swift:69-74`; the Reader, `ReadingPaneView.swift:179-183`; Chat).
 - `panes.link.from-the-pane-menu` — **[GAP]** (#5436, #4881) choosing Link… in one pane's menu and
-  then clicking another pane links the two; both take the same light tint (#4666), distinct from
-  any other linked pair's; Unlink in either pane's menu breaks it. A link is stored in the pane
-  list with the two pane ids, so a saved workspace keeps it. Prerequisite:
+  then clicking another pane adds it to that pane's link group; every pane in a group takes the
+  group's light tint (#4666), distinct from any other group's; Unlink in a pane's menu takes that
+  pane out of its group. A group is stored in the pane list with its pane ids, so a saved
+  workspace keeps it. Prerequisite:
   `panes.model.per-pane-scope-and-kind-unread` (#4887): `PaneScope` (`PaneList.swift:54`) is stored
   and every live read discards it (`ContentView+PaneSpecs.swift:198,351`).
 - `panes.link.follow-in-page-coordinates` — **[GAP]** (#5436, #4726) linked panes follow each
-  other's zoom, position and page, expressed in page coordinates, so an image, a crop of it (one
+  other's zoom, position and page, expressed in page coordinates (one kind of link: a group
+  shares whatever its panes can, and a Library in the group shares its selection), so an image, a crop of it (one
   page of a spread, `layers-on-the-source.md` `layers.spread.show-one-page`), a translation of it
   and a canvas card of it stay on the same spot. Today no zoom, position or page sync exists;
   the image keeps position image-normalised (`Models/PreviewImageGeometry.swift:18-20`), PDF and
@@ -1066,29 +1068,33 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
 | 1 | Pin in the pane list | `panes.pin.in-the-pane-list` | every kind reads `PaneScope.isPinned`; the PDF's second pin removed | Swift: pin round-trips through the list; one pin per pane | #4887 (`PaneScope` read) |
 | 2 | Breadcrumb only when pinned | `panes.chrome.breadcrumb-only-when-pinned` | `PaneHead` hides the breadcrumb capsule unless pinned | Swift: unpinned head has no crumb, pinned has | 1 |
 | 3 | The pane menu | `panes.chrome.one-pane-menu` | `PaneChromeMenu` becomes the full menu; the head's right-click opens it; entries per kind | Swift: every head mounts it, same order per kind; click-around: split and close from it | — |
-| 4 | Heads slimmed | `panes.chrome.head-keeps-only-what-moves` | the moved controls leave the heads and the PDF footer; the overflow retires; What to show leaves the footer | Swift guardrail: a head mounts only its listed controls; the a11y ids still reach the menu entries | 3 |
-| 5 | Link and unlink | `panes.link.from-the-pane-menu` | a link pair in the pane list; Link… pick mode; tint per pair | Swift: link stored and saved with a workspace; click-around: link, see tint, unlink | 3, #4887 |
+| 4 | Heads slimmed | `panes.chrome.head-keeps-only-what-moves`, `panes.chrome.head-floats-or-is-a-row`, `panes.chrome.footer-only-for-list-actions` | the moved controls leave the heads and the PDF footer; the overflow retires; What to show leaves the footer | Swift guardrail: a head mounts only its listed controls; the a11y ids still reach the menu entries | 3 |
+| 5 | Link and unlink | `panes.link.from-the-pane-menu` | a link group in the pane list; Link… pick mode; tint per group; selection shared within a group | Swift: link stored and saved with a workspace; click-around: link, see tint, unlink | 3, #4887 |
 | 6 | Follow in page coordinates | `panes.link.follow-in-page-coordinates` | one page-coordinate mapping per kind (image, crop, PDF, Reader page, canvas card); linked panes publish and apply zoom, position, page | Swift pure: page point round-trips image ↔ crop ↔ canvas; click-around: zoom one, the other follows | 5 |
 | 7 | Magnifier follows | `panes.link.magnifier-follows` | the magnifier's point and zoom published in page coordinates; each pane draws its own strip placement | Swift: the other strip shows the same page spot | 6, #4725 (per-pane magnifier), #5411 (strip direction) |
 
-**Open questions (pane chrome), for the maintainer:**
+**Ruled 2026-10-04 (the four pane-chrome questions; the maintainer took each recommendation):**
 
-1. **Where do the controls left on a head live?** (a) a thin head row, as today but shorter;
-   (b) a light overlay floating over the content that fades when the pointer is idle and returns
-   on movement; (c) floating over image-like content (Preview, canvas), where covering a corner is
-   harmless, and a row on list and text panes (Library, Reader), where it would cover the first
-   row. **Recommend (c).**
-2. **Is a link a pair or a group?** (a) pairs only; (b) a group: Link… adds a pane to the other's
-   group and all share one tint, so image, transcription and translation can move together.
-   **Recommend (b):** the three-Preview layout of `layers-on-the-source.md` needs three panes in
-   step.
-3. **One kind of link, or two?** (a) one link: each pair follows whatever it can share (a Library
-   and a Preview share the selected source; two page surfaces share zoom, position, page and
-   magnifier); (b) two separate links, "source" and "view". **Recommend (a):** one Link… entry,
-   nothing to choose.
-4. **Footers.** (a) remove every pane footer and put its actions in the pane menu; (b) keep a
-   footer only where it carries a list's own actions (the Library's add, Chat's new chat), built on
-   the one shared component (#4880). **Recommend (b).**
+1. **Where head controls live:** over image-like panes (Preview, canvas) they float over the
+   content and fade when the pointer is idle; on list and text panes (Library, Reader) they are a
+   thin row (`panes.chrome.head-floats-or-is-a-row`).
+2. **Links are groups:** Link… adds a pane to the other pane's group, and the whole group shares
+   one tint (`panes.link.from-the-pane-menu`).
+3. **One kind of link:** a group shares whatever its panes can share: zoom, position, page,
+   magnifier and selection (`panes.link.follow-in-page-coordinates`).
+4. **Footers:** a pane has a footer only where a list has its own actions (the Library's add,
+   Chat's new chat), built on the one shared component; every other footer is removed
+   (`panes.chrome.footer-only-for-list-actions`).
+
+- `panes.chrome.head-floats-or-is-a-row` — **[GAP]** (#5435) on Preview and canvas panes the head's
+  remaining controls float over the content as a light overlay that fades when the pointer is
+  idle and returns when it moves; on Library and Reader panes they are a thin row above the
+  content. Today every head is a floating glass capsule bar 40 points high over a reserved row
+  (`PaneHead.swift`, `PaneHeadMetrics` :495-512).
+- `panes.chrome.footer-only-for-list-actions` — **[GAP]** (#5435, #4880) a footer appears only on a
+  pane whose list has its own actions (Library: add; Chat: new chat), built on the one shared
+  component; Preview's quiet bar (image and PDF) and every other footer are removed, their
+  entries living in the pane menu.
 
 ## Known bugs to fix (already observed by the creative director)
 
@@ -1480,7 +1486,7 @@ workspaces store a `PaneList`, the window is *always* a `PaneList`, the Bool-vis
   subject pickers surface the full set — and are there types beyond the current enum the
   creative director wants (objects, works, dates-as-subjects)? (Ties `kg-interactions`
   claim-richness.)
-- **Sync granularity.** (ANSWERED 2026-10-04 in section G: a per-pair link, `panes.link.*`.) Is magnifier sync a per-window toggle, a per-pair binding, or a
+- **Sync granularity.** (ANSWERED 2026-10-04 in section G: a link group, `panes.link.*`.) Is magnifier sync a per-window toggle, a per-pair binding, or a
   per-pane opt-in?
 - **Workspace scope.** Does a saved workspace capture a live selection (these four people)
   or only the pane layout, rehydrating selection from context?
