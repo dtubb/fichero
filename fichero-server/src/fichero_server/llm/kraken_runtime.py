@@ -975,7 +975,47 @@ def recognize_to_geometry(
     )
 
 
+def train_recognition(argv: list[str], out: Path, *, on_batch: Callable[[], None],
+                      on_epoch_end: Callable[[int], None]) -> None:
+    """Train a recognition model in this process: `ketos <argv>`, with two callbacks (after each
+    batch, after each epoch: what the caller uses to hold or stop the run) and a `last.ckpt`
+    written in `out` at every epoch's end, which `--resume` carries on from.
+
+    Not under `_INFERENCE_LOCK`: training runs for hours and steps aside at a batch boundary for a
+    page a person waits for, which needs that lock; it runs as a job on the local-model lane, so
+    no other heavy model loads beside it."""
+    import kraken.train as kraken_train
+    from kraken.ketos import cli
+    from kraken.ketos.recognition import train
+    from lightning.pytorch.callbacks import Callback, ModelCheckpoint
+
+    class _Callbacks(Callback):
+        def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+            on_batch()
+
+        def on_train_epoch_end(self, trainer, pl_module):
+            on_epoch_end(int(trainer.current_epoch))
+
+    plain = kraken_train.KrakenTrainer
+
+    class _Trainer(plain):
+        def __init__(self, *args, callbacks=None, **kwargs):
+            # Unmonitored, top 1: the newest epoch, always `last.ckpt` (Kraken's own checkpoints keep
+            # the ten best by score, so the newest epoch's file can be pruned).
+            last = ModelCheckpoint(dirpath=out, filename="last", monitor=None, save_top_k=1,
+                                   enable_version_counter=False)
+            super().__init__(*args, callbacks=[*(callbacks or []), _Callbacks(), last], **kwargs)
+
+    cli.add_command(train, name="train")  # the bundled app may carry no entry-point metadata
+    kraken_train.KrakenTrainer = _Trainer
+    try:
+        cli.main(args=argv, prog_name="ketos", standalone_mode=False)
+    finally:
+        kraken_train.KrakenTrainer = plain
+
+
 __all__ = [
+    "train_recognition",
     "release_resident_models",
     "KRAKEN_RECOGNITION_MODELS",
     "TRAINED_READER_PREFIX",

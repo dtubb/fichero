@@ -184,36 +184,11 @@ def ketos_args(request: TrainKrakenHereRequest, data: Path, out: Path, *, base_f
 
 
 def train_in_process(argv: list[str], out: Path, gentle: Gentle) -> None:
-    """Run `ketos <argv>` here, with the gentle callback and an end-of-epoch `last.ckpt` added."""
-    import kraken.train as kraken_train
-    from kraken.ketos import cli
-    from kraken.ketos.recognition import train
-    from lightning.pytorch.callbacks import Callback, ModelCheckpoint
+    """Run `ketos <argv>` here, through the Kraken seam, with the gentle callbacks and an
+    end-of-epoch `last.ckpt` added."""
+    from fichero_server.llm.kraken_runtime import train_recognition
 
-    class _GentleCallback(Callback):
-        def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-            gentle.on_batch()
-
-        def on_train_epoch_end(self, trainer, pl_module):
-            gentle.on_epoch_end(int(trainer.current_epoch))
-
-    plain = kraken_train.KrakenTrainer
-
-    class _Trainer(plain):
-        def __init__(self, *args, callbacks=None, **kwargs):
-            # Unmonitored, top 1: the newest epoch, always `last.ckpt` (Kraken's own checkpoints keep
-            # the ten best by score, so the newest epoch's file can be pruned).
-            last = ModelCheckpoint(dirpath=out, filename="last", monitor=None, save_top_k=1,
-                                   enable_version_counter=False)
-            extra = [_GentleCallback(), last]
-            super().__init__(*args, callbacks=[*(callbacks or []), *extra], **kwargs)
-
-    cli.add_command(train, name="train")  # the bundled app may carry no entry-point metadata
-    kraken_train.KrakenTrainer = _Trainer
-    try:
-        cli.main(args=argv, prog_name="ketos", standalone_mode=False)
-    finally:
-        kraken_train.KrakenTrainer = plain
+    train_recognition(argv, out, on_batch=gentle.on_batch, on_epoch_end=gentle.on_epoch_end)
 
 
 #: The trainer the job calls (tests put a fake here).
