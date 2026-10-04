@@ -14,7 +14,6 @@ import asyncio
 import json
 import time
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -38,11 +37,16 @@ class CheckRunRequest(BaseModel):
                                    "page's newest.")
 
 
-def _row(db: Any, job_id: str) -> tuple[str, dict[str, Any]]:
-    row = db.execute_fetchone("SELECT state, detail FROM jobs WHERE id = ? AND kind = ?", [job_id, KIND])
-    if row is None:
+def _job(db: Any, job_id: str) -> dict[str, Any]:
+    row = jobs.read_job(db, job_id)
+    if row is None or row["kind"] != KIND:
         raise LookupError(f"no check run {job_id}")
-    return row[0], json.loads(row[1] or "{}")
+    return row
+
+
+def _row(db: Any, job_id: str) -> tuple[str, dict[str, Any]]:
+    row = _job(db, job_id)
+    return row["state"], json.loads(row["detail"] or "{}")
 
 
 def start(db: Any, request: CheckRunRequest, *, started_by: str) -> dict[str, str]:
@@ -134,16 +138,17 @@ async def _check(db: Any, job_id: str, request: CheckRunRequest, started_by: str
 
 
 def run(db: Any, subject: str) -> dict[str, Any]:
-    job_id = db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ?", [KIND, subject])[0]
-    _state, detail = _row(db, job_id)
+    job_id = jobs.job_id_for(db, KIND, subject)
+    row = _job(db, job_id)
+    detail = json.loads(row["detail"] or "{}")
     request = CheckRunRequest(**detail["request"])
-    started_by = db.execute_fetchone("SELECT started_by FROM jobs WHERE id = ?", [job_id])[0] or "owner"
-    db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [f"Checking {request.layer} with {request.model}", job_id])
+    started_by = row["started_by"] or "owner"
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=f"Checking {request.layer} with {request.model}")
     result = asyncio.run(_check(db, job_id, request, started_by))
     _state, detail = _row(db, job_id)
     detail["result"] = result
     words = _words(result["counts"])
-    db.execute("UPDATE jobs SET detail = ?, reason = ? WHERE id = ?", [json.dumps(detail), words, job_id])
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
     if result["stopped"]:
         raise jobs.JobCancelled(f"Stopped by you; {words}")
     return result
@@ -152,20 +157,19 @@ def run(db: Any, subject: str) -> dict[str, Any]:
 def request_cancel(db: Any, job_id: str) -> str:
     state, detail = _row(db, job_id)
     if state == "waiting":
-        db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
-                   "WHERE id = ? AND state = 'waiting'", [datetime.now(timezone.utc), job_id])
+        jobs.cancel_waiting(db, job_id)
         return "cancelled"
     if state == "running":
         detail["cancel"] = True
-        db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
+        jobs.save_detail(db, job_id, json.dumps(detail))
     return state
 
 
 def status(db: Any, job_id: str) -> dict[str, Any]:
-    state, detail = _row(db, job_id)
-    reason = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id])[0]
+    row = _job(db, job_id)
+    detail = json.loads(row["detail"] or "{}")
     result = detail.get("result") or {}
-    return {"job_id": job_id, "state": state, "reason": reason, "request": detail.get("request"),
+    return {"job_id": job_id, "state": row["state"], "reason": row["reason"], "request": detail.get("request"),
             "counts": result.get("counts", dict.fromkeys(COUNTS, 0)), "proposals": result.get("proposals"),
             "missing": result.get("missing", [])}
 

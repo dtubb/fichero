@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -31,11 +30,16 @@ class GatherReasonsRequest(BaseModel):
     prompt_file: str | None = Field(None, description="The recipe's prompt file; none uses Fichero's own.")
 
 
-def _row(db: Any, job_id: str, kind: str = KIND) -> tuple[str, dict[str, Any]]:
-    row = db.execute_fetchone("SELECT state, detail FROM jobs WHERE id = ? AND kind = ?", [job_id, kind])
-    if row is None:
+def _job(db: Any, job_id: str, kind: str = KIND) -> dict[str, Any]:
+    row = jobs.read_job(db, job_id)
+    if row is None or row["kind"] != kind:
         raise LookupError(f"no {kind} job {job_id}")
-    return row[0], json.loads(row[1] or "{}")
+    return row
+
+
+def _row(db: Any, job_id: str, kind: str = KIND) -> tuple[str, dict[str, Any]]:
+    row = _job(db, job_id, kind)
+    return row["state"], json.loads(row["detail"] or "{}")
 
 
 def start(db: Any, request: GatherReasonsRequest, *, started_by: str) -> dict[str, str]:
@@ -52,10 +56,10 @@ def run(db: Any, subject: str) -> dict[str, Any]:
     from fichero_server.llm import LLMConfig
     from fichero_server.training.reasons import gather_reasons
 
-    job_id = db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ?", [KIND, subject])[0]
+    job_id = jobs.job_id_for(db, KIND, subject)
     _state, detail = _row(db, job_id)
     request = GatherReasonsRequest(**detail["request"])
-    db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [f"Asking {request.model} about each checked line", job_id])
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=f"Asking {request.model} about each checked line")
     done = asyncio.run(gather_reasons(
         db, scope_ids=request.scope_ids, checked=request.checked,
         config=LLMConfig(provider=request.provider, model=request.model),
@@ -64,7 +68,7 @@ def run(db: Any, subject: str) -> dict[str, Any]:
     detail["result"] = {k: v for k, v in vars(done).items()}
     words = (f"{done.reasoned} of {done.lines} lines have reasons, {done.with_thinking} with thinking; "
              f"{done.unparsed} unanswered; {len(done.missing)} pages missing")
-    db.execute("UPDATE jobs SET detail = ?, reason = ? WHERE id = ?", [json.dumps(detail), words, job_id])
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
     if done.stopped:
         raise jobs.JobCancelled(f"Stopped by you; {words}")
     return detail["result"]
@@ -73,19 +77,17 @@ def run(db: Any, subject: str) -> dict[str, Any]:
 def request_cancel(db: Any, job_id: str) -> str:
     state, detail = _row(db, job_id)
     if state == "waiting":
-        db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
-                   "WHERE id = ? AND state = 'waiting'", [datetime.now(timezone.utc), job_id])
+        jobs.cancel_waiting(db, job_id)
         return "cancelled"
     if state == "running":
         detail["cancel"] = True
-        db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
+        jobs.save_detail(db, job_id, json.dumps(detail))
     return state
 
 
 def status(db: Any, job_id: str, kind: str = KIND) -> dict[str, Any]:
-    state, detail = _row(db, job_id, kind)
-    reason = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id])[0]
-    return {"job_id": job_id, "state": state, "reason": reason, **detail}
+    row = _job(db, job_id, kind)
+    return {"job_id": job_id, "state": row["state"], "reason": row["reason"], **json.loads(row["detail"] or "{}")}
 
 
 class ContenderSpec(BaseModel):
@@ -118,10 +120,10 @@ def start_ab(db: Any, request: ReasonsABRequest, *, started_by: str) -> dict[str
 def run_ab(db: Any, subject: str) -> dict[str, Any]:
     from fichero_server.training.reasons_ab import Contender, run_ab as measure_ab
 
-    job_id = db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ?", [KIND_AB, subject])[0]
+    job_id = jobs.job_id_for(db, KIND_AB, subject)
     _state, detail = _row(db, job_id, KIND_AB)
     request = ReasonsABRequest(**detail["request"])
-    db.execute("UPDATE jobs SET reason = ? WHERE id = ?", ["Each contender reading the held-out lines", job_id])
+    jobs.save_detail(db, job_id, json.dumps(detail), reason="Each contender reading the held-out lines")
     result = asyncio.run(measure_ab(db, checked=request.checked, held_out_ids=request.held_out_ids,
                                     contenders=[Contender(**c.model_dump()) for c in request.contenders],
                                     language=request.language, noise_band=request.noise_band))
@@ -129,7 +131,7 @@ def run_ab(db: Any, subject: str) -> dict[str, Any]:
     adopted = [label for label, v in result["verdicts"].items() if v["adopted"]]
     words = (f"Adopted: {', '.join(adopted)}" if adopted else "No reasoning student beat the answer-only one "
              "beyond the noise band") + f"; written on {len(result['cards'])} cards"
-    db.execute("UPDATE jobs SET detail = ?, reason = ? WHERE id = ?", [json.dumps(detail), words, job_id])
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
     return result
 
 

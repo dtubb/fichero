@@ -136,6 +136,7 @@ TESTS_BARE_RGLOB_ALLOWED = {
     "test_auth_lazy_token.py": "looks for app.duckdb under a tmp base path",
     "test_library_sync_io.py": "asserts no .synctmp file is left in tmp_path",
     "test_unicode_library_merge_action.py": "hashes the files of a tmp library",
+    "test_training_job.py": "lists the files of the training set the test itself wrote to a tmp dir (what was sent)",
 }
 
 

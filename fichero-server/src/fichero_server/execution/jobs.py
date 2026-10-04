@@ -203,6 +203,34 @@ def requeue(db: "Database", job_id: str, *, reason: str) -> None:
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
 
 
+def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
+    """One job's row (its `detail` as stored, JSON text), or None."""
+    _ensure(db)
+    row = db.execute_fetchone(
+        "SELECT id, kind, subject, state, reason, detail, created_at, started_by FROM jobs WHERE id = ?", [job_id])
+    if row is None:
+        return None
+    return dict(zip(("id", "kind", "subject", "state", "reason", "detail", "created_at", "started_by"), row))
+
+
+def save_detail(db: "Database", job_id: str, detail: str, *, reason: str | None = None) -> None:
+    """Store a job's `detail` (JSON text) and, when given, its reason in words."""
+    db.execute("UPDATE jobs SET detail = ?, reason = COALESCE(?, reason) WHERE id = ?", [detail, reason, job_id])
+
+
+def job_id_for(db: "Database", kind: str, subject: str) -> str | None:
+    """The newest job of this kind on this subject."""
+    row = db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ? ORDER BY created_at DESC LIMIT 1",
+                              [kind, subject])
+    return row[0] if row else None
+
+
+def cancel_waiting(db: "Database", job_id: str) -> None:
+    """End a job that has not started: `cancelled`, "Stopped by you"."""
+    db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
+               "WHERE id = ? AND state IN ('waiting', 'paused')", [utc_now(), job_id])
+
+
 def enqueue_many(db: "Database", kind: str, subjects: list[str], *,
                  started_by: str = "automatic") -> list[Future]:
     """`enqueue` for many subjects in a few statements (an import queues thousands of pages

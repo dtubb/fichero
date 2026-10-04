@@ -40,6 +40,10 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "linked_document_ids", "realized_as_document_id", "library_destination_folder_id", "group_id",
         # document.group (#5303): the pages and documents gathered into a new group node.
         "child_ids",
+        # training and reading at scale (#5398, #4642): the folders or pages a run sends off this Mac
+        # or holds out as its test. Walked like any document id, so a page a person may not read is
+        # never trained on or read remotely on their say-so.
+        "scope_ids", "held_out_ids",
     )},
     # --- the page model ------------------------------------------------------------------------
     **{name: (RECORD, _SEGMENT) for name in (
@@ -62,6 +66,8 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     **{name: (RECORD, ("ContentRepresentation",)) for name in (
         "representation_id", "representation_ids", "corrects_representation_id",
         "derived_from_representation_id", "read_id", "written_id",
+        # check.verdict (#5404): a corrected reading's new reading, which names the one checked.
+        "replacement_id",
     )},
     "order_id": (RECORD, ("ReadingOrder",)),
     **{name: (RECORD, ("ReadingOrderEntry",)) for name in ("entry_id", "after_entry_id", "parent_entry_id")},
@@ -113,6 +119,8 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     "conversation_id": (LIBRARY, "a chat conversation: library-level, not document content"),
     **{name: (LIBRARY, "a saved search: library-level") for name in ("search_id", "search_ids")},
     "snapshot_id": (LIBRARY, "a storage snapshot of the whole library"),
+    # check.verdict (#5404): the ledger record of the checker's call, a JSONL line in the library package.
+    "episode_id": (LIBRARY, "an episode of the model-call ledger: a record in the library package, not a row of any document"),
 }
 
 #: Schema models that point at a document (a `document_id`, `segment_id`, `page_id`, ... field) and
@@ -120,4 +128,5 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
 LIBRARY_SCOPED_MODELS: dict[str, str] = {
     "KnowledgeClaim": _KG,
     "BookStructureNode": "a node of the book-structure outline built over many documents; its source document is where it was read from",
+    "CheckVerdict": "a checker's verdict (#5404): a dated record beside the proposal it names (`target_id`); writing one is checked through that proposal's own id, and a claim's or entity's is library-level like the KG",
 }
