@@ -64,11 +64,11 @@ KRAKEN_MODEL_PREFIX = "kraken:"
 #: Modules that register kinds, imported before the first scan so a job left waiting at quit runs
 #: after relaunch even before anything in this session enqueues one.
 _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
-                 "fichero_server.training.job")
+                 "fichero_server.training.job", "fichero_server.workflows.task_workers")
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
 #: never holds the local ML lane.
-LANES = {"local-ml": 1, "images": 2, "remote": 2}
+LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1}
 #: Finished jobs older than this are deleted when their library opens (spec open question 8).
 KEEP_FINISHED_DAYS = 30
 
@@ -165,10 +165,12 @@ def _ensure(db: "Database") -> None:
         _ENSURED.add(key)
 
 
-def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic") -> str:
+def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic",
+            detail: str | None = None) -> str:
     """Queue one job, inside the caller's transaction if it has one. A job of this kind already
     WAITING for this subject is reused: it reads its input when it runs, so it covers this change
-    too (many corrections to a page make one job). Returns the job id."""
+    too (many corrections to a page make one job). `detail` (JSON) is written with a new row.
+    Returns the job id."""
     _ensure(db)
     row = db.execute_fetchone(
         "SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state = 'waiting'", [kind, subject]
@@ -177,6 +179,8 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
         job_id = row[0]
     else:
         job_id = _insert(db, kind, subject, KINDS[kind].model if kind in KINDS else None, started_by)
+        if detail is not None:
+            db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [detail, job_id])
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return job_id
@@ -314,6 +318,9 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
             raise WorkflowCancelled(run_id)
 
 
+#: How soon the model lane looks again at a job held by the throttle.
+THROTTLE_LOOK_AGAIN_SECONDS = 5.0
+
 #: Longest the lane is held for one model call before it carries on regardless (a caller that
 #: vanished without letting go must not wedge the lane for good).
 HOLD_LIMIT_SECONDS = 900.0
@@ -403,6 +410,34 @@ def resume(db: "Database") -> None:
         _scheduler.wake(_key(db))
 
 
+def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
+    """One job's row (its `detail` as stored, JSON text), or None."""
+    _ensure(db)
+    row = db.execute_fetchone(
+        "SELECT id, kind, subject, state, reason, detail, created_at FROM jobs WHERE id = ?", [job_id])
+    if row is None:
+        return None
+    return dict(zip(("id", "kind", "subject", "state", "reason", "detail", "created_at"), row))
+
+
+def save_detail(db: "Database", job_id: str, detail: str, *, reason: str | None = None) -> None:
+    """Store a job's `detail` (JSON text) and, when given, its reason in words."""
+    db.execute("UPDATE jobs SET detail = ?, reason = COALESCE(?, reason) WHERE id = ?", [detail, reason, job_id])
+
+
+def job_id_for(db: "Database", kind: str, subject: str) -> str | None:
+    """The newest job of this kind on this subject."""
+    row = db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ? ORDER BY created_at DESC LIMIT 1",
+                              [kind, subject])
+    return row[0] if row else None
+
+
+def cancel_waiting(db: "Database", job_id: str) -> None:
+    """End a job that has not started: `cancelled`, "Stopped by you"."""
+    db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
+               "WHERE id = ? AND state IN ('waiting', 'paused')", [utc_now(), job_id])
+
+
 def _job_row(db: "Database", job_id: str) -> tuple[str, str]:
     _ensure(db)
     row = db.execute_fetchone("SELECT kind, state FROM jobs WHERE id = ?", [job_id])
@@ -445,8 +480,7 @@ def cancel_job(db: "Database", job_id: str) -> str:
         handed_in = _scheduler._attached.get(job_id)
     if handed_in is not None:
         return "cancelled" if _scheduler.withdraw(db, handed_in[1]) else "running"
-    db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
-               "WHERE id = ? AND state IN ('waiting', 'paused')", [utc_now(), job_id])
+    cancel_waiting(db, job_id)
     return "cancelled"
 
 
@@ -510,6 +544,14 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             waiting[kind] = row
             out.append(row)
     return out
+
+
+_current = threading.local()
+
+
+def current_job_id() -> str | None:
+    """The id of the job this thread is running, for a kind that reports progress on its row."""
+    return getattr(_current, "job_id", None)
 
 
 def _kraken_busy() -> bool:
@@ -687,8 +729,25 @@ class _Scheduler:
     def _claim(self, lane: _Lane) -> tuple[str, Any, tuple, Any] | None:
         """Pick the next job for this lane and mark it running, as one step among its threads."""
         with lane.pick:
-            while (picked := self._next(lane)) is not None:
+            # Heavy local work waits while the Mac needs itself (`activity.throttle.power-heat-
+            # memory`). Background jobs wait on all four signals, so while any holds, only work a
+            # person is waiting for is looked at; each held row says why, and the lane looks again.
+            held = None
+            if lane.name == "local-ml":
+                from fichero_server.execution.throttle import why_wait
+
+                held = why_wait(person_waiting=False)
+                if held:
+                    self._say_why_background_waits(lane, held)
+                    lane_look_again = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+            while (picked := self._next(lane, background=held is None)) is not None:
                 key, db, row = picked
+                if lane.name == "local-ml":
+                    reason = why_wait(person_waiting=True)  # memory and heat hold even these
+                    if reason:
+                        db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'waiting'", [reason, row[0]])
+                        lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                        return None
                 with self._lock:
                     handed_in = self._attached.pop(row[0], None)
                 if handed_in is not None and not handed_in[1].set_running_or_notify_cancel():
@@ -702,13 +761,30 @@ class _Scheduler:
                      if handed_in is not None and is_paused() else None, row[0]],
                 )
                 return key, db, row, handed_in
+            if held:
+                lane.look_again_at = lane_look_again
             return None
 
-    def _next(self, lane: _Lane) -> tuple[str, Any, tuple] | None:
+    def _say_why_background_waits(self, lane: _Lane, reason: str) -> None:
         from fichero_server.db.manager import db_manager
 
-        # Stored kinds run unless paused; handed-in work runs whenever its caller is waiting.
-        stored = [] if is_paused() else [
+        stored = [name for name, kind in KINDS.items() if kind.run is not None and kind.lane == lane.name]
+        with self._lock:
+            keys = list(lane.libraries)
+        for key in keys:
+            db = db_manager.open_database(key)
+            if db is not None and stored:
+                db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND kind IN "
+                           f"({', '.join('?' for _ in stored)}) AND reason IS DISTINCT FROM ?",
+                           [reason, *stored, reason])
+
+    def _next(self, lane: _Lane, *, background: bool = True) -> tuple[str, Any, tuple] | None:
+        from fichero_server.db.manager import db_manager
+
+        # Stored kinds run unless paused or held by the throttle; handed-in work runs whenever its
+        # caller is waiting. Only a scan that looked at every kind may forget an idle library.
+        full_scan = background and not is_paused()
+        stored = [] if not full_scan else [
             name for name, kind in KINDS.items() if kind.run is not None and kind.lane == lane.name]
         with self._lock:
             keys = list(lane.libraries)
@@ -763,8 +839,9 @@ class _Scheduler:
                 candidates.append((key, db, row))
             else:
                 idle.append(key)
-        with self._lock:
-            lane.libraries.difference_update(set(idle) - lane.rewoken)
+        if full_scan:
+            with self._lock:
+                lane.libraries.difference_update(set(idle) - lane.rewoken)
         if not candidates:
             return None
         # Across libraries the same rule: the loaded model first, then the oldest.
@@ -788,6 +865,7 @@ class _Scheduler:
                 lane.loaded_model = model
         kind.qos()
         state, reason, result, error = "done", None, None, None
+        _current.job_id = job_id
         try:
             result = handed_in[0]() if handed_in is not None else kind.run(db, subject)
         except JobCancelled as exc:
@@ -795,6 +873,8 @@ class _Scheduler:
         except Exception as exc:  # noqa: BLE001 -- recorded on the row, and handed to whoever waits
             logger.warning("job %s (%s on %s) failed: %s", job_id, kind_name, subject, exc)
             state, reason, error = "failed", str(exc) or type(exc).__name__, exc
+        finally:
+            _current.job_id = None
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
         with self._lock:

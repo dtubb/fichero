@@ -21,7 +21,7 @@ from fichero_server.workflows.tasks import (
     TaskStatus,
     BackgroundTask,
     _TASK_LIBRARY_PATH_OPTION,
-    get_task_queue,
+    job_task_queue,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,7 +156,7 @@ async def create_reindex_task(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Create a reindex task."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -189,7 +189,7 @@ async def create_metrics_task(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Create a metrics recomputation task."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -230,7 +230,7 @@ async def list_tasks(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskListResponse:
     """List background tasks."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -285,7 +285,7 @@ async def get_task(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Get task by ID."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -313,7 +313,7 @@ async def cancel_task(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Cancel a pending task."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -348,7 +348,7 @@ async def delete_task(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> None:
     """Delete a task."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -381,7 +381,7 @@ async def get_task_result(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> Optional[TaskResultResponse]:
     """Get task result."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -420,7 +420,7 @@ async def get_reindex_progress(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> ReindexResponse:
     """Get reindex task progress."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -460,7 +460,7 @@ async def get_metrics_data(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> MetricsResponse:
     """Get metrics task result data."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -559,7 +559,7 @@ async def create_reanchor_task(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Create a frame re-anchor task."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -592,7 +592,7 @@ async def create_vector_repair_task(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Create a vector repair task."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -624,7 +624,7 @@ async def create_kg_metrics_task(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Create a knowledge graph metrics task."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -656,7 +656,7 @@ async def get_vector_repair_progress(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> VectorRepairResponse:
     """Get vector repair task progress."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -697,7 +697,7 @@ async def get_kg_metrics_data(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> KGMetricsResponse:
     """Get knowledge graph metrics task result data."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,
@@ -754,7 +754,7 @@ async def get_task_system_health(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskSystemHealthResponse:
     """Get health status of the task system."""
-    queue = get_task_queue()
+    queue = job_task_queue(x_fichero_library_path)
     if not queue:
         raise HTTPException(
             status_code=503,

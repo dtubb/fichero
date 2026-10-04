@@ -99,18 +99,17 @@ def _work_dir(job_id: str) -> Path:
 
 
 def _row(db: Any, job_id: str) -> tuple[str, dict[str, Any]]:
-    row = db.execute_fetchone("SELECT state, detail FROM jobs WHERE id = ?", [job_id])
+    row = jobs.read_job(db, job_id)
     if row is None:
         raise LookupError(f"no training job {job_id}")
-    return row[0], json.loads(row[1] or "{}")
+    return row["state"], json.loads(row["detail"] or "{}")
 
 
 def _save(db: Any, job_id: str, detail: dict[str, Any], *, phase: str | None = None, reason: str | None = None) -> None:
     if phase and detail.get("phase") != phase:
         detail["phase"] = phase
         detail.setdefault("history", []).append({"phase": phase, "at": _now()})
-    db.execute("UPDATE jobs SET detail = ?, reason = COALESCE(?, reason) WHERE id = ?",
-               [json.dumps(detail), reason, job_id])
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=reason)
 
 
 def start(db: Any, request: _TrainRequest, *, started_by: str,
@@ -142,8 +141,7 @@ def request_cancel(db: Any, job_id: str) -> str:
     at its next look. Returns the row's state after the request."""
     state, detail = _row(db, job_id)
     if state == "waiting":
-        db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
-                   "WHERE id = ? AND state = 'waiting'", [datetime.now(timezone.utc), job_id])
+        jobs.cancel_waiting(db, job_id)
         return "cancelled"
     if state == "running":
         detail["cancel"] = True
@@ -153,12 +151,12 @@ def request_cancel(db: Any, job_id: str) -> str:
 
 def status(db: Any, job_id: str) -> dict[str, Any]:
     state, detail = _row(db, job_id)
-    reason = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id])[0]
+    reason = jobs.read_job(db, job_id)["reason"]
     return {"job_id": job_id, "state": state, "reason": reason, **detail}
 
 
 def _job_id_for(db: Any, subject: str) -> str:
-    return db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ?", [KIND, subject])[0]
+    return jobs.job_id_for(db, KIND, subject)
 
 
 def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[float], None] = time.sleep,

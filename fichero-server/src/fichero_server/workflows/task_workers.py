@@ -605,3 +605,85 @@ class TaskWorkersMixin:
         task.result = result
         task.status = TaskStatus.COMPLETED
         return result
+
+
+# =============================================================================
+# The six task kinds as jobs (#5353, `activity.task-queue-grows-into-jobs`)
+# =============================================================================
+#
+# The task queue (`tasks.TaskQueue`) was never started by the engine, so these workers only ever
+# ran in tests. They run now as job kinds: each task is a row in the project's `jobs` table, run
+# by the one scheduler (durable, pausable, shown in Activity), on the lane its work needs. The
+# workers themselves are unchanged; `_JobTask` is the host they expect, writing progress and the
+# result into the row's `detail` instead of the old `background_tasks` table.
+
+#: kind -> (task type, lane, model, what Activity calls it)
+TASK_JOB_KINDS = {
+    "reindex": ("local-ml", "embedder", "Reindex search"),
+    "vector_repair": ("local-ml", "embedder", "Repair search vectors"),
+    "metrics": ("database", None, "Recompute library figures"),
+    "repair": ("database", None, "Repair the library"),
+    "kg_metrics": ("database", None, "Recompute knowledge-graph figures"),
+    "reanchor": ("database", None, "Check page shapes against their images"),
+}
+
+
+class _JobTask(TaskWorkersMixin):
+    """The host the workers expect, when a task runs as a job: its row is the record."""
+
+    def __init__(self, db, job_id: str):
+        self.database = db
+        self.job_id = job_id
+
+    async def _save_task(self, task: BackgroundTask) -> None:
+        import json
+
+        from fichero_server.execution import jobs
+
+        detail = {
+            "name": task.name,
+            "options": task.config.options,
+            "progress": task.progress.to_dict(),
+            "result": task.result.to_dict() if task.result else None,
+        }
+        await asyncio.to_thread(jobs.save_detail, self.database, self.job_id,
+                                json.dumps(detail, default=str), reason=task.progress.message or None)
+
+    def _emit_task_change(self, task: BackgroundTask, change_type: str) -> None:
+        return None  # the job row is the record; Activity reads it
+
+
+def _run_task_job(task_type_value: str, db, subject: str) -> dict:
+    import json
+
+    from fichero_server.execution import jobs
+
+    from .task_types import TaskConfig, TaskType
+
+    job_id = jobs.current_job_id()
+    row = jobs.read_job(db, job_id)
+    detail = json.loads(row["detail"] or "{}") if row else {}
+    task_type = TaskType(task_type_value)
+    task = BackgroundTask(
+        task_id=job_id, task_type=task_type, name=detail.get("name") or TASK_JOB_KINDS[task_type_value][2],
+        status=TaskStatus.RUNNING, config=TaskConfig(task_type=task_type, options=detail.get("options") or {}),
+        started_at=utc_now(),
+    )
+    host = _JobTask(db, job_id)
+    result = asyncio.run(getattr(host, f"_do_{task_type_value}")(task))
+    task.result = result
+    asyncio.run(host._save_task(task))
+    if not result.success:
+        raise RuntimeError(result.error or result.message)
+    return result.to_dict()
+
+
+def register_job_kinds() -> None:
+    """Called by the scheduler before its first scan (`execution.jobs._KIND_MODULES`), and by the
+    task routes before they queue one."""
+    from fichero_server.execution import jobs
+
+    for kind, (lane, model, name) in TASK_JOB_KINDS.items():
+        if kind not in jobs.KINDS:
+            jobs.register_kind(kind, lambda db, subject, kind=kind: _run_task_job(kind, db, subject),
+                               model=model, lane=lane, name=name)
