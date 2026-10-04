@@ -409,3 +409,6 @@ closed by this pass — every "already built" finding was posted as GitHub-comme
 **Net effect:** #110 dropped from 13 open to 0 and is now CLOSED. #318
 (engine-startup-lifecycle) holds all 15 of its open issues (the 13 folded in, plus #4874/#4875
 filed during Pass 1) — none closed, none recommended for closure by this pass.
+
+## Triaged from the backlog (2026-10-04)
+- `engine.llm-no-local-inference-mlx-cycle` — **[GAP]** (#4080) llm/local_inference.py and llm/mlx_model_store.py do not import each other (still mutual lazy imports at local_inference.py:119,636 and mlx_model_store.py:216), with a cold-import test.

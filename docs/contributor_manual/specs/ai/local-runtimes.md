@@ -443,3 +443,7 @@ Moved on 2026-10-04: the two key behaviours to `ai/ai-settings.md` ("Keys a runt
 
 ## Future (ideas, not scheduled)
 - (#2585) How the engine talks to optional plugin packs (MLX/OpenCV/KG): three mechanisms, try to drop OpenCV via Core Image/Vision; design note for a future plugin split.
+- (#1146) Embedding mlx-swift/MLXVLM for in-app local Qwen3-VL/Nanonets OCR; no package integration exists; model-integration wish, local runtimes Future section.
+
+## Triaged from the backlog (2026-10-04)
+- `runtime.apple-intelligence-prewarm` — **[GAP]** (#853) the Apple Intelligence runtime is prewarmed at engine start so the first workflow run is not cold (contentTagging already shipped at fichero-server/bin/fm-bridge/FmBridge.swift:403; prewarm absent).

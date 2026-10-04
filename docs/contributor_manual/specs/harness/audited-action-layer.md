@@ -435,3 +435,4 @@ Design content carried into this spec; files kept, not moved:
 
 ## Triaged from the backlog (2026-10-04)
 - `audit.research-source-actions` — **[GAP]** (#4435) the research source-create and browser-save mutations are audited actions with an inverse (`_invert_source_to_delete`), so they are undoable, not just logged.
+- `actions.no-residual-direct-mutations` — **[GAP]** (#4084) a generated audit lists every handler that mutates outside a registered action with ChangeSpec and inverse (or a stated non-invertible reason).

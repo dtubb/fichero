@@ -169,3 +169,7 @@ document is deliberate. `SourceAnchor.document_id` stays required.
 
 ## Triaged from the backlog (2026-10-04)
 - `contract.no-interpolated-api-paths` — **[GAP]** (#4526) the ~60 interpolated "/api/..." strings sent through requestData in EntityService+* and ImageEditingService are replaced by generated typed operations.
+- `contract.endpoint-ownership-decided` — **[GAP]** (#3759) GET /api/registry/open, /api/storage/debug/{doc_id} and /api/workflow-execution/stream/{thread_id} each have a recorded owner: Swift-wired or engine/CLI-only.
+
+## Future (ideas, not scheduled)
+- (#4680) SearchMatchSource.kg identifier_name rename would defeat the graph-attribution wire guardrail; keep as lint exemption, not current work.

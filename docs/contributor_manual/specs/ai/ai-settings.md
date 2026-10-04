@@ -981,6 +981,7 @@ Settings reuses the row; land subtractively. Ready for CD review, not yet code.
 
 ## Triaged from the backlog (2026-10-04)
 - `models.curated-catalog-clean-licences` — **[GAP]** (#4611) Chandra-OCR and Nanonets-OCR are removed from MANAGED_MLX_MODELS (both still present at mlx_model_store.py:111,125).
+- `settings.local-only-mode` — **[GAP]** (#2063) a global local-only switch in Settings and a visible indicator; the engine already refuses cloud calls under FICHERO_LOCAL_ONLY (llm/__init__.py:1166 enforce_local_only_provider) but no app toggle or indicator exists.
 
 ## Future (ideas, not scheduled)
 - (#4177) Per-provider smoke tests across Apple Intelligence, MLX and online providers through the one provider interface.

@@ -1664,3 +1664,11 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - (#4045) Detach chat into its own window and save/restore a workspace window's zone layout.
 - (#4168) Extend drag-out/drop-in (real file + RTF + text) to every object type: entities, claims, artifacts, notes, workflows, results.
 - (#4170) Draggable proxy icons in every window title bar and breadcrumb, with Finder-style path menu.
+- (#2320) visionOS port epic; no visionOS destination exists (SUPPORTED_PLATFORMS is iphoneos/macosx only); product vision.
+- (#2321) Add visionOS destination to the target; part of the visionOS vision, not scheduled.
+- (#2322) visionOS compile-clean pass; depends on the unscheduled visionOS target.
+- (#2323) visionOS remote-only engine + pairing reuse of iOS path; future.
+- (#2324) visionOS spatial reading surface (windows, ornaments); future.
+- (#2325) Volumetric KG in a RealityKit volume on visionOS; future.
+- (#2398) ARKit/immersive Spaces view placing documents on walls and floor; vision.
+- (#2426) Pin a document preview to a wall in ARKit (Vision Pro, iPhone); vision.

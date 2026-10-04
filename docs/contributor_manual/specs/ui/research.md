@@ -504,3 +504,5 @@ Design content carried into this spec; files kept, listed here per program instr
 
 ## Future (ideas, not scheduled)
 - (#2081) Library node model: prototypes, aliases and entities-as-nodes (Tinderbox-for-archives); canonical for cluster
+- (#2291) In-app agent operating Projects/Milestones/Tasks from chat; agent-surface vision, not current work.
+- (#2314) Three chat modes (Simple/RAG/Agent) with an on-device router; chat-surface nice-to-have.

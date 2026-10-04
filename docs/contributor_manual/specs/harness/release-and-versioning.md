@@ -215,7 +215,7 @@ evidence backs.
   `PRODUCT_BUNDLE_IDENTIFIER` (`app.fichero.fichero`) today. PARTIAL, not OK: correct today, but
   nothing would catch it silently going stale if the bundle id ever changes for any channel or
   variant — no guardrail compares the two.
-- `release.update.an-update-is-proven-to-install-before-publishing` — **[GAP]** (#4901) no
+- `release.update.an-update-is-proven-to-install-before-publishing` — **[GAP]** (#2582, #4901) no
   end-to-end check exists anywhere that an older installed build can actually update itself to
   the new DMG before that DMG is published. A real machine running an old build, attempting the
   live update, and confirming the new version launches is the genuine end-to-end proof and is
@@ -265,3 +265,10 @@ evidence backs.
 ## Triaged from the backlog (2026-10-04)
 - `release.license-hygiene` — **[GAP]** (#4610) zeroconf LGPL, pillow-heif codec wheels, PythonKit branch pin, undeclared whisper and the NOTICE inventory are resolved so the SBOM is accurate.
 - `release.dmg-container-signed` — **[GAP]** (#4704) release-all codesigns the DMG with the Developer ID Application identity before notarization so spctl accepts the disk image.
+- `release.lane.github-before-testflight` — **[GAP]** (#4272) the GitHub release (tag, notes, DMG, appcast) publishes as soon as the DMG staples, before the App Store/TestFlight leg (release-all.sh:802 still runs it last).
+- `release.gate.ready-for-first-real-user` — **[GAP]** (#4421) the Ann gate checklist (no data loss, no 'what on earth' moments, ...) is a named release gate with its evidence.
+- `release.update.announces-in-app-not-a-window` — **[GAP]** (#4433) an available update shows as a quiet in-app indicator, never a modal over the user's work (SparkleUpdater.swift uses the standard driver, no gentle reminders).
+
+## Future (ideas, not scheduled)
+- (#4255) Trademark notice is in LICENSING.md:20; formal wordmark registration is an external legal step, not code.
+- (#4273) Release speed pass (shared SPM derived data, parallel Apple round-trips); optimisation, not behaviour.

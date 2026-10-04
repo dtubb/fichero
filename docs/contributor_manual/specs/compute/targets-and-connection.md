@@ -390,3 +390,6 @@ switch; it is there or it is removed.
 4. **Fichero does not install Docker or Tailscale on someone else's machine.** *Proposal:
    agreed; it checks, and says what is missing.*
 5. **Default session length: three hours.** *Proposal: agreed; changeable when starting one.*
+
+## Triaged from the backlog (2026-10-04)
+- `connection.cli-transport-fails-closed` — **[GAP]** (#4083) the CLI reaches the server over UDS or pinned HTTPS and never unverified HTTP; client.py:459-461 still defers SPKI pinning (#4468).

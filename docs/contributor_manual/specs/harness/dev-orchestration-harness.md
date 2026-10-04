@@ -129,3 +129,8 @@ it token-efficiently with fabel/opus?
 
 ## Triaged from the backlog (2026-10-04)
 - `harness.cli-mcp-live-verified` — **[GAP]** (#4465) the CLI and the MCP server are each exercised end to end against a live engine by a gate-run test, not only unit tests.
+- `harness.no-compat-facades` — **[GAP]** (#4085) a check fails if a re-export shim module returns (folders.py still is one), and contributors have a Python import map.
+
+## Future (ideas, not scheduled)
+- (#2561) Separate bot GitHub identity for agent issues/comments; commits already carry Claude authorship by convention; process decision.
+- (#4082) Readability split of vision_base/extractors/extract_all hotspots; no behaviour change, not scheduled work.
