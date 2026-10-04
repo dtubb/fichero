@@ -573,6 +573,15 @@ it is on and answers `running`; a training Job is cancelled on Hugging Face. A p
 run is waiting for is paused with its run (`409`); an unknown id is `404`. MCP: `fichero_jobs`,
 `fichero_pause_background_work`, `fichero_job_pause`, `fichero_job_cancel`.
 
+A workflow run is a job too (#5353): its row's id is the run's thread id, each step is a child
+(`<run>:<step>`), and each page a step hands to a lane is a grandchild, named by its model (a cloud
+model's page on the network lane, capped per Mac; a local model's on the local-model lane).
+`GET /api/activity/jobs/{job_id}` returns a job and everything under it, each with `done` and
+`total` pages rolled up; pages in `/api/activity/jobs` carry their step as `parent_id`. Pause and
+Stop on a run's row (`PUT .../paused`, `POST .../cancel`) reach the run's own Pause and Stop: its
+pages still waiting for a lane are withdrawn ("Paused with its run", "Stopped by you"). A paused
+run is resumed with `POST /api/workflow-execution/threads/{thread_id}/resume`.
+
 ### Training a reader (Hugging Face Jobs)
 
 `POST /api/training/kraken` queues a `train-a-model` job (#5398, `specs/compute/jobs-and-fine-tuning.md`):

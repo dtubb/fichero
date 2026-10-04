@@ -401,8 +401,13 @@ workflow by hand: a hand run is a job like any other.
   ("waiting", "running", recent "failed", each with its reason). One kind runs on it so far, the
   correction re-embed (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: every other kind, parent and child jobs,
   progress, cost, `/api/jobs` and `job.updated`.
-- `activity.jobs-are-a-tree` — **[GAP]** (#5353) a job's children (steps, pages) are jobs;
-  progress, time, cost and errors roll up the tree.
+- `activity.jobs-are-a-tree` — **[PARTIAL]** (#5353) a job's children (steps, pages) are jobs;
+  progress, time, cost and errors roll up the tree. Built (2026-10-04): a workflow run is a job row
+  (its id is its thread id), each step a child, each page a step hands to a lane a grandchild;
+  `GET /api/activity/jobs/{id}` returns the tree with pages done and in all rolled up; Pause and
+  Stop on the run's row reach the run and its waiting pages (`fichero-server/tests/unit/jobs/test_runs_are_jobs.py`). The rows follow the
+  run's own record (spec step 3, read-only). Still a gap: time, cost and errors rolled up; pages
+  of tools that do not hand their model calls to a lane (text extraction, chat); batches.
 - `activity.task-queue-grows-into-jobs` — **[OK]** (#5353) the task queue is already
   a persistent queue that resumes pending work (`workflows/tasks.py:153-176`); it becomes the jobs
   table rather than a thirteenth system being built beside it. Found 2026-10-03: nothing in the
@@ -428,7 +433,7 @@ workflow by hand: a hand run is a job like any other.
   (Transcribe in Kraken mode, economy HTR) is a job row (`find-lines`, `read-a-line`) naming its
   page and reader, with its state and reason (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`); a page read by a model
   served on this Mac (MLX, Ollama, LM Studio) is a `read-a-page` row named by its model
-  (`fichero-server/tests/unit/jobs/test_local_model_pages_on_the_lane.py`). Still a gap: showing the rows under their run.
+  (`fichero-server/tests/unit/jobs/test_local_model_pages_on_the_lane.py`), and under their run's step in its tree (`fichero-server/tests/unit/jobs/test_runs_are_jobs.py`).
 - `activity.model-work-visible` — **[GAP]** (#5359) a model download, a Kraken
   model fetch from Zenodo and MLX runtime provisioning appear in Activity, not only in Settings.
 - `activity.nlp-visible` — **[PARTIAL]** (#5359) the NLP draft stage is counted and
@@ -770,7 +775,10 @@ line post-processing. For 200 handwritten pages the stages today add up rather t
 - `activity.run.lines-batched-per-call` — **[GAP]** (#5370) when a recipe reads Kraken lines with
   a vision model, several line crops (or the page with its line boxes) go in one call, with the
   local model server kept warm between steps. One call per line would be 25 calls a page.
-- `activity.run.lane-cap-per-mac` — **[GAP]** (#5358) the cap on concurrent model calls is one per
+- `activity.run.lane-cap-per-mac` — **[PARTIAL]** (#5358) *Built (2026-10-04) for vision pages: every page a cloud model
+  reads is a job on the network lane, four at once for the whole Mac, shared by every run (`fichero-server/tests/unit/jobs/test_runs_are_jobs.py`);
+  a local model's page holds the local-model lane. Still a gap: text-model calls (extraction,
+  summaries) and a cap per provider.* the cap on concurrent model calls is one per
   Mac, shared by every run. Today it is per run: the semaphore is rebound to each run's event loop
   (`workflows/builder.py:91-127`), and three runs measured 12 calls at once against a cap of 4.
 - `activity.run.utility-qos-bounded` — **[GAP]** (#5358) heavy local work runs at utility QoS in

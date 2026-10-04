@@ -107,7 +107,7 @@ from fichero_server.workflows.circuit_breaker import (
     call_with_breaker,
 )
 from fichero_server.media.image_flatten import flatten_for_opaque_format
-from fichero_server.execution.cancellation import WorkflowCancelled
+from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
 
 logger = logging.getLogger(__name__)
 
@@ -3946,17 +3946,20 @@ async def process_vision(
                 )
 
             from fichero_server.execution.jobs import LOCAL_MODEL_SERVERS, hold_lane
+            from fichero_server.llm.providers import get_provider_info
 
             _provider = (effective_config.provider or "").lower()
-            if _provider not in LOCAL_MODEL_SERVERS:
-                return await call()
-            # A model served on this Mac (MLX, Ollama, LM Studio) is a heavy model: its page
-            # holds the local-model lane while it reads, so Kraken or the embedder never load
-            # beside it, and the page shows in Activity (#5358). A cloud model waits on the
-            # network and stays off the lane.
+            _info = get_provider_info(_provider)
+            if _info is not None and _info.is_builtin:
+                return await call()  # Apple Vision and the like: the OS's own, no model of ours
+            # Every page a model reads is a job, a child of its step (#5353): a model served on
+            # this Mac (MLX, Ollama, LM Studio) holds the local-model lane, so Kraken or the
+            # embedder never load beside it (#5358); a cloud model takes the network lane, whose
+            # cap is one per Mac, shared by every run (`activity.run.lane-cap-per-mac`).
             return await hold_lane(
                 library_path, "read-a-page", doc_id_for_file or Path(file_path).name,
                 model=f"{_provider}:{effective_config.model}", work=call, run_id=task_id,
+                lane="local-ml" if _provider in LOCAL_MODEL_SERVERS else "network",
             )
 
         try:
@@ -5349,9 +5352,9 @@ async def process_vision(
             )
             texts.append("")
             values.append(None)
-        except WorkflowCancelled:
-            # Stop is not a failure (#4402): a page stopped while it waited for the lane must
-            # end the run as cancelled, not be recorded as this file's error.
+        except (WorkflowCancelled, WorkflowPaused):
+            # Stop and Pause are not failures (#4402): a page stopped or paused while it waited
+            # for the lane must end the run as cancelled or paused, not as this file's error.
             raise
         except Exception as e:
             err = str(e)
@@ -5456,8 +5459,8 @@ async def process_vision(
                 "output_files": [],
                 "page_records": [],
             }
-        except WorkflowCancelled:
-            raise  # Stop, not a crash: see `_process_file`
+        except (WorkflowCancelled, WorkflowPaused):
+            raise  # Stop or Pause, not a crash: see `_process_file`
         except Exception as exc:  # defensive: _process_file already isolates
             # per-file errors via its own try/except, but never let an
             # unexpected escape abort the sibling files.

@@ -379,6 +379,18 @@
         "response_model": "BackgroundPauseResponse"
       },
       {
+        "method": "GET",
+        "path": "/activity/jobs/{job_id}",
+        "operation_id": "get_job_tree_api_activity_jobs__job_id__get",
+        "summary": "Get Job Tree",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "JobTree"
+      },
+      {
         "method": "POST",
         "path": "/activity/jobs/{job_id}/cancel",
         "operation_id": "cancel_job_api_activity_jobs__job_id__cancel_post",

@@ -421,6 +421,10 @@ class ActivityTracker:
         **metadata,
     ) -> Activity:
         """Log node started event."""
+        from fichero_server.execution import jobs
+
+        # The step's row, a child of its run's, follows the step (#5353, `activity.jobs-are-a-tree`).
+        jobs.record_step(self.store.db_path, thread_id, node_id, status="running", name=node_name, reason=None)
         return self.log(
             type=ActivityType.NODE_STARTED,
             level=ActivityLevel.DEBUG,
@@ -441,6 +445,10 @@ class ActivityTracker:
         **metadata,
     ) -> Activity:
         """Log node completed event."""
+        from fichero_server.execution import jobs
+
+        # The step's row, a child of its run's, follows the step (#5353, `activity.jobs-are-a-tree`).
+        jobs.record_step(self.store.db_path, thread_id, node_id, status="completed", name=node_name, reason=None)
         return self.log(
             type=ActivityType.NODE_COMPLETED,
             level=ActivityLevel.DEBUG,
@@ -462,6 +470,10 @@ class ActivityTracker:
         **metadata,
     ) -> Activity:
         """Log node failed event."""
+        from fichero_server.execution import jobs
+
+        # The step's row, a child of its run's, follows the step (#5353, `activity.jobs-are-a-tree`).
+        jobs.record_step(self.store.db_path, thread_id, node_id, status="failed", name=node_name, reason=error)
         return self.log(
             type=ActivityType.NODE_FAILED,
             level=ActivityLevel.ERROR,

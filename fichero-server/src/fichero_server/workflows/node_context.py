@@ -30,6 +30,10 @@ class NodeContext:
     node_id: str
     node_label: str = ""
     workflow_id: str = ""
+    #: The run's thread id and the step's name in the run's graph (what the runner reports it by),
+    #: so work the node hands the job lanes is a child of its step (#5353).
+    run_id: str = ""
+    step: str = ""
 
 
 _current_node: ContextVar[NodeContext | None] = ContextVar(
@@ -38,10 +42,10 @@ _current_node: ContextVar[NodeContext | None] = ContextVar(
 
 
 def set_current_node(
-    node_id: str, node_label: str = "", workflow_id: str = ""
+    node_id: str, node_label: str = "", workflow_id: str = "", run_id: str = "", step: str = ""
 ) -> None:
     """Record the node about to execute in this task's context."""
-    _current_node.set(NodeContext(node_id, node_label, workflow_id))
+    _current_node.set(NodeContext(node_id, node_label, workflow_id, run_id, step))
 
 
 def get_current_node() -> NodeContext | None:

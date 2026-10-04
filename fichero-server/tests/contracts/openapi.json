@@ -313,6 +313,50 @@
         }
       }
     },
+    "/api/activity/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Job Tree",
+        "description": "One job and everything under it, with progress rolled up (`activity.jobs-are-a-tree`): a\nworkflow run (its id is its thread id), its steps, and the pages each step handed to a lane,\neach with its state and why.",
+        "operationId": "get_job_tree_api_activity_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobTree"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/paused": {
       "put": {
         "tags": [
@@ -44505,6 +44549,11 @@
             "type": "string",
             "nullable": true,
             "title": "Reason"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
           }
         },
         "type": "object",
@@ -58565,6 +58614,74 @@
           "state"
         ],
         "title": "JobStateResponse"
+      },
+      "JobTree": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done",
+            "description": "pages (or other leaf jobs) under this one that are done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "pages (or other leaf jobs) under this one in all"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/JobTree"
+            },
+            "type": "array",
+            "title": "Children"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "subject",
+          "state",
+          "done",
+          "total"
+        ],
+        "title": "JobTree",
+        "description": "A job and everything under it: a run, its steps, their pages (`activity.jobs-are-a-tree`)."
       },
       "JsonlExportRequest": {
         "properties": {

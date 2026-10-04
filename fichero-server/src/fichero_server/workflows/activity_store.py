@@ -1147,6 +1147,10 @@ class ActivityStore:
                 conn.close()
 
         await asyncio.to_thread(_save)
+        # The run's row in the one job table follows its record (#5353, `activity.jobs-are-a-tree`).
+        from fichero_server.execution import jobs
+
+        await asyncio.to_thread(jobs.record_run, self.db_path, thread_id, status=status, name=workflow_name)
 
     async def update_workflow_run(
         self,
@@ -1208,6 +1212,10 @@ class ActivityStore:
                 conn.close()
 
         await asyncio.to_thread(_update)
+        if status is not None:  # the run's job row follows (#5353)
+            from fichero_server.execution import jobs
+
+            await asyncio.to_thread(jobs.record_run, self.db_path, thread_id, status=status, reason=error)
 
     async def append_execution_log(self, thread_id: str, log_line: str) -> None:
         """Append a line to the execution log."""

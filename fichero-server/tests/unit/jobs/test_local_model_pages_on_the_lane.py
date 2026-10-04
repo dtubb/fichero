@@ -74,22 +74,32 @@ async def test_an_mlx_page_holds_the_lane_while_it_reads(test_package, tmp_path,
 
 
 @pytest.mark.asyncio
-async def test_a_cloud_model_page_stays_off_the_lane(test_package, tmp_path, monkeypatch):
-    """WHY: a cloud call waits on the network, not on this Mac's memory; holding the lane for it
-    would stall every local model behind seconds of network wait."""
+async def test_activity_run_lane_cap_per_mac__a_cloud_page_takes_the_network_lane_not_the_model_lane(
+        test_package, tmp_path, monkeypatch):
+    """Behaviour `activity.run.lane-cap-per-mac` (cloud calls share one cap per Mac, on the network
+    lane) with `activity.throttle.lanes` ("jobs run in lanes by resource"): a cloud call waits on the
+    network, not on this Mac's memory, so while a heavy model holds the local-model lane the cloud
+    page still runs, and its row is on the network lane, named by its model."""
     import fichero_server.llm as llm
 
     library = str(test_package)
     db = db_manager.get_database(library)
     doc = _page(db, tmp_path)
+    gate, started = threading.Event(), threading.Event()
+    heavy = jobs.submit(db, "find-lines", "heavy", model="kraken:blla", fn=lambda: (started.set(), gate.wait(30)))
+    assert await asyncio.to_thread(started.wait, 30)
 
     async def fake_vision(images, prompt, config, **kwargs):
         return "vecino de la ciudad"
 
     monkeypatch.setattr(llm, "vision", fake_vision)
-    result = await _transcribe(library, doc, "openai")
+    try:
+        result = await asyncio.wait_for(_transcribe(library, doc, "openai"), 30)
+    finally:
+        gate.set()
+    heavy.result(30)
     assert not result.get("error"), result.get("error")
-    assert _rows(db) == []
+    assert _rows(db) == [("read-a-page", doc.id, "openai:mlx-community/reader", "done")]
 
 
 @pytest.mark.asyncio
