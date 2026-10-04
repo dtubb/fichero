@@ -297,6 +297,7 @@ community: pointfreeco/swift-snapshot-testing, EmergeTools/SnapshotPreviews.
 - `uitest.claim-annotation-store-instantiated` — **[GAP]** (#4510) ClaimStore and AnnotationStore are constructed and exercised in tests, not only source-text inspected.
 - `uitest.split-subscript-guardrail` — **[GAP]** (#4534) scripts/check_split_subscript.py flags an unguarded [1] on components(separatedBy:)/split in test code, with a firing fixture (script does not exist).
 - `uitest.drop-loader-chokepoint-guardrail` — **[GAP]** (#4543) scripts/check_drop_loader_chokepoint.py forbids NSItemProvider load calls outside ExternalFileDropLoader and SidebarDropProviderReader, with a firing fixture (script does not exist).
+- `ui-testing.restored-state-launch` — **[GAP]** (#4761) a UI test relaunches with saved window state and the app is still running with library.content.ready after 40 s.
 
 ## Future (ideas, not scheduled)
 - (#4174) Measured pathway to 100% coverage: xccov and coverage.py in the gates, ratchet rule, deterministic seams for LangChain.

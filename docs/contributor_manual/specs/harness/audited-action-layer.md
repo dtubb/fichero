@@ -99,7 +99,7 @@ parallel pattern to keep.
   `::test_invoke_validates_params`, `::test_invoke_unknown_action_raises`,
   `::TestActionsRegistryRoute::test_invoke_via_route_writes_audit`,
   `::TestEntityMergeAction::test_merge_via_registry_effect_and_audit`.
-- `audit.actor-cannot-be-forged` — **[PARTIAL]** (#4844, fixed for #4843's specific finding by
+- `audit.actor-cannot-be-forged` — **[PARTIAL]** (#3129, #2980, #4844, fixed for #4843's specific finding by
   8aa6c8e12) `POST /api/actions/invoke` rejects a request body that sets `actor`/
   `origin_window` directly (`InvokeActionRequest.reject_deprecated_fields`, → #3285); the real
   actor is derived exclusively from authenticated request state (`action_context()` →
@@ -155,7 +155,7 @@ parallel pattern to keep.
 
 ### B. Every route reaches the registry (the rule this spec exists to test)
 
-- `audit.every-mutating-route-uses-the-registry` — **[BROKEN]** (#4831) every mutating
+- `audit.every-mutating-route-uses-the-registry` — **[BROKEN]** (#2888, #4831) every mutating
   `@router.post/put/patch/delete` under `api/routes/kg/` and `api/routes/entity/` must call
   `registry.invoke(` in its own body (directly — no tracing through helper indirection; a
   route that calls a private helper which itself calls `registry.invoke` is still flagged,
@@ -436,3 +436,4 @@ Design content carried into this spec; files kept, not moved:
 ## Triaged from the backlog (2026-10-04)
 - `audit.research-source-actions` — **[GAP]** (#4435) the research source-create and browser-save mutations are audited actions with an inverse (`_invert_source_to_delete`), so they are undoable, not just logged.
 - `actions.no-residual-direct-mutations` — **[GAP]** (#4084) a generated audit lists every handler that mutates outside a registered action with ChangeSpec and inverse (or a stated non-invertible reason).
+- `audit.cli-writes-go-over-http` — **[GAP]** (#2884) CLI corpus importers and writes run through the audited registry over HTTP, not in-process.

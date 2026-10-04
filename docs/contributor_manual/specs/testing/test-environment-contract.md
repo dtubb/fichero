@@ -84,6 +84,8 @@ n/a (infrastructure spec).
 - `testenv.full-suite-completes` — **[GAP]** (#4039) a full engine pytest run finishes without a hang (the perf test is bounded, not skipped) and without shared-app middleware errors at setup.
 - `testenv.no-modal-in-hosted-tests` — **[GAP]** (#4270) a hosted unit test never raises a user-visible save panel or alert; save paths are pointed at a temp directory.
 - `testenv.no-real-files-touched` — **[GAP]** (#4537) tests running in the app container never write real container files (e.g. .api-key) without save/restore; a sweep and guardrail cover the class.
+- `testenv.expect-message-is-comment` — **[GAP]** (#4698) a guardrail fails before a build when a Swift Testing #expect/Issue.record message is a concatenation or String variable.
+- `testenv.load-insensitive-unit-tests` — **[GAP]** (#4793) WebKit-backed ReaderTranscriptWrapTests and ServiceHostReconfigurationTests:78 do not fail the gate under machine load.
 
 ## Future (ideas, not scheduled)
 - (#4425) Design principle: what must not be forgotten lives in the gate, advice lives in skills.

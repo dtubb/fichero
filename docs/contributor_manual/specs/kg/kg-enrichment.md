@@ -231,3 +231,8 @@ graph.
 Ties: #4641 (authority/Web of Data), #4640 (exporter — add JSON-LD beside JSONL), #4636
 (provenance for enriched/imported values), #4624 (KG tables surface the affordances),
 `source/archival-data-model-plan.md` P8 (authority/linked data).
+
+## Future (ideas, not scheduled)
+- (#740) COVERED BY `kg.enrich.graphrag-evaluation` (parked research, already in the spec's Future).
+- (#972) Core ML on-device personalization from curation decisions; no MLUpdateTask code exists; vision only (already routed there by kg-entity-inspector.md).
+- (#4826) Linked Art and CIDOC-CRM JSON-LD profiles wait on the maintainer's domain review; deliberately not advertised.

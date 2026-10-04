@@ -357,3 +357,6 @@ updater running.
   product. The builds handed out today are alpha, and testing is on the Dev build.
 - 2026-09-30 — Direction: one release with the channel chosen in Settings, rather than a build
   per tier. To be designed in this spec before anything is built.
+
+## Future (ideas, not scheduled)
+- (#256) Promote approved AI surfaces to release once the AI acceptance gate passes; a release-tier decision, not current work.

@@ -80,3 +80,11 @@ for search by every variant.
    those, set per project, agreed with the community before publishing.
 3. **Community notes channel:** a form that files into the project, or plain email. Recommendation:
    email first (no server), a form later.
+
+## Future (ideas, not scheduled)
+- (#3176) Round-trip-ready markdown export v2 with manifest, step 1 of the Export-to-GitHub publish plan; spec for publishing not yet written (exporter.md section G).
+- (#3178) Canonical Export-to-GitHub 11ty scaffold plus Pages workflow; publish-to-hosting is a Future section of public-site.md.
+- (#3179) GitHub connect, repo creation and push as audited actions (device-flow auth); publish Future.
+- (#3180) Reimport of edited markdown with 3-way merge; publish round-trip Future.
+- (#3182) SwiftUI Publish sheet and PublishStore; publish Future.
+- (#3184) Publish hardening (adversarial tests, ACL matrix, grouped undo); publish Future.

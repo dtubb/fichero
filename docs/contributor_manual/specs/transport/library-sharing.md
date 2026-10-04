@@ -123,3 +123,9 @@ Each failure: an issue, fixed one at a time, its behaviour above re-tagged.
 ## Triaged from the backlog (2026-10-04)
 - `sharing.accounts-and-users-settings` — **[GAP]** (#2083) Settings has an Accounts & Users screen to log in, add/remove users and assign owner/editor/viewer.
 - `sharing.ios-device-token-hygiene` — **[GAP]** (#3290) an iOS device build never resolves the bootstrap token, renews its device token on foreground, and shows a re-pair prompt on expiry or revocation; outbox blobs are file-protected.
+- `sharing.owner-shared-libraries-view` — **[GAP]** (#2054) Settings shows the owner every library, which are shared with whom and in what role, and whether each is open.
+- `sharing.multiuser-mode-single-source` — **[GAP]** (#3284) the Multi-user toggle persists to the engine and the app, spawn env and engine agree, so a hosted engine never runs with authz off while accounts exist.
+- `sharing.acl-status-when-multiuser-off` — **[GAP]** (#3335) with Multi-user off the Library ACL row reads "not enforcing per-library access" instead of a red Server error (ShareSettingsView+Security.swift shows authzError in red).
+
+## Future (ideas, not scheduled)
+- (#2029) Multi-writer concurrency and presence: design pass explicitly last, after users and attribution land.

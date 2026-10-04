@@ -546,3 +546,4 @@ resolved and moved; the other three's status is corrected below.
 - `library.input.type-select` — **[GAP]** (#3689) list, table, grid and search-result rows support type-to-jump alongside arrows, Return to open and space to select (arrow navigation itself is library.input.keyboard-grammar-is-explicit-per-mode).
 - `library.input.one-grammar-every-mode` — **[GAP]** (#4412) list, icons, columns, table, canvas, 3D and graph answer shortcuts, click/modifier selection and trackpad gestures the same way, pinned by one matrix test.
 - `library.perf.page-click-never-stalls-main` — **[PARTIAL]** (#4574) clicking between PDF pages never blocks the main thread over ~1s and a superseded load costs nothing; cancel-superseded and single-flight images landed (31c6756f1, 7a189c2b0) but the latest baseline worst is 1860 ms.
+- `views.space-shares-canvas-position` — **[GAP]** (#2391) the Space (3D) mode zooms in as far as Canvas and shares one xpos/ypos per node with it.

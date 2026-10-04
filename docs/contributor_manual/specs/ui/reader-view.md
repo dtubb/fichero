@@ -401,6 +401,7 @@ recommendation for which one carries the work.
 - `reader.ios.page-fills-pane` — **[GAP]** (#2497) on iPhone the reader page fits the available width with minimal margin, and double-tapping an icon in the library opens the preview (single tap selects).
 - `reader.keyboard.navigate-without-mouse` — **[GAP]** (#3688) in the Reader, keys move between pages, jump by paragraph, move focus between entities/claims and trigger source-reveal, wrapping the WebKit content.
 - `reader.fonts-and-colors-settings` — **[GAP]** (#3411) Settings offers Fonts & Colors for sidebar/library, reader, inspector editor and list preview (only editor.fontName/fontSize exist today in GeneralSettingsView.swift:18-19).
+- `reader.page-filmstrip` — **[GAP]** (#2484) the full-screen reader shows a collapsible thumbnail strip along the bottom that scrubs to a page or image (ImmersiveReaderView+Controls.swift:74 still a TODO).
 
 ## Future (ideas, not scheduled)
 - (#973) Book-native page numbers and chapter markers for book-shaped sources; backend detection feature, no current spec owner
