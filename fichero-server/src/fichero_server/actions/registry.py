@@ -365,9 +365,9 @@ WAITED_ON_PAGES = 10  # ponytail: a count, not a signal from the app; a "the per
 def _waited_on(ctx: ActionContext, document_ids: list[str]) -> bool:
     """A person's own small change, whose results they wait to see (`activity.throttle.watched-first`):
     not a run's, not the engine's, not an edit read back from a synced folder."""
-    from fichero_server.models.readings import OUTSIDE_FICHERO
+    from fichero_server.models.readings import FROM_SYNCED_FOLDER, OUTSIDE_FICHERO
 
-    return (ctx.run_id is None and ctx.actor not in ("system", OUTSIDE_FICHERO)
+    return (ctx.run_id is None and ctx.actor not in ("system", OUTSIDE_FICHERO, FROM_SYNCED_FOLDER)
             and len(set(document_ids)) <= WAITED_ON_PAGES)
 
 

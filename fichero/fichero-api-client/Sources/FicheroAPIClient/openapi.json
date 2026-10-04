@@ -78434,6 +78434,22 @@
             "title": "Changed Outside",
             "description": "files Fichero wrote that were changed outside: left alone"
           },
+          "taken_in": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Taken In",
+            "description": "files that arrived in the folder and came in through the import"
+          },
+          "not_read_back": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Not Read Back",
+            "description": "files that arrived in a form Fichero does not read back: listed only"
+          },
           "deleted_outside": {
             "items": {
               "type": "string"
@@ -78455,6 +78471,8 @@
           "files",
           "in_the_way",
           "changed_outside",
+          "taken_in",
+          "not_read_back",
           "deleted_outside"
         ],
         "title": "SyncFolderStatus",

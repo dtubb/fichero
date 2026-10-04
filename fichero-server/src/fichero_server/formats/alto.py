@@ -194,6 +194,11 @@ def read(data: bytes) -> SourcePage:
             child = next((c for c in software if (c.text or "").strip()), None)
             name = (child.text or "").strip() if child is not None else ""
         page.producer = name or None
+    # What the file says it is (#4952): Fichero's own file identifiers, read back.
+    page.identity = {
+        el.get("fileIdentifierLocation"): (el.text or "").strip() for el in root.iter()
+        if _tag(el) == "fileIdentifier" and (el.get("fileIdentifierLocation") or "").startswith("fichero-")
+    }
 
     # The file's tag declarations (ALTO 4.1+ `<Tags>`), by ID: what a `TAGREFS` means. A block or
     # line type -- SegmOnto's `MainZone`, the Rule of St Benedict's `LatinLine` -- lives here (#5138).

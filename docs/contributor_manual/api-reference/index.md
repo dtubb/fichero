@@ -688,7 +688,10 @@ it on from the start). With intake on, a file Fichero wrote or adopted that is c
 comes in as a new pass made by "edited outside Fichero", which never becomes the working pass by
 itself; one whose page changed in Fichero too is listed under `conflicts` with both kept, and is no
 longer written. A folder imported with `mode: index` is adopted: kept in its own layout and written
-back in place.
+back in place. With intake on, the folder is watched while the engine runs: a file of Fichero's
+renamed or moved is matched by the lasting id it carries; new images, with any layout file beside
+them, come in through the same import a drop of files takes (listed under `taken_in`); any other
+file is listed under `not_read_back`. The preview counts new images under `images`.
 
 ### Checking a layer's proposals
 

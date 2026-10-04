@@ -37,8 +37,16 @@ file's pass is kept beside the project's, the file is no longer written, and it 
 again on the next change to its page (`source.sync.deleted-outside`). The folder is read when the
 library opens, when intake is switched on, and when a write finds a file changed.
 
-Not built yet: new images and new files coming in, live watching, settling a conflict, adopting a
-TEI file spanning several images, restricted material, Rebuild Folder, and a folder of part of a
+Files that ARRIVE in a folder with intake on are taken in by the same job: a file in Fichero's
+formats carrying a source's lasting id where that source's file went missing is the same file,
+renamed or moved (`source.sync.files-carry-ids`); new images, with any layout file beside them,
+come in through the one import path (`import_file_set`, as a drop of files does:
+`source.sync.one-import-path`, `source.sync.new-images-come-in`); any other file is listed and not
+read (`source.sync.read-back-formats`). A folder with intake on is watched while the engine runs
+(watchdog, as the automation triggers use), so it is read soon after anything in it changes.
+
+Not built yet: running a subfolder's own recipe on what lands in it, settling a conflict, adopting
+a TEI file spanning several images, restricted material, Rebuild Folder, and a folder of part of a
 project.
 """
 from __future__ import annotations
@@ -47,6 +55,7 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -61,6 +70,7 @@ KIND = "write-to-folder"
 READ_KIND = "read-from-folder"
 #: Who made a pass that came in from the folder: a file's edit carries no author. The working-pass
 #: ladder passes such a pass over until a person chooses it.
+from fichero_server.models.readings import FROM_SYNCED_FOLDER  # noqa: E402
 from fichero_server.models.readings import OUTSIDE_FICHERO as OUTSIDE  # noqa: E402
 #: How long a page must stay unchanged before its files are rewritten.
 QUIET_SECONDS = 5.0
@@ -73,8 +83,8 @@ _SCHEMA = (
     # An adopted folder keeps its own layout: only its recorded files are written, in place.
     "ALTER TABLE sync_folders ADD COLUMN IF NOT EXISTS adopted BOOLEAN DEFAULT FALSE",
     "ALTER TABLE sync_folders ADD COLUMN IF NOT EXISTS intake BOOLEAN DEFAULT FALSE",
-    # One row per file Fichero wrote or found in its way. `state`: written | in-the-way |
-    # changed-outside | deleted-outside | conflict.
+    # One row per file Fichero wrote, found in its way, or took in. `state`: written | in-the-way |
+    # changed-outside | deleted-outside | conflict | taken-in | not-read-back.
     "CREATE TABLE IF NOT EXISTS sync_files (folder_id TEXT NOT NULL, rel_path TEXT NOT NULL, document_id TEXT, "
     "format TEXT, sha256 TEXT, written_at TIMESTAMP, state TEXT NOT NULL, PRIMARY KEY (folder_id, rel_path))",
     # The exporter's output for the file when Fichero last wrote or read it (null: same as sha256).
@@ -161,6 +171,7 @@ def adopt(db: Any, folder: Path, read: list[tuple[Path, str, str]]) -> str:
         _record(db, folder_id, Path(path).resolve().relative_to(folder).as_posix(), document_id=doc_id, fmt=fmt,
                 sha=_sha(Path(path).read_bytes()), exported=_exported(db, doc_id, fmt), state="written",
                 written=False)
+    _watch(db, _folder(db, folder_id))
     return folder_id
 
 
@@ -176,7 +187,33 @@ def would_bring_in(db: Any, folder_id: str) -> dict[str, int]:
         path = Path(folder["path"]) / rel
         if path.exists() and _sha(path.read_bytes()) != sha:
             counts[fmt] = counts.get(fmt, 0) + 1
+    for _path, kind in _arrivals(db, folder):
+        if kind is not None:  # what would not come in is not counted
+            counts[kind] = counts.get(kind, 0) + 1
     return counts
+
+
+def _arrivals(db: Any, folder: dict[str, Any]) -> list[tuple[Path, str | None]]:
+    """Files in the folder Fichero has no row for, each with what intake would take it in as:
+    `images`, a read-back format's name, or None (not read back)."""
+    from fichero_server.formats import format_for
+    from fichero_server.importers.interchange_pairing import IMAGE_SUFFIXES
+
+    root = Path(folder["path"])
+    known = {r[0] for r in db.execute_fetchall("SELECT rel_path FROM sync_files WHERE folder_id = ?",
+                                               [folder["id"]])}
+    found = []
+    for path in sorted(root.rglob("*")):
+        rel = path.relative_to(root)
+        if (not path.is_file() or any(part.startswith(".") for part in rel.parts)
+                or path.name.endswith(".loss.json") or rel.as_posix() in known):
+            continue
+        if path.suffix.lower() in IMAGE_SUFFIXES:
+            found.append((path, "images"))
+            continue
+        spec = format_for(path.name, path.read_bytes()) if path.suffix.lower() == ".xml" else None
+        found.append((path, spec.name if spec is not None and spec.name in FORMATS else None))
+    return found
 
 
 def set_intake(db: Any, folder_id: str, on: bool) -> None:
@@ -185,7 +222,10 @@ def set_intake(db: Any, folder_id: str, on: bool) -> None:
         raise KeyError(folder_id)
     db.execute("UPDATE sync_folders SET intake = ? WHERE id = ?", [on, folder_id])
     if on:
+        _watch(db, _folder(db, folder_id))
         _queue_read(db, folder_id)
+    else:
+        _unwatch(folder_id)
 
 
 def _queue_read(db: Any, folder_id: str) -> None:
@@ -198,6 +238,7 @@ def untie(db: Any, folder_id: str) -> None:
     """Stop writing to the folder; its files stay on disk (`source.sync.untie-leaves-files`)."""
     _ensure(db)
     db.execute("UPDATE sync_folders SET untied_at = ? WHERE id = ? AND untied_at IS NULL", [utc_now(), folder_id])
+    _unwatch(folder_id)
 
 
 def queue_rewrites(db: Any, document_ids: list[str], *, watched: bool = False) -> None:
@@ -324,6 +365,7 @@ def read(db: Any, folder_id: str) -> None:
     if folder is None or not folder["intake"]:
         return  # untied, or intake switched off, meanwhile
     root = Path(folder["path"])
+    arrivals = _follow_renames(db, folder, _arrivals(db, folder))
     rows = db.execute_fetchall(
         "SELECT rel_path, document_id, format, sha256, exported_sha256, state FROM sync_files WHERE folder_id = ? "
         "AND state IN ('written', 'changed-outside', 'deleted-outside')", [folder_id])
@@ -352,6 +394,102 @@ def read(db: Any, folder_id: str) -> None:
         else:
             _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=on_disk, exported=now, state="written",
                     written=False)
+    _take_in(db, folder, arrivals)
+
+
+def _follow_renames(db: Any, folder: dict[str, Any], arrivals: list[tuple[Path, str | None]]
+                    ) -> list[tuple[Path, str | None]]:
+    """A file in a read-back format that carries the lasting id of a source whose file in this
+    folder is missing is that file, renamed or moved: its row follows it. The rest still arrive."""
+    from fichero_server.formats import read_page
+
+    root, left = Path(folder["path"]), []
+    for path, kind in arrivals:
+        moved = False
+        if kind in FORMATS:
+            try:
+                source = read_page(kind, path.read_bytes()).identity.get("fichero-source")
+            except Exception:  # noqa: BLE001 -- a file that does not read is an arrival like any other
+                source = None
+            for (rel,) in db.execute_fetchall(
+                    "SELECT rel_path FROM sync_files WHERE folder_id = ? AND document_id = ? AND format = ? "
+                    "AND state IN ('written', 'changed-outside', 'deleted-outside', 'conflict')",
+                    [folder["id"], source, kind]) if source else []:
+                if not (root / rel).exists():
+                    db.execute("UPDATE sync_files SET rel_path = ?, state = CASE WHEN state = 'deleted-outside' "
+                               "THEN 'written' ELSE state END WHERE folder_id = ? AND rel_path = ?",
+                               [path.relative_to(root).as_posix(), folder["id"], rel])
+                    moved = True
+                    break
+        if not moved:
+            left.append((path, kind))
+    return left
+
+
+def _take_in(db: Any, folder: dict[str, Any], arrivals: list[tuple[Path, str | None]]) -> None:
+    """New files in the folder: images and the layout files beside them through the one import path
+    (linked where they are), anything else listed and not read."""
+    from fichero_server.actions.registry import ActionContext
+    from fichero_server.api.routes.ingest.core import import_file_set
+
+    root = Path(folder["path"])
+    taking = [path for path, kind in arrivals if kind is not None]
+    docs = []
+    if taking:
+        ctx = ActionContext(actor=FROM_SYNCED_FOLDER, library_path=str(Path(db.path).parent), is_bootstrap=True)
+        docs, _report = import_file_set(db, taking, ctx, mode="link")
+    by_path = {str(Path(d.path).resolve()): d.id for d in docs if d.path}
+    for path, kind in arrivals:
+        _record(db, folder["id"], path.relative_to(root).as_posix(), document_id=by_path.get(str(path.resolve())),
+                fmt=kind if kind in FORMATS else None, sha=_sha(path.read_bytes()),
+                state="taken-in" if kind is not None else "not-read-back", written=False)
+
+
+#: One watcher for every synced folder with intake on, while the engine runs.
+_observer: Any = None
+_watches: dict[str, Any] = {}
+_watch_lock = threading.Lock()
+
+
+def _watch(db: Any, folder: dict[str, Any] | None) -> None:
+    """Watch a folder with intake on: anything changing in it queues a read after the quiet period
+    (the job's own `run_after`, so a burst of changes makes one read)."""
+    from watchdog.events import FileSystemEventHandler
+    from watchdog.observers import Observer
+
+    global _observer
+    if folder is None or not Path(folder["path"]).is_dir():
+        return
+    key, folder_id = jobs._key(db), folder["id"]
+
+    class Changed(FileSystemEventHandler):
+        def on_any_event(self, event: Any) -> None:
+            if event.is_directory or event.event_type not in ("created", "modified", "moved", "deleted"):
+                return
+            name = Path(getattr(event, "dest_path", "") or event.src_path).name
+            if name.startswith(".") or name.endswith(".loss.json"):
+                return  # a temporary file being written, or a loss report
+            from fichero_server.db.manager import db_manager
+
+            library = db_manager.open_database(key)
+            if library is not None:  # closed: it is read again when it opens
+                _queue_read(library, folder_id)
+
+    with _watch_lock:
+        if folder_id in _watches:
+            return
+        if _observer is None:
+            _observer = Observer()
+            _observer.daemon = True
+            _observer.start()
+        _watches[folder_id] = _observer.schedule(Changed(), folder["path"], recursive=True)
+
+
+def _unwatch(folder_id: str) -> None:
+    with _watch_lock:
+        watch = _watches.pop(folder_id, None)
+        if watch is not None and _observer is not None:
+            _observer.unschedule(watch)
 
 
 def _bring_in(db: Any, path: Path, doc_id: str, fmt: str) -> bool:
@@ -380,6 +518,7 @@ def rescan(db: Any) -> None:
     while the engine was off are found (`source.sync.rescan-after-downtime`)."""
     for folder in _folders(db):
         if folder["intake"]:
+            _watch(db, folder)
             _queue_read(db, folder["id"])  # handled as though seen live
             continue
         root = Path(folder["path"])
@@ -413,6 +552,7 @@ def status(db: Any) -> list[dict[str, Any]]:
             "last_written": max(written_times) if written_times else None, "pending": int(pending),
             "files": by_state.get("written", []), "in_the_way": by_state.get("in-the-way", []),
             "changed_outside": by_state.get("changed-outside", []),
+            "taken_in": by_state.get("taken-in", []), "not_read_back": by_state.get("not-read-back", []),
             "deleted_outside": by_state.get("deleted-outside", []),
         })
     return out

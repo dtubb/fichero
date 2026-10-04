@@ -358,6 +358,12 @@ def read(data: bytes) -> SourcePage:
     page.direction = DIRECTIONS_IN.get(page_el.get("readingDirection") or "")
 
     page.producer = _stated_maker(root)
+    # What the file says it is (#4952): Fichero's own metadata items, read back so a renamed file
+    # is still matched to its source (`source.sync.files-carry-ids`).
+    page.identity = {
+        el.get("name"): el.get("value") or "" for el in root.iter()
+        if _tag(el) == "MetadataItem" and (el.get("name") or "").startswith("fichero-")
+    }
 
     for element in page_el.iter():
         kind = ELEMENT_KINDS.get(_tag(element))
