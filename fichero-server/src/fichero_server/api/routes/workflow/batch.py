@@ -277,6 +277,10 @@ def _run_off_the_request(batch_id: str, events: Any) -> StreamingResponse:
                 yield line
         finally:
             hub.unsubscribe(subscriber)
+            # A listener that went away (its client disconnected) leaves a worker thread blocked
+            # on this queue, which the hub no longer feeds: wake it, or the engine cannot exit
+            # (Python joins those workers at exit).
+            subscriber.put(None)
 
     return StreamingResponse(
         stream(),
