@@ -142,6 +142,8 @@ across an opening belongs to the opening and is resolved onto each page it touch
   table, table cell, diagram, map, mark, damage, blank). A project can add its own. When a
   model supplied the kind, the model's own label is kept beside the tidy one.
 - Any level can be missing. Finer levels can be added later.
+- How the ladder is SEEN (a child drawn and listed as its parent's child, in its region's hue) is
+  owned by `segment-editor.md`, "Box colour and the segment hierarchy" (ruled 2026-10-04, #5426).
 - **Physical structure** is the ladder: what is where on the object (codex unit, quire, leaf,
   page, region…). **Logical structure** is what the text is: a letter, a chapter, a diary
   entry, a legal case across several documents. Both are trees over the same segments, and a

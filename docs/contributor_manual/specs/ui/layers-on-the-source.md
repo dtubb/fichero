@@ -133,14 +133,13 @@ statement's text and its review) stays in the Inspector, reached by selecting th
   (`api/routes/system/fonts.py`; `source.fonts.bundled`, [PARTIAL], #5206). The inline text on the
   image is drawn in `NSFont.systemFont` (`Regions/DocumentOverlayView.swift:351,354`), outside the
   `BundledFonts` cascade the Inspector and labels already use.
-- `layers.colour.pane-chooses-meaning` — **[GAP]** (#5426) the pane's "What to show" menu picks
-  what a box's colour means: **reading order** (the default; a smooth gradient from the first
-  line in the order to the last, so a line out of order breaks the run and stands out),
-  **region**, **who made it** (a model or a person), or **confidence**. Remembered per pane, in
-  system colours that adapt to Light, Dark and Increase Contrast. Today a box takes its region's
-  colour from a hash of the region id into a twelve-colour palette (`SelectionStyle.regionColour`,
-  `Regions/SelectionStyle.swift:46`, drawn at `DocumentOverlayView.swift:207`; #5200), which looks
-  random on a Kraken page where every line is its own region.
+
+**Box colours** are owned by `source/segment-editor.md`, "Box colour and the segment hierarchy"
+(ruled 2026-10-04, #5426, #5463). A box's colour is its region's hue, shaded along the working
+pass's reading order, and a child is drawn as its parent's child. The earlier proposal here, a
+pane menu choosing among reading order, region, who made it and confidence, is withdrawn: who made
+a box and how sure it is stay as its stroke (`layers.state.drawn`), not its colour.
+
 - `layers.spread.show-one-page` — **[GAP]** (#5427) a Preview pane can show a two-page photograph
   whole, or only its left or right page, by cropping the view to that page's region; no record
   changes. This is the alternative to the gutter split, which makes child page documents. Every
@@ -417,9 +416,10 @@ The maintainer answered this spec's six questions, and added three rulings (7 to
 6. **Switching:** layers are switched per pane, in each pane's "What to show" menu; the sidebar's
    bottom-bar toggle (#5413) is separate and only hides sidebar rows
    (`layers.toggle.one-menu-per-surface`).
-7. **Box colours:** the pane chooses what a box's colour means (reading order, region, who made
-   it, confidence); reading order, as a gradient from first to last, is the default
-   (`layers.colour.pane-chooses-meaning`).
+7. **Box colours** (ruled 2026-10-04, superseding the pane's choice): a box's colour is its
+   region's hue, shaded as a gradient along the working pass's reading order; nothing is coloured
+   at random; a child is drawn as its parent's child. Owned by `source/segment-editor.md`, "Box
+   colour and the segment hierarchy" (`source.editor.colour.*`, `source.editor.hierarchy.*`).
 8. **One page of a spread:** Preview can show the whole photograph or just its left or right page
    by cropping the view to that page's region, with no change to records, as an alternative to
    splitting it into child documents (`layers.spread.show-one-page`).
@@ -452,7 +452,7 @@ regenerated; app slices drive the real host and store, never injected services.
 | 16 | An empty layer says so | `layers.toggle.empty-layer-says-so` | the read says which layers are empty on this page | dimmed toggle, "None on this page" | Swift | 2 (#4941) |
 | 17 | The 2D canvas card | `layers.canvas2d.page-card-draws-layers` | — | a full-detail page card reads the layers and draws them through its image frame | Swift renderer test on a card's child entities | 2, 4; full-texture tier (#3105, #4931) |
 | 18 | The 3D canvas card | `layers.canvas3d.page-card-draws-layers` | — | the same for the 3D renderer | Swift renderer test | 17 (#4192) |
-| 19 | Colour means what the pane chooses | `layers.colour.pane-chooses-meaning` | — (reading order, provenance and confidence already in the read) | the menu's colour choice, stored per pane; a reading-order gradient by default | Swift pure rule: a gradient along the order, an out-of-order pair breaks it; the real host draws the default | 2, 3 (#5426) |
+| 19 | Colour is the region, shaded by order | `source.editor.colour.*`, `source.editor.hierarchy.*` (in `source/segment-editor.md`) | — (regions and the reading order already in the read) | region hues in region order; a gradient along the reading order inside each region; region-less lines one implicit region; children inside their parent, lighter | Swift pure rule: same page, same colours; a gradient along the order, an out-of-order pair breaks it; a word page still draws its lines; the real host draws it | 2, 3 (#5426, #5463) |
 | 20 | Pages of a spread found, not cut | `layers.spread.show-one-page` (engine half) | finding the pages stores each page region as a `page` segment on the photograph, with decision and confidence, and the outline as geometry; no children made | — | pytest: a proposed split stores two page regions and makes no child | — (#5427, #5382) |
 | 21 | Show one page of a spread | `layers.spread.show-one-page` (app half) | — | Whole, Left page, Right page in the pane menu when page regions exist; the crop is a view transform | Swift: the crop changes no record; boxes stay on their ink | 3, 20 (#5427) |
 | 22 | Transcription font from setup | `layers.text.font-from-script-and-period` | setup stores the derived font as the library's `font` fact per script, with a period rule (medieval Latin → Junicode); the layers read names the resolved font | inline text, lines mode and text panes draw through the resolved family and the `BundledFonts` cascade; the pane menu offers the bundled and project fonts, remembered per library | pytest: derived and stored for Latn + medieval; Swift: inline text uses the resolved family; per-library memory | 2, 3; `source.fonts.per-script` engine half (#5210) (#5438) |
@@ -461,4 +461,4 @@ Order: slices 1, 2, 6, 7, 10, 11 and 20 are engine work with no dependency on ea
 parallel lanes with disjoint files; the app slices follow the read (2 → 3).
 
 ## Triaged from the backlog (2026-10-04)
-- `layers.boxes.visible-with-order-numbers` **[GAP]** (#5288): segment boxes are easy to see at a glance on a dark, busy manuscript page, not faint dashes, and the layers menu has an option, off by default and kept per pane, to label each line with its reading-order number and each region with its region order. (Colour by reading order is `layers.colour.pane-chooses-meaning`.)
+- `layers.boxes.visible-with-order-numbers` **[GAP]** (#5288): segment boxes are easy to see at a glance on a dark, busy manuscript page, not faint dashes, and the layers menu has an option, off by default and kept per pane, to label each line with its reading-order number and each region with its region order. (Colour by region and reading order is `source.editor.colour.reading-order-gradient` in `source/segment-editor.md`.)

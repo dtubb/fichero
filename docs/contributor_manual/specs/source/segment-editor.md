@@ -1060,37 +1060,29 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   `SelectionStyle`'s rule that no RGB appears in the drawing code, so each colour adapts to Light Mode,
   Dark Mode and Increase Contrast by itself.
 
-  **Which colour:**
-  - By default a region's colour is keyed by a STABLE hash of its segment id. So a region keeps its
-    colour across launches, zoom, panes and machines, and two neighbours usually differ.
-  - A region's lines, words and characters take their region's colour.
-  - Within a region, lines ALTERNATE between two tints of that colour, in the region's reading order:
-    the colour itself, and the colour at a lighter strength. Two overlapping neighbours stay
-    distinguishable with thin outlines. The tint follows the order, so moving a line in the order can
-    change its tint, and that is intended.
+  **Which colour:** ruled 2026-10-04, in "Box colour and the segment hierarchy" at the end of
+  these behaviours (`source.editor.colour.*`). The earlier rules, a hue keyed
+  by a hash of the region's id and lines alternating two tints, are replaced by it. Colour by TYPE
+  (main text, marginalia, running head) is not the default: the ruling makes colour mean the region.
 
   **A colour of its own:** the Inspector offers a Colour setting on a region, one of the palette's names.
   It is stored on the segment by `segment.update`, audited, with ⌘Z. The stored value is the palette
   NAME, never RGB, so it still adapts to the appearance and an export can map it. A set colour
-  replaces the hashed one for that region and its children.
+  replaces the region's ordered hue for that region and its children.
 
   Selection and hover keep the system's selection look (`SelectionStyle`), never a region's colour
   (ruled 2026-08-31: "on the page, selection is selection").
 
-  **Open question for the maintainer:** colour by TYPE instead. Each kind or region type, such as main
-  text, marginalia or running head, would get one colour across the page, so a type reads at a glance.
-  The id-keyed default above distinguishes neighbours; colour by type distinguishes roles. If both are
-  wanted, a switch on the layer would choose between them.
-
   **Built 2026-09-28 (d046a7a73), image pages:**
-  - the palette (`SelectionStyle.regionPalette`) and the FNV-1a key (`RegionColours.paletteIndex`);
-  - children taking their region's colour;
-  - lines alternating tints in as-written order.
+  - the palette (`SelectionStyle.regionPalette`);
+  - children taking their region's colour (`RegionColours.tones`).
 
   Pinned by `RegionColoursTests`. **Still PARTIAL:**
   - the Inspector's Colour setting, which needs a `colour` field on `segment.update` (engine);
-  - alternation by a NAMED reading order;
+  - the ruled colour rule below, which replaces the hash key (`RegionColours.paletteIndex`) and the
+    two-tint alternation the code still draws;
   - the PDF page.
+
 - `source.editor.selection-like-preview` — **[PARTIAL]** (#5215) **Selection as Preview.app draws it.**
 
   A selected segment draws an accent-coloured dashed marquee around its box. In Edit Segments it gets
@@ -1624,6 +1616,96 @@ trial's baseline update; readings load once; then a quiet-machine measurement of
 - `source.editor.one-input-seam` — **[GAP]** (#4941) pointer, touch and Pencil feed one input path; the same
   editor runs on Mac, iPad and iPhone.
 
+### Box colour and the segment hierarchy (ruled 2026-10-04, #5426, #5463)
+
+This section owns what a segment box's colour means and how a child shows as its parent's child,
+on every surface that draws or lists segments: the Preview image and PDF page, the Segments list
+and strip, and the Reader. `layers-on-the-source.md`, `preview-surface.md` and `reader-view.md` link
+here rather than restating it.
+
+**The ruling (maintainer, 2026-10-04).** Colour is defined by the REGION. Each region has its own
+hue. Inside a region, its lines are shaded as a gradient along the reading order of the working
+pass, so the order reads at a glance. Nothing is coloured at random. Words are children of lines,
+as lines are children of regions and letters are children of words, and each must be seen to be its
+parent's child. This settles the disagreement between this spec's region colours (#5200, with an
+open "by type" question) and `layers.colour.pane-chooses-meaning` (#5426, the pane chooses, reading
+order by default): the colour means the region and its shade means the order. No pane switch picks
+another meaning. Who made a box and how sure it is keep their existing marks (dashed stroke for a
+model's unconfirmed or uncertain box, `layers.state.drawn`), not the colour.
+
+**Today (read 2026-10-04).** `RegionColours.tones` finds a segment's region by walking up to its
+nearest `region` ancestor, "else its topmost ancestor, else itself". A line with no region is
+therefore keyed by its OWN id, and `RegionColours.paletteIndex` hashes that id (FNV-1a) into the
+twelve-colour palette, so each region-less line gets an unrelated colour. On a page where every
+line is its own region (a Kraken page), every line gets an unrelated colour. Lines then alternate
+two tints in as-written order (`boxIndex`), not in a reading order. The image overlay draws this
+(`DocumentOverlayView.drawBoxes` via `SelectionStyle.regionColour`). The SwiftUI canvas
+(`OCRGeometryOverlay`) strokes every box in the accent colour. When a page has words, only the
+words are drawn (`OCRGeometry.displayIndexedBoxes`), so their lines and regions vanish.
+
+**The design.**
+- *A region's hue.* Regions take palette hues in the order the working pass reads its regions: the
+  first region takes the palette's first hue, the next the second, and so on, wrapping after twelve.
+  The same page always looks the same, neighbours differ, and a page of one-line regions reads as
+  hues stepping down the page in order, not as a scatter. A region's own set colour (above) replaces
+  its ordered hue.
+- *Lines with no region.* The lines of a page that have no region ancestor are one implicit region:
+  the page's own. It takes its hue like any region, at the place its first line has in the reading
+  order, and its lines take the gradient along that order. A word or letter with no line is graded
+  the same way inside its nearest ancestor, else inside the page's implicit region.
+- *The gradient.* Inside a region, the first line in reading order is drawn at the hue's full
+  strength and the last at a lighter strength (about 0.45), with the lines between them evenly
+  spaced. A region with one line draws it at full strength. The reading order is the working
+  pass's: the order the pane has chosen when it has one, else the page's as-written order. A line
+  moved in the order changes shade, and a line out of order breaks the run and stands out. The
+  shade is a strength of the same system colour, never a new RGB, so Light, Dark and Increase
+  Contrast still adapt.
+- *Children as children (recommended).* A child takes its parent's colour: a word takes its line's
+  shade and a letter its word's. Each finer level draws INSIDE its parent and lighter than it: the
+  region as a faint wash of its hue with a thin outline, its lines as thin outlines in their shades,
+  and words and letters as hairlines in their line's shade. A finer level never hides its parents:
+  a page with words still draws its lines and regions under them. Selecting a parent lights its
+  children and dims what is outside it; selecting a child shows its parent's outline at full
+  strength. The pane's "What to show" menu carries a legend: each region's swatch with its gradient,
+  and one line saying the shade is the reading order.
+- *The same hierarchy in lists and text.* The Segments list and strip group rows by region: a
+  region row carries its swatch, its lines are indented under it with their shade, and a line
+  discloses its words. Today the list shows one level at a time and opens the next by
+  drilling in (`ReadingOrderList`, `SegmentsPane.asWritten`). The Reader marks each region's
+  block of lines with a rule in the region's hue down its leading edge, and a highlighted word,
+  line or region uses the same hue.
+
+Prior art: Transkribus and eScriptorium draw regions and the lines inside them together, colour
+regions by role, and light a region's lines when it is selected. Aletheia nests PAGE elements by
+level with a colour per element type and lets the user choose which levels to show. All three keep
+a parent's outline visible under its children. This design keeps the nesting and takes the colour
+from the region instead of the role.
+
+- `source.editor.colour.region-hue` — **[GAP]** (#5426) every region on a page is drawn in its own
+  palette hue, assigned in the working pass's region order; its lines, words and letters take that
+  hue; a region's set colour replaces it.
+- `source.editor.colour.reading-order-gradient` — **[GAP]** (#5426) inside a region, lines are shaded
+  from the hue's full strength to a lighter strength along the working pass's reading order (the
+  pane's chosen order, else as written); moving a line in the order changes its shade. Replaces the
+  two-tint alternation.
+- `source.editor.colour.never-random` — **[GAP]** (#5463) no box's colour comes from a hash of its
+  own id: the same page draws in the same colours every time, and no line is coloured apart from its
+  region.
+- `source.editor.colour.regionless-lines-are-one-region` — **[GAP]** (#5463) lines with no region
+  ancestor are one implicit region of the page: one hue, placed in the region order where their first
+  line falls, with the gradient along their reading order.
+- `source.editor.hierarchy.children-drawn-as-children` — **[GAP]** (#5426) a child draws inside its
+  parent, in its parent's colour, lighter than it; showing words or letters never hides the lines
+  and regions they belong to; selecting a parent lights its children, selecting a child shows its
+  parent.
+- `source.editor.hierarchy.legend` — **[GAP]** (#5426) the pane's "What to show" menu shows each
+  region's swatch with its gradient and says that the shade is the reading order.
+- `source.editor.hierarchy.segments-list-nests` — **[GAP]** (#5426) the Segments list and strip show
+  the same hierarchy: lines indented under their region's row with its swatch, words disclosed under
+  their line, each row in the colour its box is drawn in.
+- `source.editor.hierarchy.reader-shows-regions` — **[GAP]** (#5426) the Reader marks each region's
+  block of lines with its hue, and a highlighted word, line or region is drawn in that hue.
+
 ## Test matrix
 
 The click-around leg matters most here, on the Mac, the iPad and the iPhone. Filled for the
@@ -1655,6 +1737,25 @@ the click-around leg is still to be filled at approval):
 **Answered** (source/source-model.md Rulings 2026-09-19 item 18 + Still open 1 (approved 2026-09-27)): Segments pane approved, built with slice 13. Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 `source-model.md`. #5114 and #5115 are answered; see Rulings.
 
+**Open (for the maintainer, 2026-10-05): how the hierarchy is shown** (#5426, "Box colour and the
+segment hierarchy" above).
+- **Recommended, A: nested, inheriting, lighter.** A child takes its parent's colour and is drawn
+  inside it, lighter and thinner: region as a faint wash and outline, lines as thin outlines in their
+  gradient shades, words and letters as hairlines. Every level shows at once; selecting a parent lights
+  its children. The Segments list indents lines under their region; the Reader marks each region's
+  block with its hue.
+- **B: one level at rest, the parent on demand.** Only the finest level shown is drawn at rest, as
+  today; a parent's outline appears when a child is hovered or selected, and a region's lines light
+  when it is selected (Transkribus's habit). Calmer on a dense page, but the structure is not seen at
+  a glance.
+- **C: level by stroke, not by tint.** Every level keeps its region's full hue and differs by stroke
+  instead: region dashed and wide, line solid, word dotted. Strong in Increase Contrast, but it
+  competes with the dashed stroke that already means "a model's box, not yet confirmed".
+
+A smaller choice inside A: region hues assigned in region reading order (recommended: the same page
+always looks the same, and neighbours differ) or kept by a stable hash of the region's id (a region
+keeps its hue when another region is added, but colours look arbitrary).
+
 ## Rulings
 
 - **2026-10-04 (#5114):** the segment focus is the tool bar the Preview already has; there is no
@@ -1663,6 +1764,10 @@ the click-around leg is still to be filled at approval):
   stays). The rule: shapes are drawn in the Preview, readings are typed in the Reader, and the
   Inspector shows the selection and may run the same one-path verbs, never a second
   implementation (`source.editor.shapes-in-source-view`).
+- **2026-10-04 (#5426, #5463):** a box's colour is its region's hue, shaded along the working
+  pass's reading order; nothing is coloured at random; a child is seen as its parent's child. This
+  spec owns it ("Box colour and the segment hierarchy"); how the hierarchy is drawn is in Open
+  questions.
 
 ## Triaged from the backlog (2026-10-04)
 - `source.editor.multi-selection-moves-together` **[GAP]** (#5236): with several boxes selected, each shows its marquee without handles, and dragging inside any of them moves the whole set together as one ⌘Z. (Handles only on a single selection landed in 18d1c3b8b.)

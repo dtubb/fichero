@@ -218,8 +218,9 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   to it together. Pinned by `fichero-server/tests/unit/api/test_preview_draws_the_pass_the_strip_lists.py`
   and, through the real image preview in the library window's tree, by
   `ImportedPageDrawsItsBoxesTests.testTheWordsTheSegmentsListListsAreDrawnBesideAnUnconvertedRun`.
-  PARTIAL until seen on screen on the Marshall page. Box colours are not part of this behaviour: their
-  meaning waits on `layers.colour.pane-chooses-meaning` (#5426).
+  PARTIAL until seen on screen on the Marshall page. Box colours are not part of this behaviour: they are
+  owned by `source/segment-editor.md`, "Box colour and the segment hierarchy" (ruled 2026-10-04:
+  the region's hue, shaded along the working pass's reading order; #5426, #5463).
 
 ## PASS 2 — the fold (9 waiting issues, every body read fresh)
 
