@@ -66,6 +66,16 @@ class LibraryManager {
     /// populates on iPhone even when its .task fires before loadCollections() (#2472).
     var librariesLoadVersion: Int = 0
 
+    /// The project `createProject(at:)` made last. The sidebar selects its row when this changes
+    /// (`create.project.appears-and-is-selected`, #5430).
+    var createdProjectId: UUID?
+
+    /// The project whose setup (`FirstRunWindow(setUp: true)`) is asked for: by a new project, by
+    /// File › Set Up Project…, or by an empty project's Set Up… (#5430, #5421). The window showing
+    /// that project presents setup and clears this when it closes. Never gated on
+    /// `FeatureManager.firstRunCompleted`, which governs only the app's first launch.
+    var setUpRequestedLibraryId: UUID?
+
     /// Represents an open library with its associated resources
     /// Each library has one instance of each service, shared across all windows/tabs viewing this library
     @MainActor

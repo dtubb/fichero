@@ -268,6 +268,11 @@ struct SidebarView: View {
                 // Resubscribe to service changes for new libraries
                 setupServiceObservers()
             }
+            .onChange(of: libraryManager.createdProjectId) { _, createdId in
+                // A project just created is selected, as its row is (#5430), through the seam a click uses.
+                guard let createdId, libraryManager.getLibrary(id: createdId) != nil else { return }
+                applySidebarSelectionProposal([.library(createdId)])
+            }
             .onChange(of: libraryManager.librariesLoadVersion) { _, _ in
                 // Rebuild after any library finishes loading its data (#2472).
                 // On iPhone, SidebarView.task fires before loadCollections()

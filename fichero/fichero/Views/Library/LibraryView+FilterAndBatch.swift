@@ -465,6 +465,20 @@ extension LibraryView {
                 .controlSize(.small)
                 .padding(.top, 4)
             }
+
+            #if os(macOS)
+            // An empty project offers its setup here (`source.onboard.reachable`, #5421): the
+            // same request File › Set Up Project… makes, presented by the window.
+            if projectOffersSetUp(
+                reason: reason,
+                isLoaded: libraryManager.loadedLibraryIds.contains(windowState.libraryId),
+                rootCollections: documentStore.collections
+            ) {
+                Button("Set Up…") { libraryManager.requestSetUp(for: windowState.libraryId) }
+                    .buttonStyle(.bordered)
+                    .padding(.top, 4)
+            }
+            #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // The empty-library right-click (#4449). `libraryRowsOrEmptyState`

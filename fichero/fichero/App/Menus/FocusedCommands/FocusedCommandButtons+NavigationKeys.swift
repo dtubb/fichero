@@ -86,6 +86,11 @@ extension FocusedValues {
         set { self[DuplicateWindowActionKey.self] = newValue }
     }
 
+    var setUpProjectAction: SetUpProjectActionKey.Value? {
+        get { self[SetUpProjectActionKey.self] }
+        set { self[SetUpProjectActionKey.self] = newValue }
+    }
+
     var saveLibraryAction: SaveLibraryActionKey.Value? {
         get { self[SaveLibraryActionKey.self] }
         set { self[SaveLibraryActionKey.self] = newValue }

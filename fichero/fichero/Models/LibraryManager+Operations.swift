@@ -225,6 +225,26 @@ extension LibraryManager {
         return library
     }
 
+    /// Create a project at the location the save panel chose: the ONE create path behind File ›
+    /// New Library…, in a window and with no window (#4530). The project is inserted once into
+    /// `openLibraries` (the sidebar's rows), saved, remembered for the next launch (`saveLibrary`),
+    /// marked for the sidebar to select, and asks for its setup (#5430).
+    /// - Throws: `LibraryError.saveFailed` when the package cannot be saved; the unsaved library
+    ///   stays open so the person can retry with Save Library As.
+    @discardableResult
+    func createProject(at url: URL) throws -> LibraryReference {
+        let created = createNewLibrary()
+        try saveLibrary(created.id, to: url)
+        createdProjectId = created.id
+        requestSetUp(for: created.id)
+        return getLibrary(id: created.id) ?? created
+    }
+
+    /// Ask the window showing `libraryId` to open setup for it (`source.onboard.reachable`).
+    func requestSetUp(for libraryId: UUID) {
+        setUpRequestedLibraryId = libraryId
+    }
+
     /// Create a new unsaved library
     /// - Returns: Library reference for a new library (not yet saved to disk)
     func createNewLibrary() -> LibraryReference {
@@ -411,6 +431,10 @@ extension LibraryManager {
                 url: url,
                 displayName: displayName
             )
+            // Remember the SAVED path for the next launch (#5430). The list skips temporary
+            // packages, so a new library was never in it until something else re-saved it: the
+            // next launch restored the list without it and the project vanished from the sidebar.
+            saveOpenLibraryPaths()
 
             // The user CHOSE this location in a save panel, so this is exactly
             // the moment access is minted — and until 2026-08-04 nothing minted

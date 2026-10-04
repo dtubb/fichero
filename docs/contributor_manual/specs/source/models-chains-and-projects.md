@@ -1579,14 +1579,24 @@ Setup
 - `source.onboard.topics-written-once` — **[GAP]** (#4951) each topic's and each job's explanation
   is stored once, with its job or topic in the registry, and the same text is shown in setup, the
   Inspector, an exported recipe's README and the user manual.
-- `source.onboard.new-project-offers-setup` — **[BROKEN]** (#5430) a project created in the app opens
+- `source.onboard.new-project-offers-setup` — **[PARTIAL]** (#5430) **Built 2026-10-04:** creating a
+  project asks for its setup (`LibraryManager.setUpRequestedLibraryId`) and the window showing it
+  presents `FirstRunWindow(setUp: true)` through `projectSetUpIsDue`, which never reads
+  `firstRunCompleted` (it waits only while the app's own first run is showing);
+  `fichero/Tests/Unit/general/Models/LibraryManagerCreateProjectTests.swift`. Not pinned: the
+  sheet's presentation itself (view code). a project created in the app opens
   setup for itself straight away (`FirstRunWindow(setUp: true)`), whether or not the app's own first
   run was ever completed. `firstRunCompleted` governs only the app's first launch, never a new
   project. Found 2026-10-04: the sheet is gated on `!featureManager.firstRunCompleted`
   (`LibraryWindow.swift:235`), so after the first launch a new project never offers setup. *Test:*
   creating a project through the app's create path with `firstRunCompleted = true` presents setup
   for that project.
-- `source.onboard.reachable` — **[GAP]** (#5421) setup is reachable without hunting: **File › Set Up
+- `source.onboard.reachable` — **[PARTIAL]** (#5421) **Built 2026-10-04:** File › Set Up Project…
+  (the key window's project) and Set Up… on an empty project's main view (`projectOffersSetUp`)
+  both call `LibraryManager.requestSetUp(for:)`, the one request the window presents as
+  `FirstRunWindow(setUp: true)`; `fichero/Tests/Unit/general/Models/LibraryManagerCreateProjectTests.swift`.
+  Not pinned: the menu item and button wiring (view code); the Inspector's Set Up… keeps its own
+  sheet of the same view. setup is reachable without hunting: **File › Set Up
   Project…** for the selected project, and a **Set Up…** button on an empty project's main view, both
   opening the same flow as Inspector › Info › Recipe › Set Up…. *Test:* the menu command and the empty
   state's button each present setup for the selected project.
