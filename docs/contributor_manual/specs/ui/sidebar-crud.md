@@ -22,6 +22,11 @@ actual test bodies rather than pattern-matching names, and updated tags/citation
 Both issues are already on this milestone (#291); no new issues were needed.
 
 ### Create
+- `create.project.appears-and-is-selected` — **[BROKEN]** (#5430) a project created in the app
+  appears in the sidebar at once, as one row added in place (no reload), and is selected; setup then
+  opens for it (`source.onboard.new-project-offers-setup`). Found 2026-10-04 by the maintainer: a
+  new library did not appear in the sidebar. *Test:* creating a project through the real create
+  path adds its row to the sidebar's store and selects it.
 - `create.item.same-rule` — **[GAP]** (#4697) no dedicated "create item" (non-folder) handler
   mirrors `handleCreateNewFolder`/`createFolder`'s placement+select rule was found in
   `SidebarCreationHandlers.swift`; items appear to enter the tree by other paths (import,
