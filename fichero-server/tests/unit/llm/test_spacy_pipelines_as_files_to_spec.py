@@ -30,21 +30,27 @@ def _bundled_data() -> Path:
     return next(p for p in pkg.iterdir() if p.is_dir() and p.name.startswith("es_core_news_sm-"))
 
 
+def _files(root: Path) -> list[Path]:
+    """Every file under a folder this test made or reads (a model folder, the temp store)."""
+    from _scan_files import scan_rglob
+
+    return [p for p in scan_rglob(root, "*") if p.is_file()]
+
+
 def _wheel(path: Path, *, extra: dict[str, bytes] | None = None, meta_name: str = "core_news_md") -> Path:
     """A release archive shaped like spaCy's: the package's code beside its data folder."""
     src = _bundled_data()
     with zipfile.ZipFile(path, "w") as z:
         z.writestr(f"{NAME}/__init__.py", "raise SystemExit('package code must never run')\n")
         z.writestr(f"{NAME}-{VERSION}.dist-info/METADATA", "Name: es-core-news-md\n")
-        for f in src.rglob("*"):  # noqa: rglob is the fixture's own copy of a model folder
-            if f.is_file():
-                rel = f.relative_to(src).as_posix()
-                data = f.read_bytes()
-                if rel == "meta.json":
-                    meta = json.loads(data)
-                    meta["name"] = meta_name
-                    data = json.dumps(meta).encode()
-                z.writestr(DATA + rel, data)
+        for f in _files(src):
+            rel = f.relative_to(src).as_posix()
+            data = f.read_bytes()
+            if rel == "meta.json":
+                meta = json.loads(data)
+                meta["name"] = meta_name
+                data = json.dumps(meta).encode()
+            z.writestr(DATA + rel, data)
         for name, data in (extra or {}).items():
             z.writestr(name, data)
     return path
@@ -96,7 +102,7 @@ def test_runtime_spacy_pipelines_download_as_data__only_the_data_folder_is_writt
     assert row["kind"] == "download-model" and jobs.KINDS["download-model"].lane == "network"
     folder = store["models"] / "spacy" / f"{NAME}-{VERSION}"
     assert (folder / "config.cfg").is_file() and (folder / "meta.json").is_file() and (folder / "ner").is_dir()
-    written = [p.relative_to(store["models"]).as_posix() for p in store["models"].rglob("*")]  # noqa: rglob of a tmp store
+    written = [p.relative_to(store["models"]).as_posix() for p in _files(store["models"])]
     assert not [p for p in written if p.endswith(".py") or "dist-info" in p], "nothing outside the data folder"
     listed = _listed(client)
     assert listed["is_downloaded"] is True and listed["size_bytes"] > 1_000_000 and listed["path"] == str(folder)

@@ -19,7 +19,7 @@ def ner(monkeypatch):
     """spaCy's NER: the names listed for each page (by its text), as persons."""
     from fichero_server.knowledge import spacy_ner
 
-    def extract(text, language=None):
+    def extract(text, language=None, model=None):
         return [spacy_ner.EntitySpan(text=n, fichero_type="person", start=0, end=len(n), label="PER")
                 for n in text.split(" | ")]
 
