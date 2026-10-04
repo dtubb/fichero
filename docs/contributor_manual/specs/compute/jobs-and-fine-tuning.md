@@ -520,7 +520,12 @@ needs them.
    weights; the 3B's licence is research-only.*
 5. **Does the merged model come home by default?** It is about 16 GB for an 8B model.
    *Proposal: no. The adapter always; the merged model only when the person wants it on the
-   Mac.*
+   Mac.* **As built (#5398):** the merged model IS downloaded, because the MLX conversion runs on
+   this Mac (MLX is Apple's, and the spec puts `compute.tune.convert-for-mlx` here), and
+   `mlx_vlm.convert` needs the merged bf16 weights. Once the 4-bit MLX build lands, this Mac's copy
+   of the merged weights is deleted unless `keep_merged_here`; the bucket keeps the merged weights
+   and adapter as the Hugging Face build a Linux GPU reads with. Converting in the Job instead would
+   avoid the ~17 GB download but put an Apple-only step on a Linux GPU; open.
 6. **Publishing lives in the exporter and model-card specs.** *Proposal: move the eight
    `compute.publish.*` behaviours there once their owners agree, keeping only
    `compute.publish.is-separate-and-asked-again` here.*

@@ -513,6 +513,7 @@ def fichero_train_vision_lora(
     timeout: str = "8h",
     epochs: int = 2,
     not_for_release: bool = True,
+    arm: str = "answer",
 ) -> Any:
     """Distil a teacher's line readings into a local vision model: a LoRA on ``base_repo`` (bf16; Qwen3-VL
     8B by default, or any image-text-to-text model such as Qwen/Qwen2.5-VL-7B-Instruct or
@@ -523,12 +524,19 @@ def fichero_train_vision_lora(
     Sends an archive's pages to another company and costs money (a 24 GB GPU for hours): pass
     ``pages_may_leave=True`` only when the PERSON has said yes for this project, and report the
     ``flavor`` and ``price_per_hour_usd`` it answers with. Follow it with ``fichero_training_status``.
+
+    ``arm`` (#4642) is what the student learns to write: ``answer`` (the transcription), ``why`` (a
+    palaeographer's reasons, then the transcription), ``thinking`` (its thinking, then the transcription)
+    or ``review`` (a draft's review). The answer is always the CHECKED text, so ``teacher`` is then the
+    checked pass's model; reasons come from the episode ledger. Train two arms on the same lines to
+    compare them.
     """
     with _mutating_client() as client:
         return client.train_vision_lora({
             "scope_ids": scope_ids, "teacher": teacher, "held_out_ids": held_out_ids or [], "name": name,
             "language": language, "base_repo": base_repo, "flavor": flavor, "timeout": timeout,
             "epochs": epochs, "pages_may_leave": pages_may_leave, "not_for_release": not_for_release,
+            "arm": arm,
         })
 
 
@@ -546,6 +554,71 @@ def fichero_training_cancel(job_id: str) -> Any:
     """Stop a training job. A running one is cancelled on Hugging Face (it stops costing)."""
     with _mutating_client() as client:
         return client.cancel_training(job_id)
+
+
+@mcp.tool()
+def fichero_gather_reasons(
+    scope_ids: list[str],
+    checked: str,
+    provider: str,
+    model: str,
+    mode: str = "read",
+    draft: Optional[str] = None,
+    held_out_ids: Optional[list[str]] = None,
+    language: Optional[str] = None,
+    prompt_file: Optional[str] = None,
+) -> Any:
+    """Ask a palaeographer (a reasoning vision model: ``provider``/``model``) about every line of the
+    CHECKED pass (``checked``, its model id) in scope, held-out pages left out. ``mode="read"``: the
+    letterforms, abbreviations and uncertain readings behind each reading, then the transcription;
+    ``mode="review"``: its review of the ``draft`` pass's reading of each line. Each call is kept in the
+    episode ledger; ``fichero_train_vision_lora`` with ``arm`` = why, thinking or review trains on them.
+    A hosted model is a paid call that sends line pictures out: say so to the person first. Follow it
+    with ``fichero_reasons_status``."""
+    with _mutating_client() as client:
+        return client.gather_reasons({
+            "scope_ids": scope_ids, "checked": checked, "provider": provider, "model": model, "mode": mode,
+            "draft": draft, "held_out_ids": held_out_ids or [], "language": language, "prompt_file": prompt_file,
+        })
+
+
+@mcp.tool()
+def fichero_reasons_status(job_id: str) -> Any:
+    """A reasons job's state and counts: lines asked about, with reasons, with thinking, unanswered."""
+    with _client() as client:
+        return client.reasons_status(job_id)
+
+
+@mcp.tool()
+def fichero_reasons_cancel(job_id: str) -> Any:
+    """Stop a reasons job: no further lines are asked about; what was gathered stays."""
+    with _mutating_client() as client:
+        return client.cancel_reasons(job_id)
+
+
+@mcp.tool()
+def fichero_reasons_ab(
+    checked: str,
+    held_out_ids: list[str],
+    contenders: list[dict[str, str]],
+    language: Optional[str] = None,
+    noise_band: float = 0.005,
+) -> Any:
+    """Measure whether a student learned better from a palaeographer's reasons: every contender
+    (``{"label", "provider", "model", "arm": answer|why|thinking, "role": student|teacher|baseline}``)
+    reads the HELD-OUT checked lines as it was trained; one CER and WER each. A reasoning student is
+    adopted only if it beats the answer-only student by more than ``noise_band`` (0.5 CER points); the
+    result is written on the students' cards either way. Follow it with ``fichero_reasons_ab_status``."""
+    with _mutating_client() as client:
+        return client.measure_reasons_ab({"checked": checked, "held_out_ids": held_out_ids,
+                                          "contenders": contenders, "language": language, "noise_band": noise_band})
+
+
+@mcp.tool()
+def fichero_reasons_ab_status(job_id: str) -> Any:
+    """The reasons A/B's scores (CER, WER, seconds a line) and verdicts, once measured."""
+    with _client() as client:
+        return client.reasons_ab_status(job_id)
 
 
 @mcp.tool()

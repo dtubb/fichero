@@ -65,7 +65,7 @@ KRAKEN_MODEL_PREFIX = "kraken:"
 #: after relaunch even before anything in this session enqueues one.
 _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
                  "fichero_server.training.job", "fichero_server.workflows.task_workers",
-                 "fichero_server.remote_read.job")
+                 "fichero_server.remote_read.job", "fichero_server.training.reasons_job")
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
 #: never holds the local ML lane.

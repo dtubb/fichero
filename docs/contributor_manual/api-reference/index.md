@@ -591,11 +591,36 @@ model, its licence recorded) on the cheapest listed GPU that fits unless a `flav
 back on this Mac, the merged model converted to 4-bit MLX on the local ML lane and landed as
 `fichero-trained/<name>`: one card, two builds (MLX here; the merged Hugging Face weights and adapter
 in the job's bucket for Linux GPUs; `keep_merged_here` keeps a copy on this Mac too). The same refusals. Through `training.start_vision_lora`.
+`arm` (#4642) chooses what the student learns to write: `answer` (the transcription), `why` (a
+palaeographer's reasons, then the transcription), `thinking` (its thinking, then the transcription) or
+`review` (a review of a draft reading). The answer is always the checked text; the reasons come from the
+episode ledger (`training.reasons`) and are kept only where the palaeographer's own reading is within
+`max_trace_cer` of the checked one; the A/B arms train on the lines every reasoning arm covers unless
+`all_lines`. The set's arm counts and drops are on the job.
 
 `GET /api/training/jobs/{job_id}` follows it: `state`, the `reason` in words, its `phase` and
 `history`, the Job's `far_id` on Hugging Face, the training set's counts (including how many lines a
 model read and a person checked), the Job's `last_lines` when it ends, and, once landed, the
 `reader_id` (`kraken-trained-…`) or `model_id` (`fichero-trained/…`) to read with. The job also appears in `GET /api/activity/jobs`.
+
+`POST /api/training/reasons` queues a `gather-reasons` job (#4642): a palaeographer (a reasoning vision
+model, `provider` and `model`) is asked about every line of the `checked` pass in scope, held-out pages
+left out: with `mode: read`, the letterforms, abbreviations and uncertain readings behind each reading,
+then the transcription; with `mode: review`, its review of the `draft` pass's reading of each line.
+`prompt_file` is the recipe's own prompt. Each call is one episode in the ledger, which the vision
+card's `why`, `thinking` and `review` arms read. Through `training.gather_reasons`; 422 for a review with
+no `draft`. `GET /api/training/reasons/{job_id}` gives its counts (lines, with reasons, with thinking,
+unanswered, pages missing and why); `POST /api/training/reasons/{job_id}/cancel` stops it
+(`training.cancel_reasons`): no further lines are asked about, and what was gathered stays.
+
+`POST /api/training/reasons-ab` queues a `reasons-ab` job (#4642, `distill.reasoning.ab-decides`): each
+of the `contenders` (`label`, `provider`, `model`, `arm`, `role`: student, teacher or baseline) reads the
+held-out checked lines (`held_out_ids`, required) as it was trained, and a reasoning student also with
+its reasoning off; one CER and WER each, seconds a line, and for a `why` student how many of its errors
+fall on lines it called uncertain. A reasoning student is adopted only if it beats the answer-only
+student by more than `noise_band` (0.005); the result is written on every Fichero-trained contender's
+card either way. Through `training.measure_reasons_ab`; `GET /api/training/reasons-ab/{job_id}` gives the
+scores and verdicts.
 
 `POST /api/training/jobs/{job_id}/cancel` stops it (`training.cancel`): a job not started ends at
 once; a running one is cancelled on Hugging Face at its next look and ends `cancelled`.

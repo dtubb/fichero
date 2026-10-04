@@ -25,7 +25,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
 
@@ -74,6 +74,14 @@ class TrainVisionLoraRequest(_TrainRequest):
     timeout: str = Field("8h", description="The Job's time limit; always sent.")
     epochs: int = Field(2, ge=1, le=20)
     rank: int = Field(16, ge=2, le=256)
+    arm: Literal["answer", "why", "thinking", "review"] = Field(
+        "answer", description="What the student learns to write (#4642): the checked transcription alone, with "
+        "a palaeographer's reasons, with its thinking, or a review of a draft. Reasons come from the episode "
+        "ledger (training.reasons); the answer is always the checked text.")
+    max_trace_cer: float = Field(0.10, ge=0.0, le=1.0, description="A palaeographer's reasons are kept only where "
+                                 "its own reading of the line is within this CER of the checked one.")
+    all_lines: bool = Field(False, description="Train an A/B arm on every line it has, not only the lines every "
+                            "reasoning arm covers.")
 
 
 #: The cards a training job can be, by the name its row records.
@@ -164,7 +172,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     """Carry a training job through its phases; returns the landed model's id."""
     from fichero_server.llm.kraken_runtime import resolve_recognition_model
     from fichero_server.training.hf_jobs import LORA_TRAINER, TRAINER, HfJobsTarget, kraken_args, lora_args
-    from fichero_server.training.kraken_set import export_training_set
+    from fichero_server.training.kraken_set import EmptyTrainingSet, export_training_set
     from fichero_server.training.line_pairs import write_line_pairs
 
     job_id = _job_id_for(db, subject)
@@ -186,9 +194,23 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
                                    held_out_ids=request.held_out_ids, out_dir=data)
         detail["training_set"] = {k: v for k, v in made.manifest().items() if k != "pages"} | {"pages": len(made.pages)}
         if vision:
-            detail["training_set"]["line_pairs"] = write_line_pairs(data, language=request.language)
+            traces = reviews = None
+            if request.arm != "answer":
+                from fichero_server.training.reasons import READ, REVIEW, traces_by_line
+
+                library = str(Path(db.path).parent)
+                traces, reviews = traces_by_line(library, READ), traces_by_line(library, REVIEW)
+            detail["training_set"]["line_pairs"] = write_line_pairs(
+                data, language=request.language, traces=traces, reviews=reviews, max_trace_cer=request.max_trace_cer)
+            if traces is not None:
+                arms = json.loads((data / "manifest.json").read_text(encoding="utf-8"))
+                detail["training_set"].update({k: arms[k] for k in ("arms", "arms_dropped_outside_cer",
+                                                                     "max_trace_cer", "lines_in_every_arm")})
+                if not arms["arms"].get(request.arm):
+                    raise EmptyTrainingSet(f"no line in scope has the {request.arm} arm: gather the palaeographer's "
+                                           "reasons for the checked lines first")
             script, args = LORA_TRAINER, lora_args(job_id, base_repo=request.base_repo, epochs=request.epochs,
-                                                   rank=request.rank)
+                                                   rank=request.rank, arm=request.arm, all_lines=request.all_lines)
         else:
             base_file = None
             if request.base:
@@ -267,7 +289,7 @@ def _land_vision(db: Any, job_id: str, out: Path, request: TrainVisionLoraReques
     licence, licence_note = licence_of(request.base_repo)
     student = {**card, "base": request.base_repo, "base_licence": request.base_licence or licence,
                "base_licence_note": licence_note, "language": request.language, "epochs": request.epochs,
-               "rank": request.rank}
+               "rank": request.rank, "arm": request.arm}
     return jobs.run_on_lane_blocking(
         str(Path(db.path).parent), CONVERT_KIND, job_id, model=CONVERT_MODEL,
         fn=lambda: land_vision_student(out, job_id=job_id, name=request.name, card=student, hf_build=hf_build,

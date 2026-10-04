@@ -418,5 +418,8 @@
   "POST /api/training/vision-lora": "not undoable by design (training.start_vision_lora, audited, undoable=False): a Job that ran on Hugging Face has run and was paid for; it is stopped with the cancel route, and its landed model is deleted like any MLX model (#5398)",
   "POST /api/reading-at-scale": "not undoable by design (reading.start_at_scale, audited, undoable=False): Jobs that ran on Hugging Face have run and were paid for; it is stopped with the cancel route, and what it read lands as passes, each removed like any pass (#5398)",
   "POST /api/reading-at-scale/jobs/{job_id}/resend-failed": "not undoable by design (reading.resend_failed, audited, undoable=False): re-sent shards run on Hugging Face; stop them with the cancel route (#5398)",
-  "POST /api/reading-at-scale/jobs/{job_id}/cancel": "not undoable by design (reading.cancel_at_scale, audited, undoable=False): cancelled Jobs on Hugging Face cannot be resumed; re-send the failed shards (#5398)"
+  "POST /api/reading-at-scale/jobs/{job_id}/cancel": "not undoable by design (reading.cancel_at_scale, audited, undoable=False): cancelled Jobs on Hugging Face cannot be resumed; re-send the failed shards (#5398)",
+  "POST /api/training/reasons": "not undoable by design (training.gather_reasons, audited, undoable=False): the model calls were made (and may have been paid for); the ledger is append-only by design, and a trace is only used through a training set",
+  "POST /api/training/reasons/{job_id}/cancel": "not undoable by design (training.cancel_reasons, audited, undoable=False): start a new job to ask about the remaining lines",
+  "POST /api/training/reasons-ab": "not undoable by design (training.measure_reasons_ab, audited, undoable=False): a measurement; its result is appended to the students' cards as a dated record, never replacing an earlier one"
 }

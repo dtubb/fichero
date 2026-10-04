@@ -42,6 +42,11 @@ EXPECTED_TOOLS = {
     "fichero_pause_background_work",
     "fichero_job_pause",
     "fichero_job_cancel",
+    "fichero_gather_reasons",
+    "fichero_reasons_status",
+    "fichero_reasons_cancel",
+    "fichero_reasons_ab",
+    "fichero_reasons_ab_status",
     "fichero_read_at_scale",
     "fichero_reading_status",
     "fichero_reading_resend_failed",
@@ -375,6 +380,7 @@ def test_training_tools_send_the_engines_request(monkeypatch):
     start, status, cancel, vision = seen
     assert (vision.method, vision.url.path) == ("POST", "/api/training/vision-lora")
     assert json.loads(vision.content)["base_repo"] == "Qwen/Qwen3-VL-8B-Instruct"
+    assert json.loads(vision.content)["arm"] == "answer", "a reasons arm is chosen, never the default"
     assert (start.method, start.url.path) == ("POST", "/api/training/kraken")
     body = json.loads(start.content)
     assert body["pages_may_leave"] is True and body["held_out_ids"] == ["p4"] and body["timeout"] == "4h"
@@ -400,6 +406,33 @@ def test_job_tools_send_the_engines_request(monkeypatch):
     assert json.loads(pause.content) == {"paused": True}
     assert json.loads(resume.content) == {"paused": False}
     assert (cancel.method, cancel.url.path) == ("POST", "/api/activity/jobs/j1/cancel")
+
+
+def test_reasons_tools_send_the_engines_request(monkeypatch):
+    """#4642: an agent gathers a palaeographer's reasons the one way the engine offers."""
+    import json
+
+    with _mock_client(monkeypatch, body={"job_id": "g1"}) as seen:
+        mcp_server.fichero_gather_reasons(["c01"], "fable-checked", "omlx", "Qwen3-VL-8B-Thinking",
+                                          held_out_ids=["p9"])
+        mcp_server.fichero_reasons_status("g1")
+        mcp_server.fichero_reasons_cancel("g1")
+    start, status, cancel = seen
+    assert (start.method, start.url.path) == ("POST", "/api/training/reasons")
+    body = json.loads(start.content)
+    assert body["mode"] == "read" and body["checked"] == "fable-checked" and body["held_out_ids"] == ["p9"]
+    assert (status.method, status.url.path) == ("GET", "/api/training/reasons/g1")
+    assert (cancel.method, cancel.url.path) == ("POST", "/api/training/reasons/g1/cancel")
+
+    with _mock_client(monkeypatch, body={"job_id": "ab1"}) as seen:
+        mcp_server.fichero_reasons_ab("fable-checked", ["p9"], [{"label": "a", "provider": "omlx", "model": "m"},
+                                                               {"label": "b", "provider": "omlx", "model": "n",
+                                                                "arm": "why"}])
+        mcp_server.fichero_reasons_ab_status("ab1")
+    ab, ab_status = seen
+    assert (ab.method, ab.url.path) == ("POST", "/api/training/reasons-ab")
+    assert json.loads(ab.content)["noise_band"] == 0.005 and json.loads(ab.content)["held_out_ids"] == ["p9"]
+    assert (ab_status.method, ab_status.url.path) == ("GET", "/api/training/reasons-ab/ab1")
 
 
 def test_reading_at_scale_tools_send_the_engines_request(monkeypatch):

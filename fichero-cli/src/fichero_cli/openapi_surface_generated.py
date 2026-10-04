@@ -15367,9 +15367,117 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("ask-a-palaeographer-for-its-reasons-or-review-on-each-checked-line")
+    def training_ask_a_palaeographer_for_its_reasons_or_review_on_each_checked_line_post(
+        ctx: typer.Context,
+        checked: str = typer.Option(..., "--checked", help="Request field: checked."),
+        draft: Optional[str] = typer.Option(None, "--draft", help="Request field: draft."),
+        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        mode: Optional[str] = typer.Option(None, "--mode", help="Request field: mode."),
+        model: str = typer.Option(..., "--model", help="Request field: model."),
+        prompt_file: Optional[str] = typer.Option(None, "--prompt-file", help="Request field: prompt_file."),
+        provider: str = typer.Option(..., "--provider", help="Request field: provider."),
+        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+    ) -> None:
+        """Ask a palaeographer for its reasons (or review) on each checked line (POST /api/training/reasons)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/reasons"
+            params = None
+            payload = _build_json_payload({
+                "checked": checked,
+                "draft": draft,
+                "held_out_ids": held_out_ids,
+                "language": language,
+                "mode": mode,
+                "model": model,
+                "prompt_file": prompt_file,
+                "provider": provider,
+                "scope_ids": scope_ids,
+            }, {
+                "checked": {'type': 'string', 'title': 'Checked', 'description': 'The model id of the CHECKED pass (its lines and their right readings).', 'x-cli-required': True},
+                "draft": {'type': 'string', 'nullable': True, 'title': 'Draft', 'description': 'review: the model id of the pass whose readings are reviewed.', 'x-cli-required': False},
+                "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'Pages kept as the test: never asked about.', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "mode": {'type': 'string', 'enum': ['read', 'review'], 'title': 'Mode', 'description': "`read`: the palaeographer's reasons and transcription; `review`: its review of the `draft` pass's readings.", 'default': 'read', 'x-cli-required': False},
+                "model": {'type': 'string', 'title': 'Model', 'description': 'The teacher: a reasoning vision model, e.g. Qwen3-VL-8B-Thinking.', 'x-cli-required': True},
+                "prompt_file": {'type': 'string', 'nullable': True, 'title': 'Prompt File', 'description': "The recipe's prompt file; none uses Fichero's own.", 'x-cli-required': False},
+                "provider": {'type': 'string', 'title': 'Provider', 'description': "The teacher's provider, e.g. openrouter, gemini, omlx.", 'x-cli-required': True},
+                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages whose checked lines are asked about.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("measure-answer-only-against-reasoning-students-on-held-out-checked-pages")
+    def training_measure_answer_only_against_reasoning_students_on_held_out_checked_pages_post(
+        ctx: typer.Context,
+        checked: str = typer.Option(..., "--checked", help="Request field: checked."),
+        contenders: str = typer.Option(..., "--contenders", help="Request field: contenders."),
+        held_out_ids: str = typer.Option(..., "--held-out-ids", help="Request field: held_out_ids."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        noise_band: Optional[float] = typer.Option(None, "--noise-band", help="Request field: noise_band."),
+    ) -> None:
+        """Measure answer-only against reasoning students on held-out checked pages (POST /api/training/reasons-ab)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/reasons-ab"
+            params = None
+            payload = _build_json_payload({
+                "checked": checked,
+                "contenders": contenders,
+                "held_out_ids": held_out_ids,
+                "language": language,
+                "noise_band": noise_band,
+            }, {
+                "checked": {'type': 'string', 'title': 'Checked', 'description': 'The model id of the CHECKED pass: the right readings.', 'x-cli-required': True},
+                "contenders": {'items': {'$ref': '#/components/schemas/ContenderSpec'}, 'type': 'array', 'minItems': 2, 'title': 'Contenders', 'description': 'The answer-only student, the reasoning students, the teacher and a cheap baseline.', 'x-cli-required': True},
+                "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'The held-out checked pages: no arm trained on them.', 'x-cli-required': True},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "noise_band": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Noise Band', 'description': 'A reasoning student is adopted only if it beats the answer-only one by more than this CER.', 'default': 0.005, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("the-reasons-a-b-s-scores-and-verdicts")
+    def training_the_reasons_a_b_s_scores_and_verdicts_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """The reasons A/B's scores and verdicts (GET /api/training/reasons-ab/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/training/reasons-ab/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("a-reasons-job-s-counts-in-words-and-numbers")
+    def training_a_reasons_job_s_counts_in_words_and_numbers_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """A reasons job's counts in words and numbers (GET /api/training/reasons/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/training/reasons/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-a-reasons-job-no-further-lines-are-asked-about")
+    def training_stop_a_reasons_job_no_further_lines_are_asked_about_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Stop a reasons job (no further lines are asked about) (POST /api/training/reasons/{job_id}/cancel)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/training/reasons/{job_id}/cancel"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("train-a-vision-model-with-lora-on-hugging-face-jobs-landed-here-as-mlx")
     def training_train_a_vision_model_with_lora_on_hugging_face_jobs_landed_here_as_mlx_post(
         ctx: typer.Context,
+        all_lines: Optional[bool] = typer.Option(None, "--all-lines/--no-all-lines", help="Request field: all_lines."),
+        arm: Optional[str] = typer.Option(None, "--arm", help="Request field: arm."),
         base_licence: Optional[str] = typer.Option(None, "--base-licence", help="Request field: base_licence."),
         base_repo: Optional[str] = typer.Option(None, "--base-repo", help="Request field: base_repo."),
         display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
@@ -15378,6 +15486,7 @@ def register_generated_openapi_commands(
         held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
         keep_merged_here: Optional[bool] = typer.Option(None, "--keep-merged-here/--no-keep-merged-here", help="Request field: keep_merged_here."),
         language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        max_trace_cer: Optional[float] = typer.Option(None, "--max-trace-cer", help="Request field: max_trace_cer."),
         name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
         not_for_release: Optional[bool] = typer.Option(None, "--not-for-release/--no-not-for-release", help="Request field: not_for_release."),
         pages_may_leave: Optional[bool] = typer.Option(None, "--pages-may-leave/--no-pages-may-leave", help="Request field: pages_may_leave."),
@@ -15392,6 +15501,8 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/training/vision-lora"
             params = None
             payload = _build_json_payload({
+                "all_lines": all_lines,
+                "arm": arm,
                 "base_licence": base_licence,
                 "base_repo": base_repo,
                 "display_name": display_name,
@@ -15400,6 +15511,7 @@ def register_generated_openapi_commands(
                 "held_out_ids": held_out_ids,
                 "keep_merged_here": keep_merged_here,
                 "language": language,
+                "max_trace_cer": max_trace_cer,
                 "name": name,
                 "not_for_release": not_for_release,
                 "pages_may_leave": pages_may_leave,
@@ -15409,6 +15521,8 @@ def register_generated_openapi_commands(
                 "teacher": teacher,
                 "timeout": timeout,
             }, {
+                "all_lines": {'type': 'boolean', 'title': 'All Lines', 'description': 'Train an A/B arm on every line it has, not only the lines every reasoning arm covers.', 'default': False, 'x-cli-required': False},
+                "arm": {'type': 'string', 'enum': ['answer', 'why', 'thinking', 'review'], 'title': 'Arm', 'description': "What the student learns to write (#4642): the checked transcription alone, with a palaeographer's reasons, with its thinking, or a review of a draft. Reasons come from the episode ledger (training.reasons); the answer is always the checked text.", 'default': 'answer', 'x-cli-required': False},
                 "base_licence": {'type': 'string', 'nullable': True, 'title': 'Base Licence', 'description': "The base's licence, carried on the card; none: from Fichero's list of vision bases, or 'not checked'.", 'x-cli-required': False},
                 "base_repo": {'type': 'string', 'title': 'Base Repo', 'description': 'The bf16 base on the Hub: any image-text-to-text model (Qwen3-VL 8B by default; Qwen2.5-VL 7B, chandra and others are valid).', 'default': 'Qwen/Qwen3-VL-8B-Instruct', 'x-cli-required': False},
                 "display_name": {'type': 'string', 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
@@ -15417,6 +15531,7 @@ def register_generated_openapi_commands(
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'Pages kept home as the test; never sent.', 'x-cli-required': False},
                 "keep_merged_here": {'type': 'boolean', 'title': 'Keep Merged Here', 'description': "Also keep the merged Hugging Face weights on this Mac (~17 GB for 8B); they are always kept in the job's bucket.", 'default': False, 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The pages' language, given to the student as the line reader gives it.", 'x-cli-required': False},
+                "max_trace_cer": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Max Trace Cer', 'description': "A palaeographer's reasons are kept only where its own reading of the line is within this CER of the checked one.", 'default': 0.1, 'x-cli-required': False},
                 "name": {'type': 'string', 'title': 'Name', 'description': 'A short name: the model lands as fichero-trained/<name>.', 'default': 'student', 'x-cli-required': False},
                 "not_for_release": {'type': 'boolean', 'title': 'Not For Release', 'description': 'The trained model may not be released.', 'default': True, 'x-cli-required': False},
                 "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages to go to Hugging Face.", 'default': False, 'x-cli-required': False},
