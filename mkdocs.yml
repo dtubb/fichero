@@ -165,6 +165,7 @@ nav:
               - Paleografía Española (s. XVI–XVII): reference_manual/tool_references/workflows/paleografia-espanola-s-xvixvii.md
               - Paleographer Review: reference_manual/tool_references/workflows/paleographer-review.md
               - Prepare Images for OCR: reference_manual/tool_references/workflows/prepare-images-for-ocr.md
+              - Read Lines (Kraken lines, vision model): reference_manual/tool_references/workflows/read-lines-kraken-lines-vision-model.md
               - Recombine Segments: reference_manual/tool_references/workflows/recombine-segments.md
               - Regesto (Archival Abstract): reference_manual/tool_references/workflows/regesto-archival-abstract.md
               - Remove Background Images: reference_manual/tool_references/workflows/remove-background-images.md
@@ -172,6 +173,7 @@ nav:
               - Segment Images: reference_manual/tool_references/workflows/segment-images.md
               - Split Chapters: reference_manual/tool_references/workflows/split-chapters.md
               - Split Images: reference_manual/tool_references/workflows/split-images.md
+              - Split Pages: reference_manual/tool_references/workflows/split-pages.md
               - Transcribe: reference_manual/tool_references/workflows/transcribe.md
               - Transcribe (Auto-Detect): reference_manual/tool_references/workflows/transcribe-auto-detect.md
               - Transcribe (Kraken): reference_manual/tool_references/workflows/transcribe-kraken.md

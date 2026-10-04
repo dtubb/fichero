@@ -109,7 +109,7 @@ def _recipe(tmp_path, *steps):
 
 def _steps(tmp_path):
     return [
-        {"id": "split", "job": "split-pages", "model": {"builtin": "page-splitter"}},
+        {"id": "groups", "job": "find-documents-in-a-folder", "model": {"builtin": "folder-grouper"}},
         {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"}},
         {"id": "read", "job": "read-a-line", "model": {"zenodo": "10.5281/zenodo.13788177"}},
         {"id": "check", "job": "check", "settings": {"layer": "claims"}, "model": CLOUD, "runs_on": "cloud:openai"},
@@ -180,7 +180,9 @@ def test_source_recipe_start_runs_the_steps(client, db, pages, tmp_path, engine)
 
     # A step that fails stops the steps after it, and says which.
     engine.fail_reading, engine.checked = True, []
-    failed = _finished(client, _start(client))
+    r = client.post("/api/recipes/project/start", json={"redo": ["read"]})  # the pages were read: read them again
+    assert r.status_code == 200, r.text
+    failed = _finished(client, r.json()["started"]["job_id"])
     assert failed["state"] == "failed" and "lines, read" in failed["reason"]
     assert [(s["steps"], s["state"]) for s in failed["steps"]] == [(["lines", "read"], "failed"),
                                                                    (["check"], "not run"), (["export"], "not run")]
@@ -198,14 +200,15 @@ def test_source_recipe_step_skipped_says_why(client, db, pages, tmp_path, engine
     _save(client, _recipe(tmp_path, *steps), cloud_allowed=False)
     plan = client.get("/api/recipes/project/start").json()
     why = {s["step"]: s["why"] for s in plan["skipped"]}
-    assert set(why) == {"split", "check", "names", "maybe"} and plan["refusals"] == []
-    assert "no card runs" in why["split"] and "off this Mac" in why["check"] and "no model" in why["names"]
+    assert set(why) == {"groups", "check", "names", "maybe"} and plan["refusals"] == []
+    assert "no card runs" in why["groups"] and "off this Mac" in why["check"] and "no model" in why["names"]
     assert "condition" in why["maybe"]
     run = _finished(client, _start(client))
     assert [s["steps"] for s in run["steps"]] == [["lines", "read"], ["export"]] and run["state"] == "done"
     assert {s["step"] for s in run["skipped"]} == set(why) and engine.checked == []
 
-    _save(client, _recipe(tmp_path, {"id": "split", "job": "split-pages", "model": {"builtin": "page-splitter"}}))
+    _save(client, _recipe(tmp_path, {"id": "groups", "job": "find-documents-in-a-folder",
+                                     "model": {"builtin": "folder-grouper"}}))
     r = client.post("/api/recipes/project/start")
     assert r.status_code == 422 and "nothing" in r.json()["detail"]
     _save(client, _recipe(tmp_path, {"id": "x", "job": "no-such-job", "model": CLOUD}))

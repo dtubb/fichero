@@ -407,6 +407,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/assemble.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/derived.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/done.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/names.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/project.py
@@ -460,12 +461,14 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/pale
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/paleo_regesto.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/paleo_translate_english.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/prepare_images_for_ocr.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/read_lines_kraken_vision.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/recombine_segments.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/remove_background_images.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/rotate_auto_orient_images.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/segment_images.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/split_chapters.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/split_images.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/split_pages.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/transcribe_auto_detect.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/transcribe_cloud.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/transcribe_htr.json

@@ -18,6 +18,7 @@ from fichero_server.workflows.validation import KRAKEN_READER_PROVIDER
 
 #: job -> the shipped workflow that carries it out, by its name in the store.
 WORKFLOW_FOR_JOB = {
+    "split-pages": "Split Pages",
     "find-lines": "Detect Segments (Kraken)",
     "read-a-line": "Transcribe (Kraken)",
     "read-a-page": "Transcribe HTR",
@@ -25,6 +26,8 @@ WORKFLOW_FOR_JOB = {
     "find-names-tag-words": "2 · Extract Entities",
     "find-statements": "3 · Extract SVO → Claims",
 }
+#: Kraken finds the lines and the step's vision model (a cloud or MLX pin) reads each one (the line reader).
+READ_LINES_WITH_A_MODEL = "Read Lines (Kraken lines, vision model)"
 #: Jobs whose workflow takes the step's model as a run-level provider/model override.
 _OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements"})
 #: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`) and the project's
@@ -131,10 +134,20 @@ def plan_start(recipe: dict | None, *, stays_local: bool) -> dict[str, Any]:
         entry = {"steps": [sid], "job": job, "card": "workflow", "workflow": name,
                  "workflow_id": preset_workflow_id(name), "provider_override": None, "model_override": None,
                  "runs_on": runs_on}
-        if job == "find-lines":
+        if job == "split-pages":
+            if pin.get("builtin") != "page-splitter":
+                skip(sid, f"{label}: {name} cuts pages with the built-in page splitter only, not {pin}")
+                continue
+        elif job == "find-lines":
             if pin.get("kraken") != "blla":
                 skip(sid, f"{label}: {name} finds lines with Kraken's blla only, not {pin}")
                 continue
+        elif job == "read-a-line" and _override(pin) is not None:
+            # A vision model reads the lines Kraken found: the step's own model, as the run's override.
+            entry["workflow"], entry["workflow_id"] = READ_LINES_WITH_A_MODEL, preset_workflow_id(READ_LINES_WITH_A_MODEL)
+            entry["provider_override"], entry["model_override"] = _override(pin)
+            if runs and runs[-1]["job"] == "find-lines":
+                entry["steps"] = runs.pop()["steps"] + entry["steps"]
         elif job == "read-a-line":
             reader = _kraken_reader_for(pin)
             if reader is None:

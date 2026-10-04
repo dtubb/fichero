@@ -476,6 +476,10 @@ class StartRun(BaseModel):
     prompt: Optional[str] = None
     folder: Optional[str] = None
     formats: Optional[list[str]] = None
+    done: Optional[int] = Field(default=None, description="pages that already have this card's output; none: it "
+                                "cannot tell (`source.recipe.done-is-not-redone`)")
+    of: Optional[int] = Field(default=None, description="the pages (or, for a split, photographs) it runs over")
+    note: Optional[str] = Field(default=None, description="'already done on N of M pages', in words")
 
 
 class SkippedStep(BaseModel):
@@ -506,6 +510,9 @@ def _start_plan(db: Database) -> dict[str, Any]:
     plan = plan_start(setup["recipe"], stays_local=stays_local)
     plan["estimate"] = estimate(plan["workflows"], count_pages(db))
     plan["started"] = read_start(library)
+    from fichero_server.recipes.done import annotate
+
+    annotate(db, plan)
     return plan
 
 
@@ -519,10 +526,21 @@ async def get_start_plan(db: Database = Depends(get_library_database)) -> StartP
 class StartParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
     withdraw: bool = Field(default=False, description="take the first yes back (undo)")
+    redo: list[str] = Field(default_factory=list, description="step ids to run again on pages that already have "
+                            "their output (`source.recipe.done-is-not-redone`)")
+
+
+class StartRequest(BaseModel):
+    """What the person asks of Start, beyond the yes."""
+
+    model_config = ConfigDict(extra="forbid")
+    redo: list[str] = Field(default_factory=list, description="step ids to run again on pages that already have "
+                            "their output; the others run only on pages that do not")
 
 
 @router.post("/project/start", response_model=StartPlan)
 async def start_project(
+    request: Optional[StartRequest] = None,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> StartPlan:
@@ -531,7 +549,7 @@ async def start_project(
     (`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.
     Refused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run)."""
     try:
-        registry.invoke(db, "project.start", {}, ctx)
+        registry.invoke(db, "project.start", {"redo": request.redo if request else []}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return StartPlan(**_start_plan(db))
@@ -564,7 +582,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             "recipe_version": recipe.get("version"),
             "workflows": [w["workflow"] for w in plan["workflows"]],
             "pages": plan["estimate"]["pages"],
-            "job_id": runner.enqueue(db, plan, documents=None, started_by=ctx.actor or "owner"),
+            "job_id": runner.enqueue(db, plan, documents=None, started_by=ctx.actor or "owner", redo=params.redo),
         }
     write_start(library, record)
     return {"started": record}, ChangeSpec(domains=["project"], target_ids=[], before={"started": before},
