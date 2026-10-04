@@ -7035,7 +7035,7 @@ def register_generated_openapi_commands(
                 "auto_embed": {'type': 'boolean', 'title': 'Auto Embed', 'default': False, 'x-cli-required': False},
                 "copy_mode": {'type': 'boolean', 'title': 'Copy Mode', 'default': False, 'x-cli-required': False},
                 "extract_text": {'type': 'boolean', 'title': 'Extract Text', 'default': True, 'x-cli-required': False},
-                "mode": {'type': 'string', 'enum': ['link', 'copy', 'move'], 'nullable': True, 'title': 'Mode', 'x-cli-required': False},
+                "mode": {'type': 'string', 'enum': ['link', 'copy', 'move', 'index'], 'nullable': True, 'title': 'Mode', 'x-cli-required': False},
                 "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'default': True, 'x-cli-required': False},

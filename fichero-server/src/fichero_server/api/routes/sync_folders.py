@@ -42,6 +42,8 @@ class SyncFolderStatus(BaseModel):
     id: str
     path: str
     formats: list[str]
+    adopted: bool = Field(description="an existing folder adopted by an Index import: kept in its own layout, "
+                                      "its files written back in place")
     last_written: datetime | None = None
     pending: int = Field(description="files waiting to be written (their jobs are in Activity)")
     files: list[str] = Field(description="files Fichero wrote, relative to the folder")

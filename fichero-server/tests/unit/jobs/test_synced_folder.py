@@ -15,6 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from _scan_files import scan_rglob
 from lxml import etree
 
 from fichero_server.actions.registry import ActionContext, registry
@@ -74,7 +75,7 @@ def _written(client, folder_id, n):
 
 
 def _files(folder: Path):
-    return sorted(p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file())
+    return sorted(p.relative_to(folder).as_posix() for p in scan_rglob(folder, "*") if p.is_file())
 
 
 def test_source_sync_fixed_layout__one_subfolder_per_format_named_by_title_and_id(client, page, tmp_path):
@@ -122,7 +123,7 @@ def test_source_sync_files_carry_ids__each_file_carries_its_sources_lasting_id(c
     folder = tmp_path / "edition"
     folder_id = _tie(client, folder)
     assert _written(client, folder_id, 3)
-    for path in folder.rglob("*.xml"):
+    for path in scan_rglob(folder, "*.xml"):
         assert _identity(path).get("fichero-source") == page.id, path
 
 
@@ -134,7 +135,7 @@ def test_source_sync_files_say_what_they_hold__pass_order_kind_and_a_loss_report
     folder_id = _tie(client, folder)
     assert _written(client, folder_id, 3)
     choices = client.get(f"/api/documents/{page.id}/export/pagexml").json()["choices"]
-    for path in folder.rglob("*.xml"):
+    for path in scan_rglob(folder, "*.xml"):
         identity = _identity(path)
         assert identity["fichero-pass"] == choices["pass_id"]
         assert identity["fichero-reading-order"] == choices["order_name"]
@@ -158,7 +159,7 @@ def test_source_sync_atomic_writes__every_file_arrives_by_rename_from_a_sibling(
     folder = tmp_path / "edition"
     folder_id = _tie(client, folder)
     assert _written(client, folder_id, 3)
-    written = {p for p in folder.rglob("*") if p.is_file()}
+    written = {p for p in scan_rglob(folder, "*") if p.is_file()}
     assert written == {dst for _src, dst in arrivals}
     assert all(src.parent == dst.parent and src.name != dst.name for src, dst in arrivals)
 

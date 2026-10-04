@@ -53,8 +53,8 @@ project, and each import can choose again:
 | **Move** | moved into the project and kept by the app; the originals are removed from where they were (setup says so plainly) |
 | **Index** | Fichero works on the folder in place and writes its changes back into the original files, keeping that folder up to date: an adopted folder, both ways |
 
-Link, Copy and Move are the ingest `mode` today (`link`, `copy`, `move`). Index is this spec's
-adopted folder and is not built.
+Link, Copy, Move and Index are the folder ingest `mode` (`link`, `copy`, `move`, `index`). Index
+is this spec's adopted folder: the files are linked, and the folder is kept in step in place.
 
 ## What exists today
 
@@ -216,8 +216,8 @@ Ownership and layout
   wrote itself, known by a checksum it recorded; any other file in the way is left and reported.
 - `source.sync.fixed-layout` — **[OK]** (#4952) *Built: one subfolder per format, `<title>--<lasting id><extension>` (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* a made folder's layout is chosen by Fichero and is
   the same for every project.
-- `source.sync.four-ways-in` — **[PARTIAL]** (#4952) setup and import offer Link, Copy, Move and Index with what each does to the originals; Link, Copy and Move are built (ingest `mode`), Index is not.
-- `source.sync.adopt-existing-folder` — **[GAP]** (#4952) importing a folder of TEI, ALTO or PAGE XML
+- `source.sync.four-ways-in` — **[PARTIAL]** (#4952) *Built: the engine's folder import takes `mode: index`, which leaves the originals in place, changes no file and adopts the folder; setup and import in the app do not offer it yet (`fichero-server/tests/unit/jobs/test_adopted_folder.py`).* setup and import offer Link, Copy, Move and Index with what each does to the originals; Link, Copy and Move are built (ingest `mode`).
+- `source.sync.adopt-existing-folder` — **[PARTIAL]** (#4952) *Built: an Index import of PAGE or ALTO files paired with their images adopts the folder in its own layout and records each file's checksum at read; a change to the page is written back into the same file in the same format, only while it is unchanged since; a file changed meanwhile is left and reported. Not built: the match shown for correction, edits coming in as passes, a conflict kept as both, and a TEI file spanning several images (`fichero-server/tests/unit/jobs/test_adopted_folder.py`).* importing a folder of TEI, ALTO or PAGE XML
   can make it the synced folder: it keeps its own layout, each file is matched to its source (the
   match shown for correction), work in Fichero is written back into the same file in the same
   format, edits made in the folder come in as passes, and a file changed since it was read is a

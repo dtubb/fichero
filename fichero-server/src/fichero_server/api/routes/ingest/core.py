@@ -127,7 +127,9 @@ class IngestFolderRequest(BaseModel):
     path: str
     parent_id: Optional[str] = None
     copy_mode: bool = False
-    mode: Literal["link", "copy", "move"] | None = None
+    # `index` (#4952): link the files AND adopt the folder as a synced folder, so work done in
+    # Fichero is written back into its own layout files in place (`source.sync.four-ways-in`).
+    mode: Literal["link", "copy", "move", "index"] | None = None
     recursive: bool = True
     extract_text: bool = True
     # Deferred by default (2026-08-09) — see IngestFileRequest.auto_embed.
@@ -614,7 +616,8 @@ def import_folder_impl(
             db, legacy_manifest, request, package_path, on_progress=on_progress
         )
 
-    mode = IngestMode(request.mode) if request.mode else (
+    indexing = request.mode == "index"
+    mode = IngestMode.LINK if indexing else IngestMode(request.mode) if request.mode else (
         IngestMode.COPY if request.copy_mode else IngestMode.LINK
     )
     # #5132: layout files paired with their images become PASSES on those images, not
@@ -635,9 +638,14 @@ def import_folder_impl(
         skip_paths=(set(plan.pairs) | set(plan.pages)) if plan else None,
     )
     if plan is not None:
-        report = _import_paired_layout(db, docs, plan, ctx)
+        read: list[tuple[Path, str, str]] = []
+        report = _import_paired_layout(db, docs, plan, ctx, read=read)
         if interchange_report is not None:
             interchange_report.update(report)
+        if indexing:
+            from fichero_server import sync_folder
+
+            sync_folder.adopt(db, path.resolve(), read)
     # Queued after the whole folder lands rather than per file: the queue is
     # bounded (#4225) and the ingest loop must not block on it.
     queue_derivatives(docs, library_path=package_path, db=db)
@@ -655,13 +663,16 @@ def _interchange_plan(folder: Path, recursive: bool):
 def _import_paired_layout(
     db: Database, docs: list[Document], plan, ctx: "ActionContext",
     by_source: "dict[str, Document] | None" = None,
+    read: "list[tuple[Path, str, str]] | None" = None,
 ) -> dict:
     """Write each paired layout file as a pass on its image's document (#5132).
 
     Through `format.import`, the audited action the one-file menu import uses, so a pass
     from a folder is the same record as a pass from the menu: undoable, attributed, its
     re-import recognised. A pair that fails is reported BY NAME with the engine's reason
-    and the folder goes on -- one bad file must not undo the rest.
+    and the folder goes on -- one bad file must not undo the rest. ``read`` collects
+    (layout file, document id, format) for each file that became one document's pass whole,
+    for an adopted folder to write back into (#4952).
     """
     # An UPLOADED set (`POST /api/documents/import-batch`) records no source path -- the temp
     # folder is never provenance -- so its caller hands the image -> document map in.
@@ -688,6 +699,8 @@ def _import_paired_layout(
                 ctx,
             )
             imported.append(layout.name)
+            if read is not None:
+                read.append((layout, document.id, plan.formats[layout]))
         except HTTPException as exc:
             failed[layout.name] = str(exc.detail)
         except Exception as exc:  # noqa: BLE001 -- reported by name; the folder goes on
