@@ -115,8 +115,10 @@ class TestIIIFPresentationExport:
         assert "sequences" not in body
         canvas = body["items"][0]
         assert canvas["type"] == "Canvas"
+        # The notes page, and (iiif.export.segments-as-annotations) the page of its lines.
         assert canvas["annotations"] == [
-            {"id": f"/api/documents/{doc.id}/annotations.jsonld", "type": "AnnotationPage"}
+            {"id": f"/api/iiif/iiif/lines/{doc.id}", "type": "AnnotationPage"},
+            {"id": f"/api/documents/{doc.id}/annotations.jsonld", "type": "AnnotationPage"},
         ]
 
         exported = client.get(f"/api/documents/{doc.id}/annotations.jsonld")
