@@ -277,7 +277,7 @@ very engine spawn those tests exist to exercise.
   while the top-level health probe stayed green (fixed 670772e77). No behavior in this spec
   claims the readiness handshake validates more than "the process is up and answering" — stated
   here so a future reader doesn't assume health-green implies route-correct.
-- `engine.readable-py-import-is-a-startup-single-point-of-failure` — **[GAP, architectural fact]**
+- `engine.readable-py-import-is-a-startup-single-point-of-failure` — **[GAP, architectural fact]** (#4875)
   (→ #4875, filed this pass) the engine imports `knowledge/readable.py` transitively through the
   render routes wired into `api/main.py` at load time — a broken import anywhere in that
   module's own dependency chain stops the ENTIRE engine from starting, not just the
@@ -298,7 +298,7 @@ very engine spawn those tests exist to exercise.
   pause/resume state (`LiveUpdatesPausedPill.swift`, `ObservableDomainStore`) are NOT this
   spec's own behaviors — they belong to `harness/observable-data-layer.md` (queued, not yet
   written). Recorded here only so this issue isn't silently dropped from every spec's view.
-- `engine.new-window-does-not-reauthenticate` — **[PARTIAL, structural inference, not pinned]**
+- `engine.new-window-does-not-reauthenticate` — **[PARTIAL, structural inference, not pinned]** (#3362)
   (#3362) since only the app-scoped controller writes `EngineSession` and windows merely
   observe, a new window opening cannot itself trigger reconnect or token rotation by
   construction — but no test specifically exercises "open a second window, assert no
@@ -412,3 +412,5 @@ filed during Pass 1) — none closed, none recommended for closure by this pass.
 
 ## Triaged from the backlog (2026-10-04)
 - `engine.llm-no-local-inference-mlx-cycle` — **[GAP]** (#4080) llm/local_inference.py and llm/mlx_model_store.py do not import each other (still mutual lazy imports at local_inference.py:119,636 and mlx_model_store.py:216), with a cold-import test.
+- `engine.library-scope-stopped-on-every-removal` — **[GAP]** (#4218) every path that drops a LibraryReference from openLibraries stops its security scope first; paired-remote adoption (LibraryManager+Helpers.swift:274 removeAll) still does not.
+- `engine.cold-start-defers-eager-imports` — **[PARTIAL]** (#4690) the engine's cold start defers route-module imports and pre-yield work and the prewarm waits for a quiet app (landed in 90413d77e, f3ea56d51, 36d323719, b85bb009d); app-side pre-spawn and readiness-probe time is not measured.

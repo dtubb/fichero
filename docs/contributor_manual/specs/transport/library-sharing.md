@@ -133,3 +133,6 @@ Each failure: an issue, fixed one at a time, its behaviour above re-tagged.
 - (#3706) Cross-library/window/app drag and drop; design-blocked on atomicity per the issue's own comment
 - (#3375) Optional mTLS, UDS and iCloud identity sync for pairing; design-only, after the MVP is stable
 - (#2096) Native iOS/iPad client for a Mac-hosted engine; pairing slices are specced as sharing.* behaviours, the client epic itself is vision
+- (#2899) fichero-web keystone (browser access under a per-user token, writes via the audited registry); no web client exists and auth has no web-login route; Future section of library-sharing
+- (#3123) fichero-web HttpOnly cookie session /api/auth/web-login + CSRF guard; not in the server (grep finds no web-login), prerequisite for an unscheduled web reader; Future of library-sharing
+- (#4219) Retire LibraryReference.deinit's scope stop so the nonisolated hole closes (deinit still present at LibraryManager.swift:481); a cleanup follow-up to the #4216 lock, Future

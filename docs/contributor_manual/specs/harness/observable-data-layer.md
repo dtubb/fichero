@@ -129,7 +129,7 @@ that "flashes," and clicks that "land on the wrong row" all trace back to.
   possible today. These `apply` methods are classed `violation`, not `by-design`: an incoming
   event doesn't change the list's identity, it changes one row the list already contains. Open
   question below.
-- `observable.no-per-item-refresh-loop` — **[BROKEN]** (→ #4696, sidebar-crud's own tracker,
+- `observable.no-per-item-refresh-loop` — **[BROKEN]** (#4205) (→ #4696, sidebar-crud's own tracker,
   not this milestone's) a caller must never loop over several changed items calling a store's
   `refresh()`/`reload()` once PER ITEM — that is the same wholesale-rerender cost multiplied by
   the batch size. Verified: `SidebarActions.swift:224` (and `:85`) call `documentStore.refresh()`

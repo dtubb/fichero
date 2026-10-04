@@ -410,3 +410,6 @@ Existing coverage (kept, all pass today): `fichero/Tests/Unit/general/Models/KGF
 `Views/Library/ClaimSummaryCardTests.swift`. Nothing pins the inspector showing an
 entity without a document, the store routing of the digest's claims, the empty
 state, or the same-anchor invariant.
+
+## Triaged from the backlog (2026-10-04)
+- `kg.entity.claimstore-scope-is-per-window` — **[GAP]** (#4913) two windows on one library each focused on a different entity show their own entity's claims; ClaimStore holds one scope per library today, so the last loader wins.

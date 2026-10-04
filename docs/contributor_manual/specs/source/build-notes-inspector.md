@@ -216,3 +216,6 @@ Hands and Making, the facts with engine data behind them.
 
 ## Future (ideas, not scheduled)
 - (#1853) Inspector attributes as a compact list with click-to-view/edit (progressive disclosure)
+
+## Triaged from the backlog (2026-10-04)
+- `inspector.attributes.entities-as-lozenges` — **[PARTIAL]** (#4422) the Attributes strip shows nothing by default (shipped, c83036b5c); entities as blue lozenges instead of a count row, and user-added attributes (stars, keywords), are still to build.

@@ -236,3 +236,7 @@ Ties: #4641 (authority/Web of Data), #4640 (exporter — add JSON-LD beside JSON
 - (#740) COVERED BY `kg.enrich.graphrag-evaluation` (parked research, already in the spec's Future).
 - (#972) Core ML on-device personalization from curation decisions; no MLUpdateTask code exists; vision only (already routed there by kg-entity-inspector.md).
 - (#4826) Linked Art and CIDOC-CRM JSON-LD profiles wait on the maintainer's domain review; deliberately not advertised.
+- (#379) 0.1.0-era broad graph exploration/interpretation epic with unverifiable acceptance; hermeneutic-layer.md owns the model, the exploration UX is a Future idea
+
+## Triaged from the backlog (2026-10-04)
+- `citations.list-endpoints-filter-in-the-database` — **[PARTIAL]** (#3256) citation/reference/usage list endpoints push filters into the query and batch lookups (usages.py, references.py `query_in`); `_reference_query` still sorts and substring-searches in Python and has no query-count regression test.

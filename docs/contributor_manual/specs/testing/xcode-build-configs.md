@@ -76,3 +76,6 @@ class that stranded the harness.
 - `config.no-stale-sandbox-comments`: worth the parsing complexity, or is asserting the *settings*
   enough and we just delete the stale comments? (Lean: assert settings; delete stale comments as
   part of the harness fix; add comment-checking only if drift recurs.)
+
+## Triaged from the backlog (2026-10-04)
+- `config.shipping-configuration-is-tested` — **[GAP]** (#4226) a check exercises the configuration users get (DMG/App Store: UDS, sandbox, bookmarks), and the Swift gate and scripts/check_*.py guards are run together so neither can go red unseen.

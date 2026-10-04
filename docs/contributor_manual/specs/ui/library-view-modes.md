@@ -73,7 +73,7 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   mode. Grounded in reading `LibraryView+ContentBranches.swift:243-280` directly
   (`datasetModeView(_:)`'s single call site per case, same construction for all five); no
   dedicated render/dispatch test exists yet, so PARTIAL rather than OK.
-- `library.modes.canvas-and-space-are-gated-renderer-pairs` — **[PARTIAL]** (→ #4865) Canvas
+- `library.modes.canvas-and-space-are-gated-renderer-pairs` — **[PARTIAL]** (#4005, #3087) (→ #4865) Canvas
   and Space each mount ONE of two renderers behind a feature flag reading the SAME shared stores
   (`libraryProjection`, `canvasLayoutStore`, `canvasItemStore`) — Canvas:
   `CanvasSceneView` (RealityKit-ortho) when `isCanvasRealityKit2DEnabled`, else the SwiftUI
@@ -547,3 +547,5 @@ resolved and moved; the other three's status is corrected below.
 - `library.input.one-grammar-every-mode` — **[GAP]** (#4412) list, icons, columns, table, canvas, 3D and graph answer shortcuts, click/modifier selection and trackpad gestures the same way, pinned by one matrix test.
 - `library.perf.page-click-never-stalls-main` — **[PARTIAL]** (#4574) clicking between PDF pages never blocks the main thread over ~1s and a superseded load costs nothing; cancel-superseded and single-flight images landed (31c6756f1, 7a189c2b0) but the latest baseline worst is 1860 ms.
 - `views.space-shares-canvas-position` — **[GAP]** (#2391) the Space (3D) mode zooms in as far as Canvas and shares one xpos/ypos per node with it.
+- `library.chrome.clear-data-for-selection` — **[GAP]** (#4581) a selection of documents offers one audited, undoable Clear Data action that removes extracted text, entity links (orphaned entities deleted), artifacts and dates for those pages, with no per-kind picker (ruled 2026-08-19).
+- `library.drag.across-libraries-copies-and-out-to-finder` — **[GAP]** (#4311) dragging items to another library copies them (never moves, through the audited layer under the acting user, respecting permissions), and dragging to the Desktop or Finder exports regular files.

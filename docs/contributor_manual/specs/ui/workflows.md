@@ -703,3 +703,4 @@ cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
 - `workflows.defaults.every-preset-proven-on-both-axes` — **[GAP]** (#4369) every shipped preset has a test of the model call and of the graph structure, and redundant presets are pruned
 - `workflows.preset-validated` — **[GAP]** (#4501) each shipped preset is validated and only then loses its (Untested) label; the 14 deterministic presets are done (f236db745), the rest are not.
 - `workflows.requires-vision-unknown` — **[GAP]** (#4506) `workflow_requires_vision` reports "could not determine" rather than False when a sub-workflow cannot be resolved (validation.py:1087; fail-open decode landed in 28c6ea399, tri-state not confirmed).
+- `workflows.source-node-hydrates-lazily` — **[GAP]** (#4390) the workflow source node emits ids and hydrates documents per batch, so peak memory stays bounded instead of holding every selected document's page_content.

@@ -404,7 +404,9 @@ recommendation for which one carries the work.
 - `reader.page-filmstrip` — **[GAP]** (#2484) the full-screen reader shows a collapsible thumbnail strip along the bottom that scrubs to a page or image (ImmersiveReaderView+Controls.swift:74 still a TODO).
 - `reader.voiceover-paragraphs` — **[GAP]** (#3692) VoiceOver reads the archive text paragraph by paragraph and a custom rotor navigates by paragraph.
 - `reader.voiceover-paragraph-to-note` — **[GAP]** (#3693) an accessibility action captures the current paragraph into a Reader note.
+- `reader.select-all-selects-the-readers-text` — **[GAP]** (#4376) with the Reader focused, ⌘A selects all of the Reader's text; the Library half is built (library.chrome.select-all-follows-the-visible-surface) and the Reader half has no code or test.
 
 ## Future (ideas, not scheduled)
 - (#973) Book-native page numbers and chapter markers for book-shaped sources; backend detection feature, no current spec owner
 - (#1493) Chapter jump-list atop Content tab from BookStructureNode; design-gated on thinking-layer #1488
+- (#2418) Investigation of iOS/iPad text-editor parity with the Mac RTF editor; capability confirmed missing, not scheduled; Future of reader-view

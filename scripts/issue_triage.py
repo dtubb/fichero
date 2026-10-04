@@ -26,7 +26,7 @@ import subprocess
 from pathlib import Path
 
 SPECS = Path(__file__).resolve().parents[1] / "docs" / "contributor_manual" / "specs"
-TAG = re.compile(r"\[(OK|GAP|PARTIAL|BROKEN|MISSING)\]")
+TAG = re.compile(r"\[(OK|GAP|PARTIAL|BROKEN|MISSING|PROPOSED)(?:[/,][^\]]*)?\]")
 ISSUE = re.compile(r"#(\d{2,5})\b")
 WAITING_LABELS = {"needs-your-decision", "needs-your-test", "residue"}
 

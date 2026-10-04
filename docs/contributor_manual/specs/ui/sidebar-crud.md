@@ -235,6 +235,8 @@ NOT this PR.
 - `read.selection.modifier-click-on-any-row-name` — **[GAP]** (#4571) cmd/shift/option-click on the NAME extends selection for page (leaf) rows and the library header too, and shift-click above the anchor ranges upward; disclosure rows are fixed (22424f614).
 - `sidebar.vocabulary-collection` — **[GAP]** (#3752) the user-visible and wire vocabulary is 'collection' everywhere; backend still serves api/routes/document/folders.py (folders.py is only a shim) with the folders tag and docType .folder.
 - `sidebar.library-section-stable-placement` — **[GAP]** (#3336) the Library section (and any additional open libraries) renders in one stable position inside the sidebar column across launches and window states.
+- `sidebar.ipad-rotation-does-not-rebuild` — **[GAP]** (#2408) rotating an iPad does not re-run SidebarItemBuilder.build or rebuild the split view; verify with the InteractionProfile log on a device, then fix.
+- `sidebar.click-path-does-no-full-tree-walks` — **[PARTIAL]** (#4228) a sidebar click does no per-body full-forest walks (cached buckets, XOR signature, dictionary lookups landed in 9568619fb, d35a69f49); the window open/close beachball is not re-measured.
 
 ## Future (ideas, not scheduled)
 - (#1380) Mail-style sidebar: counts, multi-select combined view, favorites section, smart All groups

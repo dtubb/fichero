@@ -54,7 +54,7 @@ def cite_on(path: Path, behaviour: str, number: str) -> bool:
     """Add `#number` to the tag line of an existing behaviour (its first "(#..." group)."""
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
     for i, line in enumerate(lines):
-        if f"`{behaviour}`" in line and re.search(r"\[(OK|GAP|PARTIAL|BROKEN|MISSING)\]", line):
+        if f"`{behaviour}`" in line and re.search(r"\[(OK|GAP|PARTIAL|BROKEN|MISSING|PROPOSED)(?:[/,][^\]]*)?\]", line):
             if f"#{number}" in line:
                 return True
             if "(#" in line:

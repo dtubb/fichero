@@ -472,7 +472,7 @@ either way (shared components), but scope of the cross-platform tests depends on
   2026-09-18** (see Changelog): the scan tracks `#if`/`#elseif`/`#else` branch nesting per mint and
   only flags a chord shared across branches that are NOT provably mutually exclusive, so one command
   declared once per platform branch (`#if canImport(AppKit) / #else`) is not a false collision.
-- `menus.context-matches-bar` — **[PROPOSED]** a verb in both a context menu and the menu bar is the
+- `menus.context-matches-bar` — **[PROPOSED]** (#4693) a verb in both a context menu and the menu bar is the
   SAME component (same label/icon/shortcut/enablement). *Test:* the `SidebarContextMenuPolicyTests`
   pure-function shape — assert the context menu's verb list is drawn from the shared components.
 - `menus.undo-reaches-every-mutating-action` — **[OK]** ⌘Z is a central, multi-level undo seam,

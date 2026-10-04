@@ -945,3 +945,4 @@ ONE exception (#8) that stays an open question FOR him specifically.
 
 ## Future (ideas, not scheduled)
 - (#4172) Per-library master language for SVO statements, no mixed-language slots, a design answer for non-SVO languages, and proper conjugation.
+- (#1365) One shared KG renderer via Cytoscape.js; no Cytoscape in the tree (native ForceDirectedGraphView and the document KG surface still exist), the one-renderer rule is carried by kg.entity.xsurface.same-line; a graph-engine unification is Future
