@@ -85,6 +85,13 @@ arm trains on (`distillation.md`, `distill.set.keeps-reasons`).
   action and is recorded at `person`; a person's *reject* of a statement is still taken through the
   statement's own curation, never by the verdict. *Test:* a person's verdict is `person` and moves no
   curation state.
+- `source.check.on-the-site` — **[OK]** (#5404, #5390; built: `export_service` site pages, claim index and entity pages; tested in `fichero-server/tests/unit/check/test_check_on_the_site.py`) where a check has run, the published site shows it
+  beside the statement or entity it checked, on the page the statement was found on, in the claim index and
+  on the entity's page: the verdict, the reasons, the checker and its trust level (a person, or a model,
+  named as a model), and for a correction the values offered; a statement or entity no check has seen is
+  shown without one, never as confirmed. *Test:* a model rejects one statement and a person confirms an
+  entity; the site's page, claim index and entity page say so, by whom; the unchecked statement says nothing
+  about a check.
 
 ## Open questions
 

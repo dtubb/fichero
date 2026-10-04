@@ -141,6 +141,14 @@ def _run_export(db: Any, card: dict[str, Any], documents: list[str]) -> tuple[st
     return None, "done", None
 
 
+def _run_publish(db: Any, card: dict[str, Any]) -> tuple[str | None, str, str | None]:
+    """The project as an 11ty static site, through the one site export (`source.job.publish`); again rewrites it."""
+    from fichero_server.export_service import export_eleventy_site
+
+    export_eleventy_site(db, card["folder"], overwrite=True, package_path=_library(db))
+    return None, "done", None
+
+
 def run(db: Any, subject: str) -> dict[str, Any]:
     from fichero_server.recipes.start import count_pages  # noqa: F401  (the same material Start counts)
 
@@ -166,6 +174,8 @@ def run(db: Any, subject: str) -> dict[str, Any]:
             child, state, why = _run_workflow(db, card, documents, job_id)
         elif card["card"] == "check":
             child, state, why = _run_check(db, card, documents, job_id, started_by)
+        elif card["card"] == "publish":
+            child, state, why = _run_publish(db, card)
         else:
             child, state, why = _run_export(db, card, documents)
         step.update(state=state, child_id=child, why=why)

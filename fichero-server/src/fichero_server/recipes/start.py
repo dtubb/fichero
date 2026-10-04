@@ -29,9 +29,9 @@ WORKFLOW_FOR_JOB = {
 _OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements"})
 #: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`) and the project's
 #: synced folder (`source.sync.*`).
-OTHER_CARDS = {"check": "check", "export": "export"}
+OTHER_CARDS = {"check": "check", "export": "export", "publish": "publish"}
 #: Jobs that need no model.
-_NO_MODEL_JOBS = frozenset({"export"})
+_NO_MODEL_JOBS = frozenset({"export", "publish"})
 #: Per-page token assumptions: the same ones the workflow cost estimate prices with (runner.py).
 _TOKENS_IN, _TOKENS_OUT = 1200, 300
 
@@ -115,6 +115,11 @@ def plan_start(recipe: dict | None, *, stays_local: bool) -> dict[str, Any]:
                     continue
                 entry.update(layer=settings.get("layer", "readings"), provider=override[0], model=override[1],
                              prompt=step.get("prompt"))
+            elif job == "publish":
+                if not settings.get("where"):
+                    skip(sid, f"{label} names no folder (`where`) to publish the site into")
+                    continue
+                entry.update(folder=settings["where"])
             else:
                 entry.update(folder=settings.get("folder"), formats=list(settings.get("formats") or []))
             runs.append(entry)
