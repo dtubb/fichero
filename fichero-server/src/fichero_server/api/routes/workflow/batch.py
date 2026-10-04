@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
-from fichero_server.db.app import get_db_path
 from fichero_server.execution.batch import (
     BatchEvent,
     BatchExecution,
@@ -41,16 +40,10 @@ router = APIRouter(prefix="/batches", tags=["batches"])
 # APP database, where no workflow is, so a batch started from these routes could not find its
 # workflow (`WorkflowStore` was even handed a path where it takes a database).
 _batch_managers: dict[str, BatchManager] = {}
-_batch_manager: Optional[BatchManager] = None
 
 
-def get_batch_manager(db: Any = None) -> BatchManager:
-    """The library's batch manager; with no library, the old app-database one (image editing's)."""
-    global _batch_manager
-    if db is None:
-        if _batch_manager is None:
-            _batch_manager = BatchManager(get_db_path())
-        return _batch_manager
+def get_batch_manager(db: Any) -> BatchManager:
+    """The library's batch manager (the batch routes, the `batch.*` actions, image editing)."""
     key = str(db.path)
     if key not in _batch_managers:
         _batch_managers[key] = BatchManager(key)
@@ -469,10 +462,9 @@ BatchListResponse.model_rebuild(_types_namespace={"BatchResponse": BatchResponse
 # REST routes above are untouched and stay the live-progress path.
 #
 # Two wrinkles drive the shapes below:
-#  1. BatchManager is async + backed by the *app* DuckDB (get_db_path); the
-#     action's execute() is sync and the ActionAudit lands in the *library*
-#     Database passed to invoke. So execute() ignores `db` for the batch op
-#     (uses the manager) and `_run_async` bridges sync->async. `_run_async`
+#  1. BatchManager is async + backed by the library's own DuckDB (one manager
+#     per library, `get_batch_manager(db)`, #5374); the action's execute() is
+#     sync, so `_run_async` bridges sync->async. `_run_async`
 #     also survives being called from inside a running loop (the generic
 #     /api/actions/invoke handler) by off-loading to a worker thread.
 #  2. create/delete/pause/cancel are discrete mutations wrapped directly.

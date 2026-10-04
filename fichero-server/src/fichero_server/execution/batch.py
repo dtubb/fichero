@@ -567,7 +567,7 @@ class BatchManager:
         # follows them.
         from fichero_server.db.manager import db_manager
         from fichero_server.execution import jobs
-        from fichero_server.execution.runner import start_run
+        from fichero_server.execution.runner import run_and_wait
 
         library_db = db_manager.get_database(str(Path(self.db_path).parent))
         await asyncio.to_thread(jobs.record_batch, library_db, batch_id, status="running",
@@ -596,13 +596,9 @@ class BatchManager:
                 try:
                     # #4500: execute is a different entry point from create; the stored inputs go
                     # through the same validator a direct execute uses, and become its request.
-                    request = _validate_batch_item_inputs(item.inputs, batch.workflow_id)
-                    request.thread_id = item.thread_id
-                    finished = await start_run(library_db, workflow_def, request, item.thread_id,
-                                               parent_job=batch_id)
-                    await asyncio.to_thread(finished.wait)
-                    run = await get_activity_tracker(str(library_db.path)).store.get_workflow_run(item.thread_id)
-                    status = getattr(run, "status", None) or "failed"
+                    _validate_batch_item_inputs(item.inputs, batch.workflow_id)
+                    status, error = await run_and_wait(library_db, workflow_def, item.inputs,
+                                                       thread_id=item.thread_id, parent_job=batch_id)
                     item.completed_at = datetime.now(timezone.utc)
                     if status == "completed":
                         item.status = BatchItemStatus.COMPLETED
@@ -610,7 +606,7 @@ class BatchManager:
                         item.status = BatchItemStatus.CANCELLED
                     else:
                         item.status = BatchItemStatus.FAILED
-                        item.error = getattr(run, "error", None) or f"the run ended {status}"
+                        item.error = error
                 except Exception as e:
                     item.status = BatchItemStatus.FAILED
                     item.error = str(e)

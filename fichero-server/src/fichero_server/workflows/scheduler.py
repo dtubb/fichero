@@ -162,7 +162,9 @@ class WorkflowScheduler:
         while len(self._schedules) > MAX_SCHEDULE_CACHE_SIZE:
             self._schedules.popitem(last=False)
 
-    def _track_background_task(self, task: asyncio.Task) -> asyncio.Task:
+    def _track_background_task(self, task: Any) -> Any:
+        """Keep a strong reference to background work until it ends (#2133): an asyncio task, or
+        the future of work on the engine's background loop."""
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
         return task
@@ -482,22 +484,24 @@ class WorkflowScheduler:
             await self._save_schedule(schedule)
 
     async def _run_single(self, schedule: Schedule, run: ScheduleRun) -> None:
-        """Run a single workflow execution."""
-        from fichero_server.workflows.builder import execute_workflow
+        """Run the workflow once, as a run of the one runner (#5372, `activity.run.scheduled-runs-
+        execute`): the same path as a run started by hand. Its thread id is this schedule run's id."""
+        from pathlib import Path
+
+        from fichero_server.db.manager import db_manager
+        from fichero_server.execution.runner import run_and_wait
 
         workflow = self.workflow_store.get(schedule.workflow_id)
         if not workflow:
             raise ValueError(f"Workflow {schedule.workflow_id} not found")
 
-        # Execute workflow
-        result = await execute_workflow(
-            workflow=workflow,
-            inputs=schedule.inputs,
-        )
+        library = db_manager.get_database(str(Path(self.db_path).parent))
+        status, error = await run_and_wait(library, workflow, schedule.inputs, thread_id=run.run_id,
+                                           started_by="schedule")
 
         # Update run record
-        run.status = "completed" if not result.get("error") else "failed"
-        run.error = result.get("error")
+        run.status = "completed" if status == "completed" else "failed"
+        run.error = error
         run.completed_at = _utcnow()
         await self._save_run(run)
 
@@ -842,10 +846,10 @@ class WorkflowScheduler:
         )
         await self._save_run(run)
 
-        # Execute in background
-        self._track_background_task(
-            asyncio.create_task(self._execute_manual_run(schedule, run))
-        )
+        # On the engine's background loop: off the API's loop, and not ended with this request.
+        from fichero_server.execution.runner import on_background_loop
+
+        self._track_background_task(on_background_loop(self._execute_manual_run(schedule, run)))
 
         return run
 

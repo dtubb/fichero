@@ -29,9 +29,10 @@ def _hash(document: Document) -> str:
 
 
 @pytest.fixture
-def batch_manager(tmp_path, monkeypatch):
+def batch_manager(tmp_path, monkeypatch, db):
+    """Installed as the library's batch manager (`get_batch_manager(db)`, one per library, #5374)."""
     manager = BatchManager(str(tmp_path / "batch-apply.duckdb"))
-    monkeypatch.setattr(batch_routes, "_batch_manager", manager)
+    monkeypatch.setitem(batch_routes._batch_managers, str(db.path), manager)
     return manager
 
 

@@ -167,7 +167,8 @@ class FileWatchHandler(FileSystemEventHandler):
         elif config.filter_mode == FilterMode.EXTENSION:
             if config.filter_extensions:
                 ext = file_path.suffix.lstrip(".").lower()
-                if ext not in [e.lower() for e in config.filter_extensions]:
+                # ".txt" and "txt" both name it (a leading dot used to match nothing).
+                if ext not in [e.lower().lstrip(".") for e in config.filter_extensions]:
                     return False
 
         # Debounce
@@ -242,7 +243,7 @@ class FileWatcherManager:
         self._pending_events: dict[
             str, list[tuple[str, str]]
         ] = {}  # trigger_id -> [(event_type, path)]
-        self._batch_tasks: dict[str, asyncio.Task] = {}
+        self._batch_tasks: dict[str, Any] = {}  # concurrent futures on the background loop
         self._pending_tasks: dict[str, list[asyncio.Task]] = {}
 
         self._init_database()
@@ -420,9 +421,11 @@ class FileWatcherManager:
             await asyncio.sleep(trigger.config.batch_delay_seconds)
             await self._process_pending_events(trigger_id)
 
-        loop = asyncio.get_event_loop()
-        task = loop.create_task(process_after_delay())
-        self._batch_tasks[trigger_id] = task
+        # Called from the watcher's own thread, which has no event loop (`get_event_loop` raised
+        # there, ending the watcher, so no trigger ever fired): the engine's background loop runs it.
+        from fichero_server.execution.runner import on_background_loop
+
+        self._batch_tasks[trigger_id] = on_background_loop(process_after_delay())
 
     async def _process_pending_events(self, trigger_id: str) -> None:
         """Process pending events for a trigger."""
@@ -537,17 +540,22 @@ class FileWatcherManager:
         trigger: FileTrigger,
         file_paths: list[str],
     ) -> None:
-        """Execute workflows for individual files."""
-        from fichero_server.workflows.builder import execute_workflow
+        """Run the workflow for each file, as runs of the one runner (#5372,
+        `activity.run.scheduled-runs-execute`): the same path as a run started by hand."""
+        from fichero_server.db.manager import db_manager
+        from fichero_server.execution.runner import run_and_wait
 
         try:
             workflow = self.workflow_store.get(trigger.workflow_id)
             if not workflow:
                 raise ValueError(f"Workflow {trigger.workflow_id} not found")
 
+            library = db_manager.get_database(str(Path(self.db_path).parent))
             for path in file_paths:
                 inputs = self._resolve_inputs(trigger.inputs_template, path)
-                await execute_workflow(workflow=workflow, inputs=inputs)
+                status, error = await run_and_wait(library, workflow, inputs, started_by="trigger")
+                if status != "completed":
+                    raise RuntimeError(f"{Path(path).name}: {error}")
 
             execution.status = "completed"
             execution.completed_at = utc_now()
