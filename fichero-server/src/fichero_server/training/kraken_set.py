@@ -19,16 +19,12 @@ from __future__ import annotations
 
 import json
 import shutil
-from fichero_server.security.xml_security import parse_xml_string
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from fichero_server.formats.pagexml import PAGE_NS_2019
-
 MANIFEST = "manifest.json"
 FORMAT = "fichero-kraken-training-set-v1"
-_PAGE_NS = f"{{{PAGE_NS_2019}}}"
 
 
 @dataclass
@@ -105,6 +101,12 @@ def teacher_pass(db: Any, document_id: str, teacher: str) -> Any | None:
 
 def read_lines(page_xml: str) -> int:
     """TextLines with a baseline and some text: what `ketos train -f page` can learn from."""
+    # Imported here: the training route imports this module at app start, and the format modules and
+    # the XML parser load on first use (#3950, `test_lazy_engine_imports`).
+    from fichero_server.formats.pagexml import PAGE_NS_2019
+    from fichero_server.security.xml_security import parse_xml_string
+
+    _PAGE_NS = f"{{{PAGE_NS_2019}}}"
     root = parse_xml_string(page_xml)
     count = 0
     for line in root.iter(f"{_PAGE_NS}TextLine"):
