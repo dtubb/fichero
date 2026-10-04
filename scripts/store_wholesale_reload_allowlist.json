@@ -289,12 +289,6 @@
     "reason": "by-design 2026-09-18 ruling: an explicit RESYNC is a deliberate full re-fetch by design, same case as SearchStore.resync"
   },
   {
-    "file": "fichero/fichero/Models/ActivityStore.swift",
-    "method": "rebuildRuns",
-    "class": "by-design",
-    "reason": "by-design 2026-09-18 ruling: rebuildRuns re-derives the sorted run list (and its failure sidecar) from a fresh fetch \u2014 a SORT/derivation of the whole set, not a per-item mutation"
-  },
-  {
     "file": "fichero/fichero/Models/ReadingOrderStore.swift",
     "method": "choose",
     "class": "by-design",
