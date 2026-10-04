@@ -234,6 +234,7 @@ NOT this PR.
 - `read.keyboard.option-arrow-expands-collapses-subtree` — **[GAP]** (#4567) option-right expands and option-left collapses a row and all descendants, for every selected row (click versions exist: sidebarExpandSubtree/sidebarCollapseSubtree, keyboard not bound).
 - `read.selection.modifier-click-on-any-row-name` — **[GAP]** (#4571) cmd/shift/option-click on the NAME extends selection for page (leaf) rows and the library header too, and shift-click above the anchor ranges upward; disclosure rows are fixed (22424f614).
 - `sidebar.vocabulary-collection` — **[GAP]** (#3752) the user-visible and wire vocabulary is 'collection' everywhere; backend still serves api/routes/document/folders.py (folders.py is only a shim) with the folders tag and docType .folder.
+- `sidebar.library-section-stable-placement` — **[GAP]** (#3336) the Library section (and any additional open libraries) renders in one stable position inside the sidebar column across launches and window states.
 
 ## Future (ideas, not scheduled)
 - (#1380) Mail-style sidebar: counts, multi-select combined view, favorites section, smart All groups
@@ -242,3 +243,4 @@ NOT this PR.
 - (#4095) Adopt native .badge() for sidebar row counts instead of hand-drawn chrome; no .badge( usage in Views/Sidebar today; cosmetic.
 - (#4169) Double-click opens per the new-tab/new-window setting; Command-double-click inverts it, for every object everywhere.
 - (#4260) Audit sidebar, list, keyboard and menu behaviour against NetNewsWire as a reference implementation.
+- (#3703) Entity drag to associate/merge/export: engine export landed (PR #3722) and entity rows are draggable, but drop-to-merge/associate is app-wide drag and drop vision

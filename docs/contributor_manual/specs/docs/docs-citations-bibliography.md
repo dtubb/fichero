@@ -70,3 +70,6 @@ Hard-gate: `cite.docs-resolve` (no orphan citations — a claimed source must ex
    generated file? (Lean: separate generated file from manifests; `.bib` is for scholarship.)
 4. Is the app's "where this comes from" surface in scope now, or docs-only first? (Lean: docs
    first; the export makes the app surface cheap later.)
+
+## Triaged from the backlog (2026-10-04)
+- `cite.generated-client-transport` — **[GAP]** (#3254) bibliography, reference and render-citation calls go through the generated OpenAPI client with typed returns; EntityService+Bibliography.swift still uses untyped `endpointData` Data (citationUsages already migrated, EntityService.swift:116).

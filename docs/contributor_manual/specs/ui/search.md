@@ -388,3 +388,6 @@ finding was posted as GitHub-comment evidence with "Left OPEN; not closing mysel
 
 ## Future (ideas, not scheduled)
 - (#4167) Index documents, entities and notes into system Spotlight via App Intents and CoreSpotlight with deep links; depends on view URLs (#4171).
+
+## Triaged from the backlog (2026-10-04)
+- `search.all-libraries-fanout` — **[GAP]** (#4110) an engine endpoint fans a search out across open libraries with normalised scores and library_path provenance per result, enabling the All Libraries scope.

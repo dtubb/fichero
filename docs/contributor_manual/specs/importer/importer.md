@@ -467,6 +467,7 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
 - `importer.capture-rules-by-person` — **[GAP]** (#2380) the Mac Settings Capture tab maps each person to a library and a workflow; the device never chooses destination or workflow, the signed-in user determines the rule.
 - `importer.capture-upload-is-idempotent` — **[GAP]** (#3280) a mobile capture upload is one idempotent request keyed by a client-generated id, so a retry after a half-finished upload or a post-upload edit never creates a duplicate document (MobileCaptureQueue.swift:197 still does import then update).
 - `import.dock-drop-folder-reliable` — **[GAP]** (#4182) dropping a folder on the Dock icon imports it cleanly and the sidebar updates live.
+- `import.content-pane-drop-scoped` — **[GAP]** (#4458) the external-file drop target attaches to the content column only, not the whole NavigationSplitView including the sidebar.
 
 ## Future (ideas, not scheduled)
 - (#1233) GHC/ACENET already-catalogued corpus is a demo/test dataset awaiting the Source Archives home; Future section, not current engine work.

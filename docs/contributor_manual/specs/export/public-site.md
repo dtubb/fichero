@@ -88,3 +88,7 @@ for search by every variant.
 - (#3180) Reimport of edited markdown with 3-way merge; publish round-trip Future.
 - (#3182) SwiftUI Publish sheet and PublishStore; publish Future.
 - (#3184) Publish hardening (adversarial tests, ACL matrix, grouped undo); publish Future.
+- (#2575) fichero-web as a full web/Android client starting read-only is a medium-term vision; read-only static site is the specced part
+- (#2692) Screenshots for the user manual need the running app and are part of the docs-writing effort
+- (#665) Dev blog post about building Fichero is a content task for the maintainer, not product behaviour
+- (#1182) Web UI plus iOS client sharing the backend models; roadmap vision, static site is the specced part

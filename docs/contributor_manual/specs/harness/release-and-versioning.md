@@ -269,7 +269,10 @@ evidence backs.
 - `release.gate.ready-for-first-real-user` — **[GAP]** (#4421) the Ann gate checklist (no data loss, no 'what on earth' moments, ...) is a named release gate with its evidence.
 - `release.update.announces-in-app-not-a-window` — **[GAP]** (#4433) an available update shows as a quiet in-app indicator, never a modal over the user's work (SparkleUpdater.swift uses the standard driver, no gentle reminders).
 - `release.verify-embedded-launch-local-signing` — **[GAP]** (#4333) scripts/verify_embedded_launch.sh packages the engine with ad-hoc signing (or a resolvable identity) instead of failing on a UUID-form identity's Team ID.
+- `release.mas.sandboxed-build` — **[GAP]** (#3340) a Mac App Store build is sandboxed on the app and the embedded engine with Sparkle stripped; only the entitlements foundation has landed, the MAS target and sandboxed-engine check are not wired.
 
 ## Future (ideas, not scheduled)
 - (#4255) Trademark notice is in LICENSING.md:20; formal wordmark registration is an external legal step, not code.
 - (#4273) Release speed pass (shared SPM derived data, parallel Apple round-trips); optimisation, not behaviour.
+- (#2584) Split local-ML deps into an optional plugin pack to slim the bundle; optimization, not scheduled
+- (#2663) Replace Python image/PDF deps with native Apple APIs to shrink the embedded engine; bundle-size optimization

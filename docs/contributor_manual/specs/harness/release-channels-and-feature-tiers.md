@@ -360,3 +360,5 @@ updater running.
 
 ## Future (ideas, not scheduled)
 - (#256) Promote approved AI surfaces to release once the AI acceptance gate passes; a release-tier decision, not current work.
+- (#1873) Fichero+ subscription screen, StoreKit 2, only if ever monetized; revisit post-1.0
+- (#1160) visionOS and iPad annotation clients; vision, no target exists

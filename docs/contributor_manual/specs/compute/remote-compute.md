@@ -819,3 +819,4 @@ table. The key is in the Keychain; a recipe names only `runs_on: cluster`. New:
 
 ## Future (ideas, not scheduled)
 - (#1648) Export a workflow as a portable LangGraph project for cluster runs; vision, not current work
+- (#1095) Bidirectional client compute (clients claim work from a server queue); no server work queue exists, vision only

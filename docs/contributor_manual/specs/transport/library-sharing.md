@@ -126,6 +126,10 @@ Each failure: an issue, fixed one at a time, its behaviour above re-tagged.
 - `sharing.owner-shared-libraries-view` — **[GAP]** (#2054) Settings shows the owner every library, which are shared with whom and in what role, and whether each is open.
 - `sharing.multiuser-mode-single-source` — **[GAP]** (#3284) the Multi-user toggle persists to the engine and the app, spawn env and engine agree, so a hosted engine never runs with authz off while accounts exist.
 - `sharing.acl-status-when-multiuser-off` — **[GAP]** (#3335) with Multi-user off the Library ACL row reads "not enforcing per-library access" instead of a red Server error (ShareSettingsView+Security.swift shows authzError in red).
+- `sharing.ios-discovers-host` — **[GAP]** (#3371) an iOS/iPad client browses Bonjour, lists verified reachable Mac engine candidates and shows stale ones as failed, without persisting trust.
 
 ## Future (ideas, not scheduled)
 - (#2029) Multi-writer concurrency and presence: design pass explicitly last, after users and attribution land.
+- (#3706) Cross-library/window/app drag and drop; design-blocked on atomicity per the issue's own comment
+- (#3375) Optional mTLS, UDS and iCloud identity sync for pairing; design-only, after the MVP is stable
+- (#2096) Native iOS/iPad client for a Mac-hosted engine; pairing slices are specced as sharing.* behaviours, the client epic itself is vision

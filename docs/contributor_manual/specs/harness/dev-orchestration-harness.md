@@ -86,7 +86,7 @@ it token-efficiently with fabel/opus?
   See `git-worktree-workflow.md`'s "Marking a convention" section for the tag's real,
   rule-h-guarded semantics in `spec_pipeline.py`.
 - `orch.subagent-vs-tmux` [PROPOSED] — subagents for bounded tasks, tmux only for cross-turn lanes.
-- `orch.small-guardrails-stay-green-after-landing` — **[BROKEN]** (#4902) a commit that lands
+- `orch.small-guardrails-stay-green-after-landing` — **[BROKEN]** (#4871, #4902) a commit that lands
   should not leave a small, mechanical guardrail red — a missing tooltip, a missing `#Preview`,
   an un-declared scene environment contract, and the like are cheap to catch and cheap to fix at
   landing time, and expensive to notice later once nine of them have accumulated. Verified live,
@@ -131,9 +131,12 @@ it token-efficiently with fabel/opus?
 - `harness.cli-mcp-live-verified` — **[GAP]** (#4465) the CLI and the MCP server are each exercised end to end against a live engine by a gate-run test, not only unit tests.
 - `harness.no-compat-facades` — **[GAP]** (#4085) a check fails if a re-export shim module returns (folders.py still is one), and contributors have a Python import map.
 - `harness.no-dead-types` — **[GAP]** (#3961) DocumentHierarchy in Models/DocumentStoreTypes.swift (used only by DocumentStoreAndSidebarTypesTests) is deleted with its tests and its check_dead_files baseline entry.
+- `orch.gate-unit-runs-lint` — **[GAP]** (#4861) `gate unit` runs the SwiftLint ratchet and selects Swift Testing by suite name, so an error-level lint violation or a mis-selected filter cannot ride through.
 
 ## Future (ideas, not scheduled)
 - (#2561) Separate bot GitHub identity for agent issues/comments; commits already carry Claude authorship by convention; process decision.
 - (#4082) Readability split of vision_base/extractors/extract_all hotspots; no behaviour change, not scheduled work.
 - (#4350) SwiftLint mechanical sweep (136 line_length left of 166) is hygiene for the open-source readability pass after the DMG and TestFlight.
 - (#4352) SwiftLint structural decomposition (file_length 34 and growing) is hygiene for the open-source readability pass, not current work.
+- (#3871) Performance-regression gate (Safari-style) is a vision; tripwires and scripts/verify_perf.sh already exist as the base
+- (#3873) Static check_swiftui_perf.py anti-pattern guardrail with shrinking baseline; script does not exist, nice-to-have
