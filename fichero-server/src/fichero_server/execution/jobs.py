@@ -36,6 +36,7 @@ closed one: querying a closed `Database` would silently reopen its file.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -44,6 +45,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import Future
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -169,8 +171,13 @@ def kind_name(kind: str) -> str:
 # in by a workflow step that waits for each page. Named as the recipe job registry names them.
 # Utility QoS: a person is waiting for these pages, and background measured ~18 times slower for
 # Kraken (#4959).
-for _attached in ("find-lines", "read-a-line", "read-a-page"):
+for _attached in ("find-lines", "read-a-line", "read-a-page", "ask-a-model"):
     register_kind(_attached, None, model=None, qos=set_utility_qos)
+
+#: True while this task holds a lane slot: a model call made inside work that already holds one
+#: (a vision page's own `llm.vision` call) does not ask for a second, which a one-wide lane could
+#: never grant.
+_holding: ContextVar[bool] = ContextVar("_holding_a_lane", default=False)
 
 
 # A workflow run and its steps, as rows (#5353, spec "Workflow runs inside the one job model"). The
@@ -554,13 +561,23 @@ HOLD_LIMIT_SECONDS = 900.0
 
 async def hold_lane(library_path: str | None, kind: str, subject: str, *, model: str,
                     work: Callable[[], Any], run_id: str | None = None, lane: str = "local-ml") -> Any:
-    """Run async `work` (a call to a model served on this Mac: MLX, Ollama, LM Studio) as a job
-    on the local-model lane. The call stays in the caller, on its event loop; the lane's thread
-    holds the slot while it runs, so no other heavy model starts beside it, and its row is shown,
-    grouped by model and stoppable while it waits, like a Kraken page."""
-    db = _open_library(library_path)
-    if db is None:
+    """Run async `work` (a call to a model) as a job on a lane: `lane_slot` around it."""
+    async with lane_slot(library_path, kind, subject, model=model, run_id=run_id, lane=lane):
         return await work()
+
+
+@contextlib.asynccontextmanager
+async def lane_slot(library_path: str | None, kind: str, subject: str, *, model: str,
+                    run_id: str | None = None, lane: str = "local-ml"):
+    """Hold a slot on a lane while the body runs (a call to a model: one served on this Mac on the
+    local-model lane, a cloud one on the network lane). The call stays in the caller, on its event
+    loop; the lane's thread holds the slot while it runs, so the lane's cap holds for the whole
+    Mac, and its row is shown, grouped by model and stoppable while it waits, like a Kraken page.
+    No library, or a slot already held by this task: the body just runs."""
+    db = _open_library(library_path)
+    if db is None or _holding.get():
+        yield
+        return
     loop = asyncio.get_running_loop()
     granted: asyncio.Future = loop.create_future()
     release = threading.Event()
@@ -580,22 +597,25 @@ async def hold_lane(library_path: str | None, kind: str, subject: str, *, model:
             raise RuntimeError(outcome["result"])
 
     future = submit(db, kind, subject, model=model, fn=hold, lane=lane, run_id=run_id)
+    token = None
     try:
-        lane = asyncio.wrap_future(future)
+        waiting = asyncio.wrap_future(future)
         try:
-            await _wait_for_lane(db, future, _first_of(granted, lane), run_id)
+            await _wait_for_lane(db, future, _first_of(granted, waiting), run_id)
         except asyncio.CancelledError:
             # its caller is gone: the slot is not wanted
             _scheduler.withdraw(db, future, reason="Its run had ended before this page started")
             raise
+        token = _holding.set(True)
         try:
-            result = await work()
+            yield
         except Exception as exc:
             outcome["result"] = str(exc) or type(exc).__name__
             raise
         outcome["result"] = "done"
-        return result
     finally:
+        if token is not None:
+            _holding.reset(token)
         release.set()
 
 

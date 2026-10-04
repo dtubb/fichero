@@ -1374,7 +1374,34 @@ def _get_remote_llm_semaphore() -> asyncio.Semaphore:
 
 @contextlib.asynccontextmanager
 async def _remote_llm_call_slot(config: LLMConfig) -> AsyncIterator[None]:
-    """Throttle remote LLM calls without touching local / built-in providers."""
+    """One model call's slot. In a library's work (a workflow node names its library), the call is
+    a job on a lane, a child of its step (#5353, #5358): a cloud model's on the network lane, whose
+    cap is one per Mac shared by every run; a model served on this Mac on the local-model lane, so
+    no other heavy model loads beside it. Pause and Stop on the run reach the calls still waiting.
+    Outside a library, a remote call is throttled by the process's own cap; a built-in model (the
+    OS's own) takes no slot."""
+    from fichero_server.llm.providers import get_provider_info
+
+    provider = (config.provider or "").strip().lower()
+    info = get_provider_info(provider)
+    if info is not None and info.is_builtin:
+        yield
+        return
+    from fichero_server.observability.episodes import _episode_library_path
+
+    library = _episode_library_path.get()
+    if library:
+        from fichero_server.execution import jobs
+        from fichero_server.workflows.node_context import get_current_node
+
+        node = get_current_node()
+        async with jobs.lane_slot(
+            library, "ask-a-model", (node.node_label or node.node_id) if node else "a model call",
+            model=f"{provider}:{config.model}", run_id=(node.run_id or None) if node else None,
+            lane="local-ml" if info is not None and info.is_local else "network",
+        ):
+            yield
+        return
     if _is_local_or_builtin_provider(config.provider):
         yield
         return
