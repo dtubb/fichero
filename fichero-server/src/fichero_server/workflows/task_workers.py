@@ -1,11 +1,8 @@
-"""Task worker implementations — mixin for TaskQueue.
+"""Task worker implementations: reindex, metrics, repair, vector repair, KG metrics, re-anchor.
 
-Each task type has two methods:
-  _execute_<type>: public entry for direct calls (claims + runs + finalizes)
-  _do_<type>: internal implementation (called by both direct and scheduler paths)
-
-Assumes mixed into TaskQueue which provides: self.database, self._save_task,
-self._executing, self._tasks.
+Each task type has one coroutine, `_do_<type>`, run as a job (#5353) by `_run_task_job` below on its
+host `_JobTask`, which provides what the workers need: `self.database`, `self._save_task` and
+`self._emit_task_change`.
 """
 
 import asyncio
@@ -23,13 +20,12 @@ logger = logging.getLogger(__name__)
 
 
 class TaskWorkersMixin:
-    """Mixin providing worker implementations for TaskQueue.
+    """The workers, mixed into their host (`_JobTask`).
 
     Requires the host class to provide:
     - self.database: Optional[Database]
     - self._save_task(task): coroutine
-    - self._executing: set[str]
-    - self._claim_for_direct_execution(task): coroutine -> bool
+    - self._emit_task_change(task, change_type)
     """
 
     def _db_call(self, method_name: str, *args):
@@ -56,45 +52,10 @@ class TaskWorkersMixin:
         db = db_manager.get_database(package_path)
         return getattr(db, method_name)(*args)
 
-    async def _mark_task_started(self, task: BackgroundTask) -> None:
-        await self._save_task(task)
-        self._emit_task_change(task, "backend.work.started")
-
     async def _save_task_progress(self, task: BackgroundTask) -> None:
         task.progress.updated_at = utc_now()
         await self._save_task(task)
         self._emit_task_change(task, "backend.work.progress")
-
-    async def _finalize_task_execution(self, task: BackgroundTask) -> None:
-        task.completed_at = utc_now()
-        await self._save_task(task)
-        terminal_type = (
-            "backend.work.completed"
-            if task.status == TaskStatus.COMPLETED
-            else "backend.work.cancelled"
-            if task.status == TaskStatus.CANCELLED
-            else "backend.work.failed"
-        )
-        self._emit_task_change(task, terminal_type)
-
-    async def _execute_reindex(self, task: BackgroundTask) -> TaskResult:
-        """Public entry point for reindex — claims task, runs, finalizes."""
-        claimed = await self._claim_for_direct_execution(task)
-        if not claimed:
-            return task.result or TaskResult(success=True, message="Already executing")
-        try:
-            await self._mark_task_started(task)
-            result = await self._do_reindex(task)
-            await self._finalize_task_execution(task)
-            return result
-        except Exception as e:
-            task.status = TaskStatus.FAILED
-            task.error_message = str(e)
-            task.result = TaskResult(success=False, message="Task failed", error=str(e))
-            await self._finalize_task_execution(task)
-            return task.result
-        finally:
-            self._executing.discard(task.task_id)
 
     async def _do_reindex(self, task: BackgroundTask) -> TaskResult:
         """Internal reindex implementation (called by _execute_reindex and _execute_task)."""
@@ -146,25 +107,6 @@ class TaskWorkersMixin:
         task.result = result
         task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
         return result
-
-    async def _execute_metrics(self, task: BackgroundTask) -> TaskResult:
-        """Public entry point for metrics — claims task, runs, finalizes."""
-        claimed = await self._claim_for_direct_execution(task)
-        if not claimed:
-            return task.result or TaskResult(success=True, message="Already executing")
-        try:
-            await self._mark_task_started(task)
-            result = await self._do_metrics(task)
-            await self._finalize_task_execution(task)
-            return result
-        except Exception as e:
-            task.status = TaskStatus.FAILED
-            task.error_message = str(e)
-            task.result = TaskResult(success=False, message="Task failed", error=str(e))
-            await self._finalize_task_execution(task)
-            return task.result
-        finally:
-            self._executing.discard(task.task_id)
 
     async def _do_metrics(self, task: BackgroundTask) -> TaskResult:
         """Internal metrics implementation (called by _execute_metrics and _execute_task)."""
@@ -240,25 +182,6 @@ class TaskWorkersMixin:
         task.result = result
         task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
         return result
-
-    async def _execute_repair(self, task: BackgroundTask) -> TaskResult:
-        """Public entry point for repair — claims task, runs, finalizes."""
-        claimed = await self._claim_for_direct_execution(task)
-        if not claimed:
-            return task.result or TaskResult(success=True, message="Already executing")
-        try:
-            await self._mark_task_started(task)
-            result = await self._do_repair(task)
-            await self._finalize_task_execution(task)
-            return result
-        except Exception as e:
-            task.status = TaskStatus.FAILED
-            task.error_message = str(e)
-            task.result = TaskResult(success=False, message="Task failed", error=str(e))
-            await self._finalize_task_execution(task)
-            return task.result
-        finally:
-            self._executing.discard(task.task_id)
 
     async def _do_repair(self, task: BackgroundTask) -> TaskResult:
         """Internal repair implementation (called by _execute_repair and _execute_task).
@@ -342,25 +265,6 @@ class TaskWorkersMixin:
         task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
         return result
 
-    async def _execute_vector_repair(self, task: BackgroundTask) -> TaskResult:
-        """Public entry point for vector repair — claims task, runs, finalizes."""
-        claimed = await self._claim_for_direct_execution(task)
-        if not claimed:
-            return task.result or TaskResult(success=True, message="Already executing")
-        try:
-            await self._mark_task_started(task)
-            result = await self._do_vector_repair(task)
-            await self._finalize_task_execution(task)
-            return result
-        except Exception as e:
-            task.status = TaskStatus.FAILED
-            task.error_message = str(e)
-            task.result = TaskResult(success=False, message="Task failed", error=str(e))
-            await self._finalize_task_execution(task)
-            return task.result
-        finally:
-            self._executing.discard(task.task_id)
-
     async def _do_vector_repair(self, task: BackgroundTask) -> TaskResult:
         """Internal vector repair implementation.
 
@@ -440,25 +344,6 @@ class TaskWorkersMixin:
         task.result = result
         task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
         return result
-
-    async def _execute_kg_metrics(self, task: BackgroundTask) -> TaskResult:
-        """Public entry point for KG metrics — claims task, runs, finalizes."""
-        claimed = await self._claim_for_direct_execution(task)
-        if not claimed:
-            return task.result or TaskResult(success=True, message="Already executing")
-        try:
-            await self._mark_task_started(task)
-            result = await self._do_kg_metrics(task)
-            await self._finalize_task_execution(task)
-            return result
-        except Exception as e:
-            task.status = TaskStatus.FAILED
-            task.error_message = str(e)
-            task.result = TaskResult(success=False, message="Task failed", error=str(e))
-            await self._finalize_task_execution(task)
-            return task.result
-        finally:
-            self._executing.discard(task.task_id)
 
     async def _do_kg_metrics(self, task: BackgroundTask) -> TaskResult:
         """Internal KG metrics implementation.

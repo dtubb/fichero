@@ -179,8 +179,8 @@ What the shipped code does today:
 Important boundary:
 
 - `BackgroundTask` in `fichero-server/src/fichero_server/workflows/task_types.py` and
-  `fichero-server/src/fichero_server/workflows/tasks.py` is workflow/task-run
-  infrastructure. It is not part of the research node-model fold and should not
+  `fichero-server/src/fichero_server/workflows/tasks.py` is the task API over the job
+  table (`execution/jobs.py`): job infrastructure. It is not part of the research node-model fold and should not
   be described as a plan/task/step node.
 
 ## Bookmarks as alias-backed nodes
@@ -269,8 +269,8 @@ Intentionally not folded:
 
 - `BackgroundTask` in
   `fichero-server/src/fichero_server/workflows/task_types.py` and
-  `fichero-server/src/fichero_server/workflows/tasks.py` is task-queue
-  infrastructure, not a node-model task type.
+  `fichero-server/src/fichero_server/workflows/tasks.py` is the task API over the job
+  table, not a node-model task type.
 - The workflow runner in `fichero-server/src/fichero_server/execution/runner.py` and
   the workflow execution routes remain execution infrastructure, not document
   nodes.

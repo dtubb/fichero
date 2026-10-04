@@ -427,6 +427,29 @@ def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
     return dict(zip(("id", "kind", "subject", "state", "reason", "detail", "created_at"), row))
 
 
+def find_jobs(db: "Database", *, kinds: list[str], states: list[str] | None = None, job_id: str | None = None,
+              limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+    """Rows of these kinds, newest first, optionally only in these states or only this id."""
+    _ensure(db)
+    sql = (f"SELECT id, kind, state, reason, detail, created_at, started_at, finished_at FROM jobs "
+           f"WHERE kind IN ({', '.join('?' for _ in kinds)})")
+    params: list[Any] = list(kinds)
+    if states:
+        sql += f" AND state IN ({', '.join('?' for _ in states)})"
+        params += states
+    if job_id is not None:
+        sql += " AND id = ?"
+        params.append(job_id)
+    rows = db.execute_fetchall(sql + " ORDER BY created_at DESC LIMIT ? OFFSET ?", [*params, limit, offset])
+    names = ("id", "kind", "state", "reason", "detail", "created_at", "started_at", "finished_at")
+    return [dict(zip(names, row)) for row in rows]
+
+
+def delete_job(db: "Database", job_id: str) -> None:
+    """Forget one finished job's row."""
+    db.execute("DELETE FROM jobs WHERE id = ?", [job_id])
+
+
 def save_detail(db: "Database", job_id: str, detail: str, *, reason: str | None = None) -> None:
     """Store a job's `detail` (JSON text) and, when given, its reason in words."""
     db.execute("UPDATE jobs SET detail = ?, reason = COALESCE(?, reason) WHERE id = ?", [detail, reason, job_id])

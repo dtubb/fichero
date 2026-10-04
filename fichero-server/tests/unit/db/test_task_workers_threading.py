@@ -1,4 +1,4 @@
-"""Thread-safety tests for BackgroundTaskExecutor workers (#2509 / #2508).
+"""Thread-safety tests for the task workers (#2509 / #2508), run on their job host (#5353).
 
 The workers run their database calls on arbitrary ``asyncio.to_thread`` pool
 threads, so they must NOT capture the queue's ``self.database`` and ship it
@@ -20,29 +20,42 @@ import pytest
 
 from fichero_server.db import db_manager
 from fichero_server.models import Document
-from fichero_server.workflows.tasks import TaskQueue, TaskStatus, TaskType
+from fichero_server.workflows.task_types import BackgroundTask, TaskConfig
+from fichero_server.workflows.task_workers import _JobTask
+from fichero_server.workflows.tasks import TaskStatus, TaskType
+
+
+class _Queue:
+    """Runs workers as their jobs do: each on its own `_JobTask` host, on a REAL package Database."""
+
+    def __init__(self, database):
+        self.database = database
+
+    async def create_task(self, task_type, name):
+        return BackgroundTask(task_id=f"job-{name}", task_type=task_type, name=name, status=TaskStatus.RUNNING,
+                              config=TaskConfig(task_type=task_type))
+
+    async def _run(self, kind, task):
+        task.result = await getattr(_JobTask(self.database, task.task_id), f"_do_{kind}")(task)
+        task.status = TaskStatus.COMPLETED if task.result.success else TaskStatus.FAILED
+        return task.result
+
+    async def _execute_metrics(self, task):
+        return await self._run("metrics", task)
+
+    async def _execute_reindex(self, task):
+        return await self._run("reindex", task)
 
 
 @pytest.fixture
 def real_task_queue(test_package, tmp_path):
-    """A factory for a started TaskQueue wired to a REAL package Database.
-
-    An async-contextmanager entered INSIDE each test, not an `async def`
-    fixture: no installed plugin supports async fixtures (they became hard
-    setup errors on pytest 9, same class as test_tasks.py), and
-    ``TaskQueue.start()`` binds its scheduler to the RUNNING loop — each test
-    runs in its own loop, so the queue must start there anyway.
-    """
+    """A factory for the workers' runner wired to a REAL package Database (entered inside each
+    test, as before)."""
 
     @asynccontextmanager
     async def running():
         database = db_manager.get_database(test_package)
-        queue = TaskQueue(str(tmp_path / "tasks.duckdb"), database=database)
-        await queue.start()
-        try:
-            yield queue, test_package, database
-        finally:
-            await queue.stop()
+        yield _Queue(database), test_package, database
 
     return running
 

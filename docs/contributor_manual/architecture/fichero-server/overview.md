@@ -148,7 +148,7 @@ These are also gated behind `FICHERO_FEATURE_TIER=dev`. They are complete but no
 | `workflows/executor.py` | Runs workflow graphs with SSE streaming |
 | `workflows/types.py` | NodeDef, EdgeDef, WorkflowDef, WorkflowState models |
 | `workflows/workflow_store.py` | Workflow persistence (DuckDB) |
-| `workflows/tasks.py` | Async background task runner |
+| `workflows/tasks.py` | The task API (`/api/tasks`) over the job table: reindex, metrics, repair, vector repair, KG metrics, re-anchor run as jobs (`execution/jobs.py`) |
 | `workflows/scheduler.py` | Cron-style workflow scheduling |
 | `workflows/activity.py` | Execution event tracking and streaming |
 | `workflows/chaining.py` | Sequential and conditional workflow chaining |

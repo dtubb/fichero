@@ -403,7 +403,7 @@ workflow by hand: a hand run is a job like any other.
   progress, cost, `/api/jobs` and `job.updated`.
 - `activity.jobs-are-a-tree` — **[GAP]** (#5353) a job's children (steps, pages) are jobs;
   progress, time, cost and errors roll up the tree.
-- `activity.task-queue-grows-into-jobs` — **[PARTIAL]** (#5353) the task queue is already
+- `activity.task-queue-grows-into-jobs` — **[OK]** (#5353) the task queue is already
   a persistent queue that resumes pending work (`workflows/tasks.py:153-176`); it becomes the jobs
   table rather than a thirteenth system being built beside it. Found 2026-10-03: nothing in the
   engine calls `init_task_queue`, so the task queue never starts and its routes answer 503; and its
@@ -413,8 +413,9 @@ workflow by hand: a hand run is a job like any other.
   work, metrics, repair, KG metrics and re-anchor on a one-wide database lane), and `/api/tasks`
   creates and reads job rows, so its routes work for the first time and a task is durable,
   pausable and shown in Activity (`fichero-server/tests/unit/jobs/test_tasks_on_the_lane.py`).
-  Still to go: the unused `TaskQueue` class (APScheduler, its own `background_tasks` table) and
-  its tests.
+  The `TaskQueue` class it replaced (APScheduler, its own `background_tasks` table in a file of its
+  own, never started) is deleted, with the tests that pinned it; the workers' own tests run them on
+  their job host (`fichero-server/tests/unit/models/test_background_tasks.py`).
 - `activity.every-kind-reports` — **[PARTIAL]** (#5359) `/api/activity/jobs` merges
   the derivative queue and running/failed workflow runs (`test_activity_jobs.py`); task-queue
   tasks, batches, ingest tasks, conversion, search reindex, model downloads, runtime provisioning
