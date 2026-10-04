@@ -1423,7 +1423,7 @@ Setup
   accuracy (measured on this project's checked pages; else published; else "unknown until the
   bake-off") and carbon, each figure marked measured or estimate. The distil route also shows the
   teacher's labelling cost and the training run's cost and time. Ruled 2026-10-03.
-- `source.onboard.derives-not-asks` — **[GAP]** (#4951) direction, line position, fonts, this Mac's
+- `source.onboard.derives-not-asks` — **[PARTIAL]** (#4951) *Built (engine): `GET /api/recipes/derived?scripts=` (`recipes/derived.py`) answers, each fact with where it came from: per script its direction (the language policy's own rule) and whether it may be vertical (then setup asks, since only the pages settle it), the bundled font for a script macOS lacks (Syriac, Mongolian, Coptic, Cherokee), this Mac's chip and memory, the providers with a key (names only) and the places work can run (this Mac, Hugging Face when its key is present, configured clusters); pinned by `fichero-server/tests/unit/recipes/test_setup_derives_not_asks.py`. Not built: line position, the app's screen that shows and corrects them.* direction, line position, fonts, this Mac's
   chip and memory, keys present and compute targets are worked out, shown, and correctable, never
   asked.
 - `source.onboard.ground-truth-from-files` — **[GAP]** (#4951) corrected transcriptions given at

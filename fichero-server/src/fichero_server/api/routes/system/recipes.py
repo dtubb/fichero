@@ -233,6 +233,66 @@ async def routes_for_volume(
         db, n, teacher=teacher, local_reader=local_reader, sample_pages=sample_pages)])
 
 
+def _app_database():
+    from fichero_server.api.routes.ai.providers import get_app_database
+
+    return get_app_database()
+
+
+class ScriptFacts(BaseModel):
+    script: str
+    direction: Optional[str] = None
+    direction_from: str
+    may_be_vertical: bool
+    font: Optional[str] = None
+    font_from: str
+
+
+class MacFacts(BaseModel):
+    chip: Optional[str] = None
+    memory_gb: Optional[int] = None
+    source: str = Field(alias="from")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PlaceToRun(BaseModel):
+    id: str
+    title: str
+    source: str = Field(alias="from")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class DerivedFacts(BaseModel):
+    scripts: list[ScriptFacts]
+    mac: MacFacts
+    keys: list[str] = Field(description="providers with a readable key: names only, never a key")
+    targets: list[PlaceToRun]
+
+
+@router.get("/derived", response_model=DerivedFacts, response_model_by_alias=True)
+async def derived_facts(scripts: str = "", app_db=Depends(_app_database)) -> DerivedFacts:
+    """What setup works out instead of asking, each fact saying where it came from
+    (`source.onboard.derives-not-asks`): per script its direction, whether it may be vertical
+    and its bundled font; this Mac's chip and memory; which providers have a key; where work
+    can run."""
+    from fichero_server.api.routes.ai.hpc import _load_clusters
+    from fichero_server.recipes import derived
+
+    codes = [c.strip() for c in scripts.split(",") if c.strip()]
+    unknown = derived.unknown_scripts(codes)
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"not ISO 15924 script codes: {', '.join(unknown)}")
+    keys = derived._providers_with_keys()
+    clusters = sorted(c.get("name") or cid for cid, c in _load_clusters(app_db).items())
+    return DerivedFacts(
+        scripts=[ScriptFacts(**derived.script_facts(c)) for c in codes],
+        mac=MacFacts(**derived.this_mac()), keys=keys,
+        targets=[PlaceToRun(**t) for t in derived.targets(keys, clusters)],
+    )
+
+
 @router.get("/scripts", response_model=NamedCodeList)
 async def search_scripts(q: str = "", limit: int = 20) -> NamedCodeList:
     """Search ISO 15924 scripts by name or code (`source.onboard.widget-and-search`)."""
