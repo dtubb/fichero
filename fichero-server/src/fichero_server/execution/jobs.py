@@ -64,7 +64,7 @@ KRAKEN_MODEL_PREFIX = "kraken:"
 #: Modules that register kinds, imported before the first scan so a job left waiting at quit runs
 #: after relaunch even before anything in this session enqueues one.
 _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
-                 "fichero_server.training.job")
+                 "fichero_server.training.job", "fichero_server.remote_read.job")
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
 #: never holds the local ML lane.
@@ -192,6 +192,14 @@ def enqueue_remote(db: "Database", kind: str, subject: str, *, target: str, deta
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return job_id
+
+
+def requeue(db: "Database", job_id: str, *, reason: str) -> None:
+    """Put a finished stored job back to waiting (a reading run whose failed shards are re-sent)."""
+    _ensure(db)
+    db.execute("UPDATE jobs SET state = 'waiting', reason = ?, finished_at = NULL WHERE id = ?", [reason, job_id])
+    key = _key(db)
+    db.add_after_commit_hook(lambda: _scheduler.wake(key))
 
 
 def enqueue_many(db: "Database", kind: str, subjects: list[str], *,

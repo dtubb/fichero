@@ -12,7 +12,7 @@ archives, so every fetch here is polite:
 * a 4xx other than 408 and 429 is not retried: the request is wrong, not the moment.
 
 Pure standard library and an injected `get`, so the same file runs inside the engine (viewing a page)
-and inside a remote reading job (`training/read_runner.py`, which ships it beside itself).
+and inside a remote reading job (`remote_read/runner.py`, whose package carries it beside the runner).
 """
 from __future__ import annotations
 
