@@ -48,6 +48,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/auth/accounts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/auth/authz.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/auth/pairing.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/auth/sandbox_access.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/check.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/citation/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/citation/bibliography.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/citation/citations.py
@@ -200,6 +201,10 @@ $(SRCROOT)/../fichero-server/src/fichero_server/bibliography/importers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/bookmarks.py
 $(SRCROOT)/../fichero-server/src/fichero_server/books/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/books/page_offset.py
+$(SRCROOT)/../fichero-server/src/fichero_server/checking/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/checking/cards.py
+$(SRCROOT)/../fichero-server/src/fichero_server/checking/job.py
+$(SRCROOT)/../fichero-server/src/fichero_server/checking/verdicts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/citations/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/citations/renderer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/__init__.py
@@ -372,6 +377,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/anchors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/campaigns.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/canvas.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/checking.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/editorial.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/geo.py

@@ -196,21 +196,20 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
                                    held_out_ids=request.held_out_ids, out_dir=data)
         detail["training_set"] = {k: v for k, v in made.manifest().items() if k != "pages"} | {"pages": len(made.pages)}
         if vision:
-            traces = reviews = None
-            if request.arm != "answer":
-                from fichero_server.training.reasons import READ, REVIEW, traces_by_line
+            # Every arm's set is built with the reasons there are, the answer-only one too: `in_every_arm`
+            # then keeps both students to the same lines (`distill.reasoning.two-arms`).
+            from fichero_server.training.reasons import READ, REVIEW, traces_by_line
 
-                library = str(Path(db.path).parent)
-                traces, reviews = traces_by_line(library, READ), traces_by_line(library, REVIEW)
+            library = str(Path(db.path).parent)
+            traces, reviews = traces_by_line(library, READ), traces_by_line(library, REVIEW)
             detail["training_set"]["line_pairs"] = write_line_pairs(
                 data, language=request.language, traces=traces, reviews=reviews, max_trace_cer=request.max_trace_cer)
-            if traces is not None:
-                arms = json.loads((data / "manifest.json").read_text(encoding="utf-8"))
-                detail["training_set"].update({k: arms[k] for k in ("arms", "arms_dropped_outside_cer",
-                                                                     "max_trace_cer", "lines_in_every_arm")})
-                if not arms["arms"].get(request.arm):
-                    raise EmptyTrainingSet(f"no line in scope has the {request.arm} arm: gather the palaeographer's "
-                                           "reasons for the checked lines first")
+            arms = json.loads((data / "manifest.json").read_text(encoding="utf-8"))
+            detail["training_set"].update({k: arms[k] for k in ("arms", "arms_dropped_outside_cer",
+                                                                 "max_trace_cer", "lines_in_every_arm")})
+            if not arms["arms"].get(request.arm):
+                raise EmptyTrainingSet(f"no line in scope has the {request.arm} arm: gather the palaeographer's "
+                                       "reasons for the checked lines first (or check its readings, for review)")
             script, args = LORA_TRAINER, lora_args(job_id, base_repo=request.base_repo, epochs=request.epochs,
                                                    rank=request.rank, arm=request.arm, all_lines=request.all_lines)
         else:

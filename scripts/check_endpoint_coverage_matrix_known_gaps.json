@@ -268,5 +268,11 @@
   "GET /api/training/reasons/{job_id}": "a palaeographer's reasons (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet",
   "POST /api/training/reasons/{job_id}/cancel": "a palaeographer's reasons (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet",
   "POST /api/training/reasons-ab": "the reasons A/B (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet",
-  "GET /api/training/reasons-ab/{job_id}": "the reasons A/B (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet"
+  "GET /api/training/reasons-ab/{job_id}": "the reasons A/B (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet",
+  "POST /api/check/runs": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
+  "GET /api/check/runs/{job_id}": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
+  "POST /api/check/runs/{job_id}/cancel": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
+  "POST /api/check/verdicts": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
+  "GET /api/check/verdicts": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
+  "POST /api/mcp/tools/check/verdicts": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet"
 }

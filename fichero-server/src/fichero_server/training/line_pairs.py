@@ -93,10 +93,18 @@ def arms_for(line_id: str, text: str, language: str | None, traces: dict[str, di
             dropped["thinking"] += bool(trace.get("thinking"))
     review = reviews.get(line_id)
     if review is not None and review.get("draft") is not None:
+        # The check job's readings card (`source.check.readings-card`): the student is asked exactly as the
+        # palaeographer reviewer was, so it can take its place in a check run; its answer is the checked text.
         if _within(text, review.get("text"), max_trace_cer):
-            verdict = "agree" if review["draft"] == text else "corrected"
-            arms["review"] = {"prompt": reasons.prompt_for(reasons.REVIEW, 1, language, [review["draft"]]),
-                              "answer": json.dumps([{"verdict": verdict, "text": text, "why": review.get("why")}],
+            from fichero_server.checking.cards import Proposal
+            from fichero_server.checking.cards import prompt_for as check_prompt
+
+            shown = Proposal("readings", line_id, None, {"reading": json.dumps(review["draft"], ensure_ascii=False)})
+            agrees = review["draft"] == text
+            arms["review"] = {"prompt": check_prompt(shown, language=language),
+                              "answer": json.dumps({"verdict": "confirm" if agrees else "correct",
+                                                    "why": review.get("why"),
+                                                    "correction": None if agrees else {"text": text}},
                                                    ensure_ascii=False)}
         else:
             dropped["review"] += 1

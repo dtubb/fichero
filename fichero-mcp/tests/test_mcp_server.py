@@ -38,6 +38,11 @@ EXPECTED_TOOLS = {
     "fichero_train_vision_lora",
     "fichero_training_status",
     "fichero_training_cancel",
+    "fichero_check_run",
+    "fichero_check_status",
+    "fichero_check_cancel",
+    "fichero_check_verdicts",
+    "fichero_check_verdict",
     "fichero_gather_reasons",
     "fichero_reasons_status",
     "fichero_reasons_cancel",
@@ -384,6 +389,27 @@ def test_training_tools_send_the_engines_request(monkeypatch):
     assert (cancel.method, cancel.url.path) == ("POST", "/api/training/jobs/j1/cancel")
 
 
+def test_source_check_run_is_a_job_from_mcp(monkeypatch):
+    """source.check.run-is-a-job: "a check run is one job in Activity over a scope, from the API, the CLI and
+    MCP". And source.check.model-never-a-person: an agent's own verdict goes to the agent route, never the
+    person's."""
+    import json
+
+    with _mock_client(monkeypatch, body={"job_id": "c1", "items": []}) as seen:
+        mcp_server.fichero_check_run("claims", ["c01"], "openrouter", "anthropic/claude-fable")
+        mcp_server.fichero_check_status("c1")
+        mcp_server.fichero_check_cancel("c1")
+        mcp_server.fichero_check_verdicts(run_id="c1")
+        mcp_server.fichero_check_verdict("claims", "k1", "reject", "not in the passage")
+    start, status, cancel, verdicts, mine = seen
+    assert (start.method, start.url.path) == ("POST", "/api/check/runs") and json.loads(start.content)["layer"] == "claims"
+    assert (status.method, status.url.path) == ("GET", "/api/check/runs/c1")
+    assert (cancel.method, cancel.url.path) == ("POST", "/api/check/runs/c1/cancel")
+    assert (verdicts.url.path, dict(verdicts.url.params)) == ("/api/check/verdicts", {"run_id": "c1"})
+    assert (mine.method, mine.url.path) == ("POST", "/api/mcp/tools/check/verdicts")
+    assert "trust" not in json.loads(mine.content)
+
+
 def test_reasons_tools_send_the_engines_request(monkeypatch):
     """#4642: an agent gathers a palaeographer's reasons the one way the engine offers."""
     import json
@@ -396,7 +422,7 @@ def test_reasons_tools_send_the_engines_request(monkeypatch):
     start, status, cancel = seen
     assert (start.method, start.url.path) == ("POST", "/api/training/reasons")
     body = json.loads(start.content)
-    assert body["mode"] == "read" and body["checked"] == "fable-checked" and body["held_out_ids"] == ["p9"]
+    assert body["checked"] == "fable-checked" and body["held_out_ids"] == ["p9"] and "mode" not in body
     assert (status.method, status.url.path) == ("GET", "/api/training/reasons/g1")
     assert (cancel.method, cancel.url.path) == ("POST", "/api/training/reasons/g1/cancel")
 

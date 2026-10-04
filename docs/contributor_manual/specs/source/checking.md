@@ -1,6 +1,7 @@
 # Source — Checking a layer's proposals — Design Spec (#5404, #4642)
 
 > Tags: **[OK]** built and tested · **[PARTIAL]** built, partly proven · **[GAP]** intended, not built.
+> Tests: `fichero-server/tests/unit/check/test_check_to_spec.py`, one per behaviour, through the API.
 > Sharpens `source.job.check` (`models-chains-and-projects.md`): the one job that checks a layer's
 > proposals, and its first three cards.
 
@@ -43,43 +44,44 @@ arm trains on (`distillation.md`, `distill.set.keeps-reasons`).
 
 ## Behaviors
 
-- `source.check.verdict-recorded` — **[GAP]** (#5404) each verdict on a proposal is one record of the
+- `source.check.verdict-recorded` — **[OK]** (#5404) each verdict on a proposal is one record of the
   layer, the proposal, the verdict (confirm, correct or reject), the checker's reasons, the checker,
   its trust level, the run and the episode, written through the audited action `check.verdict`; the
   proposal itself is not edited. *Test:* a check run over a page's lines gives one verdict per line,
   each found again by its proposal.
-- `source.check.model-never-a-person` — **[GAP]** (#5404) a verdict made by a model, or written through
+- `source.check.model-never-a-person` — **[OK]** (#5404) a verdict made by a model, or written through
   a run or by an agent, is recorded at the trust level `model`; only a person's own verdict is `person`;
   a caller cannot set it. A reading a model's correction writes is a machine's reading, never a
   person's. *Test:* the same correction recorded by a check run and by a person carry `model` and
   `person`; the run's corrected reading is not `human`.
-- `source.check.correction-names-the-first` — **[GAP]** (#5404) a correction names the proposal it
+- `source.check.correction-names-the-first` — **[OK]** (#5404) a correction names the proposal it
   replaces: for a reading, a new reading of the same line with `corrects_representation_id` set to the
   reading checked, the first left as it was; for a statement or an entity, the corrected values held
   on the verdict, naming the statement or entity they would replace. *Test:* after a corrected line,
   the line has both readings, the new one naming the first; a corrected statement's text is unchanged.
-- `source.check.curation-is-a-persons` — **[GAP]** (#5404) a model's verdict never moves a statement to
+- `source.check.curation-is-a-persons` — **[OK]** (#5404) a model's verdict never moves a statement to
   `curated` or `rejected`, nor an entity to `verified` or `rejected`; a model's *reject* moves an
   `unreviewed` statement to `shortlisted`, for a person to look at, and nothing further. *Test:* a
   model rejects one statement and confirms another: the first is `shortlisted`, the second unchanged,
   neither curated or rejected; a model's reject of an entity leaves it `unreviewed`.
-- `source.check.traces-in-the-ledger` — **[GAP]** (#5404, #4642) each call of a checker model is one
+- `source.check.traces-in-the-ledger` — **[OK]** (#5404, #4642) each call of a checker model is one
   episode in the ledger with its prompt, raw answer and thinking, and each verdict names its episode.
   *Test:* every verdict of a run names an episode that holds that call.
-- `source.check.readings-card` — **[GAP]** (#4642) the palaeographer reviewer is shown each line's
+- `source.check.readings-card` — **[OK]** (#4642) the palaeographer reviewer is shown each line's
   picture and the reading that counts for it, and its review of the line is kept as the `review` arm's
   lesson. *Test:* the checker is shown the counting reading; the vision card's `review` arm finds the
   run's verdicts.
-- `source.check.claims-card` — **[GAP]** (#5404) a statements checker is shown each statement's text,
+- `source.check.claims-card` — **[OK]** (#5404) a statements checker is shown each statement's text,
   subject, relation and object, and the excerpt it came from. *Test:* the prompt names all four and the
   excerpt.
-- `source.check.entities-card` — **[GAP]** (#5404) an entities checker is shown each entity's name, type
+- `source.check.entities-card` — **[OK]** (#5404) an entities checker is shown each entity's name, type
   and other names, and the excerpts that mention it. *Test:* the prompt names them.
-- `source.check.run-is-a-job` — **[GAP]** (#5404) a check run is one job in Activity over a scope, from
+- `source.check.run-is-a-job` — **[PARTIAL]** (#5404) a check run is one job in Activity over a scope, from
   the API, the CLI and MCP, with its counts in words (confirmed, corrected, rejected, unanswered), and
-  can be stopped; what was checked stays. *Test:* a run reports its counts; a stopped run checks no
+  can be stopped; what was checked stays. *Built: API and MCP (`checking/job.py`, `api/routes/check.py`);
+  not built: a CLI command (the CLI client has the calls) and an Activity row of its own in the app.* *Test:* a run reports its counts; a stopped run checks no
   further proposals.
-- `source.check.person-checks-the-same-way` — **[GAP]** (#5404) a person's verdict goes through the same
+- `source.check.person-checks-the-same-way` — **[OK]** (#5404) a person's verdict goes through the same
   action and is recorded at `person`; a person's *reject* of a statement is still taken through the
   statement's own curation, never by the verdict. *Test:* a person's verdict is `person` and moves no
   curation state.

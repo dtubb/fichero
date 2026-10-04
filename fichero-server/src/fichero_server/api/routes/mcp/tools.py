@@ -519,3 +519,38 @@ async def mcp_knowledge_claims_list(
         limit=limit,
         offset=offset,
     )
+
+
+class MCPCheckVerdictRequest(BaseModel):
+    """An agent's verdict on one proposal (`source.check.*`). No trust and no checker: the server's."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    layer: str = Field(description="readings, claims or entities")
+    target_id: str
+    verdict: str = Field(description="confirm, correct or reject")
+    reasons: str
+    correction: dict[str, Any] | None = None
+    segment_id: str | None = None
+
+
+@router.post("/check/verdicts")
+async def mcp_check_verdict(
+    request: MCPCheckVerdictRequest,
+    db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    """MCP tool endpoint: record an agent's verdict through `check.verdict`, the same action a person's goes
+    through. Written from this route, so it is an agent's: trust `model`, never a person's
+    (`source.check.model-never-a-person`), and a reject moves a statement no further than `shortlisted`."""
+    from pathlib import Path
+
+    import fichero_server.checking.verdicts  # noqa: F401  (registers check.verdict)
+
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent), via_mcp=True)
+    try:
+        return registry.invoke(db, "check.verdict", request.model_dump(), ctx).result
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

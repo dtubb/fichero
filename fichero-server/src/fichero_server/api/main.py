@@ -1876,6 +1876,7 @@ async def get_stats(db: Database = Depends(get_library_database)):
 # test_module_count_budget_at_app_import budget after the routes reorg.
 # Importing the nested module directly keeps exactly one entry per route.
 from fichero_server.api.routes import training as training_routes  # noqa: E402
+from fichero_server.api.routes import check as check_routes  # noqa: E402
 from fichero_server.api.routes import reading_at_scale as reading_at_scale_routes  # noqa: E402
 from fichero_server.api.routes import (  # noqa: E402
     ingest,
@@ -2064,6 +2065,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (document_page_export.router, "/api", ["formats"]),
     # /api/training — train a reader as a job (#5398): Kraken on Hugging Face Jobs, landed as a card.
     (training_routes.router, "/api", ["training"]),
+    (check_routes.router, "/api", ["check"]),
     (reading_at_scale_routes.router, "/api", ["reading-at-scale"]),
     # Source-model slice 10 (#4931): the ONE typed link. Segments are on it now;
     # the four existing link records converge one per later slice, and this

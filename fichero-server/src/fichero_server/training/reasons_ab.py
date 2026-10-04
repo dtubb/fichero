@@ -82,7 +82,7 @@ def answer_text(raw: str, arm: str) -> tuple[str | None, bool]:
 
     answer, _thinking = split_thinking(raw)
     if arm == "why":
-        parsed = parse_reasons(answer, 1, READ)
+        parsed = parse_reasons(answer, 1)
         if not parsed or parsed[0] is None:
             return None, False
         return parsed[0]["text"], bool(parsed[0].get("uncertain"))
