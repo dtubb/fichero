@@ -69,6 +69,10 @@ final class DocumentOverlayView: NSView {
             self, selector: #selector(systemLookChanged),
             name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil
         )
+        // The hover's tracking area, installed as the view joins its window (#5411): mounted into an image
+        // view already on screen, nothing guarantees AppKit asks `updateTrackingAreas` before the page
+        // next scrolls or resizes, and until then resting on a line highlighted nothing.
+        updateTrackingAreas()
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -96,14 +100,13 @@ final class DocumentOverlayView: NSView {
 
     override func mouseExited(with event: NSEvent) { hovered = nil }
 
-    /// The smallest box containing `point` -- the same "smallest wins" the click path uses.
+    /// The smallest box containing `point` -- the same "smallest wins" the click path uses, and the hover
+    /// label's (`DocumentOverlay.smallestContaining`, #5411).
     private func boxRect(at point: CGPoint) -> CGRect? {
         guard let imageRect else { return nil }
-        return overlay.boxes(in: CGRect(origin: point, size: CGSize(width: 0.001, height: 0.001)),
-                             imageRect: imageRect)
-            .map(\.rect)
-            .filter { $0.contains(point) }
-            .min { $0.width * $0.height < $1.width * $1.height }
+        let rects = overlay.boxes(in: CGRect(origin: point, size: CGSize(width: 0.001, height: 0.001)),
+                                  imageRect: imageRect).map(\.rect)
+        return DocumentOverlay.smallestContaining(point, in: rects).map { rects[$0] }
     }
 
     /// The ONE rule for where the image sits in its view, the same one the pointer path uses.
@@ -208,9 +211,12 @@ final class DocumentOverlayView: NSView {
             // A region under lines is lighter (#5284).
             let strength = DocumentOverlay.strength(ofKind: box.kind, linesShown: linesShown)
             let tint = (box.alternateTint ? SelectionStyle.alternateTintAlpha : 1) * strength
+            // A region under lines sets no reading of its own: its lines carry it (#5411).
+            let setsText = box.showsText && !box.text.isEmpty
+                && DocumentOverlay.setsTextInline(kind: box.kind, linesShown: linesShown)
             // A segment with its own shapes is drawn AS them -- the outline its file drew, the baseline
             // under its ink -- never as the box around them (#5163's residue).
-            if !box.shapes.isEmpty, !(box.showsText && !box.text.isEmpty) {
+            if !box.shapes.isEmpty, !setsText {
                 ShapeDrawing.draw(box.shapes, imageRect: imageRect, scale: scale, look: .init(
                     line: line,
                     stroke: colour.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence) * tint),
@@ -229,11 +235,11 @@ final class DocumentOverlayView: NSView {
                 continue
             }
             let path = NSBezierPath(rect: rect)
-            if box.showsText, !box.text.isEmpty {
+            if setsText {
                 // A theme-matched plate so the word reads, translucent so the scan stays checkable.
                 NSColor.textBackgroundColor.withAlphaComponent(InlineWords.plateAlpha).setFill()
                 path.fill()
-                InlineWords.draw(box.text, in: rect)
+                InlineWords.draw(box.text, direction: box.direction, in: rect)
             }
             colour.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence) * tint).setStroke()
             path.lineWidth = line
@@ -324,40 +330,6 @@ final class DocumentOverlayView: NSView {
     }
 }
 
-/// A recognised word drawn IN its box, the size of the word it stands for (2026-09-01): the largest
-/// size that fits the box in BOTH axes, never truncated. In DOCUMENT space, so it is page ink and
-/// scales with the page like the pixels under it.
-enum InlineWords {
-    static let plateAlpha: CGFloat = 0.6
-    /// Leaves a hairline of plate above and below the cap height.
-    static let heightFill: CGFloat = 0.82
-
-    /// The font size `text` is drawn at in `rect`: from the box's height, then shrunk (up to three
-    /// passes, biased under the box) while it is wider than the box.
-    static func fittedSize(_ text: String, in rect: CGRect, measure: (String, CGFloat) -> CGFloat) -> CGFloat {
-        var size = max(rect.height * heightFill, 0.5)
-        var width = measure(text, size)
-        var passes = 0
-        while width > rect.width, width > 0, passes < 3 {
-            size *= (rect.width / width) * 0.98
-            width = measure(text, size)
-            passes += 1
-        }
-        return size
-    }
-
-    static func draw(_ text: String, in rect: CGRect) {
-        let size = fittedSize(text, in: rect) { string, points in
-            (string as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: points)]).width
-        }
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: size), .foregroundColor: NSColor.labelColor
-        ]
-        let measured = (text as NSString).size(withAttributes: attributes)
-        let origin = CGPoint(x: rect.minX, y: rect.midY - measured.height / 2)
-        (text as NSString).draw(at: origin, withAttributes: attributes)
-    }
-}
 /// A drawn segment box as an accessibility element (#5192): the image overlay and a PDF page make
 /// them the same way, so a test or a script asks both surfaces one question.
 enum SegmentBoxAccessibility {

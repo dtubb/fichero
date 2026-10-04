@@ -5,29 +5,58 @@ import UIKit
 #endif
 import SwiftUI
 
+/// Which way the magnifier strip lies (#5411, `magnifier.strip-follows-line-direction`): along the page's
+/// lines, so it shows a stretch of ONE line -- under the page for horizontal lines, beside it for vertical.
+enum MagnifierStrip {
+    /// Vertical when most of the page's resolved line directions are vertical (`ttb`, `btt`); otherwise,
+    /// on a tie, or with nothing resolved, horizontal. The page's majority, not the line under the
+    /// pointer, so the strip does not jump sides as the pointer crosses a heading.
+    static func axis(forLineDirections directions: [String]) -> Axis {
+        let vertical = directions.filter { $0 == "ttb" || $0 == "btt" }.count
+        return vertical * 2 > directions.count ? .vertical : .horizontal
+    }
+}
+
 #if canImport(AppKit)
 
-// MARK: - Magnifier Panel (bottom bar - full width with zoom controls)
+// MARK: - Magnifier Panel (a strip along the page's lines, with zoom controls)
 
 struct MagnifierPanelView: View {
     let image: PlatformImage
     let cursorPosition: CGPoint
     let imageSize: CGSize
     @Binding var magnification: CGFloat
+    /// The strip's thickness: its height under the page, its width beside it.
     @Binding var panelHeight: CGFloat
     @Binding var isLocked: Bool
     var onLockToggle: () -> Void
+    /// `.vertical`: a strip at the page's trailing side, for vertical lines (#5411).
+    var axis: Axis = .horizontal
 
     private let minMagnification: CGFloat = 0.25
     private let maxMagnification: CGFloat = 32.0
     private let minHeight: CGFloat = 40
     private let maxHeight: CGFloat = 400
 
+    /// The handle leads the strip (its top under the page, its leading edge beside it), so it always faces
+    /// the page it resizes against.
+    private var stripLayout: AnyLayout {
+        axis == .vertical ? AnyLayout(HStackLayout(spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
+    }
+
+    /// The lock, thickness and zoom controls run along the strip: a column in a strip beside the page,
+    /// which is too narrow for them in a row.
+    private var controlsLayout: AnyLayout {
+        axis == .vertical ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Resize handle at top
-            ResizeHandle(height: $panelHeight, minHeight: minHeight, maxHeight: maxHeight)
-                .help("Drag up or down to resize the magnifier strip (\(Int(minHeight))–\(Int(maxHeight))px)")
+        stripLayout {
+            // Resize handle on the side facing the page
+            ResizeHandle(height: $panelHeight, minHeight: minHeight, maxHeight: maxHeight, axis: axis)
+                .help(axis == .vertical
+                      ? "Drag left or right to resize the magnifier strip (\(Int(minHeight))–\(Int(maxHeight))px)"
+                      : "Drag up or down to resize the magnifier strip (\(Int(minHeight))–\(Int(maxHeight))px)")
 
             ZStack(alignment: .bottomTrailing) {
                 // Full width magnified view with scroll-to-zoom
@@ -66,7 +95,7 @@ struct MagnifierPanelView: View {
                 }
 
                 // Overlay controls and info
-                HStack(spacing: 12) {
+                controlsLayout {
                     // Lock button
                     Button(action: onLockToggle) {
                         Image(systemName: isLocked ? "lock.fill" : "lock.open")
@@ -80,7 +109,7 @@ struct MagnifierPanelView: View {
                           : "Lock magnifier — click to hold the current spot while you move the cursor elsewhere")
 
                     Divider()
-                        .frame(height: 12)
+                        .frame(width: axis == .vertical ? 12 : nil, height: axis == .vertical ? nil : 12)
 
                     // Height indicator
                     Text("\(Int(panelHeight))px")
@@ -89,7 +118,7 @@ struct MagnifierPanelView: View {
                         .help("Strip height. Drag the handle at the top edge of the strip to resize")
 
                     Divider()
-                        .frame(height: 12)
+                        .frame(width: axis == .vertical ? 12 : nil, height: axis == .vertical ? nil : 12)
 
                     // Zoom controls
                     HStack(spacing: 4) {
@@ -157,28 +186,33 @@ struct MagnifierPanelView: View {
 // MARK: - Resize Handle for Panel
 
 struct ResizeHandle: View {
+    /// The strip's thickness: its height under the page, its width beside it.
     @Binding var height: CGFloat
     let minHeight: CGFloat
     let maxHeight: CGFloat
+    /// `.vertical`: the strip stands beside the page, so the handle is a bar on its leading edge and a
+    /// drag to the left thickens it.
+    var axis: Axis = .horizontal
 
     @State private var isDragging = false
 
     var body: some View {
+        let vertical = axis == .vertical
         Rectangle()
             .fill(Color.gray.opacity(0.3))
-            .frame(height: 6)
+            .frame(width: vertical ? 6 : nil, height: vertical ? nil : 6)
             .overlay(
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color.gray.opacity(isDragging ? 0.8 : 0.5))
-                    .frame(width: 40, height: 4)
+                    .frame(width: vertical ? 4 : 40, height: vertical ? 40 : 4)
             )
             .contentShape(Rectangle())
             .gesture(
                 DragGesture()
                     .onChanged { value in
                         isDragging = true
-                        let newHeight = height - value.translation.height
-                        height = max(minHeight, min(maxHeight, newHeight))
+                        let delta = vertical ? value.translation.width : value.translation.height
+                        height = max(minHeight, min(maxHeight, height - delta))
                     }
                     .onEnded { _ in
                         isDragging = false
@@ -186,7 +220,7 @@ struct ResizeHandle: View {
             )
             .onHover { hovering in
                 if hovering {
-                    NSCursor.resizeUpDown.push()
+                    (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push()
                 } else {
                     NSCursor.pop()
                 }

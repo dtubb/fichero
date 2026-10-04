@@ -92,16 +92,25 @@ final class SegmentStore {
     /// A segment's resolved direction: its own line's, else the nearest ancestor's with one (a word is
     /// written in its line's direction). Nil when the page text named none.
     func direction(of segmentId: String, documentId: String) -> String? {
+        directionResolver(documentId: documentId)(segmentId)
+    }
+
+    /// The same resolution for many segments of one page, indexing the page once (#5411): the overlay
+    /// sets every drawn box's reading in its direction on each draw, and `direction(of:)` per box rebuilt
+    /// the page's index per box.
+    func directionResolver(documentId: String) -> (String) -> String? {
         let directions = directionsByDocument[documentId] ?? [:]
         let byId = Dictionary(segments(documentId: documentId).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        var cursor: String? = segmentId
-        var hops = 0
-        while let id = cursor, hops < 16 {
-            if let direction = directions[id] { return direction }
-            cursor = byId[id]?.parentSegmentId
-            hops += 1
+        return { segmentId in
+            var cursor: String? = segmentId
+            var hops = 0
+            while let id = cursor, hops < 16 {
+                if let direction = directions[id] { return direction }
+                cursor = byId[id]?.parentSegmentId
+                hops += 1
+            }
+            return nil
         }
-        return nil
     }
 
     func passes(documentId: String) -> [SegmentPassValue] {

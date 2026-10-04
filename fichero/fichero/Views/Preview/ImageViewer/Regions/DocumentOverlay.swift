@@ -26,6 +26,9 @@ struct DocumentOverlay: Equatable {
         /// Its region's colour, and the lighter tint on alternate lines (#5200).
         var regionId: String?
         var alternateTint = false
+        /// The segment's resolved direction (`SegmentStore`, from the page text), so its inline reading is
+        /// set the way the line is written (#5411). Nil: not resolved.
+        var direction: String?
     }
 
     var boxes: [Box] = []
@@ -40,6 +43,21 @@ struct DocumentOverlay: Equatable {
     }
 
     static let regionUnderLinesStrength: CGFloat = 0.4
+
+    /// Whether a box of `kind` sets its reading inline (#5411, `source.editor.inline-text-fits-its-box`):
+    /// a region under lines does not -- its words are its lines', and its reading is every line joined,
+    /// which drawn at the region's size ran off the page.
+    static func setsTextInline(kind: String, linesShown: Bool) -> Bool {
+        kind == "line" || !linesShown
+    }
+
+    /// The index of the smallest rect containing `point`, or nil (#5411, `source.editor.hover-picks-the-line`):
+    /// the hover's rule, the same "smallest wins" a click uses, so a line inside a region is the line.
+    static func smallestContaining(_ point: CGPoint, in rects: [CGRect]) -> Int? {
+        rects.indices
+            .filter { rects[$0].contains(point) }
+            .min { rects[$0].width * rects[$0].height < rects[$1].width * rects[$1].height }
+    }
 
     /// A saved annotation mark whose look is pure geometry -- a wash, a bar, a line, a box. The
     /// glyph and text marks (a check in the margin, a note, a star) and anything tappable stay in

@@ -168,14 +168,18 @@ struct OCRGeometryOverlay: View {
         at point: CGPoint?, in size: CGSize
     ) -> (box: OCRGeometryBox, rect: CGRect)? {
         guard let point else { return nil }
+        // The SMALLEST box under the pointer, as the drawn hover and a click pick (#5411): the first one
+        // was the region around every line, so resting on a line named the region.
+        var hits: [(box: OCRGeometryBox, rect: CGRect)] = []
         for box in boxes {
             if let rect = BoundingBoxGeometry.viewRect(
                 normalized: box.bbox, in: size, visible: visible
             ), rect.insetBy(dx: -2, dy: -2).contains(point) {
-                return (box, rect)
+                hits.append((box, rect))
             }
         }
-        return nil
+        return DocumentOverlay.smallestContaining(point, in: hits.map { $0.rect.insetBy(dx: -2, dy: -2) })
+            .map { hits[$0] }
     }
 
     /// What the layer says to VoiceOver. The per-box nodes went away with the

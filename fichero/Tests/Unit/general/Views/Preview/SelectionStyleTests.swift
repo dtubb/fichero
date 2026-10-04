@@ -60,11 +60,11 @@ struct SelectionStyleTests {
     /// A stand-in measure (half the size per character) makes the fitting arithmetic exact.
     @Test("an inline word never runs wider than its box, and a short word takes the box's height")
     func inlineWordsFit() {
-        let measure: (String, CGFloat) -> CGFloat = { text, size in CGFloat(text.count) * size * 0.5 }
+        let measure: (String, CGFloat) -> CGSize = { text, size in CGSize(width: CGFloat(text.count) * size * 0.5, height: size) }
         let box = CGRect(x: 0, y: 0, width: 100, height: 20)
         let long = String(repeating: "m", count: 30)
         let longSize = InlineWords.fittedSize(long, in: box, measure: measure)
-        #expect(measure(long, longSize) <= box.width)
+        #expect(measure(long, longSize).width <= box.width)
         let short = "ok"
         #expect(InlineWords.fittedSize(short, in: box, measure: measure) == box.height * InlineWords.heightFill)
     }

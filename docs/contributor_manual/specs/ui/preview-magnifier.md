@@ -42,6 +42,14 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
 - `magnifier.right-click-dismiss` **[PARTIAL]** (implemented, unpinned; #4806) — right-clicking a placed loupe removes it.
 - `magnifier.follow-mouse-bar` **[GAP]** (#4716) — a bottom magnifier BAR that tracks the pointer and
   magnifies the strip under it (distinct from the round loupe), for scanning a line of text.
+- `magnifier.strip-follows-line-direction` **[PARTIAL]** (#5411) — the magnifier strip lies along the
+  page's lines: a horizontal strip under the page for horizontal lines, a vertical strip at the page's
+  trailing side for vertical (`ttb`/`btt`) lines, so a strip shows a stretch of ONE line rather than a slice
+  across many. The direction is the page's lines' resolved direction (`SegmentStore`, the same one the text
+  preview and the inline text use); the strip takes the direction most of the page's lines have, so it
+  does not jump sides as the pointer crosses a horizontal heading. No direction known: horizontal.
+  **Built 2026-10-04** (`MagnifierStrip.axis`, the strip's handle and size turned with it). Pinned by
+  `PreviewVerticalPageTests`. **Still PARTIAL:** the look on the chinese-vertical page.
 - `magnifier.per-source-memory` **[GAP]** (#4717) — a source remembers its loupe size/magnification, so
   returning to a hand you were working resumes where you were.
 - `magnifier.pdf-viewer-has-the-loupe-too` **[GAP]** (#2419, redirected from the legacy
@@ -61,6 +69,7 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
 | states-its-power | — | ❌ |
 | follow-mouse-bar | — | ❌ [GAP] |
 | per-source-memory | — | ❌ [GAP] |
+| strip-follows-line-direction | `PreviewVerticalPageTests` | ⚠ partial — the look on screen pending |
 
 ## Open questions
 
