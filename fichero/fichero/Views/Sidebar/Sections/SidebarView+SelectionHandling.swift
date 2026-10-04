@@ -229,7 +229,41 @@ extension SidebarView {
         }
         sidebarViewLogger.info("Switching to library view with document: \(doc.name)")
         sidebarMode = .library
+        // A source opens in its folder (#5428, `SidebarSourceOpen`) — unless the shell already
+        // opened this node itself (a double-click into a PDF), which the highlight just follows.
+        let alreadyOpen = if case .library(let shown) = viewMode { shown?.id == doc.id } else { false }
+        if let open = SidebarSourceOpen.plan(for: doc, previewShowing: true), !alreadyOpen {
+            routeToFolder(open.folderId, of: doc, libraryId: libraryId)
+            return
+        }
         viewMode = .library(doc)
+    }
+
+    /// Show a source's folder in the Library pane: from the store when it is known, else fetched.
+    private func routeToFolder(_ folderId: String?, of doc: Document, libraryId: UUID?) {
+        guard let folderId else {
+            viewMode = .library(nil)
+            return
+        }
+        guard let library = libraryId.flatMap({ libraryManager.getLibrary(id: $0) }) else {
+            sidebarViewLogger.error("No open library for \(doc.id, privacy: .public) — its folder is not shown")
+            return
+        }
+        if let folder = library.documentStore.resolveDocument(folderId) {
+            viewMode = .library(folder)
+            return
+        }
+        Task { @MainActor in
+            do {
+                let folder = try await library.documentService.getDocument(folderId)
+                guard selectedItemId == "doc:\(doc.id)" else { return }
+                viewMode = .library(folder)
+            } catch {
+                sidebarViewLogger.error(
+                    "Folder \(folderId, privacy: .public) of \(doc.id, privacy: .public) unavailable: \(error.localizedDescription)"
+                )
+            }
+        }
     }
 
     /// #4292: a workflow mirror node is an editor surface, never a preview.

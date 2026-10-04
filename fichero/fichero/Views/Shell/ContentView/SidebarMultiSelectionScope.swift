@@ -53,7 +53,46 @@ func sidebarScopeIsSingleLeaf(_ doc: Document) -> Bool {
         && !doc.isNavigableContainer
 }
 
+/// `library.modes.the-view-follows-the-node` (ruled 2026-10-04, #5428): a sidebar click on a
+/// SOURCE (an image, a PDF, any file) opens it the way Finder does. The Library pane lists the
+/// source's folder in that pane's own view mode, with the source selected; the Preview shows the
+/// source, and opens if the window has none. This replaces #156's narrowing of the library to the
+/// one clicked item, which left a remembered Canvas drawing an empty board for an image.
+struct SidebarSourceOpen: Equatable {
+    /// The folder the Library pane lists: the source's parent, nil for the library's root.
+    let folderId: String?
+    /// The Library pane's selection: the source.
+    let selection: Set<String>
+    /// The window has no Preview pane, so one opens.
+    let opensPreview: Bool
+
+    /// nil when `doc` is not a source: folders, groups, pages and workflow mirrors keep their own
+    /// routes (a folder lists its contents; a page moves the cursor).
+    static func plan(for doc: Document, previewShowing: Bool) -> SidebarSourceOpen? {
+        guard doc.docType == .file, !doc.isWorkflowNode else { return nil }
+        let parentId = doc.parentId.flatMap { $0.isEmpty ? nil : $0 }
+        return SidebarSourceOpen(folderId: parentId, selection: [doc.id], opensPreview: !previewShowing)
+    }
+
+    /// The sidebar id of the node the Library pane lists, which keys its per-folder canvas and
+    /// sort. With a source selected that is the folder shown (`viewMode`), not the source's own
+    /// row, so the board drawn is the folder's board.
+    static func libraryPaneFolderId(selectedItemId: String?, viewMode: AppViewMode, libraryId: UUID) -> String? {
+        guard case .document(let selectedId)? = selectedItemId.flatMap(SidebarDestination.init(serializedID:)),
+              case .library(let shown) = viewMode, shown?.id != selectedId else { return selectedItemId }
+        return shown.map { SidebarDestination.document($0.id).serializedID }
+            ?? SidebarDestination.library(libraryId).serializedID
+    }
+}
+
 extension ContentView {
+    /// The node the Library pane lists (#5428): a selected source's folder, else the selection.
+    var libraryPaneFolderId: String? {
+        SidebarSourceOpen.libraryPaneFolderId(
+            selectedItemId: sidebarSelectionState.selectedItemId, viewMode: viewMode, libraryId: windowState.libraryId
+        )
+    }
+
     /// Multi-selection → the library shows EXACTLY the selection (or the
     /// union of pages for an all-PDF selection). Single selections keep the
     /// existing navigate-into path; empties are the clear path.
@@ -65,7 +104,9 @@ extension ContentView {
         // (folders/PDFs/pages) stay with the navigate path, which browses
         // into them.
         if ids.count == 1 {
-            if let doc = documentStore.resolveDocument(ids[0]), sidebarScopeIsSingleLeaf(doc) {
+            // A source no longer narrows (#5428): it opens in its folder, `SidebarSourceOpen`.
+            if let doc = documentStore.resolveDocument(ids[0]), sidebarScopeIsSingleLeaf(doc),
+               SidebarSourceOpen.plan(for: doc, previewShowing: true) == nil {
                 documentStore.currentDocuments = documentStore.applyStatusOverrides([doc])
             }
             return
