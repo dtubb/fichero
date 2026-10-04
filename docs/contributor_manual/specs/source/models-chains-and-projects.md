@@ -1299,6 +1299,19 @@ Jobs and chains
 - `source.lines.null-is-no-text` — **[BROKEN]** (#5447) a model's null answer for a line, or the word
   `null` alone, stores no text: the line has no reading from that model. Today the word is kept as the
   line's text (SM_NPQ_C01_005, lines 42–43) and reaches the Order tab, exports and training sets.
+- `source.split.carries-readings-over` — **[GAP]** (#5452; ruled 2026-10-04 as the rule for whenever a
+  split runs, not a build priority) splitting a spread moves each of its line segments, with every
+  pass's readings, to the half its polygon falls in, re-normalised to that half's region; a line that
+  crosses the gutter is flagged, never cut. The spread keeps its passes as history, nothing is read
+  again or paid for, and the halves count as the pages with their carried passes, so "already done"
+  sees the work. Today the split only makes the halves (`persist_workflow_child_regions`): a spread
+  split after its lines were read leaves them on the spread, which stops counting, and a recipe run
+  would read every half again with a paid model.
+- `source.recipe.apple-finds-lines-on-handwriting` — **[GAP]** (#5451; ruled 2026-10-04) when a page's
+  hand is not print (decided from the derived script and hand, `source.onboard.*`), a recipe runs Apple
+  Vision for its line finding only: its text is not kept as a reading. Apple's OCR of handwriting is
+  noise (Mosquera SM_NPQ_C01_030: `WtrtNI-`, `¥eTIQ`), and every Mosquera page carries such a pass
+  today.
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.
@@ -1841,6 +1854,22 @@ Ruled 2026-10-01 (former questions 1-4):
    *Recommend:* keep them as engine constants for now, shown in the explanation ("not chosen:
    about 7,500 dollars for 500,000 pages"), rather than a budget setting; revisit if people ask
    for a budget.
+9. **Two-page spreads: split into page documents, or mark page regions?** (#5452, #5427) Ruled so
+   far (2026-10-04): **Mosquera is not split**; its whole photographs stay the pages, and its
+   recipe has no split step (Preview's one-page view, #5427, covers seeing one side). Open, with two
+   options:
+   - (a) **Split at import**, as the first step of preparing images: setup sees two-page spreads (or
+     the person says so), and the spread becomes two page documents before any line is found or
+     any text is read, so every later step works on the halves and nothing has to be carried over.
+   - (b) **Page regions**: the photograph stays one document; setup marks each page on it as a
+     page-kind region; Preview can show one region (#5427); each line belongs to its page region;
+     the lines mode, export and the site work per page region.
+   *Recommend (b):* nothing is destroyed or carried over, the photograph stays the evidence, and it
+   is IIIF's own model (pages as regions of one canvas). It needs: the engine half of #5427 (page
+   regions stored as regions of kind page, a line's page region worked out from its polygon); export
+   and the site per page region (#5427); reading orders and "already done" counted per page region.
+   Whichever is chosen, a split run on a spread that already has lines carries them over
+   (`source.split.carries-readings-over`).
 
 **Not asked** (already decided by rulings): purpose first; purpose decides layers; offer, never
 hide; the recipe's contents; deterministic rules; the flagship and generated paths; the bake-off;
