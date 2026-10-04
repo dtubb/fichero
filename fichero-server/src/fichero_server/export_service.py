@@ -1449,7 +1449,9 @@ def _collect_documents(
 
     # Live documents only: a deleted one is not published (and a deleted DOCX-import stub, with
     # no file of its own, stopped a whole site export with "image source missing").
-    documents = [doc for doc in candidates if doc.doc_type != DocType.folder and doc.deleted_at is None]
+    # A workflow is stored as a node too (node_kind "workflow"); it is a method, not material.
+    documents = [doc for doc in candidates if doc.doc_type != DocType.folder and doc.deleted_at is None
+                 and doc.node_kind != "workflow"]
     documents.sort(
         key=lambda doc: (doc.parent_id or "", doc.sequence or 0, natural_key(doc.name))
     )
@@ -1631,8 +1633,11 @@ def _copy_document_assets(
     source = _require_image_source(db, doc, package_path)
 
     suffix = source.suffix.lower() or ".jpg"
+    # A photo's name usually ends in its own extension ("SM_NPQ_C01_005.jpg"): drop it before the
+    # suffix goes back on, or the file is "….jpg.jpg".
+    stem = Path(doc.name).stem if Path(doc.name).suffix.lower() == suffix else doc.name
     filename = _unique_filename(
-        _slugify(doc.name), {p.name for p in assets_dir.iterdir()}, suffix
+        _slugify(stem), {p.name for p in assets_dir.iterdir()}, suffix
     )
     dest = assets_dir / filename
     if source.resolve() != dest.resolve():

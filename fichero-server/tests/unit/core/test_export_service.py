@@ -671,10 +671,32 @@ def test_a_deleted_document_is_not_published_and_does_not_stop_the_site(db, tmp_
                     page_content="La venta del negro.")
     gone = Document(id="stub", name="SM_NPQ_C01_001", parent_id=root.id, doc_type=DocType.file,
                     file_type=FileType.image, path=None, deleted_at=datetime.now(timezone.utc))
-    for doc in (root, page, gone):
+    workflow = Document(id="wf", name="Kraken lines, read by a vision model", doc_type=DocType.file,
+                        node_kind="workflow")  # a method stored as a node: not published either
+    for doc in (root, page, gone, workflow):
         db.save(doc)
 
     result = export_eleventy_site(db, tmp_path / "site")
 
     assert result.document_count == 1
+    assert not list((tmp_path / "site").rglob("Kraken-lines*"))
     assert not list((tmp_path / "site").rglob("SM_NPQ_C01_001*"))
+
+
+def test_a_photo_named_with_its_extension_is_copied_once_not_as_jpg_jpg(db, tmp_path):
+    """WHY: photos are named after their files ("SM_NPQ_C01_005.jpg"), and the site copied each as
+    "….jpg.jpg" — a published URL nobody would type or trust."""
+    from PIL import Image
+
+    photo = tmp_path / "SM_NPQ_C01_005.jpg"
+    Image.new("RGB", (8, 8)).save(photo)
+    root = Document(id="nb2", name="Notebook", doc_type=DocType.folder)
+    doc = Document(id="ph", name="SM_NPQ_C01_005.jpg", parent_id=root.id, doc_type=DocType.file,
+                   file_type=FileType.image, path=str(photo))
+    db.save(root)
+    db.save(doc)
+
+    export_eleventy_site(db, tmp_path / "site", target_id=root.id)
+
+    copied = [p.name for p in (tmp_path / "site").rglob("assets/*")]
+    assert copied and all(not n.endswith(".jpg.jpg") for n in copied), copied
