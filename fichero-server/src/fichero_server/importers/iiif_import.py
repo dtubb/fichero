@@ -940,6 +940,16 @@ def _kind(obj: dict[str, Any]) -> str | None:
     return value.rsplit(":", 1)[-1] if value else None
 
 
+def _service_object(body: dict[str, Any]) -> dict[str, Any] | None:
+    """The painting body's Image API service exactly as the archive published it (its id, type and
+    profile), so an export can point at it without guessing (`iiif.export.points-at-original`)."""
+    services = body.get("service")
+    for service in services if isinstance(services, list) else [services]:
+        if isinstance(service, dict) and _json_id(service):
+            return dict(service)
+    return None
+
+
 def _service_id(body: dict[str, Any]) -> str | None:
     """The Image API service of a painting body (Presentation 3 `service`, 2 `service` or `@id`)."""
     services = body.get("service")
@@ -1007,7 +1017,9 @@ def _remote_canvas_node(canvas: dict[str, Any], *, manifest: dict[str, Any], par
             "iiif_id": canvas_id,
             "iiif_manifest": _json_id(manifest),
             "iiif_service": service,
+            "iiif_service_object": _service_object(body) if bodies else None,
             "iiif_image": _json_id(body),
+            "iiif_image_format": body.get("format") if bodies else None,
             "iiif_metadata": _metadata_dict(canvas),
             # The canvas's own size: results read from a smaller fetched image are scaled to it.
             "width": canvas.get("width"),

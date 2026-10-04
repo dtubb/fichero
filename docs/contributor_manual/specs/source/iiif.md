@@ -231,7 +231,7 @@ In:
   says it is remote and unreachable.
 - `iiif.change-is-detected` — **[GAP]** (#5325) a remote image that changed is reported, and the
   segments drawn on it are flagged for checking.
-- `iiif.rights-travel` — **[PARTIAL]** (#5325) *Built (c8dcfb28a): the manifest's rights and metadata are stored on each imported page; pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: shown in the Inspector, carried into exports.* the manifest's rights, required statement and provider
+- `iiif.rights-travel` — **[PARTIAL]** (#5325) *Built (c8dcfb28a): the manifest's rights and metadata are stored on each imported page and carried into its exported manifest (`rights`, `requiredStatement`); pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: shown in the Inspector, carried into the other exports.* the manifest's rights, required statement and provider
   are stored, shown in the Inspector and carried into every export.
 - `iiif.auth-flow` — **[GAP]** (#5325) a canvas behind IIIF authorization asks for access through
   the Authorization Flow; credentials are never stored in the library.
@@ -243,7 +243,7 @@ Out:
 - `iiif.export.manifest` — **[PARTIAL]** (#5326) a folder, document or selection exports as a
   Presentation 3.0 manifest or collection. **Built:** a Presentation 3.0 manifest per document with an
   Image API 2.1 service, dev tier.
-- `iiif.export.points-at-original` — **[GAP]** (#5326) a page that came in by reference exports
+- `iiif.export.points-at-original` — **[PARTIAL]** (#5326) *Built: a by-reference page's manifest paints the archive's own image at the canvas's size with the image service exactly as the archive published it (kept at import), and carries the archive's rights and required statement; pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: a folder or collection export, the static site's manifests.* a page that came in by reference exports
   pointing at its original image service; nothing is re-hosted.
 - `iiif.export.segments-as-annotations` — **[GAP]** (#5326) segments export as annotations with
   selectors and text granularity, carrying the counting reading's text, language and maker; other

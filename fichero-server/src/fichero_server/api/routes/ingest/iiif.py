@@ -260,7 +260,44 @@ def _dedupe_annotations(*groups: list[Annotation]) -> list[Annotation]:
     return rows
 
 
+def _by_reference_canvas(doc: Document) -> dict[str, Any] | None:
+    """A page that came in by reference, painted from the archive's own image and service exactly
+    as the archive published them; nothing is re-hosted (`iiif.export.points-at-original`)."""
+    meta = doc.metadata or {}
+    if not meta.get("by_reference") or not meta.get("iiif_image"):
+        return None
+    canvas_id = meta.get("iiif_id") or _iiif_canvas_id(doc.id)
+    body: dict[str, Any] = {"id": meta["iiif_image"], "type": "Image",
+                            "format": meta.get("iiif_image_format") or "image/jpeg",
+                            "width": meta.get("width"), "height": meta.get("height")}
+    if meta.get("iiif_service_object"):
+        body["service"] = [meta["iiif_service_object"]]
+    return {
+        "id": canvas_id, "type": "Canvas", "label": {"en": [doc.name or "Canvas 1"]},
+        "width": meta.get("width"), "height": meta.get("height"),
+        "items": [{"id": f"{canvas_id}/page/1", "type": "AnnotationPage", "items": [{
+            "id": f"{canvas_id}/painting/1", "type": "Annotation", "motivation": "painting",
+            "body": body, "target": canvas_id}]}],
+    }
+
+
 def build_iiif_manifest(db: Database, doc: Document) -> dict[str, Any]:
+    remote = _by_reference_canvas(doc)
+    if remote is not None:
+        manifest = {"@context": "http://iiif.io/api/presentation/3/context.json",
+                    "id": f"{_iiif_base_url(doc.id)}/manifest", "type": "Manifest",
+                    "label": {"en": [doc.name or "Untitled"]}, "items": [remote],
+                    "annotations": [{"id": f"/api/documents/{doc.id}/annotations.jsonld", "type": "AnnotationPage"}]}
+        rights = (doc.metadata or {}).get("iiif_rights") or {}
+        if rights.get("rights"):
+            manifest["rights"] = rights["rights"]
+        statement = rights.get("required_statement") or (
+            {"label": "Attribution", "value": rights["attribution"]} if rights.get("attribution") else None)
+        if statement:
+            # "none": IIIF's key for a value whose language the archive did not state.
+            manifest["requiredStatement"] = {"label": {"none": [statement["label"]]},
+                                             "value": {"none": [statement["value"]]}}
+        return manifest
     image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
         raise HTTPException(

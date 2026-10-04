@@ -129,3 +129,26 @@ def test_a_page_is_fetched_once_at_display_size_when_it_is_viewed(tmp_path, monk
     again = storage.iiif_page_image(doc, package)
     assert thumb is not None and thumb.exists() and again.exists()
     assert asked == [f"{HOST}/img/vol1/1/full/!{max(storage.settings.display_size)},{max(storage.settings.display_size)}/0/default.jpg"]
+
+
+def test_a_page_that_came_in_by_reference_exports_pointing_at_its_original(client, db, tmp_path):
+    """`iiif.export.points-at-original`: a page that came in by reference exports pointing at its
+    original image service; nothing is re-hosted. WHY: the archive owns its images and its rights;
+    a manifest Fichero exports for an EAP page must send viewers to the archive, at the canvas's
+    true size, with the service exactly as the archive described it (its type and profile are the
+    archive's to state, not Fichero's to guess)."""
+    manifest = _manifest3("vol2", 2)
+    server = FakeIIIFServer({manifest["id"]: manifest})
+    import_iiif_url(_TestClientAdapter(client), manifest["id"], str(tmp_path / "Lib.fichero"),
+                    fetcher=PoliteFetcher(get=server.get))
+    page = next(d for d in db.query(Document) if (d.metadata or {}).get("iiif_id") == f"{HOST}/vol2/canvas/1")
+
+    r = client.get(f"/api/iiif/iiif/manifest/{page.id}")
+    assert r.status_code == 200, r.text
+    canvas = r.json()["items"][0]
+    body = canvas["items"][0]["items"][0]["body"]
+    assert (canvas["width"], canvas["height"]) == (4000, 6000)
+    assert body["id"] == f"{HOST}/img/vol2/1/full/max/0/default.jpg"
+    assert body["service"] == [{"id": f"{HOST}/img/vol2/1", "type": "ImageService3", "profile": "level1"}]
+    assert r.json()["rights"].endswith("by-nc/4.0/")  # the archive's terms travel too
+    assert r.json()["requiredStatement"]["value"] == {"none": ["Endangered Archives Programme"]}
