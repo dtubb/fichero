@@ -37,6 +37,8 @@ from fichero_server.models.knowledge import (
 BASIS_NORMALIZED_NAME = "normalized-name"
 BASIS_ALIAS_COLLISION = "alias-collision"
 BASIS_SIMILARITY = "similarity"
+#: The same name written differently (`kg.entity.variant-spellings-proposed`): proposed for review, never merged.
+BASIS_SPELLING = "spelling-variant"
 
 
 def normalize_name(name: str) -> str:
@@ -50,6 +52,63 @@ def normalize_name(name: str) -> str:
     decomposed = unicodedata.normalize("NFKD", name)
     stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
     return " ".join(re.sub(r"[^\w\s]", " ", stripped.casefold()).split())
+
+
+# --- The same name written differently (kg.entity.variant-spellings-proposed) ------------------------------------
+# Usual abbreviations of names in Spanish colonial and notarial hands, keyed by the token with its points and raised
+# letters dropped (`Fran.co` -> `franco`, `Pº` -> `po`). ponytail: fixed lists; a project's own list belongs in its
+# recipe's name-normalisation step when one exists.
+#: Read as an abbreviation only when written as one, with a point or a raised letter: plain, each is a word or a
+#: name of its own (the surname `Franco`, `Ana`, `Alo`).
+_MARKED_ABBREVIATIONS = {
+    "fran": "francisco", "franco": "francisco", "ant": "antonio", "anto": "antonio", "po": "pedro",
+    "dio": "diego", "gonzo": "gonzalo", "alo": "alonso", "ju": "juan", "mel": "manuel", "sta": "santa",
+    "sto": "santo", "sn": "san",
+}
+#: Contractions that are no word, read as abbreviations however written.
+_CONTRACTIONS = {
+    "fco": "francisco", "frco": "francisco", "dgo": "domingo", "xpoval": "cristobal", "xptoval": "cristobal",
+    "xpobal": "cristobal", "xpl": "cristobal", "jn": "juan", "bme": "bartolome", "bartme": "bartolome",
+    "manl": "manuel", "migl": "miguel", "jph": "joseph", "fernz": "fernandez", "frz": "fernandez",
+    "glz": "gonzalez", "gonz": "gonzalez", "gzlez": "gonzalez", "rodz": "rodriguez", "rodrz": "rodriguez",
+    "mrz": "martinez", "mtz": "martinez", "hdz": "hernandez", "hernz": "hernandez", "lopz": "lopez",
+}
+#: Spellings of one name (not abbreviations), read so however written.
+_SAME_NAME = {"josef": "joseph", "jose": "joseph"}
+#: Titles and offices set aside: `Don Juan de Mosquera` is the name `Juan de Mosquera`.
+_TITLES = frozenset({
+    "don", "dn", "d", "dona", "da", "senor", "sr", "sra", "senora", "capitan", "cap", "capn", "fray", "fr",
+    "padre", "licenciado", "lic", "ldo", "doctor", "dr", "alferez", "maestre", "mro", "presbitero", "pbro",
+})
+
+
+def _old_spelling(token: str) -> str:
+    """One spelling for the sounds early-modern Spanish wrote several ways. Letters only; digits are kept."""
+    t = token.replace("ph", "f").replace("th", "t").replace("ch", "\x01")
+    t = re.sub(r"qu|q", "k", t)
+    t = re.sub(r"c(?=[ei])", "s", t)
+    t = re.sub(r"g(?=[ei])", "j", t)
+    t = t.replace("c", "k").replace("z", "s").replace("x", "j").replace("y", "i").replace("v", "b")
+    t = t.replace("h", "").replace("\x01", "ch")
+    t = re.sub(r"n(?=[bp])", "m", t)
+    return re.sub(r"(\D)\1+", r"\1", t)
+
+
+def spelling_key(name: str) -> str:
+    """The key two spellings of one name share: case, accents, punctuation, old spelling, the usual abbreviations
+    and titles set aside; numbers and every other letter kept (`Dredge No. 1` is not `Dredge No. 3`)."""
+    keys = []
+    # An abbreviation's points and raised letters join its pieces (`fran.co` -> `franco`) and mark it as one.
+    for raw in re.split(r"[^\w.:'’ºª]+", name.casefold().replace("ç", "z")):
+        marked = bool(re.search(r"[.:ºª]", raw))
+        token = "".join(c for c in unicodedata.normalize("NFKD", raw) if not unicodedata.combining(c))
+        token = re.sub(r"[^\w]", "", token)
+        if not token or token in _TITLES:
+            continue
+        token = _CONTRACTIONS.get(token) or _SAME_NAME.get(token) or (
+            _MARKED_ABBREVIATIONS.get(token, token) if marked else token)
+        keys.append(_old_spelling(token))
+    return " ".join(keys)
 
 
 @dataclass
@@ -88,7 +147,7 @@ class _Union:
             return
         self.parent[rb] = ra
         # A group's displayed basis is its weakest edge — similarity taints.
-        weakness = {BASIS_NORMALIZED_NAME: 0, BASIS_ALIAS_COLLISION: 1, BASIS_SIMILARITY: 2}
+        weakness = {BASIS_NORMALIZED_NAME: 0, BASIS_ALIAS_COLLISION: 1, BASIS_SPELLING: 2, BASIS_SIMILARITY: 3}
         candidates = [basis, *(self.basis[r] for r in (ra, rb) if r in self.basis)]
         self.basis[ra] = max(candidates, key=lambda b_: weakness[b_])
         scores = [similarity, self.similarity.get(ra), self.similarity.get(rb)]
@@ -118,11 +177,14 @@ def plan_entity_dedupe(
     *,
     include_reviewed: bool = False,
     min_similarity: float | None = None,
+    spelling_variants: bool = False,
 ) -> list[EntityMergeGroup]:
     """Plan same-type entity merges by normalized name / alias collision.
 
     ``min_similarity`` additionally unions same-type pairs whose normalized
     canonical names reach that ``SequenceMatcher`` ratio (opt-in tier).
+    ``spelling_variants`` additionally unions same-type names sharing a
+    ``spelling_key`` (opt-in; its groups are proposals for review, never applied).
     """
     live = [
         e
@@ -154,6 +216,19 @@ def plan_entity_dedupe(
         # A canonical name colliding with an earlier entity's alias.
         if name_key in alias_key_owner and alias_key_owner[name_key] != i:
             uf.union(alias_key_owner[name_key], i, BASIS_ALIAS_COLLISION)
+
+    if spelling_variants:
+        owner: dict[tuple[str, str], int] = {}
+        for i, entity in enumerate(live):
+            key = (spelling_key(entity.canonical_name), entity.entity_type.value)
+            if not key[0]:
+                continue
+            if key in owner:
+                if uf.find(owner[key]) != uf.find(i):
+                    a, b = normalize_name(live[owner[key]].canonical_name), normalize_name(entity.canonical_name)
+                    uf.union(owner[key], i, BASIS_SPELLING, SequenceMatcher(None, a, b).ratio())
+            else:
+                owner[key] = i
 
     if min_similarity is not None:
         by_type: dict[str, list[int]] = {}
@@ -201,7 +276,7 @@ def _entity_groups(
                 similarity=uf.similarity.get(root),
             )
         )
-    groups.sort(key=lambda g: (g.basis == BASIS_SIMILARITY, g.survivor.canonical_name))
+    groups.sort(key=lambda g: (g.basis in (BASIS_SPELLING, BASIS_SIMILARITY), g.survivor.canonical_name))
     return groups
 
 

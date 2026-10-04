@@ -20,7 +20,9 @@ from pathlib import Path
 from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import request_actor
@@ -557,6 +559,9 @@ class ManualPairRequest(BaseModel):
     survivor_entity_id: str
     candidate_entity_id: str
     reason: str | None = None
+    #: Who proposes the pair: a person (`manual`) or the variant-spellings check (`name_variant`).
+    method: Literal["manual", "name_variant"] = "manual"
+    score: float = Field(default=0.5, ge=0.0, le=1.0, description="How alike the two are; 0.5 when a person queues it")
 
 
 def queue_pair_impl(db: Database, request: ManualPairRequest) -> ReviewPairResponse:
@@ -574,8 +579,8 @@ def queue_pair_impl(db: Database, request: ManualPairRequest) -> ReviewPairRespo
     cand = EntityMatchCandidate(
         survivor_entity_id=survivor.id,
         candidate_entity_id=candidate.id,
-        score=0.5,  # neutral — human-driven, no model probability yet
-        method=PendingMatchMethod.manual,
+        score=request.score,
+        method=PendingMatchMethod(request.method),
         reason=request.reason or "manually queued via /api/kg/review/pairs",
     )
     db.save(cand)

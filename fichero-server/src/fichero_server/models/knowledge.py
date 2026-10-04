@@ -1626,6 +1626,8 @@ class PendingMatchMethod(str, Enum):
     splink = "splink"
     manual = "manual"
     graph_context = "graph_context"
+    #: The same name written differently (`kg.entity.variant-spellings-proposed`).
+    name_variant = "name_variant"
 
 
 class EntityMatchCandidate(BaseModel):

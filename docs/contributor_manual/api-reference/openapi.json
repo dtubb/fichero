@@ -55563,6 +55563,7 @@
             "enum": [
               "normalized-name",
               "alias-collision",
+              "spelling-variant",
               "similarity"
             ],
             "title": "Basis"
@@ -55612,6 +55613,18 @@
             "nullable": true,
             "title": "Min Similarity",
             "description": "Opt-in fuzzy tier: also group same-type entities whose normalized names reach this SequenceMatcher ratio. Off by default \u2014 exact normalized-name/alias collisions only."
+          },
+          "spelling_variants": {
+            "type": "boolean",
+            "title": "Spelling Variants",
+            "description": "Also group same-type entities whose names are the same name written differently (old spelling, accents, the usual abbreviations, titles; kg.entity.variant-spellings-proposed). These are proposed for review, never merged: with apply this is refused.",
+            "default": false
+          },
+          "propose": {
+            "type": "boolean",
+            "title": "Propose",
+            "description": "Put each planned pair into the entity review queue (/api/kg/review/pairs) for a person to accept or reject, instead of merging. A pair already queued, accepted or rejected is skipped.",
+            "default": false
           }
         },
         "type": "object",
@@ -55643,6 +55656,12 @@
           "merges_applied": {
             "type": "integer",
             "title": "Merges Applied",
+            "default": 0
+          },
+          "proposals_queued": {
+            "type": "integer",
+            "title": "Proposals Queued",
+            "description": "Pairs put into the review queue by `propose`.",
             "default": 0
           }
         },
@@ -64422,6 +64441,23 @@
             "type": "string",
             "nullable": true,
             "title": "Reason"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "name_variant"
+            ],
+            "title": "Method",
+            "default": "manual"
+          },
+          "score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "description": "How alike the two are; 0.5 when a person queues it",
+            "default": 0.5
           }
         },
         "type": "object",

@@ -1167,7 +1167,7 @@ class EntityDedupeGroup(BaseModel):
     entity_type: str
     absorbed_ids: list[str]
     absorbed_names: list[str]
-    basis: Literal["normalized-name", "alias-collision", "similarity"]
+    basis: Literal["normalized-name", "alias-collision", "spelling-variant", "similarity"]
     similarity: float | None = None
     audit_id: str | None = Field(
         default=None, description="EntityMergeAudit id once applied; null on dry-run."
@@ -1193,6 +1193,17 @@ class EntityDedupeRequest(BaseModel):
         "normalized names reach this SequenceMatcher ratio. Off by default — "
         "exact normalized-name/alias collisions only.",
     )
+    spelling_variants: bool = Field(
+        default=False,
+        description="Also group same-type entities whose names are the same name written differently "
+        "(old spelling, accents, the usual abbreviations, titles; kg.entity.variant-spellings-proposed). "
+        "These are proposed for review, never merged: with apply this is refused.",
+    )
+    propose: bool = Field(
+        default=False,
+        description="Put each planned pair into the entity review queue (/api/kg/review/pairs) for a person "
+        "to accept or reject, instead of merging. A pair already queued, accepted or rejected is skipped.",
+    )
 
 
 class EntityDedupeResponse(BaseModel):
@@ -1201,6 +1212,7 @@ class EntityDedupeResponse(BaseModel):
     groups: list[EntityDedupeGroup]
     duplicates_found: int = Field(description="Entities the plan would absorb.")
     merges_applied: int = 0
+    proposals_queued: int = Field(default=0, description="Pairs put into the review queue by `propose`.")
 
 
 def _dedupe_group_payload(group: EntityMergeGroup) -> EntityDedupeGroup:
@@ -1236,6 +1248,12 @@ async def dedupe_entities(
 ) -> EntityDedupeResponse:
     from fichero_server.knowledge.dedupe import plan_entity_dedupe
 
+    if request.apply and (request.spelling_variants or request.propose):
+        raise HTTPException(
+            status_code=422,
+            detail="spelling variants are proposed for a person to review, never merged in bulk; "
+            "and propose and apply are two different requests",
+        )
     entities = list(db.query(KnowledgeEntity))
     live_count = sum(
         1
@@ -1244,10 +1262,13 @@ async def dedupe_entities(
     )
     plan = plan_entity_dedupe(
         entities,
-        include_reviewed=request.include_reviewed,
+        # A person decides each proposed pair, so curated entities are proposed like any other.
+        include_reviewed=request.include_reviewed or request.spelling_variants,
         min_similarity=request.min_similarity,
+        spelling_variants=request.spelling_variants,
     )
     groups = [_dedupe_group_payload(group) for group in plan]
+    proposals_queued = _propose_pairs(db, plan, ctx) if request.propose else 0
     merges_applied = 0
     if request.apply:
         for group in groups:
@@ -1276,7 +1297,36 @@ async def dedupe_entities(
         groups=groups,
         duplicates_found=sum(len(group.absorbed_ids) for group in groups),
         merges_applied=merges_applied,
+        proposals_queued=proposals_queued,
     )
+
+
+def _propose_pairs(db: Database, plan: list[EntityMergeGroup], ctx: ActionContext) -> int:
+    """Each (survivor, absorbed) pair into the review queue through `review.queue`, unless that pair was
+    ever queued before (pending, accepted or rejected: a person's decision is remembered)."""
+    from difflib import SequenceMatcher
+
+    from fichero_server.knowledge.dedupe import BASIS_SPELLING, normalize_name
+    from fichero_server.models.knowledge import EntityMatchCandidate
+
+    seen = {frozenset((c.survivor_entity_id, c.candidate_entity_id)) for c in db.query(EntityMatchCandidate)}
+    queued = 0
+    for group in plan:
+        for member in group.absorbed:
+            if frozenset((group.survivor.id, member.id)) in seen:
+                continue
+            a, b = group.survivor.canonical_name, member.canonical_name
+            why = ("the same name written differently" if group.basis == BASIS_SPELLING
+                   else f"a duplicate ({group.basis})")
+            registry.invoke(db, "review.queue", {
+                "survivor_entity_id": group.survivor.id, "candidate_entity_id": member.id,
+                "method": "name_variant" if group.basis == BASIS_SPELLING else "manual",
+                "score": round(SequenceMatcher(None, normalize_name(a), normalize_name(b)).ratio(), 4),
+                "reason": f"{b!r} and {a!r}: {why}",
+            }, ctx)
+            seen.add(frozenset((group.survivor.id, member.id)))
+            queued += 1
+    return queued
 
 
 @router.get(
