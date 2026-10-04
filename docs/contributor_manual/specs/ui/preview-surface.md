@@ -293,3 +293,6 @@ ledger's own original proposal (row for `preview-image-editing`, high in the bur
 No other legacy milestone was found to be substantially about Preview this pass beyond what's
 already known (the nine waiting issues and #168) — this was not an exhaustive re-sweep of
 every open milestone, only the ones already flagged as candidates.
+
+## Future (ideas, not scheduled)
+- (#4330) Rendition model and two-axis Preview navigation; Preview surface work, not workflows

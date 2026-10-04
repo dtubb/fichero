@@ -1142,3 +1142,6 @@ rule shows up there when the page holds several readings. (4) whether **more tha
 receiving the same scope is one call or several. Settled and not reopened here: the trust order
 (a person's line outranks a machine's), the compact text form rather than SVG, and cutting the
 picture to the shape.
+
+## Triaged from the backlog (2026-10-04)
+- `segments.claims-carry-box-anchor` — **[GAP]** (#970) a claim extracted from transcribed text carries the box/segment it was read from

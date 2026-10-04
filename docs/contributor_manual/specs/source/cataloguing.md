@@ -115,3 +115,6 @@ should export.
    contract), `diary-entry`, `map`, `photograph`, from the five real projects.
 3. **Controlled vocabularies:** a project's own lists first, with mappings to Getty AAT for kinds of
    document where a project wants them. Recommendation: own lists, AAT optional.
+
+## Future (ideas, not scheduled)
+- (#4399) Multi-level cataloguing epic with LLM-proposed grouping; large product vision

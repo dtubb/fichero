@@ -681,3 +681,23 @@ cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
   Preview rendition work that reads as `panes-workspaces`' surface (#4330), and a Library
   browsing feature (#4339). None of these six are workflows-canvas/run/bar/defaults/folders
   behaviors as this spec defines them.
+
+## Future (ideas, not scheduled)
+- (#754) Sentiment-classifier analysis tool; nice-to-have tool, spec clusters it under tool capabilities
+- (#755) Near-duplicate/plagiarism detection tool across library; nice-to-have analysis tool
+- (#1339) loove integration into comparison; spec rules loove stays a separate window/diagnostic matrix, comparison result reshaped to panes + diff lens
+- (#1836) Foundation Models 2026 image input/skills in fm-bridge; vendor-upgrade exploration, not scheduled
+- (#2526) Compare as sidebar destination; spec reshaped comparison to panes + diff lens (CD ruling 2026-09-18), awaiting CD triage
+- (#4310) Audit of unused langchain/langgraph capacity; engineering exploration, not a behaviour
+- (#4328) Comparison node: spec behaviour `workflows.run.comparison-node` RESHAPED (panes + diff lens) awaiting CD triage; node exists at model_comparison.py
+- (#4329) Export to HTML/SVG/Markdown workflows; vision-level tool addition overlapping specs/export
+
+## Triaged from the backlog (2026-10-04)
+- `workflows.canvas.node-shows-reads-and-writes` — **[GAP]** (#1660) each node in the editor states what it consumes and what it produces and persists (artifact, KG rows, none)
+- `workflows.canvas.edges-selectable-and-deletable` — **[GAP]** (#2524) an edge can be clicked, inspected, deleted and rewired, and the graph shows per-page vs all-together execution (fan-out part already `workflows.canvas.fan-out-editable`)
+- `workflows.bar.catalogue-menu-item-runs` — **[GAP]** (#3387) choosing Workflow > Catalogue runs Catalogue after the earlier steps, and the earlier steps' results are visible on the document first
+- `workflows.defaults.translate-crosschecks-by-default` — **[GAP]** (#3907) Translate and Translate (DeepL) include the double-check pass; Translate / DeepL / Double-Check are consolidated to one preset
+- `workflows.defaults.extraction-has-consistency-pass` — **[GAP]** (#3909) Catalogue/Extract workflows run a verify pass (repeated-name spelling, sum checks) and report disagreements
+- `workflows.defaults.routed-workflow-survives-round-trip` — **[GAP]** (#3949) a workflow with route_map edges saved and read back keeps route_map/route_key, and seed_default_workflows lists every default with no validation error
+- `workflows.defaults.recipes-user-level-runs-library-pinned` — **[GAP]** (#4277) workflow definitions are user-level and offered in every open library; a run is pinned to the target library's engine; raw files are imported then run
+- `workflows.defaults.every-preset-proven-on-both-axes` — **[GAP]** (#4369) every shipped preset has a test of the model call and of the graph structure, and redundant presets are pruned

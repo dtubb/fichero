@@ -816,3 +816,6 @@ table. The key is in the Keychain; a recipe names only `runs_on: cluster`. New:
 
 - **Sergio notebooks:** page images may go to Hugging Face Jobs to train our own models; models trained on them are not released. Step 7 (release) does not apply to this project.
 - **"Proven" noise band:** two runs within 0.5 CER points (the recommendation), to be tightened when real runs show the spread.
+
+## Future (ideas, not scheduled)
+- (#1648) Export a workflow as a portable LangGraph project for cluster runs; vision, not current work

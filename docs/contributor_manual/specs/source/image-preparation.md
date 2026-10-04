@@ -156,3 +156,6 @@ CER comparison. Later: a bound volume (curved pages) and a damaged Istmina page.
    Recommendation: only where it helps; some models use the ruling as a line guide.
 3. **The YOLO runtime:** Core ML export (fast, on the Neural Engine) or PyTorch on MPS (one
    runtime for inference and training). Recommendation: train in PyTorch, run in Core ML.
+
+## Future (ideas, not scheduled)
+- (#4368) Native Apple image ops (book-spread split, border cleanup, bg removal) replacing OpenCV paths

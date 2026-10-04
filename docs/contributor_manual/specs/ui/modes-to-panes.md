@@ -1027,3 +1027,6 @@ Nothing else in this spec's Behaviors/Migration/Risks/Persistence sections goes 
 the review verified with a file:line citation. The five Open Questions the Rulings section
 above closed were the review's own recommendations where the epic asked the creative director
 to decide; nothing was invented outside that set.
+
+## Future (ideas, not scheduled)
+- (#2591) Node-model unification epic; cross-cutting, spec recommends re-homing off workflows

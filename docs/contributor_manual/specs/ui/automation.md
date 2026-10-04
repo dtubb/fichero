@@ -212,3 +212,6 @@ cluster/sub-spec proposal — the 4 uncovered-and-not-recommended-for-closing is
 #1430, #1832, plus #494/#1742 recommended for closing) are heterogeneous wiring/scope issues
 that mostly read as either superseded by already-shipped work or misfiled on this milestone,
 not a coherent new surface needing its own spec.
+
+## Triaged from the backlog (2026-10-04)
+- `automation.run.history-inspector-tab` — **[GAP]** (#1474) the document inspector lists the workflow runs that ran on this document and lets the user delete (or disable) a run's results, as the image history does

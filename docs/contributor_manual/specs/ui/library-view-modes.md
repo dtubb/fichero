@@ -534,3 +534,6 @@ resolved and moved; the other three's status is corrected below.
 - **Finder-like direct-manipulation principle** (show all items, multi-select everywhere, one
   gesture grammar) — invoked the same way `kg-tables.md` and `sidebar-crud.md` already invoke
   it, not re-derived as a new rule specific to view modes.
+
+## Future (ideas, not scheduled)
+- (#4339) Finder-style group-by in the Library sort menu; Library browsing feature
