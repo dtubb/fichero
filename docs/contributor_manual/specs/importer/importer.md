@@ -298,7 +298,7 @@ is case-insensitive. Every count and list below is filtered by milestone NUMBER
 **Redirected to an existing spec:**
 
 - **#2060** ("Apple Vision framework as an on-device OCR/vision engine") →
-  `ai/provider-keys.md` as `keys.apple-vision-is-a-capability-not-only-a-key-check` — a
+  `ai/ai-settings.md` (section K, provider keys) as `keys.apple-vision-is-a-capability-not-only-a-key-check` — a
   provider/capability question, not the raw import pipeline.
 
 **Waiting on a spec that does not exist (left on the legacy milestone, not moved):**
@@ -408,7 +408,7 @@ issue; the maintainer's call, not closed here · **recommend re-home** = a disti
 | 1651 | Cluster-output → merge into a Fichero library | recommend re-home — paired with 1646/1650 |
 | 1656 | IIIF importer: tests + OpenAPI sync | recommend re-home — paired with 1646 |
 | 1658 | Andy→IIIF converter: always emit local images | recommend re-home — paired with 1646 |
-| 2060 | Apple Vision framework as on-device OCR/vision engine | recommend re-home — a provider/OCR concern (`ai/ai-settings.md`, `ai/provider-keys.md`), not the raw import pipeline |
+| 2060 | Apple Vision framework as on-device OCR/vision engine | recommend re-home — a provider/OCR concern (`ai/ai-settings.md`, `ai/ai-settings.md` (section K, provider keys)), not the raw import pipeline |
 | 2106 | Add documents via HTTP/URL + share-in | related — a real alternate entry point, not code-verified this pass; stays on #188 |
 | 2352 | Capture: session + resumable mobile upload contract | recommend re-home — the mobile-capture sub-system |
 | 2353 | Capture: iPhone/iPad camera intake | recommend re-home — paired with 2352 |

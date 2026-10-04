@@ -25,7 +25,7 @@
 >   resident, its batching and accelerator, its measured memory, how it reports as a job, how its
 >   models are found and verified, its honest status, and its keys and egress.
 >
-> `ai/ai-settings.md` owns the Settings surface (rows, tabs) and `ai/provider-keys.md` owns where a
+> `ai/ai-settings.md` owns the Settings surface (rows, tabs) and `ai/ai-settings.md` owns where a
 > key lives. Neither is restated here; where this spec needs them to change, it says so under
 > "Requests to other specs".
 
@@ -206,7 +206,8 @@ Each runtime reports through the one job model (`activity.one-job-model`), never
   sha256. A partial download is never installed.
 - **A first-use download inside a run** (bge-m3 on first embed, a Kraken reader fetched
   mid-workflow) is a child `download-model` job of the step, which waits with "Waiting for model
-  download" (`activity.first-use-download-is-a-job`, requested of the activity spec).
+  download" (`activity.global-work-is-the-macs`, which absorbed the request for
+  `activity.first-use-download-is-a-job`).
 - **Loading** a heavy model is visible on the step's row as "Loading <model>" with elapsed time, so
   a 30–300 s MLX warm-up or a 168 s Vision warm-up is never a silent stall.
 - **A call** belongs to its page job; it reports progress, the card id that answered, and, for a
@@ -234,7 +235,7 @@ means Ready and nothing else.
 
 ### 7. Keys and egress
 
-Keys are `ai/provider-keys.md`'s; this spec needs one thing from it: the status a row shows is
+Keys are `ai/ai-settings.md`'s; this spec needs one thing from it: the status a row shows is
 read through the same lookup a call uses. Egress is `source.egress.one-gate`'s; this spec lists
 where the runtimes call out, so the gate can cover them: every langchain factory caller, the
 fm-bridge (local), Fichero's own fetches (the weekly price list from GitHub, Zenodo and Hub
@@ -245,32 +246,8 @@ no library content; they are listed, become jobs, and stop when the person choos
 
 ### A. Identity and pinning (cards)
 
-- `source.model.card-id` — **[GAP]** (#4948) every card has one id `<runtime>:<source>@<version>`
-  as section 1 sets out; recipes, role defaults, runtime configurations, the making record and
-  jobs store it; no surface stores a bare model name. Today there are five schemes (MLX repo+SHA,
-  Whisper repo+revision, Kraken DOI, an embedding "space contract", bare cloud strings) and a
-  sixth reference, `$profile:`.
-- `source.model.cloud-pin-is-honest` — **[GAP]** (#4948) a cloud card pins the provider's dated id
-  where one exists; an alias is `pinnable: false`, a recipe step naming it is marked as able to
-  change, and each reading records the dated id the provider returned.
-- `source.model.weights-verified` — **[GAP]** (#4948) a downloaded model is checked against its
-  card's files and checksums before it is installed; a partial download is never installed. Today
-  Kraken loads the newest `.mlmodel` in a folder with no checksum and Whisper's `is_installed`
-  checks only that a folder exists (`llm/whisper_runtime.py:179`).
-- `source.model.embedding-space-has-revision` — **[GAP]** (#4948) the embedding card id includes the
-  weights' revision and the vector-space key includes the card id, so a weights update is a new
-  space. Today bge-m3 has no revision pinned (`db/embeddings.py`).
-- `source.model.runs-here` — **[GAP]** (#4948, #5367) a card states its runtime, whether that
-  runtime is bundled, OS or unavailable in this build, its measured resident memory (or a labelled
-  estimate), its processor, and whether this Mac can run it now; "supported" is never derived from
-  an environment default (today `FICHERO_SUBPROCESS_CAPABLE` defaults to `"1"`,
-  `llm/local_inference.py:287`). The activity spec's co-run rule reads these numbers.
-- `source.model.licence-filled` — **[GAP]** (#4948) every card in Fichero's own catalogue has a real
-  licence and licence class; "user-managed" is only for a model the person added by hand. Today
-  every managed model but blla and bge-m3 says "user-managed" *(review)*.
-- `source.model.jobs-replace-capabilities` — **[GAP]** (#4948) a card's jobs replace the capability
-  words and name-sniffing; "recognition-only" (reads a page, takes no prompt) is a job fact, not a
-  hard-coded list.
+The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weights-verified`, `embedding-space-has-revision`, `runs-here`, `licence-filled`, `jobs-replace-capabilities`) moved to the one card's home, `source/models-chains-and-projects.md`, on 2026-10-04. What stays here is how a runtime honours a card.
+
 
 ### B. Shipping in the sandboxed build
 
@@ -303,10 +280,12 @@ no library content; they are listed, become jobs, and stop when the person choos
 
 ### C. Loading, residency and speed
 
-- `runtime.kraken.model-stays-loaded` — **[GAP]** (#5370) the segmenter and each reader are loaded
-  once per worker and reused; a document's pages go through one locked call. Today `blla.segment`
-  loads its net on every page and the reader is re-loaded by `models.load_any` on every page
-  (`llm/kraken_runtime.py:586,599-600`).
+- `runtime.kraken.model-stays-loaded` — **[PARTIAL]** (#5370) the segmenter and each reader are
+  loaded once per worker and reused; a document's pages go through one locked call. Built: the line
+  finder and the reader stay resident between pages (`llm/kraken_runtime.py:649` `_resident`), and
+  the local-model lane runs one reader's pages together (`activity.lane.load-once`, which owns the
+  rule; corrected 2026-10-04, this line said nothing was resident). Still a gap: batching pages into
+  one call, and several Kraken workers (`activity.run.kraken-workers`).
 - `runtime.kraken.post-processing-uses-the-cores` — **[GAP]** (#5370, #5358) Kraken's line
   post-processing (about 10 s of a 17–20 s page, on one core) is spread over the performance cores
   or overlapped with the next page's segmentation; measured before and after on the fixture pages.
@@ -343,6 +322,8 @@ no library content; they are listed, become jobs, and stop when the person choos
 - `runtime.memory-gates-compose` — **[GAP]** (#4987, #5358) one memory check, fed by the cards'
   resident sizes, replaces the per-runtime guards (Kraken's 2.5 GB free, MLX's estimate); it knows
   what is already resident (Kraken, the embedder, an MLX model) before admitting another.
+  The admitting rule is owned by `activity.lane.co-run-only-if-it-fits` and
+  `activity.throttle.power-heat-memory`; this line owns the per-runtime resident sizes it reads.
 
 ### D. Jobs, downloads and errors
 
@@ -350,6 +331,9 @@ no library content; they are listed, become jobs, and stop when the person choos
   for every runtime, goes through one engine route family and is a `download-model` job; the five
   progress systems (MLX jobs, the install coordinator, `/local-models` background tasks, Whisper's
   `_DOWNLOAD_STATE`, fastembed's silent first-use download) are retired into it.
+  The job is the Mac's own, not a project's, and shows in the window's Mac group
+  (`activity.global-work-is-the-macs`, which owns how it is shown); this line owns the one path and
+  the check of what was downloaded.
 - `runtime.spacy.pipelines-download-as-data` — **[OK]** (#5367; built: `download_spacy_pipeline`, the `download-model` job and `model.download` in `llm/local_models.py` and `api/routes/ai/local_models.py`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py`) a spaCy pipeline that is not bundled
   downloads as files: its release archive is fetched, only the pipeline's data folder (its
   `config.cfg`, `meta.json` and weights) is written into the model store (`<models>/spacy/<name>-<version>`),
@@ -367,6 +351,7 @@ no library content; they are listed, become jobs, and stop when the person choos
   place (until 2026-10-04 the names step ignored its pin and took the language's preferred pipeline).
 - `runtime.load-is-visible` — **[GAP]** (#5359, #5370) loading a heavy model shows on the step's
   row with elapsed time; a step never sits silent while a model loads.
+  A load is one of the Mac's own jobs (`activity.global-work-is-the-macs`).
 - `runtime.call-records-the-card` — **[GAP]** (#4948) every call records on its page job, and on
   what it made, the card id that answered (with the macOS build for Apple, the dated id for a cloud
   alias).
@@ -376,43 +361,13 @@ no library content; they are listed, become jobs, and stop when the person choos
 
 ### E. Honest status
 
-- `runtime.status-from-the-endpoint` — **[BROKEN]** (#5367, #4303) every local row's status comes
-  from `/api/providers/local-runtimes`, which is built (`api/routes/ai/provider_models.py:1274`)
-  and called by no Swift code; synthetic rows hard-code `enabled=True, has_api_key=True`
-  *(review)*. Widens `settings.mlx-runtime-honest-status` from MLX to every runtime.
-- `runtime.status-covers-every-runtime` — **[GAP]** (#5367) the endpoint reports every runtime,
-  including Apple's four (with Apple Intelligence's on/off state), embeddings, Tesseract and the
-  local servers (by probing them), with the build state and a reason.
-- `runtime.unavailable-says-so` — **[BROKEN]** (#5367, #4973) in a sandboxed build a runtime that
-  needs code at run time is shown as "Unavailable in this build" with the reason, never offered as
-  Download or Provision.
-- `runtime.defaults-name-working-runtimes` — **[BROKEN]** (#5367) the factory defaults name only
-  runtimes present in the build, and a tier that promises a prompt never defaults to a
-  recognition-only card; today the audio default is `apple-speech` (not bundled) and the
-  `$vision_*` tiers default to `apple-vision`, which ignores prompts (`db/app.py:68-78`).
+Moved to the one Settings home, `ai/ai-settings.md` ("Runtime status"), on 2026-10-04: `runtime.status-from-the-endpoint`, `runtime.status-covers-every-runtime`, `runtime.unavailable-says-so`, `runtime.defaults-name-working-runtimes`.
+
 
 ### F. Keys and egress
 
-- `keys.status-sees-supplied-keys` — **[BROKEN]** (#5369) every key-status read (provider list,
-  catalogue, chat availability) uses the same lookup as a call, including keys the app supplies;
-  today `keychain.has_api_key` (`security/keychain.py:303`) reads only the engine keychain.
-- `keys.add-provider-uses-the-one-store` — **[BROKEN]** (#5369) a key entered while adding a
-  provider is written to the app's Keychain and supplied in memory, never to the engine keychain
-  (`AddProviderSheet+Helpers.swift` → `api/routes/ai/providers.py` *(review)*).
-- `source.egress.every-call-site` — **[BROKEN]** (#5368) every model call goes through the gate;
-  today `chat_with_tools` (`llm/__init__.py:2971`) and `structured_output` call
-  `get_langchain_model` without it. A guardrail test lists every caller of the model factory.
-- `source.egress.no-silent-cloud-fallback` — **[PARTIAL]** (#5368) no resolver falls back to a cloud
-  model; it refuses, naming what to configure. Fixed for the chat route in 7feee5872 and pinned by
-  `test_chat_never_falls_back_to_the_cloud.py`; the retrieval query compiler's library-database
-  lookup is not yet re-checked *(review: `retrieval/query_compiler.py:148`)*.
-- `source.egress.setting-is-reachable` — **[GAP]** (#5368, #4951) the project's egress rule is set
-  in setup and the Inspector and is what `is_local_only()` reads; today it reads `local_only_ai`,
-  which nothing writes.
-- `source.egress.fichero-own-fetches-listed` — **[GAP]** (#5368) Fichero's own fetches (the weekly
-  price list, Hub and Zenodo searches, tokenizers for language fit, model downloads) are listed in
-  Settings, carry no library content, run as jobs, and stop when the person chooses to work
-  offline.
+Moved on 2026-10-04: the two key behaviours to `ai/ai-settings.md` ("Keys a runtime needs"); the four egress behaviours to the one egress home beside `source.egress.one-gate` in `source/models-chains-and-projects.md`.
+
 
 ## Test matrix
 
@@ -469,7 +424,7 @@ no library content; they are listed, become jobs, and stop when the person choos
   `.jobs-replace-capabilities` into its "Model cards" list (or point to them here); the activity
   spec already cites `source.model.runs-here`, which no spec defined until this one. Its recipe
   YAML pin forms are the split form of the card id.
-- `ui/activity-and-automatic-work.md`: add `activity.first-use-download-is-a-job` (a model fetched
+- `ui/activity-and-automatic-work.md`: *done 2026-10-04, absorbed into `activity.global-work-is-the-macs`.* Add `activity.first-use-download-is-a-job` (a model fetched
   on first use is a child `download-model` job and the step waits with "Waiting for model
   download") and `activity.recipe-adoption-prefetches` (adopting a recipe enqueues downloads for
   its missing pinned cards); its lane table should list Whisper, Tesseract, YOLO and the resident
@@ -477,7 +432,7 @@ no library content; they are listed, become jobs, and stop when the person choos
 - `ai/ai-settings.md`: `settings.mlx-runtime-honest-status` widens to `runtime.status-from-the-endpoint`;
   add a Tesseract row, an Embeddings row and the Apple rows; `settings.one-catalog-unification`'s
   download half is `runtime.one-download-path`.
-- `ai/provider-keys.md`: `keys.one-store-of-truth` is [OK] for Settings but has a sibling path
+- `ai/ai-settings.md`: `keys.one-store-of-truth` is [OK] for Settings but has a sibling path
   (Add Provider, #5369); `keys.status-sees-supplied-keys` and `keys.add-provider-uses-the-one-store`
   belong in its list.
 - `compute/jobs-and-fine-tuning.md` (Kraken "in its own environment by subprocess") and

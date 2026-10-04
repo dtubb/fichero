@@ -313,6 +313,10 @@ may be why it still reads as broken to whoever tests it next.
   which columns the table view shows (name, dates, type, entity count, size, etc.),
   persisted per view. Not verified as built.
 
+The table's **Done** column (one badge per step run on a document) belongs to
+`activity.document.what-has-been-run` in `ui/activity-and-automatic-work.md` (#5434); it is
+specified there, not here.
+
 Verify-close candidate, left OPEN for the maintainer, not closed here: **#3697** ("Column
 Browser view mode (Finder-style Miller columns)") — the MODE ITSELF is verified built at
 HEAD: `.columns` is a live `ViewDisplayMode.selectableCases` member, mounted via

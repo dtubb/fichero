@@ -3,7 +3,7 @@
 //  FicheroTests
 //
 //  Pins `models.one-row` (docs/contributor_manual/specs/ui/
-//  model-selector-consistency.md, RATIFIED 2026-09-15): the island, workflow
+//  ai/ai-settings.md section M, RATIFIED 2026-09-15): the island, workflow
 //  bar, chat and Settings render the SAME row component
 //  (`SharedModelRow`) — no surface hand-draws its own.
 //

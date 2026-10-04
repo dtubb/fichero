@@ -8,8 +8,9 @@
 >
 > Design-led (Testing Constitution). **Status: DRAFT — first pass 2026-09-20; revised
 > 2026-10-03 against the maintainer's rulings (`remote-compute.md`, "Ruled 2026-10-03";
-> `REVIEW-2026-10-03.md`).** A slice of the compute set: read `remote-compute.md` first. Every
-> behaviour is **[GAP]** with its issue; none is built. **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
+> the review appendix in `remote-compute.md`).** A slice of the compute set: read `remote-compute.md` first. Each
+> behaviour carries its own tag and issue; the parts built since 2026-10-03 (training here and on
+> Hugging Face Jobs, reading at scale) are tagged where they are (corrected 2026-10-04). **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
 > outside services, with S-numbers from "Sources" in `remote-compute.md`.
 
 ## Intent
@@ -217,7 +218,7 @@ All [GAP]: designed, not built.
 
 - `compute.leave.one-gate` — **[GAP]** (#5239) a send to any target is allowed or refused by the one egress gate
   (`source.egress.one-gate`), called with the project, the target and the kind of work. This
-  slice adds no second check. *Routed:* the gate itself is → #4949's. *Test:* with the gate faked
+  slice adds no second check. *Routed:* the gate itself is → #4949's. This is the remote-work sheet over that one gate, whose home is `source/models-chains-and-projects.md` (ruled 2026-10-04). *Test:* with the gate faked
   to refuse, no carrier is ever called.
 - `compute.leave.stays-local-is-absolute` — **[GAP]** (#5239) a project marked "may not leave this machine"
   (`source.project.stays-local`) can be sent only to targets of kind `this-mac`. A

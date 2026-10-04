@@ -3,7 +3,7 @@ import SwiftUI
 // The ONE model row every picker surface renders.
 //
 // Extracted from the document island's `ModelPickerRow` (the reference the
-// spec adopts — docs/contributor_manual/specs/ui/model-selector-consistency.md,
+// spec adopts — docs/contributor_manual/specs/ai/ai-settings.md, section M,
 // RATIFIED 2026-09-15), byte-for-byte in look: a leading tick for the current
 // model, the family mark (`ModelFamilyMark`, the same glyph the chip wears),
 // the shortened name over its per-million price, then a vision eye and the

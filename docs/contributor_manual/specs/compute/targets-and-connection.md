@@ -8,8 +8,9 @@
 >
 > Design-led (Testing Constitution). **Status: DRAFT — first pass 2026-09-20; revised
 > 2026-10-03 against the maintainer's rulings (`remote-compute.md`, "Ruled 2026-10-03";
-> `REVIEW-2026-10-03.md`).** A slice of the compute set: read `remote-compute.md` first. Every
-> behaviour is **[GAP]** with its issue; none is built. **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
+> the review appendix in `remote-compute.md`).** A slice of the compute set: read `remote-compute.md` first. Each
+> behaviour carries its own tag and issue; the parts built since 2026-10-03 (training here and on
+> Hugging Face Jobs, reading at scale) are tagged where they are (corrected 2026-10-04). **VERIFIED / INFERRED** for our code; **CITED / UNVERIFIED** for
 > outside services, with S-numbers from "Sources" in `remote-compute.md`.
 
 ## Intent
@@ -46,7 +47,7 @@ jobs, and sessions with their time left.
   pin; a paired device gets its own token (`guide/15-remote-engines.md`, the Tailscale section;
   `scripts/create_tailscale_pairing_link.sh`).
 - **Where keys live is ruled**: for a local engine, the app's own Keychain, pushed to the
-  engine on connect (`ai/provider-keys.md`, "Two stores of truth").
+  engine on connect (`ai/ai-settings.md` (section K), "Two stores of truth").
 - **A host for each library** is not built (#2573, open). Today the app has one engine address
   for everything.
 - **The release build is sandboxed**; only the debug build is not (project record, corrected
@@ -161,15 +162,12 @@ All [GAP]: designed, not built.
   never the secret; the routes never return one; the change broadcast never carries one.
   *Test:* save a target with a credential; assert the stored JSON, the route's answer, the
   `compute.updated` event and the server log contain no part of it.
-- `compute.target.lives-in-ai-settings` — **[GAP]** (#5238) targets appear in Settings, AI, in a section titled
-  "Where work runs", as rows that each carry their own controls, in the way provider rows do
-  (`settings.provider-detail-carries-its-own-controls`). *Routed:* the section's place in the
-  window is `ai/ai-settings.md`'s. *Test:* availability leg: the section and its Add control are
-  reachable.
 - `compute.target.change-is-audited-and-undoable` — **[GAP]** (#5238) adding, changing and removing a target are
   registered actions with an inverse; "check" and "install" are recorded as non-undoable, by
   name, with the reason. This closes the part of → #4907 that concerns these routes. *Test:*
   `scripts/check_undo_coverage.py` is green for every `/api/compute/*` route.
+
+Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved to the one Settings home, `ai/ai-settings.md` ("Where work runs"), on 2026-10-04.
 
 ### Checking
 
@@ -214,7 +212,7 @@ All [GAP]: designed, not built.
 ### A Slurm cluster
 
 - `compute.secret.fichero-makes-the-key` — **[GAP]** (#5238) for an SSH target Fichero makes an Ed25519 key pair;
-  the private half is stored only in the Keychain, the one key store (`ai/provider-keys.md`); the
+  the private half is stored only in the Keychain, the one key store (`ai/ai-settings.md` (section K)); the
   public half is shown with Copy, to be added to the person's **own** cluster account, and can be
   shown again. Removing the target deletes the private half.
   *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create,

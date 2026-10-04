@@ -204,7 +204,9 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 - `workflows.canvas.dry-run` — **[GAP]** no "Test / Dry Run" affordance to
   validate a workflow before spending a real run. ISSUE: #4370.
 - `workflows.canvas.cost-estimate-up-front` — **[GAP]** no shown cost/call
-  estimate before running from the editor. ISSUE: #1818.
+  estimate before running from the editor. ISSUE: #1818. The estimate itself (time,
+  cost and greenhouse gas, each measured, estimated or unknown) is owned by
+  `activity.run.where-and-estimate`; this line is the editor showing it.
 - `workflows.canvas.switching-workflow-blocks-the-stale-editor` — **[BROKEN]** (#4893, found
   2026-09-19 while wiring #4882) switching the active workflow starts an async load, but
   `editingWorkflow` — the canvas's own key — still holds the PREVIOUS workflow's nodes and id
@@ -268,7 +270,9 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   Folded into #4312.
 - `workflows.run.controls-are-fire-and-forget` — **[GAP]** (#4402) pause/resume/stop
   buttons fire the endpoint and apply no local state update, so Resume can
-  appear to do nothing (2026-07-29 review F7). Folded into #4312. **Partial
+  appear to do nothing. Stop reaching a long call or a running page is owned by
+  `activity.run.stop-reaches-in-flight-calls` (`ui/activity-and-automatic-work.md`); this line keeps
+  the buttons' own state (2026-07-29 review F7). Folded into #4312. **Partial
   progress, verified at HEAD 2026-09-19 (moved here from the `activity` legacy
   milestone fold, #4402):** the underlying cancellation check is no longer
   scoped to the parallel fan-out branch alone — `builder.py` now checks

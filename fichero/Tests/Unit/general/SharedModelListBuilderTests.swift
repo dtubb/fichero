@@ -3,7 +3,7 @@
 //  FicheroTests
 //
 //  The ONE pure builder that every model picker will share
-//  (docs/contributor_manual/specs/ui/model-selector-consistency.md, RATIFIED
+//  (docs/contributor_manual/specs/ai/ai-settings.md, section M, RATIFIED
 //  2026-09-15). Extracted from the workflow bar's `pinnableModels`, which is
 //  the builder the spec adopts, so these guard the exact behaviour the
 //  surfaces converge on:

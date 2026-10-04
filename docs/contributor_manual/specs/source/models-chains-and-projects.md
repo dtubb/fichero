@@ -9,7 +9,7 @@
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
-> first. Every behaviour below is tagged **[GAP]** with its issue; everything under "The design"
+> first. Every behaviour below carries its state tag and its issue; everything under "The design"
 > is unbuilt design. Reorganised on 2026-10-01 into one design (it had grown by accretion); no
 > behaviour id was removed or renamed.
 >
@@ -17,7 +17,7 @@
 > builds on them and restates none of them:
 > `ai/ai-settings.md` (ratified: provider rows as peers, downloads inside each row, ONE
 > catalogue; its `settings.one-catalog-unification` is the catalogue whose *contents* this slice
-> describes); `ai/provider-keys.md` (where keys live); `ui/model-selector-consistency.md`
+> describes); `ai/ai-settings.md` (section K) (where keys live); `ai/ai-settings.md` (section M)
 > (pickers list configured models and role defaults from one list builder); `ui/workflows.md`
 > and `ui/workflow-node-config.md` (a workflow is a saved graph of tool nodes; the workflow bar;
 > the locked default workflows); `ui/activity-and-automatic-work.md` (the one job model that
@@ -27,6 +27,43 @@
 > `source/synced-folder.md` (a folder kept in step with a project); `source/iiif.md`;
 > `export/exporter.md`. Where this slice needs one of them to change, that is listed under
 > "Requests to other specs", not done here.
+
+## The golden path (north star, ruled 2026-10-04)
+
+The Mosquera goal is a recipe that anyone can run through the app, not a model made by hand. This is
+that path, end to end, as one behaviour. Each step names its card, its screen, its engine route, its
+Activity rows and its state. A step marked ✱ is one that Sergio's project does today by API or CLI,
+so it is a gap in the app, whatever the engine has.
+
+- `recipe.distil.golden-path` — **[PARTIAL]** (#4951, #5440, #5441, #5442) a person runs the distil
+  recipe from setup to publish without leaving the app. The steps: setup (what you have, what you
+  want) → split → Kraken lines → a teacher reads a sample → check (Fable or a person) → a clean set →
+  train small models (choosing where, with time, cost and greenhouse gas) → evaluate against
+  out-of-the-box small OCR models → choose → read the archive (this Mac, Hugging Face or ACENET) →
+  names and statements → check → publish. Every step is a job with its rows in Activity
+  (`activity.jobs-are-a-tree`), and every figure says whether it is measured, an estimate or unknown.
+  Built: one Start runs split, lines, read, check, names, statements, export and publish as one
+  `run-a-recipe` job (`recipes/runner.py`). Not built: a sample scope, the clean-set, training,
+  evaluation and choose steps as recipe steps, reading away from this Mac, and screens for the ✱
+  steps. *Test:* a named-machine journey (`source.onboard.*` journeys, section 14) on a small Mosquera
+  volume, with the engine half driven through the public routes in automation.
+
+| # | Step | Card | Screen | Engine route | Activity rows | State |
+|---|---|---|---|---|---|---|
+| 1 | Setup: what you have, what you want | project setup, purpose | first-run recipe screens (`FirstRunWindow+Recipe`, `RecipeSetupFields`) | `GET`/`PUT /api/recipes/project`, `/purposes`, `/languages`, `/scripts`, `/derived`, `POST /api/recipes/assemble` | none (no job) | PARTIAL (#4951; `source.onboard.five-questions`) |
+| 2 ✱ | Choose a route: cloud, this Mac or distil, with time, cost, GHG | the routes | none | `GET /api/recipes/routes` (no app caller) | none | GAP in the app (#4951, #5404; `source.onboard.routes-for-the-volume`); GHG #5420 |
+| 3 | Split | `split-pages` | Start (`RecipeStepsView`) | `POST /api/recipes/project/start` | `run-a-recipe` → step → workflow run → pages | PARTIAL (`source.job.split-pages`, `source.recipe.start-runs-the-steps`) |
+| 4 | Kraken lines | `find-lines` | Start | the same | pages on the local-model lane | PARTIAL (Kraken provisioned automatically) |
+| 5 ✱ | A teacher reads a sample | `read-a-line` / `read-a-page`, sample scope | none | none: Start reads every page | none | GAP (`source.onboard.samples-first`, `distill.collect.sample-covers-scope`, #5337) |
+| 6 ✱ | Check, by Fable or a person | `check` | no start or results screen; verdicts reach the engine by MCP | `POST /api/check/runs` | a `check` job | PARTIAL (#5404; `source.check.run-is-a-job`) |
+| 7 ✱ | A clean set | training set | none | `POST /api/export/training` (no app caller) | none | GAP in the app (#4947; `source.train.human-checked-by-default`) |
+| 8 ✱ | Train small models, choosing where | `train-a-model`, base from the catalogue | the start sheet (`compute.tune.start-sheet`), not built | `POST /api/training/kraken`, `/kraken/here`, `/vision-lora`, `/reasons` | `train-a-model`, `train-on-this-mac`, `convert-a-model`, `gather-reasons` | engine PARTIAL, app GAP (#5440, #5119, #5240); base ~3B (#5442) |
+| 9 ✱ | Evaluate against out-of-the-box small OCR models | the evaluation job | none | none yet; pieces: CER scoring, `/reasons-ab`, model comparison | (to be) one job, a row per model and page | GAP (#5441; `distill.eval.job`) |
+| 10 ✱ | Choose | the recipe's pin | none | none | none | GAP (`compute.tune.not-default-until-chosen` #5240; pinning #5429) |
+| 11 | Read the archive | the chosen reader | Start | Start, on this Mac; ✱ no route to read on Hugging Face or ACENET | pages on the lanes | this Mac PARTIAL; away GAP (#5238; `source.recipe.runs-on-binds-to-a-target`) |
+| 12 | Names and statements | `find-names-tag-words`, `find-statements` | Start | Start | workflow runs | PARTIAL (`source.job.find-statements`) |
+| 13 | Check | `check` | as step 6 | as step 6 | as step 6 | PARTIAL (#5404) |
+| 14 | Publish | `publish` | Start | Start (an 11ty site); ✱ a Hugging Face dataset or model: no screen | the recipe's step | site PARTIAL (`source.job.publish`); Hub GAP (`compute.publish.*`). Sergio's data: train yes, release no |
 
 ## Intent
 
@@ -658,6 +695,8 @@ published.
 
 ### 8a. Trying another option, at any time (and the bake-off)
 
+The bake-off is the evaluation job run at setup; its behaviours live in `compute/distillation.md`, "Evaluation against out-of-the-box models" (moved 2026-10-04).
+
 A person can **compare options whenever they like**, not only during setup, and **for every job**,
 not only reading. On any selection (a few pages, one region, some lines, a document),
 **Try Another Option…** (Inspector and context menu) offers, for a step or a run of steps, one or
@@ -952,7 +991,7 @@ only when the person exports or publishes.
 Fichero's own tools. It cannot carry scripts, cannot grant a model tools or network access, and
 cannot reach anything outside the registered jobs. Importing a recipe that tries is refused,
 naming the offending entry. **A recipe never holds a key**: it names providers and models; keys
-stay in the Keychain (`ai/provider-keys.md`).
+stay in the Keychain (`ai/ai-settings.md` (section K)).
 
 **A recipe is checked before anything runs**: at setup, when taken from the catalogue, when an
 update is offered, and before each run. The check reports, step by step: unknown jobs (with the
@@ -977,7 +1016,7 @@ writes it, runs it, records it, or carries it:
 | **Fine-tuning** (`compute/distillation.md`, `compute/jobs-and-fine-tuning.md`) | Is **a step and a version**: a `train-a-model` step runs where the recipe says; the trained student's card is pinned into the project's next recipe version only where it clears the bar. A training job's "recipe file" (`compute.tune.lora`) is the settings of that step. |
 | **Decipherment and connections across corpora** | Use the same folder format for **analysis recipes** (`undeciphered-scripts.md`). |
 | **Sharing a library** (`transport/library-sharing.md`) | Everyone in a shared library works under its one recipe; jobs run on the host; every reading still names who or what made it. |
-| **API keys** (`ai/provider-keys.md`) | A recipe names providers, **never keys**. |
+| **API keys** (`ai/ai-settings.md` (section K)) | A recipe names providers, **never keys**. |
 | **Cataloguing** (#5365) | A recipe's profile can declare the project's **metadata fields** (typed, with controlled vocabularies, mapped to Dublin Core or ISAD(G) where one fits), inherited like language through the prototypes; a "describe for the catalogue" step proposes values. |
 | **Image editing** (`ui/preview-image-editing.md`) | "Prepare the image" is a step that makes a new rendition; later steps read it, and every segment records which rendition its coordinates belong to. |
 
@@ -1211,7 +1250,7 @@ Specified in its own file, `synced-folder.md`: watching a folder, matching files
 outside edits in, keeping outputs current. It belongs half to the exporter and half to the
 importer; in a recipe it is the destination of an output step.
 
-## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
+## Behaviors (each with its state tag; each cites its issue on milestone `source-model`, 322)
 
 Model cards
 - `source.model.one-card` — **[GAP]** (#4948) every usable model (cloud, local, Apple Vision, Kraken,
@@ -1226,6 +1265,35 @@ Model cards
   unconfirmed until a person confirms it, and the recipe rules ignore unconfirmed facts.
 - `source.model.licence-class` — **[GAP]** (#4948) a card carries a licence and a licence class;
   only open models (permissive, or compatible copyleft) download without a further deliberate step.
+
+Moved from `ai/local-runtimes.md` on 2026-10-04 (the card has one home). Each refines a card behaviour above under the same issue: `card-id` is `one-card`'s identity, `jobs-replace-capabilities` is `jobs-typed`'s rule, `licence-filled` is `licence-class` for Fichero's own catalogue.
+
+- `source.model.card-id` — **[GAP]** (#4948) every card has one id `<runtime>:<source>@<version>`
+  as section 1 sets out; recipes, role defaults, runtime configurations, the making record and
+  jobs store it; no surface stores a bare model name. Today there are five schemes (MLX repo+SHA,
+  Whisper repo+revision, Kraken DOI, an embedding "space contract", bare cloud strings) and a
+  sixth reference, `$profile:`.
+- `source.model.cloud-pin-is-honest` — **[GAP]** (#4948) a cloud card pins the provider's dated id
+  where one exists; an alias is `pinnable: false`, a recipe step naming it is marked as able to
+  change, and each reading records the dated id the provider returned.
+- `source.model.weights-verified` — **[GAP]** (#4948) a downloaded model is checked against its
+  card's files and checksums before it is installed; a partial download is never installed. Today
+  Kraken loads the newest `.mlmodel` in a folder with no checksum and Whisper's `is_installed`
+  checks only that a folder exists (`llm/whisper_runtime.py:179`).
+- `source.model.embedding-space-has-revision` — **[GAP]** (#4948) the embedding card id includes the
+  weights' revision and the vector-space key includes the card id, so a weights update is a new
+  space. Today bge-m3 has no revision pinned (`db/embeddings.py`).
+- `source.model.runs-here` — **[GAP]** (#4948, #5367) a card states its runtime, whether that
+  runtime is bundled, OS or unavailable in this build, its measured resident memory (or a labelled
+  estimate), its processor, and whether this Mac can run it now; "supported" is never derived from
+  an environment default (today `FICHERO_SUBPROCESS_CAPABLE` defaults to `"1"`,
+  `llm/local_inference.py:287`). The activity spec's co-run rule reads these numbers.
+- `source.model.licence-filled` — **[GAP]** (#4948) every card in Fichero's own catalogue has a real
+  licence and licence class; "user-managed" is only for a model the person added by hand. Today
+  every managed model but blla and bge-m3 says "user-managed" *(review)*.
+- `source.model.jobs-replace-capabilities` — **[GAP]** (#4948) a card's jobs replace the capability
+  words and name-sniffing; "recognition-only" (reads a page, takes no prompt) is a job fact, not a
+  hard-coded list.
 - `source.model.citation-shown` — **[GAP]** (#4948) a model's citation appears wherever its work is
   shown and in exports.
 - `source.model.measured-here` — **[GAP]** (#4948) a card shows this project's own measurements of
@@ -1346,6 +1414,23 @@ Jobs and chains
 - `source.egress.one-gate` — **[GAP]** (#4949) whether content may leave this machine is decided in
   one place, where a model is called, reading the cascade (a project's rule, a segment's rights
   record); today's privacy check on model profiles becomes that gate.
+
+The one egress home (ruled 2026-10-04). Moved here from `ai/local-runtimes.md`; `compute.leave.one-gate` (`compute/transfer-and-results.md`) is the remote-work sheet over this gate.
+
+- `source.egress.every-call-site` — **[BROKEN]** (#5368) every model call goes through the gate;
+  today `chat_with_tools` (`llm/__init__.py:2971`) and `structured_output` call
+  `get_langchain_model` without it. A guardrail test lists every caller of the model factory.
+- `source.egress.no-silent-cloud-fallback` — **[PARTIAL]** (#5368) no resolver falls back to a cloud
+  model; it refuses, naming what to configure. Fixed for the chat route in 7feee5872 and pinned by
+  `test_chat_never_falls_back_to_the_cloud.py`; the retrieval query compiler's library-database
+  lookup is not yet re-checked *(review: `retrieval/query_compiler.py:148`)*.
+- `source.egress.setting-is-reachable` — **[GAP]** (#5368, #4951) the project's egress rule is set
+  in setup and the Inspector and is what `is_local_only()` reads; today it reads `local_only_ai`,
+  which nothing writes.
+- `source.egress.fichero-own-fetches-listed` — **[GAP]** (#5368) Fichero's own fetches (the weekly
+  price list, Hub and Zenodo searches, tokenizers for language fit, model downloads) are listed in
+  Settings, carry no library content, run as jobs, and stop when the person chooses to work
+  offline.
 
 How a result was made
 - `source.making.recorded` — **[GAP]** (#4949) every pass and reading records run, step, model card
@@ -1557,28 +1642,7 @@ Setup
   prose-only card (facts unconfirmed until a person confirms), explaining a choice, or suggesting
   answers from samples; it runs locally unless the project allows the cloud, and never decides the
   recipe.
-- `source.onboard.bakeoff` — **[GAP]** (#4948, #4951) the bake-off runs the rule-proposed
-  candidates on the chosen ground-truth pages and shows, per candidate, error per hand and page
-  kind, whole-volume cost, local or remote, speed, carbon estimate and trainability, ranked in the
-  fixed order; the person confirms the winner; the ranking stays on the cards and can be re-run.
-- `source.onboard.bakeoff-combinations` — **[GAP]** (#4951) for a chain of steps (find lines then
-  read; read then correct) the bake-off ranks whole combinations, at most three per step and at
-  most nine combinations after pruning by summed rule rank, all on the same pages.
-- `source.onboard.bakeoff-records-combination` — **[GAP]** (#4950) the confirmed combination sets
-  each step's model in the recipe, and its measurement is kept on the cards and in the recipe's
-  measurements.
-- `source.onboard.bakeoff-tesseract-baseline` — **[GAP]** (#4951) for print or typescript, when
-  Tesseract has data for the language, a Tesseract combination is in every bake-off; for
-  handwriting it is never proposed.
-- `source.onboard.bakeoff-minimum` — **[GAP]** (#4951) the bake-off needs at least 100 corrected
-  lines on at least two pages; below that it says how many more are needed and is offered again
-  when there are enough.
-- `source.onboard.bakeoff-is-a-job` — **[GAP]** (#4951, #5352) the bake-off runs as a job in
-  Activity; the person can leave setup while it runs; the first automatic run waits until the
-  winner is confirmed or the bake-off is skipped.
-- `source.onboard.bakeoff-skippable` — **[GAP]** (#4951) skipping the bake-off keeps the
-  rule-ranked recommendation, and each such step shows "not measured on this project" in the
-  Inspector until a bake-off runs.
+The bake-off's behaviours (`source.onboard.bakeoff`, `-combinations`, `-records-combination`, `-tesseract-baseline`, `-minimum`, `-is-a-job`, `-skippable`, `-random-sample`) moved on 2026-10-04 to the one home for evaluation, `compute/distillation.md` ("Evaluation against out-of-the-box models").
 - `source.onboard.says-no-model` — **[PARTIAL]** (#4951) **Built 2026-10-03:** a step with no fitting model shows its gap in words; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. where no candidate passes the hard constraints
   for a step, setup says so in words and proposes the hand-transcribe, draft-and-correct and
   train routes; it never substitutes silently.
@@ -1649,10 +1713,6 @@ The recipe and its format
 - `source.onboard.cloud-asked-once` — **[PARTIAL]** (#4951) **Built 2026-10-03:** asked only when the recipe names cloud_options, saved with the project's answers (PUT /api/recipes/project); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`, `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. whether pages may leave the Mac is asked once per
   project (at setup or first cloud use, whichever is first) and shown in the recipe editor, where
   every cloud step is marked; it is not asked again per provider or per step.
-- `source.onboard.bakeoff-random-sample` — **[GAP]** (#4951) the bake-off draws a random sample stratified
-  across folders, hands and page kinds, at least 20 pages and 100 corrected lines where the project
-  has them, shows each rank with its line count and confidence range, and marks candidates within
-  one CER point "too close to call".
 - `source.recipe.prompt-files` — **[GAP]** (#5364) each prompt is one file with a header naming its
   job, the model it was written for, its version and its variables; a variable the step does not
   supply is refused when the recipe is checked.
@@ -1780,6 +1840,52 @@ Reader and language tools
 - `source.nlp.no-silent-fallback` — **[GAP]** (#4948) see `histnorm.language.no-silent-english-entity-model`
   (→ #4914), which owns this; not restated here.
 
+### Models are nodes in the sidebar (ruled 2026-10-04, #5439)
+
+A model is a thing the project has, like an entity or a workflow, so it is a node in the sidebar.
+The node shows its card (`source.model.one-card`); nothing is kept only for display. Where the node
+kind sits in the sidebar is the sidebar's (`ui/modes-to-panes.md`, `ui/sidebar-crud.md`; #4335).
+
+- `source.model.node-in-sidebar` — **[GAP]** (#5439, #4335) every trained or downloaded model, of
+  every kind (Kraken, spaCy, YOLO, vision and OCR models, MLX builds), is a node in the sidebar.
+- `source.model.node-inspector` — **[GAP]** (#5439) selecting a model shows its Inspector, read from
+  its card: what it is; where it came from (a base and its training set, or a download); its scores
+  on held-out pages (`distill.eval.stored-on-the-model-node`); its size; where it can run
+  (`source.model.runs-here`); its licence and its release flag.
+- `source.model.node-actions` — **[GAP]** (#5439) from the node a person can fine-tune or distil it
+  again (the start sheet, `compute.tune.start-sheet`), test it (an evaluation job,
+  `distill.eval.job`) and delete it, through the one audited action layer.
+
+### The vision base a fine-tune starts from (ruled 2026-10-04, #5442)
+
+A smaller base trains and runs faster, so the default base for a vision fine-tune is a model of
+about 3B, not 8B. The recipe picks it.
+
+- `source.model.vision-base-catalogue` — **[GAP]** (#5442) the bases a vision fine-tune can start
+  from are a catalogue. Each entry's size, licence and Hub availability are verified and dated, and
+  an unverified fact says so. Today `training/vision_bases.py` lists only 7-9B models and
+  Nanonets-OCR-s, and `DEFAULT_BASE` is `Qwen/Qwen3-VL-8B-Instruct`.
+- `source.recipe.picks-the-tuning-base` — **[GAP]** (#5442, #4950) the recipe picks the base from
+  the project's language, script and hand among the catalogue's candidates, preferring about 3B.
+  Where several fit, the evaluation job (`distill.eval.job`) decides on the project's held-out
+  pages. A base with a restricted licence can train but not be released (Sergio's data: train yes,
+  release no). The default before any evaluation is open: Qwen3-VL-4B is recommended, with 2B as
+  the fast choice.
+
+Checked on the Hugging Face API on 2026-10-04: parameters from safetensors, licence from the card.
+
+| Base | Size | Licence | Use |
+|---|---|---|---|
+| `Qwen/Qwen3-VL-2B-Instruct` | 2.13B | Apache-2.0 | candidate |
+| `Qwen/Qwen3-VL-4B-Instruct` | 4.44B | Apache-2.0 | candidate (recommended default) |
+| `dots-studio/dots.ocr` (was `rednote-hilab/dots.ocr`) | 3.04B | MIT | candidate; trainer support unverified (custom code) |
+| `PaddlePaddle/PaddleOCR-VL` | 0.96B | Apache-2.0 | candidate; trainer support unverified (custom code) |
+| `nanonets/Nanonets-OCR2-3B`, `nanonets/Nanonets-OCR-s` | 3.75B | none declared; its base `Qwen/Qwen2.5-VL-3B-Instruct` is `qwen-research` | train yes, release no |
+| `datalab-to/chandra-ocr-2` | 5.30B | modified OpenRAIL-M (research, personal, small companies) | over the ~3B target; not a default |
+| `datalab-to/chandra` | 8.77B | modified OpenRAIL-M | too big for the default |
+
+Unverified for every entry: whether an MLX build exists to read with the untrained base on this Mac.
+
 ## Requests to other specs (for the manager to route; nothing edited here)
 
 - `ai/ai-settings.md`: the single catalogue's entries should take the card shape above, including
@@ -1795,7 +1901,7 @@ Reader and language tools
 - `ui/activity-and-automatic-work.md`: its request for an `automatic` section is met by the
   resolved recipe (`source.recipe.steps-name-layers`), worked out from the purpose, not written in
   the shared file.
-- `ui/model-selector-consistency.md`: a picker row could show what a card knows (suits, local or
+- `ai/ai-settings.md` (section M): a picker row could show what a card knows (suits, local or
   cloud, licence class).
 - `ui/workflows.md` / `ui/workflow-node-config.md`: steps declare a job; a chain is checked before
   it runs; the general "segments to any reader" step replaces `economy_htr` and its kin; the drift

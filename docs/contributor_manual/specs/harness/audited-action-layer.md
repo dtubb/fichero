@@ -330,7 +330,7 @@ parallel pattern to keep.
   this run" — verified at HEAD: no `POST /api/actions/run/{run_id}/undo`-shaped route exists
   anywhere under `fichero-server/src/fichero_server/`. The data this would walk (per-run audit
   rows, newest-first) already exists; only the grouped-reversal endpoint and its UI affordance
-  are missing. `ui/activity.md` is the natural home for the UI half of this once it's built
+  are missing. `ui/activity-and-automatic-work.md` (`activity.window.what-it-made`) is the natural home for the UI half of this once it's built
   (a run's own undo control) — cross-referenced, not restated, since that spec's own territory
   note already excludes execution mechanics.
 - `audit.blame-and-rollback-view` — **[GAP]** (#1691) no "who changed what, when" view exists

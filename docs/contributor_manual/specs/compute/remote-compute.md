@@ -9,15 +9,17 @@
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT — first pass 2026-09-20; revised 2026-10-03 against the
-> maintainer's rulings of that day (see "Ruled 2026-10-03" and `REVIEW-2026-10-03.md`). This is
+> maintainer's rulings of that day (see "Ruled 2026-10-03" and the appendix "The review of 2026-10-03"). This is
 > the FOUNDATION of the compute set. Nothing is approved.** Milestone `remote-compute` exists;
 > its issues are #5238 (targets), #5239 (transfer and results), #5240 (jobs and fine-tuning),
 > #5241 (the image), #5336-#5338 (distillation), #5119 (the training loop), #5397 (training on
 > this Mac) and #5398 (Hugging Face Jobs first).
 > Tags: **[OK]** built and tested · **[PARTIAL]** built, partly proven · **[GAP]** intended,
-> never built · **[BROKEN]** code contradicts the rule. Every behaviour in this set is
-> **[GAP]** with its issue; none is built (searched 2026-10-03: no training, Hugging Face Jobs
-> or YOLO detector code in the engine).
+> never built · **[BROKEN]** code contradicts the rule. Each behaviour in this set carries its
+> own tag and issue. Built since 2026-10-03 (corrected 2026-10-04): training a Kraken reader on this
+> Mac and on Hugging Face Jobs, a vision LoRA on Hugging Face Jobs, reading at scale on Hugging Face
+> Jobs (`training/`, `remote_read/`), each a row in the one jobs table; no YOLO detector code and no
+> live Slurm submission.
 >
 > Every claim about Fichero's own code is marked **VERIFIED** (read in the file, line given)
 > or **INFERRED**. Every claim about an outside service carries a source in "Sources" and is
@@ -331,7 +333,7 @@ It routes, and does not restate:
 | rights, consent, community protocols, restricting and removing | `source/rights-and-access.md` (**blocked on the maintainer**) |
 | the Parquet stream and the Hugging Face dataset bundle | `export/exporter.md` (`export.huggingface-dataset-ready-bundle`, #4069 #2181 #1806) |
 | provider rows, one catalogue, downloads inside each row | `ai/ai-settings.md` |
-| where keys live | `ai/provider-keys.md` |
+| where keys live | `ai/ai-settings.md` (section K) |
 | the app-to-engine transports | `transport/transport-http-uds.md` |
 | where the image is published, its version, staying compatible with the Mac app | `harness/release-and-versioning.md` (a request is listed below) |
 | that a formal Kraken training spec "is not written" | `source/formats-and-training.md:133-135` says so; **this set is that spec**, for the running of it |
@@ -477,7 +479,7 @@ loop and proves nothing about speed.
 The first goal is narrow: **fine-tune a Kraken reader and a YOLO page detector on the Sergio
 notebooks' checked pages, first on Hugging Face Jobs, then on this Mac, then on ACENET; measure
 each by CER on held-out pages; adopt the winner in the project's recipe as a new card.** The
-order serves that goal first. `REVIEW-2026-10-03.md` gives the reasons.
+order serves that goal first. the appendix "The review of 2026-10-03" gives the reasons.
 
 0. **Before any training (other specs).** Checked pages on the Sergio notebooks (a person);
    a training set from them, split by notebook (`source.train.*`, #4947), with line pictures for
@@ -528,7 +530,7 @@ Slices 1 and 2 need no outside account; slice 3 needs a Hugging Face token with 
 5. **`export/exporter.md`**: publishing to Hugging Face is that spec's bundle plus an upload
    step. This set asks that the upload step, and the questions asked before it, live there, and
    offers the text in `jobs-and-fine-tuning.md` as a draft to move.
-6. **`ai/provider-keys.md`**: SSH private keys and Hugging Face tokens are new kinds of secret
+6. **`ai/ai-settings.md`, section K (provider keys)**: SSH private keys and Hugging Face tokens are new kinds of secret
    under its rule ("exactly one place a local engine's keys live").
 7. **The legacy milestone "Settings - Models & Providers - HPC"** (#31, #4621) should fold into
    this set's milestone once it is named.
@@ -662,3 +664,155 @@ through a text proxy, and a person should re-read S1 to S5 before this spec is a
 - **S17** Inference engines; vLLM's start-up cost and LoRA loading; TGI archived; PyTorch 2.14 on Apple silicon; build-machine disk. <https://docs.vllm.ai/en/latest/features/lora/>, <https://github.com/huggingface/text-generation-inference>, <https://pytorch.org/blog/pytorch-2-14-release-blog/>
 - **S18** A Slurm scheduler in containers for tests; Apptainer in continuous integration; Slurm signals and requeue. <https://github.com/giovtorres/slurm-docker-cluster>, <https://github.com/eWaterCycle/setup-apptainer>, <https://docs.mila.quebec/examples/good_practices/checkpointing/index.html>
 - **S19** MLX: converting and quantising a Hugging Face model, fusing adapters, fine-tuning on a Mac; vision models. <https://github.com/ml-explore/mlx-lm>, <https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md>, <https://github.com/Blaizzy/mlx-vlm>
+
+## Appendix: the review of 2026-10-03 (folded from `REVIEW-2026-10-03.md`, 2026-10-04)
+
+The dated review note that checked this set against the rulings of 2026-10-03, kept here for its reasons. Its rulings are in "Ruled 2026-10-03" above.
+
+### The verdict in one paragraph
+
+The set is careful and honest about outside services, and its core ideas are right: one runner,
+one transfer core, one list of places, one catalogue, results that add and never overwrite. But
+it was written for a cluster first, and it was written before the job model. So it built the
+hardest path (ACENET, with its second factor and sandboxed SSH) before the easiest (Hugging Face
+Jobs), ruled out training on the Mac, proposed its own job table, and asked about egress once per
+target and kind of work. About two thirds of it is not needed for the first goal. The edits fix
+the contradictions; the build order now goes the short way.
+
+### What contradicted the rulings, the job model or another spec (fixed)
+
+| # | Where | Contradiction | Fix |
+|---|---|---|---|
+| 1 | `remote-compute.md` build order | Hugging Face was slice 9 of 10; Kraken training came after the Slurm slice | New order: one trainer, the image, **Hugging Face Jobs**, **this Mac**, adoption, **ACENET**, release; the rest later |
+| 2 | `jobs-and-fine-tuning.md` engine table; `remote-compute.md` "not possible" table | Kraken fine-tuning on the Mac "not proposed"; YOLO training only on "a cluster, a GPU service or a large Mac" | Kraken and YOLO train in the engine's process on a 16 GB Mac (Apple's GPU if Kraken allows it, else the CPU); new `compute.tune.on-this-mac`, `compute.tune.measured-on-16gb` (#5397) |
+| 3 | `distillation.md` question 1 | Training order ACENET, then Hugging Face, then a 32 GB Mac; "an 8 GB Mac never trains" | Hugging Face Jobs, then this Mac (16 GB) for Kraken and YOLO, then ACENET; students must run on 16 GB |
+| 4 | `jobs-and-fine-tuning.md` `compute.job.one-state-machine` | A separate `compute_jobs` table, against the one `jobs` table ruled 2026-10-01 (activity question 9) | A compute job is a row in the one `jobs` table; the phases are its `state`, `waiting_reason` and `progress`; array pieces are child jobs; global pause never cancels a running remote job (#5240, #5353) |
+| 5 | `transfer-and-results.md` sheet and `compute.leave.yes-is-recorded-and-scoped` | Egress asked per project, target and kind of work | Asked **once per project**; it is the same record as setup's "may pages leave this Mac"; withdrawal stops all sends |
+| 6 | All six files | The word "collection" left unruled (question 1) | The project is the unit (a library becomes a project, confirmed 2026-10-03); a job is sent a selection |
+| 7 | Five headers | "Behaviours carry no tag and no issue; no milestone exists" while every behaviour is tagged [GAP] with an issue on milestone `remote-compute` | Headers say what is true |
+| 8 | `jobs-and-fine-tuning.md` "What exists" | Kraken "runs in its own environment by subprocess" | It now runs in the engine's process, loaded once (`llm/kraken_runtime.py:512-519`) |
+| 9 | Scoring lines in `jobs-and-fine-tuning.md` and `distillation.md` | "Character and word error rates" with no definition | The one CER (`workflows/transcription_accuracy.py`, through the readings/compare route), *agreement* where no person checked the reference; no second scorer |
+| 10 | `transfer-and-results.md` hub carrier | "Proposed last" | Built first; new `compute.transfer.hub-carrier` (#5398) |
+| 11 | `distillation.md` | Nothing said distillation is an option, not the default | New `distill.offered-not-default` (#5337, #4950); intent paragraph says so |
+
+### What was missing (added, each with its issue)
+
+- New: `compute.tune.one-trainer-three-places` (#5119, #5397): one trainer in the engine, run in process
+  on the Mac and in the image's package mode on Hugging Face Jobs or a cluster. Without it the Mac
+  and the image would grow two trainers.
+- New: `compute.tune.where-cheapest-first` (#5119, #4950): this Mac when the model fits, then the bound
+  `gpu-service`, then the `cluster`; a costlier place only with A/B evidence shown.
+- New: `compute.tune.proven-on-huggingface-first` (#5398): two runs, the same held-out CER within
+  noise, recorded on the recipe before a cluster run.
+- New: `compute.tune.on-this-mac`, `compute.tune.measured-on-16gb` (#5397): training in the local ML
+  lane, one heavy model, throttled, resumable; peak memory and processor use on the job and card.
+- New: `compute.tune.adopted-by-the-recipe` (#5337, #4950): a model that beats the current step enters
+  the next recipe version as a new card for that step, offered with the A/B table.
+- New: `compute.publish.good-models-released-by-fichero` (#5240): release on Hugging Face as part of
+  Fichero, when rights and licences allow, as a person's act.
+- New: `compute.transfer.hub-carrier` (#5398), `distill.offered-not-default` (#5337, #4950).
+- The `train-layout` job kind was used by `compute.tune.yolo-layout` but absent from the kinds
+  table; added, with a YOLO row in the engine table.
+
+### Duplicated or over-built for the first goal (kept, marked later)
+
+None of these is wrong. None is needed to fine-tune a Kraken reader and a YOLO page detector:
+
+- **Sessions and vLLM** (`compute.session.*`, `compute.engine.*`): marked deferred.
+- **A Linux machine we control** (install, pairing, Tailscale or forward) and the **local
+  container stand-in**: after ACENET.
+- **The `arm64` cpu image** and the size budget for a vLLM image: the first image is one
+  `amd64` image that trains.
+- **Landing readings** (`compute.land.stale-is-marked-not-refused`, `.orphans-set-aside`,
+  `.whole-source-or-none`, `.undoable-as-one`): needed for batch inference, not for training. A
+  training job lands one model file, one card and its scores.
+- **Automation hosts, the community question as its own setting, gated repositories, Zenodo,
+  MLX conversion, the remote server that holds a project (#2573).**
+- **Publishing** (`compute.publish.*`): the spec already proposes moving most of it to the
+  exporter and model-card specs (its question 6). Agreed; keep only the ask-again rule and the
+  new release rule here.
+- `distillation.md`'s cascade, calibration, several teachers and synthetic data (#5338): later;
+  the first loop is collect, check, train, measure, adopt.
+
+### Requests to other specs (not edited here)
+
+- `ui/activity-and-automatic-work.md`: its `kind` list has `remote`. Where a job runs is not what
+  it does: prefer a `target` field (this Mac by default) with lane `remote` for jobs sent away,
+  and `kind` staying `workflow` or `train-a-model`. Also add `train-a-model` to the local ML lane's
+  kinds.
+- `source/models-chains-and-projects.md` line ~1168 (the syllabary journey): "with no cluster and
+  16 GB, Fichero says a Mac with 32 GB or a cluster is needed" contradicts the ruling for a Kraken
+  reader; it trains on 16 GB.
+- The job registry's text for `train-a-model` (`recipes/jobs.py:145`) says "a cluster, a GPU
+  service or a large Mac"; it should say this Mac first. A code change, for a worker.
+- `ai/local-runtimes.md`: `runtime.yolo.none-yet` and the image-preparation spec disagree on
+  whether a YOLOv8 page model ships (`image-preparation.md` names
+  `fichero_resources/yolo_models/yolov8s-fichero.pt`; no such file is in the tree). The runtimes
+  spec is right on disk.
+
+### The order to build (the smallest path)
+
+Goal: a Kraken reader and a YOLO page detector, fine-tuned on the Sergio notebooks' checked
+pages, first on Hugging Face Jobs, then on this Mac, then on ACENET; measured by CER on held-out
+notebooks; adopted by the project's recipe as a new card.
+
+0. **Ground truth (a person, plus other specs).** About 40 checked pages across the five notebooks
+   (the README's target), page outlines checked for the detector. Training set export split by
+   notebook (`source.train.set-from-selection`, `.split-by-manuscript`, `.line-pictures`; #4947);
+   YOLO labels (`formats/yolo.py`, built). The baseline first: score Kraken's general reader
+   (McCATMuS) and the Gemini draft on the held-out pages with the one CER. Needs the job table
+   (#5353) at least for `train-a-model` rows.
+1. **One trainer** (`compute.tune.one-trainer-three-places`): engine code for `ketos train` and
+   the YOLO trainer; pytest on CPU with a tiny set.
+2. **The image that trains** (`compute.image.run-a-package-mode`, `.ci-builds-both` for `amd64`
+   only, `.ci-smoke`, `.runs-offline`; #5241).
+3. **Hugging Face Jobs** (#5398): `compute.target.add-huggingface`, `compute.transfer.hub-carrier`,
+   `compute.package.*` for a training set, `compute.job.one-state-machine`,
+   `compute.job.costs-shown-where-known`, `compute.leave.*` once per project,
+   `compute.tune.model-comes-back-as-a-card`, `.scored-against-your-own-pages`,
+   `.proven-on-huggingface-first`.
+4. **This Mac** (#5397): `compute.tune.on-this-mac`, `.measured-on-16gb`; compare with step 3.
+5. **Adopt** (`compute.tune.adopted-by-the-recipe`, `distill.adopt.within-bar`): the A/B against
+   the baseline; the winner pinned in the next recipe version.
+6. **ACENET** (#5238, #5239, #5240): the three half-day trials first (in-process SSH from the
+   sandboxed build with a Keychain key and a second factor; SSH to a compute node; fetching an
+   Apptainer image on a login node), then the Slurm target, the SSH carrier and live submit.
+7. **Release** on Hugging Face as part of Fichero, once the notebooks' rights are confirmed
+   (the README lists them as unconfirmed).
+8. Then the small Qwen-VL with LoRA, by the same path.
+
+### Addendum (same day): reasoning distillation and controlling Slurm
+
+**Distilling a reasoning model's palaeography** is now a section of `distillation.md`. A large
+reasoning model reads the checked pages and writes, for each line, the letterforms, abbreviations
+and expansions and uncertain readings behind its transcription. Its traces stay in the episode
+ledger, which already keeps a thinking model's reasoning for each page with full provenance
+(`observability/episodes.py`; `workflows/tools/vision_base.py:4138-4143`); no second store. Two
+students on the same base, lines and split: A learns the checked transcription alone, B learns
+the reasoning and then the checked transcription (traces kept only where the teacher's reading was
+close to the checked one). The A/B on held-out checked pages (one CER, WER, speed and memory on a
+16 GB Mac with and without reasoning, cost) decides; B is adopted only if it beats A beyond the
+noise band. New: `distill.reasoning.traces-in-the-ledger`, `.answer-is-checked`, `.two-arms`,
+`.ab-decides` (#4642, #5337). It follows the Kraken and YOLO path in the build order (step 8).
+
+**Fichero controls ACENET through Slurm.** The three specs now say one thing: over the one
+in-process SSH connection, with the person's own account, the engine submits (`sbatch`), watches
+(`squeue`, `sacct`), cancels (`scancel`) and fetches results, each a step of a row in the one job
+table. The key is in the Keychain; a recipe names only `runs_on: cluster`. New:
+`compute.secret.never-in-a-recipe` (#5238, #4950); `compute.job.live-submit` and
+`compute.job.queued-says-so` name the commands; a "Controlling Slurm" table in
+`jobs-and-fine-tuning.md`.
+
+### Questions for the maintainer (few, each with a recommendation)
+
+1. **Rights for the Sergio notebooks.** Training on Hugging Face Jobs sends page images to a
+   company in the United States, and release needs the right to publish. *Recommend:* confirm
+   with Sergio that training on Hugging Face is acceptable before step 3; release only after
+   written agreement.
+2. **Noise band for "proven".** *Recommend:* two runs within 0.5 points of CER on the held-out
+   notebooks; tighten once we know the spread.
+
+### Rulings after the review (2026-10-03)
+
+- **Sergio notebooks:** page images may go to Hugging Face Jobs to train our own models; models trained on them are not released. Step 7 (release) does not apply to this project.
+- **"Proven" noise band:** two runs within 0.5 CER points (the recommendation), to be tightened when real runs show the spread.

@@ -2,7 +2,7 @@ import Foundation
 
 // The ONE way a model surface turns the provider cache into a pickable list.
 //
-// The spec (docs/contributor_manual/specs/ui/model-selector-consistency.md,
+// The spec (docs/contributor_manual/specs/ai/ai-settings.md, section M,
 // RATIFIED 2026-09-15): ~7 model pickers each built their own list, and they
 // drifted — the workflow bar showed two rows where the chip showed a dozen
 // (Daniel, 2026-09-04). This is the extraction of the workflow bar's builder
