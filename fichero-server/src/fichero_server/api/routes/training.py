@@ -21,7 +21,7 @@ from fichero_server.training.hf_jobs import NoHuggingFaceToken
 from fichero_server.training.job import PagesMayNotLeave, TrainKrakenRequest, TrainVisionLoraRequest
 from fichero_server.training import reasons_job
 from fichero_server.training.kraken_set import EmptyTrainingSet
-from fichero_server.training.reasons_job import GatherReasonsRequest
+from fichero_server.training.reasons_job import GatherReasonsRequest, ReasonsABRequest
 
 router = APIRouter(prefix="/training")
 
@@ -198,5 +198,37 @@ async def cancel_reasons_job(
 ) -> dict[str, str]:
     try:
         return registry.invoke(db, "training.cancel_reasons", {"job_id": job_id}, ctx).result
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@action("training.measure_reasons_ab", ReasonsABRequest, domains=["job"], undoable=False)
+def _action_measure_ab(db: Database, params: ReasonsABRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    started = reasons_job.start_ab(db, params, started_by=ctx.actor or "owner")
+    return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
+                               after={"job_id": started["job_id"], "kind": reasons_job.KIND_AB}, emit_type="job.created")
+
+
+@router.post("/reasons-ab", summary="Measure answer-only against reasoning students on held-out checked pages")
+async def start_reasons_ab(
+    request: ReasonsABRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> dict[str, str]:
+    """Queue a `reasons-ab` job (#4642, `distill.reasoning.ab-decides`): every contender reads the held-out
+    checked lines as it was trained (a reasoning student also with its reasoning off); one CER and WER
+    each, seconds a line, and for a `why` student whether its errors fall where it said it was unsure. A
+    reasoning student is adopted only beyond `noise_band`; the result is written on every Fichero-trained
+    contender's card either way. Through `training.measure_reasons_ab`; 422 without held-out pages."""
+    try:
+        return registry.invoke(db, "training.measure_reasons_ab", request.model_dump(), ctx).result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/reasons-ab/{job_id}", summary="The reasons A/B's scores and verdicts")
+async def reasons_ab_status(job_id: str, db: Database = Depends(get_library_database)) -> dict[str, Any]:
+    try:
+        return reasons_job.status(db, job_id, reasons_job.KIND_AB)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

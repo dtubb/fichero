@@ -604,6 +604,15 @@ no `draft`. `GET /api/training/reasons/{job_id}` gives its counts (lines, with r
 unanswered, pages missing and why); `POST /api/training/reasons/{job_id}/cancel` stops it
 (`training.cancel_reasons`): no further lines are asked about, and what was gathered stays.
 
+`POST /api/training/reasons-ab` queues a `reasons-ab` job (#4642, `distill.reasoning.ab-decides`): each
+of the `contenders` (`label`, `provider`, `model`, `arm`, `role`: student, teacher or baseline) reads the
+held-out checked lines (`held_out_ids`, required) as it was trained, and a reasoning student also with
+its reasoning off; one CER and WER each, seconds a line, and for a `why` student how many of its errors
+fall on lines it called uncertain. A reasoning student is adopted only if it beats the answer-only
+student by more than `noise_band` (0.005); the result is written on every Fichero-trained contender's
+card either way. Through `training.measure_reasons_ab`; `GET /api/training/reasons-ab/{job_id}` gives the
+scores and verdicts.
+
 `POST /api/training/jobs/{job_id}/cancel` stops it (`training.cancel`): a job not started ends at
 once; a running one is cancelled on Hugging Face at its next look and ends `cancelled`.
 

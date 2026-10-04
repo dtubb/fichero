@@ -10510,6 +10510,28 @@
         "response_model": null
       },
       {
+        "method": "POST",
+        "path": "/training/reasons-ab",
+        "operation_id": "start_reasons_ab_api_training_reasons_ab_post",
+        "summary": "Measure answer-only against reasoning students on held-out checked pages",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ReasonsABRequest",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/training/reasons-ab/{job_id}",
+        "operation_id": "reasons_ab_status_api_training_reasons_ab__job_id__get",
+        "summary": "The reasons A/B's scores and verdicts",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
         "method": "GET",
         "path": "/training/reasons/{job_id}",
         "operation_id": "reasons_job_status_api_training_reasons__job_id__get",

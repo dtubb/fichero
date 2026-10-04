@@ -15332,6 +15332,47 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("measure-answer-only-against-reasoning-students-on-held-out-checked-pages")
+    def training_measure_answer_only_against_reasoning_students_on_held_out_checked_pages_post(
+        ctx: typer.Context,
+        checked: str = typer.Option(..., "--checked", help="Request field: checked."),
+        contenders: str = typer.Option(..., "--contenders", help="Request field: contenders."),
+        held_out_ids: str = typer.Option(..., "--held-out-ids", help="Request field: held_out_ids."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        noise_band: Optional[float] = typer.Option(None, "--noise-band", help="Request field: noise_band."),
+    ) -> None:
+        """Measure answer-only against reasoning students on held-out checked pages (POST /api/training/reasons-ab)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/reasons-ab"
+            params = None
+            payload = _build_json_payload({
+                "checked": checked,
+                "contenders": contenders,
+                "held_out_ids": held_out_ids,
+                "language": language,
+                "noise_band": noise_band,
+            }, {
+                "checked": {'type': 'string', 'title': 'Checked', 'description': 'The model id of the CHECKED pass: the right readings.', 'x-cli-required': True},
+                "contenders": {'items': {'$ref': '#/components/schemas/ContenderSpec'}, 'type': 'array', 'minItems': 2, 'title': 'Contenders', 'description': 'The answer-only student, the reasoning students, the teacher and a cheap baseline.', 'x-cli-required': True},
+                "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'The held-out checked pages: no arm trained on them.', 'x-cli-required': True},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "noise_band": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Noise Band', 'description': 'A reasoning student is adopted only if it beats the answer-only one by more than this CER.', 'default': 0.005, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("the-reasons-a-b-s-scores-and-verdicts")
+    def training_the_reasons_a_b_s_scores_and_verdicts_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """The reasons A/B's scores and verdicts (GET /api/training/reasons-ab/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/training/reasons-ab/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("a-reasons-job-s-counts-in-words-and-numbers")
     def training_a_reasons_job_s_counts_in_words_and_numbers_get(
         ctx: typer.Context,

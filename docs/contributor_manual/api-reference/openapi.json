@@ -5533,6 +5533,118 @@
         }
       }
     },
+    "/api/training/reasons-ab": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Measure answer-only against reasoning students on held-out checked pages",
+        "description": "Queue a `reasons-ab` job (#4642, `distill.reasoning.ab-decides`): every contender reads the held-out\nchecked lines as it was trained (a reasoning student also with its reasoning off); one CER and WER\neach, seconds a line, and for a `why` student whether its errors fall where it said it was unsure. A\nreasoning student is adopted only beyond `noise_band`; the result is written on every Fichero-trained\ncontender's card either way. Through `training.measure_reasons_ab`; 422 without held-out pages.",
+        "operationId": "start_reasons_ab_api_training_reasons_ab_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonsABRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Start Reasons Ab Api Training Reasons Ab Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/training/reasons-ab/{job_id}": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "The reasons A/B's scores and verdicts",
+        "operationId": "reasons_ab_status_api_training_reasons_ab__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reasons Ab Status Api Training Reasons Ab  Job Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reading-at-scale": {
       "post": {
         "tags": [
@@ -49580,6 +49692,50 @@
         "title": "ConnectionTestResponse",
         "description": "Result of a provider connection test."
       },
+      "ContenderSpec": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "arm": {
+            "type": "string",
+            "enum": [
+              "answer",
+              "why",
+              "thinking"
+            ],
+            "title": "Arm",
+            "description": "How it is asked: as it was trained.",
+            "default": "answer"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "student",
+              "teacher",
+              "baseline"
+            ],
+            "title": "Role",
+            "default": "student"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "provider",
+          "model"
+        ],
+        "title": "ContenderSpec"
+      },
       "ContentRepresentation": {
         "properties": {
           "id": {
@@ -69121,6 +69277,52 @@
           "flavor"
         ],
         "title": "ReadingStarted"
+      },
+      "ReasonsABRequest": {
+        "properties": {
+          "checked": {
+            "type": "string",
+            "title": "Checked",
+            "description": "The model id of the CHECKED pass: the right readings."
+          },
+          "held_out_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Held Out Ids",
+            "description": "The held-out checked pages: no arm trained on them."
+          },
+          "contenders": {
+            "items": {
+              "$ref": "#/components/schemas/ContenderSpec"
+            },
+            "type": "array",
+            "minItems": 2,
+            "title": "Contenders",
+            "description": "The answer-only student, the reasoning students, the teacher and a cheap baseline."
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "noise_band": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Noise Band",
+            "description": "A reasoning student is adopted only if it beats the answer-only one by more than this CER.",
+            "default": 0.005
+          }
+        },
+        "type": "object",
+        "required": [
+          "checked",
+          "held_out_ids",
+          "contenders"
+        ],
+        "title": "ReasonsABRequest"
       },
       "RebuildRequest": {
         "properties": {

@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from fichero_server.execution import jobs
 
 KIND = "gather-reasons"
+KIND_AB = "reasons-ab"
 
 
 class GatherReasonsRequest(BaseModel):
@@ -33,10 +34,10 @@ class GatherReasonsRequest(BaseModel):
     prompt_file: str | None = Field(None, description="The recipe's prompt file; none uses Fichero's own.")
 
 
-def _row(db: Any, job_id: str) -> tuple[str, dict[str, Any]]:
-    row = db.execute_fetchone("SELECT state, detail FROM jobs WHERE id = ? AND kind = ?", [job_id, KIND])
+def _row(db: Any, job_id: str, kind: str = KIND) -> tuple[str, dict[str, Any]]:
+    row = db.execute_fetchone("SELECT state, detail FROM jobs WHERE id = ? AND kind = ?", [job_id, kind])
     if row is None:
-        raise LookupError(f"no reasons job {job_id}")
+        raise LookupError(f"no {kind} job {job_id}")
     return row[0], json.loads(row[1] or "{}")
 
 
@@ -86,13 +87,61 @@ def request_cancel(db: Any, job_id: str) -> str:
     return state
 
 
-def status(db: Any, job_id: str) -> dict[str, Any]:
-    state, detail = _row(db, job_id)
+def status(db: Any, job_id: str, kind: str = KIND) -> dict[str, Any]:
+    state, detail = _row(db, job_id, kind)
     reason = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id])[0]
     return {"job_id": job_id, "state": state, "reason": reason, **detail}
+
+
+class ContenderSpec(BaseModel):
+    label: str
+    provider: str
+    model: str
+    arm: Literal["answer", "why", "thinking"] = Field("answer", description="How it is asked: as it was trained.")
+    role: Literal["student", "teacher", "baseline"] = "student"
+
+
+class ReasonsABRequest(BaseModel):
+    checked: str = Field(description="The model id of the CHECKED pass: the right readings.")
+    held_out_ids: list[str] = Field(description="The held-out checked pages: no arm trained on them.")
+    contenders: list[ContenderSpec] = Field(min_length=2, description="The answer-only student, the reasoning "
+                                            "students, the teacher and a cheap baseline.")
+    language: str | None = None
+    noise_band: float = Field(0.005, ge=0.0, le=1.0, description="A reasoning student is adopted only if it beats "
+                              "the answer-only one by more than this CER.")
+
+
+def start_ab(db: Any, request: ReasonsABRequest, *, started_by: str) -> dict[str, str]:
+    if not request.held_out_ids:
+        raise ValueError("name the held-out checked pages: the A/B is measured only on pages no arm trained on")
+    job_id = jobs.enqueue_remote(db, KIND_AB, f"reasons-ab:{uuid.uuid4()}", target="models",
+                                 detail=json.dumps({"request": request.model_dump()}),
+                                 reason="Waiting to measure the students", started_by=started_by)
+    return {"job_id": job_id}
+
+
+def run_ab(db: Any, subject: str) -> dict[str, Any]:
+    from fichero_server.training.reasons_ab import Contender, run_ab as measure_ab
+
+    job_id = db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ?", [KIND_AB, subject])[0]
+    _state, detail = _row(db, job_id, KIND_AB)
+    request = ReasonsABRequest(**detail["request"])
+    db.execute("UPDATE jobs SET reason = ? WHERE id = ?", ["Each contender reading the held-out lines", job_id])
+    result = asyncio.run(measure_ab(db, checked=request.checked, held_out_ids=request.held_out_ids,
+                                    contenders=[Contender(**c.model_dump()) for c in request.contenders],
+                                    language=request.language, noise_band=request.noise_band))
+    detail["result"] = result
+    adopted = [label for label, v in result["verdicts"].items() if v["adopted"]]
+    words = (f"Adopted: {', '.join(adopted)}" if adopted else "No reasoning student beat the answer-only one "
+             "beyond the noise band") + f"; written on {len(result['cards'])} cards"
+    db.execute("UPDATE jobs SET detail = ?, reason = ? WHERE id = ?", [json.dumps(detail), words, job_id])
+    return result
 
 
 def register_job_kinds() -> None:
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="remote",
                            name="Gather a palaeographer's reasons")
+    if KIND_AB not in jobs.KINDS or jobs.KINDS[KIND_AB].run is None:
+        jobs.register_kind(KIND_AB, lambda db, subject: run_ab(db, subject), model=None, lane="remote",
+                           name="Measure the reasons A/B")

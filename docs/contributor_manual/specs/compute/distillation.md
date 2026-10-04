@@ -214,18 +214,18 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
   named small student.
 - `distill.collect.sample-covers-scope` — **[GAP]** (#5337) the teacher's sample is
   proposed to cover every hand, layout and page kind in the scope.
-- `distill.set.keeps-reasons` — **[GAP]** (#4642) where the teacher gave its reasons, the set keeps them,
+- `distill.set.keeps-reasons` — **[PARTIAL]** (#4642; built (`training/line_pairs.py` arms `why`, `thinking`, `review`; the vision card's `arm`); not yet trained on real pages) where the teacher gave its reasons, the set keeps them,
   and a student can be trained to give them.
-- `distill.reasoning.traces-in-the-ledger` — **[GAP]** (#4642) a reasoning teacher's traces for each line
+- `distill.reasoning.traces-in-the-ledger` — **[PARTIAL]** (#4642; built: `training/reasons.py`, one episode a call with the teacher, prompt file, run and time, by PAGE line id; not yet: the call's cost, and the teacher's readings landing as a pass that names its episodes) a reasoning teacher's traces for each line
   (letterforms, abbreviations and expansions, uncertain readings with alternatives, then the
   transcription) are kept in the episode ledger with the teacher's card, prompt file, run, time and
   cost, and its readings name their episode; no second store holds traces.
-- `distill.reasoning.answer-is-checked` — **[GAP]** (#4642) in a reasoning set the answer is always the
+- `distill.reasoning.answer-is-checked` — **[OK]** (#4642; `training/line_pairs.arms_for`; `max_trace_cer` (0.10 by default) and the drops on the set) in a reasoning set the answer is always the
   person's checked transcription; a trace is kept only where the teacher's own reading is within
   the set CER of it, and the count dropped is stated on the set.
-- `distill.reasoning.two-arms` — **[GAP]** (#4642, #5337) the same base, lines, split and settings train an
+- `distill.reasoning.two-arms` — **[OK]** (#4642, #5337; `in_every_arm` and the trainer's `--arm`; `--all-lines` to opt out) the same base, lines, split and settings train an
   answer-only student and a reasoning-and-answer student, so the A/B measures the reasons alone.
-- `distill.reasoning.ab-decides` — **[GAP]** (#4642, #5337) both students, the teacher and the cheap baseline
+- `distill.reasoning.ab-decides` — **[PARTIAL]** (#4642, #5337; built: `training/reasons_ab.py` and `POST /api/training/reasons-ab` (one CER, WER, seconds a line, reasoning on and off, errors on uncertain lines, the noise band, both cards); not yet: peak memory on a 16 GB Mac (the model runs in the MLX server) and the cost of traces and training) both students, the teacher and the cheap baseline
   are measured on held-out checked pages (one CER, WER, speed and peak memory on a 16 GB Mac, with
   and without reasoning at run time, trace and training cost); the reasoning student is adopted
   only if it beats the answer-only one beyond the noise band, and both cards record the result.

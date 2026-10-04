@@ -597,6 +597,31 @@ def fichero_reasons_cancel(job_id: str) -> Any:
 
 
 @mcp.tool()
+def fichero_reasons_ab(
+    checked: str,
+    held_out_ids: list[str],
+    contenders: list[dict[str, str]],
+    language: Optional[str] = None,
+    noise_band: float = 0.005,
+) -> Any:
+    """Measure whether a student learned better from a palaeographer's reasons: every contender
+    (``{"label", "provider", "model", "arm": answer|why|thinking, "role": student|teacher|baseline}``)
+    reads the HELD-OUT checked lines as it was trained; one CER and WER each. A reasoning student is
+    adopted only if it beats the answer-only student by more than ``noise_band`` (0.5 CER points); the
+    result is written on the students' cards either way. Follow it with ``fichero_reasons_ab_status``."""
+    with _mutating_client() as client:
+        return client.measure_reasons_ab({"checked": checked, "held_out_ids": held_out_ids,
+                                          "contenders": contenders, "language": language, "noise_band": noise_band})
+
+
+@mcp.tool()
+def fichero_reasons_ab_status(job_id: str) -> Any:
+    """The reasons A/B's scores (CER, WER, seconds a line) and verdicts, once measured."""
+    with _client() as client:
+        return client.reasons_ab_status(job_id)
+
+
+@mcp.tool()
 def fichero_read_at_scale(
     scope_ids: list[str],
     card: str,

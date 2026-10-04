@@ -1116,6 +1116,14 @@ class FicheroClient:
         """Stop a reasons job; what was gathered stays in the ledger."""
         return self.request("POST", f"/api/training/reasons/{quote(job_id, safe='')}/cancel")
 
+    def measure_reasons_ab(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Queue the reasons A/B on held-out checked pages (#4642); see POST /api/training/reasons-ab."""
+        return self.request("POST", "/api/training/reasons-ab", json=request)
+
+    def reasons_ab_status(self, job_id: str) -> dict[str, Any]:
+        """The reasons A/B's scores and verdicts."""
+        return self.request("GET", f"/api/training/reasons-ab/{quote(job_id, safe='')}")
+
     def read_at_scale(self, request: dict[str, Any]) -> dict[str, Any]:
         """Queue a reading run on Hugging Face Jobs, many shards as one job (#5398); see POST /api/reading-at-scale."""
         return self.request("POST", "/api/reading-at-scale", json=request)

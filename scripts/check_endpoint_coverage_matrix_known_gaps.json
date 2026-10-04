@@ -266,5 +266,7 @@
   "POST /api/reading-at-scale/jobs/{job_id}/cancel": "reading at scale as a job (#5398 slice 2): engine, API, CLI client and MCP tools first; the app's Read at Scale sheet and its Activity row are not built yet",
   "POST /api/training/reasons": "a palaeographer's reasons (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet",
   "GET /api/training/reasons/{job_id}": "a palaeographer's reasons (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet",
-  "POST /api/training/reasons/{job_id}/cancel": "a palaeographer's reasons (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet"
+  "POST /api/training/reasons/{job_id}/cancel": "a palaeographer's reasons (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet",
+  "POST /api/training/reasons-ab": "the reasons A/B (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet",
+  "GET /api/training/reasons-ab/{job_id}": "the reasons A/B (#4642): engine, API, CLI client and MCP tools first; the app's sheet and its Activity row are not built yet"
 }

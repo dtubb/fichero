@@ -43,6 +43,8 @@ EXPECTED_TOOLS = {
     "fichero_gather_reasons",
     "fichero_reasons_status",
     "fichero_reasons_cancel",
+    "fichero_reasons_ab",
+    "fichero_reasons_ab_status",
     "fichero_read_at_scale",
     "fichero_reading_status",
     "fichero_reading_resend_failed",
