@@ -105,7 +105,9 @@ struct UnifiedActivityRow: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
-            Text(coarseTimeAgo(run.timestamp))
+            // Absolute, not "N min ago" (#5432): a clock time does not need to
+            // re-render as time passes, and cannot be wrong about how long ago.
+            Text(ActivityTimeText.absolute(run.timestamp))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
@@ -121,18 +123,5 @@ struct UnifiedActivityRow: View {
         }
         let done = Int((Double(run.fileCount) * progress).rounded())
         return "\(done) of \(run.fileCount)"
-    }
-
-    /// Stable coarse timestamp — does not re-render every second the way
-    /// `Text(_, style: .relative)` does, which matters in a list that can hold
-    /// every run from every open library.
-    private func coarseTimeAgo(_ date: Date) -> String {
-        let seconds = Int(-date.timeIntervalSinceNow)
-        switch seconds {
-        case ..<60:    return "just now"
-        case ..<3600:  return "\(seconds / 60) min ago"
-        case ..<86400: return "\(seconds / 3600) hr ago"
-        default:       return "\(seconds / 86400) days ago"
-        }
     }
 }

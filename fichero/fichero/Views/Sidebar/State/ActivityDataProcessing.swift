@@ -46,7 +46,7 @@ func runsByWorkflow(
     )
 
     for key in groups.keys {
-        groups[key]?.sort { $0.timestamp > $1.timestamp }
+        groups[key]?.sort { ($0.timestamp ?? .distantPast) > ($1.timestamp ?? .distantPast) }
     }
 
     return groups
@@ -123,7 +123,7 @@ private func addHistoricalRuns(
             workflowId: item.workflowId,
             threadId: threadId,
             workflowName: workflowName,
-            timestamp: item.parsedTimestamp ?? Date(),
+            timestamp: item.parsedTimestamp,  // nil = unknown, never now (#5432)
             status: status,
             progress: nil,
             currentStep: nil,
@@ -301,15 +301,18 @@ func activityHumanizeMessage(_ message: String) -> String {
 }
 
 func activityRunDisplayName(for run: ActivityRun) -> String {
+    guard let timestamp = run.timestamp else {
+        return ActivityTimeText.unknown + (run.fileCount > 0 ? " (\(run.fileCount) files)" : "")
+    }
     let formatter = DateFormatter()
-    let daysSince = Calendar.current.dateComponents([.day], from: run.timestamp, to: Date()).day ?? 0
+    let daysSince = Calendar.current.dateComponents([.day], from: timestamp, to: Date()).day ?? 0
     switch daysSince {
     case 0: formatter.dateFormat = "'Today' h:mm a"
     case 1: formatter.dateFormat = "'Yesterday' h:mm a"
     case 2..<7: formatter.dateFormat = "EEE MMM d, h:mm a"
     default: formatter.dateFormat = "MMM d, h:mm a"
     }
-    var name = formatter.string(from: run.timestamp)
+    var name = formatter.string(from: timestamp)
     if run.fileCount > 0 { name += " (\(run.fileCount) files)" }
     return name
 }

@@ -49,7 +49,7 @@ struct ActivityDetailView: View {
         )
     }
 
-    private var startedAt: Date {
+    private var startedAt: Date? {
         if let liveExecution {
             return liveExecution.startTime
         }
@@ -215,7 +215,7 @@ extension ActivityDetailView {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(ActivityViewHelpers.statusColor(for: effectiveStatus))
 
-            Text("Started \(startedAt, format: .dateTime)")
+            Text(startedAt.map { "Started \($0.formatted(.dateTime))" } ?? "Started: \(ActivityTimeText.unknown)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

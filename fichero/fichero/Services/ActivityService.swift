@@ -170,7 +170,12 @@ class ActivityService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
+        case .undocumented(let statusCode, let payload):
+            // A 401/403 is the engine refusing the app's credentials (#5431: an
+            // engine respawn's token change); typed, so the window can say so.
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw denial
+            }
             throw ActivityServiceError.unexpectedResponse(statusCode)
         }
     }

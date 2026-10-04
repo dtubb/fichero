@@ -89,7 +89,7 @@ struct SelectedActivityRun: Equatable, Identifiable, Hashable {
     let name: String
     let workflowId: String?
     let threadId: String?
-    let timestamp: Date
+    let timestamp: Date?  // nil = unknown, never substituted with now (#5432)
     let status: ActivityRunStatusType
     let isLive: Bool  // True if currently running (use observer for updates)
     var libraryId: UUID?

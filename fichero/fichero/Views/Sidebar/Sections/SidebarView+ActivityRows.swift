@@ -18,7 +18,7 @@ extension SidebarView {
         )
         .values
         .flatMap { $0 }
-        .sorted { $0.timestamp > $1.timestamp }
+        .sorted { ($0.timestamp ?? .distantPast) > ($1.timestamp ?? .distantPast) }
     }
 
     @MainActor

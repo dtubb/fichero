@@ -21,7 +21,9 @@ extension ActivityProgressView {
                         .font(.headline)
                 }
 
-                Text("Completed \(selectedRun.timestamp, style: .relative)")
+                // The run's START time, absolute (#5432); it was labelled
+                // "Completed" and written relative.
+                Text("Started \(ActivityTimeText.absolute(selectedRun.timestamp))")
                     .foregroundStyle(.secondary)
 
                 Text("Progress data not available")
