@@ -1447,7 +1447,9 @@ def _collect_documents(
     else:
         candidates = [root]
 
-    documents = [doc for doc in candidates if doc.doc_type != DocType.folder]
+    # Live documents only: a deleted one is not published (and a deleted DOCX-import stub, with
+    # no file of its own, stopped a whole site export with "image source missing").
+    documents = [doc for doc in candidates if doc.doc_type != DocType.folder and doc.deleted_at is None]
     documents.sort(
         key=lambda doc: (doc.parent_id or "", doc.sequence or 0, natural_key(doc.name))
     )

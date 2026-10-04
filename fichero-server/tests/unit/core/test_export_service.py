@@ -658,3 +658,23 @@ def test_export_word_docx_overwrites_when_the_save_panel_already_asked(db, tmp_p
 
     result = export_word_docx(db, output, target_id="page-1", overwrite=True)
     assert result.document_count == 1
+
+
+def test_a_deleted_document_is_not_published_and_does_not_stop_the_site(db, tmp_path):
+    """WHY: the whole-library site export included soft-deleted documents. A deleted DOCX-import
+    stub (an image document with no file) stopped the Mosquera notebooks' site with "image source
+    missing", and a deleted page would otherwise be published after a person removed it."""
+    from datetime import datetime, timezone
+
+    root = Document(id="nb", name="Notebook", doc_type=DocType.folder)
+    page = Document(id="p1", name="Page one", parent_id=root.id, doc_type=DocType.file,
+                    page_content="La venta del negro.")
+    gone = Document(id="stub", name="SM_NPQ_C01_001", parent_id=root.id, doc_type=DocType.file,
+                    file_type=FileType.image, path=None, deleted_at=datetime.now(timezone.utc))
+    for doc in (root, page, gone):
+        db.save(doc)
+
+    result = export_eleventy_site(db, tmp_path / "site")
+
+    assert result.document_count == 1
+    assert not list((tmp_path / "site").rglob("SM_NPQ_C01_001*"))
