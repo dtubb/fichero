@@ -303,6 +303,33 @@ def step_id(thread_id: str, node_id: str) -> str:
     return f"{thread_id}:{node_id}"
 
 
+def _ensure_step_row(db: "Database", step: str) -> None:
+    """A sub-workflow's run has no tracker writing its steps (#5375): the first page a step of it
+    hands in writes the step's row, under its run's; the run's end ends them (`finish_child_run`)."""
+    from fichero_server.workflows.node_context import get_current_node
+
+    node = get_current_node()
+    if node is None or not node.run_id or db.execute_fetchone("SELECT 1 FROM jobs WHERE id = ?", [step]):
+        return
+    if db.execute_fetchone("SELECT 1 FROM jobs WHERE id = ? AND kind = 'workflow'", [node.run_id]):
+        _record(db, step, kind="workflow-step", subject=step, parent_id=node.run_id, state="running",
+                reason=None, name=node.step or node.node_label or None)
+
+
+def record_child_run(db: "Database", child_id: str, *, parent_step: str | None, name: str | None) -> None:
+    """A sub-workflow's run: a run row, a child of the step that called it (#5375)."""
+    _record(db, child_id, kind="workflow", subject=child_id, parent_id=parent_step, state="running",
+            reason=None, name=name)
+
+
+def finish_child_run(db: "Database", child_id: str, *, state: str, reason: str | None = None) -> None:
+    """A sub-workflow's run ended: its row and its steps' rows say how."""
+    _record(db, child_id, kind="workflow", subject=child_id, parent_id=None, state=state, reason=reason,
+            name=None)
+    db.execute("UPDATE jobs SET state = ?, finished_at = ? WHERE parent_id = ? AND kind = 'workflow-step' "
+               "AND state NOT IN ('done', 'failed', 'cancelled')", [state, utc_now(), child_id])
+
+
 def _current_step() -> str | None:
     """The step the calling code runs in (the builder stamps it on the node context), if any."""
     from fichero_server.workflows.node_context import get_current_node
@@ -530,6 +557,7 @@ def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[
     job_id = _insert(db, kind, subject, model, started_by)
     parent = _current_step()
     if parent:  # a page of a step of a run (`activity.jobs-are-a-tree`)
+        _ensure_step_row(db, parent)
         db.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", [parent, job_id])
     future.job_id = job_id  # type: ignore[attr-defined] -- what `withdraw` cancels
     _scheduler.attach(job_id, fn, future, lane, run_id)
@@ -601,11 +629,19 @@ def _run_stopped(run_id: str | None, db: "Database | None" = None) -> str | None
     if _pause_requested(run_id):
         return "Paused with its run"
     if db is not None:
-        row = db.execute_fetchone("SELECT state, reason FROM jobs WHERE id = ? AND kind = 'workflow'", [run_id])
-        if row and (row[0] == "paused" or row[1] == PAUSING):
-            return "Paused with its run"
-        if row and (row[0] in ("cancelled", "failed", "done") or row[1] == STOPPING):
-            return "Stopped by you" if row[1] == STOPPING or row[0] == "cancelled" else "Its run had ended"
+        # The run's row, and the rows of the runs above it (a sub-workflow's run hangs under the
+        # step that called it, #5375): a paused or ended parent holds its child's pages too.
+        job_id, depth = run_id, 0
+        while job_id and depth < 12:
+            row = db.execute_fetchone("SELECT state, reason, kind, parent_id FROM jobs WHERE id = ?", [job_id])
+            if row is None:
+                break
+            if row[2] == "workflow":
+                if row[0] == "paused" or row[1] == PAUSING:
+                    return "Paused with its run"
+                if row[0] in ("cancelled", "failed", "done") or row[1] == STOPPING:
+                    return "Stopped by you" if row[1] == STOPPING or row[0] == "cancelled" else "Its run had ended"
+            job_id, depth = row[3], depth + 1
     return None
 
 

@@ -462,15 +462,34 @@ async def sub_workflow(
         }
     )
 
+    # The child is a run of its own, a child of the step that called it (#5375): its row hangs
+    # under that step, and the parent's Stop and Pause reach it.
+    from fichero_server.execution import cancellation, jobs
+
+    library = jobs._open_library(state.get("library_path"))
+    if library is not None and parent_task_id:
+        jobs.record_child_run(library, child_task_id, parent_step=jobs._current_step(), name=child.name)
+    cancellation.link_child(parent_task_id, child_task_id)
+    ended = "failed"
     try:
         from fichero_server.workflows.builder import build_graph
 
         final_state = await build_graph(child, skip_cache=True).ainvoke(child_state)
+        ended = "done"
+    except (cancellation.WorkflowCancelled, cancellation.WorkflowPaused) as exc:
+        ended = "paused" if isinstance(exc, cancellation.WorkflowPaused) else "cancelled"
+        raise
     except Exception as exc:
+        if cancellation.cancellation_requested(child_task_id):
+            ended = "cancelled"
         raise RuntimeError(
             f"Sub-workflow '{child.name}' failed under parent node "
             f"'{parent_node_id}': {exc}"
         ) from exc
+    finally:
+        cancellation.unlink_child(child_task_id)
+        if library is not None and parent_task_id:
+            jobs.finish_child_run(library, child_task_id, state=ended)
 
     mapped: dict[str, Any] = {}
     for entry in config.output_contract:

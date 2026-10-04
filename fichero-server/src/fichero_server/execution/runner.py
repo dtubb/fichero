@@ -1815,6 +1815,11 @@ async def _run_workflow_in_background(
                 return
 
             event_kind = event.get("event", "")
+            # A sub-workflow's nodes run inside this run's step, and their events reach this stream
+            # too; their state names their own run (#5375). They are that run's steps, written as
+            # its rows, not this run's.
+            event_input = (event.get("data") or {}).get("input")
+            of_a_child_run = isinstance(event_input, dict) and event_input.get("task_id") not in (None, "", thread_id)
 
             if event_kind == "on_chain_start" and event.get("name"):
                 node_name = event.get("name", "")
@@ -1856,12 +1861,18 @@ async def _run_workflow_in_background(
                         await log_execution(f"Node '{original_id}' started")
 
                     # Log activity: node started
-                    activity_tracker.node_started(
-                        workflow_id=workflow_id,
-                        thread_id=thread_id,
-                        node_id=original_id,
-                        node_name=original_id,
-                    )
+                    if of_a_child_run:  # a step of the sub-workflow's run: its row, under that run
+                        from fichero_server.execution import jobs as _jobs
+
+                        _jobs.record_step(activity_tracker.store.db_path, event_input["task_id"], original_id,
+                                          status="running", name=original_id)
+                    else:
+                        activity_tracker.node_started(
+                            workflow_id=workflow_id,
+                            thread_id=thread_id,
+                            node_id=original_id,
+                            node_name=original_id,
+                        )
 
                     # Capture node start to progress timeline
                     progress_timeline["steps"].append(
@@ -2035,14 +2046,20 @@ async def _run_workflow_in_background(
                     activity_metadata.update(_usage_since_last_node())
 
                     # Log activity: node completed/skipped
-                    activity_tracker.node_completed(
-                        workflow_id=workflow_id,
-                        thread_id=thread_id,
-                        node_id=original_id,
-                        node_name=original_id,
-                        duration_ms=node_duration_ms,
-                        **activity_metadata,
-                    )
+                    if of_a_child_run:
+                        from fichero_server.execution import jobs as _jobs
+
+                        _jobs.record_step(activity_tracker.store.db_path, event_input["task_id"], original_id,
+                                          status="completed", name=original_id)
+                    else:
+                        activity_tracker.node_completed(
+                            workflow_id=workflow_id,
+                            thread_id=thread_id,
+                            node_id=original_id,
+                            node_name=original_id,
+                            duration_ms=node_duration_ms,
+                            **activity_metadata,
+                        )
 
                     # Update progress timeline with node completion
                     for entry in reversed(progress_timeline["steps"]):

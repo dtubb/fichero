@@ -61,13 +61,40 @@ def request_cancellation(run_id: str) -> None:
     cancellation_event(run_id).set()
 
 
+#: A child run's parent (a sub-workflow's, #5375): its Stop and Pause reach the child.
+_parents: dict[str, str] = {}
+
+
+def link_child(parent_id: str, child_id: str) -> None:
+    """A sub-workflow's run is a child of the run that called it: the parent's Stop and Pause
+    reach it (`activity.run.stop-reaches-sub-workflows`)."""
+    if parent_id and child_id:
+        with _lock:
+            _parents[child_id] = parent_id
+
+
+def unlink_child(child_id: str) -> None:
+    with _lock:
+        _parents.pop(child_id, None)
+
+
+def _lineage(run_id: str) -> list[str]:
+    """The run and the runs above it. Call with `_lock` held."""
+    chain, seen = [run_id], {run_id}
+    while (parent := _parents.get(chain[-1])) and parent not in seen:
+        chain.append(parent)
+        seen.add(parent)
+    return chain
+
+
 def cancellation_requested(run_id: str | None) -> bool:
-    """Non-blocking check; safe with a missing/empty id (returns False)."""
+    """Non-blocking check; safe with a missing/empty id (returns False). A sub-workflow's run is
+    stopped when the run that called it is."""
     if not run_id:
         return False
     with _lock:
-        event = _events.get(run_id)
-    return event is not None and event.is_set()
+        events = [_events.get(rid) for rid in _lineage(run_id)]
+    return any(event is not None and event.is_set() for event in events)
 
 
 def clear_cancellation(run_id: str | None) -> None:
@@ -119,12 +146,13 @@ def request_pause(run_id: str) -> None:
 
 
 def pause_requested(run_id: str | None) -> bool:
-    """Non-blocking check; safe with a missing/empty id (returns False)."""
+    """Non-blocking check; safe with a missing/empty id (returns False). A sub-workflow's run is
+    paused when the run that called it is."""
     if not run_id:
         return False
     with _lock:
-        event = _pause_events.get(run_id)
-    return event is not None and event.is_set()
+        events = [_pause_events.get(rid) for rid in _lineage(run_id)]
+    return any(event is not None and event.is_set() for event in events)
 
 
 def clear_pause(run_id: str | None) -> None:
