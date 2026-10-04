@@ -433,6 +433,7 @@ nav:
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
               - Maps & Georeference: contributor_manual/specs/source/maps-and-georeference.md
               - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
+              - Checking a Layer's Proposals: contributor_manual/specs/source/checking.md
               - IIIF: contributor_manual/specs/source/iiif.md
               - Cataloguing & Metadata: contributor_manual/specs/source/cataloguing.md
               - Image Preparation: contributor_manual/specs/source/image-preparation.md
