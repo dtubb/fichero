@@ -259,5 +259,9 @@
   "POST /api/training/kraken": "training as a job (#5398): engine, CLI and MCP surface first; the app's Train a Reader sheet and its Activity row are not built yet",
   "GET /api/training/jobs/{job_id}": "training as a job (#5398): engine, CLI and MCP surface first; the app's Train a Reader sheet and its Activity row are not built yet",
   "POST /api/training/jobs/{job_id}/cancel": "training as a job (#5398): engine, CLI and MCP surface first; the app's Train a Reader sheet and its Activity row are not built yet",
-  "POST /api/training/vision-lora": "training as a job (#5398): engine, CLI and MCP surface first; the app's Train a Reader sheet and its Activity row are not built yet"
+  "POST /api/training/vision-lora": "training as a job (#5398): engine, CLI and MCP surface first; the app's Train a Reader sheet and its Activity row are not built yet",
+  "POST /api/reading-at-scale": "reading at scale as a job (#5398 slice 2): engine, API and the CLI's generated surface first; the app's Read at Scale sheet and MCP are not built yet",
+  "GET /api/reading-at-scale/jobs/{job_id}": "reading at scale as a job (#5398 slice 2): engine, API and the CLI's generated surface first; the app's Read at Scale sheet and MCP are not built yet",
+  "POST /api/reading-at-scale/jobs/{job_id}/resend-failed": "reading at scale as a job (#5398 slice 2): engine, API and the CLI's generated surface first; the app's Read at Scale sheet and MCP are not built yet",
+  "POST /api/reading-at-scale/jobs/{job_id}/cancel": "reading at scale as a job (#5398 slice 2): engine, API and the CLI's generated surface first; the app's Read at Scale sheet and MCP are not built yet"
 }

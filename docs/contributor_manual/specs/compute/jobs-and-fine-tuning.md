@@ -270,12 +270,12 @@ All [GAP]: designed, not built.
   `compute_jobs` table. *Existing data:* none. *Test:* pure transitions; illegal ones raise; a
   remote job appears in `/api/jobs` beside local ones.
 - `compute.job.done-means-landed` — **[GAP]** (#5240) see `compute.land.completed-means-landed`.
-- `compute.job.array-by-shard` — **[GAP]** (#5240) a `workflow` job over many sources is one Slurm array job, one
+- `compute.job.array-by-shard` — **[PARTIAL]** (#5240; built for reading at scale (#5398): `remote_read/job.py` (one Hugging Face Job a shard, one row) and `remote_read/slurm.py` (`--array=0-19` for 1,000 at 50, described, not yet sent); not yet for a `workflow` job) a `workflow` job over many sources is one Slurm array job, one
   piece for each shard of a fixed number of sources; the number is a setting on the job with a
   default that amortises start-up. Built as a pure rule for one piece for each *file*
   (VERIFIED `api/routes/ai/hpc.py:298-301`); this changes the unit to a shard. *Test:* 1,000
   sources at 50 to a shard yields `--array=0-19`.
-- `compute.job.sparse-resubmit` — **[GAP]** (#5240) when some pieces fail, "Send the failed pieces again" submits
+- `compute.job.sparse-resubmit` — **[PARTIAL]** (#5240; built for reading at scale (#5398): `reading.resend_failed` re-sends only the failed shards; `describe_slurm_read(shards=[3, 7])` gives `--array=3,7`) when some pieces fail, "Send the failed pieces again" submits
   only those indices. Built as a pure rule (VERIFIED `remote_jobs.py:310-344`). *Test:* fixture:
   pieces 3 and 7 of 10 fail; the re-submit names `3,7`; the other eight are not re-run and
   their results are landed once.
@@ -287,7 +287,7 @@ All [GAP]: designed, not built.
   *Existing data:* `DryRunSubmitter` stays as the test fake; the dry-run route stays as "show
   me what will run". *Test:* fixture: submit returns the scheduler's job id; poll follows it to
   COMPLETED; cancel ends it.
-- `compute.job.poll-is-gentle` — **[GAP]** (#5240) polling a cluster is one `sacct` call for all of a person's
+- `compute.job.poll-is-gentle` — **[PARTIAL]** (#5240; built for Hugging Face (#5398): one `list_jobs` call a round for every shard of a run (`HfJobsTarget.statuses`); the `sacct` side waits for live submit) polling a cluster is one `sacct` call for all of a person's
   open jobs on that cluster, no more often than a stated interval (default 60 seconds), and
   stops when none are open. *Test:* three open jobs produce one call for each interval on the
   fixture's log.

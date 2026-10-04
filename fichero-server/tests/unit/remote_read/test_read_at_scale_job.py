@@ -210,3 +210,20 @@ def test_stopping_cancels_the_running_shards_on_hugging_face(db, archive):
         read_job.run(db, subject, target=hub, sleep=stop_after_first_round)
     assert sorted(hub.cancelled) == ["far-0", "far-1", "far-2"]
     assert json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0])["cancel"]
+
+
+def test_the_api_refuses_without_a_yes_and_answers_for_an_unknown_run(client):
+    """WHY: the refusal must reach the app, CLI and MCP as a sentence with its own status, not a 500;
+    an unknown run is a 404 on every route that names one."""
+    r = client.post("/api/reading-at-scale", json={"scope_ids": ["x"], "card": "k"})
+    assert r.status_code == 403 and "yes" in r.json()["detail"]
+    assert client.get("/api/reading-at-scale/jobs/nope").status_code == 404
+    assert client.post("/api/reading-at-scale/jobs/nope/resend-failed").status_code == 404
+
+
+def test_a_reading_run_waits_on_the_remote_lane(db):
+    """WHY: a run on Hugging Face waits on the network for hours; on the local ML lane it would hold
+    every Kraken page and embed on this Mac for that long."""
+    read_job.register_job_kinds()
+    kind = jobs.KINDS[read_job.KIND]
+    assert kind.lane == "remote" and kind.model is None

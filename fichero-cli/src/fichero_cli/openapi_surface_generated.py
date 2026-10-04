@@ -11552,6 +11552,95 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('reading-at-scale')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for reading-at-scale endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='reading-at-scale')
+        existing_apps['reading-at-scale'] = target_app
+
+    @target_app.command("read-pages-on-hugging-face-jobs-many-shards-as-one-job")
+    def reading_at_scale_read_pages_on_hugging_face_jobs_many_shards_as_one_job_post(
+        ctx: typer.Context,
+        card: str = typer.Option(..., "--card", help="Request field: card."),
+        flavor: Optional[str] = typer.Option(None, "--flavor", help="Request field: flavor."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        longest: Optional[int] = typer.Option(None, "--longest", help="Request field: longest."),
+        max_in_flight: Optional[int] = typer.Option(None, "--max-in-flight", help="Request field: max_in_flight."),
+        pages_may_leave: Optional[bool] = typer.Option(None, "--pages-may-leave/--no-pages-may-leave", help="Request field: pages_may_leave."),
+        pass_name: Optional[str] = typer.Option(None, "--pass-name", help="Request field: pass_name."),
+        reader: Optional[str] = typer.Option(None, "--reader", help="Request field: reader."),
+        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+        shard_size: Optional[int] = typer.Option(None, "--shard-size", help="Request field: shard_size."),
+        timeout: Optional[str] = typer.Option(None, "--timeout", help="Request field: timeout."),
+    ) -> None:
+        """Read pages on Hugging Face Jobs, many shards as one job (POST /api/reading-at-scale)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/reading-at-scale"
+            params = None
+            payload = _build_json_payload({
+                "card": card,
+                "flavor": flavor,
+                "language": language,
+                "longest": longest,
+                "max_in_flight": max_in_flight,
+                "pages_may_leave": pages_may_leave,
+                "pass_name": pass_name,
+                "reader": reader,
+                "scope_ids": scope_ids,
+                "shard_size": shard_size,
+                "timeout": timeout,
+            }, {
+                "card": {'type': 'string', 'title': 'Card', 'description': 'The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.', 'x-cli-required': True},
+                "flavor": {'type': 'string', 'title': 'Flavor', 'description': 'Hugging Face hardware for each shard.', 'default': 't4-small', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "longest": {'type': 'integer', 'maximum': 10000.0, 'minimum': 256.0, 'title': 'Longest', 'description': 'Pixels on the longer side each image is read at.', 'default': 2000, 'x-cli-required': False},
+                "max_in_flight": {'type': 'integer', 'maximum': 500.0, 'minimum': 1.0, 'title': 'Max In Flight', 'description': 'Shards running at once.', 'default': 10, 'x-cli-required': False},
+                "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages (or their IIIF addresses) to go to Hugging Face.", 'default': False, 'x-cli-required': False},
+                "pass_name": {'type': 'string', 'nullable': True, 'title': 'Pass Name', 'x-cli-required': False},
+                "reader": {'type': 'string', 'title': 'Reader', 'description': '`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model).', 'default': 'kraken', 'x-cli-required': False},
+                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages to read: images here, or pages imported by reference over IIIF.', 'x-cli-required': True},
+                "shard_size": {'type': 'integer', 'maximum': 10000.0, 'minimum': 1.0, 'title': 'Shard Size', 'default': 50, 'x-cli-required': False},
+                "timeout": {'type': 'string', 'title': 'Timeout', 'description': "Each shard's time limit; always sent.", 'default': '2h', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("a-run-s-shards-and-what-landed")
+    def reading_at_scale_a_run_s_shards_and_what_landed_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """A reading run's shards and what landed (GET /api/reading-at-scale/jobs/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-at-scale/jobs/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-a-run-cancels-its-running-shards-on-hugging-face")
+    def reading_at_scale_stop_a_run_cancels_its_running_shards_on_hugging_face_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Stop a reading run (cancels its running shards on Hugging Face) (POST /api/reading-at-scale/jobs/{job_id}/cancel)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-at-scale/jobs/{job_id}/cancel"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("send-a-run-s-failed-shards-again-and-only-those")
+    def reading_at_scale_send_a_run_s_failed_shards_again_and_only_those_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Send a reading run's failed shards again, and only those (POST /api/reading-at-scale/jobs/{job_id}/resend-failed)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-at-scale/jobs/{job_id}/resend-failed"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('reading-orders')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for reading-orders endpoints.', no_args_is_help=True)

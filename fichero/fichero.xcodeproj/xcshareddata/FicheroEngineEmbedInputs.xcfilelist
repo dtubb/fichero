@@ -144,6 +144,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/mcp/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/mcp/integrations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/mcp/servers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/mcp/tools.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/reading_at_scale.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/research/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/research/agents.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/research/crud.py

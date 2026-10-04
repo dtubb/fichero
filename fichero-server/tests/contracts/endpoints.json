@@ -8109,6 +8109,54 @@
         "response_model": "ConnectionTestResponse"
       }
     ],
+    "reading-at-scale": [
+      {
+        "method": "POST",
+        "path": "/reading-at-scale",
+        "operation_id": "start_reading_at_scale_api_reading_at_scale_post",
+        "summary": "Read pages on Hugging Face Jobs, many shards as one job",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ReadAtScaleRequest",
+        "response_model": "ReadingStarted"
+      },
+      {
+        "method": "GET",
+        "path": "/reading-at-scale/jobs/{job_id}",
+        "operation_id": "reading_job_status_api_reading_at_scale_jobs__job_id__get",
+        "summary": "A reading run's shards and what landed",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ReadingJobStatus"
+      },
+      {
+        "method": "POST",
+        "path": "/reading-at-scale/jobs/{job_id}/cancel",
+        "operation_id": "cancel_reading_job_api_reading_at_scale_jobs__job_id__cancel_post",
+        "summary": "Stop a reading run (cancels its running shards on Hugging Face)",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/reading-at-scale/jobs/{job_id}/resend-failed",
+        "operation_id": "resend_failed_shards_api_reading_at_scale_jobs__job_id__resend_failed_post",
+        "summary": "Send a reading run's failed shards again, and only those",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
     "reading-orders": [
       {
         "method": "POST",
