@@ -274,6 +274,42 @@ def _display_path(doc_id: str, package_path: Path | None = None) -> Path:
     return thumb_dir / prefix / f"{doc_id}_display.jpg"
 
 
+#: The fetcher for viewing pages imported by reference over IIIF; one per engine, so the per-host
+#: limits hold across every page being viewed. Replaced in tests.
+_IIIF_FETCHER = None
+
+
+def iiif_page_image(doc: "Document", package_path: Path | None = None) -> Path | None:
+    """A page imported by reference over IIIF, fetched once at display size into this library's storage
+    (`storage/iiif/`), so its thumbnail and display can be made. None when the document has no IIIF
+    service, or when the server cannot be reached (the page shows no preview rather than an error).
+
+    Only previews use this: a reading job fetches its own image, at the size its reader needs, off the Mac.
+    """
+    global _IIIF_FETCHER
+    service = (doc.metadata or {}).get("iiif_service") if isinstance(doc.metadata, dict) else None
+    if not service:
+        return None
+    base = (package_path / "storage") if package_path else settings.thumb_dir.parent
+    dest = base / "iiif" / doc.id[:2].lower() / f"{doc.id}.jpg"
+    if dest.exists():
+        return dest
+    from fichero_server.media.iiif_fetch import FetchFailed, PoliteFetcher, image_url, urllib_get
+
+    if _IIIF_FETCHER is None:
+        _IIIF_FETCHER = PoliteFetcher(get=urllib_get, retries=2)
+    try:
+        data = _IIIF_FETCHER.fetch(image_url(str(service), longest=max(settings.display_size)))
+    except (FetchFailed, OSError) as exc:
+        logger.warning("No IIIF image for %s from %s: %s", doc.id, service, exc)
+        return None
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(".part")
+    tmp.write_bytes(data)
+    os.replace(tmp, dest)
+    return dest
+
+
 def _derive_doc_id_from_thumb_name(stem: str) -> str:
     """Extract the document id from legacy and versioned thumbnail names."""
     stem = stem.replace("_display", "")
@@ -396,6 +432,8 @@ def _resolve_thumbnail_cache_candidate(
         else resolve_source(doc, library_root=package_path)
     )
     pdf_render = resolve_pdf_render_source(doc, db=db, library_root=package_path)
+    if not source and not pdf_render:
+        source = iiif_page_image(doc, package_path)  # a page imported by reference over IIIF
 
     if not source and not pdf_render:
         return alias_path if alias_path.exists() else None, alias_path, source, None
@@ -799,6 +837,8 @@ def ensure_display(
     pdf_render = resolve_pdf_render_source(
         doc, db=db, library_root=package_path
     )
+    if not source and not pdf_render:
+        source = iiif_page_image(doc, package_path)  # a page imported by reference over IIIF
 
     if not source and not pdf_render:
         return None

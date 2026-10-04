@@ -709,6 +709,7 @@ def _ingest_page_image(
     ingest_mode: str,
     summary: "ImportSummary",
     link_in_place: bool = False,
+    warm_previews: bool = True,
 ) -> str:
     """Bring a page's preferred image into the library under ``ingest_mode``.
 
@@ -736,7 +737,8 @@ def _ingest_page_image(
             "POST", "/documents", document_payload(node, parent_id)
         )
         doc_id = str(created["id"])
-        _warm_preview_cache(client, doc_id, summary)
+        if warm_previews:
+            _warm_preview_cache(client, doc_id, summary)
         return doc_id
 
     # LINK: reference the source in place. NO preview warm here: the routes
@@ -819,8 +821,13 @@ def import_manifest(
     root_parent_id: str | None = None,
     on_progress: Any | None = None,
     link_in_place: bool = False,
+    warm_previews: bool = True,
 ) -> ImportSummary:
     """Import a canonical manifest into a library through the API client.
+
+    ``warm_previews=False``: do not render each image-less page's preview now. A IIIF archive imported
+    by reference has millions of canvases, each preview a fetch from the archive's server; previews
+    are made when a page is viewed instead.
 
     ``ingest_mode`` controls how each page's image is brought into the library:
 
@@ -934,7 +941,7 @@ def import_manifest(
         elif page_with_image:
             # Pages with an image in copy/move -- or in link with nothing to stamp afterwards (the
             # CLI, #5383) -- go through the mode-aware path (the engine's native ingest).
-            new_id = _ingest_page_image(client, node, parent_id, mode, summary, link_in_place)
+            new_id = _ingest_page_image(client, node, parent_id, mode, summary, link_in_place, warm_previews)
             register_created(node, new_id)
         else:
             created = client.request(
