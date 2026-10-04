@@ -358,64 +358,10 @@ async def execute_workflow(
         else:
             thread_id = request.thread_id
 
-        # Create the event hub for this workflow. A WorkflowEventHub (#2546)
-        # fans events out to every SSE subscriber (editor + Activity, late or
-        # concurrent) instead of a single-consumer queue.Queue that only the
-        # first subscriber could drain. The producer side is thread-safe: the
-        # workflow runs on a dedicated worker thread (#1000) and calls
-        # ``hub.put(...)``; each subscriber drains its own queue via
-        # run_in_executor.
-        event_hub = WorkflowEventHub()
+        # The one way a run starts (#5374): its event hub, its record and its worker thread.
+        from fichero_server.execution.runner import start_run
 
-        # Register workflow state
-        _set_workflow_state(
-            thread_id,
-            {
-                "workflow_id": request.workflow_id,
-                "workflow_name": workflow.name,
-                "status": "accepted",
-                "events": event_hub,
-                "error": None,
-                "final_state": None,
-            },
-        )
-
-        await get_activity_tracker(str(db.path)).store.save_workflow_run(
-            thread_id=thread_id,
-            workflow_id=request.workflow_id,
-            workflow_name=workflow.name,
-            status="accepted",
-            workflow_snapshot={
-                "nodes": workflow.nodes,
-                "edges": workflow.edges,
-                "inputs": request.inputs,
-            },
-        )
-
-        # Start background execution on a DEDICATED WORKER THREAD with
-        # its own event loop (#1000). Previously this was
-        # asyncio.create_task on the FastAPI main loop — any tool node
-        # that did synchronous blocking work (a long DuckDB query, a
-        # sync embedding call, an fm-bridge subprocess wait) froze the
-        # whole loop, so /api/health stopped responding and the app
-        # blanked. Running on its own thread keeps the API loop free no
-        # matter what a tool node does. Cross-thread event delivery goes
-        # through the thread-safe queue.Queue created above.
-        def _run_workflow_thread() -> None:
-            asyncio.run(
-                _run_workflow_in_background(
-                    thread_id=thread_id,
-                    workflow=workflow,
-                    request=request,
-                    db=db,
-                )
-            )
-
-        threading.Thread(
-            target=_run_workflow_thread,
-            name=f"workflow-{thread_id}",
-            daemon=True,
-        ).start()
+        await start_run(db, workflow, request, thread_id)
 
         # Build stream URL. The live SSE handler is `stream_workflow_events`,
         # registered on THIS router (`@router.get("/stream/{thread_id}")`), which

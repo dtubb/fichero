@@ -846,6 +846,67 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
 # =============================================================================
 
 
+async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRequest, thread_id: str,
+                    *, parent_job: str | None = None) -> threading.Event:
+    """Start a run: the one way every run starts, by hand or as a batch's item (#5374,
+    `activity.run.one-way-to-run`). Registers its event hub, writes its run record, and runs it on
+    a DEDICATED WORKER THREAD with its own event loop (#1000): a tool node's blocking work can
+    never freeze the API's loop. `parent_job` makes its job row a child of that job (a batch's).
+    Returns an event set when the run's thread ends."""
+    import asyncio  # noqa: PLC0415
+
+    # A WorkflowEventHub (#2546) fans events out to every SSE subscriber (editor + Activity, late
+    # or concurrent); the producer side is thread-safe.
+    event_hub = WorkflowEventHub()
+    _set_workflow_state(
+        thread_id,
+        {
+            "workflow_id": request.workflow_id,
+            "workflow_name": workflow.name,
+            "status": "accepted",
+            "events": event_hub,
+            "error": None,
+            "final_state": None,
+        },
+    )
+    await get_activity_tracker(str(db.path)).store.save_workflow_run(
+        thread_id=thread_id,
+        workflow_id=request.workflow_id,
+        workflow_name=workflow.name,
+        status="accepted",
+        workflow_snapshot={
+            "nodes": workflow.nodes,
+            "edges": workflow.edges,
+            "inputs": request.inputs,
+        },
+    )
+    if parent_job:
+        from fichero_server.execution import jobs  # noqa: PLC0415
+
+        jobs.set_parent(db, thread_id, parent_job)
+    finished = threading.Event()
+
+    def _run_workflow_thread() -> None:
+        try:
+            asyncio.run(
+                _run_workflow_in_background(
+                    thread_id=thread_id,
+                    workflow=workflow,
+                    request=request,
+                    db=db,
+                )
+            )
+        finally:
+            finished.set()
+
+    threading.Thread(
+        target=_run_workflow_thread,
+        name=f"workflow-{thread_id}",
+        daemon=True,
+    ).start()
+    return finished
+
+
 async def _run_workflow_in_background(
     thread_id: str,
     workflow: Workflow,

@@ -6,9 +6,9 @@ row, (c) undo (for undoable ops), (d) param validation + edge/failure cases a
 naive impl would get wrong, and (e) the change-stream emit fires with the right
 type + ids (emit_change monkeypatched at the SOURCE).
 
-Architecture note: ``BatchManager`` is async + backed by its own DuckDB (the
-*app* db in prod). These tests point a fresh BatchManager at a temp duckdb and
-swap it in as the module singleton, so the action's ``get_batch_manager()`` and
+Architecture note: ``BatchManager`` is async + backed by a DuckDB (the library's
+own in prod, #5374). These tests point a fresh BatchManager at a temp duckdb and
+install it as the library's, so the action's ``get_batch_manager(db)`` and
 the test share one store. The ActionAudit still lands in the library ``db``
 fixture (the registry's choke point). The SSE streaming ops (execute/resume/
 retry) are wrapped as drain-to-completion actions; their generators are stubbed
@@ -41,11 +41,11 @@ def _run(coro):
 
 
 @pytest.fixture
-def manager(tmp_path, monkeypatch):
-    """A BatchManager on a temp duckdb, installed as the module singleton."""
+def manager(tmp_path, monkeypatch, db):
+    """A BatchManager on a temp duckdb, installed as the library's (`get_batch_manager(db)`)."""
     db_path = str(tmp_path / "batch_actions_test.duckdb")
     mgr = BatchManager(db_path)
-    monkeypatch.setattr(batch_routes, "_batch_manager", mgr)
+    monkeypatch.setitem(batch_routes._batch_managers, str(db.path), mgr)
     return mgr
 
 
@@ -319,7 +319,7 @@ class TestBatchExecute:
         created = registry.invoke(db, "batch.create", _make_batch(), ctx)
         batch_id = created.result["batch_id"]
         _stub_stream_to(manager, monkeypatch, "execute_batch", BatchStatus.COMPLETED)
-        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda: object())
+        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda db: object())
         emit_spy.clear()
 
         result = registry.invoke(db, "batch.execute", {"batch_id": batch_id}, ctx)
@@ -333,7 +333,7 @@ class TestBatchExecute:
         assert emit_spy and emit_spy[-1][1]["type"] == "batch.executed"
 
     def test_execute_missing_batch_raises(self, db, manager, ctx, monkeypatch):
-        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda: object())
+        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda db: object())
         with pytest.raises(ValueError):
             registry.invoke(db, "batch.execute", {"batch_id": "no-such"}, ctx)
 
@@ -347,7 +347,7 @@ class TestBatchResume:
         _run(manager._save_batch(paused))
 
         _stub_stream_to(manager, monkeypatch, "resume_batch", BatchStatus.COMPLETED)
-        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda: object())
+        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda db: object())
 
         result = registry.invoke(db, "batch.resume", {"batch_id": batch_id}, ctx)
         assert result.result["status"] == BatchStatus.COMPLETED.value
@@ -425,7 +425,7 @@ class TestBatchRetry:
         # Stub only the execute_batch tail; retry_failed_items still runs the
         # REAL reset (extracted) then delegates to execute_batch.
         _stub_stream_to(manager, monkeypatch, "execute_batch", BatchStatus.COMPLETED)
-        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda: object())
+        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda db: object())
 
         result = registry.invoke(db, "batch.retry", {"batch_id": "retry-batch"}, ctx)
         assert result.result["status"] == BatchStatus.COMPLETED.value
@@ -435,7 +435,7 @@ class TestBatchRetry:
         assert audit.before["status"] == BatchStatus.FAILED.value
 
     def test_retry_non_failed_raises(self, db, manager, ctx, monkeypatch):
-        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda: object())
+        monkeypatch.setattr(batch_routes, "get_workflow_store", lambda db: object())
         created = registry.invoke(db, "batch.create", _make_batch(), ctx)
         batch_id = created.result["batch_id"]  # PENDING
         with pytest.raises(ValueError):
