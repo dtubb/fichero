@@ -19,6 +19,17 @@ import pytest
 from fichero_server.execution import jobs
 
 
+@pytest.fixture(autouse=True)
+def no_embedding_model(monkeypatch):
+    """Each saved page queues its re-embed (a job on the local-model lane). A run does not wait for
+    it, but loading the real embedding model beside the run made these flake on a loaded machine
+    (#5407: a 60 s wait ran out at load average ~15, while alone it takes 2 s). The embed itself
+    is not what these prove, so the stage does nothing here."""
+    from fichero_server.importers import derivatives
+
+    monkeypatch.setattr(derivatives, "_embed_stage", lambda doc_id, library: None)
+
+
 def _png(path: Path) -> Path:
     from PIL import Image
 
@@ -111,7 +122,8 @@ def _status(client, thread_id):
     return client.get(f"/api/workflow-execution/threads/{thread_id}/status").json().get("status")
 
 
-def _wait_for(predicate, seconds=60.0):
+def _wait_for(predicate, seconds=180.0):
+    # Generous: it returns as soon as the predicate holds, and only a failure waits it out.
     deadline = time.time() + seconds
     while time.time() < deadline:
         if predicate():
