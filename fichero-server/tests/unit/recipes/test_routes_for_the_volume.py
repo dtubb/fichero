@@ -62,3 +62,28 @@ def test_the_route_serves_the_routes(client, db):
     assert body["routes"][1]["time_seconds"]["from"]  # the basis travels under its own name
     assert client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": KRAKEN,
                                                      "pages": 5, "sample_pages": 0}).status_code == 422
+
+
+def test_the_volume_is_counted_from_the_project_when_not_given(client, db):
+    """`source.onboard.volume-counted-or-asked`: setup counts the pages of the material given and asks
+    only when it cannot count. WHY: an estimate for the wrong volume is a wrong estimate; a PDF counts
+    by its pages, a photo by itself, and a folder not at all."""
+    from fichero_server.models import DocType, Document, FileType
+
+    folder = Document(name="SM_NPQ_C01", doc_type=DocType.folder)
+    pdf = Document(name="deed.pdf", doc_type=DocType.file, file_type=FileType.pdf, parent_id=folder.id)
+    photo = Document(name="SM_NPQ_C01_005.jpg", doc_type=DocType.file, file_type=FileType.image,
+                     parent_id=folder.id)
+    for doc in (folder, pdf, photo):
+        db.save(doc)
+    for n in (1, 2):
+        db.save(Document(name=f"deed.pdf p{n}", doc_type=DocType.page, parent_id=pdf.id))
+    from datetime import datetime, timezone
+    db.save(Document(name="deleted.jpg", doc_type=DocType.file, file_type=FileType.image,
+                     deleted_at=datetime.now(timezone.utc)))           # deleted: not material
+    db.save(Document(name="Kraken lines, read by a vision model", doc_type=DocType.file,
+                     node_kind="workflow"))                            # a method, not material
+
+    r = client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": KRAKEN})
+    assert r.status_code == 200, r.text
+    assert r.json()["pages"] == 3  # two PDF pages and one photo; folder, deleted file, workflow are not pages

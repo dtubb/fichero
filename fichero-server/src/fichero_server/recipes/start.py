@@ -141,7 +141,9 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
 
 
 def count_pages(db) -> int:
-    """Units of work in the project: every page, and every file that has no pages."""
+    """Units of work in the project: every page, and every file that has no pages. Live material
+    only: a deleted document, or a workflow stored as a node, is not a page to read."""
     return int(db.execute_fetchall(
-        "SELECT COUNT(*) FROM documents d WHERE d.doc_type = 'page' OR (d.doc_type = 'file' AND "
-        "NOT EXISTS (SELECT 1 FROM documents c WHERE c.parent_id = d.id))")[0][0])
+        "SELECT COUNT(*) FROM documents d WHERE d.deleted_at IS NULL "
+        "AND COALESCE(d.node_kind, '') <> 'workflow' AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND "
+        "NOT EXISTS (SELECT 1 FROM documents c WHERE c.parent_id = d.id AND c.deleted_at IS NULL)))")[0][0])

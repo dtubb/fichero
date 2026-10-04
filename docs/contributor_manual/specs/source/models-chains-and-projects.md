@@ -1396,7 +1396,7 @@ Setup
 - `source.onboard.five-questions` — **[GAP]** (#4951) beyond the purpose and the material, setup
   asks at most five things (scripts, languages, material and period, layout, whether pages may
   leave), and the last only when a step would use the cloud.
-- `source.onboard.volume-counted-or-asked` — **[GAP]** (#4951) setup counts the pages of the
+- `source.onboard.volume-counted-or-asked` — **[PARTIAL]** (#4951) *Built (engine): an imported project's volume is counted (every live page, and every file without pages; not folders, deleted documents or workflows) and used by the Start plan and `GET /api/recipes/routes`; pinned by `fichero-server/tests/unit/recipes/test_routes_for_the_volume.py`. Not built: counting material before import (a folder, a manifest's canvases), asking when it cannot count, storing the volume.* setup counts the pages of the
   material given (images, PDF pages, manifest canvases) and asks how much (tens, thousands,
   hundreds of thousands) only when it cannot count; the volume is stored and used by the rules.
 - `source.onboard.self-documenting` — **[PARTIAL]** (#4951) **Built 2026-10-03:** each proposed step explains itself with the job registry's own text (GET /api/recipes/jobs); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. each setup screen and each proposed step
