@@ -1579,6 +1579,17 @@ Setup
 - `source.onboard.topics-written-once` — **[GAP]** (#4951) each topic's and each job's explanation
   is stored once, with its job or topic in the registry, and the same text is shown in setup, the
   Inspector, an exported recipe's README and the user manual.
+- `source.onboard.new-project-offers-setup` — **[BROKEN]** (#5430) a project created in the app opens
+  setup for itself straight away (`FirstRunWindow(setUp: true)`), whether or not the app's own first
+  run was ever completed. `firstRunCompleted` governs only the app's first launch, never a new
+  project. Found 2026-10-04: the sheet is gated on `!featureManager.firstRunCompleted`
+  (`LibraryWindow.swift:235`), so after the first launch a new project never offers setup. *Test:*
+  creating a project through the app's create path with `firstRunCompleted = true` presents setup
+  for that project.
+- `source.onboard.reachable` — **[GAP]** (#5421) setup is reachable without hunting: **File › Set Up
+  Project…** for the selected project, and a **Set Up…** button on an empty project's main view, both
+  opening the same flow as Inspector › Info › Recipe › Set Up…. *Test:* the menu command and the empty
+  state's button each present setup for the selected project.
 - `source.onboard.set-up-later` — **[PARTIAL]** (#4951) **Built 2026-10-03:** Skip leaves the project unset and saves nothing; `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. "Set up later" makes a project with no settings
   that behaves as today, and Set Up… in its Inspector runs setup at any time.
 - `source.onboard.samples-first` — **[GAP]** (#4951) given material, setup picks up to ten sample
