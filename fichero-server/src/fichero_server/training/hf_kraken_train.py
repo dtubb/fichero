@@ -35,8 +35,11 @@ os.makedirs(args.out, exist_ok=True)
 command = ["ketos", "-d", args.device, "--workers", "4"]
 if args.device.startswith("cuda"):
     command += ["--precision", "16-mixed"]
-command += ["train", "-f", "page", "-q", "early", "--min-epochs", "5", "--lag", "5", "-B", "16", "-p", "0.9",
-            "-o", os.path.join(args.out, args.name)]
+# One schedule and an epoch ceiling for every base (`compute.tune.kraken-schedule-is-fixed`, #5448): a base that
+# carries a cosine schedule (PP-OCRv6) has an infinite step count under early stopping with no ceiling, and ketos
+# stops at once.
+command += ["train", "-f", "page", "-q", "early", "-N", "50", "--min-epochs", "5", "--lag", "5",
+            "--schedule", "constant", "-B", "16", "-p", "0.9", "-o", os.path.join(args.out, args.name)]
 if args.base:
     command += ["-i", os.path.join(args.data, "base", args.base), "--resize", "union"]
 subprocess.run([*command, *pages], check=True)

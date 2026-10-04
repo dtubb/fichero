@@ -396,6 +396,12 @@ needs them.
   as `source.train.*` defines it, made by that spec's code; this slice adds no second way to
   cut line pictures. *Routed:* → #4947. *Test:* a training package holds exactly the training
   set's objects and its description.
+- `compute.tune.kraken-schedule-is-fixed` — **[OK]** (#5448; built: `training/hf_kraken_train.py` passes `-N 50 --schedule constant`; tested in `fichero-server/tests/unit/training/test_kraken_schedule_to_spec.py`, and a local ketos 7.1.1 run from the PP-OCRv6 base got past `configure_optimizers`, where the Job had stopped) a Kraken fine-tune runs with the same
+  learning-rate schedule (constant) and a ceiling on epochs (50, early stopping inside it) whatever
+  schedule its base reader carries, so every base trains alike and none starts with no end. Until 2026-10-04 the
+  trainer passed `-q early` with no ceiling and no schedule; the PP-OCRv6 base brings a cosine schedule,
+  whose step count was then infinite, and ketos stopped at once (`OverflowError: cannot convert float
+  infinity to integer`, Mosquera HF Job 6ac26009…, 72 s); the McCATMuS base trained.
 - `compute.tune.set-excludes-flagged-lines` — **[GAP]** (#5446) a training set leaves out every line the
   reading check flagged (`source.lines.reading-checked-against-the-page`: a reading that belongs to a
   neighbour, a null or empty reading, one below the set score) and every line a person rejected, and
