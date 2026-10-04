@@ -396,6 +396,12 @@ needs them.
   as `source.train.*` defines it, made by that spec's code; this slice adds no second way to
   cut line pictures. *Routed:* → #4947. *Test:* a training package holds exactly the training
   set's objects and its description.
+- `compute.tune.set-excludes-flagged-lines` — **[GAP]** (#5446) a training set leaves out every line the
+  reading check flagged (`source.lines.reading-checked-against-the-page`: a reading that belongs to a
+  neighbour, a null or empty reading, one below the set score) and every line a person rejected, and
+  records on the set and on the job's card how many it left out and why, by flag. A set built before
+  the check ran says so. The Mosquera teacher set of 2026-10-04 (55 photos, 4,793 lines) had no such
+  check and carried shifted lines; both trainings on it were cancelled to retrain on a checked set.
 - `compute.tune.kraken-recognition` — **[PARTIAL]** (#5240) *Built on Hugging Face Jobs (#5398): `ketos train -f page -q early` from a base reader card, best model returned; on this Mac and in the image, and held-out scores, not built.* a `train-kraken-recognition` job runs `ketos train` on the
   training set, from a base model card or from nothing, and returns the best model, its log,
   and character and word error rates on the held-out part. *Data:* the training set's split

@@ -1273,6 +1273,32 @@ Jobs and chains
   and segments name the rendition they used.
 - `source.job.split-pages` — **[PARTIAL]** (#4949, #5382) *Built: the `split_pages` tool (51dbbfa93) cuts an open notebook at its gutter inside Apple Vision's outline and never a closed cover, pinned by `fichero-server/tests/unit/workflows/test_split_pages.py`; a recipe runs it as the `Split Pages` workflow (#5390), its pages then read by the steps after it, pinned by `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`.* splitting a spread or a strip of frames into ordered
   pages is a job a recipe can name.
+- `source.job.tie-text-to-lines` — **[GAP]** (#5444) a page's reading is tied to its lines for free, on
+  this Mac: Kraken finds the lines, a Kraken reader reads each roughly, and the page's best reading is
+  aligned to them in order by the characters they share (a monotonic alignment; no line takes text
+  from beyond its neighbours'). Each line gets the stretch of the page reading it matches; a line, or a
+  stretch of text, that does not align above a set score is left untied and counted, never forced. The
+  new pass names Kraken for the shapes and the page reading's model for the text. The page's best
+  reading is, in order: a person's checked reading, a checked model reading, then the newest model page
+  reading. After alignment the line's counting reading is its aligned stretch; an earlier machine
+  reading of the same line (Apple Vision's OCR, a stock Kraken read) stays as history and never counts
+  while a better reading of the line exists. On Mosquera this is 319 of 374 pages, whose only shaped
+  lines are Apple Vision's (C01_030: `WtrtNI-`, `¥eTIQ`) or stock Kraken's.
+- `source.lines.read-the-marked-line` — **[BROKEN]** (#5445) a vision model reading Kraken's lines is shown
+  the target line alone: the crop is cut to the line's own polygon with the outside masked (or the
+  target is marked), never a crop in which a neighbouring line is more complete than the target. Today
+  `llm/line_reader.crop_line` shows about two and a half lines with the target unmarked, and on
+  SM_NPQ_C01_005 lines 4–19 hold the text of the line above; a check of the exported training set
+  flags a quarter of a two-photo trial as shifted.
+- `source.lines.reading-checked-against-the-page` — **[GAP]** (#5446) each model reading of a Kraken line
+  is scored against that line's own rough Kraken read and its neighbours' (the characters they share);
+  a reading that matches a neighbour clearly better than its own line, a null or empty reading, and one
+  below a set score are flagged, with the scores, so a person can look. A flagged line keeps its
+  reading as a proposal, is shown as flagged, and is kept out of a training set
+  (`compute.tune.set-excludes-flagged-lines`).
+- `source.lines.null-is-no-text` — **[BROKEN]** (#5447) a model's null answer for a line, or the word
+  `null` alone, stores no text: the line has no reading from that model. Today the word is kept as the
+  line's text (SM_NPQ_C01_005, lines 42–43) and reaches the Order tab, exports and training sets.
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.

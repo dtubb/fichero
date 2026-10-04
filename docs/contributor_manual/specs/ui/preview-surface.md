@@ -188,6 +188,17 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   other lane's findings are deciding (out of this spec's own scope — cross-reference, don't
   restate).
 
+### D. Which pass the image draws
+
+- `ui.preview.draws-a-pass-with-shapes` — **[BROKEN]** (#5443; owner: the app) Preview draws the
+  best-ranked pass THAT HAS SHAPES (`source/segment-editor.md`, "Which pass the image draws"): a pass
+  whose segments carry no polygon and only the whole page as their box is passed over for drawing, while
+  it may still be the pass whose text shows. Today `OCRGeometrySelection.rankedPasses` picks the top
+  pass whether or not it has shapes, and an import ranks above machine passes, so a geometry-free TEI
+  import (a draft with no coordinates) leaves the image with no boxes on 358 of 374 Mosquera pages
+  (SM_NPQ_C01_005, C01_052, #5425). With the import rank removed (#5443) and this, the page shows the
+  Gemini reading of Kraken's lines it already has.
+
 ## PASS 2 — the fold (9 waiting issues, every body read fresh)
 
 None redirect elsewhere and none need maintainer triage — all nine are genuinely this spec's

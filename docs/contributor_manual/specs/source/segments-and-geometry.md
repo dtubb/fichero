@@ -715,7 +715,12 @@ Passes, orders, links
   counts and a person's outranks a machine's; a new project is strict.
 - `source.pass.working` — **[PARTIAL]** (#4929; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestTheWorkingPass::test_a_machine_pass_carrying_one_human_segment_outranks_a_newer_machine_pass`) the working pass is
   the one a person chose, or the newest, labelled unchosen, if nobody has; it is worked out, never a
-  stored flag. **The ENGINE half is proven by the citation above. The claim that "the Reader, search
+  stored flag. The order: a person's live choice; then a pass a person made or touched; then the newest
+  of the rest. **An import has no rank of its own (ruled 2026-10-04, #5443):** it is just the first
+  pass, ranked by date among the passes nobody touched, and says what made it where the file does. Not
+  yet so: `models/readings.py::resolve_working_pass` still ranks an import third (#5150), and on
+  Mosquera that made a geometry-free TEI import of a Qwen-VL draft the working pass of 358 of 374
+  pages, over the Gemini reading of Kraken's lines. **The ENGINE half is proven by the citation above. The claim that "the Reader, search
   and export use one pass" is NOT.** Downgraded from [OK] 2026-09-26: the citation proves the
   ranking function and says nothing about which surfaces consult it, and the Reader is known NOT to
   — it reads `Document.page_content`, and the app contains no reference to the derived-text route at
