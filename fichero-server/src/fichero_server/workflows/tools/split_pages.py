@@ -133,6 +133,7 @@ async def split_pages(inputs: dict[str, Any], state: State, llm_config: LLMConfi
     results = []
     for file_path in files:
         outline = None
+        outline_error = None
         if use_vision:
             # Through the engine-wide Apple Vision gate and deadline (#5392): a stuck call fails
             # this photograph, not the run.
@@ -142,11 +143,14 @@ async def split_pages(inputs: dict[str, Any], state: State, llm_config: LLMConfi
                 outline = await _apple_vision_call(page_split.detect_document_outline, str(file_path))
             except Exception as exc:  # the photo falls back to its whole frame, said so in details
                 logger.warning("split_pages: no outline for %s (%s)", file_path, exc)
+                outline_error = f"Apple Vision found no outline: {exc}"
         results.append(split_pages_file(
             file_path, output_dir, direction=inputs.get("direction", "ltr"), use_apple_vision=False,
             min_confidence=float(inputs.get("min_confidence", page_split.MIN_GUTTER_CONFIDENCE)),
             output_format=inputs.get("output_format"),
             compression_quality=inputs.get("compression_quality", 90), outline=outline))
+        if outline_error:
+            results[-1].setdefault("details", {})["outline_error"] = outline_error
 
     # Only a real cut becomes child pages: a cover or a proposal is not a new page of the photograph.
     cut = [{**r, "parts": [p for p in r["parts"] if p["decision"] == "split"]} for r in results]
