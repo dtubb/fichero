@@ -9,7 +9,8 @@ after each push to integration:
     scripts/close_fixed_issues.py --apply    # closes them, each with a comment naming the commit
 
 An issue labelled `residue` is never closed here: part of it is still owed, and that part gets
-its own narrower issue. Only commits already on the remote count, so an issue is never closed
+its own narrower issue. Nor is one labelled `needs-your-test`: it closes when the maintainer has
+checked it on screen. Only commits already on the remote count, so an issue is never closed
 against work that has not been pushed (`check_closed_issues_landed.py` checks the same promise).
 """
 from __future__ import annotations
@@ -58,8 +59,8 @@ def main() -> int:
         labels = {label["name"] for label in issue["labels"]}
         if issue["state"] != "OPEN":
             continue
-        if "residue" in labels:
-            print(f"#{number}: open, labelled residue -- left open")
+        if "residue" in labels or "needs-your-test" in labels:
+            print(f"#{number}: open, labelled {'residue' if 'residue' in labels else 'needs-your-test'} -- left open")
             continue
         print(f"#{number}: {'closing' if args.apply else 'would close'} (fixed in {sha[:9]}: {subject})")
         if args.apply:
