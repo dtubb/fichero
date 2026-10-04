@@ -261,3 +261,7 @@ evidence backs.
   content, not derived stamps, so they are *not* in the recreated-post-merge conflict-free set. A
   merge that touches both dates keeps both; the readiness gate (release lane, step 3) then confirms
   the shipping version's entries are present before anything is distributed.
+
+## Triaged from the backlog (2026-10-04)
+- `release.license-hygiene` — **[GAP]** (#4610) zeroconf LGPL, pillow-heif codec wheels, PythonKit branch pin, undeclared whisper and the NOTICE inventory are resolved so the SBOM is accurate.
+- `release.dmg-container-signed` — **[GAP]** (#4704) release-all codesigns the DMG with the Developer ID Application identity before notarization so spctl accepts the disk image.

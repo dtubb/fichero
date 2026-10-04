@@ -77,3 +77,7 @@ n/a (infrastructure spec).
   dev every push)?
 - Model cache: one committed/seeded fixture model for embeddings tests, or point tests at
   the developer's real `~/.cache` (fast but not hermetic)?
+
+## Triaged from the backlog (2026-10-04)
+- `testenv.one-mcp-test-tree` — **[GAP]** (#4480) fichero-mcp is tested from one tree only; the stale copy under fichero-server/tests/unit/mcp is removed or made the same suite (it still exists).
+- `testenv.no-defaults-leak` — **[GAP]** (#4578) tests never create UserDefaults suites in the shipping app container, and a sweep removes the ~180 test.purge.* plists.

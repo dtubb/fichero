@@ -432,3 +432,6 @@ Design content carried into this spec; files kept, not moved:
   real account with a role, folded into this spec's "The model is a user" paragraph.
 - `~/.claude/.../memory/knowledge-consistency-mandate.md` — origin of "one write path for every
   knowledge object," folded into this spec's "One object model, one write path" paragraph.
+
+## Triaged from the backlog (2026-10-04)
+- `audit.research-source-actions` — **[GAP]** (#4435) the research source-create and browser-save mutations are audited actions with an inverse (`_invert_source_to_delete`), so they are undoable, not just logged.

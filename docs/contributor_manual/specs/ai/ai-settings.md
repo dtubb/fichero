@@ -806,7 +806,7 @@ dead empty menu (mirrors `SidebarContextMenuPolicyTests`' never-silently-empty r
 
 ### Behaviors (each → one pinning test)
 
-- `models.one-list-policy` — **[PARTIAL]** (#4883; built: `SharedModelListBuilder` with `SharedModelListBuilderTests`; not yet every picker) every picker's base list comes from the ONE pure builder;
+- `models.one-list-policy` — **[PARTIAL]** (#4665, #4883; built: `SharedModelListBuilder` with `SharedModelListBuilderTests`; not yet every picker) every picker's base list comes from the ONE pure builder;
   same account → same models, same order, same dedupe (provider+model), everywhere. *Test:* pure
   unit tests over the builder (extend the existing `WorkflowBarModelPicker` list tests): tier-first
   order, provider+model dedupe, tiers-only fallback, vision filter narrows correctly.
@@ -978,3 +978,6 @@ Watch-outs:
 
 **Verdict:** adopt the island's row + the workflow bar's pure list-builder as the shared spine;
 Settings reuses the row; land subtractively. Ready for CD review, not yet code.
+
+## Triaged from the backlog (2026-10-04)
+- `models.curated-catalog-clean-licences` — **[GAP]** (#4611) Chandra-OCR and Nanonets-OCR are removed from MANAGED_MLX_MODELS (both still present at mlx_model_store.py:111,125).

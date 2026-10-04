@@ -537,3 +537,5 @@ resolved and moved; the other three's status is corrected below.
 
 ## Future (ideas, not scheduled)
 - (#4339) Finder-style group-by in the Library sort menu; Library browsing feature
+- (#1972) Future section: image keywords, ratings and thumbs up/down curation in batch from browse/detail surfaces; issue itself says "future only".
+- (#4460) Future section: product decision on what order shift-click extends along on a spatial canvas (needs a total order); blocks canvas shift-click only.

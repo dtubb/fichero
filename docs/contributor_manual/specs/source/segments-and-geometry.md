@@ -1145,3 +1145,4 @@ picture to the shape.
 
 ## Triaged from the backlog (2026-10-04)
 - `segments.claims-carry-box-anchor` — **[GAP]** (#970) a claim extracted from transcribed text carries the box/segment it was read from
+- `geometry.review-word-boxes-on-ink` — **[GAP]** (#4615) word boxes in the Transcription Review artifact sit over the right ink (data-side defect on 9_Hoja_534_Recto).

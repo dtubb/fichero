@@ -452,3 +452,8 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
 5. Does `importer.bulk-import-activity-visible`'s 100k-scale claim (#4203) need its own load
    test/profile (the spec's Load leg, elsewhere referenced as #4634-style profiling) before
    it can honestly retag `[OK]`?
+
+## Triaged from the backlog (2026-10-04)
+- `importer.remote-folder-upload` — **[GAP]** (#4579) a remote client can import a folder through one upload endpoint with a shared task id, batching and dedup pre-scan, not N single-file uploads.
+- `importer.no-agpl-pdf-dependency` — **[GAP]** (#4609) PyMuPDF is removed; the page-splitting fallback uses pypdfium2 (fitz is still imported in importers/ingest.py, workflows/tools/split_images.py and others).
+- `importer.repair-redrop-no-reembed` — **[GAP]** (#4617) a repair-only re-drop embeds only new text and lance replaces rather than appends (a 1.4 MB re-drop grew vectors by ~1 GB).

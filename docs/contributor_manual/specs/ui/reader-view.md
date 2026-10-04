@@ -393,3 +393,6 @@ filed across more than a year, none marked as superseding another:
 
 No disposition proposed here — this is the comparison the maintainer asked for, not a
 recommendation for which one carries the work.
+
+## Triaged from the backlog (2026-10-04)
+- `reader.page.selected-page-scope` — **[GAP]** (#4559) selecting one page of a PDF shows that page in breadcrumb, preview and Reader, and the Reader lists only that page, not the whole document transcript.

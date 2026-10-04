@@ -250,3 +250,6 @@ adoption of a TEI folder written by another tool); a load test on a folder of th
    write.
 
 Older questions: see `source-model.md`.
+
+## Future (ideas, not scheduled)
+- (#4463) Future section: a fifth file mode MANAGED (Fichero owns layout in an iCloud Drive folder, which becomes the sync channel); product vision.

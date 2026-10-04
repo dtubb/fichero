@@ -166,3 +166,6 @@ sees known fields — so "blind" and "satisfied" cannot look alike.
 Related ruling, `#5044`: `AgentNoteSourceAnchor` is **kept** and the spec corrected. The
 "subset" claim is a factual error, and anchoring a note to a page or expediente with no
 document is deliberate. `SourceAnchor.document_id` stays required.
+
+## Triaged from the backlog (2026-10-04)
+- `contract.no-interpolated-api-paths` — **[GAP]** (#4526) the ~60 interpolated "/api/..." strings sent through requestData in EntityService+* and ImageEditingService are replaced by generated typed operations.

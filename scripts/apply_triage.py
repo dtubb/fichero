@@ -50,6 +50,22 @@ def add_under(path: Path, heading: str, line: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def cite_on(path: Path, behaviour: str, number: str) -> bool:
+    """Add `#number` to the tag line of an existing behaviour (its first "(#..." group)."""
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        if f"`{behaviour}`" in line and "**[" in line:
+            if f"#{number}" in line:
+                return True
+            if "(#" in line:
+                lines[i] = line.replace("(#", f"(#{number}, #", 1)
+            else:
+                lines[i] = line.replace("]**", f"]** (#{number})", 1)
+            path.write_text("".join(lines), encoding="utf-8")
+            return True
+    return False
+
+
 def gh(*args: str) -> None:
     subprocess.run(["gh", *args], check=False, capture_output=True)
 
@@ -65,7 +81,12 @@ def main() -> int:
         number, decision, target, note = (raw.split("\t") + ["", "", ""])[:4]
         decision, path = decision.strip().upper(), spec_path(target)
         action = "?"
-        if decision == "SPEC":
+        covered = re.match(r"COVERED BY `([\w.-]+)`", note.strip())
+        if decision == "SPEC" and covered and path:
+            action = f"cite #{number} on `{covered.group(1)}` in {path.relative_to(ROOT)}"
+            if args.apply:
+                cite_on(path, covered.group(1), number)
+        elif decision == "SPEC":
             if note.startswith("- `") and path:
                 action = f"spec line -> {path.relative_to(ROOT)}"
                 if args.apply:

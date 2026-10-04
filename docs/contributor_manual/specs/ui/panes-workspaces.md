@@ -1644,3 +1644,7 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
   claim richness and the shared interaction verb set.
 - `segment-representations.md` — the words/transcription representation that
   `panes.words.fill-bounding-box` renders into segment geometry.
+
+## Triaged from the backlog (2026-10-04)
+- `inspector.tabs-fit-default-width` — **[GAP]** (#4540) the document inspector has fewer top-level tabs (fold citations+related, or kg into entities) so it sits at its default width; Preview/Reader/Inspector stay three surfaces.
+- `shell.no-nstableview-reentrancy` — **[GAP]** (#4684) launch logs no "reentrant operation in its NSTableView delegate" warning (SwiftUI List; becomes an assert on a future macOS).

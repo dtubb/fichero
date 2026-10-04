@@ -29,3 +29,12 @@ def test_lines_land_in_their_section_once_and_the_rest_is_untouched(tmp_path):
     future = text.split(_mod.FUTURE)[1].split("\n## ")[0]
     assert future.count("(#1)") == 1 and "(#3)" in future and "(#2)" not in future
     assert "- `b` — **[GAP]** (#2) y" in text.split(_mod.TRIAGED)[1]
+
+
+def test_an_issue_covered_by_an_existing_behaviour_is_cited_on_its_tag_line(tmp_path):
+    spec = tmp_path / "s.md"
+    spec.write_text("- `a.b` — **[GAP]** (#10) x\n- `c.d` — **[PARTIAL]** y\n")
+    assert _mod.cite_on(spec, "a.b", "20") and _mod.cite_on(spec, "c.d", "30")
+    assert _mod.cite_on(spec, "a.b", "20")  # citing twice changes nothing
+    assert spec.read_text() == "- `a.b` — **[GAP]** (#20, #10) x\n- `c.d` — **[PARTIAL]** (#30) y\n"
+    assert not _mod.cite_on(spec, "missing.id", "40")

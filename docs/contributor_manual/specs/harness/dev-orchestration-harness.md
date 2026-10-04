@@ -126,3 +126,6 @@ it token-efficiently with fabel/opus?
 - Create the `dev-orchestration-harness` GitHub milestone + issues for the routing policy.
 - Fold the routing table into `AGENTS.md` (the operational manual) so every lane obeys it.
 - User manual: the design lead documents "how we work" for the guide once the policy is settled.
+
+## Triaged from the backlog (2026-10-04)
+- `harness.cli-mcp-live-verified` — **[GAP]** (#4465) the CLI and the MCP server are each exercised end to end against a live engine by a gate-run test, not only unit tests.

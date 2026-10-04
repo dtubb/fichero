@@ -529,3 +529,6 @@ This is now FALSE — claim create, entity create, entity inline rename, and per
 filter fields (text + entity-type/claim-type) all shipped since this scout ran; see the
 retagged behaviors in sections A/B/C above for current evidence. Kept for history, not as
 current status.
+
+## Triaged from the backlog (2026-10-04)
+- `kg.claim-dates-anchor-warrant-visible` — **[GAP]** (#4659) claim tables and inspector show and let the user author dates (time_start/date_values), source_anchor, Toulmin warrant and structured location.

@@ -206,3 +206,6 @@ eScriptorium's regions are only boxes (they may be polygons); that Transkribus's
 cannot edit polygons; how well Kraken handles vertical text; which ALTO release added
 direction and reading order; hOCR's polygon and flow properties. The IIIF Georeference
 extension and Allmaps do exist and are the right prior art for maps.
+
+## Triaged from the backlog (2026-10-04)
+- `survey.box-libraries-commentary` — **[GAP]** (#4498) the #4496 commentary heuristic is re-run on the 4 Box-backed libraries that timed out, with a network-appropriate timeout, so "archive is clean" covers them.
