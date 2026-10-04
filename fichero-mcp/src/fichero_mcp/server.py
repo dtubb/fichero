@@ -548,6 +548,60 @@ def fichero_training_cancel(job_id: str) -> Any:
         return client.cancel_training(job_id)
 
 
+@mcp.tool()
+def fichero_read_at_scale(
+    scope_ids: list[str],
+    card: str,
+    pages_may_leave: bool,
+    reader: str = "kraken",
+    language: Optional[str] = None,
+    shard_size: int = 50,
+    longest: int = 2000,
+    flavor: str = "t4-small",
+    timeout: str = "2h",
+    max_in_flight: int = 10,
+    pass_name: Optional[str] = None,
+) -> Any:
+    """Read many pages on Hugging Face Jobs as ONE job of many shards: pages here, or IIIF canvases
+    imported by reference (fetched where the Job runs, politely, at ``longest`` pixels). ``reader`` is
+    ``kraken`` (``card`` a Kraken reader id) or ``vlm`` (``card`` a trained ``fichero-trained/<name>``,
+    read with its Hugging Face build, or a Hub repo). Each shard's results land as a new pass on each page
+    as it finishes; nothing is overwritten.
+
+    Sends an archive's pages (or their IIIF addresses) to another company and costs money: pass
+    ``pages_may_leave=True`` only when the PERSON has said yes for this project, and report the
+    ``price_per_hour_usd`` it answers with. Follow it with ``fichero_reading_status``.
+    """
+    with _mutating_client() as client:
+        return client.read_at_scale({
+            "scope_ids": scope_ids, "card": card, "reader": reader, "language": language,
+            "shard_size": shard_size, "longest": longest, "flavor": flavor, "timeout": timeout,
+            "max_in_flight": max_in_flight, "pass_name": pass_name, "pages_may_leave": pages_may_leave,
+        })
+
+
+@mcp.tool()
+def fichero_reading_status(job_id: str) -> Any:
+    """A reading run's state in words, its shards counted (pending, submitted, landed, failed), each
+    failed shard's reason and last lines, and how many pages landed."""
+    with _client() as client:
+        return client.reading_status(job_id)
+
+
+@mcp.tool()
+def fichero_reading_resend_failed(job_id: str) -> Any:
+    """Send a finished reading run's failed shards again, and only those (it costs money again)."""
+    with _mutating_client() as client:
+        return client.resend_failed_shards(job_id)
+
+
+@mcp.tool()
+def fichero_reading_cancel(job_id: str) -> Any:
+    """Stop a reading run. Its running shards are cancelled on Hugging Face (they stop costing)."""
+    with _mutating_client() as client:
+        return client.cancel_reading(job_id)
+
+
 # -- artifacts -------------------------------------------------------------
 @mcp.tool()
 def fichero_artifacts(

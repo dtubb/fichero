@@ -1104,6 +1104,22 @@ class FicheroClient:
         """Stop a training job; a running one is cancelled on Hugging Face."""
         return self.request("POST", f"/api/training/jobs/{quote(job_id, safe='')}/cancel")
 
+    def read_at_scale(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Queue a reading run on Hugging Face Jobs, many shards as one job (#5398); see POST /api/reading-at-scale."""
+        return self.request("POST", "/api/reading-at-scale", json=request)
+
+    def reading_status(self, job_id: str) -> dict[str, Any]:
+        """A reading run's shard counts, failed shards with reasons, and what landed."""
+        return self.request("GET", f"/api/reading-at-scale/jobs/{quote(job_id, safe='')}")
+
+    def resend_failed_shards(self, job_id: str) -> dict[str, Any]:
+        """Send a finished reading run's failed shards again, and only those."""
+        return self.request("POST", f"/api/reading-at-scale/jobs/{quote(job_id, safe='')}/resend-failed")
+
+    def cancel_reading(self, job_id: str) -> dict[str, Any]:
+        """Stop a reading run; its running shards are cancelled on Hugging Face."""
+        return self.request("POST", f"/api/reading-at-scale/jobs/{quote(job_id, safe='')}/cancel")
+
     def compare_readings(
         self,
         doc_id: str,
