@@ -1,5 +1,8 @@
 {
   "GET /api/iiif/iiif/lines/{document_id}": "served to IIIF viewers through a manifest's canvas annotations, not called by the app (#5326)",
+  "POST /api/sync-folders": "synced folder (#4952): engine and CLI first; the folder's place in setup and the Inspector is the app half",
+  "GET /api/sync-folders": "synced folder (#4952): engine and CLI first; source.sync.status-in-inspector is the app half",
+  "DELETE /api/sync-folders/{folder_id}": "synced folder (#4952): engine and CLI first; the app half comes with the Inspector",
   "GET /api/activity/jobs/{job_id}": "a job and everything under it (a run, its steps, their pages, #5353): engine and CLI first; the Activity window's table with disclosure rows is the app half (#5354)",
   "POST /api/training/kraken/here": "training on this Mac (#5397): engine, CLI and MCP (fichero_train_kraken_here) first; the app's Train a Reader sheet is not built yet",
   "GET /api/recipes/routes": "engine half of setup's routes for the volume; the app's Ready step shows them next (#4951)",

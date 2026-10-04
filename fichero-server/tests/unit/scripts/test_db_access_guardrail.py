@@ -75,6 +75,9 @@ ALLOWLIST: frozenset[str] = frozenset(
         # The `jobs` table's own store (#5353): every statement on it lives here, behind typed
         # helpers (`read_job`, `save_detail`, `cancel_waiting`, ...) that the job kinds call.
         "execution/jobs.py",
+        # The synced folders' own store (#4952): which folders a project is tied to, and the
+        # checksum of every file Fichero wrote there.
+        "sync_folder.py",
         "workflows/action_store.py",
         "workflows/cache.py",
         "workflows/checkpointer.py",

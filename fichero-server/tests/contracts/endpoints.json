@@ -10370,6 +10370,40 @@
         "response_model": null
       }
     ],
+    "sync-folders": [
+      {
+        "method": "GET",
+        "path": "/sync-folders",
+        "operation_id": "list_folders_api_sync_folders_get",
+        "summary": "The project's synced folders and their state",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SyncFolderList"
+      },
+      {
+        "method": "POST",
+        "path": "/sync-folders",
+        "operation_id": "tie_folder_api_sync_folders_post",
+        "summary": "Tie the project to a folder on the engine's disk",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TieRequest",
+        "response_model": "Tied"
+      },
+      {
+        "method": "DELETE",
+        "path": "/sync-folders/{folder_id}",
+        "operation_id": "untie_folder_api_sync_folders__folder_id__delete",
+        "summary": "Untie a synced folder (its files stay on disk)",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Tied"
+      }
+    ],
     "tasks": [
       {
         "method": "GET",

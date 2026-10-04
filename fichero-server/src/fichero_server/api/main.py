@@ -1877,6 +1877,7 @@ async def get_stats(db: Database = Depends(get_library_database)):
 # Importing the nested module directly keeps exactly one entry per route.
 from fichero_server.api.routes import training as training_routes  # noqa: E402
 from fichero_server.api.routes import reading_at_scale as reading_at_scale_routes  # noqa: E402
+from fichero_server.api.routes import sync_folders as sync_folder_routes  # noqa: E402
 from fichero_server.api.routes import (  # noqa: E402
     ingest,
     kg_claim_analysis,
@@ -2065,6 +2066,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # /api/training — train a reader as a job (#5398): Kraken on Hugging Face Jobs, landed as a card.
     (training_routes.router, "/api", ["training"]),
     (reading_at_scale_routes.router, "/api", ["reading-at-scale"]),
+    # /api/sync-folders — a project tied to a folder on the engine's disk, kept current (#4952).
+    (sync_folder_routes.router, "/api", ["sync-folders"]),
     # Source-model slice 10 (#4931): the ONE typed link. Segments are on it now;
     # the four existing link records converge one per later slice, and this
     # vocabulary is seeded from all of them so no word is lost when they do.

@@ -193,6 +193,12 @@ class SourcePage:
     #: character; this says what it means. Filled by the library export from the project's sign
     #: list; read back from TEI's `<charDecl>`.
     signs: list[dict[str, Any]] = field(default_factory=list)
+    #: What this file is, when the library writes it (`source.sync.files-carry-ids`,
+    #: `source.sync.files-say-what-they-hold`, #4952): `fichero-source` (the source's lasting id),
+    #: `fichero-pass`, `fichero-reading-order`, `fichero-reading-kind`, and `fichero-machine-made`
+    #: when nobody chose the pass. Each writer puts these in its format's own place for an
+    #: identifier. Empty for a page read from a file.
+    identity: dict[str, str] = field(default_factory=dict)
     #: File-level content the model has no field for
     #: (`source.format.keeps-unrecognised`). Kept on the PAGE, which becomes the
     #: pass -- not on segments, because a format adds no field to segments and

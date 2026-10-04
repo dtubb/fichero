@@ -1270,6 +1270,7 @@ def _header(page: SourcePage, report: LossReport, root: Any) -> Any:
         candidate = etree.fromstring(kept.encode("utf-8"))
         if _header_validates(candidate):
             root.append(candidate)
+            _write_identity(page, candidate, q)
             return candidate
         report.note(
             "teiHeader",
@@ -1286,7 +1287,25 @@ def _header(page: SourcePage, report: LossReport, root: Any) -> Any:
     etree.SubElement(pub, q("p")).text = "Exported from Fichero"
     source = etree.SubElement(file_desc, q("sourceDesc"))
     etree.SubElement(source, q("p")).text = page.producer or "Born digital in Fichero"
+    _write_identity(page, header, q)
     return header
+
+
+def _write_identity(page: SourcePage, header: Any, q: Any) -> None:
+    """What this file is (#4952), as TEI's own identifiers in the publication statement: inside a
+    `<p>` when the statement is written as prose (TEI does not mix the two forms), else directly."""
+    from lxml import etree
+
+    if not page.identity:
+        return
+    pub = next(iter(header.iter(q("publicationStmt"))), None)
+    if pub is None:
+        return
+    holder = pub
+    if any(isinstance(child.tag, str) and etree.QName(child).localname == "p" for child in pub):
+        holder = etree.SubElement(pub, q("p"))
+    for name, value in page.identity.items():
+        etree.SubElement(holder, q("idno"), type=name).text = value
 
 
 def _header_validates(header: Any) -> bool:

@@ -247,6 +247,10 @@ class DatabaseManager:
                     from fichero_server.execution import jobs
 
                     jobs.resume(db)
+                    # A synced folder may have changed while the engine was off (#4952).
+                    from fichero_server import sync_folder
+
+                    sync_folder.rescan(db)
                 except Exception:
                     logger.exception("Could not resume the library's jobs")
 
