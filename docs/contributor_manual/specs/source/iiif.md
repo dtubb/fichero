@@ -199,7 +199,7 @@ sharing toggles stay the only two).
 ## Behaviors
 
 In:
-- `iiif.import.by-reference` — **[GAP]** (#5324) a pasted manifest or collection link adds its
+- `iiif.import.by-reference` — **[PARTIAL]** (#5324) *Built (c8dcfb28a): a manifest or collection URL (Presentation 2 or 3, nested collections) becomes image pages keeping canvas id, Image API service and canvas size, fetching only the manifests; `fichero import-iiif --iiif <URL>`; pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: pasting a link in the app.* a pasted manifest or collection link adds its
   canvases as pages at once, without downloading their images.
 - `iiif.folder.source` — **[GAP]** (#5324) a folder can be bound to a IIIF collection or manifest URL; its
   contents are that collection by reference, and it follows the source: additions appear,
@@ -210,9 +210,9 @@ In:
 - `iiif.scale.million-pages` — **[GAP]** (#5324) a collection of a million canvases imports by reference as a
   throttled, resumable background job that respects the source's rate limits; the library holds
   only per-canvas metadata, and opening a folder of a million pages is as fast as one of a hundred.
-- `iiif.scale.no-advance-thumbnails` — **[GAP]** (#5324) no thumbnail of a remote page is made in advance;
+- `iiif.scale.no-advance-thumbnails` — **[PARTIAL]** (#5324) *Built (c8dcfb28a): import warms no preview; a viewed page is fetched once at display size into storage; pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: the bounded cache's eviction.* no thumbnail of a remote page is made in advance;
   it is fetched at thumbnail size when it scrolls into view and kept in the bounded cache.
-- `iiif.scale.remote-runs-fetch-from-source` — **[GAP]** (#5324, #5240) a step run on a cluster, GPU service or
+- `iiif.scale.remote-runs-fetch-from-source` — **[PARTIAL]** (#5324, #5240) *Built (3550e833e, b8bf84e53): a read package lists Image API services, not files, and the runner fetches each at the reader's size (on a cluster's login node before the array, since compute nodes have no internet); pinned by `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. Not built: pixels-seen provenance on the landed pass.* a step run on a cluster, GPU service or
   server fetches each image directly from the source's image service, never through the Mac, and
   returns only results with the pixels-seen provenance.
 - `iiif.import.reads-v2-and-v3` — **[PARTIAL]** (#1646) Presentation 2.1 and 3.0 manifests and
@@ -221,7 +221,7 @@ In:
   folder importer.
 - `iiif.view.fetches-what-is-shown` — **[GAP]** (#5324) a remote page is drawn from region and size
   requests for what is on screen, through a bounded cache; no file path is ever involved.
-- `iiif.coords.canvas-space` — **[GAP]** (#5324) segments on a remote page are stored in canvas
+- `iiif.coords.canvas-space` — **[PARTIAL]** (#5324) *Built (b6fd6a8bb): a remote run's lines are scaled from the fetched size to the canvas on landing; pinned by `fichero-server/tests/unit/remote_read/test_read_at_scale_job.py` and `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. Not built: segments drawn in the app on a remote page.* segments on a remote page are stored in canvas
   coordinates and stay put whatever resolution was fetched.
 - `iiif.run.records-pixels-seen` — **[GAP]** (#5324) a model run on a remote page fetches what it
   needs and records the image URI and size it saw in its provenance.
@@ -231,7 +231,7 @@ In:
   says it is remote and unreachable.
 - `iiif.change-is-detected` — **[GAP]** (#5325) a remote image that changed is reported, and the
   segments drawn on it are flagged for checking.
-- `iiif.rights-travel` — **[GAP]** (#5325) the manifest's rights, required statement and provider
+- `iiif.rights-travel` — **[PARTIAL]** (#5325) *Built (c8dcfb28a): the manifest's rights and metadata are stored on each imported page; pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: shown in the Inspector, carried into exports.* the manifest's rights, required statement and provider
   are stored, shown in the Inspector and carried into every export.
 - `iiif.auth-flow` — **[GAP]** (#5325) a canvas behind IIIF authorization asks for access through
   the Authorization Flow; credentials are never stored in the library.
