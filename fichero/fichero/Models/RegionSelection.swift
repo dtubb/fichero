@@ -34,7 +34,19 @@ final class RegionSelection {
     /// not. Read the selection through `resolvedIndices(in:)`.
     private(set) var keys: [BoxKey?] = []
 
+    /// The normalized rect the pane that owns this selection should scroll and zoom to (#5424),
+    /// written only by `InspectorPath.reveal`. `revealCount` moves on every reveal, so revealing the
+    /// same line twice zooms twice; the pane follows the count, not the rect.
+    private(set) var revealRect: [Double]?
+    private(set) var revealCount = 0
+
     init() {}
+
+    /// Ask the owning pane to bring `rect` into view. Changes nothing selected.
+    func reveal(_ rect: [Double]) {
+        revealRect = rect
+        revealCount &+= 1
+    }
 
     /// The selected boxes' positions in THIS list: found by identity where the writer recorded it,
     /// by the raw index only where it did not. A box the list no longer holds is dropped -- never

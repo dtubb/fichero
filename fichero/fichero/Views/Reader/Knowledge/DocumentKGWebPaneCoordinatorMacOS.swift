@@ -497,13 +497,13 @@ extension DocumentKGWebPaneCoordinatorMacOS {
         store.wentAway(reason)
     }
 
-    /// The Reader's caret line becomes the focused Source view's selection (#5155).
+    /// The Reader's caret line becomes the focused Source view's selection (#5155), revealed there:
+    /// scrolled and zoomed to (#5424), by the same one action as the Order list's double-click.
     @MainActor
     func focusLine(_ focus: ReaderLineSelection.Focus) {
-        guard let selection = windowState?.focusedRegionSelection, let library else { return }
-        InspectorPath.select(
-            segmentIds: [focus.segmentId], into: selection, documentId: focus.pageId,
-            store: SegmentStore.shared(for: library.segmentService)
+        guard let library else { return }
+        windowState?.revealSegments(
+            [focus.segmentId], documentId: focus.pageId, store: SegmentStore.shared(for: library.segmentService)
         )
     }
 

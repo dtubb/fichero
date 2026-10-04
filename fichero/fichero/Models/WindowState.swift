@@ -127,6 +127,17 @@ class WindowState {
         if focusedRegionSelection !== selection { focusedRegionSelection = selection }
     }
 
+    /// Reveal segments in the linked Preview -- the focused Source-view pane (#5424): its box selected,
+    /// scrolled and zoomed to, through the one `InspectorPath.reveal`. The Order tab, the Order pane and
+    /// the Reader all call this. Answers the ids selected; none when no Preview is focused.
+    @discardableResult
+    func revealSegments(_ segmentIds: [String], documentId: String, store: SegmentStore) -> [String] {
+        guard let focusedRegionSelection else { return [] }
+        return InspectorPath.reveal(
+            segmentIds: segmentIds, into: focusedRegionSelection, documentId: documentId, store: store
+        )
+    }
+
     /// A pane appeared: it becomes the focus only if nothing is focused yet, so opening a second
     /// Preview does not steal the Inspector from the one a person is working in.
     func offerRegionSelection(_ selection: RegionSelection) {
