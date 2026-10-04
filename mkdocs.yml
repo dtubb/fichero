@@ -377,6 +377,7 @@ nav:
           - Spec Plan (which spec covers what): contributor_manual/specs/SPEC-PLAN.md
           - Open Questions Digest: contributor_manual/specs/OPEN-QUESTIONS.md
           - Spec Template: contributor_manual/specs/_TEMPLATE.md
+          - Milestone template: contributor_manual/specs/_MILESTONE_TEMPLATE.md
           - AI:
               - Settings, AI (providers, keys, runtimes, targets, downloads): contributor_manual/specs/ai/ai-settings.md
               - Local Runtimes & Providers: contributor_manual/specs/ai/local-runtimes.md
