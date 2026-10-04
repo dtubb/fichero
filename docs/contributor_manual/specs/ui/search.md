@@ -127,7 +127,7 @@ read of the calling loop before it can be called fully resolved.
   transient state in the app answers to, replacing a dedicated "Done" button — verified by
   direct code read (`ContentView+ToolbarSearch.swift`'s `SearchEscapeDismiss` modifier), no
   dedicated pinning test found for this specific gesture.
-- `search.ask-keyword-native-scopes` — **[OK]** Ask/Keyword are native `.searchScopes`, shown
+- `search.ask-keyword-native-scopes` — **[OK]** (superseded by the #5024 ruling: `search.one-toolbar-button-with-the-kind-menu`) Ask/Keyword are native `.searchScopes`, shown
   only while the field is presented, not a separate always-visible control. Pinned:
   `ToolbarSearchRoutingTests` (`testToolbarSearchRoutesToATransientSearchWithNoSavedSearch`,
   `testRepeatedSearchesRouteIdenticallyPerQuery`, `testBlankQueryProducesNoRoute`,
@@ -391,3 +391,5 @@ finding was posted as GitHub-comment evidence with "Left OPEN; not closing mysel
 
 ## Triaged from the backlog (2026-10-04)
 - `search.all-libraries-fanout` — **[GAP]** (#4110) an engine endpoint fans a search out across open libraries with normalised scores and library_path provenance per result, enabling the All Libraries scope.
+- `search.one-toolbar-button-with-the-kind-menu` **[GAP]** (#5024): the toolbar has one search button; its menu holds Ask and Keyword with a checkmark and whatever the second button offered, and the Ask/Keyword bar under the toolbar is gone (this replaces `search.ask-keyword-native-scopes`).
+- `search.results-load-as-you-scroll` **[GAP]** (#5028): search results have no 'Load 50 more' button; the next page loads as the end of the list comes into view, with a quiet Loading row, and the header gives the total.

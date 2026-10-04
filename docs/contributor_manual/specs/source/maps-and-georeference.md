@@ -459,7 +459,7 @@ Places and gazetteers
   (`fichero-server/tests/unit/api/test_gazetteer_authorities.py`, real ids). PARTIAL: WHG's URI
   form is `https://whgazetteer.org/places/<id>` as its site writes it, unverified against a
   published canonical form; no screen.
-- `source.geo.gazetteer-candidates` — **[PARTIAL]** (#4933) candidates for an entity come from
+- `source.geo.gazetteer-candidates` — **[PARTIAL]** (#5169, #4933) candidates for an entity come from
   locally cached authority snapshots without fetching, and a chosen one is recorded by an
   audited action. Built for Wikidata, VIAF and LoC by exact name or alias match
   (`fichero-server/tests/unit/security/test_external_authority_reconciliation.py`, its tests

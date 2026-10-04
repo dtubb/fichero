@@ -1212,8 +1212,10 @@ Workflow-runner review, 2026-10-01 (read, one scheduled run reproduced, Kraken t
 
 ## Future (ideas, not scheduled)
 - (#4044) A bottom Xcode-debug-area style strip showing multiple running agents' progress and tool calls; new chrome, not current work.
+- (#5021) a spec-first 'ready to run' review: one pre-run check (sources, model, language, machine, cost) replacing the one-offs; parked by the maintainer, nearest existing line `activity.run.where-and-estimate`.
 
 ## Triaged from the backlog (2026-10-04)
 - `activity.voiceover-announcements` — **[GAP]** (#3724) import, indexing and workflow runs post an AccessibilityNotification announcement on started, completed and failed (only pane focus announces today, ContentView.swift:872).
 - `activity.run-control-is-global` — **[GAP]** (#5116) one global start, stop and pause over every file's steps, with per-file step tracking, for a library left running for days.
 - `activity.simple-for-its-reader` — **[GAP]** (#5117) Activity is redesigned from who reads it, not from the existing views.
+- `activity.window.newest-first-and-clear-all` **[BROKEN]** (#5016): the Activity window lists the newest run at the top, offers a way to delete every run at once, and its first row is never drawn under the title bar. (The 'just now' half is `activity.window.absolute-times`, built 2026-10-04.)

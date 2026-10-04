@@ -662,7 +662,7 @@ Structure
 
 Tables, forms and marks — the paragraph "Tables and forms" above, tagged 2026-09-27 so the
 pipeline tracks what it promises (#4928). It had one tagged behaviour and seven claims.
-- `source.table.is-a-segment` — **[PARTIAL]** (#4928) a table is a segment. True on import: PAGE's
+- `source.table.is-a-segment` — **[PARTIAL]** (#5168, #4928) a table is a segment. True on import: PAGE's
   `TableRegion` is read as a `table`-kind segment, pinned by
   `test_transkribus_real_files.py::TestATablePageWithCells::test_the_page_round_trips_and_loses_nothing`
   (the table survives a write and a re-read). No editor verb draws one yet.
@@ -1153,3 +1153,8 @@ picture to the shape.
 ## Triaged from the backlog (2026-10-04)
 - `segments.claims-carry-box-anchor` — **[GAP]** (#970) a claim extracted from transcribed text carries the box/segment it was read from
 - `geometry.review-word-boxes-on-ink` — **[GAP]** (#4615) word boxes in the Transcription Review artifact sit over the right ink (data-side defect on 9_Hoja_534_Recto).
+- `source.pass.nothing-drawable-never-covers` **[BROKEN]** (#4955): a result whose shapes are all unusable (zero width or height) never hides a lower-ranked result that has boxes to draw, and the page says the chosen result had no usable shapes. (Items 1-3 and the audit-id fix landed in cb304e65a.)
+- `source.store.dense-page-reads-whole-in-bound` **[GAP]** (#4956): a dense page (20,000 segments) reads whole, with no filter and cold, within the bound the segment editor needs, and moving one box on an already converted page does not re-read every result on that page.
+- `source.pass.keeps-its-own-text` **[GAP]** (#5067): a pass holds its own whole text, even with no lines or with lines that come later, a source may carry several text passes and the person chooses the canonical one, and workflows write their text as a pass, including when they run on lines. (Ruled by the maintainer 2026-10-01.)
+- `source.segment.reference-opens-on-every-device` **[GAP]** (#5164): a fichero:segment link opens its page with the segment selected on iOS as on the Mac, and a link that cannot be resolved says why instead of only beeping. (Links section 13494cbb7 and the macOS handler e041b2882 landed; `source.link.any-depth` and `source.form.label-and-answer` stay owed.)
+- `source.segment.carry-from-the-review` **[GAP]** (#5165): after accepting a proposed match in the Segments pane, the person can carry its readings and marks across from the same list, and the head's count updates as soon as a match is reviewed. (Review itself landed in fca401334.)

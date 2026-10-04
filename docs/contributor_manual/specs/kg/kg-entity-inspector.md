@@ -413,3 +413,4 @@ state, or the same-anchor invariant.
 
 ## Triaged from the backlog (2026-10-04)
 - `kg.entity.claimstore-scope-is-per-window` — **[GAP]** (#4913) two windows on one library each focused on a different entity show their own entity's claims; ClaimStore holds one scope per library today, so the last loader wins.
+- `kg.entity.appears-in.single-click-opens-the-page` **[BROKEN]** (#5007): a single click on a page in an entity card's Appears In list goes to that page, and the region highlighted for a diary entry covers exactly that entry, from its heading to its last line.

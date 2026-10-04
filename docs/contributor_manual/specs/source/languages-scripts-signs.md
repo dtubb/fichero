@@ -358,3 +358,6 @@ To be filled at approval.
 
 Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 `source-model.md`.
+
+## Triaged from the backlog (2026-10-04)
+- `source.dir.above-the-line` **[GAP]** (#5006): a source's page progression (the next page to the left for a right-to-left bound book), the Reader's scroll axis (sideways for vertical scripts) and a long scroll read along its own axis all take their direction from the cascade, and a person can override them for a source or for a pane.

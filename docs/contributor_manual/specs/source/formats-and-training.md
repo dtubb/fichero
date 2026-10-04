@@ -485,3 +485,6 @@ and its schema for validation.
 
 Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 `source-model.md`.
+
+## Triaged from the backlog (2026-10-04)
+- `source.format.export-page-as-offers-every-choice` **[GAP]** (#5162): File > Export Page As lists every format the engine writes, lets the person choose the pass, reading order and reading kind, and works on iOS as on the Mac. (Inspector > Making's Export landed in 08e6dc8b8; file extensions in bb1d5b5d7.)

@@ -89,7 +89,7 @@ something goes badly wrong.
   (`safety.undo.every-action-says-how-it-comes-back`) gains the value "snapshot first"; the
   registry takes the snapshot, not each action's own code. *Test:* a guardrail: every action
   that is neither reversible nor Trash-bound is "snapshot first" or carries a written reason.
-- `safety.net.no-snapshot-no-step` — **[GAP]** (#5246) if the snapshot cannot be taken, the step is **refused**.
+- `safety.net.no-snapshot-no-step` — **[GAP]** (#5070, #5246) if the snapshot cannot be taken, the step is **refused**.
   The message says why in a sentence and what would help: "There is not enough room to make a
   safety copy first (needs about 2.1 GB, 0.8 GB free). Nothing was deleted. You can free space
   by removing older snapshots: 6 unpinned, 9.4 GB." The present behaviour (log a warning and

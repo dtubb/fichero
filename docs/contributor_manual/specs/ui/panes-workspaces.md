@@ -205,7 +205,7 @@ the Mail default. The Mail layout is just one composition the reliable system ca
 Findings from the creative director running the chat-in-sidebar build. Chat-in-sidebar
 itself works (committed c4a22c2b5). The rest are the workspace/pane defects to pin+fix.
 
-- `panes.chat.toggle-in-sidebar-top` — **[GAP]** (→ #4705 increment 6) the chat show/hide toggle
+- `panes.chat.toggle-in-sidebar-top` — **[GAP]** (#4970) (→ #4705 increment 6) the chat show/hide toggle
   should sit at the TOP of the sidebar, to the LEFT of the sidebar (panel) button — not the
   sparkles button in the main toolbar.
 - `panes.sidebar-button.in-sidebar-section` — **[GAP]** (#4735) the sidebar toggle button belongs IN
@@ -714,7 +714,7 @@ the browse→read flow down the centre.
 > MORE THAN ONE pane: whether each pane holds its own, and whether they sync. This spec owns the
 > plumbing; the preview spec owns the instrument.
 
-- `panes.magnifier.per-pane-open-state` — **[GAP]** (#4725) each pane's magnifier opens and closes
+- `panes.magnifier.per-pane-open-state` — **[GAP]** (#5015, #4725) each pane's magnifier opens and closes
   independently — one pane magnified while another is not. (Pane-scoped state; the magnifier's
   own behavior is `preview-magnifier`.)
 - `panes.zoom.sync-across-panes` — **[GAP]** (#4726) when synchronization is on, zoom/magnification
@@ -890,7 +890,7 @@ math, not a mounted pane" lesson.
   Prerequisite: `panes.model.per-pane-scope-and-kind-unread` above — a pane's kind/content
   cannot be independent of its siblings while the live state one window-wide value drives is
   the thing changing.
-- `panes.library.narrow-pushes-content-off-edge` — **[BROKEN]** (#4879) narrowing the left
+- `panes.library.narrow-pushes-content-off-edge` — **[BROKEN]** (#4966, #4879) narrowing the left
   Library pane pushes its content off the left edge of the window instead of reflowing/
   shrinking it to the new width (screenshot 9.11.46). Seen on screen this morning.
 - `panes.chrome.head-and-footer-not-shared` — **[BROKEN]** (#4880) pane head bars and pane
@@ -1086,7 +1086,7 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
    Chat's new chat), built on the one shared component; every other footer is removed
    (`panes.chrome.footer-only-for-list-actions`).
 
-- `panes.chrome.head-floats-or-is-a-row` — **[GAP]** (#5435) on Preview and canvas panes the head's
+- `panes.chrome.head-floats-or-is-a-row` — **[GAP]** (#4974, #5435) on Preview and canvas panes the head's
   remaining controls float over the content as a light overlay that fades when the pointer is
   idle and returns when it moves; on Library and Reader panes they are a thin row above the
   content. Today every head is a floating glass capsule bar 40 points high over a reserved row
@@ -1661,6 +1661,10 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - `panes.split-stack-scene-key-changes-only-with-the-pane-list` — **[BROKEN]** (#4994) WorkspaceSplitStack's SceneStorage key changes only when the pane list changes, so SwiftUI's 'may not change its key' warning does not flood the console.
 - `panes.no-multi-second-main-thread-stalls` — **[GAP]** (#4997) pane and workspace changes never stall the main thread for seconds in SwiftUI graph updates (ContentView.mainContent, ObservationCenter.invalidate), measured by the stall sampler.
 - `panes.library-strip-scrolls-along-its-shape-only` — **[GAP]** (#5000) a bottom Library film strip scrolls horizontally only and a narrow side Library strip vertically only, following the pane's shape.
+- `panes.split.halves-open-equal-inside-their-slot` **[BROKEN]** (#5011): splitting a pane opens two equal halves, at any depth of nesting, and no pane's head, body or footer ever draws outside the slot its parent gives it. (The gap half was fixed in fa4f49ef7.)
+- `panes.new-tab.sidebar-keeps-its-width` **[BROKEN]** (#5013): a new tab opens with the sidebar at the width the window already uses, not about twice as wide.
+- `panes.visibility.show-brings-back-the-same-pane` **[BROKEN]** (#5027): hiding a pane and showing it again brings back the same pane, in its old place, at its old size, with its own kind and view, not a new pane at the end of the row.
+- `panes.head.kind-name-comes-from-the-kind` **[GAP]** (#5062): a pane head's kind chooser always shows the name of the kind the pane really is, because the name comes from the kind and is never passed separately.
 
 ## Future (ideas, not scheduled)
 - (#1640) Library and reading-surface toolbars compress when narrow like the inspector mini-toolbar (Reader uses ViewThatFits; Library does not)

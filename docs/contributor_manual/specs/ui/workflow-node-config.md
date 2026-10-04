@@ -143,7 +143,7 @@ Zoom (`zoom`)
 
 ### D. Config round-trip (edit → persist → reopen)
 
-- `nodeconfig.roundtrip.open-is-read-only` — **[PARTIAL]** (#4895, retagged 2026-09-19 by the
+- `nodeconfig.roundtrip.open-is-read-only` — **[PARTIAL]** (#5061, #4895, retagged 2026-09-19 by the
   spec-led test audit: both its pinning tests read node-config Swift files as text and count a
   guard-string's occurrences — neither opens a node, mutates a real binding, and asserts no
   autosave call actually fired) opening and closing a popover without touching anything leaves `node` byte-identical (no autosave fires). The prompt half of F4 — Transcribe/Describe no longer write the default prompt on open (via `NodePromptEditor`, no autosave); AND the config-seeding nodes (Transcribe's legacy-`language` normalise, Search's `search_id`/`query`) raise an `isLoadingConfig` guard during `loadInitialState`, cleared a main-hop later, so the on-open seed never trips the pickers' config-writing `onChange` (2026-09-16). Pinned by `WorkflowReadOnlySavePolicyTests` (prompt + transcribe + search). Normalisation of legacy values happens only as an explicit user action, never as a side effect of looking.
