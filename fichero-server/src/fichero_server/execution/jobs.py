@@ -52,7 +52,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from fichero_server.core.background_compute import set_background_qos, set_utility_qos
-from fichero_server.core.timeutil import utc_now
+from fichero_server.core.timeutil import ensure_utc, utc_now
 
 if TYPE_CHECKING:
     from fichero_server.db import Database
@@ -178,6 +178,30 @@ for _attached in ("find-lines", "read-a-line", "read-a-page", "ask-a-model"):
 #: (a vision page's own `llm.vision` call) does not ask for a second, which a one-wide lane could
 #: never grant.
 _holding: ContextVar[bool] = ContextVar("_holding_a_lane", default=False)
+#: The row of this task's latest model call's slot. Kept after the slot closes, because a call's
+#: usage is read from its answer after the call (`llm.chat_structured`); cleared when this task's
+#: next call starts outside a slot (`forget_call_row`).
+_call_row: ContextVar[tuple[Any, str] | None] = ContextVar("_call_row", default=None)
+
+
+def forget_call_row() -> None:
+    """A model call is starting with no slot of its own: its usage belongs to no row. Inside a
+    held slot (a vision page's own call) the slot's row stays."""
+    if not _holding.get():
+        _call_row.set(None)
+
+
+def note_usage(entry: dict[str, Any]) -> None:
+    """A model call's usage (tokens, provider, model), recorded on the row of the slot it was made
+    in, for the tree to price and sum (`activity.jobs-are-a-tree`). Nothing for a call with none."""
+    held = _call_row.get()
+    if held is None:
+        return
+    db, job_id = held
+    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])
+    detail = json.loads(row[0]) if row and row[0] else {}
+    detail.setdefault("usage", []).append(entry)
+    db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
 
 
 # A workflow run and its steps, as rows (#5353, spec "Workflow runs inside the one job model"). The
@@ -278,25 +302,49 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     rows = db.execute_fetchall(
         "WITH RECURSIVE t AS (SELECT * FROM jobs WHERE id = ? UNION ALL "
         "SELECT j.* FROM jobs j JOIN t ON j.parent_id = t.id) "
-        "SELECT id, kind, subject, model, state, reason, parent_id, created_at, finished_at FROM t", [job_id])
+        "SELECT id, kind, subject, model, state, reason, parent_id, created_at, finished_at, started_at, detail "
+        "FROM t", [job_id])
     if not rows:
         return None
-    names = ("id", "kind", "subject", "model", "state", "reason", "parent_id", "created_at", "finished_at")
+    names = ("id", "kind", "subject", "model", "state", "reason", "parent_id", "created_at", "finished_at",
+             "started_at", "detail")
     nodes = {row[0]: {**dict(zip(names, row)), "children": []} for row in rows}
     for node in sorted(nodes.values(), key=lambda n: n["created_at"]):
         if node["id"] != job_id and node["parent_id"] in nodes:
             nodes[node["parent_id"]]["children"].append(node)
 
-    def roll(node: dict[str, Any]) -> tuple[int, int]:
+    from fichero_server.llm.usage import aggregate_usage
+
+    now = utc_now()
+
+    def roll(node: dict[str, Any]) -> list[dict[str, Any]]:
+        """Fill in the node's roll-up; returns the model calls' usage under it."""
+        detail = node.pop("detail")
+        usage = list((json.loads(detail) if detail else {}).get("usage", [])) if node["kind"] not in RUN_KINDS else []
+        failed = 1 if node["state"] == "failed" and not node["children"] and node["kind"] not in RUN_KINDS else 0
         if not node["children"] and node["kind"] in RUN_KINDS:
             node["done"], node["total"] = 0, 0  # a step that handed nothing to a lane has no pages
         elif not node["children"]:
             node["done"], node["total"] = (1 if node["state"] == "done" else 0), 1
         else:
-            counts = [roll(child) for child in node["children"]]
-            node["done"], node["total"] = sum(c[0] for c in counts), sum(c[1] for c in counts)
+            for child in node["children"]:
+                usage += roll(child)
+                failed += child["failed"]
+            node["done"] = sum(c["done"] for c in node["children"])
+            node["total"] = sum(c["total"] for c in node["children"])
         node["name"] = kind_name(node["kind"])
-        return node["done"], node["total"]
+        node["failed"] = failed  # the pages under it that failed; each says why on its own row
+        # How long it took: its own start to its finish (or until now, while it runs).
+        start = node["started_at"] or (node["created_at"] if node["kind"] in RUN_KINDS else None)
+        end = node["finished_at"] or (now if node["state"] in ("running", "paused") else None)
+        node["seconds"] = max(0.0, (ensure_utc(end) - ensure_utc(start)).total_seconds()) if start and end else None
+        # Cost from the vendored price list, summed; null unless every call under it is priced
+        # (never zero, never a guess).
+        totals = aggregate_usage(usage)
+        node["tokens"] = totals.total_tokens
+        node["cost_usd"] = totals.cost_usd if totals.priced else None
+        node["unpriced_models"] = totals.unpriced_models
+        return usage
 
     root = nodes[job_id]
     roll(root)
@@ -576,6 +624,7 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
     No library, or a slot already held by this task: the body just runs."""
     db = _open_library(library_path)
     if db is None or _holding.get():
+        forget_call_row()
         yield
         return
     loop = asyncio.get_running_loop()
@@ -607,6 +656,7 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
             _scheduler.withdraw(db, future, reason="Its run had ended before this page started")
             raise
         token = _holding.set(True)
+        _call_row.set((db, future.job_id))
         try:
             yield
         except Exception as exc:
