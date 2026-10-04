@@ -7,8 +7,8 @@ code, and driven through the public surface: the folder comes in through the aud
 followed with `GET /api/sync-folders`, and is written by jobs on the real scheduler. Edits go
 through the audited action layer, as the app's do.
 
-Not covered here because not built yet: edits made in the folder coming in as passes, and a
-conflict keeping both versions (intake), and adopting a TEI file that spans several images.
+Not covered here because not built yet: adopting a TEI file that spans several images. Edits
+made in the folder coming in are in `test_synced_folder_intake.py`.
 """
 from __future__ import annotations
 
@@ -128,13 +128,13 @@ def test_source_sync_adopt_existing_folder__a_file_changed_since_it_was_read_is_
         client, db, kept_folder):
     """Behaviour `source.sync.adopt-existing-folder`: "it records each file's checksum when it reads
     it, and writes back only if the file is unchanged since; a file edited meanwhile is a conflict."
-    The person's edit stays as they left it and the file is reported. (Keeping both as passes is
-    intake, not built: this proves only that nothing of theirs is lost.)"""
+    The person's edit stays as they left it and the file is listed as a conflict (both kept as
+    passes: `test_synced_folder_intake.py`)."""
     page_id = _page_id(db, _import(db, kept_folder, "index"))
     path = kept_folder / LAYOUT
     edited = path.read_text(encoding="utf-8").replace("</PcGts>", "<!-- edited in Oxygen --></PcGts>")
     path.write_text(edited, encoding="utf-8")
     _correct(db, page_id, "Otterskirchen, im Jahr des Herrn")
     folder_id = _folders(client)[0]["id"]
-    assert _wait_for(lambda: next(f for f in _folders(client) if f["id"] == folder_id)["changed_outside"] == [LAYOUT])
+    assert _wait_for(lambda: next(f for f in _folders(client) if f["id"] == folder_id)["conflicts"] == [LAYOUT])
     assert path.read_text(encoding="utf-8") == edited

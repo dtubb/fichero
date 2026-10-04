@@ -6434,6 +6434,120 @@
         }
       }
     },
+    "/api/sync-folders/{folder_id}/intake": {
+      "get": {
+        "tags": [
+          "sync-folders"
+        ],
+        "summary": "Whether intake is on, and what it would bring in",
+        "description": "The preview shown before intake is switched on: the files it would bring in, by format.",
+        "operationId": "get_intake_api_sync_folders__folder_id__intake_get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "sync-folders"
+        ],
+        "summary": "Switch intake on or off for a synced folder",
+        "description": "Switched on, the folder is read now and whenever it may have changed: each file Fichero\nwrote or adopted that was changed outside comes in as a new pass (\"edited outside Fichero\"),\noverwriting nothing; one whose page changed too is a conflict, both kept.",
+        "operationId": "put_intake_api_sync_folders__folder_id__intake_put",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntakeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sync-folders": {
       "post": {
         "tags": [
@@ -59225,6 +59339,43 @@
         "title": "InputMapping",
         "description": "Maps a node input port to a data source.\n\nAllows referencing output from ANY previous node, not just\nthe immediately preceding one in the graph.\n\nExamples:\n    source_path=\"$.nodes.transcribe.text\"\n    source_path=\"$.nodes.entities.people | join:', '\"\n    source_path=\"$.inputs.language\"\n    source_path=\"$.files\""
       },
+      "IntakeRequest": {
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "title": "On",
+            "description": "Take files in from the folder: their edits come in as passes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "on"
+        ],
+        "title": "IntakeRequest"
+      },
+      "IntakeState": {
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          },
+          "would_bring_in": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Would Bring In",
+            "description": "files changed outside that would come in, by format"
+          }
+        },
+        "type": "object",
+        "required": [
+          "on",
+          "would_bring_in"
+        ],
+        "title": "IntakeState",
+        "description": "`source.sync.intake-is-opt-in`: whether intake is on, and what it would bring in now."
+      },
       "IntegrationInfo": {
         "properties": {
           "name": {
@@ -78225,6 +78376,19 @@
             "type": "array",
             "title": "Formats"
           },
+          "intake": {
+            "type": "boolean",
+            "title": "Intake",
+            "description": "files changed in the folder come in as passes"
+          },
+          "conflicts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Conflicts",
+            "description": "files changed both in the folder and in Fichero since the last write: both kept as passes, the file no longer written"
+          },
           "adopted": {
             "type": "boolean",
             "title": "Adopted",
@@ -78279,6 +78443,8 @@
           "id",
           "path",
           "formats",
+          "intake",
+          "conflicts",
           "adopted",
           "pending",
           "files",

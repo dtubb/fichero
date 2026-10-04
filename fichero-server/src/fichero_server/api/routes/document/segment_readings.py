@@ -60,6 +60,7 @@ from fichero_server.models.readings import (
     CountingAnswer,
     PassAnswer,
     PassBasis,
+    OUTSIDE_FICHERO,
     PassCandidate,
     ReadingAnchorMismatch,
     ReadingCandidate,
@@ -835,6 +836,7 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
                 # A result a person corrected in the older format counts as a person's (#5222).
                 has_human_segment=human_live > 0 or pass_row.source_artifact_id in corrected,
                 from_text_layer=from_text_layer,
+                waits_to_be_chosen=pass_row.actor == OUTSIDE_FICHERO,  # #4952
                 created_at=pass_row.created_at,
             )
         )

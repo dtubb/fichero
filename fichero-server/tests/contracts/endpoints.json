@@ -10484,6 +10484,30 @@
         "query_params": [],
         "request_model": null,
         "response_model": "Tied"
+      },
+      {
+        "method": "GET",
+        "path": "/sync-folders/{folder_id}/intake",
+        "operation_id": "get_intake_api_sync_folders__folder_id__intake_get",
+        "summary": "Whether intake is on, and what it would bring in",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IntakeState"
+      },
+      {
+        "method": "PUT",
+        "path": "/sync-folders/{folder_id}/intake",
+        "operation_id": "put_intake_api_sync_folders__folder_id__intake_put",
+        "summary": "Switch intake on or off for a synced folder",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": "IntakeRequest",
+        "response_model": "IntakeState"
       }
     ],
     "tasks": [

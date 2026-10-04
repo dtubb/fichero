@@ -1,4 +1,4 @@
-"""The synced folder, the write half (#4952, `specs/source/synced-folder.md`).
+"""The synced folder: written as the work goes on, and read back (#4952, `specs/source/synced-folder.md`).
 
 A project is tied to a folder on the engine's disk (`tie`); its outputs (PAGE, ALTO, TEI) are
 written there by the exporter (`page_export.export_page`, the one export path:
@@ -25,24 +25,43 @@ it had when read, and work on that page is written back into the same file in th
 only while the file is unchanged since; a file changed meanwhile is left and reported. Nothing is
 written on adopting: a file is rewritten only when its page changes.
 
-Not built yet: intake (files coming in), reading edits back as passes, conflicts kept as both,
-adopting a TEI file spanning several images, restricted material, Rebuild Folder, and a folder of
-part of a project.
+Intake (`read`, a `read-from-folder` job per folder, `source.sync.intake-is-opt-in`) is off for
+a made folder until switched on after its preview (`intake`), and on for an adopted one. It reads
+back the files Fichero wrote or adopted: one changed outside comes in as a new pass through the
+one import action (`format.import`), made by "edited outside Fichero" and named with the file's
+time, and overwrites nothing (`source.sync.outside-edits-are-passes`). Each file records two
+checksums: the file's (`sha256`) and the exporter's output for it (`exported_sha256`), both as of
+Fichero's last write or read. A file changed whose page also changed since is a conflict: the
+file's pass is kept beside the project's, the file is no longer written, and it is listed
+(`source.sync.conflicts-kept-both`). A deleted file deletes nothing and is listed; it is written
+again on the next change to its page (`source.sync.deleted-outside`). The folder is read when the
+library opens, when intake is switched on, and when a write finds a file changed.
+
+Not built yet: new images and new files coming in, live watching, settling a conflict, adopting a
+TEI file spanning several images, restricted material, Rebuild Folder, and a folder of part of a
+project.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from fichero_server.core.timeutil import utc_now
 from fichero_server.execution import jobs
 
+logger = logging.getLogger(__name__)
+
 KIND = "write-to-folder"
+READ_KIND = "read-from-folder"
+#: Who made a pass that came in from the folder: a file's edit carries no author. The working-pass
+#: ladder passes such a pass over until a person chooses it.
+from fichero_server.models.readings import OUTSIDE_FICHERO as OUTSIDE  # noqa: E402
 #: How long a page must stay unchanged before its files are rewritten.
 QUIET_SECONDS = 5.0
 #: Formats a synced folder can hold for now: the exporter's validated XML formats.
@@ -53,10 +72,13 @@ _SCHEMA = (
     "created_at TIMESTAMP NOT NULL, untied_at TIMESTAMP)",
     # An adopted folder keeps its own layout: only its recorded files are written, in place.
     "ALTER TABLE sync_folders ADD COLUMN IF NOT EXISTS adopted BOOLEAN DEFAULT FALSE",
+    "ALTER TABLE sync_folders ADD COLUMN IF NOT EXISTS intake BOOLEAN DEFAULT FALSE",
     # One row per file Fichero wrote or found in its way. `state`: written | in-the-way |
-    # changed-outside | deleted-outside.
+    # changed-outside | deleted-outside | conflict.
     "CREATE TABLE IF NOT EXISTS sync_files (folder_id TEXT NOT NULL, rel_path TEXT NOT NULL, document_id TEXT, "
     "format TEXT, sha256 TEXT, written_at TIMESTAMP, state TEXT NOT NULL, PRIMARY KEY (folder_id, rel_path))",
+    # The exporter's output for the file when Fichero last wrote or read it (null: same as sha256).
+    "ALTER TABLE sync_files ADD COLUMN IF NOT EXISTS exported_sha256 TEXT",
 )
 _ENSURED: set[str] = set()
 
@@ -76,10 +98,25 @@ def _sha(data: bytes) -> str:
 
 def _folders(db: Any) -> list[dict[str, Any]]:
     _ensure(db)
-    rows = db.execute_fetchall("SELECT id, path, formats, created_at, adopted FROM sync_folders "
+    rows = db.execute_fetchall("SELECT id, path, formats, created_at, adopted, intake FROM sync_folders "
                                "WHERE untied_at IS NULL ORDER BY created_at")
-    return [{"id": r[0], "path": r[1], "formats": json.loads(r[2]), "created_at": r[3], "adopted": bool(r[4])}
-            for r in rows]
+    return [{"id": r[0], "path": r[1], "formats": json.loads(r[2]), "created_at": r[3], "adopted": bool(r[4]),
+             "intake": bool(r[5])} for r in rows]
+
+
+def _folder(db: Any, folder_id: str) -> dict[str, Any] | None:
+    return next((f for f in _folders(db) if f["id"] == folder_id), None)
+
+
+def _exported(db: Any, doc_id: str, fmt: str) -> str | None:
+    """The checksum of what the exporter gives for this page and format now (None: nothing)."""
+    from fichero_server.formats import FormatCannotWrite
+    from fichero_server.page_export import ExportRefused, export_page
+
+    try:
+        return _sha(export_page(db, doc_id, fmt).data)
+    except (ExportRefused, FormatCannotWrite):
+        return None
 
 
 def _sources(db: Any) -> list[str]:
@@ -117,12 +154,44 @@ def adopt(db: Any, folder: Path, read: list[tuple[Path, str, str]]) -> str:
     _ensure(db)
     folder_id = uuid.uuid4().hex
     formats = sorted({fmt for _path, _doc, fmt in read})
-    db.execute("INSERT INTO sync_folders (id, path, formats, created_at, adopted) VALUES (?, ?, ?, ?, TRUE)",
-               [folder_id, str(folder), json.dumps(formats), utc_now()])
+    # Adopting turns intake on: that is what adopting means.
+    db.execute("INSERT INTO sync_folders (id, path, formats, created_at, adopted, intake) "
+               "VALUES (?, ?, ?, ?, TRUE, TRUE)", [folder_id, str(folder), json.dumps(formats), utc_now()])
     for path, doc_id, fmt in read:
         _record(db, folder_id, Path(path).resolve().relative_to(folder).as_posix(), document_id=doc_id, fmt=fmt,
-                sha=_sha(Path(path).read_bytes()), state="written", written=False)
+                sha=_sha(Path(path).read_bytes()), exported=_exported(db, doc_id, fmt), state="written",
+                written=False)
     return folder_id
+
+
+def would_bring_in(db: Any, folder_id: str) -> dict[str, int]:
+    """What intake would bring in now, counted by format: the files it keeps that changed outside."""
+    folder = _folder(db, folder_id)
+    if folder is None:
+        raise KeyError(folder_id)
+    counts: dict[str, int] = {}
+    for rel, fmt, sha in db.execute_fetchall(
+            "SELECT rel_path, format, sha256 FROM sync_files WHERE folder_id = ? "
+            "AND state IN ('written', 'changed-outside')", [folder_id]):
+        path = Path(folder["path"]) / rel
+        if path.exists() and _sha(path.read_bytes()) != sha:
+            counts[fmt] = counts.get(fmt, 0) + 1
+    return counts
+
+
+def set_intake(db: Any, folder_id: str, on: bool) -> None:
+    """Switch intake on or off for a folder; switched on, the folder is read now."""
+    if _folder(db, folder_id) is None:
+        raise KeyError(folder_id)
+    db.execute("UPDATE sync_folders SET intake = ? WHERE id = ?", [on, folder_id])
+    if on:
+        _queue_read(db, folder_id)
+
+
+def _queue_read(db: Any, folder_id: str) -> None:
+    register_job_kinds()
+    jobs.enqueue(db, READ_KIND, folder_id, started_by="sync",
+                 run_after=utc_now() + timedelta(seconds=QUIET_SECONDS))
 
 
 def untie(db: Any, folder_id: str) -> None:
@@ -158,12 +227,15 @@ def _atomic_write(path: Path, data: bytes) -> None:
 
 
 def _record(db: Any, folder_id: str, rel: str, *, document_id: str | None, fmt: str | None, sha: str | None,
-            state: str, written: bool) -> None:
+            state: str, written: bool, exported: str | None = None) -> None:
+    """One file's row. A row that is not a write keeps its last write time."""
     db.execute(
-        "INSERT INTO sync_files (folder_id, rel_path, document_id, format, sha256, written_at, state) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (folder_id, rel_path) DO UPDATE SET document_id = excluded.document_id, "
-        "format = excluded.format, sha256 = excluded.sha256, written_at = excluded.written_at, state = excluded.state",
-        [folder_id, rel, document_id, fmt, sha, utc_now() if written else None, state])
+        "INSERT INTO sync_files (folder_id, rel_path, document_id, format, sha256, written_at, state, exported_sha256) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (folder_id, rel_path) DO UPDATE SET "
+        "document_id = excluded.document_id, format = excluded.format, sha256 = excluded.sha256, "
+        "written_at = coalesce(excluded.written_at, sync_files.written_at), state = excluded.state, "
+        "exported_sha256 = excluded.exported_sha256",
+        [folder_id, rel, document_id, fmt, sha, utc_now() if written else None, state, exported])
 
 
 def write(db: Any, subject: str) -> None:
@@ -172,12 +244,12 @@ def write(db: Any, subject: str) -> None:
     from fichero_server.page_export import ExportRefused, export_page
 
     folder_id, doc_id = subject.split(":", 1)
-    folder = next((f for f in _folders(db) if f["id"] == folder_id), None)
+    folder = _folder(db, folder_id)
     if folder is None:
         return  # untied meanwhile
     root = Path(folder["path"])
     if folder["adopted"]:
-        _write_back(db, folder_id, root, doc_id)
+        _write_back(db, folder, root, doc_id)
         return
     for fmt in folder["formats"]:
         try:
@@ -186,56 +258,129 @@ def write(db: Any, subject: str) -> None:
             continue  # nothing to write for this source (no working pass)
         rel = _layout(fmt, out.filename, doc_id, format_named(fmt).file_extension)
         path = root / rel
-        known = db.execute_fetchone("SELECT sha256, state FROM sync_files WHERE folder_id = ? AND rel_path = ?",
-                                    [folder_id, rel])
+        known = db.execute_fetchone("SELECT sha256, state, exported_sha256 FROM sync_files "
+                                    "WHERE folder_id = ? AND rel_path = ?", [folder_id, rel])
+        if known is not None and known[1] == "conflict":
+            continue  # two versions wait for a person: neither is written over the other
         if path.exists():
             on_disk = _sha(path.read_bytes())
             if known is None or known[1] == "in-the-way":
                 _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=None, state="in-the-way", written=False)
                 continue  # not ours: left, and reported
             if known[0] != on_disk:
-                _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=known[0], state="changed-outside",
-                        written=False)
-                continue  # changed outside since Fichero wrote it: left, and reported
-            if on_disk == _sha(out.data):
-                continue  # nothing this file holds has changed
+                _changed_outside(db, folder, rel, doc_id, fmt, known[0], known[2])
+                continue  # changed outside since Fichero wrote it: left (and read, with intake on)
+        if known is not None and known[0] is not None and (known[2] or known[0]) == _sha(out.data):
+            continue  # nothing it holds changed since Fichero wrote it; a deleted one waits for a change
         _atomic_write(path, out.data)
         report = {"format": out.format, "choices": out.choices.as_dict(), "losses": out.report.as_dict()["losses"]}
         _atomic_write(path.with_name(f"{path.name}.loss.json"), json.dumps(report, indent=1).encode("utf-8"))
-        _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=_sha(out.data), state="written", written=True)
+        _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=_sha(out.data), exported=_sha(out.data),
+                state="written", written=True)
 
 
-def _write_back(db: Any, folder_id: str, root: Path, doc_id: str) -> None:
+def _changed_outside(db: Any, folder: dict[str, Any], rel: str, doc_id: str, fmt: str, sha: str | None,
+                     exported: str | None) -> None:
+    """A write found the file changed outside: with intake on, the folder is read (the edit comes
+    in, or is a conflict); with it off, the file is only reported."""
+    if folder["intake"]:
+        _queue_read(db, folder["id"])
+    else:
+        _record(db, folder["id"], rel, document_id=doc_id, fmt=fmt, sha=sha, exported=exported,
+                state="changed-outside", written=False)
+
+
+def _write_back(db: Any, folder: dict[str, Any], root: Path, doc_id: str) -> None:
     """An adopted folder: rewrite the page's own files in place, in their own format, each only
-    while it is unchanged since Fichero read or last wrote it. No loss report beside: the folder
-    is the person's layout, not Fichero's."""
+    while it is unchanged since Fichero read or last wrote it (a deleted one is written again). No
+    loss report beside: the folder is the person's layout, not Fichero's."""
     from fichero_server.formats import FormatCannotWrite
     from fichero_server.page_export import ExportRefused, export_page
 
-    rows = db.execute_fetchall("SELECT rel_path, format, sha256 FROM sync_files WHERE folder_id = ? "
-                               "AND document_id = ? AND state = 'written'", [folder_id, doc_id])
-    for rel, fmt, sha in rows:
+    rows = db.execute_fetchall("SELECT rel_path, format, sha256, exported_sha256 FROM sync_files "
+                               "WHERE folder_id = ? AND document_id = ? AND state IN ('written', 'deleted-outside')",
+                               [folder["id"], doc_id])
+    for rel, fmt, sha, exported in rows:
         path = root / rel
-        if not path.exists():
-            _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=sha, state="deleted-outside", written=False)
-            continue
-        if _sha(path.read_bytes()) != sha:
-            _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=sha, state="changed-outside", written=False)
-            continue  # edited meanwhile: left as the person left it, and reported
+        if path.exists() and _sha(path.read_bytes()) != sha:
+            _changed_outside(db, folder, rel, doc_id, fmt, sha, exported)
+            continue  # edited meanwhile: left as the person left it
         try:
             out = export_page(db, doc_id, fmt)
         except (ExportRefused, FormatCannotWrite):
             continue
-        if _sha(out.data) != sha:
-            _atomic_write(path, out.data)
-            _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=_sha(out.data), state="written",
-                    written=True)
+        if (exported or sha) == _sha(out.data):
+            continue  # nothing it holds changed since; a deleted one waits for the next change
+        _atomic_write(path, out.data)
+        _record(db, folder["id"], rel, document_id=doc_id, fmt=fmt, sha=_sha(out.data), exported=_sha(out.data),
+                state="written", written=True)
+
+
+def read(db: Any, folder_id: str) -> None:
+    """The intake job: read back the folder's files that changed outside. Each comes in as a new
+    pass; one whose page also changed since is a conflict, both kept; a deleted one is listed."""
+    folder = _folder(db, folder_id)
+    if folder is None or not folder["intake"]:
+        return  # untied, or intake switched off, meanwhile
+    root = Path(folder["path"])
+    rows = db.execute_fetchall(
+        "SELECT rel_path, document_id, format, sha256, exported_sha256, state FROM sync_files WHERE folder_id = ? "
+        "AND state IN ('written', 'changed-outside', 'deleted-outside')", [folder_id])
+    for rel, doc_id, fmt, sha, exported, state in rows:
+        path = root / rel
+        if not path.exists():
+            if state != "deleted-outside":
+                _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=sha, exported=exported,
+                        state="deleted-outside", written=False)
+            continue  # deletes nothing in the project
+        on_disk = _sha(path.read_bytes())
+        if on_disk == sha:
+            if state != "written":  # put back as it was
+                _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=sha, exported=exported, state="written",
+                        written=False)
+            continue
+        now = _exported(db, doc_id, fmt)
+        project_changed = now is not None and now != (exported or sha)
+        if not _bring_in(db, path, doc_id, fmt):
+            _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=sha, exported=exported,
+                    state="changed-outside", written=False)
+            continue  # unreadable as it stands: listed, and read again next time
+        if project_changed:
+            _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=sha, exported=exported, state="conflict",
+                    written=False)
+        else:
+            _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=on_disk, exported=now, state="written",
+                    written=False)
+
+
+def _bring_in(db: Any, path: Path, doc_id: str, fmt: str) -> bool:
+    """The file as a new pass, through the one import action, made by "edited outside Fichero" and
+    named with the file's time. A version that came in before is not brought in twice. False when
+    the import refuses the file (say, broken XML): the folder goes on."""
+    from fastapi import HTTPException
+
+    import fichero_server.api.routes.document.format_import  # noqa: F401  (registers format.import)
+    from fichero_server.actions.registry import ActionContext, registry
+
+    when = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+    ctx = ActionContext(actor=OUTSIDE, library_path=str(Path(db.path).parent), is_bootstrap=True)
+    try:
+        registry.invoke(db, "format.import", {"document_id": doc_id, "path": str(path), "format": fmt,
+                                              "name": f"{path.name}, {OUTSIDE} {when}"}, ctx)
+    except HTTPException as exc:
+        if exc.status_code != 409:  # 409: this very version came in before
+            logger.warning("synced folder: %s did not come in: %s", path, exc.detail)
+            return False
+    return True
 
 
 def rescan(db: Any) -> None:
     """On library open: compare each tied folder with the checksums Fichero recorded, so changes made
     while the engine was off are found (`source.sync.rescan-after-downtime`)."""
     for folder in _folders(db):
+        if folder["intake"]:
+            _queue_read(db, folder["id"])  # handled as though seen live
+            continue
         root = Path(folder["path"])
         rows = db.execute_fetchall(
             "SELECT rel_path, sha256 FROM sync_files WHERE folder_id = ? AND state = 'written'", [folder["id"]])
@@ -263,6 +408,7 @@ def status(db: Any) -> list[dict[str, Any]]:
         pending = jobs.count_jobs(db, KIND, subject_prefix=f"{folder['id']}:")
         out.append({
             "id": folder["id"], "path": folder["path"], "formats": folder["formats"], "adopted": folder["adopted"],
+            "intake": folder["intake"], "conflicts": by_state.get("conflict", []),
             "last_written": max(written_times) if written_times else None, "pending": int(pending),
             "files": by_state.get("written", []), "in_the_way": by_state.get("in-the-way", []),
             "changed_outside": by_state.get("changed-outside", []),
@@ -275,3 +421,5 @@ def register_job_kinds() -> None:
     """Called by the scheduler before its first scan (`execution.jobs._KIND_MODULES`)."""
     if KIND not in jobs.KINDS:
         jobs.register_kind(KIND, write, model=None, lane="database", name="Write to a synced folder")
+    if READ_KIND not in jobs.KINDS:
+        jobs.register_kind(READ_KIND, read, model=None, lane="database", name="Read back a synced folder")

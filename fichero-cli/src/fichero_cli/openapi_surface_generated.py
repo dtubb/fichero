@@ -15273,6 +15273,36 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("whether-intake-is-on-and-what-it-would-bring-in")
+    def sync_folders_whether_intake_is_on_and_what_it_would_bring_in_get(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+    ) -> None:
+        """Whether intake is on, and what it would bring in (GET /api/sync-folders/{folder_id}/intake)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/sync-folders/{folder_id}/intake"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("switch-intake-on-or-off-for-a-synced")
+    def sync_folders_switch_intake_on_or_off_for_a_synced_put(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        on: bool = typer.Option(..., "--on/--no-on", help="Request field: on."),
+    ) -> None:
+        """Switch intake on or off for a synced folder (PUT /api/sync-folders/{folder_id}/intake)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/sync-folders/{folder_id}/intake"
+            params = None
+            payload = _build_json_payload({
+                "on": on,
+            }, {
+                "on": {'type': 'boolean', 'title': 'On', 'description': 'Take files in from the folder: their edits come in as passes', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('tasks')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for tasks endpoints.', no_args_is_help=True)

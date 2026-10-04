@@ -1,4 +1,4 @@
-"""Synced folders, from the API (#4952, `specs/source/synced-folder.md`): tie, follow, untie.
+"""Synced folders, from the API (#4952, `specs/source/synced-folder.md`): tie, follow, take in, untie.
 
 Thin over `fichero_server.sync_folder`. Tying and untying are audited actions (`sync.tie`,
 `sync.untie`), so the app, the CLI, MCP and an agent do it the one way. The folder is a path on the
@@ -32,6 +32,22 @@ class UntieParams(BaseModel):
     folder_id: str
 
 
+class IntakeParams(BaseModel):
+    folder_id: str
+    on: bool
+
+
+class IntakeRequest(BaseModel):
+    on: bool = Field(description="Take files in from the folder: their edits come in as passes")
+
+
+class IntakeState(BaseModel):
+    """`source.sync.intake-is-opt-in`: whether intake is on, and what it would bring in now."""
+
+    on: bool
+    would_bring_in: dict[str, int] = Field(description="files changed outside that would come in, by format")
+
+
 class Tied(BaseModel):
     id: str
 
@@ -42,6 +58,9 @@ class SyncFolderStatus(BaseModel):
     id: str
     path: str
     formats: list[str]
+    intake: bool = Field(description="files changed in the folder come in as passes")
+    conflicts: list[str] = Field(description="files changed both in the folder and in Fichero since the last "
+                                             "write: both kept as passes, the file no longer written")
     adopted: bool = Field(description="an existing folder adopted by an Index import: kept in its own layout, "
                                       "its files written back in place")
     last_written: datetime | None = None
@@ -74,6 +93,45 @@ def _action_untie(db: Database, params: UntieParams, ctx: ActionContext) -> tupl
     sync_folder.untie(db, params.folder_id)
     return {"id": params.folder_id}, ChangeSpec(domains=["library"], after={"id": params.folder_id},
                                                 emit_type="sync.untied")
+
+
+@action("sync.intake", IntakeParams, domains=["library"], undoable=False)
+def _action_intake(db: Database, params: IntakeParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server import sync_folder
+
+    sync_folder.set_intake(db, params.folder_id, params.on)
+    return {"id": params.folder_id, "on": params.on}, ChangeSpec(
+        domains=["library"], after={"id": params.folder_id, "intake": params.on}, emit_type="sync.intake")
+
+
+def _intake_state(db: Database, folder_id: str) -> IntakeState:
+    from fichero_server import sync_folder
+
+    folder = next((f for f in sync_folder.status(db) if f["id"] == folder_id), None)
+    if folder is None:
+        raise HTTPException(status_code=404, detail=f"No synced folder {folder_id}")
+    return IntakeState(on=folder["intake"], would_bring_in=sync_folder.would_bring_in(db, folder_id))
+
+
+@router.get("/{folder_id}/intake", response_model=IntakeState, summary="Whether intake is on, and what it would bring in")
+async def get_intake(folder_id: str, db: Database = Depends(get_library_database)) -> IntakeState:
+    """The preview shown before intake is switched on: the files it would bring in, by format."""
+    return _intake_state(db, folder_id)
+
+
+@router.put("/{folder_id}/intake", response_model=IntakeState, summary="Switch intake on or off for a synced folder")
+async def put_intake(
+    folder_id: str,
+    request: IntakeRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> IntakeState:
+    """Switched on, the folder is read now and whenever it may have changed: each file Fichero
+    wrote or adopted that was changed outside comes in as a new pass ("edited outside Fichero"),
+    overwriting nothing; one whose page changed too is a conflict, both kept."""
+    _intake_state(db, folder_id)  # 404 for a folder that is not tied
+    registry.invoke(db, "sync.intake", {"folder_id": folder_id, "on": request.on}, ctx)
+    return _intake_state(db, folder_id)
 
 
 @router.post("", response_model=Tied, summary="Tie the project to a folder on the engine's disk")

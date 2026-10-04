@@ -509,6 +509,10 @@ class PassBasis(str, Enum):
     none = "none"
 
 
+#: The maker of a pass that came in from a synced folder (#4952): a file's edit carries no author.
+OUTSIDE_FICHERO = "edited outside Fichero"
+
+
 class PassCandidate(BaseModel):
     """One pass offered to :func:`resolve_working_pass`.
 
@@ -527,6 +531,9 @@ class PassCandidate(BaseModel):
     #: True when this pass was read out of the file's own embedded text layer
     #: rather than produced by a recogniser.
     from_text_layer: bool = False
+    #: True for a pass that came in from a synced folder, edited outside Fichero (#4952): it is
+    #: never the working pass until a person chooses it (`source.sync.outside-edits-are-passes`).
+    waits_to_be_chosen: bool = False
     created_at: datetime
 
     @property
@@ -558,6 +565,9 @@ def resolve_working_pass(
     imported from a file (#5150); then
     a pass from the file's own text layer; then the newest.
 
+    A pass edited outside Fichero (a synced folder's file, #4952) is passed over by every tier
+    but a choice: an outside edit never takes the record by itself.
+
     The project rule does NOT withhold a pass -- the Reader has to show
     something -- it decides what the answer MEANS. In a strict project the
     ranked machine pass comes back as ``newest-machine-unchosen``: shown,
@@ -577,6 +587,9 @@ def resolve_working_pass(
     for choice in live:
         if choice.pass_id in by_id:
             return PassAnswer(pass_id=choice.pass_id, basis=PassBasis.chosen)
+
+    # A pass that waits to be chosen ranks only when there is nothing else to show.
+    passes_with_makers = [row for row in passes_with_makers if not row.waits_to_be_chosen] or passes_with_makers
 
     def newest(rows: list[PassCandidate]) -> PassCandidate:
         return sorted(rows, key=lambda row: (row.created_at, row.pass_id), reverse=True)[0]

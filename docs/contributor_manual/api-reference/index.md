@@ -682,6 +682,13 @@ place; a file Fichero did not write, or one changed since it wrote it, is never 
 `GET /api/sync-folders` gives each folder's place, formats, last write, files waiting, and the
 files written, in the way, changed outside and deleted outside (found again when the library opens).
 `DELETE /api/sync-folders/{folder_id}` unties it and leaves its files.
+`GET /api/sync-folders/{folder_id}/intake` says whether intake is on and what it would bring in now
+(files changed outside, by format); `PUT` with `{"on": true}` switches it on (an adopted folder has
+it on from the start). With intake on, a file Fichero wrote or adopted that is changed in the folder
+comes in as a new pass made by "edited outside Fichero", which never becomes the working pass by
+itself; one whose page changed in Fichero too is listed under `conflicts` with both kept, and is no
+longer written. A folder imported with `mode: index` is adopted: kept in its own layout and written
+back in place.
 
 ### Checking a layer's proposals
 

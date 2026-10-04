@@ -189,7 +189,7 @@ Out
   Background Work and catch up when it is resumed.
 
 In
-- `source.sync.intake-is-opt-in` — **[GAP]** (#4952) taking files in from the folder is switched on
+- `source.sync.intake-is-opt-in` — **[PARTIAL]** (#4952) *Built in the engine: intake is off for a made folder until `PUT /api/sync-folders/{id}/intake`, after `GET` of the same gives what it would bring in by format; an adopted folder has it on. The app's preview and switch are not built (`fichero-server/tests/unit/jobs/test_synced_folder_intake.py`).* taking files in from the folder is switched on
   for each project and shows what it will bring in (counts by kind) before its first run.
 - `source.sync.one-import-path` — **[GAP]** (#4952) files arriving through the synced folder go
   through the same import path as any other import.
@@ -198,16 +198,16 @@ In
 - `source.sync.read-back-formats` — **[GAP]** (#4952) only files in a format Fichero can import
   (PAGE, ALTO, TEI) are read back; a change to any other file is listed as "changed outside; not
   read back", and the next rewrite of it asks first.
-- `source.sync.outside-edits-are-passes` — **[GAP]** (#4952) a changed or new read-back file comes
+- `source.sync.outside-edits-are-passes` — **[PARTIAL]** (#4952) *Built for files Fichero wrote or adopted: a changed one comes in through `format.import` as a new pass made by "edited outside Fichero", named with the file's time, which the working-pass ladder passes over until a person chooses it. New files, and live watching (the folder is read when the library opens, when intake is switched on, and when a write finds a file changed), are not built (`fichero-server/tests/unit/jobs/test_synced_folder_intake.py`).* a changed or new read-back file comes
   in as a new pass with provenance ("edited outside Fichero", the file's time) and overwrites
   nothing.
-- `source.sync.conflicts-kept-both` — **[GAP]** (#4952) when project and file both changed since
+- `source.sync.conflicts-kept-both` — **[PARTIAL]** (#4952) *Built: both changed since the last write is found by two checksums (the file's and the exporter's output); the file's version comes in as a pass beside the project's, the file is no longer written, and `GET /api/sync-folders` lists it under `conflicts`. The Inspector and settling a conflict are not built (`fichero-server/tests/unit/jobs/test_synced_folder_intake.py`).* when project and file both changed since
   Fichero last wrote it, both are kept as passes and the conflict is shown in the source's
   Inspector.
-- `source.sync.deleted-outside` — **[GAP]** (#4952) a file deleted in the folder deletes nothing in
+- `source.sync.deleted-outside` — **[PARTIAL]** (#4952) *Built: a deleted file deletes nothing, is listed, and is written again on the next change to its source; Rebuild Folder is not built (`fichero-server/tests/unit/jobs/test_synced_folder_intake.py`).* a file deleted in the folder deletes nothing in
   the project; it is listed, and written again on the next change to its source or on Rebuild
   Folder.
-- `source.sync.rescan-after-downtime` — **[PARTIAL]** (#4952) *Built: on library open, files changed or deleted while the engine was off are found and reported; handling them as live (intake) is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* on engine start the folder is compared
+- `source.sync.rescan-after-downtime` — **[PARTIAL]** (#4952) *Built: on library open, files changed or deleted while the engine was off are found and reported; with intake on they are handled as though seen live (an edit comes in as a pass); files added meanwhile are not taken in (`fichero-server/tests/unit/jobs/test_synced_folder.py`, `fichero-server/tests/unit/jobs/test_synced_folder_intake.py`).* on engine start the folder is compared
   with the recorded checksums, and changes made while the engine was off are handled as though
   seen live.
 
@@ -217,7 +217,7 @@ Ownership and layout
 - `source.sync.fixed-layout` — **[OK]** (#4952) *Built: one subfolder per format, `<title>--<lasting id><extension>` (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* a made folder's layout is chosen by Fichero and is
   the same for every project.
 - `source.sync.four-ways-in` — **[PARTIAL]** (#4952) *Built: the engine's folder import takes `mode: index`, which leaves the originals in place, changes no file and adopts the folder; setup and import in the app do not offer it yet (`fichero-server/tests/unit/jobs/test_adopted_folder.py`).* setup and import offer Link, Copy, Move and Index with what each does to the originals; Link, Copy and Move are built (ingest `mode`).
-- `source.sync.adopt-existing-folder` — **[PARTIAL]** (#4952) *Built: an Index import of PAGE or ALTO files paired with their images adopts the folder in its own layout and records each file's checksum at read; a change to the page is written back into the same file in the same format, only while it is unchanged since; a file changed meanwhile is left and reported. Not built: the match shown for correction, edits coming in as passes, a conflict kept as both, and a TEI file spanning several images (`fichero-server/tests/unit/jobs/test_adopted_folder.py`).* importing a folder of TEI, ALTO or PAGE XML
+- `source.sync.adopt-existing-folder` — **[PARTIAL]** (#4952) *Built: an Index import of PAGE or ALTO files paired with their images adopts the folder in its own layout and records each file's checksum at read; a change to the page is written back into the same file in the same format, only while it is unchanged since; a file changed meanwhile is left and reported. Adopting turns intake on: edits made in the folder come in as passes, and a conflict keeps both. Not built: the match shown for correction, and a TEI file spanning several images (`fichero-server/tests/unit/jobs/test_adopted_folder.py`, `fichero-server/tests/unit/jobs/test_synced_folder_intake.py`).* importing a folder of TEI, ALTO or PAGE XML
   can make it the synced folder: it keeps its own layout, each file is matched to its source (the
   match shown for correction), work in Fichero is written back into the same file in the same
   format, edits made in the folder come in as passes, and a file changed since it was read is a
@@ -226,7 +226,7 @@ Ownership and layout
   the project with Rebuild Folder.
 - `source.sync.untie-leaves-files` — **[PARTIAL]** (#4952) *Built: untying stops writing and leaves the files; intake is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* untying a folder stops writing and intake and
   leaves its files on disk.
-- `source.sync.status-in-inspector` — **[PARTIAL]** (#4952) *Built: `GET /api/sync-folders` gives place, formats, last write, pending, and files written, in the way, changed and deleted outside; the Inspector and conflicts are not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* the Inspector shows each synced folder's
+- `source.sync.status-in-inspector` — **[PARTIAL]** (#4952) *Built: `GET /api/sync-folders` gives place, formats, last write, pending, and files written, in the way, changed and deleted outside, conflicts, and whether intake is on; the Inspector is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* the Inspector shows each synced folder's
   place, formats, last write, pending files, conflicts, files changed or deleted outside, and files
   in the way that Fichero did not write.
 
