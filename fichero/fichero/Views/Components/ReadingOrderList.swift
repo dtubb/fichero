@@ -18,6 +18,8 @@ struct ReadingOrderList: View {
     var opens: ((String) -> Bool)?
     /// The Segments pane's row words; nil keeps the Order list's own.
     var rowLabel: ((String, Int) -> String)?
+    /// The ids a row click or double-click wrote into the focused selection: the Inspector's hold (#5424).
+    var onSelected: (([String]) -> Void)?
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
     @Environment(SegmentService.self) private var segmentService: SegmentService?
@@ -30,7 +32,7 @@ struct ReadingOrderList: View {
     init(
         documentId: String, parentSegmentId: String? = nil, hidesWhenEmpty: Bool = false,
         store: ReadingOrderStore? = nil, onOpen: ((String) -> Void)? = nil, opens: ((String) -> Bool)? = nil,
-        rowLabel: ((String, Int) -> String)? = nil
+        rowLabel: ((String, Int) -> String)? = nil, onSelected: (([String]) -> Void)? = nil
     ) {
         self.documentId = documentId
         self.parentSegmentId = parentSegmentId
@@ -38,6 +40,7 @@ struct ReadingOrderList: View {
         self.onOpen = onOpen
         self.opens = opens
         self.rowLabel = rowLabel
+        self.onSelected = onSelected
         // A store handed in (a preview's, over a fixture transport) is used as is; otherwise the
         // library's service makes one.
         _store = State(initialValue: store)
@@ -69,6 +72,7 @@ struct ReadingOrderList: View {
                         Task { await record(store.move(segmentId, to: target), in: store) }
                     }
                 }
+                .contextMenu(forSelectionType: String.self, menu: { _ in EmptyView() }, primaryAction: reveal)
                 .focused($listFocused)
                 Divider()
                 keyRow(store)
@@ -90,10 +94,10 @@ struct ReadingOrderList: View {
         // selection too, so the boxes light and the Inspector follows.
         .onChange(of: selection) { _, picked in
             guard let picked, let focused = windowState?.focusedRegionSelection, let segmentService else { return }
-            InspectorPath.select(
+            onSelected?(InspectorPath.select(
                 segmentIds: [picked], into: focused, documentId: documentId,
                 store: SegmentStore.shared(for: segmentService)
-            )
+            ))
         }
         .task(id: "\(documentId)/\(parentSegmentId ?? "")") {
             if store == nil, let service { store = ReadingOrderStore(transport: service) }
@@ -107,6 +111,15 @@ struct ReadingOrderList: View {
                 windowState?.pendingSegmentSelection = nil
             }
         }
+    }
+
+    /// A double-click (or Return) on a row: reveal it in the linked Preview, selected, scrolled and
+    /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
+    private func reveal(_ ids: Set<String>) {
+        guard let segmentId = ids.first, let windowState, let segmentService else { return }
+        onSelected?(windowState.revealSegments(
+            [segmentId], documentId: documentId, store: SegmentStore.shared(for: segmentService)
+        ))
     }
 
     /// Why Create Named Order did not happen; nil after it did.
@@ -128,6 +141,7 @@ struct ReadingOrderList: View {
                     row(segmentId, at: index).tag(segmentId)
                 }
             }
+            .contextMenu(forSelectionType: String.self, menu: { _ in EmptyView() }, primaryAction: reveal)
             Divider()
             HStack(spacing: 8) {
                 Text("Layout order. This page has no named order yet.")

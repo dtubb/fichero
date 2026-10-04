@@ -11,6 +11,8 @@ struct SegmentInspectorView: View {
     let documentId: String
     /// The focused pane's selection, as segment ids, in the order picked.
     let selectedIds: [String]
+    /// The ids the Order section's own click or double-click selected: the Inspector holds (#5424).
+    var onOrderSelected: (([String]) -> Void)?
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
@@ -123,7 +125,9 @@ struct SegmentInspectorView: View {
             }
             // The Order section: the inspected segment's children, rearrangeable with the same verbs
             // as everywhere else (one `ReadingOrderStore`); hidden when it has none.
-            ReadingOrderList(documentId: documentId, parentSegmentId: inspected, hidesWhenEmpty: true)
+            ReadingOrderList(
+                documentId: documentId, parentSegmentId: inspected, hidesWhenEmpty: true, onSelected: onOrderSelected
+            )
                 .frame(maxHeight: 260)
         }
         .task(id: inspected) {

@@ -428,6 +428,10 @@ struct ZoomableImagePreview: View {
                 windowState?.focusRegionSelection(regionSelection)
             }
             .onDisappear { windowState?.releaseRegionSelection(regionSelection) }
+            // A line revealed from the Order tab, the Order pane or the Reader (#5424): zoom to it.
+            .onChange(of: regionSelection.revealCount) { _, _ in
+                if let rect = regionSelection.revealRect { imageCoordinator?.zoomToNormalizedRegion(rect) }
+            }
             .onChange(of: imageVisible) { _, visible in
                 if PreviewLayerDefaults.shouldRemember(visible, workspace: panePreviewLayers?.image) {
                     EngineConfig.defaults.set(visible, forKey: ImageLayer.defaultsKey)

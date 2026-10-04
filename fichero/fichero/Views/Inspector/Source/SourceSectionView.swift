@@ -10,14 +10,26 @@ struct SourceSectionView: View {
     @SceneStorage("inspector.source.mode") private var mode: SourceSectionMode = .content
     @Environment(WindowState.self) private var windowState: WindowState?
     @Environment(SegmentService.self) private var segmentService: SegmentService?
+    /// A selection this Inspector's own Order list wrote, and what it was showing then (#4981, #5424).
+    @State private var held: InspectorPath.Hold?
 
     var body: some View {
         // A selection on this page is inspected at its level (ruled 2026-09-27); with none, the page.
-        let selected = selectedSegmentIds
-        if selected.isEmpty {
-            documentBody
-        } else {
-            SegmentInspectorView(documentId: document.id, selectedIds: selected)
+        // One the Inspector's own Order list wrote leaves it where it was (`InspectorPath.Hold`).
+        let selected = InspectorPath.Hold.inspected(selectedSegmentIds, held: held)
+        Group {
+            if selected.isEmpty {
+                documentBody
+            } else {
+                SegmentInspectorView(
+                    documentId: document.id, selectedIds: selected,
+                    onOrderSelected: { held = .init(wrote: $0, shown: selected) }
+                )
+            }
+        }
+        // Any other selection is followed, and ends the hold.
+        .onChange(of: selectedSegmentIds) { _, now in
+            if now != held?.wrote { held = nil }
         }
     }
 
@@ -57,7 +69,7 @@ struct SourceSectionView: View {
                 SourceOutlineView(documentId: document.id)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .order:
-                ReadingOrderList(documentId: document.id)
+                ReadingOrderList(documentId: document.id, onSelected: { held = .init(wrote: $0, shown: []) })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }

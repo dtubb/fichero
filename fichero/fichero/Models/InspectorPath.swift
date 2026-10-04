@@ -118,6 +118,47 @@ struct InspectorPath: Equatable {
         return picked.map(\.0)
     }
 
+    /// REVEAL (#5424, `reader.order.reveal-line-in-preview`): select `segmentIds` exactly as `select`
+    /// does, then ask the pane owning `selection` to scroll and zoom to their boxes (their union). The
+    /// ONE reveal action: the Order tab's and the Order pane's double-click and the Reader's line click
+    /// all call this, so they cannot disagree about the box or the rect. Answers the ids selected.
+    @MainActor
+    @discardableResult
+    static func reveal(
+        segmentIds: [String], into selection: RegionSelection, documentId: String, store: SegmentStore
+    ) -> [String] {
+        let picked = select(segmentIds: segmentIds, into: selection, documentId: documentId, store: store)
+        guard !picked.isEmpty, let boxes = SegmentDisplay.selected(for: documentId, store: store)?.geometry.boxes,
+              let rect = union(selection.resolvedIndices(in: boxes).map { boxes[$0].bbox })
+        else { return picked }
+        selection.reveal(rect)
+        return picked
+    }
+
+    /// A selection the Inspector's OWN Order list wrote (#4981, #5424): the box lights in the Preview,
+    /// but the Inspector stays on what it was showing (`shown`; empty is the page), so the list being
+    /// clicked does not vanish under the second click of a double-click. Any other selection -- a
+    /// Preview click, the Order pane, the Reader -- is followed, as #5155 rules.
+    struct Hold: Equatable {
+        let wrote: [String]
+        let shown: [String]
+
+        /// What the Inspector inspects, given the focused pane's selection.
+        static func inspected(_ selected: [String], held: Hold?) -> [String] {
+            guard let held, held.wrote == selected else { return selected }
+            return held.shown
+        }
+    }
+
+    /// The smallest normalized `[x, y, w, h]` holding every rect; nil when none is a whole rect.
+    static func union(_ rects: [[Double]]) -> [Double]? {
+        let whole = rects.filter { $0.count >= 4 }
+        guard let minX = whole.map({ $0[0] }).min(), let minY = whole.map({ $0[1] }).min(),
+              let maxX = whole.map({ $0[0] + $0[2] }).max(), let maxY = whole.map({ $0[1] + $0[3] }).max()
+        else { return nil }
+        return [minX, minY, maxX - minX, maxY - minY]
+    }
+
     /// The Source view's selection -- indices into the boxes of the pass its scope names (the pass's
     /// artifact, or the pass itself when it has none: `SegmentDisplay.selectionScope`) -- as segment
     /// ids, in the order picked. A box index is the segment's `boxIndex` in that pass

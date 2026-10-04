@@ -495,6 +495,10 @@ struct PDFPageWithToolbar: View {
                 pdfWindowState?.offerRegionSelection(pdfRegionSelection)
             }
             .onDisappear { pdfWindowState?.releaseRegionSelection(pdfRegionSelection) }
+            // A line revealed from the Order tab, the Order pane or the Reader (#5424): zoom to it.
+            .onChange(of: pdfRegionSelection.revealCount) { _, _ in
+                if let rect = pdfRegionSelection.revealRect { zoom.zoom(toNormalized: rect) }
+            }
             .onChange(of: pageIndex) { _, newIndex in
                 // Primary unpinned pane: keep in step with parent selection.
                 // Secondary or pinned pane: ignore parent changes.
