@@ -79,7 +79,10 @@ backend but isn't surfaced, or isn't tested at every layer, is not done.
   itself round-trips cleanly").
 - `kg.jsonld.import` [MISSING] (#4755) — import JSON-LD back (round-trip), mapping external terms
   onto Fichero's entity/claim model; imported statements are **authority/provenance-
-  tagged** (created_by = the source), never silently merged as first-party.
+  tagged** (created_by = the source), never silently merged as first-party. Their provenance
+  reads "imported from <file>", a layer separate from live Wikidata enrichment, and an import is
+  expanded and compacted always and checked against SHACL where a shape is declared (ruled
+  2026-10-04).
 - `kg.jsonld.roundtrip` [MISSING] (#4756) — export → import → export is stable (the invariant
   test). Scope note: `test_jsonld_export_round_trips_to_isomorphic_graph` (cited above) proves
   only the SERIALIZE half of this invariant — reparsing Fichero's own JSON-LD reconstructs
@@ -221,12 +224,12 @@ graph.
 - **`@context`: selectable too** — offer schema.org / Linked Art / CIDOC-CRM as selectable
   export mappings (not a single hard-coded one), same spirit as the sources.
 
-**Still open:**
-- Validation strength: JSON-LD expand/compact only, or also SHACL shapes (and who authors
-  the shapes)? *(Recommend: expand/compact always; SHACL where a shape is declared.)*
-- Does JSON-LD import create a separate "imported" provenance layer distinct from Wikidata-
-  enrichment claims? *(Recommend: yes — import provenance = the file/source, distinct from
-  live-authority enrichment.)*
+**Ruled (maintainer, 2026-10-04):**
+- **JSON-LD import has its own provenance.** Imported statements carry an "imported from
+  <file>" provenance, separate from live Wikidata enrichment (`kg.jsonld.import`).
+- **Validation:** expand/compact always; SHACL where a shape is declared.
+
+**Still open:** none (both former questions are answered above).
 
 Ties: #4641 (authority/Web of Data), #4640 (exporter — add JSON-LD beside JSONL), #4636
 (provenance for enriched/imported values), #4624 (KG tables surface the affordances),

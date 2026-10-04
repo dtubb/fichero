@@ -250,6 +250,25 @@ one catalogue, one gate that decides whether content may leave.
   reached through `POST /api/documents/{id}/readings/compare`). A score is called *CER* only when
   a person checked the reference; otherwise it is *agreement*.
 
+### Ruled 2026-10-04 (maintainer, #5458)
+
+1. **Fichero's own engine first.** On a cluster, Fichero runs its own headless engine (the server
+   image as an Apptainer file), with the recipe's work package submitted through Slurm. Blackfish
+   is just another endpoint: a model server it starts can be named like any other, and Fichero
+   neither depends on it nor wraps it.
+2. **How images travel, in order of preference:** where the source is IIIF, the cluster
+   prefetches the pages from the IIIF image service; otherwise as Parquet shards (the
+   Hugging Face datasets layout); otherwise as WebDataset tar shards
+   (`compute.package.images-travel-iiif-then-parquet-then-webdataset`).
+3. **A recipe on the cluster is a chain of Slurm jobs,** one job per recipe step, each depending
+   on the one before, and each a row in Activity (`compute.job.recipe-is-a-slurm-chain`).
+4. **In a session the project stays on the Mac.** The cluster works only on the packages it is
+   sent and returns results; no project lives on the cluster
+   (`compute.session.project-stays-on-the-mac`).
+5. **Own projects, own allocation.** Fichero runs only the person's own projects on their own
+   allocation. Anyone else sets up their own (the docs say how); Fichero never serves other
+   people from one person's allocation (`compute.job.own-projects-own-allocation`).
+
 Everything else in this set is **PROPOSED** until ruled.
 
 ### The design on one page (proposed)
@@ -598,8 +617,8 @@ kept below, marked, so the record stays whole.*
    the public half into the cluster's account page once. *Proposal: yes, because a sandboxed
    app very likely cannot use the person's own keys, and because a cluster's automation path
    demands a dedicated restricted key anyway. Needs a short trial first.*
-6. **Blackfish.** *Proposal: learn from its design, do not depend on it or wrap it. Close #31
-   with that finding. Reasons in `jobs-and-fine-tuning.md`.*
+6. **Blackfish.** *Answered 2026-10-04 (#5458): Fichero's own headless engine comes first;
+   Blackfish is just another endpoint, neither depended on nor wrapped. See the rulings above.*
 7. **One inference engine for each kind of work.** *Proposal: on the Mac, MLX as today. On Linux
    with a GPU, vLLM: inside the job for batch work, as a session for watched work. Kraken and
    layout models load directly in the job's own process. Fine-tuning is always a job.*

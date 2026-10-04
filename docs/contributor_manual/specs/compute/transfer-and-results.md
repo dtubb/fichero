@@ -283,6 +283,11 @@ All [GAP]: designed, not built.
   with "this step needs your *provider* key, which never leaves this Mac". *Test:* a workflow
   with an OpenRouter step is refused before packaging; a scan of a built package for the
   seeded test keys finds none.
+- `compute.package.images-travel-iiif-then-parquet-then-webdataset` — **[GAP]** (#5458) a
+  package's page images travel by the first way that fits: where the source is IIIF, the cluster
+  prefetches the pages from the image service and the package holds only the references; else
+  Parquet shards in the Hugging Face datasets layout; else WebDataset tar shards. (Ruled
+  2026-10-04.)
 
 ### Transfer
 

@@ -1135,6 +1135,13 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
 To be filled at approval. The hard gate will be: the same segment gives the same id, shape,
 image and picture from the engine, MCP, the command line and the app.
 
+## Rulings
+
+- **2026-10-04 (#5395):** Apple Vision's word boxes are kept (they are worth showing later), and the
+  word pass keeps running, but they are stored compactly: one packed row per line holding that line's
+  words with integer coordinates, not one row per word (about 2 MB a photo is too much). See
+  `source.words.packed-per-line`.
+
 ## Open questions
 
 Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
@@ -1159,3 +1166,4 @@ picture to the shape.
 - `source.segment.reference-opens-on-every-device` **[GAP]** (#5164): a fichero:segment link opens its page with the segment selected on iOS as on the Mac, and a link that cannot be resolved says why instead of only beeping. (Links section 13494cbb7 and the macOS handler e041b2882 landed; `source.link.any-depth` and `source.form.label-and-answer` stay owed.)
 - `source.segment.carry-from-the-review` **[GAP]** (#5165): after accepting a proposed match in the Segments pane, the person can carry its readings and marks across from the same list, and the head's count updates as soon as a match is reviewed. (Review itself landed in fca401334.)
 - `source.tool.run-on-selection` **[GAP]** (#5230): one Run on Selection… (Segment menu, right-click, the Inspector for one segment) runs a segment-scoped tool on just the selected lines, words or regions: transcribe (VLM, Kraken, Apple Vision) writes a machine reading on each, word segmentation and line detection write child segments under each. One ⌘Z per run, a pre-run estimate for the selection, and never over a person's reading.
+- `source.words.packed-per-line` **[GAP]** (#5395): Apple Vision's word boxes are kept and the word pass keeps running, but a line's words are stored as one packed row per line with integer coordinates, not one row per word, so a photo's words no longer cost about 2 MB; the words still read back with their boxes for showing later. (Ruled 2026-10-04.)

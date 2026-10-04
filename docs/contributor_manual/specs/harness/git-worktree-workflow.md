@@ -119,6 +119,13 @@ code path — nothing in the repo tree can prove or disprove them.
   `::test_allowlisted_merged_lane_is_not_flagged`,
   `::test_stale_allowlist_entry_fails`,
   `::test_never_calls_a_mutating_git_command`.
+- `git.abandoned-worktree-flagged` — **[GAP]** (#4813, the same worktree-rot class) a guardrail
+  flags a lane worktree that is `ahead:0` of its base and abandoned, the unmerged twin of
+  `git.cleanup-merged-worktrees`; read-only, with the same shrink-only allowlist and reasons.
+  (Ruled 2026-10-04, design lead.)
+- `git.canonical-checkout-clean` — **[GAP]** (#4813) the canonical checkout (`~/code/fichero`) is
+  a clean `main` mirror and venv host only: it holds no uncommitted work, and all work happens in
+  worktrees. (Ruled 2026-10-04, design lead.)
 - `git.updated-via-github` — **[CONVENTION]** "what's next" comes from milestones/ROADMAP,
   not a shared branch. Describes where a human/agent looks for work — not a code path.
   Challenged: no artifact in the repo records WHERE an agent looked for its next task, so
@@ -166,7 +173,12 @@ ceiling behavior.
 into it, it gates, then it merges to `main`, and it persists (its worktree
 `~/code/fichero-worktrees/integration` is not torn down per batch).
 
-Still open:
-1. Should the canonical checkout (`~/code/fichero`) ever hold uncommitted work, or stay a clean
-   `main` mirror + venv host only? (Lean: clean mirror — all work happens in worktrees.)
-2. Worth a guardrail asserting no lane worktree is `ahead:0` and abandoned (auto-flag rot)?
+**Ruled 2026-10-04 (design lead, applying the spec's own lean):** the canonical checkout stays a
+clean `main` mirror and venv host; all work happens in worktrees (`git.canonical-checkout-clean`).
+Yes to a guardrail that flags an `ahead:0`, abandoned lane worktree (`git.abandoned-worktree-flagged`).
+
+Still open: none.
+1. ~~Should the canonical checkout (`~/code/fichero`) ever hold uncommitted work, or stay a clean
+   `main` mirror + venv host only?~~ **Answered 2026-10-04:** clean mirror.
+2. ~~Worth a guardrail asserting no lane worktree is `ahead:0` and abandoned?~~ **Answered
+   2026-10-04:** yes, owed as a [GAP].

@@ -20,8 +20,7 @@
 > results; #5038 declares scikit-learn); every other [GAP] cites the epic, #5032, or #5030 for
 > the map by meaning, until its slice is cut.
 > What the maintainer has ruled is marked RULED. Everything else is PROPOSED until ruled; the
-> open decisions are collected in `agent-work/dh-layer/questions-for-the-maintainer.md` and
-> summarised at the foot of each file.
+> open decisions are listed at the foot of each file.
 
 ## Intent (the design)
 
@@ -117,7 +116,7 @@ background-work throttle.
 The brief says "a saved query plus a recipe". The word **recipe** is already ruled in the source
 model to mean a shareable file that makes a WORKFLOW. This set says **method and settings**
 instead, so one word keeps one meaning. If "recipe" is preferred here too, that is a naming
-ruling (see the questions file).
+ruling (see Open questions below).
 
 Words taken from the source-model set and used the same way: **project**, **source**,
 **segment**, **reading**, **pass**, **campaign**, **Source view**. Until that set lands, "the
@@ -315,10 +314,10 @@ Engine before app. Each slice names what it needs that is not built.
 | 3 | **Group my search results** | the results list in headed groups with labels | cluster-and-label for a set (scikit-learn, declared). No map |
 | 4 | **Map by meaning, search results** | a new "Meaning" view mode: the results as points, like by like, coloured by group or by which search leg found it | one projection method; one new native view mode drawing all points on one surface; slice 3's groups as the colour |
 | 5 | **Timeline of claims and entries** | the knowledge graph's timeline as a Library view mode for claims and entities, with uncertain dates drawn honestly and binned when large | promote `KGTimelineView`; lift the 500 cap by aggregating |
-| 6 | **Place map** | the same for places, with uncertainty radius; then journeys over time | promote `KGMapView`; basemap ruling (open; see the questions file) |
+| 6 | **Place map** | the same for places, with uncertainty radius; then journeys over time | promote `KGMapView`; basemap ruling (open; see Open questions below) |
 | 7 | **People network with a time slider** | a person's or a folder's network "as of", with confidence and asserter controls | an "as of" argument on the engine graph routes; truthful provenance (#4868, #4869) |
 | 8 | **Storylines for a diary year**, then arcs | who is with whom, through the year | co-presence from dated claims; a native storyline drawing |
-| 9 | **Saved views, compare, publish** | keep, re-run, compare two methods, publish to the static site | the saved-view record (open; see the questions file); the HTML drawing of the data contract |
+| 9 | **Saved views, compare, publish** | keep, re-run, compare two methods, publish to the static site | the saved-view record (RULED 2026-10-04, #5063: it stores the question and re-runs on open); the HTML drawing of the data contract |
 | 10 | **Whole project, odd ones out, near-duplicates, topics over time** | the larger and rarer uses | cached background layouts; measuring the native drawing against an HTML (WebGL) view mode |
 | 11 | **Counts, flows, word use across the corpus; hands and certainty** | the distant-reading and hermeneutic views | tables from sources (#5026); the source model (milestone 322) |
 
@@ -360,10 +359,17 @@ screenshotted without a running engine. Identifiers follow `explore.<view>.mark.
 building, and are [MISSING] until then. Every chart needs a non-visual equivalent: the table of
 the same marks is that equivalent, and is always one step away.
 
+## Rulings
+
+- **2026-10-04 (#5063):** a saved view stores the question (the method, its parameters, the
+  selection and the "as of") and re-runs on open, showing any difference since it was kept
+  (`experiments-and-sharing.md`, `explore.saved.re-run-says-what-changed`). With this, all five
+  of the set's blocking questions are answered: where it lives, how it is drawn and no hosted
+  service (2026-09-20), linking Library panes (colour link chips, 2026-10-04, #4881,
+  `ui/panes-workspaces.md`), and the saved view.
+
 ## Open questions for the creative director
 
-Full text, defaults and reasons: `agent-work/dh-layer/questions-for-the-maintainer.md`.
 RULED 2026-09-20: where it lives; drawing decided per kind; no hosted service for
-visualisation. For a DESIGN SESSION: linking Library panes. Still open, not blocking: whether a
-saved view is a saved search that remembers its view; the place map's ground (Apple's map tiles
-come from Apple).
+visualisation. RULED 2026-10-04: linking Library panes (#4881) and the saved view (#5063); see
+Rulings. Still open, not blocking: the place map's ground (Apple's map tiles come from Apple).

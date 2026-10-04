@@ -37,6 +37,9 @@ from the dependency manifests, kept distinct from the scholarly entries.
 - `cite.docs-resolve` [MISSING, hard] (#4655) — every citation key used in `docs/user_manual/**` and
   `docs/contributor_manual/**` resolves to a `.bib` entry; an orphan citation fails the gate
   (`scripts/check_doc_citations.py`). Mirrors how `check_specs_have_tests` binds specs to tests.
+  A citation is written in Pandoc's `[@key]` syntax (ruled 2026-10-04).
+- `cite.unused-flagged` [MISSING] (#4655) — the same guardrail also flags a `.bib` entry no doc
+  cites (a dead reference). (Ruled 2026-10-04.)
 - `cite.human-readable` [MISSING] (#4656) — a doc renders its References as author/title/year/URL a person
   can read, generated from the `.bib` — the key is the source, the rendering is derived.
 - `cite.code-deps` [MISSING] (#4658) — code/library dependencies (from `pyproject.toml` / SwiftPM) are
@@ -62,14 +65,22 @@ from the dependency manifests, kept distinct from the scholarly entries.
 
 Hard-gate: `cite.docs-resolve` (no orphan citations — a claimed source must exist).
 
+## Rulings
+
+- **2026-10-04 (maintainer):** citations in Markdown docs use Pandoc's `[@key]` syntax.
+- **Ruled 2026-10-04 (design lead, applying the spec's own lean):** the guardrail flags unused
+  `.bib` entries as well as orphan citations (`cite.unused-flagged`); code-dependency credits live
+  in a separate generated file built from the manifests, and the `.bib` is for scholarship
+  (`cite.code-deps`); docs come first, and the app's "where this comes from" surface follows later
+  from the export (`cite.exportable`).
+
 ## Open questions for the creative director
-1. Citation syntax in Markdown docs — Pandoc-style `[@key]`, or a plainer `{{cite:key}}`?
-   (Pandoc `[@key]` is the standard and gives free rendering/export via pandoc-citeproc.)
-2. Should the guardrail also flag UNUSED `.bib` entries (dead references), or only orphans?
-3. Do code-dependency credits live in the same `.bib` (as `@software` entries) or a separate
-   generated file? (Lean: separate generated file from manifests; `.bib` is for scholarship.)
-4. Is the app's "where this comes from" surface in scope now, or docs-only first? (Lean: docs
-   first; the export makes the app surface cheap later.)
+None outstanding: all four are answered (see Rulings).
+1. ~~Citation syntax in Markdown docs~~ — Pandoc `[@key]` (maintainer, 2026-10-04).
+2. ~~Flag UNUSED `.bib` entries too?~~ — yes (design lead, 2026-10-04).
+3. ~~Code-dependency credits in the `.bib` or a separate file?~~ — a separate generated file
+   (design lead, 2026-10-04).
+4. ~~The app's surface now, or docs first?~~ — docs first (design lead, 2026-10-04).
 
 ## Triaged from the backlog (2026-10-04)
 - `cite.generated-client-transport` — **[GAP]** (#3254) bibliography, reference and render-citation calls go through the generated OpenAPI client with typed returns; EntityService+Bibliography.swift still uses untyped `endpointData` Data (citationUsages already migrated, EntityService.swift:116).

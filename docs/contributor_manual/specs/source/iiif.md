@@ -5,7 +5,9 @@
 > library's IIIF manifest without copying it, what stays remote and what is cached, and a section
 > in "Sharing" that explains publishing a library as IIIF for other viewers and researchers.
 >
-> Design-led (Testing Constitution). **Status: DRAFT.** A slice of the source model: read
+> Design-led (Testing Constitution). **Status: DRAFT** (approved by the maintainer 2026-10-04,
+> #5323; APPROVED status waits on the manual section, the Test matrix and a citing test; see
+> Rulings). A slice of the source model: read
 > `source-model.md` first. It homes the IIIF work that `importer.md` and #5120 recorded as
 > homeless. Formats-level reading and writing (the georeference extension, W3C annotation
 > shapes) stays in `formats-and-training.md` and `maps-and-georeference.md`; this slice owns how
@@ -220,7 +222,10 @@ In:
   **Not built:** a remote collection walked by reference, and 2.x (`sequences`) manifests in the
   folder importer.
 - `iiif.view.fetches-what-is-shown` — **[GAP]** (#5324) a remote page is drawn from region and size
-  requests for what is on screen, through a bounded cache; no file path is ever involved.
+  requests for what is on screen, through a bounded cache; no file path is ever involved. The
+  cache's bound is a share of free disk with a floor; a model run's full image is kept while the
+  source is in use and evicted with the cache; remote images are never proxied to other viewers;
+  local and remote pages answer one storage call (ruled 2026-10-04, #5323).
 - `iiif.coords.canvas-space` — **[PARTIAL]** (#5324) *Built (b6fd6a8bb): a remote run's lines are scaled from the fetched size to the canvas on landing; pinned by `fichero-server/tests/unit/remote_read/test_read_at_scale_job.py` and `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. Not built: segments drawn in the app on a remote page.* segments on a remote page are stored in canvas
   coordinates and stay put whatever resolution was fetched.
 - `iiif.run.records-pixels-seen` — **[PARTIAL]** (#5324) *Built for remote runs: the runner names the exact Image API request and the size it read as the PAGE file's `imageFilename`/`imageWidth`/`imageHeight`, and that file is what landing keeps as the pass's evidence (`import_original`); pinned by `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. Not built: a run on this Mac reading a remote page.* a model run on a remote page fetches what it
@@ -278,7 +283,20 @@ To be filled at approval. The round trip is tested per path (export, then import
 library and into the one it came from), against real manifests from at least two institutions
 (one 2.1, one 3.0) and one with authorization.
 
+## Rulings
+
+- **2026-10-04 (#5323): the spec is approved by the maintainer with its four recommendations.**
+  (1) The cache is a share of free disk with a floor, not a fixed cap. (2) A model run keeps the
+  full image of a remote page while the source is in use, evicted with the cache. (3) Remote
+  images are not proxied for viewers of a shared library; the manifest points at the original.
+  (4) One storage call answers for local and remote pages (pixels for a page, a region and a
+  size), and its shape is designed before `iiif.import.by-reference` is built. Status stays
+  DRAFT: approved by the maintainer 2026-10-04; APPROVED status waits on a `Manual:` section (it
+  reads TBD), a filled Test matrix and a test that cites this spec.
+
 ## Open questions
+
+All four answered 2026-10-04 by taking each recommendation; see Rulings. Kept for the reasoning.
 
 1. **Cache size.** A fixed cap (for example 2 GB) with least-recently-used eviction, or a share
    of free disk? Recommendation: a share of free disk with a floor, because the Air showed how

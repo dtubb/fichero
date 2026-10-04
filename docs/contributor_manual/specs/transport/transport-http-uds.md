@@ -93,13 +93,21 @@ Hard-gate: `transport.same-result` (the cross-transport invariant) + `transport.
    `test-target-needs-mainactor-default-isolation`) enough to unblock #4511, or does #4511 need
    its own re-verification first? (Tracked; not this pass.)
 
+## Rulings
+
+- **2026-10-04 (maintainer, #3278): Substrate C.** iPhone and iPad are thin remote clients plus a
+  Swift-native local layer limited to a cache, the capture outbox and on-device Apple frameworks;
+  that layer is never a second source of truth (`transport.ios-is-a-thin-remote-client`). A full
+  Python engine on iPad is rejected. The slim embedded engine (#2865) stays parked as research
+  (with #2579 and #3291 below).
+
 ## Future (ideas, not scheduled)
 - (#4180) Device connect by PIN or QR on the same network and a shareable login link for others; builds on pairing design and multiuser accounts.
 - (#2579) Spike: build missing iOS wheels (lancedb via mobile-forge) for an in-process engine; parked substrate-B research, not scheduled (see #3291).
 - (#3291) Time-boxed unscheduled spike: in-process CPython (PEP 730) engine-slim on iOS with go/no-go gate; parked substrate-B.
 
 ## Triaged from the backlog (2026-10-04)
-- `transport.ios-is-a-thin-remote-client` — **[GAP]** (#3278) iPhone/iPad dials a remote engine over HTTPS only and never embeds the Python engine; any local layer is cache, outbox and on-device Apple frameworks, never a second source of truth.
+- `transport.ios-is-a-thin-remote-client` — **[GAP]** (#3278) iPhone/iPad dials a remote engine over HTTPS only and never embeds the Python engine; any local layer is cache, outbox and on-device Apple frameworks, never a second source of truth. (Substrate C, ruled 2026-10-04; a full Python engine on iPad is rejected.)
 - `transport.platform-capability-probe` — **[GAP]** (#3279) one engine capability probe (supports_external_bookmarks, supports_apple_vision_pyobjc, supports_python_mlx_runtime, supports_vector_store) lets mobile clients discover unsupported features by a typed error, not a 500.
 - `transport.ios-outbox-never-drops` — **[GAP]** (#3281) each iOS capture carries its target library and host, retries until acked with engine-side content-hash dedupe, survives termination, and surfaces failure with a retry affordance.
 - `transport.ios-import-is-copy-only` — **[GAP]** (#3282) iOS ingest offers upload/copy only, never LINK; the engine rejects LINK from a mobile client with a typed error.

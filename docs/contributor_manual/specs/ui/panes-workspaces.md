@@ -572,6 +572,11 @@ the browse→read flow down the centre.
   ONLY that pane…") + `WorkspaceSystemBoundaryTests.
   testAppliedWorkspaceSplitIsWiredThroughThePaneListModel` (un-skipped 2026-09-18 — it now finds
   a real caller of `splittingLeaf(` outside the model's own file).
+- `panes.split.opens-the-complement` — **[GAP]** (#4977) a split opens the pane that complements
+  the one split, not a copy of it, following the Library → Preview → Reader chain (a Library opens
+  a Preview, and so on), except Preview itself, which splits to a second Preview (for comparing
+  two pages). A new split pane joins its parent's link group
+  (`panes.link.colour-chip`). (Ruled 2026-10-04.) Today `splittingLeaf` duplicates the leaf's kind.
 - `panes.close.this-pane-only` — **[OK]** (applied path always live 2026-09-16, dfa937946) closing a
   pane removes only that pane; its siblings survive and a split that loses a child collapses to the
   survivor, not the whole row. The VIEW now always renders the stored `PaneList` (seed = Read), so the
@@ -1061,6 +1066,11 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   too: its point and its zoom in one pane show the same page spot in the other pane's magnifier
   strip. Each pane keeps its own strip placement (at the side or the bottom, following the line's
   direction, #5411). The instrument itself stays owned by `preview-magnifier.md`.
+- `panes.link.colour-chip` — **[GAP]** (#4881) linking is explicit, by colour: each pane head
+  carries a small link chip showing its group's colour (or none), and choosing a colour from it
+  puts the pane in that group; panes with the same colour follow each other. A new split joins
+  its parent's group. The chip is the head's one link control; Link… / Unlink in the pane menu
+  set the same group. (Ruled 2026-10-04.)
 
 **Plan (each slice one reviewable commit with its tests):**
 
@@ -1311,9 +1321,18 @@ Transcribe·Tall is three-long).
 | 3 | 3 | **Transcribe** | `V[ H[ preview(image) · reading ] · library(icons strip) ]` | transcriber | **[OK]** |
 | 4 | 4 | **Transcribe · Tall** | `V[ H[ preview(image) · preview(words) · reading/editor ] · library(icons strip) ]` (three-long over strip) | width-sensitive scripts | **[OK]** |
 | 5 | 5 | **Compare** | `V[ H[ preview(image)@A · preview(image)@B · reading ] · library(icons strip) ]` | collation | **[OK]** |
+| 6 | 6 | **Library** | `[ library ]` alone | browsing a project | **[GAP]** (#4969) |
+| 7 | 7 | **Preview** | `[ preview(image) ]` alone | looking at one page | **[GAP]** (#4969) |
+| 8 | 8 | **Two Previews** | `H[ preview(image) · preview(image) ]` side by side | comparing two pages | **[GAP]** (#4969) |
+| 9 | 9 | **Library + Reader** | `H[ library · reading ]` | reading through a project | **[GAP]** (#4969) |
 
-The removed Catalog / Knowledge / Everything workspaces (former #7–9) are **not built**; ⌘⌥6–9 are
-free for user-saved workspaces (the slot→workspace map). Their compositions above are retained only as
+- `panes.builtin.nine-defaults` — **[GAP]** (#4969) four more built-in workspaces follow the five
+  above, in this order: Library only, Preview only, Two Previews side by side, and Library +
+  Reader, on ⌘⌥6–9. The pane icons stay as they are (#5027). (Ruled 2026-10-04.)
+
+The removed Catalog / Knowledge / Everything workspaces (former #7–9) are **not built**. ⌘⌥6–9,
+formerly free for user-saved workspaces (the slot→workspace map), go to the four defaults above
+(ruled 2026-10-04, #4969). Their compositions above are retained only as
 design history for when the cataloguer / KG-research personas return.
 
 Grounded in the surface inventory (2026-09-15): `preview(words)` = the preview pane with the OCR
@@ -1476,7 +1495,22 @@ workspaces store a `PaneList`, the window is *always* a `PaneList`, the Bool-vis
   that follow its selection) shares one tint; unlinked/independent panes stay neutral. Needs a design
   pass: how tints are assigned (per column? per scope link?), how quiet they stay (Golden-Gate
   restraint — a wash, not a highlight), and dark-mode behavior. Captured from the CD's Xcode
-  theme-picker reference.
+  theme-picker reference. (Designed by the 2026-10-04 ruling on #4881: `panes.link.colour-chip`.)
+
+## Rulings
+
+- **2026-10-04 (#4977):** a split opens the complementary pane (a Library opens a Preview, and on
+  along the Library → Preview → Reader chain), except a Preview, which splits to another Preview
+  (`panes.split.opens-the-complement`).
+- **2026-10-04 (#4969):** four default workspaces are added after the existing five (Read, Browse,
+  Transcribe, Transcribe Horizontal, Compare): Library only, Preview only, Two Previews side by
+  side, and Library + Reader, on ⌘⌥6–9; the pane icons stay (#5027) (`panes.builtin.nine-defaults`).
+- **2026-10-04 (#4881):** pane linking is explicit, by colour chips on the pane heads; panes with
+  the same colour follow each other, and a new split joins its parent's group
+  (`panes.link.colour-chip`).
+- **2026-10-04 (#4886):** any Entities pane drives the Claims pane directly below it; with no entity
+  selected, the Claims pane shows every claim in its scope. Owned by `kg/kg-tables.md`
+  (`kg.tables.entities-master-claims-detail`).
 
 ## Open questions (for the design lead)
 

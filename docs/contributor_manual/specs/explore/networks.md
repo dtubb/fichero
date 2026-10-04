@@ -140,4 +140,4 @@ aggregates, the machine stays useful).
 
 ## Open questions for the creative director
 
-Not blocking: the default rule for a network's edges. Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.
+Not blocking: the default rule for a network's edges.

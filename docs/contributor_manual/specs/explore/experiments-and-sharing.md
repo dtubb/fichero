@@ -93,10 +93,13 @@ Keeping, comparing
   renamed labels and any pinned positions. It never stores the picture as the truth.
 - `explore.saved.is-a-node` — **[GAP]** (#5032) a saved view is a node in the sidebar beside
   saved searches (nodes, not modes): selecting it shows that set in that view in the Library
-  pane. PROPOSED: it is a saved search that also remembers its view (open; see the questions file).
-- `explore.saved.re-run-says-what-changed` — **[GAP]** (#5032) opening a saved view runs it
-  again on the project as it is now, and says what is different since it was kept (items added,
-  claims changed, vectors remade).
+  pane. RULED 2026-10-04 (#5063): a saved view stores the question, not the answer: the method,
+  its parameters, the selection and the "as of", and it re-runs when opened
+  (`explore.saved.re-run-says-what-changed`).
+- `explore.saved.re-run-says-what-changed` — **[GAP]** (#5032, #5063) opening a saved view runs its
+  stored question (method, parameters, selection, as of) again on the project as it is now, and
+  shows any difference since it was kept (items added, claims changed, vectors remade). (Ruled
+  2026-10-04.)
 - `explore.saved.results-are-worked-out-things` — **[GAP]** (#5032) a kept result may be cached
   so it opens quickly, but the cache can always be deleted and remade, is never synced as
   research data, and is removed by a purge of what it was made from
@@ -104,7 +107,8 @@ Keeping, comparing
 - `explore.saved.compare-two` — **[GAP]** (#5032) two experiments on the same set (two methods,
   two settings, two dates) open side by side in two panes with the same selection, so that the
   same items can be found in both. No new comparison surface. Two panes side by side work
-  today; the SHARED selection is BLOCKED on the pane-linking design session (→ #4881).
+  today; the SHARED selection follows the pane-linking ruling of 2026-10-04 (colour link chips,
+  `ui/panes-workspaces.md` `panes.link.colour-chip`, #4881).
 - `explore.saved.shareable-as-a-file` — **[GAP]** (#5032) a saved view can be exported and
   imported as a small readable file (its description only, no research data), so a colleague
   with the same kind of project can run it. This follows the ruling that recipes are files.
@@ -190,7 +194,12 @@ method and export, same result as the app: the set's hard gate); pure Swift (the
 round-trips); click-around (try, discard, nothing remains; keep, reopen, same picture); load
 (heavy experiments queue and yield).
 
+## Rulings
+
+- **2026-10-04 (#5063):** a saved view stores the question (the method, its parameters, the
+  selection and the "as of") and re-runs it on open, showing any difference since it was kept.
+  This answers "is a saved view a saved search that remembers its view".
+
 ## Open questions for the creative director
 
-Still open, not blocking: whether a saved view is a saved search that remembers its view; the
-word "recipe"; the vocabulary of care (whose job, and when). Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.
+Still open, not blocking: the word "recipe"; the vocabulary of care (whose job, and when).

@@ -1376,8 +1376,10 @@ Jobs and chains
 - `source.job.tie-text-to-lines` — **[GAP]** (#5444) a page's reading is tied to its lines for free, on
   this Mac: Kraken finds the lines, a Kraken reader reads each roughly, and the page's best reading is
   aligned to them in order by the characters they share (a monotonic alignment; no line takes text
-  from beyond its neighbours'). Each line gets the stretch of the page reading it matches; a line, or a
-  stretch of text, that does not align above a set score is left untied and counted, never forced. The
+  from beyond its neighbours'). Each line gets the stretch of the page reading it matches, automatically,
+  wherever the alignment scores above the match threshold (ruled 2026-10-04); a line whose alignment
+  is doubtful is flagged for review and counted, and stays out of the training set until a person
+  checks it. The
   new pass names Kraken for the shapes and the page reading's model for the text. The page's best
   reading is, in order: a person's checked reading, a checked model reading, then the newest model page
   reading. After alignment the line's counting reading is its aligned stretch; an earlier machine
@@ -1980,6 +1982,15 @@ To be filled at approval. The legs this slice will need, so the gap is visible:
 | Click-around (Mac) | setup's six screens on a fixture folder, each explaining itself; Start enqueues the automatic steps in Activity; the Inspector shows and edits the recipe; Try Another Option on two pages, then Use This for a folder |
 | Named-machine | the flagship measured on real Spanish pages; the Cherokee journey on real syllabary scans |
 
+## Rulings
+
+- **2026-10-04 (#5444, refines #5217):** in a recipe, a page's text is tied to its lines
+  automatically wherever the alignment scores above a match threshold. A line whose alignment is
+  doubtful is still given its best stretch, but it is flagged for review and stays out of the
+  training set until a person checks it. This refines #5217's rule (run by itself only where the
+  match is known to be perfect) for the recipe step; the hand-run Align Text to Lines tool keeps its
+  confirm-the-pass flow.
+
 ## Open questions (with recommendations)
 
 Ruled 2026-10-01 (former questions 1-4):
@@ -2072,4 +2083,4 @@ comparison of line-by-line against whole-page reading by vision-language models;
 Hugging Face revisions in the example exist (they are illustrative).
 
 ## Triaged from the backlog (2026-10-04)
-- `source.segments.align-page-text-to-lines` **[GAP]** (#5217): when a page's text belongs to the page and not to its lines, the Segments list says so ('text on the page, not aligned to lines') and offers one Align Text to Lines tool, as a dialog or a tool option, whose result is a pass the person confirms. It runs by itself only where the match is known to be perfect, such as a reliable import. (Ruled 2026-10-01; tension with `source.job.tie-text-to-lines`, which aligns automatically.)
+- `source.segments.align-page-text-to-lines` **[GAP]** (#5217): when a page's text belongs to the page and not to its lines, the Segments list says so ('text on the page, not aligned to lines') and offers one Align Text to Lines tool, as a dialog or a tool option, whose result is a pass the person confirms. Run by hand, it runs by itself only where the match is known to be perfect, such as a reliable import (ruled 2026-10-01). In a recipe the tie is automatic above a match threshold, with doubtful lines flagged for review and kept out of the training set until checked (ruled 2026-10-04, #5444; see `source.job.tie-text-to-lines` and Rulings).

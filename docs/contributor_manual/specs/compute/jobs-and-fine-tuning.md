@@ -121,7 +121,8 @@ Blackfish or loading the models directly. The honest answer differs by kind of w
 | **Fine-tuning a language or vision model** (for example Qwen2.5-VL 3B with LoRA) | runs, quantised, on a 16 GB Mac; small training runs through MLX are a later slice | **`trl` + `peft` as a job**, Hugging Face Jobs first; LoRA by default, QLoRA when memory is short | batch by nature; one 40 GB GPU is enough for 8B |
 | A Linux machine with **no GPU** | | llama.cpp for language models; Kraken on CPU | the honest fallback; the row says "No GPU" |
 
-**Blackfish: learn, do not use, do not wrap.** What it solves, we need: a cache of images and
+**Blackfish: learn, do not use, do not wrap** (ruled 2026-10-04, #5458: Fichero's own headless
+engine comes first, and a server Blackfish starts is just another endpoint). What it solves, we need: a cache of images and
 models on the cluster, submit-then-forward, batch work that resumes. We take those ideas; they
 are in `targets-and-connection.md` and below. We do not depend on it because: it would be a
 second server, a second job runner and a second list of clusters beside ours, which is the
@@ -321,6 +322,12 @@ All [GAP]: designed, not built.
 - `compute.job.everywhere` — **[GAP]** (#5240) jobs can be listed, started, watched and cancelled from the app,
   MCP and the command line, with one exception: only a person in the app can say yes
   (`transfer-and-results.md`). *Test:* cross-surface invariant.
+- `compute.job.recipe-is-a-slurm-chain` — **[GAP]** (#5458) a recipe run on a cluster is a chain
+  of Slurm jobs, one per recipe step, each submitted with a dependency on the step before, and
+  each its own row in Activity. (Ruled 2026-10-04.)
+- `compute.job.own-projects-own-allocation` — **[GAP]** (#5458) Fichero runs only the person's own
+  projects on their own allocation; it never runs work for other people from one person's
+  allocation, and the docs say how someone else sets up their own. (Ruled 2026-10-04.)
 
 ### Engines
 
@@ -550,7 +557,9 @@ needs them.
 ## Open questions
 
 1. **One default engine for each kind of work, as in the table.** *Proposal: agreed.*
-2. **Blackfish: learn, not use.** *Proposal: agreed; close #31 with the finding.*
+2. **Blackfish: learn, not use.** *Answered 2026-10-04 (#5458): Fichero's own headless engine
+   (Apptainer, the recipe package through Slurm) comes first; Blackfish is just another endpoint.
+   See `remote-compute.md`, "Ruled 2026-10-04".*
 3. **Shard size.** *Proposal: 50 sources by default, a setting on the job; to be re-set from a
    measurement on the maintainer's own pages.*
 4. **Base model for the first language or vision fine-tune.** *Answered 2026-10-03: a small

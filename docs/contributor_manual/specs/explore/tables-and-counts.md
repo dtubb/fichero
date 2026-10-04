@@ -150,4 +150,4 @@ computed by the engine, bounded).
 
 ## Open questions for the creative director
 
-Not blocking: how far into distant reading the first version goes. Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.
+Not blocking: how far into distant reading the first version goes.

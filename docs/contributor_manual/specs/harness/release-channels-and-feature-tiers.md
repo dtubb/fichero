@@ -217,10 +217,19 @@ Tags: [OK] built · [PARTIAL] partly built · [MISSING] not built. Nothing below
   spawns. Unchanged, except that the value now comes from the chosen channel.
 - `channel.release-is-a-whole-app` [MISSING] (#5287, #3917) — on the Release channel a person can
   import, transcribe, search and read, and can reach Settings. `features.yaml` is re-graded so
-  that holds. Which features move is a ruling (open question 1).
+  that holds: workflows, providers, activity, batches, the workflow file tools, the Settings
+  General tab and the library and search advanced views move to Release; the knowledge graph,
+  curation and workflow chains stay at Beta (ruled 2026-10-04).
 - `channel.an-empty-surface-names-the-channel` [PARTIAL] (#5287) — a surface that is present but
   empty because of the channel says so and names the channel that has it. The workflow bar's
   interim text is "Workflows are not in this build" (in the working tree, uncommitted).
+- `channel.a-client-hides-what-the-host-does-not-serve` [GAP] (#5299) — an iPhone or a second Mac
+  connected to another Mac's engine asks that engine which features it serves and hides the
+  rest, even when its own channel is less stable; it never shows a surface that then reports a
+  404. (Ruled 2026-10-04, open question 7.)
+- `channel.feature-switches-are-internal` [GAP] (#5299) — the per-feature switches
+  (`resetToV001`, `fichero.features.*`) stay as an internal gate with no UI; the chosen channel
+  sets their defaults. (Ruled 2026-10-04, open question 8.)
 
 ### What a channel receives
 
@@ -247,7 +256,11 @@ Tags: [OK] built · [PARTIAL] partly built · [MISSING] not built. Nothing below
 
 - `channel.app-store-has-no-channel` [MISSING] (#5121) — the Mac App Store build links no Sparkle,
   shows no Software Update section and no channel popup, and ignores a stored channel. Its
-  features are its baked tier. Apple delivers its updates; TestFlight is its beta.
+  features are its baked tier (Release, fixed; ruled 2026-10-04). Apple delivers its updates;
+  TestFlight is its beta.
+- `channel.app-store-target-builds` [GAP] (#4988, #5068) — the Mac App Store target is back in
+  the project: the `Fichero (App Store)` scheme builds, and `check_mac_app_store_target` and the
+  App Store entitlements guardrails stay and pass. (Ruled 2026-10-04; answers #4912.)
 - `channel.ios-is-baked` [PARTIAL] (#5287) — iPhone and iPad builds have no updater and no popup.
   Their tier is the one baked at archive time.
 
@@ -331,6 +344,9 @@ updater running.
 
 ## Open questions for the creative director
 
+All eight answered by the maintainer 2026-10-04 (#5299): each takes the recommendation written
+below; 7 and 8 now have answers of their own. See Rulings. Kept for the reasoning.
+
 1. **What is in Release?** Recommended: move workflows, providers, activity, batches, the
    workflow file tools, the Settings General tab and the library and search advanced views to
    release; leave the knowledge graph, curation and workflow chains at beta. (#3917 is this
@@ -357,9 +373,23 @@ updater running.
   product. The builds handed out today are alpha, and testing is on the Dev build.
 - 2026-09-30 — Direction: one release with the channel chosen in Settings, rather than a build
   per tier. To be designed in this spec before anything is built.
+- 2026-10-04 (maintainer, #5299) — The eight open questions take the recommended answers: (1)
+  workflows, providers, activity, batches, the workflow file tools, the Settings General tab and
+  the library and search advanced views move to Release; the knowledge graph, curation and
+  workflow chains stay at Beta; (2) the public download defaults to Alpha until the first build
+  is called a release; (3) all four channels are offered to everyone; (4) a channel change is
+  never forced to relaunch: it applies at the next launch, with Relaunch Now; (5) one popup sets
+  both features and updates; (6) the App Store build is Release, fixed, and TestFlight stays at
+  the tier baked at archive, with no switch; (7) a client on a less stable channel connected to a
+  host's engine asks that engine what it serves and hides what it does not, so no surface shows
+  a 404 (`channel.a-client-hides-what-the-host-does-not-serve`); (8) the per-feature switches
+  (`resetToV001`, `fichero.features.*`) stay as an internal gate with no UI, and the channel sets
+  their defaults (`channel.feature-switches-are-internal`).
+- 2026-10-04 (maintainer, #4912, #4988, #5068) — The Mac App Store target is restored: the
+  `Fichero (App Store)` scheme builds again and its guardrails (`check_mac_app_store_target`)
+  stay. This answers #4912's former Future item (`channel.app-store-target-builds`).
 
 ## Future (ideas, not scheduled)
 - (#256) Promote approved AI surfaces to release once the AI acceptance gate passes; a release-tier decision, not current work.
 - (#1873) Fichero+ subscription screen, StoreKit 2, only if ever monetized; revisit post-1.0
 - (#1160) visionOS and iPad annotation clients; vision, no target exists
-- (#4912) Whether a Mac App Store target is still wanted (project.pbxproj has none; check_mac_app_store_target fails); a product-scope decision for the maintainer.

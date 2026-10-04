@@ -15,9 +15,10 @@
 Everything the model can hold can be seen and edited on the page. The editor lives in the
 **Source view** (the pane the app has called the Preview; the maintainer has decided on the
 new name, and the rename is not this spec's to carry through the app), on the image. **Shapes
-are edited in the Source view; readings are typed in the Reader; the Inspector never types a
-reading or draws a shape, and offers verbs on the selection** (reorder, Join, set language or
-hand, attribute; ruled 2026-09-27, `build-notes-inspector.md`). That is the split, and it is what keeps three surfaces three. It is **native SwiftUI** (ruled), so one editor
+are drawn in the Preview (Source view); readings are typed in the Reader; the Inspector shows
+the selection and may run the same audited verbs as the Preview, through the one code path,
+never a second implementation** (reorder, Join/Combine, set language or hand, attribute; ruled
+2026-09-27, `build-notes-inspector.md`; restated 2026-10-04, #5115). That is the split, and it is what keeps three surfaces three. It is **native SwiftUI** (ruled), so one editor
 serves the Mac, the iPad and the iPhone, feels like a Mac app, and takes the Apple Pencil.
 
 The three surfaces stay three. The **Source view** shows the image and edits segments. The
@@ -545,9 +546,12 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
   reason was true when written and went stale with last week's work.
 
 The editor
-- `source.editor.segment-focus` — **[PARTIAL]** (#4941; ruled on #5114) the Source view has a
-  segment-editing mode in which the editing tools appear. It can sit beside a Reader, an Inspector,
-  the Library or another Source view.
+- `source.editor.segment-focus` — **[OK]** (#4941; ruled on #5114) the segment focus is the tool bar
+  the Preview already has (its markup row and the Edit Segments switch in What to show); there is
+  no new mode, window or pane. It can sit beside a Reader, an Inspector, the Library or another
+  Source view. **Ruled 2026-10-04 (#5114):** no new mode; retagged from what is built (below). The
+  menu-bar command for the switch is owed under the menu rule (`ui/menus-and-commands.md`), and the
+  drawing verbs not yet built (polygon, baseline, scissors) have their own behaviours.
   **Ruled 2026-09-27 (#5114):** segment editing is a *mode of the Source view*. It is switched on from
   the view's what-to-show menu (**Edit Segments**) like the view's other options, and it is not a
   window or a pane of its own. Off, which is the default, the page is for reading.
@@ -569,7 +573,7 @@ The editor
   `SegmentEditingModeTests.deleteKeyNeverDeletesARegionWhileReading`,
   `SegmentEditingModeTests.aPressOnASelectedBoxMovesItOnlyInTheMode` and
   `SegmentEditingModeTests.aNewWindowOpensForReading`.
-  **Still owed (why PARTIAL):** the mode's scoping beyond the verbs. That covers which surface's
+  **Was owed before the 2026-10-04 ruling (no new mode; kept for the record):** the mode's scoping beyond the verbs. That covers which surface's
   selection the Inspector follows in the mode, and a menu-bar command with a shortcut ("every command
   is in the menu bar"). The drawing verbs that do not exist yet (polygon, baseline, scissors) will
   live inside the mode when they are built. The tests pin decisions; nothing yet drives the view
@@ -918,7 +922,8 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   Syriac). A direction stated on a source comes from the Library's right-click or the Inspector (89bde37b4).
   Matrix on real corpus files:
   `acceptance-2026-09-27.md` § Directions in the Reader. **Still PARTIAL:** columns that advance
-  left to right (Mongolian) cannot be said (#5173); "a direction the platform cannot lay out is
+  left to right (Mongolian) cannot be said yet (#5173; ruled 2026-10-04 to be `ttb-lr`, see
+  `languages-scripts-signs.md` `source.dir.ttb-lr`); "a direction the platform cannot lay out is
   labelled" is not built; not run on the screen.
 - `source.text.bundled-fonts` — **[PARTIAL]** (#5210, subsumes #5206) a letter the system fonts lack is
   drawn by a bundled open font before it becomes ⍰ or ▦. **Built 2026-09-28 (engine half):** the
@@ -1648,7 +1653,16 @@ the click-around leg is still to be filled at approval):
 ## Open questions
 
 Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
-`source-model.md`.
+`source-model.md`. #5114 and #5115 are answered; see Rulings.
+
+## Rulings
+
+- **2026-10-04 (#5114):** the segment focus is the tool bar the Preview already has; there is no
+  new mode. `source.editor.segment-focus` is retagged from what is built.
+- **2026-10-04 (#5115):** the Inspector may run the same audited verbs as the Preview (Combine
+  stays). The rule: shapes are drawn in the Preview, readings are typed in the Reader, and the
+  Inspector shows the selection and may run the same one-path verbs, never a second
+  implementation (`source.editor.shapes-in-source-view`).
 
 ## Triaged from the backlog (2026-10-04)
 - `source.editor.multi-selection-moves-together` **[GAP]** (#5236): with several boxes selected, each shows its marquee without handles, and dragging inside any of them moves the whole set together as one ⌘Z. (Handles only on a single selection landed in 18d1c3b8b.)

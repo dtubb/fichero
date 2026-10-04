@@ -391,6 +391,13 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   `ClaimsLibraryContentEntityScopeWiringTests.testStorePreSeededForAnEntityYieldsThoseClaimsToTheNarrowedScope`,
   `.testAFolderChangeWhileAnEntityIsFocusedStaysEntityScoped`. PARTIAL, not OK: not seen on screen,
   and two windows on one library still share one claim scope (a separately filed defect).
+  **Ruled 2026-10-04 (#4886):** any Entities pane drives the Claims pane directly below it (not
+  only the one Library pair), and with no entity selected the Claims pane shows every claim in its
+  scope. See `kg.tables.any-entities-pane-drives-the-claims-below`.
+- `kg.tables.any-entities-pane-drives-the-claims-below` — **[GAP]** (#4886) every Entities pane
+  drives the Claims pane directly below it in the same column, in any workspace; when no entity
+  is selected that Claims pane shows all claims in its own scope, never an empty list. (Ruled
+  2026-10-04.)
 
 ### E. Provenance + versions (creative-director priority — likely its own cross-cutting spec)
 - `kg.tables.provenance.author-mark` — a claim/entity shows who AUTHORED it: hand-authored

@@ -42,7 +42,9 @@
 - `kg.interact.context-menu-full` — one shared right-click verb set: open · edit · rename ·
   **merge/combine** · bless/reject/retype · **comment** · delete · **export selection…**.
 - `kg.interact.comment` — a human comment/note on a claim or entity (distinct from a claim);
-  authored + dated + provenance-tagged; a review/collaboration affordance.
+  authored + dated + provenance-tagged; a review/collaboration affordance. A comment is its own
+  threaded record, anchored to any node (claim, entity, source, segment), and is never stored as
+  a claim (ruled 2026-10-04).
 - `kg.interact.export-selection` — shift-select rows → export as **JSON-LD** (validated,
   #4641) / JSONL / CSV; the selection is the scope.
 - `kg.interact.keyboard` — ⌘⌫ delete · ⌘A select-all · ⏎ open · F2/double-click rename
@@ -97,8 +99,14 @@ uses native touch gestures, not context-menu `.tap()`, and may not hit the same 
 limitation — unverified, needs its own check before assuming XCUITest works there either).
 Ties #4542 (wire `ux_smoke.py` into the gate), #4250 (iPad/iOS/CLI/MCP legs), #4634 (load).
 
+## Rulings
+
+- **2026-10-04 (maintainer):** a comment is its own threaded record, anchored to any node, never a
+  claim (`kg.interact.comment`).
+
 ## Open questions
-- Comments: a first-class `Comment` record (threaded?) or a claim of a "comment" type?
+- ~~Comments: a first-class `Comment` record (threaded?) or a claim of a "comment" type?~~
+  **Answered 2026-10-04:** its own threaded record, anchored to any node; see Rulings.
 - Drag payload: JSON-LD item vs an internal id — or both (internal for in-app, JSON-LD for
   out)?
 - Which extra claim fields become table COLUMNS vs inspector-only (columns cost width)?
