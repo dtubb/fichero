@@ -58584,7 +58584,8 @@
             "enum": [
               "link",
               "copy",
-              "move"
+              "move",
+              "index"
             ],
             "nullable": true,
             "title": "Mode"
@@ -77717,6 +77718,11 @@
             "type": "array",
             "title": "Formats"
           },
+          "adopted": {
+            "type": "boolean",
+            "title": "Adopted",
+            "description": "an existing folder adopted by an Index import: kept in its own layout, its files written back in place"
+          },
           "last_written": {
             "type": "string",
             "format": "date-time",
@@ -77766,6 +77772,7 @@
           "id",
           "path",
           "formats",
+          "adopted",
           "pending",
           "files",
           "in_the_way",

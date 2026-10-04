@@ -19,8 +19,15 @@ left and reported, and a file changed outside is left and reported
 those checksums, so changes made while the engine was off are found (`rescan`,
 `source.sync.rescan-after-downtime`).
 
-Not built yet: intake (files coming in), reading edits back as passes, conflicts, adopting a
-folder (Index), restricted material, Rebuild Folder, and a folder of part of a project.
+A folder imported with `mode: index` is **adopted** (`adopt`, `source.sync.adopt-existing-folder`):
+it keeps its own layout, each layout file that became a page's pass is recorded with the checksum
+it had when read, and work on that page is written back into the same file in the same format,
+only while the file is unchanged since; a file changed meanwhile is left and reported. Nothing is
+written on adopting: a file is rewritten only when its page changes.
+
+Not built yet: intake (files coming in), reading edits back as passes, conflicts kept as both,
+adopting a TEI file spanning several images, restricted material, Rebuild Folder, and a folder of
+part of a project.
 """
 from __future__ import annotations
 
@@ -44,6 +51,8 @@ FORMATS = ("pagexml", "alto", "tei")
 _SCHEMA = (
     "CREATE TABLE IF NOT EXISTS sync_folders (id TEXT PRIMARY KEY, path TEXT NOT NULL, formats TEXT NOT NULL, "
     "created_at TIMESTAMP NOT NULL, untied_at TIMESTAMP)",
+    # An adopted folder keeps its own layout: only its recorded files are written, in place.
+    "ALTER TABLE sync_folders ADD COLUMN IF NOT EXISTS adopted BOOLEAN DEFAULT FALSE",
     # One row per file Fichero wrote or found in its way. `state`: written | in-the-way |
     # changed-outside | deleted-outside.
     "CREATE TABLE IF NOT EXISTS sync_files (folder_id TEXT NOT NULL, rel_path TEXT NOT NULL, document_id TEXT, "
@@ -67,9 +76,10 @@ def _sha(data: bytes) -> str:
 
 def _folders(db: Any) -> list[dict[str, Any]]:
     _ensure(db)
-    rows = db.execute_fetchall("SELECT id, path, formats, created_at FROM sync_folders WHERE untied_at IS NULL "
-                               "ORDER BY created_at")
-    return [{"id": r[0], "path": r[1], "formats": json.loads(r[2]), "created_at": r[3]} for r in rows]
+    rows = db.execute_fetchall("SELECT id, path, formats, created_at, adopted FROM sync_folders "
+                               "WHERE untied_at IS NULL ORDER BY created_at")
+    return [{"id": r[0], "path": r[1], "formats": json.loads(r[2]), "created_at": r[3], "adopted": bool(r[4])}
+            for r in rows]
 
 
 def _sources(db: Any) -> list[str]:
@@ -97,6 +107,21 @@ def tie(db: Any, path: str, formats: list[str]) -> str:
     db.execute("INSERT INTO sync_folders (id, path, formats, created_at) VALUES (?, ?, ?, ?)",
                [folder_id, str(folder), json.dumps(list(formats)), utc_now()])
     jobs.enqueue_many(db, KIND, [f"{folder_id}:{doc_id}" for doc_id in _sources(db)], started_by="sync")
+    return folder_id
+
+
+def adopt(db: Any, folder: Path, read: list[tuple[Path, str, str]]) -> str:
+    """Adopt a folder brought in by import (Index): record each file read as a page's pass, with
+    its checksum at read, to be written back in place. Writes nothing now."""
+    register_job_kinds()
+    _ensure(db)
+    folder_id = uuid.uuid4().hex
+    formats = sorted({fmt for _path, _doc, fmt in read})
+    db.execute("INSERT INTO sync_folders (id, path, formats, created_at, adopted) VALUES (?, ?, ?, ?, TRUE)",
+               [folder_id, str(folder), json.dumps(formats), utc_now()])
+    for path, doc_id, fmt in read:
+        _record(db, folder_id, Path(path).resolve().relative_to(folder).as_posix(), document_id=doc_id, fmt=fmt,
+                sha=_sha(Path(path).read_bytes()), state="written", written=False)
     return folder_id
 
 
@@ -151,6 +176,9 @@ def write(db: Any, subject: str) -> None:
     if folder is None:
         return  # untied meanwhile
     root = Path(folder["path"])
+    if folder["adopted"]:
+        _write_back(db, folder_id, root, doc_id)
+        return
     for fmt in folder["formats"]:
         try:
             out = export_page(db, doc_id, fmt)
@@ -175,6 +203,33 @@ def write(db: Any, subject: str) -> None:
         report = {"format": out.format, "choices": out.choices.as_dict(), "losses": out.report.as_dict()["losses"]}
         _atomic_write(path.with_name(f"{path.name}.loss.json"), json.dumps(report, indent=1).encode("utf-8"))
         _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=_sha(out.data), state="written", written=True)
+
+
+def _write_back(db: Any, folder_id: str, root: Path, doc_id: str) -> None:
+    """An adopted folder: rewrite the page's own files in place, in their own format, each only
+    while it is unchanged since Fichero read or last wrote it. No loss report beside: the folder
+    is the person's layout, not Fichero's."""
+    from fichero_server.formats import FormatCannotWrite
+    from fichero_server.page_export import ExportRefused, export_page
+
+    rows = db.execute_fetchall("SELECT rel_path, format, sha256 FROM sync_files WHERE folder_id = ? "
+                               "AND document_id = ? AND state = 'written'", [folder_id, doc_id])
+    for rel, fmt, sha in rows:
+        path = root / rel
+        if not path.exists():
+            _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=sha, state="deleted-outside", written=False)
+            continue
+        if _sha(path.read_bytes()) != sha:
+            _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=sha, state="changed-outside", written=False)
+            continue  # edited meanwhile: left as the person left it, and reported
+        try:
+            out = export_page(db, doc_id, fmt)
+        except (ExportRefused, FormatCannotWrite):
+            continue
+        if _sha(out.data) != sha:
+            _atomic_write(path, out.data)
+            _record(db, folder_id, rel, document_id=doc_id, fmt=fmt, sha=_sha(out.data), state="written",
+                    written=True)
 
 
 def rescan(db: Any) -> None:
@@ -207,7 +262,7 @@ def status(db: Any) -> list[dict[str, Any]]:
         written_times = [r[2] for r in rows if r[2] is not None]
         pending = jobs.count_jobs(db, KIND, subject_prefix=f"{folder['id']}:")
         out.append({
-            "id": folder["id"], "path": folder["path"], "formats": folder["formats"],
+            "id": folder["id"], "path": folder["path"], "formats": folder["formats"], "adopted": folder["adopted"],
             "last_written": max(written_times) if written_times else None, "pending": int(pending),
             "files": by_state.get("written", []), "in_the_way": by_state.get("in-the-way", []),
             "changed_outside": by_state.get("changed-outside", []),
