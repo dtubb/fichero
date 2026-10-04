@@ -2004,6 +2004,7 @@ async def _run_two_stage(
                             provider=getattr(llm_config, "provider", None),
                             model=getattr(llm_config, "model", None),
                             grounding_text=page_text,
+                            run_id=state.get("task_id"),
                         )
                         written_entity_ids.extend(entity_ids)
                         written_claim_ids.extend(claim_ids)
@@ -2512,6 +2513,7 @@ async def extract_all(
                             provider=getattr(llm_config, "provider", None),
                             model=getattr(llm_config, "model", None),
                             grounding_text=chunk_text,
+                            run_id=state.get("task_id"),
                         )
                         written_entity_ids.extend(entity_ids)
                         written_claim_ids.extend(claim_ids)

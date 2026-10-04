@@ -887,6 +887,19 @@ class KnowledgeEntity(BaseModel):
         self.aliases = list(seen)
         return self
 
+    def add_attribution(self, entry: dict) -> bool:
+        """Add who put this entity in the graph to `attribution_chain` (`kg.entity.says-who-made-it`): an
+        `extractor` entry for a model run (provider, model, `run_id`, `at`), an `editor` entry for a person.
+        Only ever added: an entry already there for the same role, name, model and run is kept as it is, and
+        nothing is replaced. True when the entity changed."""
+        key = (entry.get("role"), entry.get("name"), entry.get("label"), entry.get("run_id"))
+        for step in self.attribution_chain:
+            if (getattr(step.role, "value", step.role), step.name, step.label, getattr(step, "run_id", None)) == key:
+                return False
+        self.attribution_chain = [*self.attribution_chain,
+                                  AttributionStep.model_validate({**entry, "order": len(self.attribution_chain)})]
+        return True
+
     def drop_names(self, texts) -> None:
         """Take names whose text is one of `texts` off the entity -- with their aliases (a split or an
         unmerge moves a name away; leaving it in `names` would put it straight back into `aliases`)."""

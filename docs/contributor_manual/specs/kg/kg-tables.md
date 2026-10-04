@@ -134,6 +134,16 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   `::TestSplitEntity::test_split_moves_aliases`,
   `::TestSplitEntityAction::test_split_is_undoable_via_the_existing_undo_endpoint`) and the CLI
   (`entity split`) are built; the sheet is unmounted in the app.
+- `kg.entity.says-who-made-it` — **[OK]** (#4869, #4868; built: `KnowledgeEntity.add_attribution`, `upsert_entity(asserted_by=)` from the names card and `_write_kg_rows`, the `editor` entry in `entity.create`/`entity.update`, `GET /api/entities?run_id=`, `entity.take_back_run` in `api/routes/kg/nlp_draft_purge.py`; tested in `fichero-server/tests/unit/kg/test_entity_says_who_made_it_to_spec.py`. Not yet naming their run: the citation and book-index writers, extract-all's additional entities, and merge/dedup's re-upsert; the import-time NLP draft names spaCy and its model but has no run) every entity says who put it in the knowledge graph,
+  in its `attribution_chain`, the field that already says who asserted a claim: a model run as an `extractor`
+  entry naming the provider, the model, the run (`run_id`) and when (`at`); a person as an `editor` entry naming
+  the account and when. The engine writes these entries, never a client. They are only ever added: a later run
+  that finds the same entity adds its own entry beside the others, and a person's entry stays whatever runs
+  follow. One run's entities can be listed by its run (`GET /api/entities?run_id=`), and taken back through one
+  audited action (`entity.take_back_run`, a dry run unless asked): it removes the entities that run alone made
+  and nothing has touched since (no other run or person named on them, unreviewed, no claim naming them, and none
+  of the touches `entity.purge_nlp_draft` counts); every other entity of the run stays, and the answer says how
+  many and why.
 - `kg.entity.variant-spellings-proposed` — **[OK]** (#4508; built: `spelling_key` and the `spelling_variants` tier of `plan_entity_dedupe` in `knowledge/dedupe.py`, `spelling_variants`/`propose` on `POST /api/kg/entity-curation/dedupe` queuing through `review.queue`; tested in `fichero-server/tests/unit/kg/test_variant_spellings_to_spec.py`) a project's knowledge graph is checked for
   entities of one type whose names are the same name written differently, and each is PROPOSED as a merge for a
   person to accept or reject; nothing is merged by the check. The same name written differently means equal once

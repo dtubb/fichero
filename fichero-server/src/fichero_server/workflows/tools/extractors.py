@@ -1481,6 +1481,7 @@ async def _run_extractor(
                     # grounding guard. Drops hallucinated events that
                     # don't appear in the source.
                     grounding_text=chunk_text,
+                    run_id=state.get("task_id"),
                 )
         except Exception as exc:
             logger.error(f"{section['name']}: KG write failed: {exc}")
@@ -2157,6 +2158,7 @@ def _write_kg_rows(
     provider: str | None = None,
     model: str | None = None,
     grounding_text: str | None = None,
+    run_id: str | None = None,
 ) -> tuple[list[str], list[str]]:
     """Persist extractor items as KnowledgeEntity + KnowledgeClaim rows.
 
@@ -2194,7 +2196,7 @@ def _write_kg_rows(
         EpistemicStatus,
         KnowledgeClaim,
     )
-    from fichero_server.workflows.tools._entity_writer import upsert_entity, save_claim
+    from fichero_server.workflows.tools._entity_writer import run_attribution, upsert_entity, save_claim
     from fichero_server.knowledge._common import slug_verb
 
     entity_type = section.get("entity_type")
@@ -2971,6 +2973,7 @@ def _write_kg_rows(
             # container_id here is the per-page target_doc_id (#1562) —
             # scope the entity to the page it was extracted from.
             source_document_id=container_id,
+            asserted_by=run_attribution(provider, model, run_id) if (provider or model) else None,
         )
         if entity_id is None:
             continue

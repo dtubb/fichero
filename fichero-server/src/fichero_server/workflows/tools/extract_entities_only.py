@@ -30,7 +30,7 @@ from fichero_server.llm.language_policy import (
 )
 from fichero_server.models import Artifact, Document
 from fichero_server.workflows.registry import register_tool
-from fichero_server.workflows.tools._entity_writer import upsert_entity
+from fichero_server.workflows.tools._entity_writer import run_attribution, upsert_entity
 from fichero_server.workflows.tools.extract_all import (
     _EntitiesOnly,
     _build_entity_only_instructions,
@@ -365,6 +365,8 @@ async def extract_entities_only(
             getattr(llm_config, "provider", None), getattr(llm_config, "model", None)
         )
 
+    asserted_by = run_attribution(getattr(llm_config, "provider", None), getattr(llm_config, "model", None),
+                                  state.get("task_id"))
     mentions_processed = 0
     created = 0
     reused = 0
@@ -466,6 +468,7 @@ async def extract_entities_only(
                 entity_type=entity_type,
                 aliases=aliases,
                 source_document_id=record["doc_id"],
+                asserted_by=asserted_by,
             )
             if entity_id is None:
                 suppressed += 1

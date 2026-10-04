@@ -1737,6 +1737,14 @@ def follow_merge_chain(db: Database, entity_id: str) -> str:
     raise MergeChainError(f"merge chain from {entity_id!r} is longer than {_MAX_MERGE_CHAIN}: {seen}")
 
 
+def run_attribution(provider: Optional[str], model: Optional[str], run_id: Optional[str]) -> dict:
+    """The `extractor` entry a model run writes on what it finds."""
+    from fichero_server.core.timeutil import utc_now
+
+    return {"role": "extractor", "name": provider, "label": model, "run_id": run_id, "basis": "inferred",
+            "at": utc_now().isoformat()}
+
+
 def upsert_entity(
     db: Database,
     canonical_name: str,
@@ -1744,6 +1752,7 @@ def upsert_entity(
     aliases: Optional[list[str]] = None,
     description: Optional[str] = None,
     source_document_id: Optional[str] = None,
+    asserted_by: Optional[dict] = None,
 ) -> str | None:
     """`_upsert_entity_matched`, with the answer resolved to the LIVE entity (#5079).
 
@@ -1768,6 +1777,8 @@ def upsert_entity(
     live = db.get(KnowledgeEntity, live_id)
     if live is not None and live.curation_state == EntityCurationState.rejected:
         return None
+    if live is not None and asserted_by and live.add_attribution(asserted_by):
+        db.save(live)
     return live_id
 
 

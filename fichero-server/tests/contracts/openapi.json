@@ -17765,6 +17765,18 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Only the entities this run named (its attribution entry)",
+              "title": "Run Id"
+            },
+            "description": "Only the entities this run named (its attribution entry)"
           }
         ],
         "responses": {
