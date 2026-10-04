@@ -423,10 +423,10 @@ def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
     """One job's row (its `detail` as stored, JSON text), or None."""
     _ensure(db)
     row = db.execute_fetchone(
-        "SELECT id, kind, subject, state, reason, detail, created_at FROM jobs WHERE id = ?", [job_id])
+        "SELECT id, kind, subject, state, reason, detail, created_at, started_by FROM jobs WHERE id = ?", [job_id])
     if row is None:
         return None
-    return dict(zip(("id", "kind", "subject", "state", "reason", "detail", "created_at"), row))
+    return dict(zip(("id", "kind", "subject", "state", "reason", "detail", "created_at", "started_by"), row))
 
 
 def save_detail(db: "Database", job_id: str, detail: str, *, reason: str | None = None) -> None:

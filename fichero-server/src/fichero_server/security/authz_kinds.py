@@ -40,6 +40,10 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "linked_document_ids", "realized_as_document_id", "library_destination_folder_id", "group_id",
         # document.group (#5303): the pages and documents gathered into a new group node.
         "child_ids",
+        # training and reading at scale (#5398, #4642): the folders or pages a run sends off this Mac
+        # or holds out as its test. Walked like any document id, so a page a person may not read is
+        # never trained on or read remotely on their say-so.
+        "scope_ids", "held_out_ids",
     )},
     # --- the page model ------------------------------------------------------------------------
     **{name: (RECORD, _SEGMENT) for name in (

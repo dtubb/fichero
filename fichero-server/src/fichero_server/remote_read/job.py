@@ -64,18 +64,21 @@ def _work_dir(job_id: str) -> Path:
 
 
 def _row(db: Any, job_id: str) -> tuple[str, dict[str, Any]]:
-    row = db.execute_fetchone("SELECT state, detail FROM jobs WHERE id = ?", [job_id])
+    from fichero_server.execution import jobs
+
+    row = jobs.read_job(db, job_id)
     if row is None:
         raise LookupError(f"no reading job {job_id}")
-    return row[0], json.loads(row[1] or "{}")
+    return row["state"], json.loads(row["detail"] or "{}")
 
 
 def _save(db: Any, job_id: str, detail: dict[str, Any], reason: str | None = None, *, keep_cancel: bool = True) -> None:
     """Write the run's detail. A stop the person asked for meanwhile is kept, not saved over."""
     if keep_cancel and _row(db, job_id)[1].get("cancel"):
         detail["cancel"] = True
-    db.execute("UPDATE jobs SET detail = ?, reason = COALESCE(?, reason) WHERE id = ?",
-               [json.dumps(detail), reason, job_id])
+    from fichero_server.execution import jobs
+
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=reason)
 
 
 def resolve_step(request: ReadAtScaleRequest, *, bucket: str | None) -> dict[str, Any]:
@@ -173,13 +176,15 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     from fichero_server.remote_read.package import RUNNER, ReadStep, build_read_package
     from fichero_server.training.hf_jobs import HfJobsTarget, job_root
 
-    job_id = db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ?", [KIND, subject])[0]
+    from fichero_server.execution import jobs
+
+    job_id = jobs.job_id_for(db, KIND, subject)
     _state, detail = _row(db, job_id)
     request = ReadAtScaleRequest(**detail["request"])
     target = target or HfJobsTarget()
     work = _work_dir(job_id)
     poll = POLL_SECONDS if poll_seconds is None else poll_seconds
-    started_by = db.execute_fetchone("SELECT started_by FROM jobs WHERE id = ?", [job_id])[0] or "owner"
+    started_by = (jobs.read_job(db, job_id) or {}).get("started_by") or "owner"
     pass_name = request.pass_name or f"Read at scale ({request.card})"
 
     if "shards" not in detail:
@@ -267,8 +272,9 @@ def resend_failed(db: Any, job_id: str) -> int:
 def request_cancel(db: Any, job_id: str) -> str:
     state, detail = _row(db, job_id)
     if state == "waiting":
-        db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
-                   "WHERE id = ? AND state = 'waiting'", [datetime.now(timezone.utc), job_id])
+        from fichero_server.execution import jobs
+
+        jobs.cancel_waiting(db, job_id)
         return "cancelled"
     if state == "running":
         detail["cancel"] = True
@@ -278,7 +284,9 @@ def request_cancel(db: Any, job_id: str) -> str:
 
 def status(db: Any, job_id: str) -> dict[str, Any]:
     state, detail = _row(db, job_id)
-    reason = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id])[0]
+    from fichero_server.execution import jobs
+
+    reason = (jobs.read_job(db, job_id) or {}).get("reason")
     shards = detail.pop("shards", {}) or {}
     failed = {k: {"why": s.get("why"), "last_lines": s.get("last_lines")} for k, s in shards.items() if s["state"] == "failed"}
     return {"job_id": job_id, "state": state, "reason": reason, "counts": _counts(shards), "failed_shards": failed,

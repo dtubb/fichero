@@ -18,6 +18,7 @@ MUTATING_METHODS = {"post", "put", "patch", "delete"}
 # Mutating HTTP verbs are sometimes used for read-only compute/export operations.
 # They may keep the read dependency only when listed here with a reason.
 READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
+    "document/compare_readings.py:compare_readings:POST": "POST body names two readings and the policies; handler scores them and writes nothing (#5389).",
     "document/annotations.py:crop_ephemeral:POST": "POST body selects a transient region; handler builds an in-memory Annotation, reads only the source document, and returns a crop — persists nothing (#2256).",
     "citation/bibliography.py:export_bibtex:POST": "POST body selects document IDs; handler only reads metadata and returns BibTeX.",
     "kg/predictions.py:generate_heuristic_predictions:POST": "POST body contains prediction parameters; handler only reads claims and vector index.",

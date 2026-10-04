@@ -136,6 +136,10 @@ TESTS_BARE_RGLOB_ALLOWED = {
     "test_auth_lazy_token.py": "looks for app.duckdb under a tmp base path",
     "test_library_sync_io.py": "asserts no .synctmp file is left in tmp_path",
     "test_unicode_library_merge_action.py": "hashes the files of a tmp library",
+    "test_export_service.py": "walks the site it just exported into tmp_path, after asserting it exists",
+    "test_manifest_link_from_the_cli.py": "asserts no image was copied into the tmp test library",
+    "test_mcp_ingest_folder.py": "asserts no photo was copied into the tmp test library",
+    "test_training_job.py": "lists the files a fake Hugging Face upload was handed from tmp_path",
 }
 
 

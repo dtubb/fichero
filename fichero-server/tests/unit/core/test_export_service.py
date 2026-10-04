@@ -679,6 +679,7 @@ def test_a_deleted_document_is_not_published_and_does_not_stop_the_site(db, tmp_
     result = export_eleventy_site(db, tmp_path / "site")
 
     assert result.document_count == 1
+    assert (tmp_path / "site" / "src").is_dir()  # the absence checks below walk a site that exists
     assert not list((tmp_path / "site").rglob("Kraken-lines*"))
     assert not list((tmp_path / "site").rglob("SM_NPQ_C01_001*"))
 

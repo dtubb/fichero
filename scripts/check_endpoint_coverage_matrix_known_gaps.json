@@ -1,4 +1,5 @@
 {
+  "GET /api/iiif/iiif/lines/{document_id}": "served to IIIF viewers through a manifest's canvas annotations, not called by the app (#5326)",
   "GET /api/recipes/routes": "engine half of setup's routes for the volume; the app's Ready step shows them next (#4951)",
   "PUT /api/activity/jobs/{job_id}/paused": "engine, CLI and MCP (fichero_job_pause) only: the Activity window's per-row Pause comes with the jobs table (#5354, #5356)",
   "POST /api/activity/jobs/{job_id}/cancel": "engine, CLI and MCP (fichero_job_cancel) only: the Activity window's per-row Cancel comes with the jobs table (#5354, #5356)",
