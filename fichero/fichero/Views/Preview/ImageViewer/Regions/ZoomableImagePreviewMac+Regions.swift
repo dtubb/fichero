@@ -38,12 +38,20 @@ extension ZoomableImagePreview {
         return { (id: String?) -> String? in id.flatMap(resolve) }
     }
 
-    /// Which way the magnifier strip lies: along most of the page's lines (#5411,
-    /// `magnifier.strip-follows-line-direction`).
+    /// Which way the magnifier strip lies: where the person put it, else along most of the page's lines
+    /// (#5411, `magnifier.strip-placement-is-the-persons`, `magnifier.strip-follows-line-direction`).
     var magnifierAxis: Axis {
-        guard let documentId, let segmentService else { return .horizontal }
-        let directions = SegmentStore.shared(for: segmentService).directionsByDocument[documentId] ?? [:]
-        return MagnifierStrip.axis(forLineDirections: Array(directions.values))
+        var directions: [String] = []
+        if let documentId, let segmentService {
+            directions = Array((SegmentStore.shared(for: segmentService).directionsByDocument[documentId] ?? [:]).values)
+        }
+        return MagnifierStrip.axis(placement: magnifierPlacement.wrappedValue, lineDirections: directions)
+    }
+
+    /// This pane's strip placement, as the strip's menu reads and writes it.
+    var magnifierPlacement: Binding<MagnifierStrip.Placement> {
+        Binding(get: { MagnifierStrip.Placement(stored: magnifierStripPlacement) },
+                set: { magnifierStripPlacement = $0.rawValue })
     }
 
     var documentOverlay: DocumentOverlay {

@@ -9,7 +9,8 @@ import Testing
 /// page, resting on a line highlighted the region around it, and the magnifier strip lay across the
 /// columns. What breaks without these: a vertical line's reading is set sideways again, a reading runs
 /// past its box, the hover names the region instead of the line, or the strip shows a slice across many
-/// lines instead of a stretch of one.
+/// lines instead of a stretch of one, or the person's own choice of side or bottom is overridden or
+/// forgotten.
 struct PreviewVerticalPageTests {
     /// A stand-in measure that makes the fitting exact: a grapheme is one `size` wide, a row 1.2 `size`
     /// tall. The Unicode isolates `SegmentLabel` wraps a horizontal reading in take no room.
@@ -102,6 +103,36 @@ struct PreviewVerticalPageTests {
         #expect(MagnifierStrip.axis(forLineDirections: ["ltr", "rtl"]) == .horizontal)
         #expect(MagnifierStrip.axis(forLineDirections: ["ttb", "ltr"]) == .horizontal, "a tie stays as it was")
         #expect(MagnifierStrip.axis(forLineDirections: []) == .horizontal, "no direction known")
+    }
+
+    // MARK: magnifier.strip-placement-is-the-persons
+
+    @Test("strip-placement-is-the-persons: an explicit choice wins over the lines; Automatic follows them")
+    func choiceOverridesTheDefault() {
+        let vertical = ["ttb", "ttb"], horizontal = ["ltr"]
+        #expect(MagnifierStrip.axis(placement: .bottom, lineDirections: vertical) == .horizontal)
+        #expect(MagnifierStrip.axis(placement: .side, lineDirections: horizontal) == .vertical)
+        #expect(MagnifierStrip.axis(placement: .automatic, lineDirections: vertical) == .vertical)
+        #expect(MagnifierStrip.axis(placement: .automatic, lineDirections: horizontal) == .horizontal)
+    }
+
+    /// The choice is kept as the pane option `MagnifierStrip.placementKey` (`@PaneStorage`): what one pane
+    /// chose reads back for that pane, and does not change another's. Driven through `PaneScopedOption`,
+    /// the read and write rules `@PaneStorage` applies (its hosted round trip is
+    /// `LibraryOptionsPerPaneTests`).
+    @Test("strip-placement-is-the-persons: each pane remembers its own choice, as stored")
+    func choicePersistsPerPane() {
+        let left = UUID(), right = UUID()
+        var map = "{}"
+        map = PaneScopedOption.setting(MagnifierStrip.Placement.side.rawValue, in: map, pane: left)
+        map = PaneScopedOption.setting(MagnifierStrip.Placement.bottom.rawValue, in: map, pane: right)
+        let shared = MagnifierStrip.Placement.automatic.rawValue
+        #expect(MagnifierStrip.Placement(stored: PaneScopedOption.value(map, pane: left, shared: shared)) == .side)
+        #expect(MagnifierStrip.Placement(stored: PaneScopedOption.value(map, pane: right, shared: shared)) == .bottom)
+        #expect(MagnifierStrip.Placement(stored: PaneScopedOption.value(map, pane: UUID(), shared: shared)) == .automatic,
+                "a pane that never chose takes the shared value")
+        #expect(MagnifierStrip.Placement(stored: "") == .automatic, "nothing stored is Automatic")
+        #expect(MagnifierStrip.placementKey == "imagePreview.magnifierStripPlacement", "renaming the key forgets every choice")
     }
 }
 #endif

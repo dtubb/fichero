@@ -101,6 +101,9 @@ struct ZoomableImagePreview: View {
     @AppStorage("imagePreview.loupeSize") var loupeSize: Double = 150.0
     @AppStorage("imagePreview.panelMagnification") var panelMagnification: Double = 4.0
     @AppStorage("imagePreview.panelHeight") var panelHeight: Double = 120.0
+    /// Where the person put the magnifier strip, per pane (`magnifier.strip-placement-is-the-persons`):
+    /// a `MagnifierStrip.Placement` raw value; empty is Automatic, the line-direction default.
+    @PaneStorage(MagnifierStrip.placementKey) var magnifierStripPlacement = ""
     @AppStorage("imagePreview.magnifierLocked") var magnifierLocked = false
     @AppStorage("imagePreview.loupeLocked") var loupeLocked = false
 

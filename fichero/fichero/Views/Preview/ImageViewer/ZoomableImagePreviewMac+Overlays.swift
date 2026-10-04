@@ -252,6 +252,7 @@ extension ZoomableImagePreview {
                             }
                             magnifierLocked.toggle()
                         },
+                        placement: magnifierPlacement,
                         axis: stripAxis
                     )
                     .frame(width: stripAxis == .vertical ? CGFloat(panelHeight) : nil,

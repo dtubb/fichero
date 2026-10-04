@@ -15,6 +15,39 @@ enum MagnifierStrip {
         let vertical = directions.filter { $0 == "ttb" || $0 == "btt" }.count
         return vertical * 2 > directions.count ? .vertical : .horizontal
     }
+
+    /// Where the person put the strip (ruled 2026-10-04, `magnifier.strip-placement-is-the-persons`):
+    /// an explicit choice wins over the lines; Automatic is the line-direction default.
+    enum Placement: String, CaseIterable, Identifiable {
+        case automatic = ""
+        case bottom
+        case side
+
+        var id: String { rawValue }
+
+        /// What a pane stored. Nothing stored is Automatic. The strings are only ever written by this
+        /// menu, so an unknown one can only be a newer build's choice, and is read as Automatic too.
+        init(stored: String) { self = Placement(rawValue: stored) ?? .automatic }
+
+        var title: String {
+            switch self {
+            case .automatic: "Automatic"
+            case .bottom: "Bottom"
+            case .side: "Side"
+            }
+        }
+    }
+
+    /// The pane option the choice is kept under (`@PaneStorage`: per pane, survives relaunch).
+    static let placementKey = "imagePreview.magnifierStripPlacement"
+
+    static func axis(placement: Placement, lineDirections: [String]) -> Axis {
+        switch placement {
+        case .automatic: axis(forLineDirections: lineDirections)
+        case .bottom: .horizontal
+        case .side: .vertical
+        }
+    }
 }
 
 #if canImport(AppKit)
@@ -30,6 +63,8 @@ struct MagnifierPanelView: View {
     @Binding var panelHeight: CGFloat
     @Binding var isLocked: Bool
     var onLockToggle: () -> Void
+    /// Where the person put the strip, this pane's choice (`magnifier.strip-placement-is-the-persons`).
+    @Binding var placement: MagnifierStrip.Placement
     /// `.vertical`: a strip at the page's trailing side, for vertical lines (#5411).
     var axis: Axis = .horizontal
 
@@ -48,6 +83,26 @@ struct MagnifierPanelView: View {
     /// which is too narrow for them in a row.
     private var controlsLayout: AnyLayout {
         axis == .vertical ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))
+    }
+
+    /// Where the strip goes, the person's choice (ruled 2026-10-04): Automatic follows the page's lines.
+    private var placementMenu: some View {
+        Menu {
+            Picker("Strip Position", selection: $placement) {
+                ForEach(MagnifierStrip.Placement.allCases) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Image(systemName: axis == .vertical ? "rectangle.righthalf.inset.filled" : "rectangle.bottomhalf.inset.filled")
+                .font(.caption)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel("Strip Position")
+        .help("Where the magnifier strip goes: at the bottom, at the side, or Automatic (along the page's lines)")
     }
 
     var body: some View {
@@ -107,6 +162,8 @@ struct MagnifierPanelView: View {
                     .help(isLocked
                           ? "Unlock magnifier — click to follow the cursor again"
                           : "Lock magnifier — click to hold the current spot while you move the cursor elsewhere")
+
+                    placementMenu
 
                     Divider()
                         .frame(width: axis == .vertical ? 12 : nil, height: axis == .vertical ? nil : 12)
