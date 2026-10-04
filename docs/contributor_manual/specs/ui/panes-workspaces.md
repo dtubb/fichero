@@ -211,7 +211,7 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
 - `panes.sidebar-button.in-sidebar-section` — **[GAP]** (#4735) the sidebar toggle button belongs IN
   the sidebar's own top-left section (Xcode-style), not floating in the main window toolbar's
   left group.
-- `panes.split.asymmetric` — **[GAP/BROKEN]** (#4737) splitting a preview vertically then horizontally
+- `panes.split.asymmetric` — **[GAP/BROKEN]** (#4669, #4737) splitting a preview vertically then horizontally
   makes a **2×2 grid of 4**; the CD wants asymmetric nesting ("2 over 1" — two panes on top,
   one below). The current split caps at a symmetric 2×2 (`SplittablePane.swift:156-166`) and
   every sub-pane renders the same content. Needs nested/asymmetric split (part of F7).
@@ -306,7 +306,7 @@ starting a new one.
   (sort, filter, view-mode) sit over the library's own mini-toolbar, not at the window's far
   edge. Not verified as built; the View-menu-duplicating toolbar button this issue also flags
   is a `menus-and-commands.md` question, not repeated here.
-- `panes.toolbar.breadcrumb-is-a-real-path` — **[GAP]** (#4378) the breadcrumb should read as
+- `panes.toolbar.breadcrumb-is-a-real-path` — **[GAP]** (#4591, #4378) the breadcrumb should read as
   a drillable PATH (`Library > Folder > PDF > 1`) with a page SELECTION at the end, not a
   count prefix, and every element should be a real, draggable macOS proxy icon (file
   promises, so it still works when the server is remote). The existing breadcrumb/principal-
@@ -351,7 +351,7 @@ behavior this spec already owns):
   sidebar/library item should focus/navigate in the CURRENT window by default; opening in a
   new window or tab stays reachable only from an explicit contextual command. Not verified
   as built.
-- `panes.split.each-pane-its-own-document` — **[GAP]** (#2422) a split reader pane should be
+- `panes.split.each-pane-its-own-document` — **[GAP]** (#4565, #2422) a split reader pane should be
   independently targetable to a different document (drag a doc into a pane, or a per-pane
   picker), with a clear control choosing "different doc per split" versus the existing
   same-doc/compare mode. Not verified as built; ties this spec's existing split-independence
@@ -599,7 +599,7 @@ the browse→read flow down the centre.
   a window.
 - `panes.compose-three-plus` — **[GAP]** (#4724) a window supports three or more panes, and any
   pane may hide its image while another shows it.
-- `panes.visibility.derived-from-list` — **[OK, 2026-09-18]** which content panes show
+- `panes.visibility.derived-from-list` — **[OK, 2026-09-18]** (#4525) which content panes show
   (library/preview/reading) is a PURE derivation of `activePaneList.kinds`
   (`PaneVisibility.paneVisibility`, `PaneVisibility.swift`) — not a separate stored Bool per
   pane. The three legacy `@SceneStorage` Bools this used to read are DELETED from
@@ -693,7 +693,7 @@ the browse→read flow down the centre.
   `NavigatorMiniMap.swift` (`Views/Preview/ImageViewer/`), which is an image-viewer zoom
   navigator inside a single pane (`preview-magnifier.md`'s territory) — not a second PANE
   showing an overview of a first one. Not built.
-- `panes.options-per-pane` — **[PARTIAL]** (→ #5280, ruled 2026-10-01) each pane remembers its
+- `panes.options-per-pane` — **[PARTIAL]** (#4689) (→ #5280, ruled 2026-10-01) each pane remembers its
   own filter and metadata settings: two panes of one kind set different values and neither
   overwrites the other, and both survive a relaunch. A new pane starts from the last choice made
   anywhere, as a new Finder window does (`PaneStorage`: a pane-id → value map beside the shared
@@ -927,7 +927,7 @@ math, not a mounted pane" lesson.
   a saved workspace; how the color assignment avoids clashing across more than a few
   simultaneous links.
 
-- `panes.environment-boundary-covers-every-hosted-pane` — **[PARTIAL]** (#4897) every applied
+- `panes.environment-boundary-covers-every-hosted-pane` — **[PARTIAL]** (#4682, #4897) every applied
   pane's hosting boundary injects the FULL set of window/app `@Environment`/`@State` objects a
   pane subtree might read, not a hand-picked subset per boundary. Built:
   `WindowEnvironmentModifier` (`f88a031e8`) is now the ONE shared list applied at all three
@@ -958,7 +958,7 @@ math, not a mounted pane" lesson.
   restoration needed. A pure structural/reflection test over `FicheroApp.swift`'s scene bodies
   (every `Window`/`WindowGroup` applies the modifier) would catch "forgot to wire a new scene"
   but not "the fallback itself fails to resolve when actually hosted."
-- `panes.toolbar-inspector-survive-restored-scene-state` — **[PARTIAL]** (#4897) the toolbar and
+- `panes.toolbar-inspector-survive-restored-scene-state` — **[PARTIAL]** (#4774, #4897) the toolbar and
   inspector, which do NOT inherit their hosting window's environment the way an ordinary pane
   subtree does, must read `WorkflowExecutionObserver` optionally rather than trapping when a
   RESTORED scene (a relaunch with saved window state) mounts them before the window's own
@@ -1649,6 +1649,8 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - `inspector.tabs-fit-default-width` — **[GAP]** (#4540) the document inspector has fewer top-level tabs (fold citations+related, or kg into entities) so it sits at its default width; Preview/Reader/Inspector stay three surfaces.
 - `shell.no-nstableview-reentrancy` — **[GAP]** (#4684) launch logs no "reentrant operation in its NSTableView delegate" warning (SwiftUI List; becomes an assert on a future macOS).
 - `panes.location-bar-canonical` — **[GAP]** (#3405) The top location bar is the one clickable breadcrumb, shows human page names (never import filenames), and is Liquid Glass styled.
+- `panes.focus.active-pane-ring` — **[GAP]** (#3406) focusing a split pane briefly shows a focus ring and the top location bar and the sidebar-selection target follow the active pane, with no backend churn.
+- `panes.builtin.every-workspace-renders-in-ci` — **[GAP]** (#4670) a test renders each built-in workspace at a small fixed size and fails on a cyclic or unsatisfiable layout, proven by a deliberately cyclic fixture.
 
 ## Future (ideas, not scheduled)
 - (#1640) Library and reading-surface toolbars compress when narrow like the inspector mini-toolbar (Reader uses ViewThatFits; Library does not)
