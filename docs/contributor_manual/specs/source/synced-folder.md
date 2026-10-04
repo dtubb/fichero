@@ -169,7 +169,7 @@ Out
 - `source.sync.one-mechanism-many-folders` — **[PARTIAL]** (#4952, #4640) *Built: several folders, each naming its formats, one mechanism; a folder of part of a project is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* a project or one of its
   folders can have several synced folders, each the destination of an export step naming its
   formats, all through the same mechanism.
-- `source.sync.writes-the-record-or-says-so` — **[PARTIAL]** (#4952) *Built: the working pass is written; a pass nobody chose is marked machine-made in the file (`fichero-machine-made`) and its loss report; per-reading choice is not (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* the folder holds the working pass
+- `source.sync.writes-the-record-or-says-so` — **[OK]** (#4952) *Built: the working pass is written, each line with its counted reading; the lines whose reading a machine made and nobody chose are counted in the file (`fichero-machine-made-lines`), in its loss report and in the export's choices (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* the folder holds the working pass
   and chosen readings; an unchosen machine reading written there is marked machine-made in the
   file and its loss report.
 - `source.sync.outputs-follow-edits` — **[OK]** (#4952) *Built: a change queues its pages' rewrite in the change's own transaction, after a quiet period that each new change pushes later, as a `write-to-folder` job in Activity (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* the files holding a changed segment or

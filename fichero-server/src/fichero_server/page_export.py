@@ -36,6 +36,9 @@ class ExportChoices:
     order_name: str
     reading_kind: str
     segment_count: int = 0
+    #: Lines whose counted reading a machine made and nobody chose
+    #: (`source.sync.writes-the-record-or-says-so`).
+    machine_made_unchosen: int = 0
     notes: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
@@ -48,6 +51,7 @@ class ExportChoices:
             "order_name": self.order_name,
             "reading_kind": self.reading_kind,
             "segment_count": self.segment_count,
+            "machine_made_unchosen": self.machine_made_unchosen,
             "notes": list(self.notes),
         }
 
@@ -82,7 +86,7 @@ def page_from_library(
         retired_readings_of,
     )
     from fichero_server.models import Document, Segment
-    from fichero_server.models.readings import project_record_rule
+    from fichero_server.models.readings import CountingBasis, project_record_rule
     from fichero_server.models.reading_orders import AS_WRITTEN, ReadingOrder, ReadingOrderEntry
     from fichero_server.models.segments import SegmentPass
 
@@ -153,6 +157,8 @@ def page_from_library(
             if items else None
         )
         counting_id = counted.representation_id if counted else None
+        if row.kind == "line" and counted is not None and counted.basis is CountingBasis.newest_machine_unchosen:
+            choices.machine_made_unchosen += 1
         items.sort(key=lambda i: (i.id != counting_id, i.created_at))
         anchor = row.anchor
         # A segment its file placed nowhere is written with no shape: its whole-page anchor is
@@ -360,12 +366,13 @@ def export_page(
         "fichero-reading-order": choices.order_name,
         "fichero-reading-kind": choices.reading_kind,
     }
-    if choices.pass_basis != "chosen":  # `source.sync.writes-the-record-or-says-so`
-        page.identity["fichero-machine-made"] = "true"
+    machine = choices.machine_made_unchosen  # `source.sync.writes-the-record-or-says-so`
+    if machine:
+        page.identity["fichero-machine-made-lines"] = str(machine)
     data, report = write_page(spec.name, page)
-    if choices.pass_basis != "chosen":
-        report.note("machine-made", 1, "nobody has chosen this pass as the page's working pass: its readings are a "
-                    "machine's, not yet reviewed")
+    if machine:
+        report.note("machine-made", machine, "lines whose reading a machine made and nobody has chosen: "
+                    "not yet reviewed, and not the record")
     stem = export_stem(page.image_name, document_id)
     # The format's own export extension, from the registry: a second table here defaulted every
     # unlisted format to `.xml`, so hOCR and YOLO exports were misnamed.

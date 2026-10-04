@@ -200,9 +200,10 @@ def untie(db: Any, folder_id: str) -> None:
     db.execute("UPDATE sync_folders SET untied_at = ? WHERE id = ? AND untied_at IS NULL", [utc_now(), folder_id])
 
 
-def queue_rewrites(db: Any, document_ids: list[str]) -> None:
+def queue_rewrites(db: Any, document_ids: list[str], *, watched: bool = False) -> None:
     """A change touched these pages: rewrite their files in every tied folder after the quiet period,
-    in the change's own transaction. Cheap when nothing is tied."""
+    in the change's own transaction. Cheap when nothing is tied. `watched`: a person made the change
+    and looks for it in the folder, so the rewrite goes first at utility QoS."""
     if not document_ids:
         return
     folders = _folders(db)
@@ -211,7 +212,7 @@ def queue_rewrites(db: Any, document_ids: list[str]) -> None:
     after = utc_now() + timedelta(seconds=QUIET_SECONDS)
     for folder in folders:
         for doc_id in dict.fromkeys(document_ids):
-            jobs.enqueue(db, KIND, f"{folder['id']}:{doc_id}", started_by="sync", run_after=after)
+            jobs.enqueue(db, KIND, f"{folder['id']}:{doc_id}", started_by="sync", run_after=after, watched=watched)
 
 
 def _layout(fmt: str, filename: str, doc_id: str, extension: str) -> str:

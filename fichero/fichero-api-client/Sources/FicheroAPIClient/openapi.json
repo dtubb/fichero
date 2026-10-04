@@ -56987,6 +56987,11 @@
             "type": "integer",
             "title": "Segment Count"
           },
+          "machine_made_unchosen": {
+            "type": "integer",
+            "title": "Machine Made Unchosen",
+            "default": 0
+          },
           "notes": {
             "items": {
               "type": "string"

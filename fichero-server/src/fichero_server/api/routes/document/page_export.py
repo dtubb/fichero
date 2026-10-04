@@ -40,6 +40,8 @@ class ExportChoicesOut(BaseModel):
     order_name: str
     reading_kind: str
     segment_count: int
+    #: Lines whose reading a machine made and nobody has chosen (#4952): the file says so too.
+    machine_made_unchosen: int = 0
     notes: list[str]
 
 

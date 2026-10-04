@@ -277,3 +277,64 @@ def test_source_sync_untie_leaves_files__untying_stops_writing_and_leaves_the_fi
     _correct(db, page, "In the year of Our Lord and Saviour")
     time.sleep(1.0)  # past the quiet period: nothing is written to an untied folder
     assert path.read_text(encoding="utf-8") == before
+
+
+def test_activity_throttle_watched_first__a_corrected_pages_rewrite_goes_first_at_utility_qos(
+        client, db, page, tmp_path, monkeypatch):
+    """Behaviour `activity.throttle.watched-first`: "a job a person is waiting on goes first in its
+    lane at utility QoS." A person's correction is waited on in the folder (they look for it in their
+    other tool); the bulk write of a newly tied folder is not. With five other pages' writes queued
+    first, the corrected page's rewrite runs before them, at utility QoS, and the others at
+    background QoS, as the light lanes do."""
+    from fichero_server import page_export
+    from fichero_server.core import background_compute as bc
+    from fichero_server.models import DocType, Document
+
+    monkeypatch.setenv("FICHERO_JOB_QOS", "1")
+    seen: list[tuple[str, str]] = []
+    real = page_export.export_page
+
+    def watch(db_, document_id, *a, **k):
+        seen.append((document_id, bc.current_thread_qos_class()))
+        return real(db_, document_id, *a, **k)
+
+    monkeypatch.setattr(page_export, "export_page", watch)
+    others = [Document(name=f"other-{i}", doc_type=DocType.file) for i in range(5)]
+    for other in others:
+        db.save(other)
+    client.put("/api/activity/jobs/paused", json={"paused": True})
+    try:
+        folder_id = _tie(client, tmp_path / "edition", ["pagexml"])
+        _correct(db, page, "In the year of Our Lord")
+        time.sleep(0.5)  # past the quiet period
+    finally:
+        client.put("/api/activity/jobs/paused", json={"paused": False})
+    assert _wait_for(lambda: _status(client, folder_id)["pending"] == 0 and len(seen) >= 6)
+    assert seen[0] == (page.id, bc._QOS_CLASS_UTILITY)
+    assert {qos for doc_id, qos in seen[1:]} == {bc._QOS_CLASS_BACKGROUND}
+
+
+def test_source_sync_writes_the_record_or_says_so__the_file_counts_lines_a_machine_read_unchosen(client, db, page):
+    """Behaviour `source.sync.writes-the-record-or-says-so`: "where a reading nobody has chosen is
+    written ..., the file and its loss report say it is machine-made." Counted by line: a person
+    choosing a line's reading takes that line out of the count."""
+    def said(content):
+        return _identity_of(content).get("fichero-machine-made-lines")
+
+    before = client.get(f"/api/documents/{page.id}/export/pagexml").json()
+    lines = int(said(before["content"]))
+    assert lines >= 1
+    assert before["choices"]["machine_made_unchosen"] == lines
+    assert any(loss["what"] == "machine-made" and loss["count"] == lines for loss in before["losses"])
+    _correct(db, page, "In the year of Our Lord")
+    after = client.get(f"/api/documents/{page.id}/export/pagexml").json()
+    assert int(said(after["content"]) or 0) == lines - 1
+
+
+def _identity_of(content: str) -> dict[str, str]:
+    path = Path(os.environ.get("TMPDIR", "/tmp")) / f"identity-{os.getpid()}.xml"
+    path.write_text(content, encoding="utf-8")
+    try:
+        return _identity(path)
+    finally:
+        path.unlink()

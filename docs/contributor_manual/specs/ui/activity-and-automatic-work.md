@@ -541,7 +541,9 @@ workflow by hand: a hand run is a job like any other.
 - `activity.throttle.watched-first` — **[PARTIAL]** (#5358) a job a person is waiting
   on goes first in its lane at utility QoS. Built (2026-10-04): handed-in work (a page of a run a
   person started) is ordered first on the local-model lane, and a long background job (training)
-  steps aside for it at its next batch (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`). Still a gap: work a person
+  steps aside for it at its next batch (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`). Built (2026-10-04): a
+  queued job can be marked watched, and goes first in its lane at utility QoS; a person's own small change marks its
+  synced-folder rewrite so (`fichero-server/tests/unit/jobs/test_synced_folder.py`). Still a gap: other work a person
   waits for that is not handed in (an opened page).
 - `activity.throttle.power-heat-memory` — **[PARTIAL]** (#5358) background lanes slow
   or wait in Low Power Mode, on low battery, under serious thermal state or memory pressure, and

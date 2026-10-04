@@ -270,7 +270,8 @@ class ActionRegistry:
                 # Its re-embed is queued in the same transaction: a crash cannot lose it (#5359).
                 page_text_cache.queue_reembed(db, refreshed)
                 # And the rewrite of its files in any synced folder (#4952).
-                sync_folder.queue_rewrites(db, [*refreshed, *spec.document_ids])
+                touched = [*refreshed, *spec.document_ids]
+                sync_folder.queue_rewrites(db, touched, watched=_waited_on(ctx, touched))
 
                 # Audit write is NOT best-effort: if it fails the action fails. The
                 # before/after captured by execute ARE the undo payload.
@@ -292,7 +293,8 @@ class ActionRegistry:
             result, spec = reg.execute(db, params, ctx)
             refreshed = page_text_cache.refresh_in_transaction(db, spec, name, params)
             page_text_cache.queue_reembed(db, refreshed)
-            sync_folder.queue_rewrites(db, [*refreshed, *spec.document_ids])
+            touched = [*refreshed, *spec.document_ids]
+            sync_folder.queue_rewrites(db, touched, watched=_waited_on(ctx, touched))
             audit = ActionAudit(
                 **({"id": spec.audit_id} if spec.audit_id else {}),
                 action_name=name,
@@ -354,6 +356,19 @@ class ActionRegistry:
 
 # Process-global singleton — THE registry.
 registry = ActionRegistry()
+
+
+#: A change to more pages than this is bulk work (an import, a run), not one a person waits on.
+WAITED_ON_PAGES = 10  # ponytail: a count, not a signal from the app; a "the person is looking" flag if this misjudges
+
+
+def _waited_on(ctx: ActionContext, document_ids: list[str]) -> bool:
+    """A person's own small change, whose results they wait to see (`activity.throttle.watched-first`):
+    not a run's, not the engine's, not an edit read back from a synced folder."""
+    from fichero_server.models.readings import OUTSIDE_FICHERO
+
+    return (ctx.run_id is None and ctx.actor not in ("system", OUTSIDE_FICHERO)
+            and len(set(document_ids)) <= WAITED_ON_PAGES)
 
 
 def _audit_params(params: BaseModel) -> dict:

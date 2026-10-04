@@ -101,6 +101,8 @@ _ADDED_COLUMNS = (
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS parent_id TEXT",
     # Not before this time: a quiet period after a change (a synced folder's rewrite, #4952).
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS run_after TIMESTAMP",
+    # A person waits on it (`activity.throttle.watched-first`): first in its lane, at utility QoS.
+    "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS watched BOOLEAN DEFAULT FALSE",
 )
 _ENSURED: set[str] = set()
 
@@ -307,11 +309,12 @@ def _ensure(db: "Database") -> None:
 
 
 def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic",
-            detail: str | None = None, run_after: Any = None) -> str:
+            detail: str | None = None, run_after: Any = None, watched: bool = False) -> str:
     """Queue one job, inside the caller's transaction if it has one. A job of this kind already
     WAITING for this subject is reused: it reads its input when it runs, so it covers this change
     too (many corrections to a page make one job). `detail` (JSON) is written with a new row.
-    Returns the job id."""
+    `watched`: a person waits on it, so it goes first in its lane at utility QoS
+    (`activity.throttle.watched-first`); a reused job becomes watched too. Returns the job id."""
     _ensure(db)
     row = db.execute_fetchone(
         "SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state = 'waiting'", [kind, subject]
@@ -324,6 +327,8 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
             db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [detail, job_id])
     if run_after is not None:  # a quiet period: each new change pushes it later (one job for a run of changes)
         db.execute("UPDATE jobs SET run_after = ? WHERE id = ?", [run_after, job_id])
+    if watched:
+        db.execute("UPDATE jobs SET watched = TRUE WHERE id = ?", [job_id])
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return job_id
@@ -1097,7 +1102,8 @@ class _Scheduler:
             row = db.execute_fetchone(
                 f"SELECT id, kind, subject, model, created_at FROM jobs "
                 f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where} "
-                f"ORDER BY {attached_first}(model IS NOT DISTINCT FROM ?) DESC, created_at, rowid LIMIT 1",
+                f"ORDER BY {attached_first}COALESCE(watched, FALSE) DESC, (model IS NOT DISTINCT FROM ?) DESC, "
+                f"created_at, rowid LIMIT 1",
                 [now, *params, *attached, lane.loaded_model],
             )
             later = db.execute_fetchone(
@@ -1137,7 +1143,10 @@ class _Scheduler:
             if model is not None:
                 lane.loaded_model = model
         if os.environ.get("FICHERO_JOB_QOS", "1") != "0":  # the test suite runs jobs at normal priority
-            kind.qos()
+            watched = handed_in is None and db.execute_fetchone(
+                "SELECT COALESCE(watched, FALSE) FROM jobs WHERE id = ?", [job_id])[0]
+            # A job a person waits on runs at utility QoS whatever its kind's class (`watched-first`).
+            set_utility_qos() if watched else kind.qos()
         state, reason, result, error = "done", None, None, None
         _current.job_id = job_id
         try:
@@ -1159,6 +1168,11 @@ class _Scheduler:
                            [reason, job_id])
             lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
             return
+        # The row first, then whoever waits: a caller told the outcome must find it on the row.
+        if db_manager.open_database(key) is db:
+            db.execute("UPDATE jobs SET state = ?, reason = ?, finished_at = ? WHERE id = ?",
+                       [state, reason, utc_now(), job_id])
+        # (closed while it ran: the row stays `running` and resumes when the library opens)
         with self._lock:
             waiting = self._watchers.pop(job_id, [])
         if handed_in is not None:
@@ -1170,10 +1184,6 @@ class _Scheduler:
                 future.set_exception(error)
             else:
                 future.set_result(result)
-        if db_manager.open_database(key) is not db:
-            return  # closed while it ran: the row stays `running` and resumes when the library opens
-        db.execute("UPDATE jobs SET state = ?, reason = ?, finished_at = ? WHERE id = ?",
-                   [state, reason, utc_now(), job_id])
 
 
 _scheduler = _Scheduler()
