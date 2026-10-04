@@ -96,7 +96,10 @@ def build_slurm_script(
     runner_command: list[str],
 ) -> str:
     """Render an sbatch script for a workflow run bundle."""
-    cmd = " ".join(shlex.quote(part) for part in runner_command)
+    # The array task's index must reach the shell unquoted-in-single-quotes, or every task of the
+    # array receives the literal text `${SLURM_ARRAY_TASK_ID}` instead of its own number.
+    cmd = " ".join('"${SLURM_ARRAY_TASK_ID}"' if part == "${SLURM_ARRAY_TASK_ID}" else shlex.quote(part)
+                   for part in runner_command)
     lines = [
         "#!/usr/bin/env bash",
         f"#SBATCH --job-name={config.job_name}",

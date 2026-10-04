@@ -180,7 +180,10 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
         if target.exists() and outcome["sources"].get(source["id"], {}).get("ok"):
             continue  # done before this task was cut short
         try:
-            if source.get("iiif_service"):
+            fetched = package / prefetched(source)
+            if source.get("iiif_service") and fetched.exists():  # fetched on a login node beforehand
+                image = Image.open(fetched)
+            elif source.get("iiif_service"):
                 data = fetcher.fetch(image_url(source["iiif_service"], longest=longest))
                 image = Image.open(io.BytesIO(data))
             else:
@@ -201,13 +204,48 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
     return outcome
 
 
+def prefetched(source: dict[str, Any]) -> str:
+    return f"images/iiif-{source['id']}.jpg"
+
+
+def prefetch(package: Path, *, get: Callable | None = None) -> dict[str, Any]:
+    """Fetch every IIIF image of the package into it, politely, at the reader's size: run on a
+    cluster's login node, which has the internet, before the array starts (compute nodes do not)."""
+    sys.path.insert(0, str(package / "_fichero"))
+    from iiif_fetch import FetchFailed, PoliteFetcher, image_url, urllib_get
+
+    job = json.loads((package / "job.json").read_text(encoding="utf-8"))
+    fetcher = PoliteFetcher(get=get or urllib_get)
+    failed = {}
+    for source in job["sources"]:
+        target = package / prefetched(source)
+        if not source.get("iiif_service") or target.exists():
+            continue
+        try:
+            data = fetcher.fetch(image_url(source["iiif_service"], longest=job["fetch"]["longest"]))
+        except FetchFailed as exc:
+            failed[source["id"]] = str(exc)[:300]  # the shard tries again itself, or records it
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.with_suffix(".part").write_bytes(data)
+        os.replace(target.with_suffix(".part"), target)
+    return {"failed": failed, "fetch": fetcher.stats}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--package", required=True)
-    parser.add_argument("--shard", type=int, required=True)
-    parser.add_argument("--out", required=True)
+    parser.add_argument("--shard", type=int)
+    parser.add_argument("--out")
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument("--prefetch", action="store_true", help="fetch the IIIF images into the package, and stop")
     args = parser.parse_args()
+    if args.prefetch:
+        done = prefetch(Path(args.package))
+        print(f"prefetched; {len(done['failed'])} failed", flush=True)
+        return
+    if args.shard is None or not args.out:
+        parser.error("--shard and --out are needed to read a shard")
     outcome = run_shard(Path(args.package), args.shard, Path(args.out), device=args.device)
     failed = [k for k, v in outcome["sources"].items() if not v.get("ok")]
     print(f"shard {args.shard}: {len(outcome['sources']) - len(failed)} read, {len(failed)} failed", flush=True)
