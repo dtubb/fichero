@@ -1631,6 +1631,9 @@ class PendingMatchState(str, Enum):
     pending = "pending"
     accepted = "accepted"  # human merged
     rejected = "rejected"  # human said "definitely different" — labelled negative
+    #: The system took the pair away (one of its entities was taken back with its run): not a decision about the
+    #: pair, so never a training label (`kg.entity.says-who-made-it`).
+    withdrawn = "withdrawn"
 
 
 class PendingMatchMethod(str, Enum):

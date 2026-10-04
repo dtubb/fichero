@@ -151,7 +151,9 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   audited action (`entity.take_back_run`, a dry run unless asked): it removes the entities that run alone made
   and nothing has touched since (no other run or person named on them, unreviewed, no claim naming them, and none
   of the touches `entity.purge_nlp_draft` counts); every other entity of the run stays, and the answer says how
-  many and why.
+  many and why. A review pair still waiting on an entity it removes leaves the queue as withdrawn by the system, its reason
+  saying which entity and which run; it is never marked rejected, which is a person's decision and teaches the
+  matcher. A pair a person already decided keeps its decision.
 - `kg.entity.variant-spellings-proposed` — **[OK]** (#4508; built: `spelling_key` and the `spelling_variants` tier of `plan_entity_dedupe` in `knowledge/dedupe.py`, `spelling_variants`/`propose` on `POST /api/kg/entity-curation/dedupe` queuing through `review.queue`; tested in `fichero-server/tests/unit/kg/test_variant_spellings_to_spec.py`) a project's knowledge graph is checked for
   entities of one type whose names are the same name written differently, and each is PROPOSED as a merge for a
   person to accept or reject; nothing is merged by the check. The same name written differently means equal once

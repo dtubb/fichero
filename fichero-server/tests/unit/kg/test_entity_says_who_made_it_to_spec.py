@@ -158,3 +158,34 @@ def test_kg_entity_says_who_made_it__a_persons_edit_adds_its_entry_and_keeps_the
     body = client.post("/api/actions/invoke", json={"name": "entity.take_back_run", "params": {"run_id": run}}).json()
     assert body["result"]["kept_reasons"] == {"another run or a person also named it": 1}, body
     assert body["result"]["entity_count"] == 2, "Ysabel and Popayán, which the run alone made"
+
+
+def test_kg_entity_says_who_made_it__taking_back_withdraws_its_review_pairs(client, db, pages, spacy_finds_names):
+    """kg.entity.says-who-made-it: "A review pair still waiting on an entity it removes leaves the queue as withdrawn
+    by the system, its reason saying which entity and which run; it is never marked rejected, which is a person's
+    decision and teaches the matcher. A pair a person already decided keeps its decision."""
+    from fichero_server.models.knowledge import EntityMatchCandidate
+
+    first = _names_run(client, db, [pages["p0"]])   # Juan de Mosquera, Ysabel de Rojas, Popayán
+    second = _names_run(client, db, [pages["p1"]])  # Ysabel de Rojas, Francisco Arboleda, Cali
+    made = _entities(client)
+    for survivor, candidate in (("Juan de Mosquera", "Francisco Arboleda"), ("Popayán", "Cali")):
+        r = client.post("/api/kg/review/pairs", json={"survivor_entity_id": made[survivor]["id"],
+                                                      "candidate_entity_id": made[candidate]["id"]})
+        assert r.status_code == 200, r.text
+    decided = next(p for p in client.get("/api/kg/review/pairs").json()["items"] if p["candidate_name"] == "Cali")
+    assert client.post(f"/api/kg/review/pairs/{decided['id']}/reject").status_code == 200
+
+    r = client.post("/api/actions/invoke", json={"name": "entity.take_back_run",
+                                                 "params": {"run_id": second, "dry_run": False}})
+    assert r.status_code == 200, r.text
+    assert set(_entities(client)) == {"Juan de Mosquera", "Ysabel de Rojas", "Popayán"}
+    assert client.get("/api/kg/review/pairs").json()["items"] == [], "the waiting pair left the queue"
+    labels = client.get("/api/kg/review/labels").json()["items"]
+    assert [(lab["pair_id"], lab["label"]) for lab in labels] == [(decided["id"], "no_match")], "never rejected"
+    rows = {c.id: c for c in db.query(EntityMatchCandidate)}
+    (withdrawn,) = [c for c in rows.values() if c.id != decided["id"]]
+    assert getattr(withdrawn.state, "value", withdrawn.state) == "withdrawn"
+    assert withdrawn.decided_by == "system" and "Francisco Arboleda" in withdrawn.reason and second in withdrawn.reason
+    assert getattr(rows[decided["id"]].state, "value", None) == "rejected", "a person's decision is kept"
+    assert first

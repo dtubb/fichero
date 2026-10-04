@@ -424,15 +424,30 @@ def find_run_only_entities(db: Database, run_id: str) -> tuple[list[KnowledgeEnt
 def _action_take_back_run(
     db: Database, params: TakeBackRunParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
+    from fichero_server.models.knowledge import EntityMatchCandidate, PendingMatchState
+
     taken, kept = find_run_only_entities(db, params.run_id)
     entity_ids = [e.id for e in taken]
+    names = {e.id: e.canonical_name for e in taken}
+    waiting = [c for c in db.query(EntityMatchCandidate, state=PendingMatchState.pending)
+               if {c.survivor_entity_id, c.candidate_entity_id} & names.keys()]
     if not params.dry_run:
         from fichero_server.api.routes.entity.entities import delete_entity_impl
+        from fichero_server.core.timeutil import utc_now
 
         for entity_id in entity_ids:
             delete_entity_impl(db, entity_id, cascade_claims=False, actor=ctx.actor)
+        # A pair waiting on a removed entity is withdrawn by the system, never rejected: a rejection is a
+        # person's decision and a training label.
+        for pair in waiting:
+            gone = ", ".join(repr(names[i]) for i in (pair.survivor_entity_id, pair.candidate_entity_id) if i in names)
+            pair.state = PendingMatchState.withdrawn
+            pair.decided_by, pair.decided_at = "system", utc_now()
+            pair.reason = f"{pair.reason or ''} [withdrawn by the system: {gone} taken back with run {params.run_id}]".strip()
+            db.save(pair)
     result = {
         "run_id": params.run_id,
+        "withdrawn_pairs": len(waiting),
         "entity_count": len(entity_ids),
         "kept_count": len(kept),
         "kept_reasons": _protected_breakdown(kept),
