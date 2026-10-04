@@ -543,11 +543,30 @@ workflow by hand: a hand run is a job like any other.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion
   pill, Settings' download bars and the jobs list are views of the same rows or are retired; no
   surface keeps its own progress list.
-- `activity.window.honest-state` — **[BROKEN]** (→ #4346, #4384) a spinner only for a job that is
+- `activity.window.honest-state` — **[BROKEN]** (→ #4346, #4384, #5431) a spinner only for a job that is
   running now. The run list's own honesty behaviours are in section I
   (`activity.spinner-reflects-process-liveness`, `activity.stale-runs-settle-across-restarts`).
+  A failed load says what failed and clears itself. Today one refused load of a library's runs
+  leaves "Couldn't load activity from Local" up for good: the window reloads only when the set of
+  libraries or their live run counts change (`Views/Activity/Window/ActivityMonitorWindow.swift:149`,
+  `:211`). The refusal it reports was a 401 `bootstrap_mismatch`: the app's first requests after an
+  engine respawn still carry the previous token (#5431). The footer names the cause (the engine
+  refused the app's credentials, or could not be reached) rather than only a library. A later
+  successful load clears it, and it is retried on reconnect. Pinned by an app test: a store whose
+  first load fails and whose next succeeds shows no failure. An engine test pins the respawned
+  engine's 401 so that it names the branch.
 - `activity.window.what-it-made` — **[GAP]** (→ #5245) a finished job opens the list of what it made
   and can be taken back (`safety/run-take-back.md`).
+- `activity.document.what-has-been-run` — **[GAP]** (#5434) the reverse of
+  `activity.window.what-it-made`: each document has a history of every step that has touched it
+  (split, lines, read, names, statements, check). Each entry gives the model, the provider, the
+  time (`activity.window.absolute-times`), the cost (null unless priced) and the outcome, as
+  recorded when the step ran. One engine read serves two views:
+  - the library table's **Done** column, one badge per step that has run with its outcome;
+  - the document Inspector's "What has been run" section, newest first.
+  The read is batched for the visible rows, never one call per row. It is built from job rows and
+  run records, and nothing is stored only for display. Gap: the `jobs` table has no document key
+  (`execution/jobs.py:85-111`); a page job names its document only in `subject`.
 - `activity.window.measures` — **[PARTIAL]** (#5415) the measures that matter, per run, step and
   page, rolled up the tree, are the table's main columns: **time to run, cost, greenhouse gas, images
   run and steps run**. Built in the engine: each node of `GET /api/activity/jobs/{id}` has `seconds`,
@@ -561,10 +580,23 @@ workflow by hand: a hand run is a job like any other.
   target, the target's stated hardware over the job's time. The figure always says its basis
   (measured, estimate or unknown) and is never invented: the same rule as cost and as
   `source.onboard.routes-for-the-volume`. A cloud call whose provider publishes no figure is unknown.
-- `activity.window.absolute-times` — **[GAP]** (#5415) times are absolute everywhere (started at a
-  clock time, finished at a clock time, elapsed and remaining as durations); no "just now". Today the
-  rows build relative words by hand (`Views/Activity/UnifiedActivityRow.swift:132`,
-  `Views/Activity/ActivityBrowserRow.swift:68`).
+- `activity.window.absolute-times` — **[BROKEN]** (#5415, #5432) times are absolute everywhere
+  (started at a clock time, finished at a clock time, elapsed and remaining as durations); no "just
+  now". Today every row says "just now", even for a run a day old:
+  - the engine sends `started_at` with no time zone and with microseconds (a DuckDB `TIMESTAMP`
+    through `isoformat()`, `api/routes/workflow_execution/threads.py:262`);
+  - the app's default `ISO8601DateFormatter` cannot parse that, and falls back to `Date()`
+    (`Models/ActivityStore.swift:287`);
+  - the rows then build relative words by hand (`Views/Activity/UnifiedActivityRow.swift:132`,
+    `Views/Activity/ActivityBrowserRow.swift:68`).
+  The rule: every timestamp the engine returns is UTC with its zone. The app parses it with the
+  one engine-date parser. A time that cannot be parsed is shown as no time, never as now. Pinned by
+  two tests:
+  - an engine contract test (`test_activity_window_absolute_times__every_run_time_carries_its_zone`):
+    every `started_at` and `finished_at` from `GET /api/workflow-execution/runs` and
+    `GET /api/activity/jobs` parses with a zone;
+  - an app pure-rule test: an engine string of today's shape, an hour old, renders as its clock
+    time, not as "just now".
 - `activity.window.grouped-by-project` — **[GAP]** (#5415) the window can group its rows by
   project; the Mac's own work (`activity.global-work-is-the-macs`) is a group of its own.
 - `activity.window.row-shows-lane-state-reason` — **[PARTIAL]** (#5415) every row shows its state,
