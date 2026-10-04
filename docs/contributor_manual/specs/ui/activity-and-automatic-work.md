@@ -786,7 +786,11 @@ line post-processing. For 200 handwritten pages the stages today add up rather t
   reads is a job on the network lane, four at once for the whole Mac, shared by every run (`fichero-server/tests/unit/jobs/test_runs_are_jobs.py`);
   a local model's page holds the local-model lane. Built (2026-10-04) for text-model calls in a
   run too: each holds the same lane, cloud on the network lane, a model served on this Mac on the
-  local-model lane (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`). Still a gap: a cap per provider, and chat outside a run.* the cap on concurrent model calls is one per
+  local-model lane (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`). Built (2026-10-04): a share per provider: while another provider's
+  call waits, one provider's calls hold at most all but one of the network lane's slots, so a
+  provider stuck on a rate limit gives a slot to another's as soon as one of its calls ends; with
+  no other provider waiting, it keeps the whole lane (`fichero-server/tests/unit/jobs/test_provider_share.py`). Still a gap: chat outside a run, and a provider's
+  own stated rate limit.* the cap on concurrent model calls is one per
   Mac, shared by every run. Today it is per run: the semaphore is rebound to each run's event loop
   (`workflows/builder.py:91-127`), and three runs measured 12 calls at once against a cap of 4.
 - `activity.run.utility-qos-bounded` — **[GAP]** (#5358) heavy local work runs at utility QoS in
