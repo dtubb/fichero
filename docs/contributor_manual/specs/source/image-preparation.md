@@ -154,7 +154,7 @@ CER comparison. Later: a bound volume (curved pages) and a damaged Istmina page.
 1. **Blank pages:** kept and marked (recommended) or not imported at all?
 2. **Ruling suppression before every engine, or only where the bake-off shows it helps?**
    Recommendation: only where it helps; some models use the ruling as a line guide.
-3. **The YOLO runtime:** Core ML export (fast, on the Neural Engine) or PyTorch on MPS (one
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Train in PyTorch and run in Core ML. **The YOLO runtime:** Core ML export (fast, on the Neural Engine) or PyTorch on MPS (one
    runtime for inference and training). Recommendation: train in PyTorch, run in Core ML.
 
 ## Future (ideas, not scheduled)

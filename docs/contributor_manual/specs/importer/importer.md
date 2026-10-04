@@ -440,16 +440,16 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
    generic document-status refresh mechanism (`DocumentStore+StatusRefresh.swift`) with
    nothing embedding-specific? Not verified this pass — a real open question, not a
    confirmed gap.
-2. Once Kraken segmentation and the free NLP layer both run at import
+2. **Answered** (design lead 2026-10-04, by the existing design): The curation guard already runs inside the one KG writer import uses (`importers/nlp_draft.py`, `workflows/curation_guard.py`), so there is no separate pass. Once Kraken segmentation and the free NLP layer both run at import
    (`importer.segmentation-automatic-no-toggle`, `importer.nlp-auto-at-import`), does the
    curation-persists-and-constrains-imports checker become part of THIS pipeline (import-time
    entity resolution) or stay a `kg/kg-enrichment.md`-owned pass that runs just after?
-3. The capture cluster (#2352/2353/2355/2356/2357/2364/2367/2380/3280) is nine issues
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Fold capture in here as an entry point beside drag-and-drop. The capture cluster (#2352/2353/2355/2356/2357/2364/2367/2380/3280) is nine issues
    recommended for re-homing — does it get its own `capture.md` spec, or fold into this one
    as a fifth pipeline stage ("capture" as an entry point alongside drag-drop/Data-menu)?
-4. The IIIF/pluggable-importer cluster (#1632/1646/1650/1651/1656/1658) is six issues — same
+4. **Answered** (design lead 2026-10-04, applying the spec's lean): A section here once one of them is worked. The IIIF/pluggable-importer cluster (#1632/1646/1650/1651/1656/1658) is six issues — same
    question: own spec, or a section here once one of them is actually worked?
-5. Does `importer.bulk-import-activity-visible`'s 100k-scale claim (#4203) need its own load
+5. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, a load profile comes first. Does `importer.bulk-import-activity-visible`'s 100k-scale claim (#4203) need its own load
    test/profile (the spec's Load leg, elsewhere referenced as #4634-style profiling) before
    it can honestly retag `[OK]`?
 

@@ -249,7 +249,7 @@ on segments" in the foundation.
 - **Answered** (maintainer 2026-10-04: archival profile detected + editable): Detected from the page and editable after. **Profile detection** — user-picked only, or auto-detected from the page? Editable after?
 - **Answered** (design lead 2026-10-04, applying the spec's own lean): Both, a file payload and a metadata row. **Where representations physically live** — derivative files (like `_segment_image`), a table, or both?
 - **Answered** (source/source-model.md Rulings 2026-09-20 (readings on segments, slice 8)): Text lives as readings on segments; no separate transcription table. **Is Transcription first-class now** (P2) or does P0 read the existing transcription text and defer the multi-edition table?
-- **Store responsibility** — DuckDB (relational) vs LanceDB (vectors) vs rdflib/SPARQL
+- **Answered** (design lead 2026-10-04, applying the spec's lean): DuckDB is the record; LanceDB and the graph are derived from it and rebuilt from it. **Store responsibility** — DuckDB (relational) vs LanceDB (vectors) vs rdflib/SPARQL
   (graph): which store owns which slot, and how they stay in sync (ties Exporter #4640)?
 - **Answered** (source/source-model.md Rulings 2026-09-19 item 21): One milestone for the source-model set. **New milestones?** — "Segments & Anchors" and/or "Provenance, Versions & Credit", or
   keep everything under the existing surface milestones? (Decomposition on #4639.)

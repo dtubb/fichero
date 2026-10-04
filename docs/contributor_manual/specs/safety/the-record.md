@@ -210,3 +210,5 @@ are already outside the chain on their branch, so a purge can reach those today.
 
 **Answered** (source/source-model.md Rulings 2026-09-20 item 5): No words in the chained record; content part outside the chain that a purge can blank. See the questions file. From this slice: words in the record (jointly with the source-model
 set); the record is never trimmed; the older record retires.
+
+**Answered** (design lead 2026-10-04, applying the spec's lean): The two older records stop being written, stay readable, and their undo retires (`safety.record.one-record`).

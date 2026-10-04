@@ -405,19 +405,19 @@ guardrail) once its violation count starts shrinking rather than only being trac
 
 ## Open questions
 
-1. Should `audit.wrapping-a-route-preserves-its-openapi-surface`'s three traps get their own
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, a before/after schema diff test, once the route sweep is closer to done. Should `audit.wrapping-a-route-preserves-its-openapi-surface`'s three traps get their own
    dedicated regression test (a `build_openapi_schema()` before/after diff assertion run as
    part of the guardrail or a sibling check), rather than relying on each fixing commit having
    manually verified byte-identity? Recommend: yes, as a follow-up once the route sweep
    (`audit.every-mutating-route-uses-the-registry`) is closer to done — not blocking this pass.
-2. Should `audit.only-the-action-surface-reaches-capabilities` get its own guardrail (e.g.
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, a guardrail diffs the CLI and MCP capability list against the action registry. Should `audit.only-the-action-surface-reaches-capabilities` get its own guardrail (e.g.
    diffing the CLI's/MCP's exposed capability list against `GET /api/actions/registry`), or is
    this adequately enforced by convention plus the route guardrail above? Not decided here —
    flagged as a real gap, not assumed solved by the route sweep.
-3. `EntityMergeAudit`'s two self-referencing `reversal_id = audit.id` writes (noted on #4831 as
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, understand the self-referencing reversal ids before extending that pattern. `EntityMergeAudit`'s two self-referencing `reversal_id = audit.id` writes (noted on #4831 as
    "meaning unknown; parity kept") — worth understanding before extending that table's pattern
    to more operations, or safe to leave as an established quirk? Not investigated in this pass.
-- For the maintainer: once the older mutation undo refuses operations the action layer owns
+- **Answered** (design lead 2026-10-04, applying the spec's lean): It retires in favour of the registry's undo, and MutationLog stops being written for those operations (`audit.one-operation-has-one-undo`). For the maintainer: once the older mutation undo refuses operations the action layer owns
   (`audit.one-operation-has-one-undo`, #4864), does that route RETIRE in favour of the
   registry's undo, or stay as a thin caller of it? And when does `MutationLog` stop being
   written for operations that already have an action audit?

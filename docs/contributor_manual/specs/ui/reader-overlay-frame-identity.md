@@ -77,10 +77,10 @@ only as correct as the answer to "did this rendition re-frame?" — carried by `
 
 ## Open questions
 
-1. Should `segment`, `remove_background`, `split` be audited as reframing? (Assumed same-frame today.)
-2. Where does the engine stamp `frame_status` — in `image_editing.py`'s produced rendition rows, and
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, audit each one. Should `segment`, `remove_background`, `split` be audited as reframing? (Assumed same-frame today.)
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): It is stamped on the produced rendition rows and backfilled once at open. Where does the engine stamp `frame_status` — in `image_editing.py`'s produced rendition rows, and
    is it backfilled for existing edited libraries?
-3. Fail-closed default: does inverting to "unknown ⇒ skip" ever blank a legitimately-valid overlay?
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Check it on real edited libraries before inverting. Fail-closed default: does inverting to "unknown ⇒ skip" ever blank a legitimately-valid overlay?
 
 ## References
 

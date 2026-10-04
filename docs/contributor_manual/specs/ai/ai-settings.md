@@ -455,16 +455,16 @@ issue superseded, never close it myself); posted as verify-close above.
 
 ## Open questions
 
-1. Does P1's schema work (`runtime_state`/`requires_runtime`/`service_state` on
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Before: the provider runtime-state work is small and the catalog unification builds on it. Does P1's schema work (`runtime_state`/`requires_runtime`/`service_state` on
    `ProviderResponse`) ship before or after the P2 catalog unification, given they touch
    overlapping response shapes?
 2. Does Embeddings get its own provider row (matching every other capability) once
    `settings.one-catalog-unification` lands, or stay a Defaults-tab-only setting with no row
    of its own (`LocalModelsSettingsView`'s "yet" suggests a row was always the plan)?
-3. `settings.health-observability` (#4327) is broad (providers + tiers + tools + per-call
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): The per-call LangChain visibility belongs to a backend observability milestone. `settings.health-observability` (#4327) is broad (providers + tiers + tools + per-call
    LangChain visibility) — does it belong entirely in this milestone, or does the per-call
    LangChain piece belong to a backend-observability milestone instead?
-4. Several "related" issues (#1059, #1200, #1152, #1342) predate the ratified redesign by
+4. **Answered** (design lead 2026-10-04, applying the spec's lean): Close them once the catalog unification supersedes them, carrying forward distinct scope such as #1200's OpenRouter filters. Several "related" issues (#1059, #1200, #1152, #1342) predate the ratified redesign by
    months — do they get closed once `settings.one-catalog-unification` supersedes them, or
    do they carry distinct scope (e.g. #1200's OpenRouter-specific filters) that survives the
    unification?

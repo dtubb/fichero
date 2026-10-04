@@ -152,14 +152,14 @@ takeover regression shared with every other sidebar mode.
    retires the placeholder?** Promoting while the dead-end regression is live means a beta
    user can hit it. **Recommendation:** hold #255 until #4705's automation increment
    lands, not in parallel.
-6. **Does throttling apply uniformly, or should a user-triggered "run now" run at normal
+6. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes: background priority for scheduled and triggered runs, normal priority for 'run now'. **Does throttling apply uniformly, or should a user-triggered "run now" run at normal
    priority since a human is waiting on it?** **Recommendation:** background QoS for
    schedule/trigger-initiated runs; normal priority for `trigger_now` (a human clicked
    it) — mirrors interactive vs. background elsewhere in the app.
 7. **Is a single dev-tier flag enough, or does Automation need its own per-schedule
    enable/disable beyond pause/resume?** **Recommendation:** no — pause/resume already
    covers "off for one item"; a second toggle would violate "no needless toggles."
-8. **Should trigger/schedule creation go through the one-audited-action-layer as a
+8. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, the same audited action layer with no carve-out. **Should trigger/schedule creation go through the one-audited-action-layer as a
    prerequisite for `automation.audit-trail`, or is a lighter-weight audit log
    acceptable given these are engine-internal, not chat-initiated?** **Recommendation:**
    same layer — "one audited action layer" is a hard rule with no carve-out named for

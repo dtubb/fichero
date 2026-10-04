@@ -97,5 +97,5 @@ arm trains on (`distillation.md`, `distill.set.keeps-reasons`).
 
 1. Should a person's *confirm* of a reading also choose it (`reading.choose`)? *Proposal: no; choosing
    is its own act, offered beside the verdict.*
-2. A statement or entity correction a person takes: through the existing claim and entity edits, naming
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, through the existing claim and entity edits, in a later slice once a review surface exists. A statement or entity correction a person takes: through the existing claim and entity edits, naming
    the verdict. *Proposal: a later slice, once a person's review surface exists.*

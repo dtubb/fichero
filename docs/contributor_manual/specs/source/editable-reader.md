@@ -248,7 +248,7 @@ It is the picture the manual uses.
 5. **Translation line by line.** A translation is one text for the page. Aligning it to lines, so
    a click in the translation shows the line on the image, is a larger piece of work
    (`representation.pair` exists for pairs). Recommended: a later spec.
-6. **The save budget.** Recommended: the typed text never waits, and a line's save returns and
+6. **Answered** (design lead 2026-10-04, applying the spec's lean): Typing never waits, and a line saves and redraws within 300 ms on a 60-line page, measured before it is pinned. **The save budget.** Recommended: the typed text never waits, and a line's save returns and
    redraws its page within 300 ms on a page of 60 lines with word boxes. To be measured before
    it is pinned.
 7. **A page that gains lines later.** A page edited as one page-level reading and then segmented

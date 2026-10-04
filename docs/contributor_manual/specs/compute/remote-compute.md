@@ -613,19 +613,19 @@ kept below, marked, so the record stays whole.*
 4. **Answered** (maintainer 2026-10-04: cluster = own headless engine first, chain of Slurm jobs, project stays on Mac): The cluster runs a chain of Slurm jobs with Fichero's headless engine; the project stays on the Mac. **On a cluster, no long-lived server: jobs and time-limited sessions only.** *Proposal:
    agreed as the honest limit. A whole `fichero-server` holding a project is for machines we
    control.*
-5. **A key Fichero makes and keeps**, rather than the person's own SSH set-up. The person pastes
+5. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, Fichero makes the key and keeps it in the Keychain, after a half-day trial. **A key Fichero makes and keeps**, rather than the person's own SSH set-up. The person pastes
    the public half into the cluster's account page once. *Proposal: yes, because a sandboxed
    app very likely cannot use the person's own keys, and because a cluster's automation path
    demands a dedicated restricted key anyway. Needs a short trial first.*
 6. **Blackfish.** *Answered 2026-10-04 (#5458): Fichero's own headless engine comes first;
    Blackfish is just another endpoint, neither depended on nor wrapped. See the rulings above.*
-7. **One inference engine for each kind of work.** *Proposal: on the Mac, MLX as today. On Linux
+7. **Answered** (design lead 2026-10-04, applying the spec's lean): Agreed as in the table: MLX on the Mac, vLLM on Linux GPUs, Kraken and layout models loaded directly in the job. **One inference engine for each kind of work.** *Proposal: on the Mac, MLX as today. On Linux
    with a GPU, vLLM: inside the job for batch work, as a session for watched work. Kraken and
    layout models load directly in the job's own process. Fine-tuning is always a job.*
 8. **Answered** (this spec's Rulings 2026-10-03): Kraken and YOLO are the first fine-tunes, then a vision model with LoRA. **The first fine-tune to build is Kraken's**, then a language or vision model with LoRA.
    *Proposal: yes. Kraken's result needs no conversion and the maintainer's own corrected pages
    are the training set.*
-9. **The walkthrough needs Docker Desktop on the maintainer's Mac.** *Proposal: agreed, with a
+9. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, after a half-day trial that the sandboxed app can drive it; otherwise one pasted command. **The walkthrough needs Docker Desktop on the maintainer's Mac.** *Proposal: agreed, with a
    half-day trial of whether the sandboxed build can drive it; if not, one pasted command.*
 10. **Answered** (compute/transfer-and-results.md answer 2026-10-03; maintainer 2026-10-04: rights = permissions enforce): Egress is asked once per project and covers every send; rights are enforced by permissions. **What is asked before a project leaves.** *Proposal: a sheet that names what, how much,
     where, who runs that place and how long it stays; a yes that is remembered for that
@@ -645,14 +645,14 @@ kept below, marked, so the record stays whole.*
     D-FINE are Apache-2.0. *Proposal: nothing is baked into the image; every model is fetched
     on request by its card, under `source.model.licence-class`; and the default layout model
     recommended by Fichero is a permissively licensed one.*
-14. **Saved cluster settings and the five `fichero_hpc_*` tools are renamed, not kept beside
+14. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes: the saved value is converted once, the routes and tools are renamed, and no alias is kept. **Saved cluster settings and the five `fichero_hpc_*` tools are renamed, not kept beside
     the new ones.** No app screen uses them. *Proposal: convert the saved value once, rename the
     routes and tools, keep no alias.*
-15. **PyTorch is now in the Mac engine.** That makes it possible to run Kraken, and later a
+15. **Answered** (design lead 2026-10-04, applying the spec's lean): Not now; it is noted in AI settings as a simplification to weigh after the first three slices. **PyTorch is now in the Mac engine.** That makes it possible to run Kraken, and later a
     layout model, inside the engine's own process instead of a separate environment installed
     on demand. It buys sameness between Mac and Linux, not speed. *Proposal: not now. Note it
     in `ai/ai-settings.md` as a simplification to weigh after this set's first three slices.*
-16. **Apple's on-device model adapters** are left out of this set. *Proposal: agreed; one
+16. **Answered** (design lead 2026-10-04, applying the spec's lean): Agreed, because an adapter fits one system-model version and shipping one needs an entitlement. **Apple's on-device model adapters** are left out of this set. *Proposal: agreed; one
     adapter fits one system-model version and shipping one needs an entitlement.*
 17. **Answered** (maintainer 2026-10-04: own allocation only): Only a cluster where the maintainer has his own account and allocation (ACENET second after Hugging Face Jobs). **Which cluster first?** ACENET's own cluster, Siku, has about eleven GPUs (CITED, S7). The
     national clusters have hundreds. *Proposal: whichever the maintainer has an account and an

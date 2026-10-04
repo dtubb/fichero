@@ -107,6 +107,6 @@ Ties #4542 (wire `ux_smoke.py` into the gate), #4250 (iPad/iOS/CLI/MCP legs), #4
 ## Open questions
 - **Answered** (maintainer 2026-10-04: comments = threaded record): A first-class threaded comment record. Comments: a first-class `Comment` record (threaded?) or a claim of a "comment" type?
   **Answered 2026-10-04:** its own threaded record, anchored to any node; see Rulings.
-- Drag payload: JSON-LD item vs an internal id — or both (internal for in-app, JSON-LD for
+- **Answered** (design lead 2026-10-04, applying the spec's lean): Both: the internal id inside the app and JSON-LD outward. Drag payload: JSON-LD item vs an internal id — or both (internal for in-app, JSON-LD for
   out)?
 - Which extra claim fields become table COLUMNS vs inspector-only (columns cost width)?

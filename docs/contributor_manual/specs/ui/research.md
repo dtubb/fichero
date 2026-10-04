@@ -454,7 +454,7 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
    whether that choice is per-page-type or user-chosen each time — not whether saving is
    research-node-only (scratch browsing outside a workspace was never in scope) nor what a
    save produces.
-3. **How does the Knowledge tab get browsable entity/claim identities?** Blocked on an
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, file the engine issue before building any UI. **How does the Knowledge tab get browsable entity/claim identities?** Blocked on an
    engine change (return entity/claim IDs alongside `RetrievalInfo` on a chat reply), not a
    UI decision. Recommendation: file the engine issue rather than building a UI ahead of the
    data.

@@ -142,7 +142,7 @@ reading somebody else's file is what proves the model is right.
 
 ## Open questions for the maintainer
 
-1. **Which PAGE XML version?** The 2019-07-15 schema is the common one; eScriptorium writes 2013 in
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Write 2019-07-15 and read both, as `formats/pagexml.py` already does. **Which PAGE XML version?** The 2019-07-15 schema is the common one; eScriptorium writes 2013 in
    places. Reading both is cheap; writing needs a choice, and writing the older one to please
    eScriptorium may cost the newer one's attributes.
 2. **Does an import become the working pass?** `source.format.import-is-pass` says a new pass with

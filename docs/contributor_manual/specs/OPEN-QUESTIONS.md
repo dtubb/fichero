@@ -28,9 +28,7 @@ All four answered 2026-10-04 (see spec "Rulings"):
 
 - [x] Area leads are **on demand** (answered 2026-10-04, design lead).
 - [x] fabel is **reserved for visible Xcode UI iteration** (answered 2026-10-04, design lead).
-- [ ] **Agents/skills audit:** there are ~31 agents and ~138 skills loaded. Many overlap
-      (multiple code-reviewers, multiple session-start variants, several planning skills). Worth a
-      pass to cut the ones we never invoke — separate short task, listed as a follow-up below.
+- [x] Agents/skills audit: **yes, as a separate short task** (answered 2026-10-04, design lead).
 
 ### git-worktree-workflow.md
 
@@ -55,8 +53,8 @@ _(The spec lives at `source/archival-data-model-plan.md`.)_
       lead, 2026-10-04).
 - [x] **Is Transcription first-class now** — yes: text lives as readings on segments, in passes
       (source-model rulings 2026-09-20).
-- [ ] **Store responsibility** — DuckDB (relational) vs LanceDB (vectors) vs rdflib/SPARQL
-      (graph): which store owns which slot, and how they stay in sync (ties Exporter #4640)?
+- [x] **Store responsibility** — DuckDB is the record; LanceDB and the graph are derived and
+      rebuilt from it (design lead, 2026-10-04).
 - [x] **New milestones?** — one milestone for the source-model set (source-model rulings 2026-09-19 item 21). Was: "Segments & Anchors" and/or "Provenance, Versions & Credit", or
       keep everything under the existing surface milestones? (Decomposition on #4639.)
 - [x] **P0 export target** — answered by what is built: ALTO and PAGE XML both export today.
@@ -76,8 +74,7 @@ None outstanding (no "Open questions" section in the spec).
 
 - [x] Comments = **their own threaded record**, anchored to any node, never a claim (maintainer,
       2026-10-04).
-- [ ] Drag payload: JSON-LD item vs an internal id — or both (internal for in-app, JSON-LD for
-      out)?
+- [x] Drag payload = **both**: internal id in the app, JSON-LD outward (design lead, 2026-10-04).
 - [ ] Which extra claim fields become table COLUMNS vs inspector-only (columns cost width)?
 
 ### kg-readable-representation.md
@@ -107,12 +104,12 @@ _(The spec lives at `source/segment-representations.md`.)_ All three answered 20
 
 ### test-environment-contract.md
 
-- [ ] Where does the shared engine `.env` base live, and does the test harness read it +
-      layer the allowlisted overrides (vs. re-listing env in Swift)?
-- [ ] Which tiers get a full UI run vs. a smoke run (release always; beta on release branches;
-      dev every push)?
-- [ ] Model cache: one committed/seeded fixture model for embeddings tests, or point tests at
-      the developer's real `~/.cache` (fast but not hermetic)?
+- [x] One shared engine env base file; the harness layers only allowlisted overrides (design
+      lead, 2026-10-04).
+- [x] Release always runs the full UI suite, beta on release branches, dev a smoke run on every
+      push (design lead, 2026-10-04).
+- [x] Model cache: tests use the developer's cached model offline and skip with a reason when
+      it is missing (#5188; by the existing design, 2026-10-04).
 
 ### ui-test-harness.md
 
@@ -132,8 +129,8 @@ All four original questions resolved by the rulings in the spec. Remaining unkno
 
 ### transport-http-uds.md
 
-- [ ] `transport.event-delivery` (#4486): write the Swift change-stream test now that the
-      MainActor isolation fix (#4511 class) has landed? (Tracked; not this pass.)
+- [x] `transport.event-delivery` (#4486): **re-verify #4511 once, then write the test** (design
+      lead, 2026-10-04).
 
 ---
 
@@ -146,3 +143,68 @@ None outstanding (no "Open questions" section in the spec).
 ### workflow-node-config.md
 
 None outstanding (no "Open questions" section in the spec).
+
+---
+
+## Design-lead leans applied 2026-10-04 (specs not itemised above)
+
+Each was answered in place in its spec, marked "**Answered** (design lead 2026-10-04, applying
+the spec's lean)". Questions in these specs not listed here stay open in the spec.
+
+- `ai/ai-settings.md` — runtime-state work ships before the catalog unification; per-call
+  LangChain visibility goes to a backend observability milestone; older settings issues close
+  once superseded, carrying distinct scope forward.
+- `ai/local-runtimes.md` — MLX bundled at build time, in-process; Vision strips measured before
+  any change; heavy = over 1 GB resident; FoundationModels/Vision memory counts as "system";
+  runtime configurations fold into card id + step settings; build order as recommended.
+- `compute/remote-compute.md` — Fichero-made Keychain key after a trial; one engine per kind of
+  work; Docker Desktop after a trial; `fichero_hpc_*` renamed with no alias; Kraken in-engine not
+  now; Apple adapters left out.
+- `compute/jobs-and-fine-tuning.md` — one engine per kind of work; 50 sources per shard;
+  publishing moves to exporter/model-card specs once owners agree; #4642 stays its own issue.
+- `compute/linux-server-image.md` — third image decided from measured sizes; CUDA runtime base
+  matching PyTorch's wheels.
+- `compute/targets-and-connection.md` — sandboxed SSH trial first; compute-node SSH and login-node
+  Apptainer fetch tried once per cluster; never installs Docker or Tailscale; three-hour sessions.
+- `compute/transfer-and-results.md` — an agent can never say yes to egress.
+- `explore/time.md` — storylines and arcs: HTML first, decided by measured memory cost.
+- `harness/audited-action-layer.md` — OpenAPI before/after diff test later; CLI/MCP-vs-registry
+  guardrail; understand the merge audit's reversal ids first; the older mutation undo retires.
+- `harness/observable-data-layer.md` — engine adds item ids (`observable.change-events-carry-item-ids`,
+  #4824); fix the refresh loop directly; architecture doc stays separate.
+- `harness/spec-pipeline.md` — the daily check goes strict on orphan issues once worked down.
+- `importer/importer.md` — capture folds in as an entry point; pluggable importers get a section
+  once worked; the 100k claim needs a load profile first.
+- `kg/hermeneutic-layer.md` — wire the create form's claim/passage link now; claim type belongs in
+  the claim-editing spec.
+- `safety/the-record.md`, `safety/undo.md` — older records stop being written and their undo
+  retires; redo of a create keeps the id.
+- `source/build-notes-formats-harness.md` — write PAGE XML 2019-07-15, read both.
+- `source/checking.md` — statement/entity corrections in a later slice.
+- `source/editable-reader.md` — typing never waits; a line saves within 300 ms, measured first.
+- `source/historical-text-normalization.md` — one shared fold (`histnorm.one-shared-fold`, #3320);
+  #3323 and #3326 merge; EDTF layered over existing date storage.
+- `source/image-preparation.md` — YOLO trained in PyTorch, run in Core ML.
+- `source/maps-and-georeference.md` — DuckDB Spatial, bundled, subject to size.
+- `source/segments-and-geometry.md` — character stretch = anchor text-position form; one call per
+  model (`source.tool.each-model-gets-its-own-call`, #5026).
+- `source/synced-folder.md` — same quiet period as Activity.
+- `ui/about.md` — copyright single-sourced (`about.copyright-single-sourced`, #3234); create the
+  `about` milestone.
+- `ui/activity-and-automatic-work.md` — yield to typing on the local-ML lane only; LangGraph keeps
+  graph, fan-out, state and interrupt.
+- `ui/automation.md` — background priority for scheduled runs, normal for "run now"; same audited
+  layer.
+- `ui/menus-and-commands.md` — worst offenders first; shared components with the pane as context.
+- `ui/reader-overlay-frame-identity.md` — audit all three ops; stamp on rendition rows, backfill at
+  open; check real libraries before inverting.
+- `ui/reading-markup-annotations.md` — several tags with AND/OR, no fixed vocabulary.
+- `ui/research.md` — file the engine issue before UI.
+- `ui/workflows.md`, `ui/workflow-node-config.md` — node config stays separate; #252 becomes
+  `workflows`; edge legality before the move; presets issue filed (#4738); #4396 re-check stands;
+  typed steps after tracing duplicates and fixing `kraken_model` drift.
+
+Answered by the existing design (2026-10-04): the importer's curation guard runs inside the one
+KG writer, no separate pass; a tool gets only the working pass's reading and the maker tag is
+built; spec-pipeline rule (g) keeps baseline + reasoned allowlist; test embeddings use the
+developer's cached model offline (#5188).

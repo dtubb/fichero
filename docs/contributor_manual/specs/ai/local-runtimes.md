@@ -384,7 +384,7 @@ Moved on 2026-10-04: the two key behaviours to `ai/ai-settings.md` ("Keys a runt
 
 ## Open questions (with recommendations)
 
-1. **MLX in the sandboxed build: bundle it, or Debug only?** *Recommend:* bundle mlx, mlx-lm,
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Bundle mlx, mlx-lm, mlx-vlm and mlx-whisper at build time like Kraken and run them in-process behind one seam, measuring the size first. **MLX in the sandboxed build: bundle it, or Debug only?** *Recommend:* bundle mlx, mlx-lm,
    mlx-vlm and mlx-whisper at build time with the Kraken bundle pattern, and run them in-process
    behind one seam rather than as a child server (the sandboxed engine cannot spawn its own Python
    children, #4973). That also removes the port and the 30–300 s server warm-up. Measure the
@@ -400,19 +400,19 @@ Moved on 2026-10-04: the two key behaviours to `ai/ai-settings.md` ("Keys a runt
    cheapest local option that covers the language starts; the others are one A/B away.
 3. **Answered** (this spec, ruled 2026-10-01): Allowed, marked 'can change', with the dated version recorded on each reading. **Cloud aliases in recipes.** *Ruled 2026-10-01:* allowed, marked "can change" in the recipe
    editor, with the dated version that actually answered recorded on each reading.
-4. **Apple Vision's strips: conditional or always?** They became a base pass on 2026-08-23 because
+4. **Answered** (design lead 2026-10-04, applying the spec's lean): Measure on the fixture pages and keep 'always' if the sparse rule loses any line. **Apple Vision's strips: conditional or always?** They became a base pass on 2026-08-23 because
    they found lines the first pass missed. *Recommend:* measure on the fixture pages whether a
    sparse-first-pass rule loses any line; keep "always" if it does.
-5. **What counts as heavy on an 8 GB Mac?** *Recommend:* anything whose measured resident size is
+5. **Answered** (design lead 2026-10-04, applying the spec's lean): A model whose measured resident size is over 1 GB, the embedder included, with one heavy model at a time below 16 GB. **What counts as heavy on an 8 GB Mac?** *Recommend:* anything whose measured resident size is
    above 1 GB; the embedder counts. One heavy model at a time below 16 GB, and onboarding offers an
    8 GB Mac only cards that fit beside the embedder.
-6. **Where does fm-bridge's memory count?** FoundationModels and Vision memory belongs to the system,
+6. **Answered** (design lead 2026-10-04, applying the spec's lean): As 'system', outside the co-run sum, while the memory-pressure wait still applies. **Where does fm-bridge's memory count?** FoundationModels and Vision memory belongs to the system,
    not the engine. *Recommend:* count it as "system" in the job's processor row and leave it out of
    the co-run sum, but let the memory-pressure wait apply.
-7. **Runtime configurations (`llm/model_profiles.py`): keep or fold?** *Recommend:* fold into a card
+7. **Answered** (design lead 2026-10-04, applying the spec's lean): Fold them into a card id plus the recipe step's settings, with the privacy rule moving to the egress gate. **Runtime configurations (`llm/model_profiles.py`): keep or fold?** *Recommend:* fold into a card
    id plus the recipe step's settings, with the privacy rule moving to the egress gate, as the
    models-chains spec already asks (it calls the thing a "runtime configuration").
-8. **Build order.** *Recommend:* (a) the card id and `source.model.runs-here`, data only; (b) the
+8. **Answered** (design lead 2026-10-04, applying the spec's lean): Card id, then the status endpoint, then one download path writing jobs, then load-once Kraken and the resident fm-bridge, then the egress gate. **Build order.** *Recommend:* (a) the card id and `source.model.runs-here`, data only; (b) the
    build-state constant and the status endpoint wired to the rows (removes the sandbox lie);
    (c) the one download path writing jobs; (d) load-once for Kraken and the resident fm-bridge
    (the two largest speed wins); (e) the egress gate at every call site. Recipes come after (a)–(c).

@@ -245,7 +245,7 @@ adoption of a TEI folder written by another tool); a load test on a folder of th
 2. **Who made an outside edit, in a relaxed project?** A file's edit carries no author.
    *Recommend:* "edited outside Fichero", counted as a person's only when the person says it was
    theirs (as written); never assumed.
-3. **How long is the quiet period before a rewrite?** *Recommend:* the same quiet period the
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): The same quiet period Activity uses after a correction. **How long is the quiet period before a rewrite?** *Recommend:* the same quiet period the
    activity system uses for re-extraction after a correction, so a run of corrections makes one
    write.
 

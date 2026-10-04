@@ -258,11 +258,11 @@ second markdown-bullet parser — one parser, one bug surface.
 1. `MILESTONE_PRIORITY`'s seed order (modes-to-panes, panes-workspaces, workflows, research,
    automation, kg-tables, kg-entity-inspector, kg-readable-representation, ui-test-harness,
    ui-testing-strategy) was given verbatim in the dispatch brief — ratify as-is, or reorder?
-2. Rule (f) (orphan open issues) defaults to INFO, `--strict` promotes to failure. Should the
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, the daily check runs strict once the backlog is worked down. Rule (f) (orphan open issues) defaults to INFO, `--strict` promotes to failure. Should the
    manager's daily `check` run with `--strict` by default once the real-tree backlog (see the
    first real run below) is worked down, or stay INFO indefinitely?
 3. Every rule-c/d/f/g fixture test now exists; no `[MISSING]` behaviors remain in this spec.
-4. The baseline seeded from the real tree (2026-09-18) carries 354 illegal states, 138 of
+4. **Answered** (design lead 2026-10-04, by the existing design): Rule (g) keeps its shrink-only baseline plus the allowlist whose entries need reasons (`scripts/spec_pipeline_non_spec_milestones.json`), so it is not strict-only. The baseline seeded from the real tree (2026-09-18) carries 354 illegal states, 138 of
    them rule (g) — GitHub milestones (of 156 total) that predate spec-per-milestone
    discipline and legitimately have no spec (`audit_spec_milestone_manual.py` already
    surfaces this same backlog as an audit). Is baselining all 138 at once acceptable, or

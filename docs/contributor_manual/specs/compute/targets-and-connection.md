@@ -381,18 +381,18 @@ switch; it is there or it is removed.
 
 ## Open questions
 
-1. **Trial first: SSH from the sandboxed build, in process, with a key from the Keychain, and
+1. **Answered** (design lead 2026-10-04, applying the spec's lean): Yes, run the half-day trial before cutting the cluster slice, and fall back to a small helper outside the sandbox if it fails. **Trial first: SSH from the sandboxed build, in process, with a key from the Keychain, and
    a second factor passed through.** Half a day, against a throwaway SSH server. If it fails,
    the fallback is a small helper outside the sandbox, which is a release question. *Proposal:
    run the trial before cutting the cluster slice.*
-2. **May a person SSH to a compute node where their job runs, on Alliance clusters?** The
+2. **Answered** (design lead 2026-10-04, applying the spec's lean): Try it once on the maintainer's account and record the answer per cluster. **May a person SSH to a compute node where their job runs, on Alliance clusters?** The
    session design depends on it. *Proposal: the maintainer, or whoever holds the account, tries
    it once and we record the answer by cluster.*
-3. **May an Apptainer image be fetched on a login node?** *Proposal: same one-time trial; the
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Try it once on the maintainer's account and record the answer per cluster. **May an Apptainer image be fetched on a login node?** *Proposal: same one-time trial; the
    upload-from-the-Mac fallback is specified either way.*
-4. **Fichero does not install Docker or Tailscale on someone else's machine.** *Proposal:
+4. **Answered** (design lead 2026-10-04, applying the spec's lean): Agreed: Fichero checks and says what is missing. **Fichero does not install Docker or Tailscale on someone else's machine.** *Proposal:
    agreed; it checks, and says what is missing.*
-5. **Default session length: three hours.** *Proposal: agreed; changeable when starting one.*
+5. **Answered** (design lead 2026-10-04, applying the spec's lean): Three hours, changeable when starting a session. **Default session length: three hours.** *Proposal: agreed; changeable when starting one.*
 
 ## Triaged from the backlog (2026-10-04)
 - `connection.cli-transport-fails-closed` — **[GAP]** (#4083) the CLI reaches the server over UDS or pinned HTTPS and never unverified HTTP; client.py:459-461 still defers SPKI pinning (#4468).
