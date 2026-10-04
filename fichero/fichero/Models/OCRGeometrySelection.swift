@@ -102,29 +102,41 @@ enum OCRGeometrySelection {
     /// field here.
     ///
     /// **Which passes rank, and in what order (#5146, applied 2026-09-27 from the programme's rules;
-    /// `segment-editor.md`):** hand-curated → imported from a file → machine → legacy artifact
-    /// geometry, newest first inside each tier. Only a LEGACY pass (provisional: read from an
-    /// artifact's `ocr_geometry` blob) is ranked by its artifact type, with the old type tiers inside
-    /// its tier and a non-geometry type left out. A real pass has no artifact behind it -- a PAGE or
-    /// ALTO import, a folder import -- so `artifactType` is nil, and dropping it for that is what left
-    /// every imported page with no boxes on the image while its text showed.
+    /// `segment-editor.md`):** the engine's working pass → hand-curated → every other pass → legacy
+    /// artifact geometry, newest first inside each tier. **An import has no tier of its own** (ruled
+    /// 2026-10-04, #5443): it is ranked by date with the machine passes. The first rung is the
+    /// ENGINE's answer (`PassRead.working`, `resolve_working_pass`), chosen or by the rule, so the
+    /// image and the text cannot pick different passes by two copies of one ladder; the rungs below
+    /// it only decide what is drawn when the working pass has no shapes. Only a LEGACY pass
+    /// (provisional: read from an artifact's `ocr_geometry` blob) is ranked by its artifact type, with
+    /// the old type tiers inside its tier and a non-geometry type left out. A real pass has no
+    /// artifact behind it -- a PAGE or ALTO import, a folder import -- so `artifactType` is nil, and
+    /// dropping it for that is what left every imported page with no boxes on the image while its
+    /// text showed.
+    ///
+    /// **A pass without shapes goes last** (`ui.preview.draws-a-pass-with-shapes`): when every one
+    /// of its segments in `segments` has no place to draw (`hasShape`), it may still be the page's
+    /// text, but the boxes come from the best-ranked pass that has shapes. It is moved behind them,
+    /// not dropped, so a text-only page (its only pass unstated) still selects its lines as before.
+    /// A pass none of whose segments are in hand is not judged -- absence of the segments is not
+    /// evidence of absence of shapes.
     nonisolated static func rankedPasses(_ passes: [SegmentPassValue], segments: [Segment]) -> [SegmentPassValue] {
         let curatedPassIds = Set(segments.filter(\.isHandCurated).map(\.passId))
+        let heldPassIds = Set(segments.map(\.passId))
+        let shapedPassIds = Set(segments.filter(hasShape).map(\.passId))
         var ranked: [RankedPass] = []
         // A georeferencing pass holds control points and a mask, not the page's text (#5122): it is
         // never drawn as the page's boxes, whatever its tier. Ranked with them, an imported
         // georeference outranked a machine transcription and the page went blank (bugs2, a35449e3b).
         for pass in passes where !pass.isGeoreferencing {
+            let shapeless = heldPassIds.contains(pass.id) && !shapedPassIds.contains(pass.id)
             let tier: Int
             var typeRank = 0
-            if pass.working && pass.workingBasis == "chosen" {
-                // A person CHOSE this as the page's working pass (#5156): their explicit choice
-                // outranks the ladder, as the inspector's focused artifact does (2026-08-27).
+            if pass.working {
+                // The engine's working pass (#5156, #5443): a person's choice, or the ladder's answer.
                 tier = -1
             } else if pass.provenanceKind == .human || curatedPassIds.contains(pass.id) {
                 tier = 0
-            } else if pass.provenanceKind == .externalImport {
-                tier = 1
             } else if !pass.provisional {
                 tier = 2
             } else {
@@ -132,9 +144,12 @@ enum OCRGeometrySelection {
                 tier = 3
                 typeRank = rank == 0 ? 0 : 1
             }
-            ranked.append(RankedPass(tier: tier, typeRank: typeRank, createdAt: pass.createdAt ?? .distantPast, pass: pass))
+            ranked.append(RankedPass(
+                shapeless: shapeless, tier: tier, typeRank: typeRank, createdAt: pass.createdAt ?? .distantPast, pass: pass
+            ))
         }
         ranked.sort { lhs, rhs in
+            if lhs.shapeless != rhs.shapeless { return !lhs.shapeless }
             if lhs.tier != rhs.tier { return lhs.tier < rhs.tier }
             if lhs.typeRank != rhs.typeRank { return lhs.typeRank < rhs.typeRank }
             return lhs.createdAt > rhs.createdAt
@@ -142,8 +157,17 @@ enum OCRGeometrySelection {
         return ranked.map(\.pass)
     }
 
+    /// Whether a segment has a place on the image to draw: not one whose file stated no place (the
+    /// engine's `shape: unstated`, stored on a whole-page rect only because a segment must be
+    /// somewhere), and not one with neither a box nor a drawn shape.
+    nonisolated static func hasShape(_ segment: Segment) -> Bool {
+        guard !segment.shapeIsUnstated else { return false }
+        return segment.anchor.rect != nil || !SegmentShapes.drawn(for: segment).isEmpty
+    }
+
     /// One pass with its place in the ladder -- a struct, not a tuple (SwiftLint `large_tuple`).
     private struct RankedPass {
+        let shapeless: Bool
         let tier: Int
         let typeRank: Int
         let createdAt: Date

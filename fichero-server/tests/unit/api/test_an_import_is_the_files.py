@@ -1,12 +1,12 @@
-"""An imported pass says it came from a file, names what the file says made it, and ranks as an
-import (#5150).
+"""An imported pass says it came from a file, names what the file says made it, and has no rank
+of its own (#5150; ruled 2026-10-04, #5443).
 
 WHY: `format.import` stamped every imported pass `human`. A Transkribus PAGE file is often
 ABBYY's or an HTR model's output; calling it a person's work is the "machine claims stored as
 human" class (#4868/#4869), and it put every import in the hand-curated tier of the pass ladder
 (#5146), above a person's own work in waiting. If this regresses, an import reads as a person's
-again, or the file's own statement of who made it is lost, or an import outranks -- or is
-outranked by -- the wrong tier.
+again, or the file's own statement of who made it is lost, or an import outranks a newer run
+or a person's pass.
 
 The file's statement is read with plain lxml, never with the engine's readers.
 """
@@ -81,7 +81,9 @@ def test_a_tei_edition_names_its_responsibilities(db):
     assert names and all(name in provider for name in names), provider
 
 
-def test_it_ranks_as_an_import_above_a_machine_and_below_a_person(db):
+def test_it_ranks_by_date_like_a_machines_pass_and_below_a_person(db):
+    """Ruled 2026-10-04 (#5443): an import has no rank of its own -- it is just the first pass. A
+    machine run that lands after it is the newest and wins; a person's pass outranks both."""
     doc = _doc(db)
     imported = _import(db, doc, TRANSKRIBUS)
     later = utc_now() + timedelta(hours=1)
@@ -90,7 +92,7 @@ def test_it_ranks_as_an_import_above_a_machine_and_below_a_person(db):
                           created_at=later)
     db.save(machine)
     answer = document_text(db, doc.id)
-    assert (answer.pass_id, answer.pass_basis) == (imported.id, "imported"), "a newer machine run does not win"
+    assert (answer.pass_id, answer.pass_basis) == (machine.id, "newest-machine-unchosen"), "the newer run wins"
 
     person = SegmentPass(document_id=doc.id, name="my pass", provenance_kind=ProvenanceKind.human,
                          created_at=imported.created_at - timedelta(hours=1))

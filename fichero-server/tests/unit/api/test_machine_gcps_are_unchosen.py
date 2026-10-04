@@ -90,4 +90,7 @@ def test_with_two_georeferences_the_rule_picks_and_says_why(db, client):
         "document_id": doc_id, "pass_id": label, "kind": "place",
         "anchor": {"document_id": doc_id, "shapes": [{"kind": "point", "points": [[0.4, 0.5]]}]}}, BOOT).result["segment_ids"][0]
     got = client.get(f"/api/georeference/segments/{place}/world-shape").json()
-    assert (got["pass_id"], got["pass_basis"], got["unchosen"]) == (imported, "imported", False)
+    # An import has no rank of its own (ruled 2026-10-04, #5443): the machine's georeference came
+    # later, so by date it is the working one -- and, a machine's, it says it is unchosen.
+    assert imported != machine
+    assert (got["pass_id"], got["pass_basis"], got["unchosen"]) == (machine, "newest-machine-unchosen", True)

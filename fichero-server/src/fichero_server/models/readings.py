@@ -493,9 +493,8 @@ class PassBasis(str, Enum):
     #: it. THE 2026-09-03 CASE: this is what stops a newer machine run hiding
     #: a region somebody drew by hand.
     human_touched = "human-touched"
-    #: Nobody chose and nobody touched a pass; this one was imported from a file (PAGE, ALTO,
-    #: TEI, hOCR, YOLO) -- the #5146 ladder's second tier, above anything a machine ran here
-    #: (#5150). Before, an import was stamped `human` and ranked as hand-curated.
+    #: RETIRED (ruled 2026-10-04, #5443): an import has no rank of its own, so nothing answers
+    #: this any more. Kept so the wire's vocabulary does not change under a stored or cached answer.
     imported = "imported"
     #: Nobody chose and nobody has touched any pass; this one came from the
     #: file's own text layer, which is at least the author's own words.
@@ -563,9 +562,9 @@ def resolve_working_pass(
     out in the engine means the app's ranking can read this answer and delete
     its own copy, so the two can no longer disagree about which pass is shown.
 
-    The order: a live human choice; then a pass a person made or touched; then a pass
-    imported from a file (#5150); then
-    a pass from the file's own text layer; then the newest.
+    The order: a live human choice; then a pass a person made or touched; then a pass from the
+    file's own text layer; then the newest. An import has no rank of its own (ruled 2026-10-04,
+    #5443): it is ranked by date like any pass no person touched.
 
     A pass edited outside Fichero (a synced folder's file, #4952) is passed over by every tier
     but a choice: an outside edit never takes the record by itself.
@@ -600,9 +599,9 @@ def resolve_working_pass(
     if touched:
         return PassAnswer(pass_id=newest(touched).pass_id, basis=PassBasis.human_touched)
 
-    imported = [row for row in passes_with_makers if row.provenance_kind is ProvenanceKind.external_import]
-    if imported:
-        return PassAnswer(pass_id=newest(imported).pass_id, basis=PassBasis.imported)
+    # An import has NO rank of its own (ruled 2026-10-04, #5443): it is just the first pass, ranked
+    # by date with the rest. An "imported" tier here kept a geometry-free TEI draft the working pass
+    # of 358 of 374 Mosquera pages, over every later run.
 
     text_layer = [row for row in passes_with_makers if row.from_text_layer]
     if text_layer:

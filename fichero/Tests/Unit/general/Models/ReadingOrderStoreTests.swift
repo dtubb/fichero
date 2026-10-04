@@ -83,6 +83,24 @@ struct ReadingOrderStoreTests {
         #expect(store.entries.map(\.segmentId) == ["s-a", "s-b", "s-c"])
     }
 
+    /// #5450: every pass has its own `as-written` order, and the Order tab listed whichever the
+    /// engine listed first -- on SM_NPQ_C01_030 the Apple Vision pass's lines, while the text and
+    /// Preview showed another pass. The engine now lists the WORKING pass's order first
+    /// (`test_an_import_has_no_rank_of_its_own.py::TestTheOrderTabListsTheWorkingPass`); this pins
+    /// the app's half: it shows the first `as-written` listed, never re-sorting by its own rule.
+    @Test("source.pass.working: the Order tab shows the as-written order the engine lists first (the working pass's)")
+    func showsTheWorkingPasssOrder() async throws {
+        let transport = FakeTransport()
+        transport.orderList = [
+            .init(id: "o-working", name: "as-written", kind: "as-written", passId: "gemini-on-kraken"),
+            .init(id: "o-apple", name: "as-written", kind: "as-written", passId: "apple-vision"),
+            .init(id: "o-imposed", name: "commentary first", kind: "imposed", passId: "apple-vision")
+        ]
+        let store = ReadingOrderStore(transport: transport)
+        try await store.load(documentId: "d1")
+        #expect(store.orderId == "o-working")
+    }
+
     @Test("a key sends ONE place, and the list shows the move with the row's new version")
     func keyMoveIsOneCallAppliedInPlace() async throws {
         let (store, transport) = try await loaded()

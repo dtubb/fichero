@@ -194,14 +194,17 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
 
 ### D. Which pass the image draws
 
-- `ui.preview.draws-a-pass-with-shapes` — **[BROKEN]** (#5443; owner: the app) Preview draws the
+- `ui.preview.draws-a-pass-with-shapes` — **[PARTIAL]** (#5443; owner: the app) Preview draws the
   best-ranked pass THAT HAS SHAPES (`source/segment-editor.md`, "Which pass the image draws"): a pass
   whose segments carry no polygon and only the whole page as their box is passed over for drawing, while
-  it may still be the pass whose text shows. Today `OCRGeometrySelection.rankedPasses` picks the top
-  pass whether or not it has shapes, and an import ranks above machine passes, so a geometry-free TEI
-  import (a draft with no coordinates) leaves the image with no boxes on 358 of 374 Mosquera pages
-  (SM_NPQ_C01_005, C01_052, #5425). With the import rank removed (#5443) and this, the page shows the
-  Gemini reading of Kraken's lines it already has.
+  it may still be the pass whose text shows. Until 2026-10-04 `OCRGeometrySelection.rankedPasses` picked
+  the top pass whether or not it had shapes, and an import ranked above machine passes, so a
+  geometry-free TEI import (a draft with no coordinates) left the image with no boxes on 358 of 374
+  Mosquera pages (SM_NPQ_C01_005, C01_052, #5425). **Built 2026-10-04:** the import rank is gone
+  (engine and app) and `rankedPasses` moves a pass whose segments are all `shape: unstated` behind
+  every pass with shapes, so the page shows the Gemini reading of Kraken's lines it already has.
+  Pinned by `fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`. PARTIAL until seen on
+  screen on C01_005 and C01_052.
 
 ## PASS 2 — the fold (9 waiting issues, every body read fresh)
 

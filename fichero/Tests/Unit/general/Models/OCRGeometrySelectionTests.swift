@@ -430,7 +430,9 @@ struct OCRGeometrySelectionTests {
         #expect(OCRGeometrySelection.rankedPasses([georef, transcription], segments: []).map(\.id) == ["page-xml"])
     }
 
-    @Test("rankedPasses: hand-curated, then imported from a file, then machine, then legacy artifact geometry")
+    /// Ruled 2026-10-04 (#5443): an import has no rank of its own, so it sits among the passes no
+    /// person touched, by date -- here behind the newer machine pass.
+    @Test("rankedPasses: hand-curated, then every other pass newest first (an import among them), then legacy")
     func rankedPassesLadder() {
         let ranked = OCRGeometrySelection.rankedPasses([
             pass(id: "legacy-geo", type: "text_geometry", ageInHours: 0),
@@ -438,21 +440,25 @@ struct OCRGeometrySelectionTests {
             realPass(id: "imported", kind: .externalImport, ageInHours: 50),
             realPass(id: "curated", kind: .human, ageInHours: 500)
         ], segments: [])
-        #expect(ranked.map(\.id) == ["curated", "imported", "machine", "legacy-geo"])
+        #expect(ranked.map(\.id) == ["curated", "machine", "imported", "legacy-geo"])
     }
 
     /// #5156: a person's explicit choice of working pass outranks the ladder, as the inspector's
-    /// focused artifact does; a pass that is working only by the rule does not jump the ladder.
-    @Test("rankedPasses: a pass a person CHOSE as working comes first; working by the rule does not")
+    /// focused artifact does. Since #5443 the app takes the ENGINE's working pass first whatever its
+    /// basis: the engine works it out by the same ladder (`resolve_working_pass`) plus the one
+    /// exception the app cannot see -- an outside edit never wins by itself -- so a pass the engine
+    /// marks working by the rule is drawn first too. Two copies of the ladder are how Preview, the
+    /// text and the Order tab came to show three different passes of one page.
+    @Test("rankedPasses: the engine's working pass comes first, chosen or by the rule")
     func rankedPassesChosenWorkingFirst() {
         var chosen = realPass(id: "machine-chosen", kind: .workflow, ageInHours: 100)
         chosen.working = true
         chosen.workingBasis = "chosen"
         var byRule = realPass(id: "machine-by-rule", kind: .workflow, ageInHours: 0)
         byRule.working = true
-        byRule.workingBasis = "human-touched"
+        byRule.workingBasis = "newest-machine-unchosen"
         let curated = realPass(id: "curated", kind: .human, ageInHours: 1)
         #expect(OCRGeometrySelection.rankedPasses([curated, chosen], segments: []).map(\.id) == ["machine-chosen", "curated"])
-        #expect(OCRGeometrySelection.rankedPasses([byRule, curated], segments: []).map(\.id) == ["curated", "machine-by-rule"])
+        #expect(OCRGeometrySelection.rankedPasses([byRule, curated], segments: []).map(\.id) == ["machine-by-rule", "curated"])
     }
 }

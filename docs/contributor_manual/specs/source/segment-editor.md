@@ -327,17 +327,22 @@ workspaces keep the image on. Built as `PaneConfig` layer values on those two Pr
 (`previewImage`, and the overlay layer), pinned by a `PaneListTests` test of all three panes.
 
 **Which pass the image draws (#5146, applied 2026-09-27 from the programme's rules).** When a page
-has several passes, the Source view draws the first that has boxes in this order: **the pass a person
-CHOSE as the page's working pass** (#5156; their explicit choice outranks the ladder, as the
-inspector's focused artifact does) → **hand-curated**
+has several passes, the Source view draws the first that has boxes in this order: **the page's working
+pass as the engine reports it** (`PassRead.working`: the pass a person CHOSE, #5156, or else the
+ladder's own answer; taken from the engine since #5443 so the image and the text cannot pick by two
+copies of the rule, and so an outside edit from a synced folder, which the app cannot tell from an
+import, never jumps it) → **hand-curated**
 (a person's pass, or any pass holding a box a person drew; the 2026-09-03 rule) → **every other pass,
 newest first**, an import among them → **legacy artifact geometry** (boxes still read from an artifact,
 ranked among themselves by the 2026-08-25 type tiers). **An import has no rank of its own (ruled
 2026-10-04, #5443):** a PAGE, ALTO, TEI or folder import is just the first pass on the page, ranked by
 date like a machine's, and its maker is named where the file says it (the Mosquera DOCX draft was
-Qwen-VL's). Until then an "imported" tier sat above machine passes, so a geometry-free TEI import of a
-draft blanked Preview on 358 of 374 Mosquera pages. **A pass without shapes is passed over for drawing**
-(`ui.preview.draws-a-pass-with-shapes`): `rankedPasses` does not yet check for boxes (#5443).
+Qwen-VL's). Until 2026-10-04 an "imported" tier sat above machine passes, so a geometry-free TEI import
+of a draft blanked Preview on 358 of 374 Mosquera pages. **A pass without shapes is passed over for
+drawing** (`ui.preview.draws-a-pass-with-shapes`): `rankedPasses` moves a pass whose segments are all
+`shape: unstated` (or have no box) behind every pass with shapes -- behind, not out, so a text-only
+page still selects its own lines (built 2026-10-04, #5443;
+`fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`).
 A pass with no artifact behind it is ranked, never dropped: an imported page's only pass has none,
 and dropping it is why an imported page showed its text and no boxes. The inspector's focused
 artifact still goes first when it has boxes (2026-08-27). Code: `OCRGeometrySelection.rankedPasses`.

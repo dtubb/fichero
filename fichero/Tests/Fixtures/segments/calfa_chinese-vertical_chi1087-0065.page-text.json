@@ -153,7 +153,7 @@
   }
  ],
  "pass_id": "pass",
- "pass_basis": "imported",
+ "pass_basis": "newest-machine-unchosen",
  "kind": "transcription",
  "order": null,
  "omitted": [],
