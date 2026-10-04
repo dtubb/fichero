@@ -168,6 +168,8 @@ extension CanvasOrtho2DRenderer {
     /// selection no longer rebuilds). The `.resize` op on release replaces the
     /// mesh properly and clears the override.
     func liveResize(id: String, toSize size: CGSize) {
+        // A resize is the person's hand on the board too: no re-fit afterwards (#5423, `liveMove`).
+        cameraIsAutoFit = false
         guard let placeable = placeablesById[id],
               let entity = placeablesRoot.findEntity(named: id) else { return }
         let base = cardDimensions(placeable, size: placeable.size ?? Self.defaultCardSize)

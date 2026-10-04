@@ -277,6 +277,10 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// drag is live. The controller persists the snapped row on release, and the
     /// resulting reconcile settles the card at its final (snapped) spot.
     func liveMove(id: String, toWorld world: SIMD3<Double>) {
+        // A card the person moves ends the automatic camera, as a pan does (#5423). Left on, the
+        // moved card widened the board's bounds, `reconcile` re-fitted, and every other card
+        // jumped on screen: one move looked like the whole board re-laying out.
+        cameraIsAutoFit = false
         placeablesRoot.findEntity(named: id)?.position = Canvas2DProjection.scenePosition(world)
         // The frame belongs to the card, so it travels with it mid-drag —
         // otherwise dragging a selected card leaves its selection behind,
