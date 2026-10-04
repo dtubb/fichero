@@ -1376,8 +1376,10 @@ Jobs and chains
 - `source.job.tie-text-to-lines` — **[GAP]** (#5444) a page's reading is tied to its lines for free, on
   this Mac: Kraken finds the lines, a Kraken reader reads each roughly, and the page's best reading is
   aligned to them in order by the characters they share (a monotonic alignment; no line takes text
-  from beyond its neighbours'). Each line gets the stretch of the page reading it matches; a line, or a
-  stretch of text, that does not align above a set score is left untied and counted, never forced. The
+  from beyond its neighbours'). Each line gets the stretch of the page reading it matches, automatically,
+  wherever the alignment scores above the match threshold (ruled 2026-10-04); a line whose alignment
+  is doubtful is flagged for review and counted, and stays out of the training set until a person
+  checks it. The
   new pass names Kraken for the shapes and the page reading's model for the text. The page's best
   reading is, in order: a person's checked reading, a checked model reading, then the newest model page
   reading. After alignment the line's counting reading is its aligned stretch; an earlier machine
@@ -1980,23 +1982,32 @@ To be filled at approval. The legs this slice will need, so the gap is visible:
 | Click-around (Mac) | setup's six screens on a fixture folder, each explaining itself; Start enqueues the automatic steps in Activity; the Inspector shows and edits the recipe; Try Another Option on two pages, then Use This for a folder |
 | Named-machine | the flagship measured on real Spanish pages; the Cherokee journey on real syllabary scans |
 
+## Rulings
+
+- **2026-10-04 (#5444, refines #5217):** in a recipe, a page's text is tied to its lines
+  automatically wherever the alignment scores above a match threshold. A line whose alignment is
+  doubtful is still given its best stretch, but it is flagged for review and stays out of the
+  training set until a person checks it. This refines #5217's rule (run by itself only where the
+  match is known to be perfect) for the recipe step; the hand-run Align Text to Lines tool keeps its
+  confirm-the-pass flow.
+
 ## Open questions (with recommendations)
 
 Ruled 2026-10-01 (former questions 1-4):
-- **Training can be automatic when the person chose it in setup.** Onboarding offers training as
+- **Answered** (this spec, ruled 2026-10-01): Training runs automatically only if chosen in setup; otherwise offered, never started. **Training can be automatic when the person chose it in setup.** Onboarding offers training as
   part of the recipe, with a good default (for example: distil from a large model such as a
   frontier LLM as the teacher, then fine-tune a small one); if chosen, the train step runs when its
   condition is met. If not chosen, it is offered when the condition is met, never started.
   (`source.recipe.train-never-automatic` is refined accordingly.)
-- **A recipe change never changes the person's data by itself.** When the recipe a project follows
+- **Answered** (this spec, ruled 2026-10-01): A new recipe version shows an update symbol; re-runs are offered only after the person updates. **A recipe change never changes the person's data by itself.** When the recipe a project follows
   has a new version, the Inspector shows an update symbol; clicking it shows the diff and updates
   the recipe; only then is a re-run of existing pages offered, as one job with its estimate. Nothing
   runs out of the blue.
-- **Ask once about the cloud, and don't ask too much.** Whether pages may leave the Mac is asked
+- **Answered** (this spec, ruled 2026-10-01): Asked once per project and visible in the recipe editor. **Ask once about the cloud, and don't ask too much.** Whether pages may leave the Mac is asked
   once for the project, at setup or at the first cloud use, whichever comes first, and is always
   visible and changeable in the recipe editor (every cloud step is marked there). It is not asked
   again per provider or per step.
-- **The bake-off must be useful; Fichero decides the sample.** It asks for a good number of
+- **Answered** (this spec, ruled 2026-10-01): Random stratified sample of at least 20 pages and 100 corrected lines, with confidence ranges. **The bake-off must be useful; Fichero decides the sample.** It asks for a good number of
   pages, or uses them all, and draws a **random, stratified sample** (across folders, hands and
   page kinds) of at least 20 pages where the project has them, with at least 100 corrected lines;
   each rank shows its line count and a confidence range, and candidates within one point of CER
@@ -2072,4 +2083,4 @@ comparison of line-by-line against whole-page reading by vision-language models;
 Hugging Face revisions in the example exist (they are illustrative).
 
 ## Triaged from the backlog (2026-10-04)
-- `source.segments.align-page-text-to-lines` **[GAP]** (#5217): when a page's text belongs to the page and not to its lines, the Segments list says so ('text on the page, not aligned to lines') and offers one Align Text to Lines tool, as a dialog or a tool option, whose result is a pass the person confirms. It runs by itself only where the match is known to be perfect, such as a reliable import. (Ruled 2026-10-01; tension with `source.job.tie-text-to-lines`, which aligns automatically.)
+- `source.segments.align-page-text-to-lines` **[GAP]** (#5217): when a page's text belongs to the page and not to its lines, the Segments list says so ('text on the page, not aligned to lines') and offers one Align Text to Lines tool, as a dialog or a tool option, whose result is a pass the person confirms. Run by hand, it runs by itself only where the match is known to be perfect, such as a reliable import (ruled 2026-10-01). In a recipe the tie is automatic above a match threshold, with doubtful lines flagged for review and kept out of the training set until checked (ruled 2026-10-04, #5444; see `source.job.tie-text-to-lines` and Rulings).

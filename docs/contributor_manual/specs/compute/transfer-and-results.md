@@ -283,6 +283,11 @@ All [GAP]: designed, not built.
   with "this step needs your *provider* key, which never leaves this Mac". *Test:* a workflow
   with an OpenRouter step is refused before packaging; a scan of a built package for the
   seeded test keys finds none.
+- `compute.package.images-travel-iiif-then-parquet-then-webdataset` — **[GAP]** (#5458) a
+  package's page images travel by the first way that fits: where the source is IIIF, the cluster
+  prefetches the pages from the image service and the package holds only the references; else
+  Parquet shards in the Hugging Face datasets layout; else WebDataset tar shards. (Ruled
+  2026-10-04.)
 
 ### Transfer
 
@@ -405,7 +410,7 @@ agree in the app".
 1. **Is the community question right, and are its three answers right?** *Proposal: as written;
    the wording is the maintainer's to change, and the rights slice may later replace it with
    something richer (Local Contexts labels).*
-2. **Does a yes cover later sends of the same kind to the same target?** *Answered 2026-10-03:
+2. **Answered** (this spec, answered 2026-10-03): Egress is asked once per project; the yes covers every send from it. **Does a yes cover later sends of the same kind to the same target?** *Answered 2026-10-03:
    egress is asked once per project; the yes covers every send from it.*
 3. **Remove shared objects at once, or keep them for the next job?** *Proposal: keep until no
    unfinished job names them; "remove everything when done" is a choice on the sheet, off by

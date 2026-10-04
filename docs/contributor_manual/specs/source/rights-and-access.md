@@ -25,18 +25,12 @@
 > a segment, the build is one more step in that same walk (segment, parent segment, document),
 > never a second check. This changes nothing about the block below.
 >
-> **BLOCKED on the maintainer.** This slice was ruled into the set on 2026-09-19. Review then
-> showed that a rights record with its own enforcement would be a second permission system
-> beside the one that exists. The reviewers recommend: **the existing permission layer
-> enforces; a rights record says what is meant and why** (and is turned into grants and denies
-> on a segment id, one check). That is the maintainer's to rule; it is in the morning file.
-> **Nothing here is built until then.** A second blocking question sat under purge: every
-> action's record lives in a tamper-evident chain, so a purge could not reach words stored
-> there. **That one was ruled on 2026-09-20:** each record is split into a chained part (who,
-> what, when, ids, version numbers, a keyed fingerprint) and a content part outside the chain
-> that a purge can blank, so the chain still checks out and the words are gone (see "Rulings
-> of 2026-09-20" in `source-model.md`). Purge still waits on the first question, and on that
-> split being built, which belongs to the audited-action layer, not to this set.
+> **BLOCKED (purge only).** Purge waits on the audited-action layer's split of each record into a
+> chained part (who, what, when, ids, version numbers, a keyed fingerprint) and a content part
+> outside the chain that a purge can blank, so the chain still checks out and the words are gone
+> (ruled 2026-09-20; see "Rulings of 2026-09-20" in `source-model.md`). That split belongs to the
+> audited-action layer, not to this set, and is not built yet. The other blocking question is
+> answered: see Rulings.
 
 ## Intent
 
@@ -101,7 +95,8 @@ against their sources before approval.)
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 - `source.rights.one-check` — **[PARTIAL]** (#4953) a rights record is enforced by the existing permission layer (a
-  grant or deny on a segment id, inherited the way it already is); there is no second check.
+  grant or deny on a segment id, inherited the way it already is); there is no second check. The record
+  says what is meant and why (ruled 2026-10-04).
   **Built, engine side (2026-09-28):** `authz._allowed` ends in `_rights_refuse`, so a restricting record refuses
   every account it does not name -- owner and editor included (ruled 2026-09-20) -- for reads and writes, on its
   target and everything under it; two restrictions on the chain need both names; a withdrawn one restricts
@@ -153,9 +148,20 @@ To be filled at approval.
 ## Open questions
 
 Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
-`source-model.md`.
+`source-model.md`. The former blocking question (who enforces a rights record) is answered; see
+Rulings.
+
+## Rulings
+
+- **2026-10-04 (#4953): one check.** The existing permission layer enforces; a rights record says
+  what is meant and why, and is turned into grants and denies on segment ids, inherited the way
+  they already are. There is no second permission system (`source.rights.one-check`).
+- **2026-10-04 (#5182, confirming the ruling of 2026-09-28): a page deny hides the claims drawn
+  from it.** Entity, claim and project reads filter out items drawn only from denied pages and
+  count them as withheld; an entity or claim with no source page stays visible
+  (`source.rights.claims-with-only-denied-evidence-are-hidden`).
 
 ## Triaged from the backlog (2026-10-04)
 - `source.rights.engine-wide-stores-follow-the-library` — **[GAP]** (#5181) engine-wide stores that mention a library's content (agent write audit, PyKEEN jobs and predictions, etc.) are filtered by that library's permissions, and truly global settings are owner-only.
-- `source.rights.claims-with-only-denied-evidence-are-hidden` — **[GAP]** (#5182) a claim whose only evidence is a denied page is hidden, and one also supported by a readable page stays showing only the readable evidence, across entity, claim and project reads.
+- `source.rights.claims-with-only-denied-evidence-are-hidden` — **[GAP]** (#5182) a claim whose only evidence is a denied page is hidden, and one also supported by a readable page stays showing only the readable evidence, across entity, claim and project reads. Each read counts what it filtered out as withheld; an entity or claim with no source page at all stays visible. (Ruled 2026-09-28, restated 2026-10-04.)
 - `source.rights.every-id-in-a-request-is-checked` **[BROKEN]** (#4958): a read whose ids travel in the request body (resolving a location, a dataset query, search explain) is checked against every document it names, and an action that names two things (a pass and its source result, two matched segments) refuses unless both belong to the same document.

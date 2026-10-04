@@ -1096,13 +1096,13 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
 
 ## Open questions (with recommendations)
 
-1. **One table for the whole Mac, or one per project?** *Ruled 2026-10-04:* the Mac's own work
+1. **Answered** (this spec, ruled 2026-10-04): The Mac's own work is global; the window groups by project with the Mac's work as its own group. **One table for the whole Mac, or one per project?** *Ruled 2026-10-04:* the Mac's own work
    (downloads, installs, model loads) is global, in the Mac's table, and the window groups by
    project with the Mac's work as its own group. *Recommended before:* one `jobs` table per project
    database plus the same table in the global library for Mac-level work (downloads, runtimes);
    the window merges them, as it already merges libraries. A project carries its own queue when it
    moves to another Mac.
-2. **Does a hand-started run obey the global pause?** *Ruled 2026-10-04:* a run started by hand
+2. **Answered** (this spec, ruled 2026-10-04): A hand-started run waits only for memory and heat, and says so. **Does a hand-started run obey the global pause?** *Ruled 2026-10-04:* a run started by hand
    waits only for memory and heat, and says so. *Recommended before:* no. Pausing means "stop working
    by yourself"; a run the person just pressed is what they asked for. The row says it is running
    although background work is paused.
@@ -1123,7 +1123,7 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
 8. **How long is history kept?** *Recommend:* done jobs collapse to their top row after a day and
    are kept for 30 days; failed jobs stay until dismissed; the record (audit log) keeps everything
    regardless.
-9. **Remote jobs: a cluster, a Docker server, a GPU service.** *Ruled 2026-10-01 (the
+9. **Answered** (this spec, ruled 2026-10-01): One global queue for everything; remote jobs are rows with lane remote. **Remote jobs: a cluster, a Docker server, a GPU service.** *Ruled 2026-10-01 (the
    maintainer): one global queue for everything, tied into HPC and Docker.* A job sent to a Slurm
    cluster (ACENET), to Fichero's own server image running in Docker on another machine, or to a
    GPU service (Hugging Face Jobs) is a row in the same queue with `lane = remote` and its target

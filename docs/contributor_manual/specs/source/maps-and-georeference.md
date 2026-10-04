@@ -740,11 +740,11 @@ None: this slice has no screen. The future map-view UI spec owns them.
 
 ## Open questions for the creative director
 
-1. ~~Where does a gazetteer identity live?~~ **Ruled 2026-09-27 (#5123): on the place entity,
+1. **Answered** (this spec, ruled 2026-09-27, #5123): On the place entity, never on a segment. ~~Where does a gazetteer identity live?~~ **Ruled 2026-09-27 (#5123): on the place entity,
    never on a segment.** This is what was recommended here: a place is reconciled once however
    many pages name it, and each gazetteer (WHG, Pleiades, Getty TGN, Wikidata) connects to that
    one entity.
-2. ~~Store coordinates as entered, or normalise to WGS 84 on write?~~ **Ruled 2026-09-27 (#5124):
+2. **Answered** (this spec, ruled 2026-09-27, #5124): Stored in WGS 84 with the input CRS kept explicit. ~~Store coordinates as entered, or normalise to WGS 84 on write?~~ **Ruled 2026-09-27 (#5124):
    stored in WGS 84.** The input CRS stays explicit, because converting correctly depends on it.
    The recommendation here had been "as entered", and the ruling overrides it. The design and
    `source.geo.crs-stored-as-wgs84` now follow the ruling.

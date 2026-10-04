@@ -244,12 +244,9 @@ evidence backs.
 1. Which build was "the last release" the maintainer means — the one that shipped and then
    failed to update, on which machine? `~/Library/Logs/Autoupdate.log` on THAT machine names the
    actual cause; nothing in this repository can substitute for it.
-2. **For the maintainer (#4912):** `check_mac_app_store_target` fails — the `Fichero (App
-   Store)` target is missing from `project.pbxproj` entirely, verified long-standing, not a
-   this-week regression. Is Mac App Store distribution still a near-term goal (in which case the
-   target needs re-adding and #3340's HOLD on engine sandboxing needs revisiting), or has the
-   DMG/Sparkle + TestFlight path superseded it for now? This spec currently describes three
-   distribution outputs and doesn't mention MAS at all; not decided here.
+2. ~~**For the maintainer (#4912):** is Mac App Store distribution still wanted?~~ **Answered
+   2026-10-04** (#4988, #5068): yes, the target is restored. See Rulings and
+   `release-channels-and-feature-tiers.md` (`channel.app-store-target-builds`).
 
 ## Rulings (design lead)
 
@@ -261,6 +258,9 @@ evidence backs.
   content, not derived stamps, so they are *not* in the recreated-post-merge conflict-free set. A
   merge that touches both dates keeps both; the readiness gate (release lane, step 3) then confirms
   the shipping version's entries are present before anything is distributed.
+- **2026-10-04 (maintainer, #4912, #4988, #5068): the Mac App Store target is restored.** The
+  `Fichero (App Store)` scheme builds again and its guardrails (`check_mac_app_store_target`)
+  stay; the Mac App Store is a distribution output again (`release.mas.sandboxed-build`).
 
 ## Triaged from the backlog (2026-10-04)
 - `release.license-hygiene` — **[GAP]** (#4610) zeroconf LGPL, pillow-heif codec wheels, PythonKit branch pin, undeclared whisper and the NOTICE inventory are resolved so the SBOM is accurate.

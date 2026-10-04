@@ -43,7 +43,7 @@ makes possible and does not restate it.
   radius, no regions, no pin clustering, no time, no routes.
 - MapKit draws Apple's modern map, fetched from Apple as the researcher pans. No research data
   is sent, but the REGION being looked at is visible to Apple, a modern political map is the
-  wrong ground for 1790, and it does not work offline (open; see the questions file).
+  wrong ground for 1790, and it does not work offline (open; see Open questions below).
 - No GeoJSON exporter. Georeferencing a scanned map has an old open issue (#1755) and the
   source-model behaviours above, all [GAP].
 
@@ -62,7 +62,7 @@ Honest places
   list from which a place can be given. Built only as one count in the dataset Map.
 - `explore.place.places-change` — **[GAP]** (#5032) a place entity can hold names, extents and
   jurisdictions each with their own dates, and the map draws the one that held "as of". Needs a
-  model change; PROPOSED, not yet ruled (open; see the questions file).
+  model change; PROPOSED, not yet ruled (open; see Open questions below).
 - `explore.place.gazetteer-link-is-a-claim` — **[GAP]** (#5032) tying a place in the sources to
   a gazetteer record is a statement with an author, a confidence and evidence, like any other;
   a model may suggest, a person decides.
@@ -96,7 +96,7 @@ Over time
 The ground
 - `explore.place.basemap-is-a-choice` — **[GAP]** (#5032) the ground under the marks can be
   Apple's modern map, a plain ground that needs no network (coastlines and rivers bundled), or
-  one of the project's own georeferenced historical maps. The default is a ruling (open; see the questions file).
+  one of the project's own georeferenced historical maps. The default is a ruling (open; see Open questions below).
 - `explore.place.works-offline` — **[GAP]** (#5032) with the plain ground, the place map works
   with no network and sends nothing anywhere.
 - `explore.place.historical-map-as-ground` — **[GAP]** (#5032, waits on → #4933) a scanned map
@@ -118,7 +118,7 @@ about 500 MB for its WebKit process, as measured on the 16 GB M1 the app is test
 and would fetch its own tiles from somewhere. In detail: MapKit where a modern or satellite ground is wanted; a native plain ground otherwise.
 Flows and journeys are overlays on the same map view. Published saved views are drawn by HTML
 from the same data; the publishing basemap must be one the researcher has the right to publish
-(Apple's tiles are not; see the questions file).
+(Apple's tiles are not; see Open questions below).
 
 ## Test matrix (legs this family touches)
 
@@ -130,4 +130,4 @@ view shows the entry); load (a project's places gather without a cap).
 ## Open questions for the creative director
 
 Still open, not blocking: the ground a place map stands on, and that Apple's map tiles come from
-Apple; places that change, and a gazetteer (now or later?). Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.
+Apple; places that change, and a gazetteer (now or later?).

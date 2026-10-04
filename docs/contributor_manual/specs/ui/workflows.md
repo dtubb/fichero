@@ -407,6 +407,13 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   — needed so scope-widening bugs (the class the confirm/cancel gate patched
   point-fashion, `workflows.run.scope-widening-confirmed`) get closed
   structurally rather than one at a time. ISSUE: #4397.
+  **Ruled 2026-10-04 (#4397):** each workflow declares its scope, per file or once per folder; a
+  folder-level run's output is attached to the folder; the run menu says which before the person
+  runs it (`workflows.defaults.declared-scope`).
+- `workflows.defaults.declared-scope` — **[GAP]** (#4397) every workflow declares whether it runs
+  per file or once per folder. A once-per-folder run attaches its output to the folder, not to a
+  file in it, and the run menu names the scope ("Runs on each of N files" or "Runs once on this
+  folder") before anything runs. (Ruled 2026-10-04.)
 
 ### F. Folders of workflows (library/organization)
 
@@ -438,6 +445,12 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 Pure-policy tests first: `WorkflowSavePolicy.canAutoSave` and `WorkflowBarPolicy`
 are both already designed to be tested without a window (no SwiftUI in either) —
 the highest-leverage, cheapest tests to land first, ahead of any XCUITest.
+
+## Rulings
+
+- **2026-10-04 (maintainer, #4397):** each workflow declares its scope (per file, or once per
+  folder); a folder-level run's output is attached to the folder; the run menu says which before
+  the person runs it (`workflows.defaults.declared-scope`).
 
 ## Open questions for the creative director
 

@@ -236,12 +236,19 @@ No new embedding models, no new schema beyond a representations read-view over w
 segmenter already persists. Vectors/tokens/vers’d re-crops are the next slice, once
 slice-0 proves the pattern and the creative director approves.
 
+## Rulings
+
+- **Ruled 2026-10-04 (design lead, applying the spec's own lean):** a representation is both a
+  file payload (like the existing `_segment_image` derivatives) and a metadata row. `Transcription`
+  is already first-class: the passes and their readings on segments are the transcription record (`source-model.md`).
+- **Answered by what is built (2026-10-04):** ALTO and PAGE XML both export today
+  (`fichero_server/api/routes/document/page_export.py`; `formats/alto.py`, `formats/pagexml.py`).
+
 ## Open questions for the creative director
-- Where do representations physically live — derivative files next to the page (like the
-  existing `_segment_image` derivatives), a table, or both (file payload + metadata row)?
-- Is `Transcription` a first-class record now, or does slice-0 read the existing
-  transcription text and defer the multi-edition table to #4638?
-- Which standard is the slice-0 export target — ALTO (line/word geometry) or PageXML?
+None outstanding; all three are answered (see Rulings).
+- **Answered** (design lead 2026-10-04, applying the spec's own lean): Both, a file payload and a metadata row. Where do representations physically live?
+- **Answered** (source/source-model.md Rulings 2026-09-20): Text lives as readings on segments. Is `Transcription` a first-class record now?
+- **Answered** (source/source-model.md Rulings 2026-09-19 item 19): PageXML, TEI and ALTO all first. Which standard is the slice-0 export target?
 
 ## Triaged from the backlog (2026-10-04)
 - `segment.test.artifact-type-contract-clean` — **[GAP]** (#4910) check_artifact_type_contract passes: entity_merge_proposals is produced and queried by name.

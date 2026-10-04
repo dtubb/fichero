@@ -234,6 +234,6 @@ own confirmation and its own line in `safety.undo.every-action-says-how-it-comes
 
 ## Open questions
 
-See the questions file. From this slice: the rule for what goes to the Trash; no confirmation
+**Answered** (source/source-model.md Rulings 2026-09-20 item 6 (passes only)): A deleted pass goes to the Trash; a single segment is undo only. Rest of the rule still open. See the questions file. From this slice: the rule for what goes to the Trash; no confirmation
 for a reversible delete; what happens to a trashed document's statements; never emptying by
 age; who may empty.

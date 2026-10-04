@@ -106,11 +106,18 @@ it token-efficiently with fabel/opus?
   session as pre-existing, unrelated baseline noise, never independently root-caused before now
   — filed so it has a real owner. *Test:* the guardrail itself.
 
+## Rulings
+
+- **Ruled 2026-10-04 (design lead, applying the spec's own lean):** area leads are on demand, an
+  opus area-lead only for a large milestone (`orch.area-lead-on-demand`), not a standing one per
+  area. fabel is reserved for visible Xcode UI iteration.
+
 ## Open questions for the design lead
 
-1. Is a standing opus area-lead per area worth its coordination cost, or is on-demand (per big
-   milestone) enough? (I lean on-demand — this session was all done flat + fast.)
-2. fabel's role: reserve it for visible Xcode UI iteration, or also for cheap bulk writing?
+1. ~~Is a standing opus area-lead per area worth its coordination cost, or is on-demand (per big
+   milestone) enough?~~ **Answered 2026-10-04:** on demand (see Rulings).
+2. ~~fabel's role: reserve it for visible Xcode UI iteration, or also for cheap bulk writing?~~
+   **Answered 2026-10-04:** visible UI iteration (see Rulings).
 3. **Agents/skills audit:** there are ~31 agents and ~138 skills loaded. Many overlap
    (multiple code-reviewers, multiple session-start variants, several planning skills). Worth a
    pass to cut the ones we never invoke — separate short task, listed as a follow-up below.

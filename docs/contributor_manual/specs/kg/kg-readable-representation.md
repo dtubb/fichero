@@ -910,37 +910,37 @@ Copied from the Fabel review's design questions (section 7) with its recommendat
 manager is proceeding on each recommendation unless the creative director says otherwise, with
 ONE exception (#8) that stays an open question FOR him specifically.
 
-1. **A verb with no natural inverse** ("doy fe", "compareció", intransitives, anything not yet in
+1. **Answered** (answered: being built, #4834): The sentence keeps the claim's true subject, after the re-centred run. **A verb with no natural inverse** ("doy fe", "compareció", intransitives, anything not yet in
    the table). *Recommendation (proceeding):* the sentence keeps the claim's true subject and
    sits after the re-centred run — never the entity's name in front of a verb it did not perform.
-2. **Is a re-voiced sentence still sourced?** *Recommendation (proceeding):* yes — the source span
+2. **Answered** (answered: being built, #4841): Yes; click shows the passage, panel shows S/V/O, vocabulary-closure test (#4841). **Is a re-voiced sentence still sourced?** *Recommendation (proceeding):* yes — the source span
    is the evidence, the sentence is a rendering. Keep it honest three ways: (i) a click always
    shows the verbatim passage, highlighted; (ii) the claim panel shows the stored S/V/O beside the
    rendered sentence; (iii) a vocabulary-closure test asserts every rendered word comes from the
    claim, an entity name, or the language table — never free generation. → `kg.read.vocabulary-closure`.
-3. **One aggregated sentence, several sources.** *Recommendation (proceeding):* the sentence is
+3. **Answered** (answered: being built, #4834): One click target opening a list of its sources; objects kept in the sentence. **One aggregated sentence, several sources.** *Recommendation (proceeding):* the sentence is
    one click target that opens a short list of its sources (document, page, verbatim passage),
    each driving the Source pane; a single-source sentence goes straight there. Keep the objects in
    the sentence ("sold the mine and two slaves") — a count alone is not a reading.
-4. **One claim on two entity pages** (a sale: direct on the seller's page, inverse on the
+4. **Answered** (answered: being built, #4834): Both are renderings of one claim id; one edit re-renders both. **One claim on two entity pages** (a sale: direct on the seller's page, inverse on the
    buyer's). *Recommendation (proceeding):* both are renderings of ONE claim id — one edit
    re-renders both, and the editor says so before saving.
-5. **First-person notarial voice under a named subject** ("Adolfo Hurtado doy fe").
+5. **Answered** (answered: being built, #4834): Quoted, third-person only for fixed formulas. **First-person notarial voice under a named subject** ("Adolfo Hurtado doy fe").
    *Recommendation (proceeding):* quote it (*Adolfo Hurtado: "doy fe…"*); third-person rewrite
    only for the fixed formulas already listed in `FORMULAIC_PATTERNS`.
-6. **Spanish sentences with no explicit subject**, dropped at extraction today.
+6. **Answered** (answered: being built, #4834): Surfaced as review proposals with an empty subject, never auto-bound. **Spanish sentences with no explicit subject**, dropped at extraction today.
    *Recommendation (proceeding):* surface as review proposals with an empty subject; never
    auto-bind to a guessed one.
-7. **Merely-mentioned claims** (entity neither subject nor object, often placed there by the
+7. **Answered** (answered: being built, #4834): Moved to an 'also mentioned in' list below the paragraph. **Merely-mentioned claims** (entity neither subject nor object, often placed there by the
    substring alias scan). *Recommendation (proceeding):* out of the paragraph, into an "also
    mentioned in" list below it.
 8. **The LLM biography endpoint (`/bio`).** *Recommendation:* retire it; label existing
    model-written descriptions, never delete them. **This one stays open FOR THE CREATIVE
    DIRECTOR specifically — not proceeding on the recommendation without his ruling**, since it's
    a north-star/integrity call, not an implementation detail.
-9. **The "×N" marker** vs. the 2026-09-12 ruling that a bare number misleads.
+9. **Answered** (answered: being built, #4834): Words ('three sources agree'), not a bare number. **The "×N" marker** vs. the 2026-09-12 ruling that a bare number misleads.
    *Recommendation (proceeding):* words ("three sources agree").
-10. **A language with no table yet.** *Recommendation (proceeding):* render the claim verbatim,
+10. **Answered** (answered: being built, #4834): Render the claim verbatim with no glue words, never silent English. **A language with no table yet.** *Recommendation (proceeding):* render the claim verbatim,
     no glue words — never silent English.
 
 ## Future (ideas, not scheduled)

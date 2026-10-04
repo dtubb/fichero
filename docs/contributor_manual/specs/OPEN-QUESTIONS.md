@@ -14,13 +14,11 @@ approval) are listed with "None outstanding" and no checklist.
 
 ### docs-citations-bibliography.md
 
-- [ ] Citation syntax in Markdown docs — Pandoc-style `[@key]`, or a plainer `{{cite:key}}`?
-      (Pandoc `[@key]` is the standard and gives free rendering/export via pandoc-citeproc.)
-- [ ] Should the guardrail also flag UNUSED `.bib` entries (dead references), or only orphans?
-- [ ] Do code-dependency credits live in the same `.bib` (as `@software` entries) or a separate
-      generated file? (Lean: separate generated file from manifests; `.bib` is for scholarship.)
-- [ ] Is the app's "where this comes from" surface in scope now, or docs-only first? (Lean: docs
-      first; the export makes the app surface cheap later.)
+All four answered 2026-10-04 (see spec "Rulings"):
+- [x] Citation syntax = **Pandoc `[@key]`** (maintainer).
+- [x] Unused `.bib` entries are **flagged too** (design lead).
+- [x] Code-dependency credits = **a separate generated file**; `.bib` is for scholarship (design lead).
+- [x] **Docs first**; the app surface follows from the export (design lead).
 
 ---
 
@@ -28,20 +26,20 @@ approval) are listed with "None outstanding" and no checklist.
 
 ### dev-orchestration-harness.md
 
-- [ ] Is a standing opus area-lead per area worth its coordination cost, or is on-demand (per big
-      milestone) enough? (I lean on-demand — this session was all done flat + fast.)
-- [ ] fabel's role: reserve it for visible Xcode UI iteration, or also for cheap bulk writing?
+- [x] Area leads are **on demand** (answered 2026-10-04, design lead).
+- [x] fabel is **reserved for visible Xcode UI iteration** (answered 2026-10-04, design lead).
 - [ ] **Agents/skills audit:** there are ~31 agents and ~138 skills loaded. Many overlap
       (multiple code-reviewers, multiple session-start variants, several planning skills). Worth a
       pass to cut the ones we never invoke — separate short task, listed as a follow-up below.
 
 ### git-worktree-workflow.md
 
-- [ ] Should the canonical checkout (`~/code/fichero`) ever hold uncommitted work, or stay a clean
-      `main` mirror + venv host only? (Lean: clean mirror — all work happens in worktrees.)
+- [x] The canonical checkout stays a **clean `main` mirror** + venv host (answered 2026-10-04,
+      design lead).
 - [x] Is `integration` a permanent branch? **Yes — permanent long-lived staging branch** (resolved
       2026-09-12).
-- [ ] Worth a guardrail asserting no lane worktree is `ahead:0` and abandoned (auto-flag rot)?
+- [x] **Yes** to a guardrail flagging an `ahead:0`, abandoned lane worktree, owed as a [GAP]
+      (answered 2026-10-04, design lead).
 
 ---
 
@@ -49,27 +47,26 @@ approval) are listed with "None outstanding" and no checklist.
 
 ### archival-data-model-plan.md
 
-- [ ] **Profile detection** — user-picked only, or auto-detected from the page? Editable after?
-- [ ] **Where representations physically live** — derivative files (like `_segment_image`), a
-      table, or both (file payload + metadata row)?
-- [ ] **Is Transcription first-class now** (P2) or does P0 read the existing transcription text
-      and defer the multi-edition table?
+_(The spec lives at `source/archival-data-model-plan.md`.)_
+
+- [x] **Profile detection** — detected from the page and recipe, shown, editable; a change can
+      cascade to the folder (maintainer, 2026-10-04).
+- [x] **Where representations physically live** — both: file payload + metadata row (design
+      lead, 2026-10-04).
+- [x] **Is Transcription first-class now** — yes: text lives as readings on segments, in passes
+      (source-model rulings 2026-09-20).
 - [ ] **Store responsibility** — DuckDB (relational) vs LanceDB (vectors) vs rdflib/SPARQL
       (graph): which store owns which slot, and how they stay in sync (ties Exporter #4640)?
-- [ ] **New milestones?** — "Segments & Anchors" and/or "Provenance, Versions & Credit", or
+- [x] **New milestones?** — one milestone for the source-model set (source-model rulings 2026-09-19 item 21). Was: "Segments & Anchors" and/or "Provenance, Versions & Credit", or
       keep everything under the existing surface milestones? (Decomposition on #4639.)
-- [ ] **P0 export target** — ALTO or PageXML first?
+- [x] **P0 export target** — answered by what is built: ALTO and PAGE XML both export today.
 
 ### kg-enrichment.md
 
-_Section heading in spec is "Rulings + open questions"; ruled items are recorded there for
-context, only the "Still open" items are checklist items here._
-
-- [ ] Validation strength: JSON-LD expand/compact only, or also SHACL shapes (and who authors
-      the shapes)? *(Recommend: expand/compact always; SHACL where a shape is declared.)*
-- [ ] Does JSON-LD import create a separate "imported" provenance layer distinct from Wikidata-
-      enrichment claims? *(Recommend: yes — import provenance = the file/source, distinct from
-      live-authority enrichment.)*
+Both answered by the maintainer 2026-10-04 (see spec "Rulings + open questions"):
+- [x] Validation = **expand/compact always; SHACL where a shape is declared**.
+- [x] JSON-LD import gets its own **"imported from <file>"** provenance, separate from live
+      Wikidata enrichment.
 
 ### kg-entity-inspector.md
 
@@ -77,7 +74,8 @@ None outstanding (no "Open questions" section in the spec).
 
 ### kg-interactions.md
 
-- [ ] Comments: a first-class `Comment` record (threaded?) or a claim of a "comment" type?
+- [x] Comments = **their own threaded record**, anchored to any node, never a claim (maintainer,
+      2026-10-04).
 - [ ] Drag payload: JSON-LD item vs an internal id — or both (internal for in-app, JSON-LD for
       out)?
 - [ ] Which extra claim fields become table COLUMNS vs inspector-only (columns cost width)?
@@ -98,11 +96,10 @@ None outstanding (no "Open questions" section in the spec).
 
 ### segment-representations.md
 
-- [ ] Where do representations physically live — derivative files next to the page (like the
-      existing `_segment_image` derivatives), a table, or both (file payload + metadata row)?
-- [ ] Is `Transcription` a first-class record now, or does slice-0 read the existing
-      transcription text and defer the multi-edition table to #4638?
-- [ ] Which standard is the slice-0 export target — ALTO (line/word geometry) or PageXML?
+_(The spec lives at `source/segment-representations.md`.)_ All three answered 2026-10-04:
+- [x] Representations = **file payload + metadata row** (design lead).
+- [x] `Transcription` is first-class already: **text lives as readings on segments**, in passes (source-model rulings 2026-09-20).
+- [x] Export target: **ALTO and PAGE XML both export today** (answered by what is built).
 
 ---
 
@@ -126,9 +123,8 @@ All four original questions resolved by the rulings in the spec. Remaining unkno
 
 ### xcode-build-configs.md
 
-- [ ] `config.no-stale-sandbox-comments`: worth the parsing complexity, or is asserting the
-      *settings* enough and we just delete the stale comments? (Lean: assert settings; delete
-      stale comments as part of the harness fix; add comment-checking only if drift recurs.)
+- [x] `config.no-stale-sandbox-comments`: **assert the settings and delete the stale comments**;
+      comment-checking only if drift recurs (answered 2026-10-04, design lead).
 
 ---
 

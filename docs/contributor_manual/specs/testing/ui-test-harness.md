@@ -157,7 +157,7 @@ Hard-gate: `harness.app-connects`, `harness.fail-fast-loud`.
 
 ## Open questions
 
-All four original questions resolved by the rulings above. Remaining unknown: the exact app-side
+**Answered** (this spec's Rulings): Resolved. All four original questions resolved by the rulings above. Remaining unknown: the exact app-side
 reason the seeded library isn't current at window-resolve time — pinned by one instrumented MCP
 run before the fix, per systematic-debugging.
 

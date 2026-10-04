@@ -334,6 +334,9 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
 - `compute.session.never-silently-restarted` — **[GAP]** (#5238) Fichero does not start a new session on its own
   when one ends. It offers "Start again". A session costs an allocation, and on Hugging Face
   money. *Test:* after end, no job is submitted without a call.
+- `compute.session.project-stays-on-the-mac` — **[GAP]** (#5458) during a session the project stays
+  on the Mac: the cluster works only on the packages it is sent and returns results, and never
+  holds the project. (Ruled 2026-10-04.)
 
 ### Removing
 

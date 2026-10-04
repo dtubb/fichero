@@ -938,7 +938,7 @@ All five questions this section used to ask are now decided. None of the five is
 its own — each lands with the increment named below; this section records the DECISION, not
 the implementation status (see the Behaviors list above and the Migration increments for that).
 
-1. **⌃⌘1…9 do NOT survive as "modes."** The Sidebar-mode menu entries are **removed** — not
+1. **Answered** (this spec's Rulings 2026-09-18): The sidebar-mode menu entries are removed. **⌃⌘1…9 do NOT survive as "modes."** The Sidebar-mode menu entries are **removed** — not
    "reveal that sidebar section," not filters, removed outright. Superseded the review's own
    "reveal + focus" recommendation. Only ⌃⌘9's removal (the KG entry) is part of THIS epic's
    current scope (increment 3, done); the other six chords (⌃⌘1/3/4/5/6/8) retire with their
@@ -946,16 +946,16 @@ the implementation status (see the Behaviors list above and the Migration increm
    semantics and the per-mode sidebar widths/display modes
    (`ContentView+StateLayout.swift:55-68`) go with them. **Zoom to Fit stays ⌘9** — a
    different chord, no collision.
-2. **A workflow selected in a workspace with no Source/Preview leaf: an Open affordance adds
+2. **Answered** (this spec's Rulings 2026-09-18): An Open affordance adds the pane; nothing moves automatically. **A workflow selected in a workspace with no Source/Preview leaf: an Open affordance adds
    the pane; nothing moves automatically.** Confirms the review's own recommendation — the
    Library stays, the Inspector shows the workflow inspector, an explicit Open (double-click
    / Return) adds a Preview leaf, the same verb as opening a document. The no-collapse-by-
    selection ruling applied at its sharpest edge: an auto-rearranging layout would violate
    "the workspace is the source of truth."
-3. **Chat scope lives in BOTH the Inspector's Sources tab AND the chat dock's Sources view.**
+3. **Answered** (this spec's Rulings 2026-09-18): Chat scope lives in both places. **Chat scope lives in BOTH the Inspector's Sources tab AND the chat dock's Sources view.**
    Supersedes the review's "Inspector only" recommendation — retitled to
    `m2p.chat-scope-lives-in-both` below (no more "delete the dock's duplicate Sources tab").
-4. **Comparison = panes + a diff lens. No Comparison view, node or window.** A "run with A
+4. **Answered** (this spec's Rulings 2026-09-18): No Comparison view; two panes with a diff lens. **Comparison = panes + a diff lens. No Comparison view, node or window.** A "run with A
    and B" action leaves two sibling artifacts; the Compare workspace shows them in two Reader
    panes with a diff lens. `ComparisonDetailView` and `AppViewMode.comparison` retire — but
    chat's Compare tab is NOT their replacement either; comparison is about two prompts' or two
@@ -964,7 +964,7 @@ the implementation status (see the Behaviors list above and the Migration increm
    clarified 2026-09-18: retirement moved OUT of increment 4a into increment 4c (ahead of
    increment 6) — three sites still construct `.comparison`
    today. Loove stays its own window (a diagnostic matrix, unrelated).
-5. **Inspector with nothing selected = the container's Info.** Confirms the review's own
+5. **Answered** (this spec's Rulings 2026-09-18): Shows the container's Info. **Inspector with nothing selected = the container's Info.** Confirms the review's own
    recommendation — never "Nothing to Show"; the Inspector stays the native trailing column
    for now, and the `.inspector` pane kind stays hidden from the kind-switcher menu
    (`PaneSpec.Kind.selectableKinds`) until increment 7 makes it a real leaf.
@@ -1019,7 +1019,7 @@ Reuse existing pane-head and inspector-tab identifiers where they already exist
 
 ## Open questions (per-file: what was not grounded in the review)
 
-Where a research project's embedded browser renders was asked here (2026-09-18, planning
+**Answered** (this spec's Rulings 2026-09-18 (third round, item 6)): In the Source/Preview pane as a web browser surface. Where a research project's embedded browser renders was asked here (2026-09-18, planning
 increment 5c) and is now ANSWERED by the third round of Rulings above (item 6, 2026-09-18):
 the Source/Preview pane, `PaneSurface.webBrowser`, no new pane kind.
 

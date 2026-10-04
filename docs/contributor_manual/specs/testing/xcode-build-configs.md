@@ -58,8 +58,10 @@ Cross-cutting invariants (all configs):
   asserts this — neither the guardrail's source nor its test file mentions "testplan" or
   "embedded" plan attachment at all. The other five invariants in this spec really are
   checked and tested; this one just isn't yet.
-- `config.no-stale-sandbox-comments` [MISSING] (#4778) — a source comment asserting a config's sandbox
-  state must match the actual setting (the drift that caused the harness bug).
+- `config.no-stale-sandbox-comments` [MISSING] (#4778) — no source comment asserts a config's sandbox
+  state (the drift that caused the harness bug): the guardrail asserts the settings themselves, and
+  the stale comments are deleted. Comment-checking is added only if the drift recurs (ruled
+  2026-10-04, design lead).
 
 ## Test matrix
 
@@ -71,11 +73,17 @@ Cross-cutting invariants (all configs):
 Hard-gate: all of `config.*`. These are cheap (file parse, no build) and catch the exact drift
 class that stranded the harness.
 
+## Rulings
+
+- **Ruled 2026-10-04 (design lead, applying the spec's own lean):** assert the settings and delete
+  the stale sandbox comments; add comment-checking only if the drift recurs
+  (`config.no-stale-sandbox-comments`).
+
 ## Open questions
 
-- `config.no-stale-sandbox-comments`: worth the parsing complexity, or is asserting the *settings*
-  enough and we just delete the stale comments? (Lean: assert settings; delete stale comments as
-  part of the harness fix; add comment-checking only if drift recurs.)
+None outstanding.
+- `config.no-stale-sandbox-comments`: ~~worth the parsing complexity?~~ **Answered 2026-10-04:**
+  no; assert settings, delete stale comments (see Rulings).
 
 ## Triaged from the backlog (2026-10-04)
 - `config.shipping-configuration-is-tested` — **[GAP]** (#4226) a check exercises the configuration users get (DMG/App Store: UDS, sandbox, bookmarks), and the Swift gate and scripts/check_*.py guards are run together so neither can go red unseen.

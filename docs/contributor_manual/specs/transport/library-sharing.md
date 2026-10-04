@@ -32,6 +32,10 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 - **Loopback with the bootstrap token is always owner.**
 - **Pairing:** the host shows a QR / one-time code; the device sends it to `POST /api/pair` over the
   pinned connection and receives its own token, revocable per device.
+- **2026-10-04 (#5351): revoking cascades.** Revoking a paired device also revokes the devices it
+  paired; the revoke sheet lists them first (`sharing.revoke-cascades`).
+- **2026-10-04 (#5319): an audit row names person and device.** With Multi-user off both are the
+  owner, told apart by device; the host's own edit is never `system` (`sharing.who-did-it`).
 
 ## Behaviours
 
@@ -89,12 +93,17 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   the stream lost an event when the host's loop stalled past its keepalive, fixed in #5314
   (`test_an_event_queued_while_the_loop_stalls_past_the_keepalive_is_still_sent`). The app's
   windows were not run.
-- `sharing.who-did-it` — **[BROKEN]** (→ #5319) each edit's audit row names who made it: the owner on the
-  host, the paired device's person on the other Mac. Run 2026-10-01, Multi-user off: the host's own
-  edit was `system`, the paired Mac's `owner`, and no row named the device.
+- `sharing.who-did-it` — **[BROKEN]** (→ #5319) each edit's audit row names both the person AND the
+  device that made it. With Multi-user off both people are the owner, each row naming its device
+  (the host Mac or the paired Mac); the host's own edit is never `system` (ruled 2026-10-04). Run
+  2026-10-01, Multi-user off: the host's own edit was `system`, the paired Mac's `owner`, and no row
+  named the device.
 - `sharing.revoke` — **[PARTIAL]** (→ #5049) the host lists paired devices and can revoke one; a revoked
   token is refused (pinned in `test_device_pairing_e2e.py`, in-process; run 2026-10-01 across two
   Macs: the paired MBP's next call was 401). The app's device list was not run.
+- `sharing.revoke-cascades` — **[GAP]** (#5351) revoking a paired device also revokes every device
+  it paired (and theirs, down the chain); the revoke sheet lists those devices first, before the
+  person confirms. (Ruled 2026-10-04.)
 
 ### D. Other people (Multi-user on)
 

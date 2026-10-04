@@ -6,7 +6,9 @@
 > let a model propose segments, groupings and readings, look for patterns in how signs combine,
 > record a hypothesis and test it against the corpus, and share all of it with other researchers.
 >
-> Design-led (Testing Constitution). **Status: DRAFT.** A slice of the source model: read
+> Design-led (Testing Constitution). **Status: DRAFT** (approved by the maintainer 2026-10-04,
+> #5328; APPROVED status waits on the manual section, the Test matrix and a citing test; see
+> Rulings). A slice of the source model: read
 > `source-model.md` and `languages-scripts-signs.md` first. This slice builds on declared signs
 > (#4939), letterforms and hands (#4935), rival readings (#4934), training sets (#4947), remote
 > compute (`compute/`), and the meaning map (`explore/meaning.md`). It adds what those do not
@@ -514,18 +516,31 @@ sign lists and their concordance, for list versions and concordances.
 They are not invented signs. The statistics tests pin both a known result on a reference corpus
 and its baseline.
 
+## Rulings
+
+- **2026-10-04 (#5328): the spec is approved by the maintainer with its four recommendations.**
+  (1) A Signs view holds the sign list and the marks, and the analyses live in Explore, linked both
+  ways. (2) A general self-supervised image encoder ships first; fine-tuning one is a job (cluster
+  or Mac) once a project has enough identified marks. (3) A project counts the adjudicated
+  identification, else the most certain human one, and the rule is shown on every result. (4)
+  Fichero ships two small openly licensed reference corpora for baselines, and projects add their
+  own. Status stays DRAFT: approved by the maintainer 2026-10-04; APPROVED status waits on a
+  `Manual:` section (it reads TBD), a filled Test matrix and a test that cites this spec.
+
 ## Open questions
 
-1. **Where does this live in the app?** As its own view mode for a project ("Signs"), holding
+All four answered 2026-10-04 by taking each recommendation; see Rulings. Kept for the reasoning.
+
+1. **Answered** (maintainer 2026-10-04: undeciphered scripts approved as recommended): As the spec recommends. **Where does this live in the app?** As its own view mode for a project ("Signs"), holding
    the list, marks, groups and analyses, with the analysis charts in Explore. Or spread across
    the Inspector, the Segments pane and Explore. Recommendation: a Signs view for the list and
    marks, and Explore for analyses, linked both ways.
-2. **Which image encoder ships first?** A general self-supervised encoder works on day one but
+2. **Answered** (maintainer 2026-10-04: undeciphered scripts approved as recommended): As the spec recommends. **Which image encoder ships first?** A general self-supervised encoder works on day one but
    knows nothing about the script. A fine-tuned one needs identified marks. Recommendation: ship
    the general one, and make fine-tuning a job (cluster or Mac) once a project has enough marks.
-3. **Default counting rule** for identifications in a project with students: the adjudicated one
+3. **Answered** (maintainer 2026-10-04: undeciphered scripts approved as recommended): As the spec recommends. **Default counting rule** for identifications in a project with students: the adjudicated one
    only, or also the most certain human one when nobody has adjudicated? Recommendation: the
    adjudicated one, else the most certain human one, with the rule shown on every result.
-4. **Reference corpora** for baselines: does Fichero ship some (a known language, a
+4. **Answered** (maintainer 2026-10-04: undeciphered scripts approved as recommended): As the spec recommends. **Reference corpora** for baselines: does Fichero ship some (a known language, a
    non-linguistic sign system), or does each project bring its own? Recommendation: ship two small
    openly licensed ones, and let projects add their own.

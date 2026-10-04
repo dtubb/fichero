@@ -66,7 +66,7 @@ Honest dates
   all of them, tied together, not only the first.
 - `explore.time.relative-dates` — **[GAP]** (#5032) "three days after the fire" is held as a date
   relative to another event and drawn from that event, moving if the event's date is corrected.
-  Needs a model change; PROPOSED, not yet ruled (see the questions file).
+  Needs a model change; PROPOSED, not yet ruled (see Open questions below).
 - `explore.time.calendar-is-kept` — **[PARTIAL]** (#5032) a date written in another calendar
   keeps what was written beside its converted span. Built for document dates; not for claims.
 - `explore.time.when-is-not-an-entity` — **[BROKEN]** (→ #5008) a date is never the subject of a
@@ -151,4 +151,4 @@ load (a project's claims bin without a cap and without pegging the machine).
 
 Not blocking: relative dates and claim calendars (extend the claim model now, or later?); what
 "together" means by default in a storyline; HTML or native for storylines and arcs (a
-recommendation is given above; the memory cost is the deciding fact). Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.
+recommendation is given above; the memory cost is the deciding fact).

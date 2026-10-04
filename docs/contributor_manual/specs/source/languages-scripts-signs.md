@@ -260,6 +260,12 @@ Direction
   right-to-left line read from PAGE XML is not reordered on the way in
   (`tests/unit/formats/test_pagexml_read.py`). Bidi is a DISPLAY rule, and the test that matters is
   the one asserting the engine does nothing.
+- `source.dir.ttb-lr` — **[GAP]** (#5173) the direction vocabulary has `ttb-lr` beside `ttb`: `ttb`
+  is vertical with columns advancing right to left (Chinese, Japanese, Korean; `vertical-rl`), and
+  `ttb-lr` is vertical with columns advancing left to right (Mongolian, Manchu, Phags-pa;
+  `vertical-lr`). A PAGE file's `textLineOrder` maps into it on import; the direction cascade
+  derives it from the script (Mongolian script gives `ttb-lr`) when nothing is stated; the write
+  path accepts it and the Reader lays it out. (Ruled 2026-10-04.)
 - `source.dir.reader-lays-out` — **[PARTIAL]** (#4938) the Reader lays text out in its direction, and
   falls back to reading order plus the shape on the image where it cannot. **App work, and honestly
   untested** — `test_direction_cascade.py` says so in its own header rather than implying coverage.
@@ -358,6 +364,14 @@ To be filled at approval.
 
 Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 `source-model.md`.
+
+## Rulings
+
+- **2026-10-04 (#5173): the direction vocabulary gains `ttb-lr`.** `ttb` means vertical lines whose
+  columns advance right to left (Chinese, Japanese, Korean; CSS `vertical-rl`); `ttb-lr` means
+  vertical lines whose columns advance left to right (Mongolian, Manchu, Phags-pa; CSS
+  `vertical-lr`). PAGE's `textLineOrder` maps into it on import, and the direction cascade picks
+  it from the script when nothing is stated (`source.dir.ttb-lr`).
 
 ## Triaged from the backlog (2026-10-04)
 - `source.dir.above-the-line` **[GAP]** (#5006): a source's page progression (the next page to the left for a right-to-left bound book), the Reader's scroll axis (sideways for vertical scripts) and a long scroll read along its own axis all take their direction from the cascade, and a person can override them for a source or for a pane.

@@ -169,4 +169,4 @@ in about a second; thousands in the background, cancellable, the machine stays u
 ## Open questions for the creative director
 
 Not blocking: what a "point" is (a page, an entry, a passage); whether the UMAP test is worth
-doing at all. Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.
+doing at all.
