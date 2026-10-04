@@ -858,7 +858,13 @@ async def list_document_orders(
         for row in db.query(ReadingOrder, document_id=document_id)
         if include_deleted or row.deleted_at is None
     ]
-    orders.sort(key=lambda row: (row.kind != AS_WRITTEN, row.name, row.id))
+    # The WORKING pass's own order first (#5450): the Order tab shows the first `as-written` order
+    # listed, and sorted by name and id alone that was any pass's -- the tab listed one pass's lines
+    # while Preview and the text showed another's.
+    from fichero_server.actions.page_text_cache import _working_pass_id
+
+    working = _working_pass_id(db, document_id) if orders else None
+    orders.sort(key=lambda row: (row.kind != AS_WRITTEN, row.pass_id != working, row.name, row.id))
     return ReadingOrderListResponse(document_id=document_id, orders=orders)
 
 

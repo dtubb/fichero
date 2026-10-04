@@ -220,8 +220,8 @@ def _action_set_depicts(db: Database, params: DepictsSetParams, ctx: ActionConte
 def working_georeference(db: Database, document_id: str) -> tuple[str | None, str | None]:
     """(pass id, basis): the image's working georeferencing pass, by the SAME rule as its text
     pass (`resolve_working_pass`) over its georeferencing passes only (#5122,
-    `source.geo.georef-is-a-pass`): a person's choice, then a pass a person made or touched, then an
-    imported one, then the newest."""
+    `source.geo.georef-is-a-pass`): a person's choice, then a pass a person made or touched, then the
+    newest -- an import has no rank of its own (ruled 2026-10-04, #5443)."""
     from fichero_server.api.routes.document.segment_readings import (
         SegmentPassChoice,
         _pass_candidates,

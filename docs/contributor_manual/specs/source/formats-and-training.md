@@ -231,7 +231,9 @@ Rules for every format
   provenance is pinned by `fichero-server/tests/unit/api/test_an_import_is_the_files.py`. **It has no
   rank of its own (ruled 2026-10-04, #5443):** an import is just the first pass, ranked by date among
   the passes no person made or touched (`source.pass.working`); until then it ranked in an "imported"
-  tier above every machine pass.
+  tier above every machine pass. Built 2026-10-04, pinned by
+  `fichero-server/tests/unit/api/test_an_import_has_no_rank_of_its_own.py` (an import beside a newer
+  run, a person's choice, an outside edit from a synced folder that still waits to be chosen).
 - `source.format.file-on-its-own-is-a-document` — **[OK]** (→ #5143, ruled 2026-10-01; on-screen check of the app's report pending) a TEI, PAGE
   or ALTO file imported **on its own** (File › Import, or a drop of the file alone: no folder of
   scans, no page to put it on) becomes **one document holding every page of the file**, in the
