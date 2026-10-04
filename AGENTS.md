@@ -593,7 +593,7 @@ Start a session with `plan_turn { repo: ".", query: "<task>" }` for confidence +
 
 Conventional commits — `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`, `style:`
 — always referencing a GitHub issue: `feat: add tasks router (#420)`. GitHub Issues +
-Milestones is the source of truth for the backlog. **A commit that finishes an issue says `Fixes #N` in its body** (GitHub only auto-closes on main; `scripts/close_fixed_issues.py --apply`, run after each push to integration, closes them with a comment). Part still owed → label the issue `residue` and file the rest. Done but needing the maintainer's eyes on screen → label `needs-your-test`, saying what to try and which build has it. **Before filing a bug or feature, search
+Milestones is the source of truth for the backlog. **A commit that finishes an issue says `Fixes #N` in its body** (GitHub only auto-closes on main; `scripts/close_fixed_issues.py --apply`, run after each push to integration, closes them with a comment). Part still owed → label the issue `residue` and file the rest. Done but needing the maintainer's eyes on screen → label `needs-your-test`, saying what to try and which build has it. When the maintainer asks "what's the update?" or "what should I test?", answer from `gh issue list --label needs-your-test` plus the issues closed since you last reported. Keep the tree clean as you go: every worktree's work merged into integration (or set aside with a reason on its issue), merged branches deleted locally and on GitHub, and no stray worktrees. **Before filing a bug or feature, search
 existing issues** (`gh issue list --search "<terms>"` / `--state all`) and comment on the match
 instead of opening a duplicate — the same reuse-don't-duplicate discipline we apply to code.
 
