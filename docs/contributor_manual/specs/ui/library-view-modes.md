@@ -539,3 +539,6 @@ resolved and moved; the other three's status is corrected below.
 - (#4339) Finder-style group-by in the Library sort menu; Library browsing feature
 - (#1972) Future section: image keywords, ratings and thumbs up/down curation in batch from browse/detail surfaces; issue itself says "future only".
 - (#4460) Future section: product decision on what order shift-click extends along on a spatial canvas (needs a total order); blocks canvas shift-click only.
+
+## Triaged from the backlog (2026-10-04)
+- `library.inspector-scales-to-50k` — **[GAP]** (#1790) Opening the inspector on a large folder (50k+ images) loads entities paged and non-blocking with a real loading state.

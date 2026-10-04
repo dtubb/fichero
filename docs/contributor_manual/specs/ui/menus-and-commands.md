@@ -575,3 +575,10 @@ standard Edit items) alone.
 **Verdict:** reject the catalog; adopt "reuse the existing `@FocusedValue` components + HIG
 re-homing," landed as small subtractive increments (Data/"+" dedupe first — the clearest win), each
 built and pinned by an EXTENDED existing test. Ready for the CD's review; not yet code.
+
+## Future (ideas, not scheduled)
+- (#1872) Edit toggle, overflow menu and up/down result navigation in toolbars (Apple Passwords style)
+
+## Triaged from the backlog (2026-10-04)
+- `commands.copy-cut-paste-everywhere` — **[GAP]** (#4257) Copy, cut and paste work on whatever is focused with the richest pasteboard types.
+- `commands.smart-paste` — **[GAP]** (#4258) Paste inspects the pasteboard: file URL imports, web URL offers capture, image data creates an image node.

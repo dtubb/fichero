@@ -116,3 +116,6 @@ differently elsewhere. No triage flag raised here.
 - `kg/kg-entity-inspector.md`'s `kg.entity.notes` behavior (currently [GAP], → #4828) covers a
   DIFFERENT notes surface — notes attached to a KG entity from the retired KG browser — not the
   general Zettelkasten notes API this spec covers.
+
+## Triaged from the backlog (2026-10-04)
+- `write.one-compose-surface` — **[GAP]** (#2089) One reusable native compose/notes editor (markdown + attributed) replaces the scattered editors.

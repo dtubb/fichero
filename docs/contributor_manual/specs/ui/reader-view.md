@@ -396,3 +396,9 @@ recommendation for which one carries the work.
 
 ## Triaged from the backlog (2026-10-04)
 - `reader.page.selected-page-scope` — **[GAP]** (#4559) selecting one page of a PDF shows that page in breadcrumb, preview and Reader, and the Reader lists only that page, not the whole document transcript.
+- `reader.content-always-present` — **[GAP]** (#1445) Every page always shows a Content area (empty placeholder, never 'No transcript') and it refreshes live after Transcribe; same root cause as #5077.
+- `reader.webcontent-gpu-crash-free-switching` — **[GAP]** (#1615) Switching documents or folders never kills the WebKit GPU process; recovery exists (06a32b50a) but the cause is unproven.
+
+## Future (ideas, not scheduled)
+- (#973) Book-native page numbers and chapter markers for book-shaped sources; backend detection feature, no current spec owner
+- (#1493) Chapter jump-list atop Content tab from BookStructureNode; design-gated on thinking-layer #1488

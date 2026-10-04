@@ -119,3 +119,6 @@ On the Air (host) and the MBP (client), apps launched by path, one xcodebuild at
 4. Revoke the MBP on the Air; the MBP is refused.
 5. The same over Tailscale (`tailscale serve`), by hand, to learn what automating it needs.
 Each failure: an issue, fixed one at a time, its behaviour above re-tagged.
+
+## Triaged from the backlog (2026-10-04)
+- `sharing.accounts-and-users-settings` — **[GAP]** (#2083) Settings has an Accounts & Users screen to log in, add/remove users and assign owner/editor/viewer.

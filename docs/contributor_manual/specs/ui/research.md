@@ -501,3 +501,6 @@ Design content carried into this spec; files kept, listed here per program instr
 - `agent-work/status/RESEARCH_STATUS.md` — status log for the Swift-parallel-safe subset
   (`ToolCall`/`ToolCallCard`, `SourceLedgerEntry`, the Plan tab) that is now simply "what
   exists today" above; folded in as historical provenance, not re-described as a plan.
+
+## Future (ideas, not scheduled)
+- (#2081) Library node model: prototypes, aliases and entities-as-nodes (Tinderbox-for-archives); canonical for cluster

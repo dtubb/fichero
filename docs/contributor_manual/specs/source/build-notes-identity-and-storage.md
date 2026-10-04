@@ -1279,3 +1279,7 @@ has the same fault with zero-width boxes (noted on → #4955).
   show), and **one region edit on a page that has a zero-width box before the edited one**
   (the right box moves). That last check is the one that would have caught stage 1's index
   fault.
+
+## Triaged from the backlog (2026-10-04)
+- `storage.library-name-nfc` — **[GAP]** (#2385) Library names are NFC-normalized so accented names never create mojibake duplicate packages.
+- `storage.mojibake-surface-only` — **[GAP]** (#3077) Mojibake-variant library names are detected and surfaced for the user, never auto-merged.

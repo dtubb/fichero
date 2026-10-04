@@ -296,8 +296,10 @@ every open milestone, only the ones already flagged as candidates.
 
 ## Future (ideas, not scheduled)
 - (#4330) Rendition model and two-axis Preview navigation; Preview surface work, not workflows
+- (#2610) Two-axis page-curl reader with filmstrip: pages x variants
 
 ## Triaged from the backlog (2026-10-04)
 - `preview.click-maps-to-document` — **[GAP]** (#4612) a Preview click lands on the same geometry that is drawn; the unexplained constant (+0.185,+0.488) offset has a named cause (tripwire armed, cause unnamed).
 - `preview.image-pixel-size-not-points` — **[GAP]** (#4613) absolute-size consumers (crop_child, RegionInteraction) use pixel size, never NSImage(data:).size points that honour DPI metadata.
 - `preview.cursor-position-orientation` — **[GAP]** (#4614) ImageWithCursorTracking.cursorPosition names its normalized orientation (top-left) so consumers stop flipping privately.
+- `preview.pdf-reader-scroll-sync` — **[GAP]** (#1253) Scrolling the Reader transcript moves Preview's PDF to the matching page and vice versa.

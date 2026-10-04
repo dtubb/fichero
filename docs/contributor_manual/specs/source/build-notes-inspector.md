@@ -214,3 +214,5 @@ selection.
 using what exists (readings through the segment routes; `ReadingOrderList`). Then Language & script,
 Hands and Making, the facts with engine data behind them.
 
+## Future (ideas, not scheduled)
+- (#1853) Inspector attributes as a compact list with click-to-view/edit (progressive disclosure)

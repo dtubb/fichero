@@ -222,3 +222,11 @@ NOT this PR.
 ## Triaged from the backlog (2026-10-04)
 - `sidebar.drag-identity-edges` — **[GAP]** (#4530) a foreign plain-text drag is not blamed as internal, a user folder named fichero-drag-* is not swallowed, and canonicalLibraryKey matching is case-insensitive.
 - `sidebar.drop-on-content-pane-silent` — **[GAP]** (#4551) releasing an in-app library drag on the content pane is a silent no-op, never a modal Import Error (message still in ContentView+ActionsImport.swift).
+- `onboarding.minimal-local-first` — **[GAP]** (#2719) First run uses a default library, asks only needed permissions, and every step is optional.
+- `launch.opens-global-inbox` — **[GAP]** (#4017) Mac launch opens what the app had open straight into the main window with no library prompt or spinner; onboarding is a sheet.
+- `launch.no-splash-ever` — **[GAP]** (#4261) The New/Open Library splash never appears for a user with saved libraries; connection/auth state shows inline in the sidebar.
+
+## Future (ideas, not scheduled)
+- (#1380) Mail-style sidebar: counts, multi-select combined view, favorites section, smart All groups
+- (#1868) SF Symbol icon and color per library, folder and list in the sidebar
+- (#1951) Status redesign (updated/bold-unread, no green check) and consistent light-blue selection

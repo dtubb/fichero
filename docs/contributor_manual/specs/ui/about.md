@@ -170,3 +170,8 @@ UI test, not missing labels.
   app registers none today. In scope for About, or its own surface?
 - **Milestone name.** This spec declares `Milestone: about`; confirm/create the matching GitHub
   milestone before flipping to APPROVED (spec name == milestone name == test tag).
+
+## Triaged from the backlog (2026-10-04)
+- `about.semantic-fonts` — **[GAP]** (#1969) Every Text uses a semantic font style; 76 .font(.system(size:)) uses remain and must be removed.
+- `about.all-text-selectable` — **[GAP]** (#4256) Every displayed text in the app is selectable and copyable.
+- `about.ios-icon` — **[GAP]** (#4334) The iOS app icon renders correctly on device (masking, scale, padding).

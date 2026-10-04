@@ -1648,3 +1648,12 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 ## Triaged from the backlog (2026-10-04)
 - `inspector.tabs-fit-default-width` — **[GAP]** (#4540) the document inspector has fewer top-level tabs (fold citations+related, or kg into entities) so it sits at its default width; Preview/Reader/Inspector stay three surfaces.
 - `shell.no-nstableview-reentrancy` — **[GAP]** (#4684) launch logs no "reentrant operation in its NSTableView delegate" warning (SwiftUI List; becomes an assert on a future macOS).
+- `panes.location-bar-canonical` — **[GAP]** (#3405) The top location bar is the one clickable breadcrumb, shows human page names (never import filenames), and is Liquid Glass styled.
+
+## Future (ideas, not scheduled)
+- (#1640) Library and reading-surface toolbars compress when narrow like the inspector mini-toolbar (Reader uses ViewThatFits; Library does not)
+- (#1693) See several selected items at once (tabbed or side-by-side detail)
+- (#1839) AppKit fidelity pass on document inspector and reading-surface list
+- (#1841) Right-clicked row rings as menu target without changing selection (Mac polish)
+- (#1842) Drag-session visibility: dim dragged row and recover on out-of-window drop (Mac polish)
+- (#1929) Liquid Glass design-idiom audit across chrome
