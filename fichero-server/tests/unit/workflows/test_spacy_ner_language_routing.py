@@ -51,7 +51,7 @@ class TestProviderRoutesDeclaredLanguage:
     def _language_seen(self, monkeypatch, declared):
         seen: dict[str, object] = {}
 
-        def _fake_extract(text, language=None):
+        def _fake_extract(text, language=None, model=None):
             seen["language"] = language
             return []
 

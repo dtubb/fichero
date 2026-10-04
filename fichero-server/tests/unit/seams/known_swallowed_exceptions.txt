@@ -168,7 +168,7 @@ workflows/subworkflow.py::validate_sub_workflow_references.refs_for 1
 workflows/task_workers.py::TaskWorkersMixin._do_reindex 1
 workflows/task_workers.py::TaskWorkersMixin._do_repair 1
 workflows/task_workers.py::TaskWorkersMixin._do_vector_repair 2
-workflows/tools/_entity_writer.py::_upsert_entity_matched 4
+workflows/tools/_entity_writer.py::_upsert_entity_matched 3
 workflows/tools/_workflow_change_emit.py::emit_workflow_artifact_changes 1
 workflows/tools/_workflow_change_emit.py::emit_workflow_artifact_changes_for_db 1
 workflows/tools/_workflow_change_emit.py::emit_workflow_citation_changes 1
