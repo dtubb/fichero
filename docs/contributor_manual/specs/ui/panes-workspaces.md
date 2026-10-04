@@ -1659,3 +1659,6 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - (#1841) Right-clicked row rings as menu target without changing selection (Mac polish)
 - (#1842) Drag-session visibility: dim dragged row and recover on out-of-window drop (Mac polish)
 - (#1929) Liquid Glass design-idiom audit across chrome
+- (#4045) Detach chat into its own window and save/restore a workspace window's zone layout.
+- (#4168) Extend drag-out/drop-in (real file + RTF + text) to every object type: entities, claims, artifacts, notes, workflows, results.
+- (#4170) Draggable proxy icons in every window title bar and breadcrumb, with Finder-style path menu.

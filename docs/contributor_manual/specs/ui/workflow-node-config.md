@@ -199,3 +199,6 @@ Paths are relative to `fichero/fichero/` unless noted; server paths under
 - **F16 — schema/UI drift.** Server `transcribe` config_schema declares `language` and `kraken_model` (`transcribe.py:53`, `:84`) but no `prompt`/`max_image_dimension`; the custom view shows prompt + image size and omits `kraken_model`. The `only-honoured-keys` line is the audit for this class.
 
 Existing coverage (kept, all pass today): `fichero/Tests/Unit/general/Views/Workflow/TranscribeNodeConfigTests.swift` (locale table), `NodeProviderModelSelectorVisionModeTests.swift` (alias recognition, legacy provider read, vision_mode cleared on Default/alias — a source-text test), `ZoomTileGridTests.swift`. Nothing pins prompt visibility, prompt round-trip, `usesLLM` stability, or the Settings/popover model-list invariant.
+
+## Future (ideas, not scheduled)
+- (#4178) Rethink the workflow node-editor layout engine for clarity and enable chaining in the editor.

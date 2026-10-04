@@ -747,3 +747,6 @@ action record holding a researcher's words is ruled out.
    without writing; reshape one line and split one line as undoable actions; the same segment
    identical from engine, MCP, command line and app; PageXML out and back in as a second
    pass with a loss report; corrected lines out as straightened line pictures with readings.
+
+## Future (ideas, not scheduled)
+- (#4175) Audit whether the library DB reaches LanceDB through the DuckDB Lance extension and migrate if stable; structural, needs migration discipline.

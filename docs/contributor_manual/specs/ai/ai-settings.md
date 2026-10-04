@@ -981,3 +981,6 @@ Settings reuses the row; land subtractively. Ready for CD review, not yet code.
 
 ## Triaged from the backlog (2026-10-04)
 - `models.curated-catalog-clean-licences` — **[GAP]** (#4611) Chandra-OCR and Nanonets-OCR are removed from MANAGED_MLX_MODELS (both still present at mlx_model_store.py:111,125).
+
+## Future (ideas, not scheduled)
+- (#4177) Per-provider smoke tests across Apple Intelligence, MLX and online providers through the one provider interface.

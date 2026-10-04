@@ -293,7 +293,16 @@ community: pointfreeco/swift-snapshot-testing, EmergeTools/SnapshotPreviews.
 
 ## Triaged from the backlog (2026-10-04)
 - `uitest.every-surface-every-interaction` — **[GAP]** (#4464) every surface (library, sidebar, inspector lists) supports drag and drop, VoiceOver, arrow keys and menus, and a test per surface proves each interaction.
-- `uitest.no-source-string-tests` — **[GAP]** (#4492) Swift guards assert behaviour, not source spelling; a source-string test must be rewritten to run the behaviour (17 of 18 gate failures in one run were spelling tests).
+- `uitest.no-source-string-tests` — **[GAP]** (#4267, #4492) Swift guards assert behaviour, not source spelling; a source-string test must be rewritten to run the behaviour (17 of 18 gate failures in one run were spelling tests).
 - `uitest.claim-annotation-store-instantiated` — **[GAP]** (#4510) ClaimStore and AnnotationStore are constructed and exercised in tests, not only source-text inspected.
 - `uitest.split-subscript-guardrail` — **[GAP]** (#4534) scripts/check_split_subscript.py flags an unguarded [1] on components(separatedBy:)/split in test code, with a firing fixture (script does not exist).
 - `uitest.drop-loader-chokepoint-guardrail` — **[GAP]** (#4543) scripts/check_drop_loader_chokepoint.py forbids NSItemProvider load calls outside ExternalFileDropLoader and SidebarDropProviderReader, with a firing fixture (script does not exist).
+
+## Future (ideas, not scheduled)
+- (#4174) Measured pathway to 100% coverage: xccov and coverage.py in the gates, ratchet rule, deterministic seams for LangChain.
+- (#4241) Two missing test layers (store-with-stubbed-transport, scenario tests) and a five-step coverage roadmap.
+- (#4242) Small non-blocking follow-ups from the 2026-07-28 adversarial test review (compound-wait race in LibraryLoadingIsNotAnOutageUITests, etc.).
+- (#4262) A gate perf leg with recorded launch and interaction baselines and ratchet semantics.
+- (#4263) Long-horizon: extract host-free core packages and drive scenario tests as data.
+- (#4420) Program: seam tests asserting every published signal has a consumer and every consumer a publisher.
+- (#4618) Design-led testing discipline (Testing Constitution) and regression corpus, awaiting ratification.

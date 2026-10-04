@@ -215,3 +215,6 @@ not a coherent new surface needing its own spec.
 
 ## Triaged from the backlog (2026-10-04)
 - `automation.run.history-inspector-tab` — **[GAP]** (#1474) the document inspector lists the workflow runs that ran on this document and lets the user delete (or disable) a run's results, as the image history does
+
+## Future (ideas, not scheduled)
+- (#4171) fichero:// deep link for every view: copy link, bookmark, script, click-through from Inspector.

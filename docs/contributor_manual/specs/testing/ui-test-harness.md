@@ -160,3 +160,8 @@ Hard-gate: `harness.app-connects`, `harness.fail-fast-loud`.
 All four original questions resolved by the rulings above. Remaining unknown: the exact app-side
 reason the seeded library isn't current at window-resolve time — pinned by one instrumented MCP
 run before the fix, per systematic-debugging.
+
+## Triaged from the backlog (2026-10-04)
+- `harness.one-engine-harness` — **[GAP]** (#4541) the Swift unit live path uses the shared spawn-per-run harness via a --tls mode instead of self-provisioning EngineHarness.swift.
+- `harness.smoke-is-a-gate-leg` — **[GAP]** (#4542) 'gate smoke' runs scripts/ux_smoke.py against a built Dev Local app, archives screenshots, and is NOT ARMED only when no app exists.
+- `harness.runner-spawns-engine` — **[GAP]** (#4646) the sandboxed xctest runner provisions the session engine (or the harness spawns it outside the runner) so functional UI tests run instead of silently skipping.

@@ -385,3 +385,6 @@ finding was posted as GitHub-comment evidence with "Left OPEN; not closing mysel
 
 **Milestones closed**: #17 ("Search View", 61 closed / 0 open), #186 ("Search View - Engine",
 6 closed / 0 open).
+
+## Future (ideas, not scheduled)
+- (#4167) Index documents, entities and notes into system Spotlight via App Intents and CoreSpotlight with deep links; depends on view URLs (#4171).

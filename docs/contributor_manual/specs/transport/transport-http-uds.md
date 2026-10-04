@@ -92,3 +92,6 @@ Hard-gate: `transport.same-result` (the cross-transport invariant) + `transport.
    default-isolation fix (landed for `FicheroTests`, MEMORY
    `test-target-needs-mainactor-default-isolation`) enough to unblock #4511, or does #4511 need
    its own re-verification first? (Tracked; not this pass.)
+
+## Future (ideas, not scheduled)
+- (#4180) Device connect by PIN or QR on the same network and a shareable login link for others; builds on pairing design and multiuser accounts.

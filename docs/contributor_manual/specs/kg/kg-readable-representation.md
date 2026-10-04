@@ -942,3 +942,6 @@ ONE exception (#8) that stays an open question FOR him specifically.
    *Recommendation (proceeding):* words ("three sources agree").
 10. **A language with no table yet.** *Recommendation (proceeding):* render the claim verbatim,
     no glue words — never silent English.
+
+## Future (ideas, not scheduled)
+- (#4172) Per-library master language for SVO statements, no mixed-language slots, a design answer for non-SVO languages, and proper conjugation.

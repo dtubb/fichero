@@ -170,7 +170,7 @@ fourth type.
   `.workflowRecipe`) at the policy level — NOTE: no automated SwiftUI-render test exists yet
   asserting `ReadingPaneView` actually mounts `WorkflowOutputLog` for a `.workflow` selection
   (a coverage gap, flagged for follow-up, not silently claimed as pinned).
-- `m2p.kg-graph-retires-as-library-takeover` — **[OK]** (increment 3, 617233ec5) `SidebarMode.knowledgeGraph`
+- `m2p.kg-graph-retires-as-library-takeover` — **[OK]** (#2447) (increment 3, 617233ec5) `SidebarMode.knowledgeGraph`
   and `OntologyBrowser` no longer mount inside the Library pane, or exist anywhere in the app
   target; timeline/map are (and already were, independent of this increment) ordinary Library
   view modes on the Entities collection. The force-directed graph surviving as a Preview
@@ -199,7 +199,7 @@ fourth type.
   its `deletedBareIdentifiers` check for `ActivityWindowLauncherView`, and
   `ContentViewPersistenceTests.testRetiredStringsStillRestoreSafely` for the
   persisted-`"batch"`-string tolerant decode.
-- `m2p.research-is-sidebar-node` — **[PROPOSED]**, split into increments 5a/5b/5c above
+- `m2p.research-is-sidebar-node` — **[PROPOSED]** (#1793), split into increments 5a/5b/5c above
   (2026-09-18 design pass): research projects are sidebar nodes like workflows, not a bespoke
   `HStack` container; a project's workspace content is reached via chat's Plan tab (5b — the
   chat dock is scoped to the project via `ChatView(researchProject:)`, the same adapter
@@ -267,7 +267,7 @@ fourth type.
   `SidebarWorkspaceNodeTests.testWorkspaceSelectionNoLongerDivertsToResearch`,
   `.testCreateNewWorkspaceReusesFolderPlacementAndSelects`, `.testRegistryWiringIncludesWorkspace`,
   `.testResearchProjectListViewHasNoWorkspaceUI`.
-- `m2p.chat-single-mount` — **[PROPOSED]** `ChatView(` appears in exactly one builder at a
+- `m2p.chat-single-mount` — **[PROPOSED]** (#4041) `ChatView(` appears in exactly one builder at a
   time — dock OR pane, never both — because conversation state (`currentConversation`,
   `backendConversationId`, `ChatView.swift:61-66`) is lifted out of `@State` into the
   per-window model before chat becomes movable. Proposed pin: a placement test (never two
@@ -292,7 +292,7 @@ fourth type.
   `.testSwitchConversationAndResetToFreshConversationShareOneResetHelper` (source-scan — a
   live `@State`-mutation assertion needs a hosting harness this suite does not have, the same
   limitation this file's other `ChatView` tests already accept).
-- `m2p.chat-scope-lives-in-both` — **[PROPOSED]**, renamed from `m2p.chat-scope-inspector-only`
+- `m2p.chat-scope-lives-in-both` — **[PROPOSED]** (#4413), renamed from `m2p.chat-scope-inspector-only`
   (creative director, 2026-09-18, supersedes it): chat scope lives in BOTH the Inspector's
   Sources tab (`ChatInspector`) AND the chat dock's own Sources view — the dock's Sources tab
   is NOT deleted. Pinned by a guardrail asserting BOTH mounts exist (the inverse of the old
@@ -1030,3 +1030,6 @@ to decide; nothing was invented outside that set.
 
 ## Future (ideas, not scheduled)
 - (#2591) Node-model unification epic; cross-cutting, spec recommends re-homing off workflows
+
+## Triaged from the backlog (2026-10-04)
+- `m2p.kg-feature-flag-retires` — **[GAP]** (#4792) the knowledgeGraph key is retired from features.yaml and FeatureTiers is regenerated, since the KG mode is gone (isKnowledgeGraphEnabled has no call site).

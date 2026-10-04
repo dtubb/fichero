@@ -1198,3 +1198,6 @@ Workflow-runner review, 2026-10-01 (read, one scheduled run reproduced, Kraken t
 `workflows/executor.py`, `execution/chaining.py`, `api/routes/workflow_execution/core.py`,
 `api/routes/workflow_execution/threads.py`, `api/routes/workflow/batch.py`,
 `workflows/tools/economy_htr.py`, `workflows/tools/catalogue.py`, `api/main.py:1015-1025`.
+
+## Future (ideas, not scheduled)
+- (#4044) A bottom Xcode-debug-area style strip showing multiple running agents' progress and tool calls; new chrome, not current work.

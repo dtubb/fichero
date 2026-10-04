@@ -582,3 +582,5 @@ built and pinned by an EXTENDED existing test. Ready for the CD's review; not ye
 ## Triaged from the backlog (2026-10-04)
 - `commands.copy-cut-paste-everywhere` — **[GAP]** (#4257) Copy, cut and paste work on whatever is focused with the richest pasteboard types.
 - `commands.smart-paste` — **[GAP]** (#4258) Paste inspects the pasteboard: file URL imports, web URL offers capture, image data creates an image node.
+- `commands.every-control-has-help` — **[GAP]** (#4163) every toolbar item, button and icon control carries a .help tooltip, enforced by a guard script so new controls cannot ship without one.
+- `commands.pane-focus-navigation` — **[GAP]** (#4165) focus moves between sidebar, library, Preview, Reader and Inspector by keyboard, and every feature has a documented, conflict-free shortcut.

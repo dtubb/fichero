@@ -466,9 +466,12 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
 - `importer.clip-is-first-class-material` — **[GAP]** (#2367) a clip is searchable, workflow-processable, citeable and provenance-preserving like any imported document, pinned by a clip-to-workflow integration test.
 - `importer.capture-rules-by-person` — **[GAP]** (#2380) the Mac Settings Capture tab maps each person to a library and a workflow; the device never chooses destination or workflow, the signed-in user determines the rule.
 - `importer.capture-upload-is-idempotent` — **[GAP]** (#3280) a mobile capture upload is one idempotent request keyed by a client-generated id, so a retry after a half-finished upload or a post-upload edit never creates a duplicate document (MobileCaptureQueue.swift:197 still does import then update).
+- `import.dock-drop-folder-reliable` — **[GAP]** (#4182) dropping a folder on the Dock icon imports it cleanly and the sidebar updates live.
 
 ## Future (ideas, not scheduled)
 - (#1233) GHC/ACENET already-catalogued corpus is a demo/test dataset awaiting the Source Archives home; Future section, not current engine work.
 - (#1235) Sergio Mosquera notebooks + catalogue spreadsheet as a release demo library (sergio_import.py exists but corpus unfinished); Future section; note Sergio data rulings (train yes, release no).
 - (#2208) ICANH/Andagoya corpus import + Spanish Script transcription QA is corpus-specific work for the Source Archives program, not a pipeline behaviour.
 - (#2209) Archivos Nuestros corpus import + library QA is corpus-specific Source Archives work, not a pipeline behaviour.
+- (#4183) Browser extensions (Safari, Chrome, Firefox) and a system share-sheet target to add content to Fichero.
+- (#4184) Full review of drag-in ingestion asymmetries (folders, Finder promises, link/copy/move, progress and errors); likely folds into import specs once reviewed.

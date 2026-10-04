@@ -175,3 +175,7 @@ UI test, not missing labels.
 - `about.semantic-fonts` — **[GAP]** (#1969) Every Text uses a semantic font style; 76 .font(.system(size:)) uses remain and must be removed.
 - `about.all-text-selectable` — **[GAP]** (#4256) Every displayed text in the app is selectable and copyable.
 - `about.ios-icon` — **[GAP]** (#4334) The iOS app icon renders correctly on device (masking, scale, padding).
+
+## Future (ideas, not scheduled)
+- (#4179) Toolbar item to report a bug or request a feature in-app, with screenshots and crash logs, filing a GitHub issue.
+- (#4181) Audit and adopt macOS 26 APIs (Foundation Models, Writing Tools, App Intents upgrades); output is a backlog of per-API issues.

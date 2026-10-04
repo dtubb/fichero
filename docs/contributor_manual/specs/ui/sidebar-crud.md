@@ -187,7 +187,7 @@ sidebar's own code health, not a Library view-mode question:
   the sidebar's several state managers should consolidate — a code-health ask, not a
   user-facing behavior, kept here as a GAP so it stays tracked rather than lost when its
   milestone folds.
-- `sidebar.accessibility-pass` — **[GAP]** (#584) the sidebar has zero VoiceOver/accessibility
+- `sidebar.accessibility-pass` — **[GAP]** (#4164, #584) the sidebar has zero VoiceOver/accessibility
   coverage today (issue's own claim, not independently re-verified this pass).
 
 ## First worked example (this PR — the delete behaviors)
@@ -225,8 +225,15 @@ NOT this PR.
 - `onboarding.minimal-local-first` — **[GAP]** (#2719) First run uses a default library, asks only needed permissions, and every step is optional.
 - `launch.opens-global-inbox` — **[GAP]** (#4017) Mac launch opens what the app had open straight into the main window with no library prompt or spinner; onboarding is a sheet.
 - `launch.no-splash-ever` — **[GAP]** (#4261) The New/Open Library splash never appears for a user with saved libraries; connection/auth state shows inline in the sidebar.
+- `launch.open-libraries-consistent-across-devices` — **[GAP]** (#2498) the sidebar on iOS/iPad lists the same open libraries the engine has open for the Mac, instead of only one.
+- `sidebar.no-bottom-entity-activity-workflow-sections` — **[GAP]** (#4102) the sidebar no longer renders the bottom Activity/Entities/Workflows/Automations sections; libraries are listed as their own separate section.
+- `launch.prunes-rejected-saved-library` — **[GAP]** (#4239) a saved library path the engine definitively rejects (403 roots) is pruned from the saved list and never retried in a session; UI-test libraries never persist into real preferences.
+- `sidebar.row-heights-agree` — **[GAP]** (#4476) library rows and item rows reach the same height by one mechanism (today 2pt apart via two), per the 2026-08-02 decision document.
 
 ## Future (ideas, not scheduled)
 - (#1380) Mail-style sidebar: counts, multi-select combined view, favorites section, smart All groups
 - (#1868) SF Symbol icon and color per library, folder and list in the sidebar
 - (#1951) Status redesign (updated/bold-unread, no green check) and consistent light-blue selection
+- (#4095) Adopt native .badge() for sidebar row counts instead of hand-drawn chrome; no .badge( usage in Views/Sidebar today; cosmetic.
+- (#4169) Double-click opens per the new-tab/new-window setting; Command-double-click inverts it, for every object everywhere.
+- (#4260) Audit sidebar, list, keyboard and menu behaviour against NetNewsWire as a reference implementation.
