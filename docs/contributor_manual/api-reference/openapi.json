@@ -11164,6 +11164,50 @@
         }
       }
     },
+    "/api/recipes/derived": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Derived Facts",
+        "description": "What setup works out instead of asking, each fact saying where it came from\n(`source.onboard.derives-not-asks`): per script its direction, whether it may be vertical\nand its bundled font; this Mac's chip and memory; which providers have a key; where work\ncan run.",
+        "operationId": "derived_facts_api_recipes_derived_get",
+        "parameters": [
+          {
+            "name": "scripts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Scripts"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DerivedFacts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/scripts": {
       "get": {
         "tags": [
@@ -40833,6 +40877,52 @@
         }
       }
     },
+    "/api/iiif/iiif/lines/{document_id}": {
+      "get": {
+        "tags": [
+          "iiif",
+          "iiif"
+        ],
+        "summary": "A page's lines as IIIF annotations",
+        "description": "The working pass's lines as a W3C AnnotationPage on the document's canvas: each the counting reading's text, language and maker, at line granularity, in canvas pixels.",
+        "operationId": "get_lines_annotation_page_api_iiif_iiif_lines__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Lines Annotation Page Api Iiif Iiif Lines  Document Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/iiif/iiif/manifest/{document_id}": {
       "get": {
         "tags": [
@@ -51370,6 +51460,43 @@
           "id"
         ],
         "title": "DeletedWithIdResponse"
+      },
+      "DerivedFacts": {
+        "properties": {
+          "scripts": {
+            "items": {
+              "$ref": "#/components/schemas/ScriptFacts"
+            },
+            "type": "array",
+            "title": "Scripts"
+          },
+          "mac": {
+            "$ref": "#/components/schemas/MacFacts"
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keys",
+            "description": "providers with a readable key: names only, never a key"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceToRun"
+            },
+            "type": "array",
+            "title": "Targets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scripts",
+          "mac",
+          "keys",
+          "targets"
+        ],
+        "title": "DerivedFacts"
       },
       "DerivedText": {
         "properties": {
@@ -62756,6 +62883,29 @@
         "title": "MCPToolRegistryResponse",
         "description": "Result of loading MCP tools into the workflow registry."
       },
+      "MacFacts": {
+        "properties": {
+          "chip": {
+            "type": "string",
+            "nullable": true,
+            "title": "Chip"
+          },
+          "memory_gb": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Memory Gb"
+          },
+          "from": {
+            "type": "string",
+            "title": "From"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from"
+        ],
+        "title": "MacFacts"
+      },
       "ManualPairRequest": {
         "properties": {
           "survivor_entity_id": {
@@ -66603,6 +66753,29 @@
           "unknown"
         ],
         "title": "PlaceGeometryType"
+      },
+      "PlaceToRun": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "from": {
+            "type": "string",
+            "title": "From"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "from"
+        ],
+        "title": "PlaceToRun"
       },
       "PlanCreateRequest": {
         "properties": {
@@ -72279,6 +72452,44 @@
         ],
         "title": "ScopedSegmentListResponse",
         "description": "A page of segments across MANY documents (`source.editor.library-lists-segments`).\n\nNot `SegmentListResponse`: that one answers `document_id` and the page's passes,\nwhich a scoped list has neither of \u2014 the rows come from many documents and naming\none would be a lie. `total` is the match count so a Library can page without\nfetching to find out how much there is."
+      },
+      "ScriptFacts": {
+        "properties": {
+          "script": {
+            "type": "string",
+            "title": "Script"
+          },
+          "direction": {
+            "type": "string",
+            "nullable": true,
+            "title": "Direction"
+          },
+          "direction_from": {
+            "type": "string",
+            "title": "Direction From"
+          },
+          "may_be_vertical": {
+            "type": "boolean",
+            "title": "May Be Vertical"
+          },
+          "font": {
+            "type": "string",
+            "nullable": true,
+            "title": "Font"
+          },
+          "font_from": {
+            "type": "string",
+            "title": "Font From"
+          }
+        },
+        "type": "object",
+        "required": [
+          "script",
+          "direction_from",
+          "may_be_vertical",
+          "font_from"
+        ],
+        "title": "ScriptFacts"
       },
       "SearchAnchor": {
         "properties": {

@@ -6514,6 +6514,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("a-page-s-lines-as-annotations")
+    def iiif_a_page_s_lines_as_annotations_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+    ) -> None:
+        """A page's lines as IIIF annotations (GET /api/iiif/iiif/lines/{document_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/iiif/iiif/lines/{document_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("manifest")
     def iiif_manifest_get(
         ctx: typer.Context,
@@ -11852,6 +11864,20 @@ def register_generated_openapi_commands(
                 "recipe": {'additionalProperties': True, 'type': 'object', 'title': 'Recipe', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("derived-facts")
+    def recipes_derived_facts_get(
+        ctx: typer.Context,
+        scripts: Optional[str] = typer.Option(None, "--scripts", help="Query parameter: scripts."),
+    ) -> None:
+        """Derived Facts (GET /api/recipes/derived)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/derived"
+            params = {
+                "scripts": scripts,
+            }
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-jobs")

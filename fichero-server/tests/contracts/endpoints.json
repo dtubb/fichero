@@ -4514,6 +4514,18 @@
       },
       {
         "method": "GET",
+        "path": "/iiif/iiif/lines/{document_id}",
+        "operation_id": "get_lines_annotation_page_api_iiif_iiif_lines__document_id__get",
+        "summary": "A page's lines as IIIF annotations",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/iiif/iiif/manifest/{document_id}",
         "operation_id": "get_iiif_manifest_api_iiif_iiif_manifest__document_id__get",
         "summary": "IIIF Manifest",
@@ -8291,6 +8303,22 @@
         "query_params": [],
         "request_model": "CheckRequest",
         "response_model": "CheckResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/derived",
+        "operation_id": "derived_facts_api_recipes_derived_get",
+        "summary": "Derived Facts",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "scripts",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "DerivedFacts"
       },
       {
         "method": "GET",
