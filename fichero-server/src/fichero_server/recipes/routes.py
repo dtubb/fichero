@@ -28,18 +28,10 @@ def _figure(value: float | None, basis: str, source: str) -> dict[str, Any]:
 
 def measured_seconds_per_page(db, model: str) -> float | None:
     """The median seconds a page took for `model` on this Mac, from its finished job rows."""
-    rows = db.execute_fetchall(
-        "SELECT epoch(finished_at) - epoch(started_at) FROM jobs WHERE model = ? AND state = 'done' "
-        "AND started_at IS NOT NULL AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
-        [model, SPEED_SAMPLE],
-    ) if _has_jobs(db) else []
-    seconds = [float(r[0]) for r in rows if r[0] is not None and r[0] >= 0]
+    from fichero_server.execution.jobs import finished_seconds
+
+    seconds = finished_seconds(db, model, limit=SPEED_SAMPLE)
     return statistics.median(seconds) if seconds else None
-
-
-def _has_jobs(db) -> bool:
-    return bool(db.execute_fetchall(
-        "SELECT 1 FROM information_schema.tables WHERE table_name = 'jobs'"))
 
 
 def _cloud_cost(teacher: str, pages: int) -> float | None:

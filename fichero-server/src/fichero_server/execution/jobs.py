@@ -467,6 +467,18 @@ def set_paused(paused: bool) -> None:
     _scheduler.wake(None)
 
 
+def finished_seconds(db: "Database", model: str, *, limit: int = 200) -> list[float]:
+    """How long each of `model`'s most recent finished jobs took, newest first: the measured
+    speed `recipes/routes.py` reports (`source.onboard.routes-for-the-volume`)."""
+    _ensure(db)
+    rows = db.execute_fetchall(
+        "SELECT epoch(finished_at) - epoch(started_at) FROM jobs WHERE model = ? AND state = 'done' "
+        "AND started_at IS NOT NULL AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
+        [model, limit],
+    )
+    return [float(r[0]) for r in rows if r[0] is not None and r[0] >= 0]
+
+
 def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     """The jobs worth showing: every running one, the waiting ones (one row per kind when more
     than one waits, with `count`: an import queues thousands), and the most recent failures, each
