@@ -152,3 +152,25 @@ def test_a_page_that_came_in_by_reference_exports_pointing_at_its_original(clien
     assert body["service"] == [{"id": f"{HOST}/img/vol2/1", "type": "ImageService3", "profile": "level1"}]
     assert r.json()["rights"].endswith("by-nc/4.0/")  # the archive's terms travel too
     assert r.json()["requiredStatement"]["value"] == {"none": ["Endangered Archives Programme"]}
+
+
+def test_a_manifest_exported_and_imported_again_lands_on_the_same_pages(client, db, tmp_path):
+    """`iiif.round-trip`: a manifest exported by Fichero and imported again, into the original library,
+    lands on the same canvases with no duplicate pages. WHY: archives move between tools by manifest;
+    re-importing one's own export must not double an archive of a million pages."""
+    manifest = _manifest3("vol3", 3)
+    server = FakeIIIFServer({manifest["id"]: manifest})
+    import_iiif_url(_TestClientAdapter(client), manifest["id"], str(tmp_path / "Lib.fichero"),
+                    fetcher=PoliteFetcher(get=server.get))
+    pages = lambda: [d for d in db.query(Document)  # noqa: E731
+                     if (d.metadata or {}).get("iiif_type") == "Canvas" and d.deleted_at is None]
+    before = sorted(p.metadata["iiif_id"] for p in pages())
+    page = next(p for p in pages() if p.metadata["iiif_id"] == f"{HOST}/vol3/canvas/2")
+
+    exported = client.get(f"/api/iiif/iiif/manifest/{page.id}").json()
+    exported["id"] = f"{HOST}/fichero-export/manifest"
+    server.documents[exported["id"]] = exported
+    import_iiif_url(_TestClientAdapter(client), exported["id"], str(tmp_path / "Lib.fichero"),
+                    fetcher=PoliteFetcher(get=server.get))
+
+    assert sorted(p.metadata["iiif_id"] for p in pages()) == before  # the same canvases, none doubled

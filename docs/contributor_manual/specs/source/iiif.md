@@ -248,7 +248,7 @@ Out:
 - `iiif.export.segments-as-annotations` — **[PARTIAL]** (#5326) *Built: a canvas names an annotation page of its working pass's lines (`GET /api/iiif/iiif/lines/{id}`), each the counting reading's text and language, `textGranularity: line`, its maker (Software or Person) and its place in canvas pixels, read through the one page exporter; pinned by `fichero-server/tests/unit/api/test_iiif_segments_as_annotations.py`. Not built: other readings, notes and claims as their own labelled pages.* segments export as annotations with
   selectors and text granularity, carrying the counting reading's text, language and maker; other
   readings, notes and claims go as separate, labelled annotation pages.
-- `iiif.round-trip` — **[GAP]** (#5326) a manifest exported by Fichero and imported again, into a
+- `iiif.round-trip` — **[PARTIAL]** (#5326) *Built for pages: a by-reference page's exported manifest keeps the archive's canvas id, so importing it again into the original library lands on the same pages with none doubled; pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py` (mutation-checked). Not built: the lines coming back as the same segments (import reading a remote annotation page).* a manifest exported by Fichero and imported again, into a
   fresh library or the original one, lands on the same canvases with the same segments and no
   duplicate pages.
 
