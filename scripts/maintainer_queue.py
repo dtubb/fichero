@@ -24,7 +24,7 @@ BLOCKED_TITLE = "BLOCKED on the maintainer"
 
 
 def _gh(*args: str) -> list[dict]:
-    out = subprocess.run(["gh", *args, "--json", "number,title,labels,milestone,closedAt", "--limit", "500"],
+    out = subprocess.run(["gh", *args, "--json", "number,title,labels,milestone,closedAt", "--limit", "5000"],
                          check=True, capture_output=True, text=True).stdout
     return json.loads(out)
 
