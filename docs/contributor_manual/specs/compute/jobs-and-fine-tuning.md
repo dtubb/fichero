@@ -368,18 +368,20 @@ needs them.
   `gpu-service` target, then its `cluster` target (`source.recipe.runs-on-binds-to-a-target`). A
   costlier place is chosen only when the A/B evidence on the project's pages (error rate, cost,
   speed, carbon, trainability) is shown for it. *Test:* a Kraken recipe on a 16 GB Mac resolves to
-  this Mac; a 3B LoRA recipe resolves to the bound Hugging Face target, with the reason.
+  this Mac; a 3B LoRA recipe resolves to the bound Hugging Face target, with the reason. Narrowed 2026-10-04: no training defaults to this Mac (`compute.tune.local-mlx-shown-never-default`).
 - `compute.tune.start-sheet` — **[GAP]** (#5440) fine-tuning and distilling start from one sheet,
   opened from the recipe or onboarding (what the person is trying to do) or from a model's node
   (`source.model.node-actions`). It shows every place the work can run (this Mac, Hugging Face,
   ACENET's cluster, a cloud service), each with its time, cost and greenhouse gas marked measured,
   estimate or unknown (`activity.run.where-and-estimate`, `activity.ghg.estimate-with-its-basis`),
   and the base the recipe picked (`source.recipe.picks-the-tuning-base`). Today the training routes
-  have no caller in the app; Sergio's runs are made by API and CLI.
+  have no caller in the app; Sergio's runs are made by API and CLI. The estimate covers the whole
+  archive before anything starts (`recipe.distil.whole-archive-estimate-first`).
 - `compute.tune.local-mlx-shown-never-default` — **[GAP]** (#5440, #5240) fine-tuning a vision or
   language model with MLX on this Mac is offered with its estimated time, because it is slow, and is
-  never the default route; only the person chooses it. This narrows `compute.tune.where-cheapest-first`
-  for MLX; Kraken recognition may still default to this Mac.
+  never the default route; only the person chooses it. Ruled 2026-10-04: nothing trains on this Mac by
+  default, Kraken included; Kraken trains on Hugging Face or on Rorqual. This narrows
+  `compute.tune.where-cheapest-first` and `compute.tune.on-this-mac`.
 - `compute.tune.proven-on-huggingface-first` — **[GAP]** (#5398) a training recipe is first run on Hugging Face
   Jobs and counts as proven when two runs reach the same held-out CER within a stated noise
   band; the proof (dates, image digest, hardware, CER) is recorded on the recipe before it is run
@@ -399,7 +401,7 @@ needs them.
   utility QoS with bounded threads, it waits on battery, heat, memory pressure and active use
   (`activity.throttle.power-heat-memory`), and pause resumes from its last checkpoint. *Test:* a
   tiny set trains under the lane with a fake memory-pressure signal: it waits, then resumes
-  without repeating an epoch.
+  without repeating an epoch. Ruled 2026-10-04: training on this Mac stays offered, with its time, and is never the default; Kraken's default is Hugging Face or Rorqual (`compute.tune.local-mlx-shown-never-default`).
 - `compute.tune.measured-on-16gb` — **[PARTIAL]** (#5397) *Built for training on this Mac: the job and the
   landed card carry `measured` (peak resident memory, what training added, device, threads, batch size,
   epochs, seconds), sampled from the run (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`). The reading measurement of an adopted model is not

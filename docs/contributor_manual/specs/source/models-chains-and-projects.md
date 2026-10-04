@@ -33,7 +33,16 @@
 The Mosquera goal is a recipe that anyone can run through the app, not a model made by hand. This is
 that path, end to end, as one behaviour. Each step names its card, its screen, its engine route, its
 Activity rows and its state. A step marked ✱ is one that Sergio's project does today by API or CLI,
-so it is a gap in the app, whatever the engine has.
+so it is a gap in the app, whatever the engine has. Each step also names the MCP tool that drives it:
+all Fichero work, by a person or an agent, goes through the app or its MCP tools and API, and a
+missing tool is written (spec, test, code) before the step is done another way (ruled 2026-10-04).
+
+Mosquera is practice. The target the path is built for is an archive of about 80,000 images with
+many scripts and hands and many damaged pages; the scale behaviours below the table say what that
+asks of every step. Two rulings of 2026-10-04 are being written up in Sergio's specs and are only
+cited here: Mosquera is not split, and whether a volume is split or read by page regions is an open
+question (leaning to regions); and an import has no rank of its own (`source/source-model.md`, the
+readings).
 
 - `recipe.distil.golden-path` — **[PARTIAL]** (#4951, #5440, #5441, #5442) a person runs the distil
   recipe from setup to publish without leaving the app. The steps: setup (what you have, what you
@@ -48,22 +57,45 @@ so it is a gap in the app, whatever the engine has.
   steps. *Test:* a named-machine journey (`source.onboard.*` journeys, section 14) on a small Mosquera
   volume, with the engine half driven through the public routes in automation.
 
-| # | Step | Card | Screen | Engine route | Activity rows | State |
-|---|---|---|---|---|---|---|
-| 1 | Setup: what you have, what you want | project setup, purpose | first-run recipe screens (`FirstRunWindow+Recipe`, `RecipeSetupFields`) | `GET`/`PUT /api/recipes/project`, `/purposes`, `/languages`, `/scripts`, `/derived`, `POST /api/recipes/assemble` | none (no job) | PARTIAL (#4951; `source.onboard.five-questions`) |
-| 2 ✱ | Choose a route: cloud, this Mac or distil, with time, cost, GHG | the routes | none | `GET /api/recipes/routes` (no app caller) | none | GAP in the app (#4951, #5404; `source.onboard.routes-for-the-volume`); GHG #5420 |
-| 3 | Split | `split-pages` | Start (`RecipeStepsView`) | `POST /api/recipes/project/start` | `run-a-recipe` → step → workflow run → pages | PARTIAL (`source.job.split-pages`, `source.recipe.start-runs-the-steps`) |
-| 4 | Kraken lines | `find-lines` | Start | the same | pages on the local-model lane | PARTIAL (Kraken provisioned automatically) |
-| 5 ✱ | A teacher reads a sample | `read-a-line` / `read-a-page`, sample scope | none | none: Start reads every page | none | GAP (`source.onboard.samples-first`, `distill.collect.sample-covers-scope`, #5337) |
-| 6 ✱ | Check, by Fable or a person | `check` | no start or results screen; verdicts reach the engine by MCP | `POST /api/check/runs` | a `check` job | PARTIAL (#5404; `source.check.run-is-a-job`) |
-| 7 ✱ | A clean set | training set | none | `POST /api/export/training` (no app caller) | none | GAP in the app (#4947; `source.train.human-checked-by-default`) |
-| 8 ✱ | Train small models, choosing where | `train-a-model`, base from the catalogue | the start sheet (`compute.tune.start-sheet`), not built | `POST /api/training/kraken`, `/kraken/here`, `/vision-lora`, `/reasons` | `train-a-model`, `train-on-this-mac`, `convert-a-model`, `gather-reasons` | engine PARTIAL, app GAP (#5440, #5119, #5240); base ~3B (#5442) |
-| 9 ✱ | Evaluate against out-of-the-box small OCR models | the evaluation job | none | none yet; pieces: CER scoring, `/reasons-ab`, model comparison | (to be) one job, a row per model and page | GAP (#5441; `distill.eval.job`) |
-| 10 ✱ | Choose | the recipe's pin | none | none | none | GAP (`compute.tune.not-default-until-chosen` #5240; pinning #5429) |
-| 11 | Read the archive | the chosen reader | Start | Start, on this Mac; ✱ no route to read on Hugging Face or ACENET | pages on the lanes | this Mac PARTIAL; away GAP (#5238; `source.recipe.runs-on-binds-to-a-target`) |
-| 12 | Names and statements | `find-names-tag-words`, `find-statements` | Start | Start | workflow runs | PARTIAL (`source.job.find-statements`) |
-| 13 | Check | `check` | as step 6 | as step 6 | as step 6 | PARTIAL (#5404) |
-| 14 | Publish | `publish` | Start | Start (an 11ty site); ✱ a Hugging Face dataset or model: no screen | the recipe's step | site PARTIAL (`source.job.publish`); Hub GAP (`compute.publish.*`). Sergio's data: train yes, release no |
+| # | Step | Card | Screen | Engine route | MCP tool | Activity rows | State |
+|---|---|---|---|---|---|---|---|
+| 1 | Setup: what you have, what you want | project setup, purpose | first-run recipe screens (`FirstRunWindow+Recipe`, `RecipeSetupFields`) | `GET`/`PUT /api/recipes/project`, `/purposes`, `/languages`, `/scripts`, `/derived`, `POST /api/recipes/assemble` | missing (#5455) | none (no job) | PARTIAL (#4951; `source.onboard.five-questions`) |
+| 2 ✱ | Choose a route: cloud, this Mac or distil, with time, cost, GHG for the whole archive | the routes | none | `GET /api/recipes/routes` (no app caller) | missing (#5455) | none | GAP in the app (#4951, #5404; `source.onboard.routes-for-the-volume`); GHG #5420 |
+| 3 | Split, or page regions | `split-pages`, or regions | Start (`RecipeStepsView`) | `POST /api/recipes/project/start` | `fichero_workflow_run` (a step, not the recipe) | `run-a-recipe` → step → workflow run → pages | OPEN QUESTION: Mosquera is not split and its recipe drops the step; split against page regions is open (Sergio's spec, leaning to regions; #4951) |
+| 4 | Kraken lines | `find-lines` | Start | the same | `fichero_workflow_run` | pages on the local-model lane | PARTIAL (Kraken provisioned automatically) |
+| 5 ✱ | A teacher reads a sample | `read-a-line` / `read-a-page`, sample scope | none | none: Start reads every page | missing: a sample scope (#5455) | none | GAP (`source.onboard.samples-first`, `distill.collect.sample-covers-scope`, #5337) |
+| 6 ✱ | Check, by Fable or a person | `check` | no start or results screen | `POST /api/check/runs` | `fichero_check_run`, `_status`, `_verdicts`; the teacher-line check is missing (#5446) | a `check` job | PARTIAL (#5404, #5446; `source.check.run-is-a-job`) |
+| 7 ✱ | A clean set | training set | none | `POST /api/export/training` (no app caller) | missing (#5455) | none | GAP (#4947, #5446; `source.train.human-checked-by-default`, `recipe.distil.damaged-text-stays-out-of-training`) |
+| 8 ✱ | Train small models, choosing where | `train-a-model`, base from the catalogue | the start sheet (`compute.tune.start-sheet`), not built | `POST /api/training/kraken`, `/vision-lora`, `/reasons` (Hugging Face); Rorqual not yet | `fichero_train_kraken`, `fichero_train_vision_lora`, `fichero_training_status`, `_cancel`, `fichero_gather_reasons` | `train-a-model`, `convert-a-model`, `gather-reasons` | engine PARTIAL, app GAP (#5440, #5119, #5240); base Qwen3-VL-4B (#5442); nothing trains on this Mac by default |
+| 9 ✱ | Evaluate against out-of-the-box small OCR models, per script and hand | the evaluation job | none | none yet; pieces: CER scoring, `/reasons-ab`, model comparison | missing (#5441); `fichero_reasons_ab`, `fichero_compare_readings` are pieces | (to be) one job, a row per model and page | GAP (#5441; `distill.eval.job`) |
+| 10 ✱ | Choose | the recipe's pin | none | none | missing (#5455, #5429) | none | GAP (`compute.tune.not-default-until-chosen` #5240; pinning #5429) |
+| 11 | Read the archive | the chosen reader | Start | Start, on this Mac; Hugging Face Jobs by shard; ✱ no route for Rorqual | `fichero_read_at_scale` (Hugging Face), `fichero_reading_status`; Rorqual missing (#5457, #5454) | pages on the lanes; shards as rows | this Mac PARTIAL; Hugging Face PARTIAL; Rorqual GAP (#5457, #5238) |
+| 12 | Names and statements | `find-names-tag-words`, `find-statements` | Start | Start | `fichero_workflow_run` | workflow runs | PARTIAL (`source.job.find-statements`) |
+| 13 | Check | `check` | as step 6 | as step 6 | as step 6 | as step 6 | PARTIAL (#5404) |
+| 14 | Publish | `publish` | Start | Start (an 11ty site); ✱ a Hugging Face dataset or model: no screen | missing for the Hub (#5455) | the recipe's step | site PARTIAL (`source.job.publish`); Hub GAP (`compute.publish.*`). Sergio's data: train yes, release no |
+
+At the scale of the real archive (about 80,000 images, many scripts and hands, many damaged pages),
+ruled 2026-10-04:
+
+- `recipe.distil.script-and-hand-routed-per-region` — **[GAP]** (#5456) script and hand are detected
+  per page and per region, not set once per project, and each region goes to the reader (later the
+  trained model) that suits its script and hand. The detection is a job with its rows; it says how
+  sure it is, and a person's correction of it is kept.
+- `recipe.distil.damaged-text-stays-out-of-training` — **[GAP]** (#4947, #5446) text a person, Fable or
+  the teacher-line check marks as damaged, uncertain or illegible is kept out of every training set
+  and every held-out set; the set's manifest counts what was left out and why.
+- `recipe.distil.teacher-samples-small-models-read-the-bulk` — **[GAP]** (#5337, #5457) the teacher
+  reads only a sample, drawn across the scripts and hands found; the small models read the bulk.
+  Reading the bulk on the maintainer's cluster, Rorqual, is the scale route: Fichero stages the
+  image and the model, submits by shard, watches the shards as rows, fetches and lands the results,
+  and cleans up (`compute/targets-and-connection.md`).
+- `recipe.distil.whole-archive-estimate-first` — **[GAP]** (#5440, #4951) before anything starts, the
+  start sheet's estimate covers the whole archive (every image, every step, on the route chosen):
+  time, cost and greenhouse gas, each measured, an estimate or unknown.
+- `recipe.distil.every-step-has-an-mcp-tool` — **[PARTIAL]** (#5455, #5454, #5441, #5446) every step
+  in the table has an MCP tool that drives it, named in its row, so an agent drives Fichero as a
+  person does through the screens and never drives Kraken, ketos or the engine's insides directly.
+  Built: the tools named in the table. Missing: those marked missing.
 
 ## Intent
 
@@ -1869,17 +1901,17 @@ about 3B, not 8B. The recipe picks it.
   the project's language, script and hand among the catalogue's candidates, preferring about 3B.
   Where several fit, the evaluation job (`distill.eval.job`) decides on the project's held-out
   pages. A base with a restricted licence can train but not be released (Sergio's data: train yes,
-  release no). The default before any evaluation is open: Qwen3-VL-4B is recommended, with 2B as
-  the fast choice.
+  release no). Ruled 2026-10-04: the default is Qwen3-VL-4B, with 2B as the fast choice; the recipe
+  can pick others, and the evaluation decides.
 
 Checked on the Hugging Face API on 2026-10-04: parameters from safetensors, licence from the card.
 
 | Base | Size | Licence | Use |
 |---|---|---|---|
-| `Qwen/Qwen3-VL-2B-Instruct` | 2.13B | Apache-2.0 | candidate |
-| `Qwen/Qwen3-VL-4B-Instruct` | 4.44B | Apache-2.0 | candidate (recommended default) |
-| `dots-studio/dots.ocr` (was `rednote-hilab/dots.ocr`) | 3.04B | MIT | candidate; trainer support unverified (custom code) |
-| `PaddlePaddle/PaddleOCR-VL` | 0.96B | Apache-2.0 | candidate; trainer support unverified (custom code) |
+| `Qwen/Qwen3-VL-2B-Instruct` | 2.13B | Apache-2.0 | the fast choice |
+| `Qwen/Qwen3-VL-4B-Instruct` | 4.44B | Apache-2.0 | the default (ruled 2026-10-04) |
+| `dots-studio/dots.ocr` (was `rednote-hilab/dots.ocr`) | 3.04B | MIT | candidate; needs trainer support for its custom code, unverified |
+| `PaddlePaddle/PaddleOCR-VL` | 0.96B | Apache-2.0 | candidate; needs trainer support for its custom code, unverified |
 | `nanonets/Nanonets-OCR2-3B`, `nanonets/Nanonets-OCR-s` | 3.75B | none declared; its base `Qwen/Qwen2.5-VL-3B-Instruct` is `qwen-research` | train yes, release no |
 | `datalab-to/chandra-ocr-2` | 5.30B | modified OpenRAIL-M (research, personal, small companies) | over the ~3B target; not a default |
 | `datalab-to/chandra` | 8.77B | modified OpenRAIL-M | too big for the default |
