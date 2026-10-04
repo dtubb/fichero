@@ -12146,12 +12146,18 @@ def register_generated_openapi_commands(
     @target_app.command("start-project")
     def recipes_start_project_post(
         ctx: typer.Context,
+        redo: Optional[str] = typer.Option(None, "--redo", help="Request field: redo."),
     ) -> None:
         """Start Project (POST /api/recipes/project/start)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/project/start"
             params = None
-            return client.request("POST", endpoint_path, params=params)
+            payload = _build_json_payload({
+                "redo": redo,
+            }, {
+                "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
+            }, required=False)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-purposes")

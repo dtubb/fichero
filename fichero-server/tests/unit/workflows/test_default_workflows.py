@@ -1432,6 +1432,8 @@ class TestTranscriptionPresetConvention:
         # Kraken HTR: the transcribe node runs the on-device Kraken segmenter +
         # recogniser (vision_mode="kraken"), not the auto/LLM vision backend.
         ("Transcribe (Kraken)", "kraken-htr"): "on-device Kraken segmenter + recogniser",
+        # Kraken finds the lines and the run's vision model reads each one (#5390, the recipe's read step).
+        ("Read Lines (Kraken lines, vision model)", "kraken-lines-model"): "Kraken segmenter + the line reader",
     }
 
     def _all_preset_dicts(self) -> list[dict]:

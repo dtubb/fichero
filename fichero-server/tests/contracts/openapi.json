@@ -12330,6 +12330,17 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRequest",
+                "nullable": true,
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -78101,6 +78112,22 @@
         ],
         "title": "StartRecord"
       },
+      "StartRequest": {
+        "properties": {
+          "redo": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Redo",
+            "description": "step ids to run again on pages that already have their output; the others run only on pages that do not"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "StartRequest",
+        "description": "What the person asks of Start, beyond the yes."
+      },
       "StartRun": {
         "properties": {
           "steps": {
@@ -78175,6 +78202,24 @@
             "type": "array",
             "nullable": true,
             "title": "Formats"
+          },
+          "done": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Done",
+            "description": "pages that already have this card's output; none: it cannot tell (`source.recipe.done-is-not-redone`)"
+          },
+          "of": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Of",
+            "description": "the pages (or, for a split, photographs) it runs over"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note",
+            "description": "'already done on N of M pages', in words"
           }
         },
         "type": "object",

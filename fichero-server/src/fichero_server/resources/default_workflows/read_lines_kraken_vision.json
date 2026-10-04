@@ -1,0 +1,61 @@
+{
+ "name": "Read Lines (Kraken lines, vision model)",
+ "description": "Use this when: you want Kraken to find each written line on the page and a vision model to read each line it found (the line reader): Kraken's own baselines and outlines carry the model's text, so the result is a line-by-line pass a person can correct and a Kraken reader can be trained on. The vision model is the run's model (a recipe's reading step names it). Install the Kraken runtime first (Settings → AI → Local Inference); a cloud model sends each line's picture to its provider.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Transcribe",
+ "tags": [
+  "preset",
+  "transcribe",
+  "htr",
+  "kraken",
+  "line-reader",
+  "vision-model"
+ ],
+ "config": {
+  "preset_version": 1
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "kraken-lines-model",
+   "tool": "transcribe",
+   "label": "Kraken lines, read by the vision model",
+   "position_x": 320,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "vision_mode": "kraken",
+    "lines_read_by": "model",
+    "regions_first": false,
+    "update_page_content": true,
+    "language": "auto"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "edge-files-kraken-lines-model",
+   "source": "files-source",
+   "target": "kraken-lines-model",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "edge-files-kraken-lines-model-documents",
+   "source": "files-source",
+   "target": "kraken-lines-model",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

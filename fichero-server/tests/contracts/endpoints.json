@@ -8504,7 +8504,7 @@
         "summary": "Start Project",
         "path_params": [],
         "query_params": [],
-        "request_model": null,
+        "request_model": "StartRequest",
         "response_model": "StartPlan"
       },
       {

@@ -1271,7 +1271,7 @@ Jobs and chains
 - `source.job.prepare-the-image` — **[GAP]** (#4949) preparing an image (crop, deskew, rotate,
   dewarp, adjust) is a job that makes a new rendition and never changes the original; later steps
   and segments name the rendition they used.
-- `source.job.split-pages` — **[PARTIAL]** (#4949, #5382) *Built: the `split_pages` tool (51dbbfa93) cuts an open notebook at its gutter inside Apple Vision's outline and never a closed cover, pinned by `fichero-server/tests/unit/workflows/test_split_pages.py`; a recipe running it is #5390.* splitting a spread or a strip of frames into ordered
+- `source.job.split-pages` — **[PARTIAL]** (#4949, #5382) *Built: the `split_pages` tool (51dbbfa93) cuts an open notebook at its gutter inside Apple Vision's outline and never a closed cover, pinned by `fichero-server/tests/unit/workflows/test_split_pages.py`; a recipe runs it as the `Split Pages` workflow (#5390), its pages then read by the steps after it, pinned by `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`.* splitting a spread or a strip of frames into ordered
   pages is a job a recipe can name.
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
@@ -1341,7 +1341,9 @@ Projects
   rule allows.
 - `source.recipe.start-runs-the-steps` — **[OK]** (#5390; built: `recipes/runner.py`, the `run-a-recipe` job; tested in `fichero-server/tests/unit/recipes/test_recipe_execution_to_spec.py`) pressing Start runs the recipe over the
   project's material: its steps in order, each as the job its card names (a shipped workflow run for
-  finding lines, reading a line or a page, correcting, finding names and finding statements; a check
+  splitting pages (`Split Pages`), finding lines, reading a line (with a Kraken reader, or Kraken's lines
+  read by a vision model: `Read Lines (Kraken lines, vision model)`) or a page, correcting, finding names and
+  finding statements; a check
   run for `check`; the project's synced folder for `export`), together as one `run-a-recipe` job in
   Activity whose children are those runs; a step starts only when the one before it has finished,
   and a step that fails stops the steps after it, saying which.
@@ -1351,6 +1353,13 @@ Projects
   steps still run. A recipe with nothing runnable, or one that fails the recipe check, never starts.
 
 Profiles (the defaults section of a recipe)
+- `source.recipe.done-is-not-redone` — **[OK]** (#5390; built: `recipes/done.py`, the plan's `done`/`of`/`note` and Start's `redo`; tested in `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`) a started recipe does not run a step again on a
+  page that already has its output: splitting, on a photograph already cut into pages; finding lines, on a page
+  with a pass that has lines; reading, on a page with a pass read by the step's own model. The Start plan says,
+  for each such step, "already done on N of M pages", and the run does only the rest, unless the person names
+  the steps to redo when pressing Start. A step that cannot tell (names, statements, checks, export, publish)
+  runs on every page, and the plan says so. The pages a step runs on are worked out when it starts, so pages a
+  split made earlier in the same run are read like any others.
 - `source.job.publish` — **[OK]** (#5390, #2535; built: the `publish` card in `recipes/start.py` and `recipes/runner.py`; tested in `fichero-server/tests/unit/recipes/test_publish_to_spec.py`) a recipe's `publish` step writes the project as a static
   website (an 11ty project that builds with `npx @11ty/eleventy` and deploys to Netlify) through the one
   site export (`export_service.export_eleventy_site`), into the folder its `where` setting names on the

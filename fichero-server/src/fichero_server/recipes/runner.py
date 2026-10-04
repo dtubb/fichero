@@ -46,9 +46,11 @@ def _plan(db: Any) -> dict[str, Any]:
     return plan_start(setup["recipe"], stays_local=stays_local)
 
 
-def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str) -> str:
-    """Queue one run of the plan; `documents` None is all the project's material."""
-    detail = {"runs": plan["runs"], "skipped": plan["skipped"], "documents": documents}
+def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
+            redo: list[str] | None = None) -> str:
+    """Queue one run of the plan; `documents` None is all the project's material; `redo` names the steps to run
+    again on pages that already have their output (`source.recipe.done-is-not-redone`)."""
+    detail = {"runs": plan["runs"], "skipped": plan["skipped"], "documents": documents, "redo": list(redo or [])}
     words = "Waiting to run the recipe" + (f" on {len(documents)} new pages" if documents is not None else "")
     return jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
                                reason=words, started_by=started_by)
@@ -156,9 +158,10 @@ def run(db: Any, subject: str) -> dict[str, Any]:
     row = jobs.read_job(db, job_id)
     detail = json.loads(row["detail"] or "{}")
     started_by = row["started_by"] or "owner"
-    documents = detail.get("documents")
-    if documents is None:
-        documents = db.unit_of_work_ids()
+    from fichero_server.recipes.done import pages_for, split_done
+
+    brought = detail.get("documents")  # None: all the project's material
+    redo = set(detail.get("redo") or [])
     steps = [{"steps": card["steps"], "card": card["card"], "state": "waiting", "child_id": None}
              for card in detail["runs"]]
     detail["steps"] = steps
@@ -168,6 +171,14 @@ def run(db: Any, subject: str) -> dict[str, Any]:
             step["state"] = "not run"
             continue
         named = ", ".join(card["steps"])
+        # The pages are worked out now, so pages a split made earlier in this run are among them.
+        documents = pages_for(db, card, brought)
+        if not redo.intersection(card["steps"]):
+            documents, done = split_done(db, card, documents)
+            step["already_done"] = done
+        if not documents:
+            step.update(state="done", child_id=None, why="already done on every page")
+            continue
         step["state"] = "running"
         jobs.save_detail(db, job_id, json.dumps(detail), reason=f"Running step {named}")
         if card["card"] == "workflow":
