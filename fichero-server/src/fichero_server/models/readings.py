@@ -511,6 +511,8 @@ class PassBasis(str, Enum):
 
 #: The maker of a pass that came in from a synced folder (#4952): a file's edit carries no author.
 OUTSIDE_FICHERO = "edited outside Fichero"
+#: Who brought in a file that arrived in a synced folder (#4952): an ordinary import, by the folder.
+FROM_SYNCED_FOLDER = "synced folder"
 
 
 class PassCandidate(BaseModel):

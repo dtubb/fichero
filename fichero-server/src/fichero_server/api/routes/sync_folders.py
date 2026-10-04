@@ -68,6 +68,8 @@ class SyncFolderStatus(BaseModel):
     files: list[str] = Field(description="files Fichero wrote, relative to the folder")
     in_the_way: list[str] = Field(description="files in the way that Fichero did not write: left alone")
     changed_outside: list[str] = Field(description="files Fichero wrote that were changed outside: left alone")
+    taken_in: list[str] = Field(description="files that arrived in the folder and came in through the import")
+    not_read_back: list[str] = Field(description="files that arrived in a form Fichero does not read back: listed only")
     deleted_outside: list[str] = Field(description="files Fichero wrote that were deleted outside: written again "
                                                    "on the next change to their source")
 

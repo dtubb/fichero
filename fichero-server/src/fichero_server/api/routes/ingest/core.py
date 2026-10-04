@@ -829,37 +829,48 @@ async def ingest_files(
         files.append(path.resolve())
 
     def run() -> IngestFilesResponse:
-        from fichero_server.importers.interchange_pairing import plan_pairs
-
         ctx = _ingest_action_context(http_request, x_fichero_library_path)
-        plan = plan_pairs(files)
-        paired = set(plan.pairs) | set(plan.pages)
-        docs: list[Document] = []
-        for path in files:
-            if path in paired:
-                continue
-            result = registry.invoke(
-                db,
-                "import.file",
-                {
-                    "path": str(path),
-                    "parent_id": request.parent_id,
-                    "copy_mode": request.mode == "copy",
-                    "mode": request.mode,
-                    "extract_text": request.extract_text,
-                    "auto_embed": request.auto_embed,
-                },
-                ctx,
-            )
-            document = Document.model_validate(result.result)
-            if "pages_without_image" in (document.metadata or {}):
-                # Not left as an ordinary file: it became a document of its pages (#5143).
-                plan.unpaired.pop(path, None)
-            docs.append(document)
-        report = _import_paired_layout(db, docs, plan, ctx)
+        docs, report = import_file_set(db, files, ctx, parent_id=request.parent_id, mode=request.mode,
+                                       extract_text=request.extract_text, auto_embed=request.auto_embed)
         return IngestFilesResponse(documents=docs, **report)
 
     return await asyncio.to_thread(run)
+
+
+def import_file_set(
+    db: Database, files: list[Path], ctx: "ActionContext", *, parent_id: str | None = None,
+    mode: str | None = None, extract_text: bool = True, auto_embed: bool = False,
+) -> tuple[list[Document], dict]:
+    """Import files that arrived TOGETHER as one set (#5220): a layout file that pairs with an image
+    in the set becomes a pass on it, as in a folder import. The one path for a drop of files and
+    for files arriving in a synced folder (#4952, `source.sync.one-import-path`)."""
+    from fichero_server.importers.interchange_pairing import plan_pairs
+
+    plan = plan_pairs(files)
+    paired = set(plan.pairs) | set(plan.pages)
+    docs: list[Document] = []
+    for path in files:
+        if path in paired:
+            continue
+        result = registry.invoke(
+            db,
+            "import.file",
+            {
+                "path": str(path),
+                "parent_id": parent_id,
+                "copy_mode": mode == "copy",
+                "mode": mode,
+                "extract_text": extract_text,
+                "auto_embed": auto_embed,
+            },
+            ctx,
+        )
+        document = Document.model_validate(result.result)
+        if "pages_without_image" in (document.metadata or {}):
+            # Not left as an ordinary file: it became a document of its pages (#5143).
+            plan.unpaired.pop(path, None)
+        docs.append(document)
+    return docs, _import_paired_layout(db, docs, plan, ctx)
 
 
 @router.post("/folder")

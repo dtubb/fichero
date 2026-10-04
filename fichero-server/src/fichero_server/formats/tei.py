@@ -713,6 +713,13 @@ def read_pages(data: bytes) -> list[SourcePage]:
         for index, page in enumerate(out):
             if "page" in page.foreign.get("tei", {}):
                 page.foreign["tei"]["page"] = f"{index + 1} of {len(out)}"
+    if len(out) == 1 and header is not None:
+        # What a one-page file says it is (#4952): Fichero's own idnos, read back so a renamed file
+        # is still matched to its source (`source.sync.files-carry-ids`).
+        out[0].identity = {
+            el.get("type"): (el.text or "").strip() for el in header.iter()
+            if _tag(el) == "idno" and (el.get("type") or "").startswith("fichero-")
+        }
     return out
 
 
