@@ -411,7 +411,8 @@ workflow by hand: a hand run is a job like any other.
   forms) are rows under their step, kind `ask-a-model` (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`). Built (2026-10-04): time,
   cost and errors roll up: each row has its `seconds`, the pages under it that `failed` (each with
   its reason), its `tokens`, and its `cost_usd` from the vendored price list, null unless every
-  call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Still a gap: chat outside a run; batches.
+  call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Chat's model calls are rows too, outside any run
+  (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). Still a gap: batches.
 - `activity.task-queue-grows-into-jobs` — **[OK]** (#5353) the task queue is already
   a persistent queue that resumes pending work (`workflows/tasks.py:153-176`); it becomes the jobs
   table rather than a thirteenth system being built beside it. Found 2026-10-03: nothing in the
@@ -529,8 +530,8 @@ workflow by hand: a hand run is a job like any other.
   not swap models page by page, while work a person waits for switches at once
   (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Pages read by a model served on this Mac hold the same lane
   (`fichero-server/tests/unit/jobs/test_local_model_pages_on_the_lane.py`). Still a gap: stopping a local model server on a switch (its restart costs
-  30-300 s), and local-model calls outside a run (chat). A text model served on this Mac, called
-  in a run, holds the lane like a page (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`).
+  30-300 s). A text model served on this Mac holds the lane like a page, called in a run
+  (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`) or by chat (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`).
 - `activity.lane.co-run-only-if-it-fits` — **[PARTIAL]** (#5358) two heavy models run at once only when their
   measured resident sizes fit this Mac's memory with headroom; on an 8 GB Mac, never. Built: never,
   for now: queued heavy jobs run one at a time and wait while a Kraken page holds Kraken's lock
@@ -789,8 +790,8 @@ line post-processing. For 200 handwritten pages the stages today add up rather t
   local-model lane (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`). Built (2026-10-04): a share per provider: while another provider's
   call waits, one provider's calls hold at most all but one of the network lane's slots, so a
   provider stuck on a rate limit gives a slot to another's as soon as one of its calls ends; with
-  no other provider waiting, it keeps the whole lane (`fichero-server/tests/unit/jobs/test_provider_share.py`). Still a gap: chat outside a run, and a provider's
-  own stated rate limit.* the cap on concurrent model calls is one per
+  no other provider waiting, it keeps the whole lane (`fichero-server/tests/unit/jobs/test_provider_share.py`). Chat's calls take the same lanes and share the same cap
+  (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). Still a gap: a provider's own stated rate limit.* the cap on concurrent model calls is one per
   Mac, shared by every run. Today it is per run: the semaphore is rebound to each run's event loop
   (`workflows/builder.py:91-127`), and three runs measured 12 calls at once against a cap of 4.
 - `activity.run.utility-qos-bounded` — **[GAP]** (#5358) heavy local work runs at utility QoS in

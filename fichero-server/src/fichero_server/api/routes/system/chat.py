@@ -398,6 +398,11 @@ def _get_langchain_llm(db: Database, provider: str = None, model: str = None):
 
     Uses the unified llm.py interface which supports all providers via LiteLLM.
     """
+    return get_langchain_model(_chat_config(db, provider, model))
+
+
+def _chat_config(db: Database, provider: str = None, model: str = None):
+    """The model a chat turn uses: the one asked for, or the app's text default."""
     # Unspecified: the app's text default (Settings > AI Defaults), on-device by factory default.
     # It used to look providers up in the LIBRARY database, where they never are (they live in
     # app.duckdb), and then fall back to openai/gpt-4o-mini: every chat without an explicit model
@@ -430,15 +435,27 @@ def _get_langchain_llm(db: Database, provider: str = None, model: str = None):
     # shadow that patch (#3950).
     from fichero_server.llm import LLMConfig  # noqa: PLC0415
 
-    return get_langchain_model(
-        LLMConfig(
-            provider=provider,
-            model=model,
-            temperature=0.7,
-            max_tokens=2048,
-            api_base=api_base,
-        )
+    return LLMConfig(
+        provider=provider,
+        model=model,
+        temperature=0.7,
+        max_tokens=2048,
+        api_base=api_base,
     )
+
+
+async def _ask(llm: Any, messages: list, *, config: Any, ctx: ActionContext) -> Any:
+    """One call to the chat model, as a job on its lane like every other model call (#5358): a
+    cloud model's on the network lane, whose cap is one per Mac shared with every run; a model
+    served on this Mac on the local-model lane. Its usage is recorded for cost."""
+    from fichero_server import llm as llm_module  # noqa: PLC0415
+
+    if config is None:  # a caller that names no model config: the call alone
+        return await llm.ainvoke(messages)
+    async with llm_module.model_call_slot(config, library=ctx.library_path, subject="Chat"):
+        response = await llm.ainvoke(messages)
+    llm_module.record_call_usage(config, response)
+    return response
 
 
 def _build_rag_user_prompt(query: str, context_docs: list[dict]) -> str:
@@ -603,6 +620,7 @@ async def _run_chat_tools_loop(
     *,
     db: Database,
     ctx: ActionContext,
+    config: Any = None,
 ) -> tuple[str, list[ToolCall]]:
     """Run the bounded chat-tools agent loop (read parity + selected writes).
 
@@ -641,7 +659,7 @@ async def _run_chat_tools_loop(
             "single-shot RAG",
             exc,
         )
-        response = await llm.ainvoke(list(messages))
+        response = await _ask(llm, list(messages), config=config, ctx=ctx)
         return getattr(response, "content", ""), []
 
     convo = list(messages)
@@ -650,7 +668,7 @@ async def _run_chat_tools_loop(
     actor = ctx.actor or "chat"
 
     for _ in range(MAX_CHAT_TOOL_ITERATIONS):
-        response = await bound.ainvoke(convo)
+        response = await _ask(bound, convo, config=config, ctx=ctx)
         calls = getattr(response, "tool_calls", None) or []
         if not calls:
             break
@@ -859,6 +877,8 @@ async def chat(
     # Generate response with LangChain LLM.
     # Pass through request values - _get_langchain_llm handles None by looking up configured providers.
     llm = _get_langchain_llm(db, provider=request.provider, model=request.model)
+    # The same choice, for the call's lane slot and its cost.
+    config = _chat_config(db, provider=request.provider, model=request.model)
     provider = request.provider or "auto"
     model = request.model or "auto"
     model_used = f"{provider}/{model}"
@@ -891,10 +911,10 @@ async def chat(
     tool_calls: list[ToolCall] = []
     if _chat_tools_enabled():
         response_text, tool_calls = await _run_chat_tools_loop(
-            llm, messages, db=db, ctx=ctx
+            llm, messages, db=db, ctx=ctx, config=config
         )
     else:
-        response = await llm.ainvoke(messages)
+        response = await _ask(llm, messages, config=config, ctx=ctx)
         response_text = response.content
 
     # Add assistant message

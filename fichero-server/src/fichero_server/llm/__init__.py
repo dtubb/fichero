@@ -1379,13 +1379,15 @@ def _get_remote_llm_semaphore() -> asyncio.Semaphore:
 
 
 @contextlib.asynccontextmanager
-async def _remote_llm_call_slot(config: LLMConfig) -> AsyncIterator[None]:
-    """One model call's slot. In a library's work (a workflow node names its library), the call is
-    a job on a lane, a child of its step (#5353, #5358): a cloud model's on the network lane, whose
-    cap is one per Mac shared by every run; a model served on this Mac on the local-model lane, so
-    no other heavy model loads beside it. Pause and Stop on the run reach the calls still waiting.
-    Outside a library, a remote call is throttled by the process's own cap; a built-in model (the
-    OS's own) takes no slot."""
+async def model_call_slot(config: LLMConfig, *, library: str | None = None,
+                          subject: str | None = None) -> AsyncIterator[None]:
+    """One model call's slot. In a library's work (a workflow node names its library, or a caller
+    such as chat passes its own), the call is a job on a lane (#5353, #5358): a cloud model's on
+    the network lane, whose cap is one per Mac shared by every run and every chat; a model served
+    on this Mac on the local-model lane, so no other heavy model loads beside it. In a run it is a
+    child of its step, and Pause and Stop on the run reach the calls still waiting. With no
+    library, a remote call is throttled by the process's own cap; a built-in model (the OS's own)
+    takes no slot. `subject` names the row (by default the workflow node)."""
     from fichero_server.llm.providers import get_provider_info
 
     from fichero_server.execution import jobs
@@ -1398,13 +1400,14 @@ async def _remote_llm_call_slot(config: LLMConfig) -> AsyncIterator[None]:
         return
     from fichero_server.observability.episodes import _episode_library_path
 
-    library = _episode_library_path.get()
+    library = library or _episode_library_path.get()
     if library:
         from fichero_server.workflows.node_context import get_current_node
 
         node = get_current_node()
         async with jobs.lane_slot(
-            library, "ask-a-model", (node.node_label or node.node_id) if node else "a model call",
+            library, "ask-a-model",
+            subject or ((node.node_label or node.node_id) if node else "a model call"),
             model=f"{provider}:{config.model}", run_id=(node.run_id or None) if node else None,
             lane="local-ml" if info is not None and info.is_local else "network",
         ):
@@ -1417,6 +1420,20 @@ async def _remote_llm_call_slot(config: LLMConfig) -> AsyncIterator[None]:
 
     async with _get_remote_llm_semaphore():
         yield
+
+
+#: The name the LLM layer's own call sites use.
+_remote_llm_call_slot = model_call_slot
+
+
+def record_call_usage(config: LLMConfig, response: Any, kind: str = "chat") -> None:
+    """Record a model answer's token usage (cost tracking, and the row of the call's lane slot),
+    for a caller that calls a LangChain model itself (chat's agent loop)."""
+    usage = usage_from_message(response)
+    if usage:
+        _record_usage(config.provider, config.model, kind, input_tokens=usage["input_tokens"],
+                      output_tokens=usage["output_tokens"], total_tokens=usage["total_tokens"],
+                      cache_read_tokens=usage["cache_read_tokens"])
 
 
 @contextlib.asynccontextmanager
