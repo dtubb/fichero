@@ -7,8 +7,9 @@ redo the step:
 
 * splitting: a photograph already cut into pages;
 * finding lines: a page with a live pass that has lines;
-* reading (with or without finding lines first): a page with a live pass, read by the step's own model, that
-  has lines.
+* reading lines (with or without finding lines first): a page with a live pass, read by the step's own model,
+  that has lines;
+* reading a page: a page with a transcription saved by the step's own model.
 
 Every other card cannot tell, and runs on every page.
 """
@@ -17,7 +18,7 @@ from __future__ import annotations
 from typing import Any
 
 #: Jobs whose output a page can be seen to have.
-KNOWS_DONE = frozenset({"split-pages", "find-lines", "read-a-line"})
+KNOWS_DONE = frozenset({"split-pages", "find-lines", "read-a-line", "read-a-page"})
 
 
 def _children(db: Any, doc_id: str) -> list[Any]:
@@ -67,6 +68,14 @@ def _has_lines(db: Any, doc_id: str, model: str | None) -> bool:
     return False
 
 
+def _has_page_reading(db: Any, doc_id: str, model: str | None) -> bool:
+    """A transcription the model saved (a read that came back empty saves none)."""
+    from fichero_server.models import Artifact
+
+    return any(a.artifact_type == "transcription" and (model is None or a.model == model)
+               for a in db.query(Artifact, document_id=doc_id))
+
+
 def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
     """True when the page already has this card's output; None when the card cannot tell."""
     job = card.get("job")
@@ -76,6 +85,8 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
         return _has_lines(db, doc_id, None)
     if job == "read-a-line":
         return _has_lines(db, doc_id, card.get("model_override"))
+    if job == "read-a-page":
+        return _has_page_reading(db, doc_id, card.get("model_override"))
     return None
 
 

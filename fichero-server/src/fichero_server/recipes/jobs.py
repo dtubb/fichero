@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 
 # The kinds of thing that flow between jobs. A page image is what every project starts with.
 STARTS_WITH = frozenset({"page_image"})
+#: A `takes` entry may name kinds joined by "|": any one of them meets it (`source.chain.checked-before-run`).
+READING = "line_readings|page_reading"
 
 
 @dataclass(frozen=True)
@@ -115,9 +117,9 @@ _job("translate-transliterate-normalise", "Translate, transliterate or normalise
 # --- Structure and knowledge ----------------------------------------------------------------------
 _job("split-into-entries", "Split into entries", {"line_readings"}, {"entries"}, "structure", _LIST,
      "Splits a diary, register or ledger into its dated entries.")
-_job("find-names-tag-words", "Find names", {"line_readings"}, {"mentions"}, "entities", _LIST,
+_job("find-names-tag-words", "Find names", {READING}, {"mentions"}, "entities", _LIST,
      "Finds the people, places, dates and things named in the text.", ("model",))
-_job("find-statements", "Find statements", {"line_readings", "mentions"}, {"claims"}, "graph", _LIST,
+_job("find-statements", "Find statements", {READING, "mentions"}, {"claims"}, "graph", _LIST,
      "Finds who did what to whom (sold, gave, owed, married), each tied to the words it came from.",
      ("model", "prompt"))
 _job("work-out-dates", "Work out dates", {"mentions"}, {"dates"}, "graph", _LIST,
@@ -148,10 +150,10 @@ _job("train-a-model", "Train a model", {"line_readings", "lines"}, {"model_card"
 # --- Output ---------------------------------------------------------------------------------------
 # One job for every layer: which layer it checks (readings, names, statements, links) is a setting,
 # so `takes` names only what every check needs, the readings the proposals came from.
-_job("check", "Check", {"line_readings"}, {"verdicts"}, "check", _LIST,
+_job("check", "Check", {READING}, {"verdicts"}, "check", _LIST,
      "A person or a checker model confirms, corrects or rejects each proposal of a layer, with its reasons; a model's "
      "check is recorded as that model's, never as a person's.", ("layer", "model", "prompt"))
-_job("export", "Export", {"line_readings"}, {"files"}, "output", "the files side by side",
+_job("export", "Export", {READING}, {"files"}, "output", "the files side by side",
      "Writes your work out in the formats you name (TEI, PAGE, ALTO, plain text, Markdown, Excel, "
      "RDF, a website), kept up to date if you choose a synced folder.", ("formats", "folder"))
 _job("publish", "Publish", {"files"}, {"published"}, "output", "the published pages side by side",
@@ -169,7 +171,7 @@ def unmet_inputs(step_jobs: list[str], *, starts_with: frozenset[str] = STARTS_W
         if job is None:
             problems.append(f"step {index}: this copy of Fichero has no job {job_id!r}")
             continue
-        missing = sorted(job.takes - have)
+        missing = sorted(" or ".join(kind.split("|")) for kind in job.takes if have.isdisjoint(kind.split("|")))
         if missing:
             problems.append(f"step {index} ({job.name}) needs {', '.join(missing)}, which no earlier step gives")
         have |= job.gives
