@@ -317,6 +317,66 @@ final class ActivityStoreRunsTests: XCTestCase {
         XCTAssertEqual(decoded?["statuses"] as? [String], ["failed"], "Clear Failed is the status form")
         XCTAssertNil(decoded?["thread_ids"], "never sends explicit ids for Clear Failed")
     }
+
+    // MARK: - activity.window.absolute-times (#5432)
+
+    /// WHY: the engine sends `started_at` as aware UTC with microseconds. The
+    /// store read it with a default `ISO8601DateFormatter`, which refuses
+    /// fractional seconds, and substituted `Date()` — so every row said "just
+    /// now". If this goes red, a day-old run is being stamped with the moment
+    /// the list loaded.
+    func testActivityWindowAbsoluteTimes_theEngineTimeShapeIsReadNotReplacedByNow() async {
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(
+                pathContains: "/api/workflow-execution/runs", method: "GET", status: 200,
+                body: Self.listResponseJSON([
+                    Self.runSummaryJSON(threadId: "t1", startedAt: "2026-09-20T10:00:00.123456+00:00"),
+                    Self.runSummaryJSON(threadId: "t2", startedAt: "not a time")
+                ])
+            )
+        ])
+
+        await store.rebuildRuns(activeExecutions: [], library: Self.testLibrary())
+
+        let read = store.runs.first { $0.runId == "t1" }?.timestamp
+        let expected = Date(timeIntervalSince1970: 1_789_898_400.123456)
+        XCTAssertEqual(read?.timeIntervalSince1970 ?? 0, expected.timeIntervalSince1970, accuracy: 0.001)
+        let unreadable = store.runs.first { $0.runId == "t2" }
+        XCTAssertNotNil(unreadable, "a run whose time can't be read still has its row")
+        XCTAssertNil(unreadable?.timestamp, "an unreadable time is unknown, never now")
+    }
+
+    // MARK: - activity.window.honest-state (#5431)
+
+    /// WHY: #5431. One 401 (an engine respawn's token change) left "Couldn't
+    /// load activity from Local" up for good. The footer must name the cause,
+    /// and the next good load must clear it; if this goes red, a transient
+    /// refusal is reported as a standing failure.
+    func testActivityWindowHonestState_aFailedLoadNamesItsCauseAndClearsOnTheNextSuccess() async {
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(
+                pathContains: "/api/workflow-execution/runs", method: "GET", status: 401,
+                body: Data(#"{"detail": "bootstrap token mismatch"}"#.utf8)
+            )
+        ])
+        await store.rebuildRuns(activeExecutions: [], library: Self.testLibrary())
+        XCTAssertEqual(store.runLoadFailures.count, 1)
+        XCTAssertTrue(
+            store.runLoadFailures.first?.contains("refused the app's credentials") == true,
+            "the footer names the cause: \(store.runLoadFailures)"
+        )
+
+        MockTransportURLProtocol.reset([
+            Stub(
+                pathContains: "/api/workflow-execution/runs", method: "GET", status: 200,
+                body: Self.listResponseJSON([Self.runSummaryJSON(threadId: "t1")])
+            )
+        ])
+        await store.rebuildRuns(activeExecutions: [], library: Self.testLibrary())
+        XCTAssertEqual(store.runLoadFailures, [], "a successful load clears the failure")
+    }
 }
 
 /// `URLRequest.httpBody` is nil once the request has gone through

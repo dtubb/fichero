@@ -27,13 +27,15 @@ struct ActivityBrowserRow: View {
                 }
 
                 HStack(spacing: 4) {
-                    if run.isLive {
-                        Text(run.timestamp, style: .relative)
+                    // Started at a clock time, and while live, elapsed as a
+                    // duration (#5432) — never "N min ago".
+                    Text(ActivityTimeText.absolute(run.timestamp))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if run.isLive, let started = run.timestamp {
+                        Text(started, style: .timer)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text(coarseTimeAgo(run.timestamp))
-                            .font(.caption)
+                            .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
 
@@ -59,16 +61,5 @@ struct ActivityBrowserRow: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
-    }
-
-    /// Stable coarse timestamp — does not update every second like Text(.relative).
-    private func coarseTimeAgo(_ date: Date) -> String {
-        let seconds = Int(-date.timeIntervalSinceNow)
-        switch seconds {
-        case ..<60:      return "just now"
-        case ..<3600:    return "\(seconds / 60) min ago"
-        case ..<86400:   return "\(seconds / 3600) hr ago"
-        default:         return "\(seconds / 86400) days ago"
-        }
     }
 }

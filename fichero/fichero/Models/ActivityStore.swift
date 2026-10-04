@@ -1,6 +1,7 @@
 import FicheroAPIClient
 import Foundation
 import Observation
+import OpenAPIRuntime
 import OSLog
 
 /// Per-library activity store (#2448).
@@ -56,7 +57,13 @@ final class ActivityStore: ChangeEventConsumer {
     // call `rebuildRuns`, passing @Environment deps in. `runs` is patched
     // in place (`patchRun`) — no method here reassigns the whole array.
     private(set) var runs: [ActivityRun] = []
-    private(set) var runLoadFailures: [String] = []
+    /// The footer's lines (`activity.window.honest-state`, #5431): one per
+    /// library whose last load failed, naming the cause. Keyed by library so
+    /// the next successful load clears exactly its own line.
+    private var runLoadFailureByLibrary: [UUID: String] = [:]
+    var runLoadFailures: [String] {
+        runLoadFailureByLibrary.sorted { $0.key.uuidString < $1.key.uuidString }.map(\.value)
+    }
     private(set) var isRebuildingRuns = false
     /// True when the last `GET /workflow-execution/runs` page was full —
     /// probably a next page to page in. `false` on a short page, or before load.
@@ -194,11 +201,11 @@ final class ActivityStore: ChangeEventConsumer {
             }
             historicalRunsFetched = page.items.count
             runsHasMore = page.items.count >= runsPageSize
-            runLoadFailures.removeAll { $0 == loadFailureMessage(for: library) }
+            if runLoadFailureByLibrary[library.id] != nil { runLoadFailureByLibrary[library.id] = nil }
         } catch {
-            if !runLoadFailures.contains(loadFailureMessage(for: library)) {
-                runLoadFailures.append(loadFailureMessage(for: library))
-            }
+            let message = Self.runLoadFailureMessage(libraryName: library.displayName, error: error)
+            log.error("ActivityStore: run list load failed: \(message, privacy: .public)")
+            if runLoadFailureByLibrary[library.id] != message { runLoadFailureByLibrary[library.id] = message }
         }
     }
 
@@ -251,8 +258,21 @@ final class ActivityStore: ChangeEventConsumer {
         }
     }
 
-    private func loadFailureMessage(for library: LibraryManager.LibraryReference) -> String {
-        "Couldn't load activity from \(library.displayName)"
+    /// The footer line for a failed run-list load: the library AND the cause
+    /// (#5431). A refusal (401/403, e.g. an engine respawn's token change) and
+    /// an engine that cannot be reached are different fixes, so they read
+    /// differently; anything else carries its own description.
+    static func runLoadFailureMessage(libraryName: String, error: Error) -> String {
+        let cause: String
+        switch AccessError.classify((error as? ClientError)?.underlyingError ?? error) {
+        case .unauthenticated, .staleBootstrapToken, .deviceAccessExpired, .forbidden:
+            cause = "the engine refused the app's credentials"
+        case .engineUnreachable:
+            cause = "the engine could not be reached"
+        case let other:
+            cause = other.localizedDescription
+        }
+        return "Couldn't load activity from \(libraryName): \(cause)"
     }
 
     private func liveRun(
@@ -277,14 +297,19 @@ final class ActivityStore: ChangeEventConsumer {
         )
     }
 
-    /// A run straight from the runs table, not an event. An unparseable or
-    /// absent `startedAt` falls back to "now" rather than sorting a row to
-    /// the top or bottom by accident.
+    /// A run straight from the runs table, not an event. `startedAt` is read
+    /// with the one engine-date parser (fractional seconds, any offset); a
+    /// time it cannot read is `nil`, shown as unknown and logged, never
+    /// replaced by "now", which made every row say "just now" (#5432).
     private func historicalRun(
         from summary: Components.Schemas.WorkflowRunSummary,
         library: LibraryManager.LibraryReference
     ) -> ActivityRun {
-        let timestamp = summary.startedAt.flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()
+        let timestamp = summary.startedAt.flatMap(parseEngineDate)
+        if timestamp == nil {
+            let raw = summary.startedAt ?? "nil"
+            log.error("ActivityStore: run \(summary.threadId, privacy: .public) has an unreadable started_at \(raw, privacy: .public)")
+        }
         return ActivityRun(
             id: historicalRunId(threadId: summary.threadId, library: library),
             runId: summary.threadId,

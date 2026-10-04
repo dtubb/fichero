@@ -204,13 +204,19 @@ struct ActivityMonitorWindow: View {
         "\(count) run\(count == 1 ? "" : "s") still running — not deleted."
     }
 
-    /// Changes whenever the set of open libraries changes, or any library's
-    /// live executions do — reading those counts here is also what subscribes
-    /// this view to the @Observable stores, so a run starting or finishing
-    /// re-runs the task above.
+    /// Changes whenever the set of open libraries changes, any library's
+    /// live executions do, or its `ActivityStore.refreshToken` is bumped —
+    /// reading those here is also what subscribes this view to the
+    /// @Observable stores, so a run starting or finishing re-runs the task
+    /// above. The token is bumped by activity events and by the change
+    /// stream's reconnect resync, which is what retries a load that failed
+    /// while the engine was restarting (#5431); without it one refused load
+    /// stayed on the footer for good.
     private var refreshKey: String {
         libraries
-            .map { "\($0.id):\($0.workflowExecutionStore.executions.count)" }
+            .map {
+                "\($0.id):\($0.workflowExecutionStore.executions.count):\($0.activityStore.refreshToken)"
+            }
             .joined(separator: "|")
     }
 
@@ -243,7 +249,7 @@ struct ActivityMonitorWindow: View {
             .flatMap(\.activityStore.runs)
             .sorted { lhs, rhs in
                 if lhs.isLive != rhs.isLive { return lhs.isLive }
-                return lhs.timestamp > rhs.timestamp
+                return (lhs.timestamp ?? .distantPast) > (rhs.timestamp ?? .distantPast)
             }
     }
 

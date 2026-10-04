@@ -7,7 +7,7 @@ struct ActivityOverviewView: View {
     let liveExecution: WorkflowExecution?
     let errorCount: Int
     let effectiveStatus: SelectedActivityRun.ActivityRunStatusType
-    let startedAt: Date
+    let startedAt: Date?  // nil = unknown, never now (#5432)
     let stoppedAt: Date?
 
     var body: some View {
@@ -47,7 +47,7 @@ struct ActivityOverviewView: View {
                 .font(.headline)
 
             VStack(spacing: 2) {
-                Text("Started \(startedAt, format: .dateTime)")
+                Text(startedAt.map { "Started \($0.formatted(.dateTime))" } ?? "Started: \(ActivityTimeText.unknown)")
                 if let stoppedAt {
                     Text("\(stopVerb) \(stoppedAt, format: .dateTime)")
                 }

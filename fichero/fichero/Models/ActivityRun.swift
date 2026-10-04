@@ -11,7 +11,9 @@ struct ActivityRun: Identifiable {
     let workflowId: String?
     let threadId: String?
     let workflowName: String  // Name of the workflow (for grouping)
-    let timestamp: Date
+    /// When the run started; `nil` when the engine's time could not be read,
+    /// shown as unknown, never as now (#5432).
+    let timestamp: Date?
     let status: ActivityRunStatus
     let progress: Double?
     let currentStep: String?

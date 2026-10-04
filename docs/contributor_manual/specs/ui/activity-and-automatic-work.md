@@ -543,18 +543,24 @@ workflow by hand: a hand run is a job like any other.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion
   pill, Settings' download bars and the jobs list are views of the same rows or are retired; no
   surface keeps its own progress list.
-- `activity.window.honest-state` — **[BROKEN]** (→ #4346, #4384, #5431) a spinner only for a job that is
+- `activity.window.honest-state` — **[PARTIAL]** (→ #4346, #4384, #5431) a spinner only for a job that is
   running now. The run list's own honesty behaviours are in section I
   (`activity.spinner-reflects-process-liveness`, `activity.stale-runs-settle-across-restarts`).
-  A failed load says what failed and clears itself. Today one refused load of a library's runs
-  leaves "Couldn't load activity from Local" up for good: the window reloads only when the set of
-  libraries or their live run counts change (`Views/Activity/Window/ActivityMonitorWindow.swift:149`,
-  `:211`). The refusal it reports was a 401 `bootstrap_mismatch`: the app's first requests after an
-  engine respawn still carry the previous token (#5431). The footer names the cause (the engine
-  refused the app's credentials, or could not be reached) rather than only a library. A later
-  successful load clears it, and it is retried on reconnect. Pinned by an app test: a store whose
-  first load fails and whose next succeeds shows no failure. An engine test pins the respawned
-  engine's 401 so that it names the branch.
+  A failed load says what failed and clears itself. The refusal that used to stick was a 401
+  `bootstrap_mismatch`: the app's first requests after an engine respawn still carry the previous
+  token (#5431). The footer names the cause (the engine refused the app's credentials, or could not
+  be reached) rather than only a library. A later successful load clears it, and it is retried on
+  reconnect. **Built 2026-10-04** for the failed load: `ActivityService.listWorkflowRuns` throws a
+  401/403 as a typed `AccessError`; `ActivityStore.runLoadFailureMessage` names the cause, keyed by
+  library, so the next good load clears that library's line; the window's reload key carries each
+  store's `refreshToken`, which the change stream's reconnect resync bumps
+  (`Views/Activity/Window/ActivityMonitorWindow.swift`). Pinned by app tests
+  (`fichero/Tests/Unit/general/Models/ActivityStoreRunsTests.swift`
+  `testActivityWindowHonestState_aFailedLoadNamesItsCauseAndClearsOnTheNextSuccess`;
+  `fichero/Tests/Unit/general/Models/ActivityWindowTimesAndStateTests.swift`
+  `ActivityWindowHonestStateTests`) and by the engine test that the respawned engine's 401 names its
+  branch (`fichero-server/tests/unit/security/test_auth_refusals_say_why.py`). Still to check: the
+  spinner half (#4346, #4384).
 - `activity.window.what-it-made` — **[GAP]** (→ #5245) a finished job opens the list of what it made
   and can be taken back (`safety/run-take-back.md`).
 - `activity.document.what-has-been-run` — **[GAP]** (#5434) the reverse of
@@ -580,23 +586,28 @@ workflow by hand: a hand run is a job like any other.
   target, the target's stated hardware over the job's time. The figure always says its basis
   (measured, estimate or unknown) and is never invented: the same rule as cost and as
   `source.onboard.routes-for-the-volume`. A cloud call whose provider publishes no figure is unknown.
-- `activity.window.absolute-times` — **[BROKEN]** (#5415, #5432) times are absolute everywhere
+- `activity.window.absolute-times` — **[PARTIAL]** (#5415, #5432) times are absolute everywhere
   (started at a clock time, finished at a clock time, elapsed and remaining as durations); no "just
-  now". Today every row says "just now", even for a run a day old:
-  - the engine sends `started_at` with no time zone and with microseconds (a DuckDB `TIMESTAMP`
-    through `isoformat()`, `api/routes/workflow_execution/threads.py:262`);
-  - the app's default `ISO8601DateFormatter` cannot parse that, and falls back to `Date()`
-    (`Models/ActivityStore.swift:287`);
-  - the rows then build relative words by hand (`Views/Activity/UnifiedActivityRow.swift:132`,
-    `Views/Activity/ActivityBrowserRow.swift:68`).
+  now". Every row used to say "just now", even for a run a day old: the engine sends `started_at`
+  as aware UTC with microseconds (the store's row mapper attaches the zone, #4347), the app read it
+  with a default `ISO8601DateFormatter`, which refuses fractional seconds, and put `Date()` in its
+  place; the rows then built relative words by hand.
   The rule: every timestamp the engine returns is UTC with its zone. The app parses it with the
-  one engine-date parser. A time that cannot be parsed is shown as no time, never as now. Pinned by
-  two tests:
-  - an engine contract test (`test_activity_window_absolute_times__every_run_time_carries_its_zone`):
-    every `started_at` and `finished_at` from `GET /api/workflow-execution/runs` and
-    `GET /api/activity/jobs` parses with a zone;
-  - an app pure-rule test: an engine string of today's shape, an hour old, renders as its clock
-    time, not as "just now".
+  one engine-date parser. A time that cannot be parsed is shown as no time, never as now.
+  **Built 2026-10-04:** `ActivityStore` reads `started_at` with `parseEngineDate` and logs a time it
+  cannot read; `ActivityRun.timestamp` and `SelectedActivityRun.timestamp` are optional; the rows
+  write the start through `ActivityTimeText.absolute` ("14:32", "Yesterday 09:10", "28 Sep 11:15",
+  "Time unknown"), and a live row adds its elapsed time as a timer. Pinned by:
+  - an engine contract test
+    (`fichero-server/tests/unit/api/test_activity_window_absolute_times.py`
+    `test_activity_window_absolute_times__every_run_time_carries_its_zone`): `started_at` and
+    `completed_at` from `GET /api/workflow-execution/runs` and `GET .../threads/{id}/run` parse
+    with a UTC zone. `GET /api/activity/jobs` carries no time fields today;
+  - app tests (`fichero/Tests/Unit/general/Models/ActivityWindowTimesAndStateTests.swift`
+    `ActivityWindowAbsoluteTimesTests`): an engine string of today's shape, an hour old, renders
+    as its clock time; and `ActivityStoreRunsTests`
+    `testActivityWindowAbsoluteTimes_theEngineTimeShapeIsReadNotReplacedByNow`.
+  Still a gap: the window's rows show no finish time or remaining time.
 - `activity.window.grouped-by-project` — **[GAP]** (#5415) the window can group its rows by
   project; the Mac's own work (`activity.global-work-is-the-macs`) is a group of its own.
 - `activity.window.row-shows-lane-state-reason` — **[PARTIAL]** (#5415) every row shows its state,
