@@ -38,6 +38,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import sys
 import threading
 import time
@@ -66,7 +67,7 @@ KRAKEN_MODEL_PREFIX = "kraken:"
 #: after relaunch even before anything in this session enqueues one.
 _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
                  "fichero_server.training.job", "fichero_server.workflows.task_workers",
-                 "fichero_server.training.local")
+                 "fichero_server.training.local", "fichero_server.sync_folder")
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
 #: never holds the local ML lane.
@@ -97,6 +98,8 @@ _ADDED_COLUMNS = (
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS detail TEXT",
     # A job's parent (#5353, `activity.jobs-are-a-tree`): a step's run, a page's step.
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS parent_id TEXT",
+    # Not before this time: a quiet period after a change (a synced folder's rewrite, #4952).
+    "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS run_after TIMESTAMP",
 )
 _ENSURED: set[str] = set()
 
@@ -303,7 +306,7 @@ def _ensure(db: "Database") -> None:
 
 
 def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic",
-            detail: str | None = None) -> str:
+            detail: str | None = None, run_after: Any = None) -> str:
     """Queue one job, inside the caller's transaction if it has one. A job of this kind already
     WAITING for this subject is reused: it reads its input when it runs, so it covers this change
     too (many corrections to a page make one job). `detail` (JSON) is written with a new row.
@@ -318,6 +321,8 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
         job_id = _insert(db, kind, subject, KINDS[kind].model if kind in KINDS else None, started_by)
         if detail is not None:
             db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [detail, job_id])
+    if run_after is not None:  # a quiet period: each new change pushes it later (one job for a run of changes)
+        db.execute("UPDATE jobs SET run_after = ? WHERE id = ?", [run_after, job_id])
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return job_id
@@ -615,6 +620,15 @@ def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
     if row is None:
         return None
     return dict(zip(("id", "kind", "subject", "state", "reason", "detail", "created_at"), row))
+
+
+def count_jobs(db: "Database", kind: str, *, subject_prefix: str,
+               states: tuple[str, ...] = ("waiting", "running", "paused")) -> int:
+    """How many jobs of this kind, on subjects starting so, are not finished."""
+    _ensure(db)
+    return int(db.execute_fetchone(
+        f"SELECT count(*) FROM jobs WHERE kind = ? AND subject LIKE ? AND state IN ({', '.join('?' for _ in states)})",
+        [kind, subject_prefix + "%", *states])[0])
 
 
 def find_jobs(db: "Database", *, kinds: list[str], states: list[str] | None = None, job_id: str | None = None,
@@ -1060,15 +1074,24 @@ class _Scheduler:
             if db is None:  # closed: opening it again resumes its jobs
                 idle.append(key)
                 continue
+            now = utc_now()
             row = db.execute_fetchone(
                 f"SELECT id, kind, subject, model, created_at FROM jobs "
-                f"WHERE state = 'waiting' AND {where} "
+                f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where} "
                 f"ORDER BY {attached_first}(model IS NOT DISTINCT FROM ?) DESC, created_at, rowid LIMIT 1",
-                [*params, *attached, lane.loaded_model],
+                [now, *params, *attached, lane.loaded_model],
             )
+            later = db.execute_fetchone(
+                f"SELECT min(run_after) FROM jobs WHERE state = 'waiting' AND run_after > ? AND {where}",
+                [now, *params])[0]
+            if later is not None:  # a job waiting out its quiet period: look again when it ends
+                from fichero_server.core.timeutil import ensure_utc
+
+                due = time.monotonic() + max(0.0, (ensure_utc(later) - ensure_utc(now)).total_seconds())
+                lane.look_again_at = min(lane.look_again_at or due, due)
             if row:
                 candidates.append((key, db, row))
-            else:
+            elif later is None:
                 idle.append(key)
         if full_scan:
             with self._lock:
@@ -1094,7 +1117,8 @@ class _Scheduler:
                 _RELEASE[_family(lane.loaded_model)]()
             if model is not None:
                 lane.loaded_model = model
-        kind.qos()
+        if os.environ.get("FICHERO_JOB_QOS", "1") != "0":  # the test suite runs jobs at normal priority
+            kind.qos()
         state, reason, result, error = "done", None, None, None
         _current.job_id = job_id
         try:

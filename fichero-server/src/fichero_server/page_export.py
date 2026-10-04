@@ -354,7 +354,18 @@ def export_page(
         db, document_id, pass_id=pass_id, order_id=order_id, reading_kind=reading_kind,
         georeference=spec.name in ("iiif-georef", "qgis-points"),
     )
+    page.identity = {
+        "fichero-source": document_id,
+        "fichero-pass": choices.pass_id or "",
+        "fichero-reading-order": choices.order_name,
+        "fichero-reading-kind": choices.reading_kind,
+    }
+    if choices.pass_basis != "chosen":  # `source.sync.writes-the-record-or-says-so`
+        page.identity["fichero-machine-made"] = "true"
     data, report = write_page(spec.name, page)
+    if choices.pass_basis != "chosen":
+        report.note("machine-made", 1, "nobody has chosen this pass as the page's working pass: its readings are a "
+                    "machine's, not yet reviewed")
     stem = export_stem(page.image_name, document_id)
     # The format's own export extension, from the registry: a second table here defaulted every
     # unlisted format to `.xml`, so hOCR and YOLO exports were misnamed.

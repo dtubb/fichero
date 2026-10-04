@@ -623,6 +623,21 @@ when it stops improving) and `batch_size`. `GET /api/training/jobs/{job_id}` fol
 `measured` (peak resident memory, what training added, device, threads, epochs, seconds), and
 `POST /api/training/jobs/{job_id}/cancel` stops it at its next step. MCP: `fichero_train_kraken_here`.
 
+### Synced folders
+
+`POST /api/sync-folders` with `{"path", "formats"}` ties the project to a folder on the engine's
+disk (a full path there; the app never assumes it can see it) and writes the project's PAGE, ALTO
+and/or TEI into it through the exporter, then keeps them current (#4952, `specs/source/synced-folder.md`).
+The layout is Fichero's: one subfolder per format, one file per source named
+`<title>--<lasting id><extension>`, its loss report beside it as `<file>.loss.json`; each file
+names its source (`fichero-source`), pass, reading order and reading kind in the format's own
+identifier place. Writing is background work (kind `write-to-folder`); a change to a page rewrites
+its files after a short quiet period; every file is written to a temporary file and renamed into
+place; a file Fichero did not write, or one changed since it wrote it, is never overwritten.
+`GET /api/sync-folders` gives each folder's place, formats, last write, files waiting, and the
+files written, in the way, changed outside and deleted outside (found again when the library opens).
+`DELETE /api/sync-folders/{folder_id}` unties it and leaves its files.
+
 ### Workflow run comparison
 
 `GET /api/workflow-execution/comparisons` diffs what two runs produced from

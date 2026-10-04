@@ -125,6 +125,7 @@ class TestPerThreadQoSSeparation:
 
     def test_derivative_stages_run_at_background_qos(self, db, test_package, monkeypatch):
         # Every thumbnail and embed stage runs at background QoS, on whichever lane runs it.
+        monkeypatch.setenv("FICHERO_JOB_QOS", "1")
         from fichero_server.importers import derivatives
         from fichero_server.models import DocType, Document, FileType, Status
 

@@ -107,6 +107,10 @@ os.environ.setdefault("FICHERO_SKIP_PROJECT_CONVERSION", "1")
 # use or on battery, and every queued model job would wait. tests/unit/jobs turns it on and fakes
 # the signals.
 os.environ.setdefault("FICHERO_JOB_THROTTLE", "0")
+# Nor jobs run at background QoS: on a busy machine (a build beside the suite) a background thread is
+# starved to many times its time, and a test waiting on a job's file times out. The QoS a kind
+# declares is pinned by tests/unit/core/test_background_compute.py, which turns this back on.
+os.environ.setdefault("FICHERO_JOB_QOS", "0")
 # A test that DOES start a conversion wants it now, not after the launch settle (#5228).
 os.environ.setdefault("FICHERO_CONVERSION_START_DELAY_SECONDS", "0")
 # #742 added shared-secret auth + a loopback check. FastAPI's TestClient

@@ -9,8 +9,8 @@
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model (split out of
 > `models-chains-and-projects.md` on 2026-09-19, because it is a programme of its own): read
-> `source-model.md` first. Every behaviour below is tagged **[GAP]** with its issue; nothing here
-> is built. Reorganised on 2026-10-01; no behaviour id was removed or renamed.
+> `source-model.md` first. Behaviours are tagged with their issue; the write half of a made folder is
+> built (2026-10-04), the rest is not. Reorganised on 2026-10-01; no behaviour id was removed or renamed.
 >
 > **Owners, and do not duplicate.** Writing a project's outputs to disk as the work goes on is the
 > exporter's planned continuous export (`export/exporter.md`, its continuous-sync behaviour,
@@ -161,31 +161,31 @@ lasting id), so two projects' folders look alike and a file can always be matche
   changed outside and not read back, files deleted outside, and files in the way that Fichero did
   not write.
 
-## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
+## Behaviors (each cites its issue on milestone `source-model`, 322; the write half of a made folder is built)
 
 Out
-- `source.sync.out-is-the-exporters` — **[GAP]** (#4952) writing outputs as the work goes on is the
+- `source.sync.out-is-the-exporters` — **[OK]** (#4952) *Built 2026-10-04: each file is the exporter's own output, byte for byte (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* writing outputs as the work goes on is the
   exporter's continuous export (→ #4640), fed by this model; no second export path exists.
-- `source.sync.one-mechanism-many-folders` — **[GAP]** (#4952, #4640) a project or one of its
+- `source.sync.one-mechanism-many-folders` — **[PARTIAL]** (#4952, #4640) *Built: several folders, each naming its formats, one mechanism; a folder of part of a project is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* a project or one of its
   folders can have several synced folders, each the destination of an export step naming its
   formats, all through the same mechanism.
-- `source.sync.writes-the-record-or-says-so` — **[GAP]** (#4952) the folder holds the working pass
+- `source.sync.writes-the-record-or-says-so` — **[PARTIAL]** (#4952) *Built: the working pass is written; a pass nobody chose is marked machine-made in the file (`fichero-machine-made`) and its loss report; per-reading choice is not (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* the folder holds the working pass
   and chosen readings; an unchosen machine reading written there is marked machine-made in the
   file and its loss report.
-- `source.sync.outputs-follow-edits` — **[GAP]** (#4952) the files holding a changed segment or
+- `source.sync.outputs-follow-edits` — **[OK]** (#4952) *Built: a change queues its pages' rewrite in the change's own transaction, after a quiet period that each new change pushes later, as a `write-to-folder` job in Activity (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* the files holding a changed segment or
   reading are rewritten after a short quiet period, as an export job in Activity; files the change
   did not touch are not rewritten.
-- `source.sync.atomic-writes` — **[GAP]** (#4640) every file is written to a temporary file and
+- `source.sync.atomic-writes` — **[OK]** (#4640) *Built: a temporary file beside it, renamed into place (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* every file is written to a temporary file and
   renamed into place, so no other program can read a half-written file.
-- `source.sync.files-say-what-they-hold` — **[GAP]** (#4952) each file names its pass, reading
+- `source.sync.files-say-what-they-hold` — **[OK]** (#4952) *Built: `fichero-pass`, `fichero-reading-order`, `fichero-reading-kind` in the file, `<file>.loss.json` beside it (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* each file names its pass, reading
   order and reading kind, with its loss report beside it.
-- `source.sync.files-carry-ids` — **[GAP]** (#4952) each written file carries its source's lasting
+- `source.sync.files-carry-ids` — **[PARTIAL]** (#4952) *Built: `fichero-source` in PAGE's MetadataItem, ALTO's fileIdentifier, TEI's idno; matching a renamed file comes with intake (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* each written file carries its source's lasting
   id, so a renamed or moved file is still matched to its source.
 - `source.sync.restricted-stays-out` — **[GAP]** (#4952) restricted material is left out of the
   folder unless deliberately included.
-- `source.sync.engine-side-and-throttled` — **[GAP]** (#4952) the folder is named where the engine
+- `source.sync.engine-side-and-throttled` — **[OK]** (#4952) *Built: a full path on the engine's disk, written by jobs on the background database lane (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* the folder is named where the engine
   runs, and syncing is throttled background work.
-- `source.sync.paused-with-background-work` — **[GAP]** (#4952) writing and intake stop under Pause
+- `source.sync.paused-with-background-work` — **[PARTIAL]** (#4952) *Built for writing; intake is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* writing and intake stop under Pause
   Background Work and catch up when it is resumed.
 
 In
@@ -207,14 +207,14 @@ In
 - `source.sync.deleted-outside` — **[GAP]** (#4952) a file deleted in the folder deletes nothing in
   the project; it is listed, and written again on the next change to its source or on Rebuild
   Folder.
-- `source.sync.rescan-after-downtime` — **[GAP]** (#4952) on engine start the folder is compared
+- `source.sync.rescan-after-downtime` — **[PARTIAL]** (#4952) *Built: on library open, files changed or deleted while the engine was off are found and reported; handling them as live (intake) is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* on engine start the folder is compared
   with the recorded checksums, and changes made while the engine was off are handled as though
   seen live.
 
 Ownership and layout
-- `source.sync.never-overwrites-a-stranger` — **[GAP]** (#4952) Fichero overwrites only files it
+- `source.sync.never-overwrites-a-stranger` — **[OK]** (#4952) *Built: a file Fichero did not write, or one changed since, is left and reported (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* Fichero overwrites only files it
   wrote itself, known by a checksum it recorded; any other file in the way is left and reported.
-- `source.sync.fixed-layout` — **[GAP]** (#4952) a made folder's layout is chosen by Fichero and is
+- `source.sync.fixed-layout` — **[OK]** (#4952) *Built: one subfolder per format, `<title>--<lasting id><extension>` (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* a made folder's layout is chosen by Fichero and is
   the same for every project.
 - `source.sync.four-ways-in` — **[PARTIAL]** (#4952) setup and import offer Link, Copy, Move and Index with what each does to the originals; Link, Copy and Move are built (ingest `mode`), Index is not.
 - `source.sync.adopt-existing-folder` — **[GAP]** (#4952) importing a folder of TEI, ALTO or PAGE XML
@@ -224,9 +224,9 @@ Ownership and layout
   conflict with both kept.
 - `source.sync.folder-is-a-projection` — **[GAP]** (#4952) the folder can be deleted and remade from
   the project with Rebuild Folder.
-- `source.sync.untie-leaves-files` — **[GAP]** (#4952) untying a folder stops writing and intake and
+- `source.sync.untie-leaves-files` — **[PARTIAL]** (#4952) *Built: untying stops writing and leaves the files; intake is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* untying a folder stops writing and intake and
   leaves its files on disk.
-- `source.sync.status-in-inspector` — **[GAP]** (#4952) the Inspector shows each synced folder's
+- `source.sync.status-in-inspector` — **[PARTIAL]** (#4952) *Built: `GET /api/sync-folders` gives place, formats, last write, pending, and files written, in the way, changed and deleted outside; the Inspector and conflicts are not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* the Inspector shows each synced folder's
   place, formats, last write, pending files, conflicts, files changed or deleted outside, and files
   in the way that Fichero did not write.
 

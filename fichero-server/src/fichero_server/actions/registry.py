@@ -258,6 +258,7 @@ class ActionRegistry:
             for target_id in target_ids:
                 authz.assert_can_write(ctx.actor, ctx.library_path, target_id)
 
+        from fichero_server import sync_folder
         from fichero_server.actions import page_text_cache
 
         if reg.atomic:
@@ -268,6 +269,8 @@ class ActionRegistry:
                 refreshed = page_text_cache.refresh_in_transaction(db, spec, name, params)
                 # Its re-embed is queued in the same transaction: a crash cannot lose it (#5359).
                 page_text_cache.queue_reembed(db, refreshed)
+                # And the rewrite of its files in any synced folder (#4952).
+                sync_folder.queue_rewrites(db, [*refreshed, *spec.document_ids])
 
                 # Audit write is NOT best-effort: if it fails the action fails. The
                 # before/after captured by execute ARE the undo payload.
@@ -289,6 +292,7 @@ class ActionRegistry:
             result, spec = reg.execute(db, params, ctx)
             refreshed = page_text_cache.refresh_in_transaction(db, spec, name, params)
             page_text_cache.queue_reembed(db, refreshed)
+            sync_folder.queue_rewrites(db, [*refreshed, *spec.document_ids])
             audit = ActionAudit(
                 **({"id": spec.audit_id} if spec.audit_id else {}),
                 action_name=name,

@@ -357,6 +357,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     etree.SubElement(source, f"{{{ALTO_NS_V4}}}fileName").text = (
         page.image_name or "unknown.tif"
     )
+    for name, value in page.identity.items():  # what this file is (#4952): ALTO's identifiers
+        etree.SubElement(source, f"{{{ALTO_NS_V4}}}fileIdentifier", fileIdentifierLocation=name).text = value
 
     # The tag declarations the segments carry, once each, in the order first met (#5138).
     declared_tags: dict[str, dict] = {}

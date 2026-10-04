@@ -550,6 +550,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     etree.SubElement(metadata, f"{{{PAGE_NS_2019}}}LastChange").text = (
         "1970-01-01T00:00:00"
     )
+    for name, value in page.identity.items():  # what this file is (#4952): PAGE's own metadata items
+        etree.SubElement(metadata, f"{{{PAGE_NS_2019}}}MetadataItem", type="other", name=name, value=value)
     page_el = etree.SubElement(
         root,
         f"{{{PAGE_NS_2019}}}Page",

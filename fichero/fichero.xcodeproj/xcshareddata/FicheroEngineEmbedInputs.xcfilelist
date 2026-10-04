@@ -153,6 +153,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/search/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/search/core.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/search/explain.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/search_explain.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/sync_folders.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/actions.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/actions_registry.py
@@ -512,6 +513,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/security/tailscale_serve.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/url_security.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/xml_security.py
 $(SRCROOT)/../fichero-server/src/fichero_server/spatial_arrange.py
+$(SRCROOT)/../fichero-server/src/fichero_server/sync_folder.py
 $(SRCROOT)/../fichero-server/src/fichero_server/tool_context.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/hf_jobs.py

@@ -14947,6 +14947,58 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('sync-folders')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for sync-folders endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='sync-folders')
+        existing_apps['sync-folders'] = target_app
+
+    @target_app.command("the-project-s-synced-and-their-state")
+    def sync_folders_the_project_s_synced_and_their_state_get(
+        ctx: typer.Context,
+    ) -> None:
+        """The project's synced folders and their state (GET /api/sync-folders)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/sync-folders"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("tie-the-project-to-a-on-the-engine-s-disk")
+    def sync_folders_tie_the_project_to_a_on_the_engine_s_disk_post(
+        ctx: typer.Context,
+        formats: str = typer.Option(..., "--formats", help="Request field: formats."),
+        path: str = typer.Option(..., "--path", help="Request field: path."),
+    ) -> None:
+        """Tie the project to a folder on the engine's disk (POST /api/sync-folders)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/sync-folders"
+            params = None
+            payload = _build_json_payload({
+                "formats": formats,
+                "path": path,
+            }, {
+                "formats": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Formats', 'description': 'What to write there: pagexml, alto and/or tei', 'x-cli-required': True},
+                "path": {'type': 'string', 'title': 'Path', 'description': "A full path to a folder on the engine's disk; made if it is not there", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("untie-a-synced-its-files-stay-on-disk")
+    def sync_folders_untie_a_synced_its_files_stay_on_disk_delete(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Untie a synced folder (its files stay on disk) (DELETE /api/sync-folders/{folder_id})."""
+        if not yes:
+            typer.confirm("Delete sync-folders?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/sync-folders/{folder_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('tasks')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for tasks endpoints.', no_args_is_help=True)
