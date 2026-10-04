@@ -408,8 +408,13 @@ workflow by hand: a hand run is a job like any other.
   table rather than a thirteenth system being built beside it. Found 2026-10-03: nothing in the
   engine calls `init_task_queue`, so the task queue never starts and its routes answer 503; and its
   table lives in a file of its own, not the project's database. The `jobs` table was therefore
-  started in the project database (open question 1) and the task queue's six kinds move onto it
-  next, after which `workflows/tasks.py` and its routes go.
+  started in the project database (open question 1). Built (2026-10-03): the six kinds are job
+  kinds (`workflows/task_workers.py`: reindex and vector repair on the model lane as embedder
+  work, metrics, repair, KG metrics and re-anchor on a one-wide database lane), and `/api/tasks`
+  creates and reads job rows, so its routes work for the first time and a task is durable,
+  pausable and shown in Activity (`fichero-server/tests/unit/jobs/test_tasks_on_the_lane.py`).
+  Still to go: the unused `TaskQueue` class (APScheduler, its own `background_tasks` table) and
+  its tests.
 - `activity.every-kind-reports` — **[PARTIAL]** (#5359) `/api/activity/jobs` merges
   the derivative queue and running/failed workflow runs (`test_activity_jobs.py`); task-queue
   tasks, batches, ingest tasks, conversion, search reindex, model downloads, runtime provisioning

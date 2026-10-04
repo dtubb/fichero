@@ -72,6 +72,9 @@ ALLOWLIST: frozenset[str] = frozenset(
         # and actions). Consolidating these behind db.py is future work (#1876).
         # BatchManager similarly owns its batch tables and persistence contract.
         "execution/batch.py",
+        # The `jobs` table's own store (#5353): every statement on it lives here, behind typed
+        # helpers (`read_job`, `save_detail`, `cancel_waiting`, ...) that the job kinds call.
+        "execution/jobs.py",
         "workflows/action_store.py",
         "workflows/cache.py",
         "workflows/checkpointer.py",

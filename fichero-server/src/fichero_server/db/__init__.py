@@ -4894,6 +4894,12 @@ class Database(DatabaseEmbeddingMixin):
             )
         ]
 
+    def unit_of_work_count(self) -> int:
+        """Every page, and every file that has no pages: what a recipe's estimate counts."""
+        return int(self.execute_fetchall(
+            "SELECT COUNT(*) FROM documents d WHERE d.doc_type = 'page' OR (d.doc_type = 'file' AND "
+            "NOT EXISTS (SELECT 1 FROM documents c WHERE c.parent_id = d.id))")[0][0])
+
     def table_row_counts(self) -> dict[str, int]:
         """Every table in this library and its row count.
 

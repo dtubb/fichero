@@ -42,26 +42,26 @@ _ROUTE_KEY = "queries.GET./api/tasks"
 
 
 class TestQueryRatchetSeesRealTaskQueueTraffic:
-    """`GET /api/tasks` with a real `TaskQueue` must count > 0 queries.
+    """`GET /api/tasks` through its real queue must count > 0 queries.
 
-    `TaskQueue.__init__` creates its table via `connect_utc` before the
-    request starts (so it's outside the per-request counter window by
-    design); `list_tasks` issues a SELECT through `connect_utc` from inside
-    the request. If either regresses to a bare `duckdb.connect`, this drops
-    to 0 and the assertion catches it — the same failure shape #4462 warns
-    is otherwise invisible.
+    The route reads the project's `jobs` table (#5353) through the library's
+    managed connection, from inside the request. If that read ever regresses
+    to a connection the counter cannot see, this drops to 0 and the
+    assertion catches it — the same failure shape #4462 warns is otherwise
+    invisible.
     """
 
-    def test_list_tasks_through_a_real_queue_is_counted(self, client, monkeypatch, tmp_path):
+    def test_list_tasks_through_a_real_queue_is_counted(self, client, test_package, monkeypatch, tmp_path):
+        from fichero_server.db.manager import db_manager
+
         monkeypatch.setenv("FICHERO_PERF_RATCHET", "1")
-        queue = TaskQueue(str(tmp_path / "ratchet_tasks.duckdb"))
+        # The counter wraps a connection when it OPENS, and this library opened before the switch
+        # (under the gate the switch is on from the start). Reopen it so its connection counts.
+        db_manager.close_database(test_package)
+        db_manager.get_database(test_package)
         perf_ratchet._query_session.pop(_ROUTE_KEY, None)
 
-        with patch(
-            "fichero_server.api.routes.workflow.tasks.get_task_queue",
-            return_value=queue,
-        ):
-            response = client.get(BASE)
+        response = client.get(BASE)
 
         assert response.status_code == 200
         recorded = perf_ratchet._query_session.get(_ROUTE_KEY)
@@ -89,7 +89,7 @@ class TestTheGuardHasTeeth:
         monkeypatch.setattr(tasks_module, "connect_utc", duckdb.connect)
 
         with patch(
-            "fichero_server.api.routes.workflow.tasks.get_task_queue",
+            "fichero_server.api.routes.workflow.tasks.job_task_queue",
             return_value=queue,
         ):
             response = client.get(BASE)
