@@ -181,3 +181,30 @@ def test_a_thousand_canvases_through_a_429_storm_land_on_their_canvases(tmp_path
         # Normalised by the size the reader saw, so on the canvas it is 10% in, whatever was fetched.
         assert min(xs) * cw == pytest.approx(0.1 * cw, abs=cw * 0.004)
         assert max(xs) * cw == pytest.approx(0.6 * cw, abs=cw * 0.004)
+
+
+def test_a_remote_page_records_the_image_uri_and_size_its_reader_saw(tmp_path):
+    """`iiif.run.records-pixels-seen`: a model run on a remote page fetches what it needs and records
+    the image URI and size it saw in its provenance. WHY: at archive scale a reading must say which
+    pixels it came from -- the archive may rescale or replace an image later, and a reading of a
+    400-pixel fetch is not evidence about the 6000-pixel master. The PAGE file the run writes is
+    what landing keeps as the pass's evidence, so the record lives there."""
+    canvases = {"0": (6000, 4000), "1": (3000, 4500)}
+    sources = [{"id": f"c{i}", "iiif_service": f"https://iiif.archive.example/img/{i}", "canvas": list(canvases[str(i)])}
+               for i in range(2)]
+    package = tmp_path / "pkg"
+    (package / "_fichero").mkdir(parents=True)
+    (package / "_fichero" / "iiif_fetch.py").write_bytes(
+        (runner.Path(runner.__file__).parent.parent / "media" / "iiif_fetch.py").read_bytes())
+    (package / "job.json").write_text(json.dumps({"step": {"reader": "vlm", "card": "c"}, "fetch": {"longest": 400},
+                                                  "shards": [[0, 1]], "sources": sources}))
+    server = StormyIIIFServer(canvases)
+    outcome = runner.run_shard(package, 0, tmp_path / "out", reader=lambda image: [], get=server, sleep=lambda s: None)
+
+    for source in sources:
+        seen = outcome["sources"][source["id"]]["seen"]
+        assert seen.startswith(source["iiif_service"] + "/full/")  # the exact request, not just the service
+        xml = (tmp_path / "out" / "shard-00000" / f"{source['id']}.xml").read_bytes()
+        page = formats.read_page("pagexml", xml)
+        assert page.image_name == seen
+        assert max(page.image_size) == 400 == max(outcome["sources"][source["id"]]["size"])

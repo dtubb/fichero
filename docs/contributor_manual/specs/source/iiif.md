@@ -212,7 +212,7 @@ In:
   only per-canvas metadata, and opening a folder of a million pages is as fast as one of a hundred.
 - `iiif.scale.no-advance-thumbnails` — **[PARTIAL]** (#5324) *Built (c8dcfb28a): import warms no preview; a viewed page is fetched once at display size into storage; pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: the bounded cache's eviction.* no thumbnail of a remote page is made in advance;
   it is fetched at thumbnail size when it scrolls into view and kept in the bounded cache.
-- `iiif.scale.remote-runs-fetch-from-source` — **[PARTIAL]** (#5324, #5240) *Built (3550e833e, b8bf84e53): a read package lists Image API services, not files, and the runner fetches each at the reader's size (on a cluster's login node before the array, since compute nodes have no internet); pinned by `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. Not built: pixels-seen provenance on the landed pass.* a step run on a cluster, GPU service or
+- `iiif.scale.remote-runs-fetch-from-source` — **[PARTIAL]** (#5324, #5240) *Built (3550e833e, b8bf84e53): a read package lists Image API services, not files, and the runner fetches each at the reader's size (on a cluster's login node before the array, since compute nodes have no internet); pinned by `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. Pixels seen: see `iiif.run.records-pixels-seen`.* a step run on a cluster, GPU service or
   server fetches each image directly from the source's image service, never through the Mac, and
   returns only results with the pixels-seen provenance.
 - `iiif.import.reads-v2-and-v3` — **[PARTIAL]** (#1646) Presentation 2.1 and 3.0 manifests and
@@ -223,7 +223,7 @@ In:
   requests for what is on screen, through a bounded cache; no file path is ever involved.
 - `iiif.coords.canvas-space` — **[PARTIAL]** (#5324) *Built (b6fd6a8bb): a remote run's lines are scaled from the fetched size to the canvas on landing; pinned by `fichero-server/tests/unit/remote_read/test_read_at_scale_job.py` and `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. Not built: segments drawn in the app on a remote page.* segments on a remote page are stored in canvas
   coordinates and stay put whatever resolution was fetched.
-- `iiif.run.records-pixels-seen` — **[GAP]** (#5324) a model run on a remote page fetches what it
+- `iiif.run.records-pixels-seen` — **[PARTIAL]** (#5324) *Built for remote runs: the runner names the exact Image API request and the size it read as the PAGE file's `imageFilename`/`imageWidth`/`imageHeight`, and that file is what landing keeps as the pass's evidence (`import_original`); pinned by `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. Not built: a run on this Mac reading a remote page.* a model run on a remote page fetches what it
   needs and records the image URI and size it saw in its provenance.
 - `iiif.keep-local-copy` — **[PARTIAL]** (#5324) a source can be kept locally, after saying how much
   it will download. **Built:** today's loader always downloads, capped at 1500 px.

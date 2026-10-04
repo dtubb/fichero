@@ -62,8 +62,11 @@ def _points(points: list) -> str:
     return " ".join(f"{round(x)},{round(y)}" for x, y in points)
 
 
-def page_xml(source_id: str, size: tuple[int, int], lines: list[dict[str, Any]], *, creator: str) -> str:
-    """PAGE XML for one source: one region holding the lines in reading order, in the image's pixels."""
+def page_xml(source_id: str, size: tuple[int, int], lines: list[dict[str, Any]], *, creator: str,
+             image_name: str | None = None) -> str:
+    """PAGE XML for one source: one region holding the lines in reading order, in the image's pixels.
+    `image_name` names the pixels read: for a IIIF page the exact Image API request, so the file
+    landing keeps as the pass's evidence says what was seen (`iiif.run.records-pixels-seen`)."""
     width, height = size
     rows = []
     for index, line in enumerate(lines, 1):
@@ -78,7 +81,7 @@ def page_xml(source_id: str, size: tuple[int, int], lines: list[dict[str, Any]],
     return (f'<?xml version="1.0" encoding="UTF-8"?>\n<PcGts xmlns="{PAGE_NS}">\n'
             f'  <Metadata><Creator>{escape(creator)}</Creator><Created>1970-01-01T00:00:00</Created>'
             f'<LastChange>1970-01-01T00:00:00</LastChange></Metadata>\n'
-            f'  <Page imageFilename={quoteattr(source_id + ".jpg")} imageWidth="{width}" imageHeight="{height}">\n'
+            f'  <Page imageFilename={quoteattr(image_name or source_id + ".jpg")} imageWidth="{width}" imageHeight="{height}">\n'
             f'{region}  </Page>\n</PcGts>\n')
 
 
@@ -182,19 +185,20 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
             continue  # done before this task was cut short
         try:
             fetched = package / prefetched(source)
+            seen = image_url(source["iiif_service"], longest=longest) if source.get("iiif_service") else source["image"]
             if source.get("iiif_service") and fetched.exists():  # fetched on a login node beforehand
                 image = Image.open(fetched)
             elif source.get("iiif_service"):
-                data = fetcher.fetch(image_url(source["iiif_service"], longest=longest))
+                data = fetcher.fetch(seen)
                 image = Image.open(io.BytesIO(data))
             else:
                 image = Image.open(package / source["image"])
             image.load()
             image = image.convert("RGB")
             lines = read(image)
-            target.write_text(page_xml(source["id"], image.size, lines, creator=f"Fichero remote reader ({step['card']})"),
-                              encoding="utf-8")
-            outcome["sources"][source["id"]] = {"ok": True, "size": list(image.size), "lines": len(lines)}
+            target.write_text(page_xml(source["id"], image.size, lines, creator=f"Fichero remote reader ({step['card']})",
+                                       image_name=seen), encoding="utf-8")
+            outcome["sources"][source["id"]] = {"ok": True, "size": list(image.size), "lines": len(lines), "seen": seen}
         except Exception as exc:  # noqa: BLE001 -- one source's failure is recorded; the shard goes on
             outcome["sources"][source["id"]] = {"ok": False, "why": f"{type(exc).__name__}: {exc}"[:500]}
         tmp = outcome_path.with_suffix(".part")
