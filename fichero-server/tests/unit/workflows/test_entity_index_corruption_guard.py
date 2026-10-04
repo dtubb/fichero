@@ -75,9 +75,11 @@ def test_entity_upsert_churn_on_persistent_duckdb_stays_queryable(tmp_path):
             )
             assert returned_id == entity_id
 
+        # The same name written alike is added as one of its names (#5409: a merely similar one, such as
+        # "el Don Alfonso", would be a new entity and a proposal, which is not what this churn test is about).
         alias_id = upsert_entity(
             db,
-            canonical_name="el Don Alfonso",
+            canonical_name="don alfonso.",
             entity_type=EntityType.person,
             aliases=["Don A."],
             source_document_id="page-999",

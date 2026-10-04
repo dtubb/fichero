@@ -134,6 +134,14 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   `::TestSplitEntity::test_split_moves_aliases`,
   `::TestSplitEntityAction::test_split_is_undoable_via_the_existing_undo_endpoint`) and the CLI
   (`entity split`) are built; the sheet is unmounted in the app.
+- `kg.entity.models-propose-merges` — **[OK]** (#5409; built: the exact-name stage of `_upsert_entity_matched` in `workflows/tools/_entity_writer.py`, whose vector and SequenceMatcher stages now only propose; tested in `fichero-server/tests/unit/kg/test_models_propose_merges_to_spec.py`) a model run never decides that two names are one
+  entity. Writing what it found, it adds the name to an existing entity of the same type only when the two are
+  the same name once case, accents, punctuation and spacing are set aside, or when the name is already one of
+  that entity's names; otherwise it makes a new entity. A name that is only similar to an existing one (`Don Tomas
+  Polo` and `Don Joaquin Polo`, `Chocó department` and `Chocó`, two names a vector model puts close together) is
+  a new entity, and the pair goes into the entity review queue for a person to accept or reject, with what made
+  them similar (method `embedding_cosine` or `similar_name`, and the score) in its reason. A person creating an
+  entity is unchanged.
 - `kg.entity.says-who-made-it` — **[OK]** (#4869, #4868; built: `KnowledgeEntity.add_attribution`, `upsert_entity(asserted_by=)` from the names card and `_write_kg_rows`, the `editor` entry in `entity.create`/`entity.update`, `GET /api/entities?run_id=`, `entity.take_back_run` in `api/routes/kg/nlp_draft_purge.py`; tested in `fichero-server/tests/unit/kg/test_entity_says_who_made_it_to_spec.py`. Not yet naming their run: the citation and book-index writers, extract-all's additional entities, and merge/dedup's re-upsert; the import-time NLP draft names spaCy and its model but has no run) every entity says who put it in the knowledge graph,
   in its `attribution_chain`, the field that already says who asserted a claim: a model run as an `extractor`
   entry naming the provider, the model, the run (`run_id`) and when (`at`); a person as an `editor` entry naming
@@ -143,7 +151,9 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   audited action (`entity.take_back_run`, a dry run unless asked): it removes the entities that run alone made
   and nothing has touched since (no other run or person named on them, unreviewed, no claim naming them, and none
   of the touches `entity.purge_nlp_draft` counts); every other entity of the run stays, and the answer says how
-  many and why.
+  many and why. A review pair still waiting on an entity it removes leaves the queue as withdrawn by the system, its reason
+  saying which entity and which run; it is never marked rejected, which is a person's decision and teaches the
+  matcher. A pair a person already decided keeps its decision.
 - `kg.entity.variant-spellings-proposed` — **[OK]** (#4508; built: `spelling_key` and the `spelling_variants` tier of `plan_entity_dedupe` in `knowledge/dedupe.py`, `spelling_variants`/`propose` on `POST /api/kg/entity-curation/dedupe` queuing through `review.queue`; tested in `fichero-server/tests/unit/kg/test_variant_spellings_to_spec.py`) a project's knowledge graph is checked for
   entities of one type whose names are the same name written differently, and each is PROPOSED as a merge for a
   person to accept or reject; nothing is merged by the check. The same name written differently means equal once
@@ -152,8 +162,12 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   abbreviations of names (`Fran.co`/`Francisco`, `Xpoval`/`Cristóbal`, `Glz`/`González`); and titles (`Don`,
   `Doña`, `Capitán`, `Fray`). An abbreviation is read as one only where it is written as one: with a point or a raised letter (`Fran.co`, `Pº`), or a contraction that is no word (`Xpoval`, `Glz`); a plain word is the word (the surname `Franco` is not `Fran.co`). A number is never set aside (`Dredge No. 1` and `Dredge No. 3` stay apart), nor is
   any other letter. The check first answers with what it found (how many entities, how many groups, which names),
-  writing nothing; asked to propose, it puts each pair into the entity review queue (`/api/kg/review/pairs`,
-  method `name_variant`, with the two names in its reason, each in full as written, titles included), where accepting is the audited merge and
+  writing nothing; asked to propose, it puts into the entity review queue (`/api/kg/review/pairs`) one pair for
+  each entity, with the likeliest-to-stay entity whose own names match its own, never two that are only joined
+  through a third (a name written three ways is two pairs): an entity holding a stray
+  name of a second, which is a variant of a third, does not make the first and third a pair; each pair says
+  why in its reason, with the two names in full as written, titles included, and in its method: `name_variant`
+  for a spelling variant, `duplicate_name` for the same name or a name both hold. Accepting is the audited merge and
   rejecting is remembered: a pair already proposed, accepted or rejected is never proposed again. Asking it to
   merge the variants itself is refused. Curated (reviewed) entities are proposed like any other, since a person
   decides each pair; rejected and already-merged ones never are.

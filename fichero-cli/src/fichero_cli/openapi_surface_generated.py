@@ -8855,7 +8855,7 @@ def register_generated_openapi_commands(
                 "survivor_entity_id": survivor_entity_id,
             }, {
                 "candidate_entity_id": {'type': 'string', 'title': 'Candidate Entity Id', 'x-cli-required': True},
-                "method": {'type': 'string', 'enum': ['manual', 'name_variant'], 'title': 'Method', 'default': 'manual', 'x-cli-required': False},
+                "method": {'type': 'string', 'enum': ['manual', 'name_variant', 'duplicate_name'], 'title': 'Method', 'default': 'manual', 'x-cli-required': False},
                 "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
                 "score": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Score', 'description': 'How alike the two are; 0.5 when a person queues it', 'default': 0.5, 'x-cli-required': False},
                 "survivor_entity_id": {'type': 'string', 'title': 'Survivor Entity Id', 'x-cli-required': True},

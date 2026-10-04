@@ -64458,7 +64458,8 @@
             "type": "string",
             "enum": [
               "manual",
-              "name_variant"
+              "name_variant",
+              "duplicate_name"
             ],
             "title": "Method",
             "default": "manual"

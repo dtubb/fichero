@@ -57,8 +57,9 @@ class TestPendingMatchQueueing:
         # Allow zero — exact cosine values shift across embedding
         # model versions. The test still locks the round-trip when
         # in-band hits exist.
+        # #5409: above the old auto-merge line (0.92) a close pair is proposed too, never merged.
         for cand in in_band:
-            assert 0.75 <= cand.score <= 0.92
+            assert 0.75 <= cand.score <= 1.0
             assert cand.method == PendingMatchMethod.embedding_cosine
 
 
