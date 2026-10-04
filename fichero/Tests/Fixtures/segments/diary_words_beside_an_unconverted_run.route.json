@@ -1,0 +1,542 @@
+{
+ "document_id": "doc-0001",
+ "passes": [
+  {
+   "id": "pass-0002",
+   "provisional": false,
+   "document_id": "doc-0001",
+   "name": "transcription",
+   "provenance_kind": "workflow",
+   "provider": "apple",
+   "model": "apple-vision",
+   "run_id": null,
+   "created_at": "2026-09-27T12:00:00Z",
+   "text": "12. 1940 TUESDAY FEBRUARY ",
+   "source_artifact_id": "artifact-0001",
+   "artifact_type": "transcription",
+   "import_file": null,
+   "import_checksum": null,
+   "import_format": null,
+   "has_original": false,
+   "transformation": null,
+   "working": true,
+   "working_basis": "newest-machine-unchosen"
+  },
+  {
+   "id": "pass-0003",
+   "provisional": true,
+   "document_id": "doc-0001",
+   "name": "regions",
+   "provenance_kind": "workflow",
+   "provider": "kraken",
+   "model": "kraken-blla",
+   "run_id": null,
+   "created_at": "2026-09-27T12:00:00Z",
+   "text": null,
+   "source_artifact_id": "artifact-0002",
+   "artifact_type": "regions",
+   "import_file": null,
+   "import_checksum": null,
+   "import_format": null,
+   "has_original": false,
+   "transformation": null,
+   "working": false,
+   "working_basis": null
+  }
+ ],
+ "segments": [
+  {
+   "id": "seg-0004",
+   "provisional": false,
+   "document_id": "doc-0001",
+   "pass_id": "pass-0002",
+   "kind": "word",
+   "kind_raw": null,
+   "parent_segment_id": null,
+   "provenance_kind": "workflow",
+   "anchor": {
+    "document_id": "doc-0001",
+    "page_id": null,
+    "rendition_id": null,
+    "space": "normalized",
+    "rect": [
+     0.1,
+     0.1,
+     0.15,
+     0.05
+    ],
+    "polygon": null,
+    "rotation": 0.0,
+    "shapes": null,
+    "media_ref": null,
+    "char_start": 0,
+    "char_end": 3,
+    "granularity": "word",
+    "refines": null,
+    "segment_id": null,
+    "representation_id": null
+   },
+   "baseline": null,
+   "text": "12.",
+   "confidence": 1.0,
+   "language": null,
+   "script": null,
+   "direction": null,
+   "source_artifact_id": "artifact-0001",
+   "box_index": 0,
+   "page_index": null,
+   "cell": null,
+   "metadata": {
+    "box_index": 0
+   },
+   "version": 1
+  },
+  {
+   "id": "seg-0005",
+   "provisional": false,
+   "document_id": "doc-0001",
+   "pass_id": "pass-0002",
+   "kind": "word",
+   "kind_raw": null,
+   "parent_segment_id": null,
+   "provenance_kind": "workflow",
+   "anchor": {
+    "document_id": "doc-0001",
+    "page_id": null,
+    "rendition_id": null,
+    "space": "normalized",
+    "rect": [
+     0.30000000000000004,
+     0.1,
+     0.15,
+     0.05
+    ],
+    "polygon": null,
+    "rotation": 0.0,
+    "shapes": null,
+    "media_ref": null,
+    "char_start": 4,
+    "char_end": 8,
+    "granularity": "word",
+    "refines": null,
+    "segment_id": null,
+    "representation_id": null
+   },
+   "baseline": null,
+   "text": "1940",
+   "confidence": 1.0,
+   "language": null,
+   "script": null,
+   "direction": null,
+   "source_artifact_id": "artifact-0001",
+   "box_index": 1,
+   "page_index": null,
+   "cell": null,
+   "metadata": {
+    "box_index": 1
+   },
+   "version": 1
+  },
+  {
+   "id": "seg-0006",
+   "provisional": false,
+   "document_id": "doc-0001",
+   "pass_id": "pass-0002",
+   "kind": "word",
+   "kind_raw": null,
+   "parent_segment_id": null,
+   "provenance_kind": "workflow",
+   "anchor": {
+    "document_id": "doc-0001",
+    "page_id": null,
+    "rendition_id": null,
+    "space": "normalized",
+    "rect": [
+     0.5,
+     0.1,
+     0.15,
+     0.05
+    ],
+    "polygon": null,
+    "rotation": 0.0,
+    "shapes": null,
+    "media_ref": null,
+    "char_start": 9,
+    "char_end": 16,
+    "granularity": "word",
+    "refines": null,
+    "segment_id": null,
+    "representation_id": null
+   },
+   "baseline": null,
+   "text": "TUESDAY",
+   "confidence": 1.0,
+   "language": null,
+   "script": null,
+   "direction": null,
+   "source_artifact_id": "artifact-0001",
+   "box_index": 2,
+   "page_index": null,
+   "cell": null,
+   "metadata": {
+    "box_index": 2
+   },
+   "version": 1
+  },
+  {
+   "id": "seg-0007",
+   "provisional": false,
+   "document_id": "doc-0001",
+   "pass_id": "pass-0002",
+   "kind": "word",
+   "kind_raw": null,
+   "parent_segment_id": null,
+   "provenance_kind": "workflow",
+   "anchor": {
+    "document_id": "doc-0001",
+    "page_id": null,
+    "rendition_id": null,
+    "space": "normalized",
+    "rect": [
+     0.7000000000000001,
+     0.1,
+     0.15,
+     0.05
+    ],
+    "polygon": null,
+    "rotation": 0.0,
+    "shapes": null,
+    "media_ref": null,
+    "char_start": 17,
+    "char_end": 25,
+    "granularity": "word",
+    "refines": null,
+    "segment_id": null,
+    "representation_id": null
+   },
+   "baseline": null,
+   "text": "FEBRUARY",
+   "confidence": 1.0,
+   "language": null,
+   "script": null,
+   "direction": null,
+   "source_artifact_id": "artifact-0001",
+   "box_index": 3,
+   "page_index": null,
+   "cell": null,
+   "metadata": {
+    "box_index": 3
+   },
+   "version": 1
+  },
+  {
+   "id": "seg-0008",
+   "provisional": true,
+   "document_id": "doc-0001",
+   "pass_id": "pass-0003",
+   "kind": "line",
+   "kind_raw": null,
+   "parent_segment_id": null,
+   "provenance_kind": "workflow",
+   "anchor": {
+    "document_id": "doc-0001",
+    "page_id": null,
+    "rendition_id": null,
+    "space": "normalized",
+    "rect": [
+     0.1,
+     0.1,
+     0.7,
+     0.06
+    ],
+    "polygon": [
+     [
+      0.1,
+      0.1
+     ],
+     [
+      0.8,
+      0.1
+     ],
+     [
+      0.8,
+      0.16
+     ],
+     [
+      0.1,
+      0.16
+     ]
+    ],
+    "rotation": 0.0,
+    "shapes": null,
+    "media_ref": null,
+    "char_start": null,
+    "char_end": null,
+    "granularity": "line",
+    "refines": null,
+    "segment_id": null,
+    "representation_id": null
+   },
+   "baseline": [
+    [
+     0.1,
+     0.15
+    ],
+    [
+     0.8,
+     0.15
+    ]
+   ],
+   "text": null,
+   "confidence": null,
+   "language": null,
+   "script": null,
+   "direction": null,
+   "source_artifact_id": "artifact-0002",
+   "box_index": 0,
+   "page_index": null,
+   "cell": null,
+   "metadata": {
+    "raw_polygon_px": [
+     [
+      100,
+      100
+     ],
+     [
+      800,
+      100
+     ],
+     [
+      800,
+      160
+     ],
+     [
+      100,
+      160
+     ]
+    ],
+    "raw_baseline_px": [
+     [
+      100,
+      150
+     ],
+     [
+      800,
+      150
+     ]
+    ],
+    "raw_pixel_frame": {
+     "width": 1000,
+     "height": 1000
+    }
+   },
+   "version": null
+  },
+  {
+   "id": "seg-0009",
+   "provisional": true,
+   "document_id": "doc-0001",
+   "pass_id": "pass-0003",
+   "kind": "line",
+   "kind_raw": null,
+   "parent_segment_id": null,
+   "provenance_kind": "workflow",
+   "anchor": {
+    "document_id": "doc-0001",
+    "page_id": null,
+    "rendition_id": null,
+    "space": "normalized",
+    "rect": [
+     0.1,
+     0.2,
+     0.7,
+     0.06
+    ],
+    "polygon": [
+     [
+      0.1,
+      0.2
+     ],
+     [
+      0.8,
+      0.2
+     ],
+     [
+      0.8,
+      0.26
+     ],
+     [
+      0.1,
+      0.26
+     ]
+    ],
+    "rotation": 0.0,
+    "shapes": null,
+    "media_ref": null,
+    "char_start": null,
+    "char_end": null,
+    "granularity": "line",
+    "refines": null,
+    "segment_id": null,
+    "representation_id": null
+   },
+   "baseline": [
+    [
+     0.1,
+     0.25
+    ],
+    [
+     0.8,
+     0.25
+    ]
+   ],
+   "text": null,
+   "confidence": null,
+   "language": null,
+   "script": null,
+   "direction": null,
+   "source_artifact_id": "artifact-0002",
+   "box_index": 1,
+   "page_index": null,
+   "cell": null,
+   "metadata": {
+    "raw_polygon_px": [
+     [
+      100,
+      200
+     ],
+     [
+      800,
+      200
+     ],
+     [
+      800,
+      260
+     ],
+     [
+      100,
+      260
+     ]
+    ],
+    "raw_baseline_px": [
+     [
+      100,
+      250
+     ],
+     [
+      800,
+      250
+     ]
+    ],
+    "raw_pixel_frame": {
+     "width": 1000,
+     "height": 1000
+    }
+   },
+   "version": null
+  },
+  {
+   "id": "seg-0010",
+   "provisional": true,
+   "document_id": "doc-0001",
+   "pass_id": "pass-0003",
+   "kind": "line",
+   "kind_raw": null,
+   "parent_segment_id": null,
+   "provenance_kind": "workflow",
+   "anchor": {
+    "document_id": "doc-0001",
+    "page_id": null,
+    "rendition_id": null,
+    "space": "normalized",
+    "rect": [
+     0.1,
+     0.30000000000000004,
+     0.7,
+     0.06
+    ],
+    "polygon": [
+     [
+      0.1,
+      0.3
+     ],
+     [
+      0.8,
+      0.3
+     ],
+     [
+      0.8,
+      0.36
+     ],
+     [
+      0.1,
+      0.36
+     ]
+    ],
+    "rotation": 0.0,
+    "shapes": null,
+    "media_ref": null,
+    "char_start": null,
+    "char_end": null,
+    "granularity": "line",
+    "refines": null,
+    "segment_id": null,
+    "representation_id": null
+   },
+   "baseline": [
+    [
+     0.1,
+     0.35
+    ],
+    [
+     0.8,
+     0.35
+    ]
+   ],
+   "text": null,
+   "confidence": null,
+   "language": null,
+   "script": null,
+   "direction": null,
+   "source_artifact_id": "artifact-0002",
+   "box_index": 2,
+   "page_index": null,
+   "cell": null,
+   "metadata": {
+    "raw_polygon_px": [
+     [
+      100,
+      300
+     ],
+     [
+      800,
+      300
+     ],
+     [
+      800,
+      360
+     ],
+     [
+      100,
+      360
+     ]
+    ],
+    "raw_baseline_px": [
+     [
+      100,
+      350
+     ],
+     [
+      800,
+      350
+     ]
+    ],
+    "raw_pixel_frame": {
+     "width": 1000,
+     "height": 1000
+    }
+   },
+   "version": null
+  }
+ ]
+}
