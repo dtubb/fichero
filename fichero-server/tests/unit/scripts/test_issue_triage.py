@@ -30,7 +30,8 @@ def test_spec_tags_decide_tracked_and_done(tmp_path):
         "- `x.one` — **[GAP]** (#10) not built\n"
         "- `x.two` — **[OK]** (#20) built\n"
         "- `x.three` — **[OK]** (#30) built\n- `x.four` — **[PARTIAL]** (#30) half\n"
-        "prose that mentions #40 without a tag\n")
+        "prose that mentions #40 without a tag\n"
+        "- `x.five` — **[GAP]** the behaviour\n  ISSUE: #60 on the continuation line\n\nlater prose #70\n")
     (tmp_path / "_TEMPLATE.md").write_text("- `t` — **[GAP]** (#50)\n")
     cited = _mod.spec_citations(tmp_path)
     assert _mod.bucket(_issue(10, "2026-01-01"), cited, TODAY, 14) == "TRACKED"
@@ -38,6 +39,8 @@ def test_spec_tags_decide_tracked_and_done(tmp_path):
     assert _mod.bucket(_issue(30, "2026-01-01"), cited, TODAY, 14) == "TRACKED", "one unbuilt behaviour keeps it open"
     assert _mod.bucket(_issue(40, "2026-01-01"), cited, TODAY, 14) == "STALE", "an untagged mention is not tracking"
     assert 50 not in cited, "templates don't count"
+    assert cited.get(60) == {"GAP"}, "an issue on a behaviour's continuation line is tracked"
+    assert 70 not in cited, "prose after the behaviour ends is not"
 
 
 def test_waiting_and_recent_are_kept():

@@ -32,17 +32,26 @@ WAITING_LABELS = {"needs-your-decision", "needs-your-test", "residue"}
 
 
 def spec_citations(specs_dir: Path = SPECS) -> dict[int, set[str]]:
-    """Issue number -> the set of tags of the behaviour lines that cite it."""
+    """Issue number -> the set of tags of the behaviour bullets that cite it.
+
+    A behaviour is a bullet carrying a state tag; its issue numbers may sit on the tagged line or on
+    its indented continuation lines (many specs write `ISSUE: #N` there). Any line that is not an
+    indented continuation ends the behaviour."""
     cited: dict[int, set[str]] = {}
     for path in specs_dir.rglob("*.md"):
         if path.name.startswith("_"):
             continue
+        current: str | None = None
         for line in path.read_text(encoding="utf-8").splitlines():
-            tag = TAG.search(line)
-            if not tag:
-                continue
-            for number in ISSUE.findall(line):
-                cited.setdefault(int(number), set()).add(tag.group(1))
+            stripped = line.lstrip()
+            continues = line[:1] in (" ", "\t") and not stripped.startswith(("- ", "* "))
+            starts_item = not continues
+            if starts_item:
+                tag = TAG.search(line)
+                current = tag.group(1) if (tag and stripped.startswith(("- ", "* "))) else None
+            if current:
+                for number in ISSUE.findall(line):
+                    cited.setdefault(int(number), set()).add(current)
     return cited
 
 
