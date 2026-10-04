@@ -8039,6 +8039,8 @@ def register_generated_openapi_commands(
         apply: Optional[bool] = typer.Option(None, "--apply/--no-apply", help="Request field: apply."),
         include_reviewed: Optional[bool] = typer.Option(None, "--include-reviewed/--no-include-reviewed", help="Request field: include_reviewed."),
         min_similarity: Optional[float] = typer.Option(None, "--min-similarity", help="Request field: min_similarity."),
+        propose: Optional[bool] = typer.Option(None, "--propose/--no-propose", help="Request field: propose."),
+        spelling_variants: Optional[bool] = typer.Option(None, "--spelling-variants/--no-spelling-variants", help="Request field: spelling_variants."),
     ) -> None:
         """Plan (dry-run) or apply batch entity dedupe via audited merges (POST /api/kg/entity-curation/dedupe)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8048,10 +8050,14 @@ def register_generated_openapi_commands(
                 "apply": apply,
                 "include_reviewed": include_reviewed,
                 "min_similarity": min_similarity,
+                "propose": propose,
+                "spelling_variants": spelling_variants,
             }, {
                 "apply": {'type': 'boolean', 'title': 'Apply', 'description': 'False (default) returns the plan only; true executes every planned merge through the audited entity.merge action.', 'default': False, 'x-cli-required': False},
                 "include_reviewed": {'type': 'boolean', 'title': 'Include Reviewed', 'description': 'By default only unreviewed entities are absorbed; curated rows stay put unless explicitly opted in.', 'default': False, 'x-cli-required': False},
                 "min_similarity": {'type': 'number', 'maximum': 1.0, 'minimum': 0.5, 'nullable': True, 'title': 'Min Similarity', 'description': 'Opt-in fuzzy tier: also group same-type entities whose normalized names reach this SequenceMatcher ratio. Off by default — exact normalized-name/alias collisions only.', 'x-cli-required': False},
+                "propose": {'type': 'boolean', 'title': 'Propose', 'description': 'Put each planned pair into the entity review queue (/api/kg/review/pairs) for a person to accept or reject, instead of merging. A pair already queued, accepted or rejected is skipped.', 'default': False, 'x-cli-required': False},
+                "spelling_variants": {'type': 'boolean', 'title': 'Spelling Variants', 'description': 'Also group same-type entities whose names are the same name written differently (old spelling, accents, the usual abbreviations, titles; kg.entity.variant-spellings-proposed). These are proposed for review, never merged: with apply this is refused.', 'default': False, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -8830,7 +8836,9 @@ def register_generated_openapi_commands(
     def kg_manually_queue_an_entity_pair_for_review_post(
         ctx: typer.Context,
         candidate_entity_id: str = typer.Option(..., "--candidate-entity-id", help="Request field: candidate_entity_id."),
+        method: Optional[str] = typer.Option(None, "--method", help="Request field: method."),
         reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        score: Optional[float] = typer.Option(None, "--score", help="Request field: score."),
         survivor_entity_id: str = typer.Option(..., "--survivor-entity-id", help="Request field: survivor_entity_id."),
     ) -> None:
         """Manually queue an entity pair for review (POST /api/kg/review/pairs)."""
@@ -8839,11 +8847,15 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "candidate_entity_id": candidate_entity_id,
+                "method": method,
                 "reason": reason,
+                "score": score,
                 "survivor_entity_id": survivor_entity_id,
             }, {
                 "candidate_entity_id": {'type': 'string', 'title': 'Candidate Entity Id', 'x-cli-required': True},
+                "method": {'type': 'string', 'enum': ['manual', 'name_variant'], 'title': 'Method', 'default': 'manual', 'x-cli-required': False},
                 "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
+                "score": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Score', 'description': 'How alike the two are; 0.5 when a person queues it', 'default': 0.5, 'x-cli-required': False},
                 "survivor_entity_id": {'type': 'string', 'title': 'Survivor Entity Id', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
