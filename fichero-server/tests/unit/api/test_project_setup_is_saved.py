@@ -32,7 +32,12 @@ def test_saved_answers_and_recipe_come_back_and_live_in_the_project_folder(clien
     r = client.put("/api/recipes/project", json={"answers": ANSWERS, "recipe": recipe})
     assert r.status_code == 200, r.text
     back = client.get("/api/recipes/project").json()
-    assert back["answers"] == ANSWERS and back["recipe"]["steps"] == recipe["steps"]
+    # Kept in today's shape (section 7b): one purpose and one material read as lists of one, and the
+    # script's direction is an answer too. Every other answer comes back as it was sent.
+    expected = {k: v for k, v in ANSWERS.items() if k not in ("purpose", "material")}
+    assert back["answers"] == {**expected, "purposes": ["transcribe"], "materials": ["handwriting"],
+                               "directions": {"Latn": "ltr"}}
+    assert back["recipe"]["steps"] == recipe["steps"]
     assert (Path(test_package) / "recipe" / "recipe.yaml").is_file()
     assert (Path(test_package) / "recipe" / "setup.yaml").is_file()
 

@@ -88,14 +88,28 @@ async def list_jobs() -> JobListResponse:
 
 class AssembleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    purpose: str = Field(description=f"one of: {', '.join(PURPOSE_STEPS)}")
-    languages: list[str] = Field(min_length=1, description="BCP 47 language tags")
-    scripts: list[str] = Field(min_length=1, description="ISO 15924 script codes")
-    material: str = "handwriting"
+    purposes: list[str] = Field(default_factory=list, description=(
+        f"the ticked purposes, any combination, each one of: {', '.join(PURPOSE_STEPS)}; none is 'not-sure'. "
+        "The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)"))
+    purpose: Optional[str] = Field(default=None, description="a single purpose, as before 2026-10-05: read as "
+                                   "a list of one")
+    languages: list[str] = Field(min_length=1, description=(
+        "BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, "
+        "and refused in words otherwise (source.onboard.language-stored-as-tag)"))
+    scripts: list[str] = Field(min_length=1, description="ISO 15924 script codes (or a script's English name)")
+    materials: list[str] = Field(default_factory=list, description=(
+        "handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader "
+        "per kind (source.onboard.material-any-mix)"))
+    material: Optional[str] = Field(default=None, description="a single material, as before 2026-10-05")
+    jobs: list[str] = Field(default_factory=list, description="jobs ticked on their own, beyond the purposes' "
+                            "(GET /api/recipes/jobs)")
+    directions: dict[str, str] = Field(default_factory=dict, description=(
+        "script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own "
+        "(source.onboard.direction-chosen)"))
     pages: int = Field(default=0, ge=0, description="roughly how many pages")
     cloud_allowed: bool = False
     mac_memory_gb: Optional[float] = Field(default=None, description="defaults to this machine's memory")
-    layers: list[str] = Field(default_factory=list, description="layers added beyond the purpose's "
+    layers: list[str] = Field(default_factory=list, description="layers added beyond the purposes' "
                               "(source.onboard.add-layer)")
 
 
@@ -113,15 +127,47 @@ class RecipeCard(BaseModel):
     trainable: bool = False
 
 
+class StepProblem(BaseModel):
+    """Why a step has no model, once, in words a historian reads (`source.onboard.says-no-model`)."""
+
+    kind: str = Field(description="no-model-for-job, no-model-for-script, no-model-for-language, "
+                      "no-reader-for-material, licence-not-accepted, cloud-not-allowed or not-enough-memory")
+    sentence: str = Field(description="one plain sentence; never a model's id, pin or repository")
+    fix: str = Field(description="the fix setup offers as its button: download, choose-cloud, choose-model, "
+                     "allow-cloud or accept-licence")
+    fixes: list[str] = Field(description="every fix that applies, `fix` first")
+    detail: str = Field(description="the rules' own reason, model ids included: for the Inspector and the log")
+
+
+class StepReader(BaseModel):
+    """The reader proposed for one kind of material (`source.onboard.material-any-mix`)."""
+
+    material: str
+    model: Optional[dict[str, Any]] = None
+    card: Optional[RecipeCard] = None
+    runs_on: Optional[str] = None
+    reasons: list[str] = Field(default_factory=list)
+    gap: Optional[str] = None
+    problem: Optional[StepProblem] = None
+
+
 class RecipeStep(BaseModel):
     id: str
     job: str
+    topic: Optional[str] = Field(default=None, description="the topic registry id that explains it (GET /api/topics/{id})")
+    title: Optional[str] = Field(default=None, description="its topic's title")
+    sentence: Optional[str] = Field(default=None, description="its topic's one sentence")
     model: Optional[dict[str, Any]] = None
     card: Optional[RecipeCard] = None
     uses_cloud: bool = False
     runs_on: Optional[str] = None
     reasons: list[str] = Field(default_factory=list)
-    gap: Optional[str] = None
+    gap: Optional[str] = Field(default=None, description="the rules' raw reason; setup shows `problem` instead")
+    problem: Optional[StepProblem] = None
+    material: Optional[str] = Field(default=None, description="with several materials: the kind the step's own "
+                                    "model reads (the default until an override says which applies where)")
+    readers: Optional[list[StepReader]] = Field(default=None, description="with several materials: one reader "
+                                                "per kind ticked")
     layer: Optional[str] = None
     offered_when: Optional[dict[str, Any]] = None
     settings: Optional[dict[str, Any]] = None
@@ -153,11 +199,18 @@ def _this_machine_memory_gb() -> float:
         return 8.0
 
 
+class PurposeJob(BaseModel):
+    id: str = Field(description="the job's registry id")
+    title: str = Field(description="its topic's title")
+
+
 class PurposeInfo(BaseModel):
     id: str
     title: str
     description: str
     runs_by_itself: bool = Field(description="true: its layers run after Start; false: tools are offered")
+    jobs: list[PurposeJob] = Field(default_factory=list, description=(
+        "the jobs it proposes, in step order, by their topic titles (source.onboard.purposes-show-their-jobs)"))
 
 
 class PurposeListResponse(BaseModel):
@@ -167,10 +220,13 @@ class PurposeListResponse(BaseModel):
 
 @router.get("/purposes", response_model=PurposeListResponse)
 async def list_purposes() -> PurposeListResponse:
-    """The purposes setup offers, in order, each with its label and whether it runs by itself
-    (`source.onboard.purpose-first`)."""
+    """The purposes setup offers as checkboxes, in order, each with its label, whether it runs by
+    itself and the jobs it proposes (`source.onboard.purpose-first`)."""
+    from fichero_server.recipes.jobs import get_job
+
     items = [
-        PurposeInfo(id=pid, title=title, description=desc, runs_by_itself=bool(PURPOSE_STEPS[pid]))
+        PurposeInfo(id=pid, title=title, description=desc, runs_by_itself=bool(PURPOSE_STEPS[pid]),
+                    jobs=[PurposeJob(id=j, title=get_job(j).name) for j in PURPOSE_STEPS[pid]])
         for pid, (title, desc) in PURPOSES.items()
     ]
     return PurposeListResponse(items=items, count=len(items))
@@ -334,22 +390,37 @@ async def search_scripts(q: str = "", limit: int = 20) -> NamedCodeList:
     return NamedCodeList(items=items, count=len(items))
 
 
+def normalise_answers(answers: Any, *, strict: bool) -> Any:
+    from fichero_server.recipes.answers import normalise
+
+    return normalise(answers, strict=strict)
+
+
 def _assemble(answers: dict[str, Any]) -> dict[str, Any]:
-    """The rules' recipe for setup's answers (as sent to `/assemble`, or as saved on the project)."""
+    """The rules' recipe for setup's answers (as sent to `/assemble`, or as saved on the project).
+    A language or script given as a word is resolved to its tag first, or refused (ValueError, in
+    words): the rules only ever see tags (`source.onboard.language-stored-as-tag`)."""
+    a = normalise_answers(answers, strict=True)
     return assemble(Answers(
-        purpose=answers.get("purpose") or "not-sure", languages=frozenset(answers.get("languages") or ()),
-        scripts=frozenset(answers.get("scripts") or ()), material=answers.get("material") or "handwriting",
-        pages=answers.get("pages") or 0, cloud_allowed=bool(answers.get("cloud_allowed")),
-        mac_memory_gb=answers.get("mac_memory_gb") or _this_machine_memory_gb(),
-        layers=frozenset(answers.get("layers") or ()),
+        purposes=tuple(a["purposes"]), languages=frozenset(a.get("languages") or ()),
+        scripts=frozenset(a.get("scripts") or ()), materials=tuple(a["materials"]),
+        jobs=tuple(a.get("jobs") or ()),
+        pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
+        mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
+        layers=frozenset(a.get("layers") or ()),
     ), list(seed_cards()))
 
 
 @router.post("/assemble", response_model=AssembledRecipe)
 async def assemble_recipe(request: AssembleRequest) -> AssembledRecipe:
     """The recipe the rules give for these answers, each choice with its reasons and each gap named
-    (`source.onboard.deterministic-recipe`). Proposes; writes nothing."""
-    recipe = _assemble(request.model_dump())
+    once as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).
+    Proposes; writes nothing. Refused with 422, in words, for a language, script, purpose, material,
+    job or direction Fichero does not know."""
+    try:
+        recipe = _assemble(request.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     problems = [] if recipe["gaps"] else check_recipe(recipe)
     return AssembledRecipe(
         fichero_recipe=recipe["fichero_recipe"], version=recipe["version"], suits=recipe["suits"],
@@ -405,9 +476,13 @@ async def save_project_setup(
     ctx: ActionContext = Depends(action_context),
 ) -> ProjectSetup:
     """Save the project's setup answers and recipe (audited, undoable). A null part is removed.
-    Refused with 422 when either holds code or credentials."""
+    The answers are saved in today's shape: `purposes` and `materials` as lists, languages as tags
+    and scripts as codes (a word is resolved to its tag, or refused), and one direction per script.
+    Refused with 422 when either holds code or credentials, or an answer Fichero does not know."""
     try:
-        result = registry.invoke(db, "project.save_setup", request.model_dump(mode="json"), ctx)
+        params = request.model_dump(mode="json")
+        params["answers"] = normalise_answers(params["answers"], strict=True)
+        result = registry.invoke(db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return ProjectSetup(**result.result)

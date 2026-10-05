@@ -5788,16 +5788,20 @@ def fichero_reading_orders_place_in(
 def fichero_recipes_assemble(
     *,
     cloud_allowed: Annotated[Optional[bool], Field(description='Cloud Allowed. Default: false.')] = None,
-    languages: Annotated[list[Any], Field(description='BCP 47 language tags.')],
-    layers: Annotated[Optional[list[Any]], Field(description="layers added beyond the purpose's (source.onboard.add-layer)")] = None,
+    directions: Annotated[Optional[dict[str, Any]], Field(description='script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen)')] = None,
+    jobs: Annotated[Optional[list[Any]], Field(description="jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)")] = None,
+    languages: Annotated[list[Any], Field(description="BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag)")],
+    layers: Annotated[Optional[list[Any]], Field(description="layers added beyond the purposes' (source.onboard.add-layer)")] = None,
     mac_memory_gb: Annotated[Optional[float], Field(description="defaults to this machine's memory.")] = None,
-    material: Annotated[Optional[str], Field(description='Material. Default: "handwriting".')] = None,
+    material: Annotated[Optional[str], Field(description='a single material, as before 2026-10-05.')] = None,
+    materials: Annotated[Optional[list[Any]], Field(description='handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader per kind (source.onboard.material-any-mix)')] = None,
     pages: Annotated[Optional[int], Field(description='roughly how many pages. Default: 0.')] = None,
-    purpose: Annotated[str, Field(description='one of: transcribe, entities, search, knowledge-graph, map-places, edit-corpus, decipher, not-sure.')],
-    scripts: Annotated[list[Any], Field(description='ISO 15924 script codes.')],
+    purpose: Annotated[Optional[str], Field(description='a single purpose, as before 2026-10-05: read as a list of one.')] = None,
+    purposes: Annotated[Optional[list[Any]], Field(description="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)")] = None,
+    scripts: Annotated[list[Any], Field(description="ISO 15924 script codes (or a script's English name)")],
 ) -> Any:
-    'Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\n(`source.onboard.deterministic-recipe`). Proposes; writes nothing.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "languages": languages, "layers": layers, "mac_memory_gb": mac_memory_gb, "material": material, "pages": pages, "purpose": purpose, "scripts": scripts}))
+    'Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nProposes; writes nothing. Refused with 422, in words, for a language, script, purpose, material,\njob or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "jobs": jobs, "languages": languages, "layers": layers, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "scripts": scripts}))
 
 
 def fichero_recipes_check(
@@ -5842,7 +5846,7 @@ def fichero_recipes_save_project_setup(
     answers: Annotated[Optional[dict[str, Any]], Field(description='Answers.')] = None,
     recipe: Annotated[Optional[dict[str, Any]], Field(description='Recipe.')] = None,
 ) -> Any:
-    "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). A null part is removed.\nRefused with 422 when either holds code or credentials.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
+    "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). A null part is removed.\nThe answers are saved in today's shape: `purposes` and `materials` as lists, languages as tags\nand scripts as codes (a word is resolved to its tag, or refused), and one direction per script.\nRefused with 422 when either holds code or credentials, or an answer Fichero does not know.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
 
 
@@ -5886,7 +5890,7 @@ def fichero_recipes_start_project(
 
 def fichero_recipes_list_purposes(
 ) -> Any:
-    'List Purposes\n\nThe purposes setup offers, in order, each with its label and whether it runs by itself\n(`source.onboard.purpose-first`).\n\nRoute: GET /api/recipes/purposes (toolset `recipes`; reads).'
+    'List Purposes\n\nThe purposes setup offers as checkboxes, in order, each with its label, whether it runs by\nitself and the jobs it proposes (`source.onboard.purpose-first`).\n\nRoute: GET /api/recipes/purposes (toolset `recipes`; reads).'
     return _rt.call("GET", "/api/recipes/purposes")
 
 

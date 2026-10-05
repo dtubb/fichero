@@ -26,10 +26,11 @@ from pathlib import Path
 from typing import Any
 
 from fichero_server.execution import jobs
+from fichero_server.recipes.assemble import PURPOSES, TOOL_PURPOSES
 
 KIND = "run-a-recipe"
 #: Purposes that run by themselves after Start (the "just do it" ones; `recipes/assemble.PURPOSES`).
-AUTOMATIC_PURPOSES = frozenset({"transcribe", "entities", "search", "knowledge-graph", "map-places"})
+AUTOMATIC_PURPOSES = frozenset(PURPOSES) - TOOL_PURPOSES
 _CHECK_POLL_SECONDS = 0.5
 
 
@@ -66,7 +67,8 @@ def material_arrived(db: Any, document_ids: list[str]) -> str | None:
     library = _library(db)
     if read_start(library) is None:
         return None
-    if (read_project_setup(library)["answers"] or {}).get("purpose") not in AUTOMATIC_PURPOSES:
+    # Any ticked "just do it" purpose runs the recipe over what the import brought.
+    if AUTOMATIC_PURPOSES.isdisjoint((read_project_setup(library)["answers"] or {}).get("purposes") or ()):
         return None
     plan = _plan(db)
     if plan["refusals"] or not plan["runs"]:

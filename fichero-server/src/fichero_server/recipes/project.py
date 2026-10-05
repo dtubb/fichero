@@ -25,13 +25,18 @@ def _path(library: Path, part: str) -> Path:
 
 
 def read_project_setup(library: Path) -> dict[str, Any]:
-    """`{"answers": ..., "recipe": ...}`, each None when the project has not saved one."""
+    """`{"answers": ..., "recipe": ...}`, each None when the project has not saved one. The answers
+    are read in today's shape (`recipes/answers.py`): a project saved with one `purpose` reads as a
+    list of one, a language name as its tag where it resolves; nothing is lost."""
     import yaml
+
+    from fichero_server.recipes.answers import normalise
 
     out: dict[str, Any] = {}
     for part in _FILES:
         path = _path(library, part)
         out[part] = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
+    out["answers"] = normalise(out["answers"], strict=False)
     return out
 
 

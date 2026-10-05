@@ -12325,7 +12325,7 @@
           "recipes"
         ],
         "summary": "List Purposes",
-        "description": "The purposes setup offers, in order, each with its label and whether it runs by itself\n(`source.onboard.purpose-first`).",
+        "description": "The purposes setup offers as checkboxes, in order, each with its label, whether it runs by\nitself and the jobs it proposes (`source.onboard.purpose-first`).",
         "operationId": "list_purposes_api_recipes_purposes_get",
         "responses": {
           "200": {
@@ -12571,7 +12571,7 @@
           "recipes"
         ],
         "summary": "Assemble Recipe",
-        "description": "The recipe the rules give for these answers, each choice with its reasons and each gap named\n(`source.onboard.deterministic-recipe`). Proposes; writes nothing.",
+        "description": "The recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nProposes; writes nothing. Refused with 422, in words, for a language, script, purpose, material,\njob or direction Fichero does not know.",
         "operationId": "assemble_recipe_api_recipes_assemble_post",
         "requestBody": {
           "content": {
@@ -12675,7 +12675,7 @@
           "recipes"
         ],
         "summary": "Save Project Setup",
-        "description": "Save the project's setup answers and recipe (audited, undoable). A null part is removed.\nRefused with 422 when either holds code or credentials.",
+        "description": "Save the project's setup answers and recipe (audited, undoable). A null part is removed.\nThe answers are saved in today's shape: `purposes` and `materials` as lists, languages as tags\nand scripts as codes (a word is resolved to its tag, or refused), and one direction per script.\nRefused with 422 when either holds code or credentials, or an answer Fichero does not know.",
         "operationId": "save_project_setup_api_recipes_project_put",
         "parameters": [
           {
@@ -45799,10 +45799,19 @@
       },
       "AssembleRequest": {
         "properties": {
+          "purposes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Purposes",
+            "description": "the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)"
+          },
           "purpose": {
             "type": "string",
+            "nullable": true,
             "title": "Purpose",
-            "description": "one of: transcribe, entities, search, knowledge-graph, map-places, edit-corpus, decipher, not-sure"
+            "description": "a single purpose, as before 2026-10-05: read as a list of one"
           },
           "languages": {
             "items": {
@@ -45811,7 +45820,7 @@
             "type": "array",
             "minItems": 1,
             "title": "Languages",
-            "description": "BCP 47 language tags"
+            "description": "BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag)"
           },
           "scripts": {
             "items": {
@@ -45820,12 +45829,37 @@
             "type": "array",
             "minItems": 1,
             "title": "Scripts",
-            "description": "ISO 15924 script codes"
+            "description": "ISO 15924 script codes (or a script's English name)"
+          },
+          "materials": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Materials",
+            "description": "handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader per kind (source.onboard.material-any-mix)"
           },
           "material": {
             "type": "string",
+            "nullable": true,
             "title": "Material",
-            "default": "handwriting"
+            "description": "a single material, as before 2026-10-05"
+          },
+          "jobs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Jobs",
+            "description": "jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)"
+          },
+          "directions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Directions",
+            "description": "script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen)"
           },
           "pages": {
             "type": "integer",
@@ -45851,13 +45885,12 @@
             },
             "type": "array",
             "title": "Layers",
-            "description": "layers added beyond the purpose's (source.onboard.add-layer)"
+            "description": "layers added beyond the purposes' (source.onboard.add-layer)"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "purpose",
           "languages",
           "scripts"
         ],
@@ -70783,6 +70816,14 @@
             "type": "boolean",
             "title": "Runs By Itself",
             "description": "true: its layers run after Start; false: tools are offered"
+          },
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/PurposeJob"
+            },
+            "type": "array",
+            "title": "Jobs",
+            "description": "the jobs it proposes, in step order, by their topic titles (source.onboard.purposes-show-their-jobs)"
           }
         },
         "type": "object",
@@ -70793,6 +70834,26 @@
           "runs_by_itself"
         ],
         "title": "PurposeInfo"
+      },
+      "PurposeJob": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "the job's registry id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "its topic's title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "PurposeJob"
       },
       "PurposeListResponse": {
         "properties": {
@@ -72016,6 +72077,24 @@
             "type": "string",
             "title": "Job"
           },
+          "topic": {
+            "type": "string",
+            "nullable": true,
+            "title": "Topic",
+            "description": "the topic registry id that explains it (GET /api/topics/{id})"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "title": "Title",
+            "description": "its topic's title"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "its topic's one sentence"
+          },
           "model": {
             "additionalProperties": true,
             "type": "object",
@@ -72046,7 +72125,27 @@
           "gap": {
             "type": "string",
             "nullable": true,
-            "title": "Gap"
+            "title": "Gap",
+            "description": "the rules' raw reason; setup shows `problem` instead"
+          },
+          "problem": {
+            "$ref": "#/components/schemas/StepProblem",
+            "nullable": true
+          },
+          "material": {
+            "type": "string",
+            "nullable": true,
+            "title": "Material",
+            "description": "with several materials: the kind the step's own model reads (the default until an override says which applies where)"
+          },
+          "readers": {
+            "items": {
+              "$ref": "#/components/schemas/StepReader"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Readers",
+            "description": "with several materials: one reader per kind ticked"
           },
           "layer": {
             "type": "string",
@@ -79542,6 +79641,48 @@
         ],
         "title": "StepCreateRequest"
       },
+      "StepProblem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "no-model-for-job, no-model-for-script, no-model-for-language, no-reader-for-material, licence-not-accepted, cloud-not-allowed or not-enough-memory"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "one plain sentence; never a model's id, pin or repository"
+          },
+          "fix": {
+            "type": "string",
+            "title": "Fix",
+            "description": "the fix setup offers as its button: download, choose-cloud, choose-model, allow-cloud or accept-licence"
+          },
+          "fixes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fixes",
+            "description": "every fix that applies, `fix` first"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "the rules' own reason, model ids included: for the Inspector and the log"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "sentence",
+          "fix",
+          "fixes",
+          "detail"
+        ],
+        "title": "StepProblem",
+        "description": "Why a step has no model, once, in words a historian reads (`source.onboard.says-no-model`)."
+      },
       "StepProgress": {
         "properties": {
           "node": {
@@ -79589,6 +79730,51 @@
         ],
         "title": "StepProgress",
         "description": "One fanned-out step's per-file outcomes."
+      },
+      "StepReader": {
+        "properties": {
+          "material": {
+            "type": "string",
+            "title": "Material"
+          },
+          "model": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Model"
+          },
+          "card": {
+            "$ref": "#/components/schemas/RecipeCard",
+            "nullable": true
+          },
+          "runs_on": {
+            "type": "string",
+            "nullable": true,
+            "title": "Runs On"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "gap": {
+            "type": "string",
+            "nullable": true,
+            "title": "Gap"
+          },
+          "problem": {
+            "$ref": "#/components/schemas/StepProblem",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "material"
+        ],
+        "title": "StepReader",
+        "description": "The reader proposed for one kind of material (`source.onboard.material-any-mix`)."
       },
       "StepStatus": {
         "type": "string",

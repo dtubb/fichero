@@ -411,6 +411,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/observability/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/observability/episodes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/page_export.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/answers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/assemble.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/derived.py

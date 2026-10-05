@@ -12071,12 +12071,16 @@ def register_generated_openapi_commands(
     def recipes_assemble_post(
         ctx: typer.Context,
         cloud_allowed: Optional[bool] = typer.Option(None, "--cloud-allowed/--no-cloud-allowed", help="Request field: cloud_allowed."),
+        directions: Optional[str] = typer.Option(None, "--directions", help="Request field: directions."),
+        jobs: Optional[str] = typer.Option(None, "--jobs", help="Request field: jobs."),
         languages: str = typer.Option(..., "--languages", help="Request field: languages."),
         layers: Optional[str] = typer.Option(None, "--layers", help="Request field: layers."),
         mac_memory_gb: Optional[float] = typer.Option(None, "--mac-memory-gb", help="Request field: mac_memory_gb."),
         material: Optional[str] = typer.Option(None, "--material", help="Request field: material."),
+        materials: Optional[str] = typer.Option(None, "--materials", help="Request field: materials."),
         pages: Optional[int] = typer.Option(None, "--pages", help="Request field: pages."),
-        purpose: str = typer.Option(..., "--purpose", help="Request field: purpose."),
+        purpose: Optional[str] = typer.Option(None, "--purpose", help="Request field: purpose."),
+        purposes: Optional[str] = typer.Option(None, "--purposes", help="Request field: purposes."),
         scripts: str = typer.Option(..., "--scripts", help="Request field: scripts."),
     ) -> None:
         """Assemble Recipe (POST /api/recipes/assemble)."""
@@ -12085,22 +12089,30 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "cloud_allowed": cloud_allowed,
+                "directions": directions,
+                "jobs": jobs,
                 "languages": languages,
                 "layers": layers,
                 "mac_memory_gb": mac_memory_gb,
                 "material": material,
+                "materials": materials,
                 "pages": pages,
                 "purpose": purpose,
+                "purposes": purposes,
                 "scripts": scripts,
             }, {
                 "cloud_allowed": {'type': 'boolean', 'title': 'Cloud Allowed', 'default': False, 'x-cli-required': False},
-                "languages": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Languages', 'description': 'BCP 47 language tags', 'x-cli-required': True},
-                "layers": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Layers', 'description': "layers added beyond the purpose's (source.onboard.add-layer)", 'x-cli-required': False},
+                "directions": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'title': 'Directions', 'description': 'script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen)', 'x-cli-required': False},
+                "jobs": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Jobs', 'description': "jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)", 'x-cli-required': False},
+                "languages": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Languages', 'description': "BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag)", 'x-cli-required': True},
+                "layers": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Layers', 'description': "layers added beyond the purposes' (source.onboard.add-layer)", 'x-cli-required': False},
                 "mac_memory_gb": {'type': 'number', 'nullable': True, 'title': 'Mac Memory Gb', 'description': "defaults to this machine's memory", 'x-cli-required': False},
-                "material": {'type': 'string', 'title': 'Material', 'default': 'handwriting', 'x-cli-required': False},
+                "material": {'type': 'string', 'nullable': True, 'title': 'Material', 'description': 'a single material, as before 2026-10-05', 'x-cli-required': False},
+                "materials": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Materials', 'description': 'handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader per kind (source.onboard.material-any-mix)', 'x-cli-required': False},
                 "pages": {'type': 'integer', 'minimum': 0.0, 'title': 'Pages', 'description': 'roughly how many pages', 'default': 0, 'x-cli-required': False},
-                "purpose": {'type': 'string', 'title': 'Purpose', 'description': 'one of: transcribe, entities, search, knowledge-graph, map-places, edit-corpus, decipher, not-sure', 'x-cli-required': True},
-                "scripts": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Scripts', 'description': 'ISO 15924 script codes', 'x-cli-required': True},
+                "purpose": {'type': 'string', 'nullable': True, 'title': 'Purpose', 'description': 'a single purpose, as before 2026-10-05: read as a list of one', 'x-cli-required': False},
+                "purposes": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Purposes', 'description': "the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)", 'x-cli-required': False},
+                "scripts": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Scripts', 'description': "ISO 15924 script codes (or a script's English name)", 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
