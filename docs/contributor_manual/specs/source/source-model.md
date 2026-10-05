@@ -252,6 +252,50 @@ The same stored segments serve every use. No use gets its own copy:
 Moving around is the same everywhere: up to the parent, down to the children, next and
 previous in a reading order, across a link.
 
+### Every output comes into the page (ruled 2026-10-05, #5467; proposal below awaits the maintainer)
+
+**The ruling.** A page has one canonical model: its segments (region, line, word, letter, each
+the child of the one above) and what stands on them. Every artifact and output is brought into
+that model and tied back to its segments; none stays a loose file the page cannot use. The Source
+view, the Segments list and the Reader read that one page; focusing an artifact shows that
+artifact's pass within it, and all three follow together.
+
+**What each producer writes today (audit, read on disk 2026-10-05).** Five kinds of result:
+(1) a pass of segments, (2) readings on existing segments, (3) statements or names anchored to
+the page, (4) a loose artifact, (5) nothing kept.
+
+| Producer | Writes | Gap | Issue |
+|---|---|---|---|
+| File import (PAGE, ALTO, hOCR, TEI, plain, YOLO, IIIF) | 1 + 2, full hierarchy, letters from PAGE Glyph | TEI names do not become names | — |
+| Line finding (Kraken, Apple, VLM boxes) | 1, flat | Kraken's regions dropped; no nesting | #5487, #5489 |
+| Reading lines (Kraken reader, line reader) | 1 + 2, its own new pass | re-segments instead of reading the find-lines pass | #5487 |
+| Reading a page (LLM Transcribe) | 4, page text | no pass; export refuses the page; the converter (`tie_text`) is not a recipe step | #5444 |
+| Correcting (Paleographer Review) | 4, page-level, overwrites page text | corrections never become readings on lines | #5486 |
+| Checking | 2, verdicts and corrections on segments | none: the model for the rest | — |
+| Names | 3, tied to the document only | spans discarded; no mention on a segment | #5488 |
+| Statements | 3, page text offsets and an optional rect | no segment anchor | #4932 |
+| Conversion of results (#5222) | 1 + 2, flat | no `parent_segment_id`; no letter level | #5489 |
+| Translation, dates, places, catalogue, tables, speech | 4 (no recipe card for 17 jobs) | loose artifacts | #5490 |
+| DOCX, Markdown, slip box, Fichero 1.0 | 4, page text | no pass | #5222 |
+
+**The proposal (for the maintainer to rule).**
+- *Text comes in on lines.* Any page-level text (an LLM reading, a correction, a DOCX draft, a
+  legacy transcription) is tied to the working pass's lines by one converter (`checking/tie_text.py`),
+  run automatically after the step that made it, and written as readings on those lines. The page
+  text is then derived from the lines, never stored beside them.
+- *One line pass per page, read many times.* Finding lines makes the pass; reading, correcting and
+  checking add readings to its segments; they never make a second line pass.
+- *Nesting at conversion.* A converted result nests by containment (word in line in region), keeps
+  the regions a model found, and has a letter level where the model gives letters.
+- *Names and statements stand on segments.* A name found is a mention: a segment and a stretch of
+  its reading (character offsets). A statement rests on the mentions it joins.
+- *Every other output names its anchor before it is built.* Translation is a reading of kind
+  translation on a line; a date or a place is a mention; a table row is its cells' segments; speech
+  is a time segment. A kind of output with no anchor is not built until it has one.
+
+Not built: every row with an issue above. The order proposed: #5487 and #5444 (one line pass,
+text onto lines), then #5486, then #5489, then #5488 and #4932, then #5490.
+
 ## What exists today (read on disk 2026-09-19; corrected the same night after an independent check of every claim against the code)
 
 Citations are to `fichero-server/src/fichero_server/` (engine) and `fichero/fichero/` (app).
