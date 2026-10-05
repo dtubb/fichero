@@ -502,7 +502,10 @@ left open a separate project settings window: there is none.)
 Setup's first question is the purpose, in plain words. "AUTO" means the layer runs by itself on
 material added to this project. "off" means it does not run by itself; it is still there to run
 by hand or to add later. A purpose changes **what is offered first and what runs by itself,
-never what can be reached** (ruled 2026-10-01: offer first, never hide).
+never what can be reached** (ruled 2026-10-01: offer first, never hide). **Ruled 2026-10-05
+(#5478): purposes are checkboxes, any combination, each a set of jobs; a project's layers are the
+union of its ticked purposes'.** The purposes setup offers, and the jobs each proposes, are in
+section 7b, screen 2; the table below is the layer view of the original eight.
 
 | Purpose | Lines and regions | Reading | Entities | Search vectors | Knowledge graph | Kind |
 |---|---|---|---|---|---|---|
@@ -530,8 +533,9 @@ steps of that layer and runs them over everything already in the project, as one
 
 ### 7. Setup, screen by screen
 
-**The step order below is provisional: to be aligned with the maintainer's step document
-(2026-10-02),** which will be the source for the order and wording of the steps. What is fixed
+**Superseded for the screens and their order by section 7b (ruled 2026-10-05, #5477 to
+#5482).** The table below is the original proposal, kept for what each screen works out rather
+than asks. What is fixed
 is what the steps must collectively do: ask the purpose first, count or ask the volume, ask at
 most five facts, show the recipe with its reasons and estimates, offer the bake-off, and run
 nothing before Start.
@@ -621,6 +625,169 @@ the topics are what must be covered somewhere along the way.
 plain description, its example's recipe (which sample to show and how), and its trade-offs. The
 same text appears in setup, in the Inspector beside the setting it explains, in the recipe's
 README and in the user manual. A new job or topic explains itself in all four by being registered.
+
+### 7b. Setup, round 2: the screens as the next build makes them (ruled 2026-10-05)
+
+The maintainer tested the five-screen setup built on 2026-10-04 and 2026-10-05 and ruled on it
+(#5477 to #5482). **This section is the one home for setup's screens**: it supersedes the
+provisional table of section 7 and the order in `source.onboard.screens-in-order`; other specs
+link here and do not restate it. Each screen's behaviours are the `source.onboard.*` lines under
+"Setup" below, each citing its issue.
+
+**What is built today, read on disk 2026-10-05.** First run's setup store is the app-wide one
+(`AppState` makes `RecipeSetupStore(client: ficheroClient)`), whose client sends no project path,
+so `GET`/`PUT /api/recipes/project` answer 400 and Start never enables (#5477). A project made from
+File › New Library… goes through `LibraryManager.createProject(at:)` (a save panel, then
+`POST /api/library` when the engine first opens it); first run has no such step (#5482). The
+engine's `assemble()` takes one purpose and one material (`Answers.purpose`, `Answers.material`
+in `recipes/assemble.py`); the Purpose screen is a single choice and the material a single-choice
+menu. Languages and scripts are searched (`GET /api/recipes/languages`, `/scripts`) but a typed
+word is kept as typed, so "spanish" reached the rules and every reader was refused because cards
+list tags ("es") (#5479). Direction is shown, worked out from the script, never chosen. Each
+step's topic sentence has its paragraph behind a disclosure, and a step with no model shows the
+rules' raw reason, model ids and all, twice (#5481). Setup offers Link, Copy, Move and Index; the
+engine's folder import with `mode: index` adopts the folder as a synced folder (#4952), but the
+app never calls `/api/sync-folders`, so an indexed folder's intake is never shown or switched on
+(#5480).
+
+**Rulings (2026-10-05, the maintainer, testing setup):**
+- First run asks where the project lives, makes it there, and saves everything after into it
+  (#5482, #5477).
+- Purposes are checkboxes: a project can be for any combination; each purpose is a set of jobs
+  (#5478).
+- "Nothing runs automatically" is a screen of its own (#5478).
+- A fifth way in, **Keep arranged**: like Index, the folder stays where it is, but Fichero manages
+  the whole folder and keeps the files in it stored logically (#5480).
+- Languages, scripts **and direction** are chosen in setup; languages and scripts each have search
+  (autocomplete) and a menu to browse; several at once, shown as tokens; a language is stored as
+  its tag (#5479).
+- Material (handwriting, print, typescript) is checkboxes, any mix; the recipe proposes a reader
+  for each kind present (#5478).
+- No More or Advanced disclosure chevrons anywhere in setup; one sentence per step; a step's
+  problem is shown once, in words a historian reads, with the fix as a button; never a raw model
+  id (#5481).
+
+**The screens, in order.** Back and Continue on every screen; Continue saves the answers so far
+into the project as a draft (`PUT /api/recipes/project`, through the project's own client);
+nothing runs before Start. Set Up… on an existing project starts at screen 2 (the project already
+lives somewhere).
+
+1. **Where it lives** (#5482). One line: the project's name (default "My Project") and its folder,
+   proposed as `~/Documents/Fichero/` (see Open questions), with **Choose…**, which opens a save
+   panel. Continue makes the `.fichero` package there through the one create path
+   (`LibraryManager.createProject(at:)`, which grants the folder and has the engine open it with
+   `POST /api/library`), and from then on setup reads and writes through **that project's**
+   client, the same path as Set Up… from a project. A location that cannot be written is refused
+   on this screen in words ("Fichero can't write to that folder. Choose another."), and the
+   person stays on it. This is what fixes the first-run 400 (#5477): there is always a project to
+   save to.
+2. **What it is for** (#5478). The engine's purposes as **checkboxes**, any combination; none
+   ticked is "Not sure yet" (the tools are offered when wanted; nothing is proposed). Under each
+   ticked purpose, its jobs in one line each, by their topic titles ("Find lines · Read each line ·
+   Correct"). The recipe is the union of the ticked purposes' jobs, each once, in the registry's
+   step order. The purposes and their jobs:
+
+   | Purpose (checkbox) | Jobs it proposes (registry ids) |
+   |---|---|
+   | Transcribe | `find-lines`, `read-a-line`, `correct` |
+   | People, places and things | the above + `find-names-tag-words` (entity kinds chosen on screen 5) |
+   | Search my sources | the above transcribe jobs + `make-a-vector` |
+   | Statements (who did what to whom) | transcribe jobs + `find-names-tag-words`, `find-statements` (subject, verb, object) |
+   | The full knowledge graph | transcribe jobs + `find-names-tag-words`, `work-out-dates`, `find-statements`, `link-to-authorities`, `make-a-vector` |
+   | Map places | transcribe jobs + `find-names-tag-words`, `place-in-a-gazetteer` (checks each place against the gazetteer), shown on the map |
+   | Translate or normalise | transcribe jobs + `translate-transliterate-normalise` |
+   | Gather quotations | transcribe jobs + `pull-out-passages` |
+   | Catalogue my sources | transcribe jobs + `describe-for-the-catalogue`, `work-out-dates` |
+   | Tables and forms | `find-regions`, `find-a-tables-cells`, `read-a-line`, `extract-to-a-table` |
+   | Edit a corpus | `find-lines`, `read-a-line` (then tools, nothing more by itself) |
+   | Decipher a script | `find-signs`, `identify-signs` offered as tools; nothing proposed to run |
+
+   Jobs any purpose may add, offered on screen 6 as "Also on hand" (never hidden, as
+   `source.onboard.offers-never-hides`): `prepare-the-image` (clean up images: crop, straighten,
+   brighten), `split-pages`, `put-in-order` (reading order), `refine-shapes`, `check`, `export`,
+   `publish`, `train-a-model`. **Hands** (telling one writer's hand from another) has no job in the
+   registry today (`recipes/seed/topics.yaml`), so setup does not offer it; see Open questions.
+   The five new purposes (Statements, Translate or normalise, Gather quotations, Catalogue, Tables
+   and forms) are proposed by this spec, not yet ruled (Open questions). The engine's `assemble()`
+   and the saved answers take a **list** of purposes (`answers.purposes`); a project saved with one
+   `purpose` reads as a list of one.
+3. **Your material** (#5480). How material comes in, five ways, each with one sentence of what it
+   does to the originals: **Link** (default; read where they are, never changed), **Copy** (the
+   project keeps its own copy), **Move** (the files move into the project; the originals go),
+   **Index** (the folder stays where it is; Fichero writes its changes back into it and takes in
+   files added to it after a preview), and **Keep arranged** (as Index, and Fichero also keeps the
+   files in the folder arranged; below). Then Add a Folder… or Add Files…, a IIIF manifest, or
+   "later"; the page count (counted, or asked in bands only when it cannot be counted). Choosing
+   Index or Keep arranged with a folder ties that folder through `/api/sync-folders` and shows it
+   (its path, how many files, intake on or off with the preview's count), so Index is whole, not
+   only a recorded mode.
+4. **What it is** (#5479, #5478). Four rows, each pre-filled where the samples or the engine can
+   say, each changeable:
+   - **Languages**: a search field that autocompletes from the engine's language registry (ISO
+     639-3 joined with Glottolog; typing "spanish" offers Spanish `es`, and its dialects with whose
+     dialect each is) and a **Browse…** menu (by family, then language, from the same registry) for
+     a person who knows neither the name in English nor the code. Each chosen language is a token
+     (a lozenge with its name; its tag shown on hover); several at once; a token is removed with
+     its ×. What is saved is the **tag** (`es`, `la`, a private-use tag for a Glottolog-only
+     language), never the typed word.
+   - **Scripts**: the same, from ISO 15924 (search by name or code; Browse… by region of the world),
+     tokens, the code saved (`Latn`, `Arab`).
+   - **Direction**: chosen, pre-filled from the scripts (the engine's derived fact, with where it
+     came from): left to right, right to left, top to bottom (columns right to left), top to bottom
+     (columns left to right). With several scripts, one direction per script.
+   - **Material**: checkboxes **Handwriting**, **Print**, **Typescript**, any mix (at least one,
+     default Handwriting), with "roughly when" beside them. The recipe proposes a reader for each
+     kind ticked, and a project with more than one kind gets one reader per kind (a folder or page
+     override says which applies where; until it is known, the handwriting reader is the default).
+   The derived facts (fonts a script needs, may-be-vertical) stay as one line under the script
+   row.
+5. **The details a job needs** (#5478). One short screen for each ticked job that needs an answer
+   the engine cannot work out, and only for those; none of them appears for a job not ticked:
+   - **Entities** (`find-names-tag-words`): which kinds to find, as checkboxes: people, places,
+     organisations, dates, things (objects, goods), events, and the project's own kinds; default
+     people and places.
+   - **Translate or normalise** (`translate-transliterate-normalise`): into which language (the
+     same language field as screen 4) and how far: as written, abbreviations expanded, or
+     normalised spelling.
+   - **Gazetteer** (`place-in-a-gazetteer`, Map places): which gazetteer (GeoNames, Wikidata, the
+     project's own list) and the region and period to favour.
+   - **Catalogue** (`describe-for-the-catalogue`): which catalogue fields, from the project's
+     metadata fields.
+   - **Tables** (`extract-to-a-table`): the columns, from the project's metadata fields or typed.
+   Cleaning up images, reading order, dates and statements need no screen: their settings have
+   defaults and live in the Inspector.
+6. **How it will be done** (#5481). The proposed recipe, one row per step: the step's title and
+   **one sentence** from its topic in the registry (`GET /api/topics`), where it runs, and the
+   model by its card's display name (never its id, pin or repository path). **No disclosure
+   chevrons**: no More, no Advanced; the topic's paragraph and example belong in the Inspector and
+   the manual. A step that cannot run shows its problem **once**, on its own row, in words built
+   from the rule that refused it ("No reading model here knows Spanish yet."), with the fix as
+   a button ("Download a Spanish reader…", "Use a cloud model…", "Choose a model…"); the reason as
+   the rules wrote it goes to the log and the Inspector, not here. The cloud question is here, once,
+   only when a step would use the cloud. "Also on hand" lists the other jobs (screen 2) as rows the
+   person can add.
+7. **What runs by itself** (#5478). Its own screen. At the top, one choice: **Nothing runs
+   automatically** (new material waits for a run by hand) or **New material runs through
+   the ticked steps**. Below, each step of the recipe with a checkbox, pre-ticked by the purposes'
+   kind (a just-do-it purpose ticks its steps; Edit a corpus, Decipher and none ticked tick
+   nothing). It says plainly what Start does and what import does: **Start** runs the recipe once
+   over the material already in the project (the first yes; screen 8 lists what that is); **after
+   Start**, each import runs only the ticked steps over the pages it brought, and with Nothing runs
+   automatically, an import runs nothing; an unticked step runs only when the person runs it.
+   A train step is ticked only if the person ticks it (`source.recipe.train-never-automatic`).
+8. **Start** (#5477). Unchanged from today (the summary, the plan's pages and cost, Start as the
+   first yes), with one requirement: it works in first run, through the project made on screen 1.
+
+**Keep arranged (#5480, specified here; its questions are under Open questions).** Keep arranged
+is Index plus arrangement: the folder is tied as a synced folder (as Index), and Fichero also owns
+where files sit inside it. It arranges by a rule chosen in setup (see Open questions: the
+project's structure, date, or a written rule); it **moves and renames files only inside that
+folder**, never out of it and never deletes one; each arrangement is one audited, undoable action
+listing every move (old path, new path), and undo puts every file back; a file added from outside
+(Finder, a scanner) is taken in by intake after its preview and then moved into place by the same
+rule; a file the person moves by hand is left where they put it and recorded as placed by hand
+(Fichero does not fight the person). Before the first arrangement, setup shows how many files
+would move and a sample of the new paths, and nothing moves until the person says yes.
 
 ### 8. How the recipe is assembled: rules first, measurement second
 
@@ -1562,12 +1729,38 @@ Profiles (the defaults section of a recipe)
   licences.
 
 Purposes and layers
-- `source.onboard.purpose-first` — **[PARTIAL]** (#4951) **Built 2026-10-03 (app + engine):** first run's Purpose step lists the engine's purposes (GET /api/recipes/purposes) before material; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`, `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. setup's first screen asks the purpose, from the
-  table's purposes in plain words, "Not sure yet" included; the purpose is stored on the project
-  and shown in its Inspector.
-- `source.onboard.purpose-sets-layers` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** purpose to steps in `assemble()` (`PURPOSE_STEPS`); running layers automatically at import is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the purpose decides which layers run at
-  import, as the table says: the NLP layer runs by itself only where the purpose uses entities, and
-  lines only where it includes them (refines the NLP and Kraken rulings, 2026-10-01).
+- `source.onboard.purpose-first` — **[GAP]** (#4951, #5478) *Built 2026-10-03 (app + engine), as a single choice: first run's Purpose step lists the engine's purposes (GET /api/recipes/purposes) before material; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`, `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. Ruled 2026-10-05 (#5478): checkboxes, not a single choice.* setup's first question after where the project lives asks
+  what it is for, as **checkboxes** over the purposes of section 7b (screen 2), any combination;
+  none ticked is "Not sure yet"; the purposes are saved on the project as a list
+  (`answers.purposes`; a saved single `purpose` reads as a list of one) and shown in its Inspector.
+- `source.onboard.purpose-sets-layers` — **[GAP]** (#4951, #5478) *Built 2026-10-03 (engine), for one purpose: purpose to steps in `assemble()` (`PURPOSE_STEPS`); pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. `assemble()` takes one purpose (`Answers.purpose`).* the
+  recipe's steps are the **union** of the ticked purposes' jobs, each once, in the registry's step
+  order; `assemble()` and `POST /api/recipes/assemble` take a list of purposes, and the same list
+  in any order gives the same recipe. The NLP layer is proposed only where a ticked purpose uses
+  entities, and lines only where one includes them (refines the NLP and Kraken rulings,
+  2026-10-01). *Test:* purposes [transcribe, map-places, search] assemble find-lines, read-a-line,
+  correct, find-names-tag-words, place-in-a-gazetteer, make-a-vector, each once.
+- `source.onboard.purposes-show-their-jobs` — **[GAP]** (#5478) under each ticked purpose, setup
+  lists the jobs it proposes, one line, by their topic titles from the registry; the purposes
+  offered are those of section 7b, screen 2 (the original eight, with Statements, Translate or
+  normalise, Gather quotations, Catalogue my sources and Tables and forms proposed); a job not in the
+  registry (hands, today) is never offered. *Test:* ticking Map places shows Find lines, Read each
+  line, Correct, Find names, Place in a gazetteer.
+- `source.onboard.job-detail-screens` — **[GAP]** (#5478) a ticked job that needs an answer the
+  engine cannot work out gets one short screen of its own after What it is, and only then: entity
+  kinds (checkboxes; default people and places), translate or normalise (into which language, how
+  far), gazetteer (which one, region and period), catalogue fields, table columns; an unticked job
+  never shows its screen; image clean-up, reading order, dates and statements have no screen (their
+  defaults live in the Inspector). *Test:* purposes [transcribe] show no detail screen; adding
+  People, places and things shows the entity-kinds screen once.
+- `source.onboard.what-runs-by-itself` — **[GAP]** (#5478) "What runs by itself" is its own screen
+  before Start: **Nothing runs automatically** or **New material runs through the ticked steps**,
+  then each recipe step with a checkbox pre-ticked by its purposes' kind (none ticked for Edit a
+  corpus, Decipher, or no purpose); it says that Start runs the recipe once over the material
+  already there, that after Start each import runs only the ticked steps over the pages it brought
+  (none with Nothing runs automatically), and that an unticked step runs only by hand; the choice is saved with the project (`answers.automatic`) and
+  read by the import hand-off (`source.onboard.just-do-it`). *Test:* with Nothing runs
+  automatically, an import after Start queues no recipe run.
 - `source.onboard.offers-never-hides` — **[PARTIAL]** (#4951) **Built 2026-10-04 (app):** setup's
   How It Will Be Done screen offers every job the registry knows (`RecipeSetupStore.offeredJobs`):
   the purpose's recipe steps first, in the recipe's order, then the rest, in the registry's order,
@@ -1621,9 +1814,30 @@ Purposes and layers
   on, with whether each may use the cloud, and is never written by hand.
 
 Setup
-- `source.onboard.widget-and-search` — **[PARTIAL]** (#4951) **Built 2026-10-03:** the Your Material step searches languages and scripts through the engine (2026-10-04: `RecipeSetupStore.searchLanguages`/`searchScripts`; a dialect shows whose dialect it is, a Glottolog-only language is kept as a private-use tag). The engine searches ISO 639-3 joined with Glottolog 5.3 (CC BY 4.0, vendored; languages ISO lacks and about 13,000 dialects, each answer with its BCP 47 tag and glottocode kept apart) and every ISO 15924 script: `GET /api/recipes/languages`, `/scripts`, `fichero-server/tests/unit/api/test_setup_searches_languages_and_scripts.py` and `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. setup is a form with search beside each
-  field, not a conversation.
-- `source.onboard.screens-in-order` — **[PARTIAL]** (#4951) **Built 2026-10-04 (app):** first run
+- `source.onboard.widget-and-search` — **[GAP]** (#4951, #5479) **Built 2026-10-03:** the Your Material step searches languages and scripts through the engine (2026-10-04: `RecipeSetupStore.searchLanguages`/`searchScripts`; a dialect shows whose dialect it is, a Glottolog-only language is kept as a private-use tag). The engine searches ISO 639-3 joined with Glottolog 5.3 (CC BY 4.0, vendored; languages ISO lacks and about 13,000 dialects, each answer with its BCP 47 tag and glottocode kept apart) and every ISO 15924 script: `GET /api/recipes/languages`, `/scripts`, `fichero-server/tests/unit/api/test_setup_searches_languages_and_scripts.py` and `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. *Not built (ruled 2026-10-05, #5479): the field is free text; no browse menu; one value, not tokens.* setup is a form with search beside each
+  field, not a conversation: languages and scripts each autocomplete from the engine's registries
+  as the person types (ISO 639-3 with Glottolog; ISO 15924), **and** each has a Browse… menu
+  (languages by family, scripts by region) for a person who knows neither the code nor the English
+  name; several can be chosen at once, each shown as a token with its name (its tag or code on
+  hover) and removed with its ×. *Test:* typing "spanish" offers Spanish (es); choosing it and
+  Latin shows two tokens.
+- `source.onboard.language-stored-as-tag` — **[GAP]** (#5479) what setup saves for a language is
+  its tag (`es`, `la`, a private-use tag for a Glottolog-only language) and for a script its ISO
+  15924 code, never the typed word; the engine, given a word that is not a tag (a project saved
+  before this, or a call from MCP or the command line), resolves it to the tag when exactly one
+  language has that name and otherwise refuses in words ("Fichero doesn't know the language
+  'spanish'. Choose it from the list."), never passing the word to the rules. *Test:* saving
+  languages ["spanish"] stores ["es"], and the recipe proposes a reader whose card lists `es`.
+- `source.onboard.direction-chosen` — **[GAP]** (#5479) direction is chosen in setup, pre-filled from
+  each chosen script (the engine's derived fact, with where it came from) and changeable: left to
+  right, right to left, top to bottom with columns right to left, or with columns left to right;
+  one per script; saved on the project (`answers.directions`) and read by the steps that need it.
+  *Test:* choosing Arab pre-fills right to left; changing it to left to right is saved.
+- `source.onboard.material-any-mix` — **[GAP]** (#5478) material is checkboxes, Handwriting, Print and
+  Typescript, any mix (at least one; default Handwriting), saved as a list (`answers.materials`);
+  the rules propose a reader for each kind ticked, and a card's `material` must cover the kind its
+  step reads. *Test:* materials [handwriting, print] assemble two reading choices, one per kind.
+- `source.onboard.screens-in-order` — **[GAP]** (#4951, #5477, #5478, #5481, #5482) *Superseded 2026-10-05 by section 7b's order (below).* **Built 2026-10-04 (app):** first run
   and Set Up… run one list (`FirstRunStep.setUpSteps`): What are you doing? → Your material (how
   sources come in, Add a Folder…, roughly how many pages) → What it is (languages, scripts, the
   facts worked out for them, the kind of material) → How it will be done (the proposed recipe, the
@@ -1633,11 +1847,13 @@ Setup
   maintainer's ruling:* section 7's order, with screen 5 (Check on your pages) left out until the
   evaluation job exists (#5441; engine), and the draft saved on Continue rather than on every
   keystroke. Not built: screen 5; the order is still to be aligned with the maintainer's step
-  document. setup asks the purpose first and shows
-  Start last, with its screens in one fixed order (provisionally the six of section 7; to be
-  aligned with the maintainer's step document of 2026-10-02); it can be closed at any screen with
-  the answers kept as a draft, and nothing runs before Start.
-- `source.onboard.teaches-the-method` — **[PARTIAL]** (#4951, #5471) **Engine built 2026-10-04:** each
+  document. setup's screens run in one fixed order (ruled 2026-10-05, section 7b): Where it lives
+  → What it is for → Your material → What it is → the details a ticked job needs (only those) → How
+  it will be done → What runs by itself → Start; Set Up… on an existing project starts at What it
+  is for; it can be closed at any screen with the answers kept as a draft in the project, and
+  nothing runs before Start. *Test:* first run with purposes [transcribe] walks exactly those
+  screens, without a detail screen.
+- `source.onboard.teaches-the-method` — **[GAP]** (#4951, #5471, #5481) **Engine built 2026-10-04:** each
   topic of section 7a has a title, one sentence, a paragraph and the example to show, served by
   `GET /api/topics` and `GET /api/topics/{id}` from `fichero-server/src/fichero_server/recipes/seed/topics.yaml`;
   pinned by `fichero-server/tests/unit/recipes/test_topic_registry.py`. **App built 2026-10-05:**
@@ -1649,7 +1865,14 @@ Setup
   of section 7a (languages, scripts, fonts, glyphs and Unicode, a faithful way to write the script,
   finding sources, models and memory, Kraken, layout, tables, workflows and recipes, entities,
   statements, maps, calendars, normalisation, output formats, fine-tuning, remote compute) with an
-  example from the person's own pages where there are some.
+  example from the person's own pages where there are some. **Ruled 2026-10-05 (#5481):** in setup,
+  each step and field shows its topic's **one sentence** only; the paragraph and example are shown
+  in the Inspector and the manual, not behind a disclosure in setup (the 2026-10-05 build's
+  disclosure is removed).
+- `source.onboard.no-disclosure` — **[GAP]** (#5481) setup has no More, Advanced or other disclosure
+  chevron on any screen; what is worth showing is shown, and the rest lives in the Inspector and the
+  manual. *Test:* a view test walks every setup screen and finds no `DisclosureGroup` and no
+  disclosure button.
 - `source.onboard.topics-written-once` — **[PARTIAL]** (#4951, #5471) **Engine built 2026-10-04:** one
   registry (`fichero-server/src/fichero_server/recipes/seed/topics.yaml`) holds every topic's and every recipe
   job's words; a job's name and description are read from its entry (the text moved out of
@@ -1683,15 +1906,53 @@ Setup
   Project…** for the selected project, and a **Set Up…** button on an empty project's main view, both
   opening the same flow as Inspector › Info › Recipe › Set Up…. *Test:* the menu command and the empty
   state's button each present setup for the selected project.
+- `source.onboard.where-it-lives` — **[GAP]** (#5482) first-run setup's first screen asks where the
+  project lives: its name and folder, a default proposed (`~/Documents/Fichero/`; Open questions),
+  and Choose…, which opens a save panel; Continue makes the `.fichero` package there through the one
+  create path (`LibraryManager.createProject(at:)`: grant, save, `POST /api/library`), and a folder
+  that cannot be written is refused on the screen in words; Set Up… on an existing project skips
+  this screen. *Test:* through the real first-run path, Continue with a chosen folder leaves a
+  package there that the engine opens.
+- `source.onboard.saves-into-the-project` — **[GAP]** (#5477) every setup read and save after Where it
+  lives goes through **that project's** client (its library path sent), the one path Set Up… from
+  a project uses; the app-wide client is never used for setup, so `GET`/`PUT /api/recipes/project`
+  never answer 400 in first run. *Test:* first run through the real app environment saves the
+  Your material answers and `GET /api/recipes/project` on the new project returns them.
+- `source.onboard.start-works-in-first-run` — **[GAP]** (#5477) the Start screen in first run plans
+  and starts exactly as Set Up… from a project does (`GET`/`POST /api/recipes/project/start` on the
+  project made on screen 1); Start enables once the plan has no refusals. *Test:* first run to Start
+  on a fixture folder enables Start and records the first yes in the new project.
+- `source.onboard.five-ways-in` — **[GAP]** (#5480) Your material offers five ways material comes in,
+  each with one sentence of what it does to the originals: Link (default), Copy, Move, Index and
+  Keep arranged; the choice is saved with the project and used by Add a Folder… and by the
+  project's later imports. Supersedes the four of `source.sync.four-ways-in` for setup.
+- `source.onboard.index-ties-the-folder` — **[GAP]** (#5480, #4952) choosing Index or Keep arranged
+  with a folder ties it through `/api/sync-folders` (the engine half built for #4952; the app calls
+  none of those routes today) and setup shows the tied folder: its path, its file count, and intake
+  (files added later) with the preview's count and a switch to turn it on. *Test:* setup with Index
+  and a fixture folder lists the folder in `GET /api/sync-folders` and shows its intake preview.
+- `source.onboard.keep-arranged` — **[GAP]** (#5480) Keep arranged is Index plus arrangement (section
+  7b): Fichero moves and renames files only inside the tied folder, by the project's chosen rule
+  (Open questions), never out of it and never deleting one; before the first arrangement it shows
+  how many files would move and a sample of the new paths, and nothing moves until the person says
+  yes. *Test:* a fixture folder of five misplaced files shows five moves, and after yes each file
+  is at its rule's path and none is gone.
+- `source.onboard.keep-arranged-undoable` — **[GAP]** (#5480) each arrangement is one audited,
+  undoable action listing every move (old path, new path); undo puts every file back; a file added
+  from outside is taken in by intake after its preview and then moved into place by the same rule;
+  a file the person moves by hand stays where they put it and is recorded as placed by hand.
+  *Test:* arrange then undo restores every original path.
 - `source.onboard.set-up-later` — **[PARTIAL]** (#4951) **Built 2026-10-03:** Skip leaves the project unset and saves nothing; `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. "Set up later" makes a project with no settings
   that behaves as today, and Set Up… in its Inspector runs setup at any time.
 - `source.onboard.samples-first` — **[GAP]** (#4951) given material, setup picks up to ten sample
   pages spread across it (first, last, evenly spaced, largest and smallest), which the person can
   swap; from them, where a local model is available, it suggests scripts, languages, material,
   period and layout, each labelled "suggested from your pages" until accepted.
-- `source.onboard.five-questions` — **[GAP]** (#4951) beyond the purpose and the material, setup
-  asks at most five things (scripts, languages, material and period, layout, whether pages may
-  leave), and the last only when a step would use the cloud.
+- `source.onboard.five-questions` — **[GAP]** (#4951, #5478, #5479) beyond the location, the purposes
+  and the material, setup's What it is screen asks four things (languages, scripts, direction,
+  material as checkboxes with roughly when), each pre-filled where it can be; layout and whether
+  pages may leave are asked later (the latter on How it will be done, only when a step would use
+  the cloud).
 - `source.onboard.volume-counted-or-asked` — **[PARTIAL]** (#4951) *Built (engine): an imported project's volume is counted (every live page, and every file without pages; not folders, deleted documents or workflows) and used by the Start plan and `GET /api/recipes/routes`; pinned by `fichero-server/tests/unit/recipes/test_routes_for_the_volume.py`. Not built: counting material before import (a folder, a manifest's canvases), asking when it cannot count, storing the volume.* setup counts the pages of the
   material given (images, PDF pages, manifest canvases) and asks how much (tens, thousands,
   hundreds of thousands) only when it cannot count; the volume is stored and used by the rules.
@@ -1721,9 +1982,10 @@ Setup
   accuracy (measured on this project's checked pages; else published; else "unknown until the
   bake-off") and carbon, each figure marked measured or estimate. The distil route also shows the
   teacher's labelling cost and the training run's cost and time. Ruled 2026-10-03.
-- `source.onboard.derives-not-asks` — **[PARTIAL]** (#4951) *Built (engine): `GET /api/recipes/derived?scripts=` (`recipes/derived.py`) answers, each fact with where it came from: per script its direction (the language policy's own rule) and whether it may be vertical (then setup asks, since only the pages settle it), the bundled font for a script macOS lacks (Syriac, Mongolian, Coptic, Cherokee), this Mac's chip and memory, the providers with a key (names only) and the places work can run (this Mac, Hugging Face when its key is present, configured clusters); pinned by `fichero-server/tests/unit/recipes/test_setup_derives_not_asks.py`. The app's Your Material step shows each chosen script's direction, bundled font and "may be vertical" (`RecipeSetupStoreTests`, 2026-10-04). Not built: line position, correcting a derived fact on screen.* direction, line position, fonts, this Mac's
+- `source.onboard.derives-not-asks` — **[PARTIAL]** (#4951) *Built (engine): `GET /api/recipes/derived?scripts=` (`recipes/derived.py`) answers, each fact with where it came from: per script its direction (the language policy's own rule) and whether it may be vertical (then setup asks, since only the pages settle it), the bundled font for a script macOS lacks (Syriac, Mongolian, Coptic, Cherokee), this Mac's chip and memory, the providers with a key (names only) and the places work can run (this Mac, Hugging Face when its key is present, configured clusters); pinned by `fichero-server/tests/unit/recipes/test_setup_derives_not_asks.py`. The app's Your Material step shows each chosen script's direction, bundled font and "may be vertical" (`RecipeSetupStoreTests`, 2026-10-04). Not built: line position, correcting a derived fact on screen.* line position, fonts, this Mac's
   chip and memory, keys present and compute targets are worked out, shown, and correctable, never
-  asked.
+  asked; direction is worked out and pre-filled, then chosen (ruled 2026-10-05,
+  `source.onboard.direction-chosen`).
 - `source.onboard.ground-truth-from-files` — **[GAP]** (#4951) corrected transcriptions given at
   setup (PAGE, ALTO, TEI, or plain text named after its image) come in through the one import path
   as person-made passes marked ground truth, and the bake-off uses them.
@@ -1779,9 +2041,17 @@ Setup
   answers from samples; it runs locally unless the project allows the cloud, and never decides the
   recipe.
 The bake-off's behaviours (`source.onboard.bakeoff`, `-combinations`, `-records-combination`, `-tesseract-baseline`, `-minimum`, `-is-a-job`, `-skippable`, `-random-sample`) moved on 2026-10-04 to the one home for evaluation, `compute/distillation.md` ("Evaluation against out-of-the-box models").
-- `source.onboard.says-no-model` — **[PARTIAL]** (#4951) **Built 2026-10-03:** a step with no fitting model shows its gap in words; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. where no candidate passes the hard constraints
-  for a step, setup says so in words and proposes the hand-transcribe, draft-and-correct and
-  train routes; it never substitutes silently.
+- `source.onboard.says-no-model` — **[GAP]** (#4951, #5481) *Built 2026-10-03: a step with no fitting model shows its gap, but as the rules' raw reason, model ids included, and twice (under the step and again below; seen 2026-10-05); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`.* where no candidate passes the hard constraints
+  for a step, setup says so **once**, on that step's row, in words a historian reads, built from the
+  rule that refused ("No reading model here knows Spanish yet."), with each fix as a button
+  (download a fitting model, use a cloud model, choose a model; hand-transcribe, draft-and-correct
+  and train where they apply); the rules' own reason goes to the log and the Inspector; it never
+  substitutes silently. *Test:* a recipe whose correct step is refused for language shows one
+  sentence naming the language, and no card id.
+- `source.onboard.never-raw-model-ids` — **[GAP]** (#5481) nothing in setup shows a model's id, pin,
+  repository path or revision; a model is named by its card's display name. *Test:* every string
+  setup renders for a recipe whose cards are `mlx:hf/...@unpinned` contains no `mlx:`, `hf/` or
+  `@`.
 - `source.onboard.no-model-step-kept` — **[GAP]** (#4951) a step with no model stays in the recipe
   marked "needs a model"; steps that do not depend on it run, and those that do wait with that
   reason.
@@ -2088,6 +2358,12 @@ To be filled at approval. The legs this slice will need, so the gap is visible:
   training set until a person checks it. This refines #5217's rule (run by itself only where the
   match is known to be perfect) for the recipe step; the hand-run Align Text to Lines tool keeps its
   confirm-the-pass flow.
+- **2026-10-05 (#5477 to #5482), setup round 2:** first run asks where the project lives and saves
+  into it; purposes and material are checkboxes, any combination; "nothing runs automatically" is
+  its own screen; a fifth way in, Keep arranged; languages, scripts and direction are chosen, with
+  search and a browse menu, several as tokens, a language stored as its tag; no disclosure
+  chevrons; one sentence per step; a step's problem once, in words, with the fix as a button; never
+  a raw model id. The screens: section 7b.
 
 ## Open questions (with recommendations)
 
@@ -2144,6 +2420,31 @@ Ruled 2026-10-01 (former questions 1-4):
    and the site per page region (#5427); reading orders and "already done" counted per page region.
    Whichever is chosen, a split run on a spread that already has lines carries them over
    (`source.split.carries-readings-over`).
+
+10. **Keep arranged: arranged by what?** (#5480) Options: (a) the **project's structure**, the
+    folder mirrors the project's own folders in the sidebar (a document moved in the project moves
+    its files); (b) **date**, year then month, from the document's date or, lacking one, the file's;
+    (c) **a written rule**, a path pattern over metadata fields (`{collection}/{year}/{box}/{item}`).
+    *Recommend (a)* for the first build: it needs no new setting, the person already arranges the
+    project, and the folder then reads like the sidebar; (c) later as the Inspector's way to change
+    it, with (b) as one shipped pattern.
+11. **Keep arranged: files moved by hand, and file names.** *Recommend:* a file the person moves by
+    hand stays where they put it and is recorded as placed by hand (Fichero never fights the
+    person; Arrange Again offers to bring it back); files are renamed only to resolve a clash
+    (`name 2.jpg`), never to a scheme, until a rule asks for one.
+12. **The five new purposes** (Statements, Translate or normalise, Gather quotations, Catalogue my
+    sources, Tables and forms; section 7b screen 2). *Recommend:* add all five as purposes (each is
+    a reason someone starts a project, and checkboxes make extra purposes cheap); keep image
+    clean-up, reading order, check, export and train as jobs on How it will be done, not purposes.
+13. **Hands.** No job tells hands apart today. *Recommend:* register a `tell-hands-apart` job (a
+    region or line property, with the topic's sentence) before setup offers it; until then setup
+    does not mention hands.
+14. **Which jobs get a details screen** (section 7b screen 5). *Recommend* the five named (entity
+    kinds, translate or normalise, gazetteer, catalogue fields, table columns), each only when its
+    job is ticked; everything else defaults and is changed in the Inspector.
+15. **The default location** (#5482). *Recommend:* `~/Documents/Fichero/<name>.fichero`, the folder
+    made if missing, so projects sit together and inside the folder the sandbox already asks for;
+    Choose… for anywhere else.
 
 **Not asked** (already decided by rulings): purpose first; purpose decides layers; offer, never
 hide; the recipe's contents; deterministic rules; the flagship and generated paths; the bake-off;
