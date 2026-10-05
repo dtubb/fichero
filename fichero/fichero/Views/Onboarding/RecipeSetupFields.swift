@@ -186,6 +186,8 @@ struct RecipeMaterialSourceFields: View {
     @Bindable var store: RecipeSetupStore
     /// The project's import path; nil where setup has no project yet.
     let importer: ImportService?
+    /// The project's synced folders: an Index folder is tied there and shown below (#5480).
+    var syncFolders: SyncFolderStore?
     @State private var choosingFolder = false
     @State private var adding = false
 
@@ -203,6 +205,9 @@ struct RecipeMaterialSourceFields: View {
             if let added = store.materialAdded {
                 Label(added, systemImage: "checkmark.circle").font(.callout)
             }
+            if let syncFolders, let path = store.tiedFolderPath, let folder = syncFolders.folder(atPath: path) {
+                SyncedFolderSection(store: syncFolders, folder: folder)
+            }
             if let error = store.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             }
@@ -214,7 +219,7 @@ struct RecipeMaterialSourceFields: View {
             guard case .success(let url) = result, let importer else { return }
             adding = true
             Task {
-                await store.addFolder(url, importer: importer)
+                await store.addFolder(url, importer: importer, syncFolders: syncFolders)
                 adding = false
             }
         }

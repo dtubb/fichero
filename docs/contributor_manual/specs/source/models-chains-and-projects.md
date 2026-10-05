@@ -1944,7 +1944,7 @@ Setup
   each with one sentence of what it does to the originals: Link (default), Copy, Move, Index and
   Keep arranged; the choice is saved with the project and used by Add a Folder… and by the
   project's later imports. Supersedes the four of `source.sync.four-ways-in` for setup.
-- `source.onboard.index-ties-the-folder` — **[GAP]** (#5480, #4952) choosing Index or Keep arranged
+- `source.onboard.index-ties-the-folder` — **[PARTIAL]** (#5480, #4952) **Built 2026-10-05 (app), not yet seen:** Add a Folder… with Index imports the folder as `index`, then ties it through `/api/sync-folders` (the folder the import adopted is used as it is; one not listed is tied with `POST`), reads its intake and shows the tied folder on the screen: its place, formats and intake with Take In and Leave (`RecipeSetupStore.addFolder`, `SyncFolderStore.tie`; `fichero/Tests/Unit/general/Models/SyncFolderStoreTests.swift`). *Not built: the file count, and Keep arranged.* choosing Index or Keep arranged
   with a folder ties it through `/api/sync-folders` (the engine half built for #4952; the app calls
   none of those routes today) and setup shows the tied folder: its path, its file count, and intake
   (files added later) with the preview's count and a switch to turn it on. *Test:* setup with Index

@@ -189,7 +189,7 @@ Out
   Background Work and catch up when it is resumed.
 
 In
-- `source.sync.intake-is-opt-in` — **[PARTIAL]** (#4952) *Built in the engine: intake is off for a made folder until `PUT /api/sync-folders/{id}/intake`, after `GET` of the same gives what it would bring in, by kind (images, and files by format); an adopted folder has it on. The app's preview and switch are not built (`fichero-server/tests/unit/jobs/test_synced_folder_intake.py`).* taking files in from the folder is switched on
+- `source.sync.intake-is-opt-in` — **[PARTIAL]** (#4952) *Built in the engine: intake is off for a made folder until `PUT /api/sync-folders/{id}/intake`, after `GET` of the same gives what it would bring in, by kind (images, and files by format); an adopted folder has it on. **Built 2026-10-05 (app), not yet seen** (#5480): the folder's Inspector and setup's Your material show what intake would bring in, by format, with Take In and Leave (`PUT .../intake` on and off; `fichero/Tests/Unit/general/Models/SyncFolderStoreTests.swift`) (`fichero-server/tests/unit/jobs/test_synced_folder_intake.py`).* taking files in from the folder is switched on
   for each project and shows what it will bring in (counts by kind) before its first run.
 - `source.sync.one-import-path` — **[OK]** (#4952) *Built: files arriving in a folder with intake on are imported as one set through `import_file_set`, the path a drop of files takes (`POST /api/ingest/files`), so a layout file beside its image becomes its pass (`fichero-server/tests/unit/jobs/test_synced_folder_arrivals.py`).* files arriving through the synced folder go
   through the same import path as any other import.
@@ -224,9 +224,9 @@ Ownership and layout
   conflict with both kept.
 - `source.sync.folder-is-a-projection` — **[GAP]** (#4952) the folder can be deleted and remade from
   the project with Rebuild Folder.
-- `source.sync.untie-leaves-files` — **[PARTIAL]** (#4952) *Built: untying stops writing and leaves the files; intake is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* untying a folder stops writing and intake and
+- `source.sync.untie-leaves-files` — **[PARTIAL]** (#4952) *Built: untying stops writing and leaves the files; intake is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`). **Built 2026-10-05 (app), not yet seen** (#5480): Untie… in the folder's Inspector asks, then `DELETE /api/sync-folders/{id}`, saying the files stay (`fichero/Tests/Unit/general/Models/SyncFolderStoreTests.swift`).* untying a folder stops writing and intake and
   leaves its files on disk.
-- `source.sync.status-in-inspector` — **[PARTIAL]** (#4952) *Built: `GET /api/sync-folders` gives place, formats, last write, pending, and files written, in the way, changed and deleted outside, conflicts, and whether intake is on; the Inspector is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* the Inspector shows each synced folder's
+- `source.sync.status-in-inspector` — **[PARTIAL]** (#4952) *Built: `GET /api/sync-folders` gives place, formats, last write, pending, and files written, in the way, changed and deleted outside, conflicts, and whether intake is on; the Inspector is not built (`fichero-server/tests/unit/jobs/test_synced_folder.py`). **Built 2026-10-05 (app), not yet seen** (#5480): a folder's Inspector (Source › Info) shows that it is synced (its own layout or Fichero's), its place, formats, files waiting to be written, conflicts, files changed or deleted outside, files in the way and files not read back, with Untie…; a folder that is not synced shows nothing (`SyncFolderStore`, `SyncedFolderSection`; `fichero/Tests/Unit/general/Models/SyncFolderStoreTests.swift`). *Not built: last write shown.* the Inspector shows each synced folder's
   place, formats, last write, pending files, conflicts, files changed or deleted outside, and files
   in the way that Fichero did not write.
 
