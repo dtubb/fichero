@@ -1,20 +1,12 @@
 import FicheroAPIClient
 import Foundation
 
-/// The Debug-only verbs that reach BELOW a document (#5194, `ui-testing.drive-below-a-document`):
-/// `select page`, `select segment`, `show pane`. Each answers whether the request was accepted, in the
-/// style of `select document` / `show panel`, and goes through a seam the app already has -- the
-/// sidebar's reveal (which also lands a segment, as a citable reference does) and the pane list's
-/// visibility -- never a second path. The rules are here, pure; the command classes are `#if DEBUG`.
+/// The Debug-only verb that reaches BELOW a document (#5194, `ui-testing.drive-below-a-document`):
+/// `select segment`, answering whether the request was accepted. It goes through the sidebar's reveal
+/// (which also lands a segment, as a citable reference does) -- never a second path. Opening a page and
+/// showing a pane are the user dictionary's UI verbs now (`open node`, `show pane`, #5453). The rules
+/// are here, pure; the command class is `#if DEBUG`.
 enum DebugScriptVerbs {
-    /// A pane kind by the name a script uses ("segments", "preview", ...); nil for anything else.
-    static func paneKind(named name: String) -> PaneKind? {
-        PaneKind(rawValue: name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
-    }
-
-    /// The names `show pane` accepts, for a refusal that says what would have worked.
-    static var paneNames: [String] { PaneKind.allCases.map(\.rawValue) }
-
     /// What the sidebar's reveal is told: the page, and the segment to select once it is shown.
     static func revealUserInfo(documentId: String, segmentId: String? = nil) -> [String: String] {
         var info = ["documentId": documentId]
@@ -36,22 +28,6 @@ enum DebugScriptVerbs {
 }
 
 #if DEBUG && os(macOS)  // AppleScript commands (NSScriptCommand) exist only on the Mac
-/// `select page <document id>` (Debug test suite): the page opened in the Library, as a click opens it.
-@objc(FicheroSelectPageCommand)
-class FicheroSelectPageCommand: NSScriptCommand {
-    override func performDefaultImplementation() -> Any? {
-        guard let documentId = directParameter as? String, !documentId.isEmpty else {
-            scriptErrorNumber = NSRequiredArgumentsMissingScriptError
-            scriptErrorString = "Page (document) id is required"
-            return false
-        }
-        NotificationCenter.default.post(
-            name: .sidebarRevealDocument, object: nil, userInfo: DebugScriptVerbs.revealUserInfo(documentId: documentId)
-        )
-        return true
-    }
-}
-
 /// `select segment <segment id>` (Debug test suite): its page opened and the segment selected -- the one
 /// selection the Source view, the Reader and the Inspector share. False when it does not resolve.
 @objc(FicheroSelectSegmentCommand)
@@ -84,19 +60,4 @@ class FicheroSelectSegmentCommand: NSScriptCommand {
     }
 }
 
-/// `show pane <name>` (Debug test suite): a pane of that kind shown in the window's pane list, added when
-/// absent (`PaneList.settingVisible`). False for a name that is not a pane kind.
-@objc(FicheroShowPaneCommand)
-class FicheroShowPaneCommand: NSScriptCommand {
-    override func performDefaultImplementation() -> Any? {
-        guard let name = directParameter as? String, let kind = DebugScriptVerbs.paneKind(named: name) else {
-            scriptErrorNumber = NSArgumentsWrongScriptError
-            scriptErrorString = "Not a pane: \(directParameter ?? "nothing"). Panes: "
-                + DebugScriptVerbs.paneNames.joined(separator: ", ")
-            return false
-        }
-        NotificationCenter.default.post(name: .ficheroShowPanelRequested, object: nil, userInfo: ["pane": kind.rawValue])
-        return true
-    }
-}
 #endif

@@ -190,6 +190,8 @@ struct LibraryWindow: View {
         libraryWindowContent
         .background(WindowAccessor { window in
             hostWindow = window
+            // The window a UI verb drives once it is key (#5453).
+            windowState.hostWindow = window
             syncHostWindowMetadata()
         })
         .fileImporter(

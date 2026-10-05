@@ -81,24 +81,53 @@
 
         <!-- Commands -->
 
-        <command name="open library" code="FICHolib" description="Open or focus a Fichero library.">
-            <cocoa class="FicheroOpenLibraryCommand"/>
-            <direct-parameter description="The .fichero library path." type="text"/>
-            <result type="boolean" description="Whether the navigation request was accepted."/>
+        <!-- The UI verbs (#5453): each does what its click does, the same call its App Intent makes. -->
+
+        <command name="open project" code="FICHoprj" description="Open a .fichero project in the front window, as File > Open does.">
+            <cocoa class="FicheroOpenProjectCommand"/>
+            <direct-parameter description="The .fichero project path." type="text"/>
+            <result type="text" description="The project's id."/>
         </command>
 
-        <command name="select document" code="FICHseld" description="Select a document in the current library.">
-            <cocoa class="FicheroSelectDocumentCommand"/>
-            <parameter name="id" code="ID  " type="text" description="The document ID to select.">
-                <cocoa key="id"/>
+        <command name="open node" code="FICHopnd" description="Open a node (a page, document or folder) by its id, as clicking it does.">
+            <cocoa class="FicheroOpenNodeCommand"/>
+            <direct-parameter description="The node id." type="text"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+
+        <command name="select nodes" code="FICHslnd" description="Select nodes in the Library by id, as clicking them does.">
+            <cocoa class="FicheroSelectNodesCommand"/>
+            <direct-parameter description="The node ids.">
+                <type type="text" list="yes"/>
+                <type type="text"/>
+            </direct-parameter>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+
+        <command name="reveal segments" code="FICHrvsg" description="Select segments in the Preview showing their page and zoom to them, as clicking a line in the Reader does.">
+            <cocoa class="FicheroRevealSegmentsCommand"/>
+            <direct-parameter description="The segment ids.">
+                <type type="text" list="yes"/>
+                <type type="text"/>
+            </direct-parameter>
+            <parameter name="in page" code="inpg" type="text" description="The page (document) id the segments are on.">
+                <cocoa key="documentId"/>
             </parameter>
-            <result type="boolean" description="Whether the navigation request was accepted."/>
+            <result description="The segment ids revealed; none when no Preview shows the page.">
+                <type type="text" list="yes"/>
+            </result>
         </command>
 
-        <command name="show panel" code="FICHspan" description="Show a main Fichero panel.">
-            <cocoa class="FicheroShowPanelCommand"/>
-            <direct-parameter description="Panel name: library, inspector, kg, or activity." type="text"/>
-            <result type="boolean" description="Whether the navigation request was accepted."/>
+        <command name="show pane" code="FICHshpn" description="Show a pane in the front window.">
+            <cocoa class="FicheroShowPaneCommand"/>
+            <direct-parameter description="The pane: library, preview, reader, inspector, activity, chat or segments." type="text"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+
+        <command name="show inspector tab" code="FICHshit" description="Show the Inspector at a tab, as clicking the tab does.">
+            <cocoa class="FicheroShowInspectorTabCommand"/>
+            <direct-parameter description="The tab: Content, Artifacts, Annotations, Notes, Interpretation, Entities, Knowledge Graph, Citations, Related, Edits or Info." type="text"/>
+            <result type="boolean" description="Whether the request was accepted."/>
         </command>
 
         <command name="run workflow" code="FICHrwfl" description="Execute a workflow.">
@@ -120,11 +149,11 @@
             <result type="text" description="What the engine said (e.g. cancel_requested, already_terminal)."/>
         </command>
 
-        <command name="screenshot" code="FICHshot" description="Capture the app's rendered UI to a PNG file.">
+        <command name="screenshot" code="FICHshot" description="Save a picture of the front window, or of one pane, as a PNG. The app draws its own window: no screen recording.">
             <cocoa class="FicheroScreenshotCommand"/>
             <direct-parameter description="Destination file path for the PNG." type="text"/>
-            <parameter name="of view" code="view" type="text" optional="yes" description="What to capture: 'window' (default) or a view's accessibility identifier.">
-                <cocoa key="view"/>
+            <parameter name="of pane" code="pane" type="text" optional="yes" description="What to capture: 'window' (default), or a pane: library, preview, reader, inspector, activity, chat or segments.">
+                <cocoa key="pane"/>
             </parameter>
             <result type="text" description="The absolute path written."/>
         </command>

@@ -2,12 +2,239 @@
 <!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
 <!--
   The DEBUG scripting dictionary (#5193, ui-testing-strategy.md "Driving the running app from outside"):
-  the whole user dictionary, included from Fichero.sdef so the two never drift, plus the Debug-only
-  test suite. Info.plist names it through FICHERO_SCRIPTING_DEFINITION: FicheroDebug.sdef in Debug,
-  Fichero.sdef in Release, so a Release build's dictionary never offers these verbs.
+  the whole user dictionary, then the Debug-only test suite. Info.plist names it through
+  FICHERO_SCRIPTING_DEFINITION: FicheroDebug.sdef in Debug, Fichero.sdef in Release, so a Release
+  build's dictionary never offers these verbs.
+
+  The user suites are a COPY of Fichero.sdef's, not an XInclude: the system resolved the include
+  against the reader's working directory, never the bundle, so a Debug app had no verbs at all
+  (#5258). AppleScriptSurfaceTests fails when the copy differs from Fichero.sdef.
 -->
-<dictionary title="Fichero Terminology (Debug)" xmlns:xi="http://www.w3.org/2003/XInclude">
-    <xi:include href="Fichero.sdef" xpointer="xpointer(/dictionary/suite)"/>
+<dictionary title="Fichero Terminology (Debug)">
+
+    <!-- Standard Suite -->
+    <suite name="Standard Suite" code="????" description="Common classes and commands for all applications.">
+
+        <command name="open" code="aevtodoc" description="Open a document.">
+            <direct-parameter description="The file(s) to be opened.">
+                <type type="file"/>
+                <type type="file" list="yes"/>
+            </direct-parameter>
+        </command>
+
+        <command name="quit" code="aevtquit" description="Quit the application.">
+            <cocoa class="NSQuitCommand"/>
+        </command>
+
+    </suite>
+
+    <!-- Fichero Suite -->
+    <suite name="Fichero Suite" code="FICH" description="Fichero-specific classes and commands.">
+
+        <!-- Classes -->
+
+        <class name="application" code="capp" description="The Fichero application.">
+            <cocoa class="NSApplication"/>
+            <property name="name" code="pnam" type="text" access="r" description="The name of the application."/>
+            <property name="version" code="vers" type="text" access="r" description="The version of the application."/>
+            <element type="document" access="r">
+                <cocoa key="orderedDocuments"/>
+            </element>
+            <element type="workflow" access="r">
+                <cocoa key="workflows"/>
+            </element>
+        </class>
+
+        <class name="document" code="docu" description="A document in the library.">
+            <cocoa class="FicheroScriptDocument"/>
+            <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the document."/>
+            <property name="name" code="pnam" type="text" access="r" description="The name of the document."/>
+            <property name="path" code="ppth" type="text" access="r" description="The file path of the document."/>
+            <property name="mime type" code="mime" type="text" access="r" description="The MIME type of the document."/>
+            <property name="size" code="ptsz" type="integer" access="r" description="The file size in bytes."/>
+            <property name="created date" code="cdat" type="date" access="r" description="The creation date."/>
+            <property name="modified date" code="mdat" type="date" access="r" description="The modification date."/>
+        </class>
+
+        <class name="workflow" code="wkfl" description="A workflow definition.">
+            <cocoa class="FicheroScriptWorkflow"/>
+            <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the workflow."/>
+            <property name="name" code="pnam" type="text" access="rw" description="The name of the workflow."/>
+            <property name="description" code="desc" type="text" access="rw" description="The description of the workflow."/>
+            <property name="node count" code="ndct" type="integer" access="r" description="The number of nodes in the workflow."/>
+            <property name="is enabled" code="enbl" type="boolean" access="rw" description="Whether the workflow is enabled."/>
+        </class>
+
+        <class name="workflow chain" code="wchn" description="A workflow chain that connects multiple workflows.">
+            <cocoa class="FicheroScriptWorkflowChain"/>
+            <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the chain."/>
+            <property name="name" code="pnam" type="text" access="rw" description="The name of the chain."/>
+            <property name="step count" code="stct" type="integer" access="r" description="The number of steps in the chain."/>
+        </class>
+
+        <class name="execution thread" code="exth" description="A workflow execution thread.">
+            <cocoa class="FicheroScriptExecutionThread"/>
+            <property name="id" code="ID  " type="text" access="r" description="The thread ID."/>
+            <property name="workflow id" code="wfid" type="text" access="r" description="The workflow ID being executed."/>
+            <property name="status" code="stat" type="text" access="r" description="The execution status: running, paused, completed, failed."/>
+        </class>
+
+        <!-- Commands -->
+
+        <!-- The UI verbs (#5453): each does what its click does, the same call its App Intent makes. -->
+
+        <command name="open project" code="FICHoprj" description="Open a .fichero project in the front window, as File > Open does.">
+            <cocoa class="FicheroOpenProjectCommand"/>
+            <direct-parameter description="The .fichero project path." type="text"/>
+            <result type="text" description="The project's id."/>
+        </command>
+
+        <command name="open node" code="FICHopnd" description="Open a node (a page, document or folder) by its id, as clicking it does.">
+            <cocoa class="FicheroOpenNodeCommand"/>
+            <direct-parameter description="The node id." type="text"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+
+        <command name="select nodes" code="FICHslnd" description="Select nodes in the Library by id, as clicking them does.">
+            <cocoa class="FicheroSelectNodesCommand"/>
+            <direct-parameter description="The node ids.">
+                <type type="text" list="yes"/>
+                <type type="text"/>
+            </direct-parameter>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+
+        <command name="reveal segments" code="FICHrvsg" description="Select segments in the Preview showing their page and zoom to them, as clicking a line in the Reader does.">
+            <cocoa class="FicheroRevealSegmentsCommand"/>
+            <direct-parameter description="The segment ids.">
+                <type type="text" list="yes"/>
+                <type type="text"/>
+            </direct-parameter>
+            <parameter name="in page" code="inpg" type="text" description="The page (document) id the segments are on.">
+                <cocoa key="documentId"/>
+            </parameter>
+            <result description="The segment ids revealed; none when no Preview shows the page.">
+                <type type="text" list="yes"/>
+            </result>
+        </command>
+
+        <command name="show pane" code="FICHshpn" description="Show a pane in the front window.">
+            <cocoa class="FicheroShowPaneCommand"/>
+            <direct-parameter description="The pane: library, preview, reader, inspector, activity, chat or segments." type="text"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+
+        <command name="show inspector tab" code="FICHshit" description="Show the Inspector at a tab, as clicking the tab does.">
+            <cocoa class="FicheroShowInspectorTabCommand"/>
+            <direct-parameter description="The tab: Content, Artifacts, Annotations, Notes, Interpretation, Entities, Knowledge Graph, Citations, Related, Edits or Info." type="text"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+
+        <command name="run workflow" code="FICHrwfl" description="Execute a workflow.">
+            <cocoa class="FicheroRunWorkflowCommand"/>
+            <direct-parameter description="The workflow ID to run." type="text"/>
+            <parameter name="with inputs" code="inpt" type="record" optional="yes" description="Input parameters for the workflow.">
+                <cocoa key="inputs"/>
+            </parameter>
+            <parameter name="on documents" code="seld" optional="yes" description="Document IDs the run is scoped to (the declared selection).">
+                <cocoa key="selectedDocIds"/>
+                <type type="text" list="yes"/>
+            </parameter>
+            <result type="text" description="The execution thread ID."/>
+        </command>
+
+        <command name="stop run" code="FICHhalt" description="Stop (cancel) a workflow run.">
+            <cocoa class="FicheroStopRunCommand"/>
+            <direct-parameter description="The thread ID to stop." type="text"/>
+            <result type="text" description="What the engine said (e.g. cancel_requested, already_terminal)."/>
+        </command>
+
+        <command name="screenshot" code="FICHshot" description="Save a picture of the front window, or of one pane, as a PNG. The app draws its own window: no screen recording.">
+            <cocoa class="FicheroScreenshotCommand"/>
+            <direct-parameter description="Destination file path for the PNG." type="text"/>
+            <parameter name="of pane" code="pane" type="text" optional="yes" description="What to capture: 'window' (default), or a pane: library, preview, reader, inspector, activity, chat or segments.">
+                <cocoa key="pane"/>
+            </parameter>
+            <result type="text" description="The absolute path written."/>
+        </command>
+
+        <command name="get workflow status" code="FICHgwst" description="Get the status of a workflow execution.">
+            <cocoa class="FicheroGetWorkflowStatusCommand"/>
+            <direct-parameter description="The thread ID to check." type="text"/>
+            <result type="text" description="The execution status."/>
+        </command>
+
+        <command name="pause workflow" code="FICHpwfl" description="Pause a running workflow.">
+            <cocoa class="FicheroPauseWorkflowCommand"/>
+            <direct-parameter description="The thread ID to pause." type="text"/>
+            <result type="boolean" description="Whether the pause was successful."/>
+        </command>
+
+        <command name="resume workflow" code="FICHrswf" description="Resume a paused workflow.">
+            <cocoa class="FicheroResumeWorkflowCommand"/>
+            <direct-parameter description="The thread ID to resume." type="text"/>
+            <result type="boolean" description="Whether the resume was successful."/>
+        </command>
+
+        <command name="run chain" code="FICHrchn" description="Execute a workflow chain.">
+            <cocoa class="FicheroRunChainCommand"/>
+            <direct-parameter description="The chain ID to run." type="text"/>
+            <parameter name="with inputs" code="inpt" type="record" optional="yes" description="Input parameters for the chain.">
+                <cocoa key="inputs"/>
+            </parameter>
+            <result type="text" description="The execution ID."/>
+        </command>
+
+        <command name="list workflows" code="FICHlwfl" description="List all available workflows.">
+            <cocoa class="FicheroListWorkflowsCommand"/>
+            <result description="List of workflow names.">
+                <type type="text" list="yes"/>
+            </result>
+        </command>
+
+        <command name="list documents" code="FICHldoc" description="List documents in the library.">
+            <cocoa class="FicheroListDocumentsCommand"/>
+            <parameter name="in folder" code="fldr" type="text" optional="yes" description="Optional folder path to list.">
+                <cocoa key="folderPath"/>
+            </parameter>
+            <parameter name="limit" code="limt" type="integer" optional="yes" description="Maximum number of results.">
+                <cocoa key="limit"/>
+            </parameter>
+            <result description="List of document names.">
+                <type type="text" list="yes"/>
+            </result>
+        </command>
+
+        <command name="search documents" code="FICHsdoc" description="Search for documents.">
+            <cocoa class="FicheroSearchDocumentsCommand"/>
+            <direct-parameter description="The search query." type="text"/>
+            <parameter name="limit" code="limt" type="integer" optional="yes" description="Maximum number of results.">
+                <cocoa key="limit"/>
+            </parameter>
+            <result description="List of matching document names.">
+                <type type="text" list="yes"/>
+            </result>
+        </command>
+
+        <command name="import file" code="FICHimpt" description="Import a file into the library.">
+            <cocoa class="FicheroImportFileCommand"/>
+            <direct-parameter description="The file path to import." type="text"/>
+            <parameter name="to folder" code="fldr" type="text" optional="yes" description="Target folder path.">
+                <cocoa key="folderPath"/>
+            </parameter>
+            <parameter name="mode" code="mode" type="text" optional="yes" description="Import mode: 'link' or 'copy'.">
+                <cocoa key="mode"/>
+            </parameter>
+            <result type="text" description="The ID of the imported document."/>
+        </command>
+
+        <command name="get document info" code="FICHgdoc" description="Get information about a document.">
+            <cocoa class="FicheroGetDocumentInfoCommand"/>
+            <direct-parameter description="The document ID." type="text"/>
+            <result type="record" description="Document information record."/>
+        </command>
+
+    </suite>
 
     <suite name="Fichero Test Suite" code="FTST" description="Debug-only verbs for driving and reading the running app from outside.">
         <command name="describe window" code="FTSTdesw" description="Describe what the key window draws: the panes shown, the selection, and for each page on screen the segment boxes drawn, with their frames, as JSON.">
@@ -15,22 +242,10 @@
             <result type="text" description="JSON: {panes, selection, pages: [{id, boxes: [{segment, kind, frame, selected}]}]}."/>
         </command>
 
-        <command name="select page" code="FTSTselp" description="Open a page (a document id) in the Library, as a click opens it.">
-            <cocoa class="FicheroSelectPageCommand"/>
-            <direct-parameter description="The page's document id." type="text"/>
-            <result type="boolean" description="Whether the request was accepted."/>
-        </command>
-
         <command name="select segment" code="FTSTsels" description="Open a segment's page and select the segment -- the one selection the Source view, the Reader and the Inspector share.">
             <cocoa class="FicheroSelectSegmentCommand"/>
             <direct-parameter description="The segment id (a merged or split one is followed to its live segment)." type="text"/>
             <result type="boolean" description="Whether the segment resolved and the request was accepted."/>
-        </command>
-
-        <command name="show pane" code="FTSTshpn" description="Show a pane of a kind (library, preview, reading, inspector, chat, segments), adding it when absent.">
-            <cocoa class="FicheroShowPaneCommand"/>
-            <direct-parameter description="The pane kind." type="text"/>
-            <result type="boolean" description="Whether the request was accepted."/>
         </command>
     </suite>
 </dictionary>

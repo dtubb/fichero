@@ -194,55 +194,51 @@ extension ContentView {
         }
     }
 
-    /// Handles `.onReceive` of `.ficheroSelectDocumentRequested`.
-    /// AppleScript command path for `select document id "..."`.
-    func handleAppleScriptSelectDocument(_ note: Notification) {
-        guard let documentId = note.userInfo?["id"] as? String,
-              !documentId.isEmpty else { return }
-        sidebarMode = .library
-        showSidebar = true
-        showInspectorSidebar = true
-        focusedPane = .inspector
-        browserSelection = [documentId]
-        sidebarSelectionState.selectedItemId = "doc:\(documentId)"
+    /// A UI verb (AppleScript, App Intent; #5453 `openapi.ui.verbs-are-the-click`), done through the
+    /// method its click calls.
+    func applyUIVerb(_ action: UIVerbRequest.Action) {
+        switch action {
+        case .select(let ids):
+            // The Library's selection, as clicking (and ⌘-clicking) its rows writes it.
+            sidebarMode = .library
+            showSidebar = true
+            browserSelection = Set(ids)
+        case .showPane(let pane):
+            showPane(pane)
+        case .showInspectorTab(let tab):
+            // The toolbar's Inspector button, then the tab's own selection (the scene storage it writes).
+            showInspectorSidebar = true
+            previewEditorTab = tab
+        }
     }
 
-    /// Handles `.onReceive` of `.ficheroShowPanelRequested`.
-    /// AppleScript command path for `show panel "library|inspector|kg|activity"`.
-    func handleAppleScriptShowPanel(_ note: Notification) {
-        // Debug `show pane <kind>` (#5194): a pane of that kind shown through the ONE pane-list
-        // visibility path (added when absent), then the list's save funnel.
-        if let paneName = note.userInfo?["pane"] as? String, let kind = DebugScriptVerbs.paneKind(named: paneName) {
+    private func showPane(_ pane: UIPane) {
+        switch pane {
+        case .library, .preview, .reader, .chat, .segments:
+            guard let kind = pane.paneKind else { return }
+            // The View menu's and the toolbar's one visibility path (library, preview, reader).
+            if let content = ContentPane.allCases.first(where: { $0.paneKind == kind }) {
+                setPaneVisible(content, true)
+                return
+            }
+            // A pane menu's choice: added to the pane list when absent, then the list's save funnel.
             let next = activePaneList.settingVisible(kind, true)
             if next != activePaneList {
                 activePaneList = next
                 paneListDidChange()
             }
-            return
-        }
-        guard let rawPanel = note.userInfo?["panel"] as? String else { return }
-        switch rawPanel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "library":
-            sidebarMode = .library
-            showSidebar = true
-            focusedPane = .content
-        case "inspector":
+        case .inspector:
+            // The toolbar's Inspector button.
             showInspectorSidebar = true
-            focusedPane = .inspector
-        case "kg", "knowledge graph", "knowledge-graph":
-            // #4705 increment 3: the KG sidebar mode retired; "kg" now opens
-            // the library-wide Entities table instead.
-            sidebarMode = .library
-            showSidebar = true
-            sidebarSelectionState.selectedItemId = "entities-browser"
-            focusedPane = .content
-        case "activity":
+        case .activity:
+            #if os(macOS)
+            // The Activity popover's "Open Activity".
+            ActivityWindowSelectionState.shared.selectLibrary(windowState.libraryId)
+            openWindow(id: ActivityWindowSelectionState.monitorWindowID)
+            #else
             sidebarMode = .activity
             showSidebar = true
-            sidebarSelectionState.selectedItemId = "activity-browser"
-            focusedPane = .content
-        default:
-            return
+            #endif
         }
     }
 }

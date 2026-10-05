@@ -163,10 +163,11 @@ the engine holds.**
 **What exists (grounded, this worktree).**
 - **An AppleScript dictionary is already the agent loop (#4535):** `fichero/fichero/Fichero.sdef`,
   `Services/AppleScriptCommands.swift`, `Services/AppleScriptRunCommands.swift`.
-  - The verbs include `open library`, `select document`, `show panel` (library, inspector, kg,
-    activity), workflow run/stop/status, and `screenshot`.
-  - `screenshot` (`Services/FicheroUICapture.swift`) renders the key window, or a view named by its
-    accessibility identifier, offscreen with `bitmapImageRepForCachingDisplay(in:)` +
+  - The verbs include the UI verbs (`open project`, `open node`, `select nodes`, `reveal segments`,
+    `show pane`, `show inspector tab`; `Services/AppleScriptUIVerbs.swift`, the same `UIVerbs` calls
+    as the App Intents, #5453), workflow run/stop/status, and `screenshot`.
+  - `screenshot` (`Services/FicheroUICapture.swift`) renders the front window, or one pane of it (by
+    the frame the pane was laid out at), offscreen with `bitmapImageRepForCachingDisplay(in:)` +
     `cacheDisplay(in:to:)`. That needs no screen-recording permission.
   - `scripts/ux_smoke.py` drives the verbs through `osascript` against the built app and the
     spawn-per-run engine. Its window check is "a non-trivial PNG", which a window with no boxes
@@ -209,10 +210,10 @@ identifier contract (`ui-testing.identifier-contract`). "What the window shows" 
 for AppleScript, XCUITest and VoiceOver alike, and an element exists only if its view was drawn.
 
 **The new verbs (Debug-only suite).**
-- `select page <document id>`
+- `select page <document id>` (now the user dictionary's `open node`, #5453)
 - `select segment <segment id>`: selects it in the Source view, the Reader and the Inspector (one
   selection).
-- `show pane <name>`: the panes model (`modes-to-panes.md`), beside today's `show panel`.
+- `show pane <name>`: the panes model (`modes-to-panes.md`); now the user dictionary's, #5453.
 - `describe window`: returns JSON with the panes shown; the selection; and, for each page on screen,
   its id and the segment ids whose boxes are DRAWN, with their frames. All of it is read from the
   drawn elements, never from a store.
@@ -249,11 +250,10 @@ working pass.
   `show pane` verbs, each answering whether the request was accepted, in the style of the existing
   verbs.
   **Built 2026-09-28, tests not yet run:** in `FicheroDebug.sdef`'s test suite, through seams the app
-  already has -- `select page` and `select segment` through the sidebar's reveal (a segment is resolved
-  to its live page by the engine's one resolver, following a merge or a split, as a citable reference
-  is), `show pane` through the pane list's visibility (`PaneList.settingVisible`, added when absent).
-  Each answers whether it was accepted; a name that is not a pane is refused with the panes that would
-  work (`DebugScriptVerbs`; `AppleScriptSurfaceTests.testTheDebugSuiteReachesBelowADocument`). Not yet:
+  already has -- `select segment` through the sidebar's reveal (a segment is resolved to its live page
+  by the engine's one resolver, following a merge or a split, as a citable reference is). `select page`
+  and `show pane` moved to the user dictionary as the UI verbs `open node` and `show pane` (#5453;
+  `AppleScriptSurfaceTests.testTheCommandsCallTheUIVerbs`). Not yet:
   run through `osascript`; `select segment` selects in the Source view only once a list that takes the
   pending selection (the Order list, the Segments pane) shows the page, as a citable reference does.
 - `ui-testing.test-verbs-never-in-release` [GAP] (#5195): a Release build contains neither the test

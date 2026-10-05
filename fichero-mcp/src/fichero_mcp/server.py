@@ -35,7 +35,7 @@ from typing import Any, Iterable, Optional
 from mcp.server.fastmcp import FastMCP
 
 from fichero_cli import FicheroClient
-from fichero_mcp import openapi_runtime
+from fichero_mcp import openapi_runtime, ui_control
 from fichero_mcp.openapi_tools_generated import TAGS, TOOLS
 
 logger = logging.getLogger(__name__)
@@ -169,11 +169,12 @@ _SELECTED: list[str] = []
 def parse_toolsets(value: str | Iterable[str]) -> tuple[str, ...]:
     """Tags from ``--toolsets`` (a comma list, or ``all``); an unknown tag is an error naming the known."""
     names = [v.strip() for v in (value.split(",") if isinstance(value, str) else value) if v.strip()]
+    known = (*TAGS, ui_control.TOOLSET)  # the contract's tags, plus the app's UI verbs (#5453)
     if names == ["all"]:
-        return TAGS
-    unknown = sorted(set(names) - set(TAGS))
+        return known
+    unknown = sorted(set(names) - set(known))
     if unknown:
-        raise ValueError(f"unknown toolsets {unknown}; known: {', '.join(TAGS)} (or all)")
+        raise ValueError(f"unknown toolsets {unknown}; known: {', '.join(known)} (or all)")
     return tuple(names)
 
 
@@ -194,6 +195,10 @@ def select_toolsets(toolsets: Iterable[str], server: FastMCP | None = None) -> l
         if tool.tag in chosen:
             server.add_tool(tool.fn, name=tool.name)
             names.append(tool.name)
+    if ui_control.TOOLSET in chosen:  # the app's UI verbs over AppleScript, not engine routes (#5453)
+        for name, fn in ui_control.UI_TOOLS:
+            server.add_tool(fn, name=name)
+            names.append(name)
     hand_written = {t.name for t in server._tool_manager.list_tools()}
     for alias, route in OPERATOR_ALIASES.items():
         if alias not in hand_written:

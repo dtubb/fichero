@@ -55,10 +55,8 @@ _SHARED_RE = re.compile(r"@(?:ObservedObject|StateObject)\b[^=\n]*=\s*\w+\s*\.\s
 RULES = (("notif", _NC_APP_RE), ("shared", _SHARED_RE))
 
 # Grandfathered offenders (hash -> human location). Seed with --generate (#3040).
-KNOWN_VIOLATIONS: dict[str, str] = {
-    "9a818b6b4594": '[notif] fichero/fichero/Views/Shell/ContentView/Layout/ContentView+RootLayout.swift:259: .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { n',
-    "ae546d988095": '[notif] fichero/fichero/Views/Shell/ContentView/Layout/ContentView+RootLayout.swift:262: .onReceive(NotificationCenter.default.publisher(for: .ficheroShowPanelRequested)) { note i',
-}
+# The last two (the AppleScript select/show-panel receivers) went with #5453's UI verbs.
+KNOWN_VIOLATIONS: dict[str, str] = {}
 
 
 def _code(text: str) -> str:
