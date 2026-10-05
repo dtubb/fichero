@@ -33,7 +33,9 @@ extension SidebarView {
             sidebarMode = .library
             viewMode = .library(nil)
             return
-        case .knowledgeCollection(_, let libraryId):
+        case .knowledgeCollection(_, let libraryId), .trainedModel(_, let libraryId):
+            // A trained model (#5439) routes the same way: its project active, the library
+            // shown; the Inspector reads the model from the selected id (`inspectedTrainedModel`).
             // A per-library KG collection makes THAT library active (so the
             // library-wide claims/entities table scopes to it) and lands in the
             // library — the pane reads `contentCollection` from the selected id to
@@ -99,7 +101,7 @@ extension SidebarView {
     /// browser sections, a run) or that the item index cannot resolve.
     private func libraryId(of destination: SidebarDestination) -> UUID? {
         switch destination {
-        case .library(let libraryId), .knowledgeCollection(_, let libraryId):
+        case .library(let libraryId), .knowledgeCollection(_, let libraryId), .trainedModel(_, let libraryId):
             return libraryId
         case .browser, .run:
             return nil

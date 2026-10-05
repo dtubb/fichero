@@ -576,11 +576,16 @@ extension LibraryManager {
                 LaunchProfile.milestone("library comparisons loaded", detail: libraryName)
             }
         }()
+        // The Training node's models (#5439): shown only when the engine has some.
+        async let trainedModelsLoaded: Void = await {
+            await library.trainedModelsStore.loadModels()
+            LaunchProfile.milestone("library trained models loaded", detail: libraryName)
+        }()
         async let savedSearchesLoaded: Void = await {
             try? await library.savedSearchService.loadSavedSearches()
             LaunchProfile.milestone("library saved searches loaded", detail: libraryName)
         }()
-        _ = await (workflowsLoaded, conversationsLoaded, comparisonsLoaded, savedSearchesLoaded)
+        _ = await (workflowsLoaded, conversationsLoaded, comparisonsLoaded, savedSearchesLoaded, trainedModelsLoaded)
         libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
     }
 }

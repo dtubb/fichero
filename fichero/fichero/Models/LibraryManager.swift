@@ -174,6 +174,10 @@ class LibraryManager {
         /// (`GET /api/topics`, #5471). Setup and the Inspector read their words here.
         @ObservationIgnored lazy var topicStore = TopicStore(client: ficheroClient)
 
+        /// The models Fichero trained or fine-tuned, for this project's Training node (#5439).
+        /// The engine's list (no card records a project), read through this library's client.
+        @ObservationIgnored lazy var trainedModelsStore = TrainedModelsStore(client: ficheroClient)
+
         /// Per-library activity store (#2448). Wraps `activityService`, owns the
         /// run-browser list, and signals `ActivityBrowserView` to refresh on
         /// `workflow.*` SSE events (best-effort until the backend emits dedicated

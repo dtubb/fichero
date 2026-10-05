@@ -78,6 +78,11 @@ struct SidebarSourceOpen: Equatable {
     /// sort. With a source selected that is the folder shown (`viewMode`), not the source's own
     /// row, so the board drawn is the folder's board.
     static func libraryPaneFolderId(selectedItemId: String?, viewMode: AppViewMode, libraryId: UUID) -> String? {
+        // A trained model (#5439) is not a document: the pane lists its project's top level,
+        // never an outline fetched for the model id.
+        if case .trainedModel(_, let modelLibraryId)? = selectedItemId.flatMap(SidebarDestination.init(serializedID:)) {
+            return SidebarDestination.library(modelLibraryId).serializedID
+        }
         guard case .document(let selectedId)? = selectedItemId.flatMap(SidebarDestination.init(serializedID:)),
               case .library(let shown) = viewMode, shown?.id != selectedId else { return selectedItemId }
         return shown.map { SidebarDestination.document($0.id).serializedID }

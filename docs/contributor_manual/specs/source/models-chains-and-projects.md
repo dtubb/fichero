@@ -1989,17 +1989,24 @@ node; a model appears in the sidebar only inside a training node, as its base or
 - `source.model.node-in-sidebar` — **[PARTIAL]** (#5439, #4335) *Built (engine): `GET /api/training/models`
   lists every model Fichero trained or fine-tuned on this engine, newest first, read from its card; a
   downloaded or imported model (no training card) is not listed. Tested in
-  `fichero-server/tests/unit/training/test_trained_model_nodes.py`. Not built: the sidebar node in the app
-  (#5439); the list is the engine's, since no card records the project it was trained in.* training is a node in the sidebar; the
+  `fichero-server/tests/unit/training/test_trained_model_nodes.py`. Built (app): each project's sidebar
+  shows a Training node listing those models (`SidebarTrainingNode`, `TrainedModelsStore`), drawn only
+  when there is one; tested in `fichero/Tests/Unit/general/Models/TrainedModelsStoreTests.swift`. Not
+  built: the base model as its own node inside Training (the Inspector names it), and a per-project
+  list: the list is the engine's, since no card records the project it was trained in.* training is a node in the sidebar; the
   base model and every model a run produced show inside it. A model with no training stays in
   Settings only.
-- `source.model.node-inspector` — **[PARTIAL]** (#5439) *Built (engine): `GET /api/training/model` gives
+- `source.model.node-inspector` — **[OK]** (#5439) *Built (engine): `GET /api/training/model` gives
   one trained model's facts from its card: base, teacher, training set, job, when and where it trained,
   the newest held-out CER per normalisation policy (null before any evaluation) and every evaluation,
   size on disk, its builds and whether each is here, the base's licence (null for a Kraken reader, whose
   card names none) and `may_publish`, true only when the card says `not_for_release: false`. Tested in
-  `fichero-server/tests/unit/training/test_trained_model_nodes.py`. Not built: the Inspector in the app
-  (#5439).* selecting a model inside a training node shows its
+  `fichero-server/tests/unit/training/test_trained_model_nodes.py`. Built (app): `ModelNodeInspector`
+  shows provenance, the held-out CER per policy ("Not evaluated yet" before any evaluation), size,
+  where it runs, the licence ("Unknown" when the card names none) and whether it may be published,
+  with the reason when it may not; tested in
+  `fichero/Tests/Unit/general/Models/TrainedModelsStoreTests.swift`. Read-only: the actions are
+  `source.model.node-actions`.* selecting a model inside a training node shows its
   Inspector, read from its card: what it is; where it came from (a base and its training set); its
   scores on held-out pages (`distill.eval.stored-on-the-model-node`); its size; where it can run
   (`source.model.runs-here`); its licence and its release flag.
