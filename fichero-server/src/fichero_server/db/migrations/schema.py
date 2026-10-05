@@ -727,6 +727,28 @@ def migrate_known_libraries_table(
     _run_atomic_migration(conn, "migrate_known_libraries_table", _step, failures)
 
 
+def migrate_owner_opened_packages_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
+    """Ensure the owner-opened packages table exists (#5464).
+
+    One row per ``.fichero`` package the engine's OWNER (loopback + bootstrap
+    token) registered, so the engine still serves it after a restart. Its own
+    table, not a ``known_libraries`` column: a legacy registry row stays
+    unallowed (nothing widens silently) and ``GET /api/registry`` keeps its shape.
+    """
+
+    def _step() -> None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS owner_opened_packages (
+                path VARCHAR PRIMARY KEY,
+                opened_at TIMESTAMP NOT NULL
+            )
+        """)
+
+    _run_atomic_migration(conn, "migrate_owner_opened_packages_table", _step, failures)
+
+
 def migrate_references_table(
     conn, failures: list[MigrationFailure] | None = None
 ) -> None:

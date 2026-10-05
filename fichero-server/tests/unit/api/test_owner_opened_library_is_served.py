@@ -14,12 +14,14 @@ header) with the real library-database dependency -- no override of the check un
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
 
+import fichero_server.api.routes.library.registry as registry
 import fichero_server.security.path_security as path_security
 from fichero_server.api.main import app
 from fichero_server.api.routes.library.registry import get_global_database
@@ -48,6 +50,9 @@ def home_project(tmp_path, monkeypatch, app_db):
 
     global_db = Database(path=tmp_path / "global.fichero" / "fichero.duckdb")
     app.dependency_overrides[get_global_database] = lambda: global_db
+    # The restart loader reads the global DB by name (it runs outside any request dependency).
+    monkeypatch.setattr(registry, "get_global_database", lambda: global_db)
+    monkeypatch.setattr(registry, "_OWNER_OPENED_LOADED", False)
     try:
         yield project
     finally:
@@ -115,5 +120,109 @@ def test_forgetting_the_project_refuses_it_again(home_project):
 
     removed = owner.delete(f"/api/registry/{quote(str(home_project), safe='')}")
     assert removed.status_code == 200, removed.text
+
+    assert _jobs(owner, home_project).status_code == 403
+
+
+# --- #5464 follow-up: the allowance survives an engine restart ---------------------------------
+# WHY: after an engine restart the app did not always register its open project again, so the
+# maintainer's "Acceptance 2026-09-27b" was refused (403 failed_check=roots) on every Activity
+# poll -- 718 times in one log. A restart is simulated by emptying the in-memory allowance and the
+# loaded flag, exactly what a new engine process starts with; the global DB is what persists.
+
+
+def _restart_engine(monkeypatch):
+    monkeypatch.setattr(path_security, "_OPENED_PACKAGES", set())
+    monkeypatch.setattr(registry, "_OWNER_OPENED_LOADED", False)
+
+
+def _owner_rows():
+    return registry.get_global_database().execute_fetchall("SELECT path FROM owner_opened_packages")
+
+
+def test_a_project_the_owner_opened_is_still_served_after_a_restart(home_project, monkeypatch):
+    """WHY: the reported bug -- the owner opened it, the engine restarted, the app did not
+    register it again, and the project must still be served."""
+    owner = TestClient(app)
+    assert owner.post("/api/registry/add", params={"path": str(home_project)}).status_code == 200
+    assert len(_owner_rows()) == 1
+
+    _restart_engine(monkeypatch)
+
+    served = _jobs(owner, home_project)
+    assert served.status_code == 200, served.text
+
+
+def test_a_non_owner_registration_is_not_persisted_and_stays_refused_after_restart(
+    home_project, monkeypatch
+):
+    """WHY: persistence must not become a way round audit A1 -- a paired device or remote session
+    that registers a project writes a registry row but never an owner allowance."""
+    remote = TestClient(app, client=("10.0.0.7", 50000))
+    remote.post("/api/registry/add", params={"path": str(home_project)})
+    assert _owner_rows() == []
+
+    _restart_engine(monkeypatch)
+
+    assert _jobs(TestClient(app), home_project).status_code == 403
+
+
+def test_removing_the_project_refuses_it_after_a_restart(home_project, monkeypatch):
+    """WHY: closing a project withdraws the allowance; a restart must not bring it back."""
+    owner = TestClient(app)
+    owner.post("/api/registry/add", params={"path": str(home_project)})
+    removed = owner.delete(f"/api/registry/{quote(str(home_project), safe='')}")
+    assert removed.status_code == 200, removed.text
+    assert _owner_rows() == []
+
+    _restart_engine(monkeypatch)
+
+    assert _jobs(owner, home_project).status_code == 403
+
+
+def test_a_registry_row_removed_by_anyone_is_not_reloaded(home_project, monkeypatch):
+    """WHY: loading needs the owner row AND the registry row, so a project no longer in the
+    registry is never served after a restart, whoever removed it."""
+    owner = TestClient(app)
+    owner.post("/api/registry/add", params={"path": str(home_project)})
+    # A removal by a caller that is not the owner (a signed-in CLI, say) deletes only the registry
+    # row; the owner row stays behind.
+    from fichero_server.models import KnownLibrary
+
+    global_db = registry.get_global_database()
+    for row in global_db.query(KnownLibrary, path=str(home_project.resolve())):
+        global_db.delete(row)
+    assert len(_owner_rows()) == 1, "precondition: the owner row is still there"
+
+    _restart_engine(monkeypatch)
+
+    assert _jobs(owner, home_project).status_code == 403
+
+
+def test_an_unflagged_legacy_registry_row_is_refused(home_project, monkeypatch):
+    """WHY: rows written before this fix (or by any non-owner path) carry no owner allowance, so
+    nothing widens silently on upgrade. The owner's next open registers it again."""
+    from fichero_server.models import KnownLibrary
+
+    registry.get_global_database().save(KnownLibrary(path=str(home_project.resolve()), name="legacy"))
+
+    _restart_engine(monkeypatch)
+
+    assert _jobs(TestClient(app), home_project).status_code == 403
+
+
+def test_a_persisted_package_replaced_by_a_symlink_is_not_reloaded(home_project, monkeypatch):
+    """WHY: exact package only -- if the stored path now resolves elsewhere (a symlink planted
+    where the project was), the reload must not follow it."""
+    owner = TestClient(app)
+    owner.post("/api/registry/add", params={"path": str(home_project)})
+
+    elsewhere = home_project.parent.parent / "Elsewhere" / "Other.fichero"
+    elsewhere.mkdir(parents=True)
+    db_manager.close_database(str(home_project))
+    shutil.rmtree(home_project)
+    home_project.symlink_to(elsewhere, target_is_directory=True)
+
+    _restart_engine(monkeypatch)
 
     assert _jobs(owner, home_project).status_code == 403

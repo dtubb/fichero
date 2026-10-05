@@ -1337,7 +1337,13 @@ def _is_allowed_library_path(library_path: str) -> bool:
     if expanded.suffix != ".fichero":
         return False
 
-    return _is_allowed_local_path(library_path) or is_owner_opened_package(library_path)
+    if _is_allowed_local_path(library_path):
+        return True
+    # #5464: after a restart the owner's allowance comes back from the global DB (loaded once).
+    from fichero_server.api.routes.library.registry import ensure_owner_opened_packages_loaded
+
+    ensure_owner_opened_packages_loaded()
+    return is_owner_opened_package(library_path)
 
 
 def get_library_database(
