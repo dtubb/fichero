@@ -25,12 +25,35 @@ import sys
 import tomllib
 from pathlib import Path
 
+import pytest
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
 from _scan_files import scan_rglob
 
 SERVER_ROOT = Path(__file__).resolve().parents[3]
 PYPROJECT = SERVER_ROOT / "pyproject.toml"
+
+# Code that runs ONLY in a remote container, never in the embedded engine (#5472). The engine sends
+# each file as a script, by path, and never imports it; the container installs what it needs. The
+# third-party scan skips these files; `test_engine_never_imports_remote_only_code` pins that the
+# engine does not import them at start. Each entry says why it is remote-only.
+REMOTE_ONLY = {
+    "src/fichero_server/remote_read/runner.py": (
+        "the reading runner: one shard of a read package on Hugging Face Jobs or a Slurm array; "
+        "remote_read/package.py copies it into the package's _fichero/. Its torch/transformers "
+        "(reader: vlm) are the job's own dependencies. `iiif_fetch` is NOT a package: it is "
+        "fichero_server/media/iiif_fetch.py, copied beside the runner into _fichero/ and put on "
+        "sys.path by the runner itself."
+    ),
+    "src/fichero_server/training/hf_vision_lora_train.py": (
+        "the LoRA trainer run INSIDE a Hugging Face Job (training/hf_jobs.py sends it as the Job's "
+        "uv script); torch/transformers/peft/accelerate come from its own `# /// script` header."
+    ),
+}
+REMOTE_ONLY_MODULES = {
+    "fichero_server.remote_read.runner",
+    "fichero_server.training.hf_vision_lora_train",
+}
 
 # Importable without being a bundled distribution: interpreter and test plumbing.
 _ALWAYS_ALLOWED = {"fichero_server", "_distutils_hack", "pkg_resources", "setuptools", "sitecustomize", "usercustomize"}
@@ -225,6 +248,8 @@ def test_every_unguarded_third_party_import_is_bundled() -> None:
     offenders: list[str] = []
     src = SERVER_ROOT / "src" / "fichero_server"
     for path in sorted(scan_rglob(src, "*.py")):
+        if path.relative_to(SERVER_ROOT).as_posix() in REMOTE_ONLY:
+            continue  # runs in a remote container, with its own dependencies
         tree = ast.parse(path.read_text(encoding="utf-8"))
         parents: dict[ast.AST, ast.AST] = {}
         for node in ast.walk(tree):
@@ -252,3 +277,37 @@ def test_every_unguarded_third_party_import_is_bundled() -> None:
         "unguarded imports of packages the embedded bundle does not carry "
         "(add the package to the briefcase requires, or guard the import):\n  " + "\n  ".join(offenders)
     )
+
+
+def test_remote_only_list_names_real_files() -> None:
+    """A stale entry would excuse nothing, and a renamed file would drift from REMOTE_ONLY_MODULES,
+    which the start-up check below looks for; both must name the same live files."""
+    for rel in REMOTE_ONLY:
+        assert (SERVER_ROOT / rel).is_file(), f"REMOTE_ONLY names a missing file: {rel}"
+    as_modules = {rel.removeprefix("src/").removesuffix(".py").replace("/", ".") for rel in REMOTE_ONLY}
+    assert as_modules == REMOTE_ONLY_MODULES
+    # iiif_fetch, which the runner imports from beside itself, is first-party: shipped, not installed.
+    assert (SERVER_ROOT / "src/fichero_server/media/iiif_fetch.py").is_file()
+
+
+def test_engine_never_imports_remote_only_code() -> None:
+    """WHY: the scan above skips REMOTE_ONLY files because the embedded engine never imports them;
+    their transformers/peft are not in the bundle. If the engine's start-up ever imported one (a
+    convenience `from ..remote_read.runner import parse_answer`, say), the app would crash on a
+    user's Mac while this suite stayed green. Start the app module in a fresh interpreter and look."""
+    probe = f"""
+import sys
+import fichero_server.api.main  # the engine's FastAPI app: everything it imports at start
+hit = sorted(set({sorted(REMOTE_ONLY_MODULES)!r}) & set(sys.modules))
+print("REMOTE-ONLY IMPORTED:", hit)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        cwd=str(SERVER_ROOT),
+        env={**os.environ, "PYTHONPATH": str(SERVER_ROOT / "src")},
+        timeout=600,
+    )
+    assert result.returncode == 0, result.stderr[-2500:]
+    assert "REMOTE-ONLY IMPORTED: []" in result.stdout, result.stdout[-2500:]
