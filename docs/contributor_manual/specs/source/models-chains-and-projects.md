@@ -642,10 +642,10 @@ link here and do not restate it. Each screen's behaviours are the `source.onboar
   replaces the narrower "job details" screen proposed above. Statements, Translate and normalise,
   Quotations, Catalogue and Tables are among the checkboxes.
 - **Where it lives (revised the same day):** a new project is made through **Set Up New Project…**
-  (the File menu and first run both lead there), which opens setup; the location is not a save panel
-  but a simple choice of two places: **In ~/Fichero** (`~/Fichero/<project name>`, visible in Finder)
-  or **Inside Fichero** (the app's own container, managed for the person). Most people should not
-  have to decide where a project lives.
+  (the File menu and first run both lead there), which opens setup; the location is a simple
+  choice: **Inside Fichero** (the default: the app's own container, managed for the person) or
+  **Choose a location…** (a folder picker, e.g. `~/Fichero`). Most people should not have to
+  decide where a project lives.
 - **Keep arranged** arranges the folder by the project's own structure (its folders), so Fichero
   keeps the material organised. A file a person moves by hand inside the folder stays where they
   put it, and Fichero's records follow the move (the folder and the project stay in sync).
