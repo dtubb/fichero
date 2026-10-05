@@ -90,6 +90,8 @@ final class ActivityStore: ChangeEventConsumer {
     private(set) var cpuCount: Int = 0
     /// Pause Background Work is on (`activity.pause.global`), from the same read.
     private(set) var backgroundPaused = false
+    /// This Mac's state (memory, heat, battery, in use, why heavy work waits), same read.
+    private(set) var machine: MachineState?
     private var jobsPollTask: Task<Void, Never>?
 
     // MARK: - Run trees (#5415: the Activity table's run → step → page rows)
@@ -150,11 +152,10 @@ final class ActivityStore: ChangeEventConsumer {
         do {
             let snapshot = try await activityService.getBackgroundJobs()
             if backgroundJobs != snapshot.jobs { backgroundJobs = snapshot.jobs }
-            if processCpuPercent != snapshot.processCpuPercent {
-                processCpuPercent = snapshot.processCpuPercent
-            }
+            if processCpuPercent != snapshot.processCpuPercent { processCpuPercent = snapshot.processCpuPercent }
             if cpuCount != snapshot.cpuCount { cpuCount = snapshot.cpuCount }
             if backgroundPaused != snapshot.paused { backgroundPaused = snapshot.paused }
+            if machine != snapshot.machine { machine = snapshot.machine }
         } catch {
             log.debug("ActivityStore: jobs poll failed \(error.localizedDescription, privacy: .public)")
         }

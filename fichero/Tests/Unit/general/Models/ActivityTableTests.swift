@@ -478,7 +478,10 @@ final class ActivityTableTests: XCTestCase {
     /// `GET /api/activity/jobs` in the engine's shape (`BackgroundJobsResponse`):
     /// one running queue, one kind waiting on memory (12 jobs), a page under a
     /// run, four failures, background work not paused.
-    private static func jobsJSON(paused: Bool = false) -> Data {
+    private static let idleMachine =
+        #"{"memory_pressure":"normal","thermal_state":"nominal","on_battery":false,"in_use":false,"why_wait":null}"#
+
+    private static func jobsJSON(paused: Bool = false, machine: String = idleMachine) -> Data {
         func job(_ id: String, _ type: String, _ name: String, _ state: String, current: Int = 0, total: Int = 0,
                  reason: String? = nil, parent: String? = nil) -> String {
             let reasonJSON = reason.map { "\"\($0)\"" } ?? "null"
@@ -501,7 +504,7 @@ final class ActivityTableTests: XCTestCase {
         return Data("""
         {"jobs":[\(jobs.joined(separator: ","))],"count":\(jobs.count),"process_cpu_percent":142.0,\
         "cpu_count":8,"paused":\(paused),\
-        "machine":{"memory_pressure":"normal","thermal_state":"nominal","on_battery":false,"in_use":false,"why_wait":null}}
+        "machine":\(machine)}
         """.utf8)
     }
 
@@ -557,5 +560,31 @@ final class ActivityTableTests: XCTestCase {
         XCTAssertNil(summary.heldBack)
         XCTAssertEqual(summary.waitingCount, 3)
         XCTAssertEqual(summary.waitingReason, "Waiting for Kraken")
+    }
+
+    func testActivityPopoverSummary_saysThisMacsStateAndHidesAReadingTheEngineCouldNotTake() async throws {
+        // WHY: the popover says "the Mac's state (memory pressure, heat,
+        // battery, in use), read from the engine", and why heavy work waits in
+        // the throttle's own words. Decoded from a recorded `machine` through
+        // the real client and store, so a renamed field fails here rather than
+        // silently showing nothing; a null reading (heat unreadable) is left
+        // out rather than shown as a guess.
+        let store = Self.storeWithMockTransport()
+        let machine = #"{"memory_pressure":"warn","thermal_state":null,"on_battery":true,"in_use":true,"#
+            + #""why_wait":"the Mac is on battery"}"#
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: Self.jobsJSON(machine: machine))
+        ])
+        await store.refreshBackgroundJobs()
+
+        XCTAssertEqual(store.machine, MachineState(memoryPressure: "warn", thermalState: nil, onBattery: true,
+                                                   inUse: true, whyWait: "the Mac is on battery"))
+        let summary = ActivityPopoverSummary(jobs: store.backgroundJobs, paused: store.backgroundPaused,
+                                             machine: store.machine)
+        XCTAssertEqual(summary.macState, ["Memory pressure: warn", "On battery", "In use"],
+                       "heat the engine could not read is not shown")
+        XCTAssertEqual(summary.heldBack, "Heavy work is held back: the Mac is on battery",
+                       "the throttle's own reason wins over a waiting job's")
     }
 }

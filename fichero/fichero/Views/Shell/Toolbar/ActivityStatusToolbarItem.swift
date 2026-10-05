@@ -170,6 +170,7 @@ struct ActivityStatusToolbarItem: View {
         ActivityPopoverSummary(
             jobs: activityStore.backgroundJobs,
             paused: activityStore.backgroundPaused,
+            machine: activityStore.machine,
             liveRuns: activeWorkflows.map {
                 .init(id: $0.threadId, name: $0.name, step: $0.currentNodeName)
             }
