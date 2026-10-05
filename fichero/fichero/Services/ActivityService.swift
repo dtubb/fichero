@@ -224,7 +224,12 @@ class ActivityService {
                 paused: body.paused ?? false,
                 machine: body.machine
             )
-        case .undocumented(let statusCode, _):
+        case .undocumented(let statusCode, let payload):
+            // A refusal keeps the engine's typed body (#5469): the footer names
+            // WHY (the project's location vs the app's credentials).
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw denial
+            }
             throw ActivityServiceError.unexpectedResponse(statusCode)
         }
     }

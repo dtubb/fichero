@@ -21,10 +21,12 @@ final class KnownLibraryRegistryStore {
     private(set) var libraries: [KnownLibraryMenuEntry] = []
     private(set) var fetchError: String?
 
-    private let apiClient = APIClient()
+    private let apiClient: APIClient
     @ObservationIgnored private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
-    private init() {
+    /// `apiClient` is a test seam (a mock-transported client); the app uses `shared`.
+    init(apiClient: APIClient = APIClient()) {
+        self.apiClient = apiClient
         // Rebind on a pairing / Settings host change (#2349) — otherwise the
         // known-library registry menu keeps querying the launch host (localhost)
         // after the app has moved to a remote engine.
@@ -178,6 +180,16 @@ final class KnownLibraryRegistryStore {
         } catch {
             // Best-effort only: menu recents should never block opening/saving a library.
         }
+    }
+
+    /// Register an open library AGAIN after the app reconnects to an engine (#5468). The engine
+    /// serves a library the owner registered only until it stops, so a restarted engine refuses
+    /// every open library (403, `library_outside_allowed_locations`) until it is registered again.
+    /// The change stream's reconnect calls this; it is the SAME `POST /api/registry/add` as an
+    /// open, with this session's de-dup (#5228) lifted for the one path.
+    func noteReconnected(url: URL, displayName: String?) async {
+        notedThisSession.remove(url.path.nfcNormalized)
+        await noteOpenedLibrary(url: url, displayName: displayName)
     }
 
     func remove(path: String) async {

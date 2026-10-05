@@ -97,7 +97,7 @@ final class ActivityStoreRunsTests: XCTestCase {
         MockTransportURLProtocol.reset([])
     }
 
-    private static func storeWithMockTransport() -> ActivityStore {
+    private static func storeWithMockTransport(library: LibraryManager.LibraryReference? = nil) -> ActivityStore {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockTransportURLProtocol.self]
         let session = URLSession(configuration: configuration)
@@ -107,7 +107,7 @@ final class ActivityStoreRunsTests: XCTestCase {
             session: session
         )
         let service = ActivityService(ficheroClient: client)
-        return ActivityStore(service: service)
+        return ActivityStore(service: service, library: library)
     }
 
     /// `rebuildRuns`/`loadMoreRuns` read only `.id`/`.displayName` off this —
@@ -376,6 +376,85 @@ final class ActivityStoreRunsTests: XCTestCase {
         ])
         await store.rebuildRuns(activeExecutions: [], library: Self.testLibrary())
         XCTAssertEqual(store.runLoadFailures, [], "a successful load clears the failure")
+    }
+
+    // MARK: - A refusal names its cause (#5469)
+
+    /// The engine's 403 for a project outside every location it may open, as
+    /// `_rejected_library_path_payload` writes it (api/main.py, the roots check).
+    private static let rootsRefusalBody = Data(
+        #"{"detail": "'/Users/me/Elsewhere/Diaries.fichero' is a .fichero package, but it is outside every location this engine may open (allowed roots and security-scoped grants). Open it from the app so access can be granted, or move it into an allowed location such as Documents.", "code": "library_outside_allowed_locations"}"#.utf8
+    )
+
+    /// The engine's 403 for a request it refuses on credentials (api/auth.py: a
+    /// non-loopback caller): no machine code, just the refusal.
+    private static let credentialsRefusalBody = Data(#"{"detail": "loopback only"}"#.utf8)
+
+    /// A good, idle `GET /api/activity/jobs` (its required fields only, plus an empty list).
+    private static let emptyJobsBody = Data(
+        #"{"jobs":[],"count":0,"cpu_count":8,"paused":false,"machine":{"memory_pressure":"normal","thermal_state":"nominal","on_battery":false,"in_use":false,"why_wait":null}}"#.utf8
+    )
+
+    private static let locationLine =
+        "Couldn't load activity from Test Library: the engine isn't allowed to open the project from where it's saved"
+
+    /// WHY: #5469. A project refused for its LOCATION (failed_check=roots) read
+    /// "the engine refused the app's credentials", sending the user after a token
+    /// that was fine. If this goes red, the footer guesses the cause again.
+    func testRunListRootsRefusalSaysTheProjectsLocation() async {
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/workflow-execution/runs", method: "GET", status: 403, body: Self.rootsRefusalBody)
+        ])
+        await store.rebuildRuns(activeExecutions: [], library: Self.testLibrary())
+        XCTAssertEqual(store.runLoadFailures, [Self.locationLine])
+    }
+
+    /// WHY: #5469's other half. A credentials refusal must still read as one, or
+    /// the location sentence would be a new guess in the other direction.
+    func testRunListCredentialsRefusalSaysCredentials() async {
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/workflow-execution/runs", method: "GET", status: 403, body: Self.credentialsRefusalBody)
+        ])
+        await store.rebuildRuns(activeExecutions: [], library: Self.testLibrary())
+        XCTAssertEqual(
+            store.runLoadFailures,
+            ["Couldn't load activity from Test Library: the engine refused the app's credentials"]
+        )
+    }
+
+    /// WHY: #5469. The jobs poll dropped the 403 body and logged at debug, so a
+    /// refused project showed NOTHING. It feeds the same footer, with the same
+    /// cause, and its next good poll clears its line (as #5431). If this goes
+    /// red, a refused project is silent again, or its line never leaves.
+    func testJobsPollRefusalReachesTheFooterAndClearsOnTheNextGoodPoll() async {
+        let library = Self.testLibrary()
+        let store = Self.storeWithMockTransport(library: library)
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 403, body: Self.rootsRefusalBody)
+        ])
+        await store.refreshBackgroundJobs()
+        XCTAssertEqual(store.runLoadFailures, [Self.locationLine])
+
+        // The run list refused for the same reason: one line, not two.
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 403, body: Self.rootsRefusalBody),
+            Stub(pathContains: "/api/workflow-execution/runs", method: "GET", status: 403, body: Self.rootsRefusalBody)
+        ])
+        await store.rebuildRuns(activeExecutions: [], library: library)
+        XCTAssertEqual(store.runLoadFailures, [Self.locationLine], "the same cause says it once")
+
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200, body: Self.emptyJobsBody),
+            Stub(
+                pathContains: "/api/workflow-execution/runs", method: "GET", status: 200,
+                body: Self.listResponseJSON([Self.runSummaryJSON(threadId: "t1")])
+            )
+        ])
+        await store.refreshBackgroundJobs()
+        await store.rebuildRuns(activeExecutions: [], library: library)
+        XCTAssertEqual(store.runLoadFailures, [], "the next good loads clear the footer")
     }
 }
 

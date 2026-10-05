@@ -584,6 +584,18 @@ workflow by hand: a hand run is a job like any other.
   `ActivityWindowHonestStateTests`) and by the engine test that the respawned engine's 401 names its
   branch (`fichero-server/tests/unit/security/test_auth_refusals_say_why.py`). Still to check: the
   spinner half (#4346, #4384).
+- `activity.window.refusal-names-its-cause` — **[OK]** (#5469) a refused project says why, from
+  the engine's typed error body, not a guess: a 403 coded `library_outside_allowed_locations` (the
+  roots check) reads "the engine isn't allowed to open the project from where it's saved"; another
+  coded refusal reads as the engine wrote it; a 401, or a 403 with no code, reads "the engine refused
+  the app's credentials". The jobs poll (`GET /api/activity/jobs`) and the run list feed the same
+  footer: `ActivityService.getBackgroundJobs` throws a refusal as a typed `AccessError` like
+  `listWorkflowRuns`, and `ActivityStore` keeps one line per library and read (the same cause says
+  it once), cleared by that read's next good load. A jobs poll that fails for any other reason (an
+  engine restarting) stays quiet and recovers on the next tick. Pinned by
+  `fichero/Tests/Unit/general/Models/ActivityStoreRunsTests.swift`
+  (`testRunListRootsRefusalSaysTheProjectsLocation`, `testRunListCredentialsRefusalSaysCredentials`,
+  `testJobsPollRefusalReachesTheFooterAndClearsOnTheNextGoodPoll`).
 - `activity.window.what-it-made` — **[GAP]** (→ #5245) a finished job opens the list of what it made
   and can be taken back (`safety/run-take-back.md`).
 - `activity.document.what-has-been-run` — **[GAP]** (#5434) the reverse of

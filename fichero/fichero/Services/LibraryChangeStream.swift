@@ -197,28 +197,38 @@ final class LibraryChangeStream {
     /// can drive the classify loop without a socket.
     private let transport: any ChangeStreamTransport
 
+    /// Runs before every REconnect attempt (never the first connect). Production registers
+    /// this library with the engine again (#5468): an engine that restarted while the app kept
+    /// running has forgotten the open libraries and refuses them (403, `failed_check=roots`)
+    /// until they are registered again, so this must land BEFORE the stream asks.
+    private let beforeReconnect: (@MainActor () async -> Void)?
+
     init(
         baseURL: URL,
         libraryPath: String,
         windowId: String = UUID().uuidString,
-        transport: any ChangeStreamTransport
+        transport: any ChangeStreamTransport,
+        beforeReconnect: (@MainActor () async -> Void)? = nil
     ) {
         self.baseURLProvider = { baseURL }
         self.libraryPath = libraryPath
         self.windowId = windowId
         self.transport = transport
+        self.beforeReconnect = beforeReconnect
     }
 
     init(
         baseURLProvider: @escaping @MainActor () -> URL,
         libraryPath: String,
         windowId: String = UUID().uuidString,
-        transport: any ChangeStreamTransport
+        transport: any ChangeStreamTransport,
+        beforeReconnect: (@MainActor () async -> Void)? = nil
     ) {
         self.baseURLProvider = baseURLProvider
         self.libraryPath = libraryPath
         self.windowId = windowId
         self.transport = transport
+        self.beforeReconnect = beforeReconnect
     }
 
     deinit {
@@ -332,6 +342,9 @@ final class LibraryChangeStream {
         var consecutiveUnavailableCycles = 0
         while !Task.isCancelled {
             do {
+                if hasConnectedBefore, let beforeReconnect {
+                    await beforeReconnect()
+                }
                 try await subscribeOnce(resyncOnConnect: hasConnectedBefore)
                 hasConnectedBefore = true
                 consecutiveUnavailableCycles = 0

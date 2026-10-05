@@ -326,6 +326,15 @@ very engine spawn those tests exist to exercise.
   (Dev Local external) refused projects in a folder outside the fixed roots (~/Fichero Test
   Library) on every Activity poll, since it cannot read the app's bookmarks. Pinned by
   `fichero-server/tests/unit/api/test_owner_opened_library_is_served.py`.
+- `engine.reconnect-re-registers-open-projects` — **[OK]** (#5468) the engine serves a registered
+  project only until it stops, so an engine that restarts while the app keeps running would refuse
+  every open project (403, `failed_check=roots`) until the app relaunched. Each open project's change
+  stream registers it again before every reconnect (never the first connect), through the same
+  `KnownLibraryRegistryStore` call an open makes (`noteReconnected` lifts this session's de-dup for
+  that one path, then `noteOpenedLibrary` posts `POST /api/registry/add`), so the stream and every
+  later request find the project served. Wired in `LibraryReference.changeStream`
+  (`fichero/fichero/Models/LibraryManager.swift`, `beforeReconnect`). Pinned through the real
+  reconnect loop by `fichero/Tests/Unit/general/Transport/ChangeStreamReconnectRegistersLibraryTests.swift`.
 
 ### E. Typed errors, not silent fallbacks
 
