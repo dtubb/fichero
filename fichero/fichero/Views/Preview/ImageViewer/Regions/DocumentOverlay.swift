@@ -23,9 +23,8 @@ struct DocumentOverlay: Equatable {
         /// The segment drawn, and its kind: what the box is called as an accessibility element (#5192).
         var segmentId: String?
         var kind = ""
-        /// Its region's colour, and the lighter tint on alternate lines (#5200).
-        var regionId: String?
-        var alternateTint = false
+        /// Its region's hue and its shade along the reading order (`RegionColours.Tone`); nil draws plain.
+        var tone: RegionColours.Tone?
         /// The segment's resolved direction (`SegmentStore`, from the page text), so its inline reading is
         /// set the way the line is written (#5411). Nil: not resolved.
         var direction: String?

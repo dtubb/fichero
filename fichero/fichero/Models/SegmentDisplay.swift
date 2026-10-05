@@ -198,6 +198,9 @@ enum SegmentDisplay {
                 """)
             return nil
         }
+        // ponytail: the pass's as-written order (`boxIndex`), not a named order the Segments pane may have
+        // chosen -- `ReadingOrderStore` is per pane and the Preview holds none. Reading a chosen order here
+        // needs the pane's order id beside the document; until then a reordered named order does not reshade.
         let tones = RegionColours.tones(of: segments)
         let boxes: [OCRGeometryBox] = segments
             .sorted { ($0.boxIndex ?? 0) < ($1.boxIndex ?? 0) }
@@ -234,8 +237,7 @@ enum SegmentDisplay {
                     shapes: SegmentShapes.drawn(for: segment),
                     noReading: SegmentsPane.lacksReading(segment),
                     segmentId: segment.id,
-                    regionId: tones[segment.id]?.regionId,
-                    alternateTint: tones[segment.id]?.alternate ?? false
+                    tone: tones[segment.id]
                 )
             }
         return OCRGeometry(

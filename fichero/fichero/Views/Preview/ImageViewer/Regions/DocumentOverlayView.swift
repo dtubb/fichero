@@ -202,15 +202,14 @@ final class DocumentOverlayView: NSView {
         }
     }
 
-    /// Every box THIN, in its region's colour (#5207, #5200): an outline and its baseline, no fill at rest --
-    /// the fill is hover's and selection's. Lines alternate two tints of their region's colour.
+    /// Every box THIN, in its region's hue shaded along the reading order (#5207, #5426): an outline and its
+    /// baseline, no fill at rest -- the fill is hover's and selection's.
     private func drawBoxes(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, line: CGFloat) {
         let linesShown = overlay.showsLines
         for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
-            let colour = SelectionStyle.regionColour(box.regionId)
             // A region under lines is lighter (#5284).
             let strength = DocumentOverlay.strength(ofKind: box.kind, linesShown: linesShown)
-            let tint = (box.alternateTint ? SelectionStyle.alternateTintAlpha : 1) * strength
+            let colour = { (opacity: CGFloat) in SelectionStyle.regionColour(box.tone, opacity: opacity * strength) }
             // A region under lines sets no reading of its own: its lines carry it (#5411).
             let setsText = box.showsText && !box.text.isEmpty
                 && DocumentOverlay.setsTextInline(kind: box.kind, linesShown: linesShown)
@@ -219,7 +218,7 @@ final class DocumentOverlayView: NSView {
             if !box.shapes.isEmpty, !setsText {
                 ShapeDrawing.draw(box.shapes, imageRect: imageRect, scale: scale, look: .init(
                     line: line,
-                    stroke: colour.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence) * tint),
+                    stroke: colour(OCRBoxConfidence.strokeOpacity(box.confidence)),
                     wash: .clear,
                     dashed: box.noReading || OCRBoxConfidence.isUncertain(box.confidence)
                 ))
@@ -228,7 +227,7 @@ final class DocumentOverlayView: NSView {
             if box.noReading {
                 // No reading yet: hollow and dashed, never hidden, so it can be seen, picked and typed.
                 let hollow = NSBezierPath(rect: rect)
-                colour.withAlphaComponent(tint).setStroke()
+                colour(1).setStroke()
                 hollow.lineWidth = line
                 hollow.setLineDash([4 / scale, 3 / scale], count: 2, phase: 0)
                 hollow.stroke()
@@ -241,7 +240,7 @@ final class DocumentOverlayView: NSView {
                 path.fill()
                 InlineWords.draw(box.text, direction: box.direction, in: rect)
             }
-            colour.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence) * tint).setStroke()
+            colour(OCRBoxConfidence.strokeOpacity(box.confidence)).setStroke()
             path.lineWidth = line
             if OCRBoxConfidence.isUncertain(box.confidence) {
                 path.setLineDash([3 / scale, 2 / scale], count: 2, phase: 0)

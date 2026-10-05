@@ -16,7 +16,7 @@ enum PDFShapeAnnotations {
         let crop = page.bounds(for: .cropBox)
         let rotation = page.rotation
         let faint = box.noReading || OCRBoxConfidence.isUncertain(box)
-        let color = faint ? NSColor.systemTeal.withAlphaComponent(0.35) : NSColor.systemTeal
+        let color = SelectionStyle.regionColour(box.tone, opacity: faint ? 0.35 : 1)
         var out: [PDFAnnotation] = []
         for shape in box.shapes {
             let points = shape.points.compactMap { PDFRegionGeometry.pagePoint(normalized: $0, rotation: rotation, crop: crop) }
