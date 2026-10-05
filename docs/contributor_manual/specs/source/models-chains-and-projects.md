@@ -1949,13 +1949,13 @@ Setup
   none of those routes today) and setup shows the tied folder: its path, its file count, and intake
   (files added later) with the preview's count and a switch to turn it on. *Test:* setup with Index
   and a fixture folder lists the folder in `GET /api/sync-folders` and shows its intake preview.
-- `source.onboard.keep-arranged` — **[GAP]** (#5480) Keep arranged is Index plus arrangement (section
+- `source.onboard.keep-arranged` — **[PARTIAL]** (#5480) **Built 2026-10-05 (engine half):** a synced folder has a mode, `index` or `keep-arranged` (`POST /api/sync-folders` takes `mode`, `GET` shows it, `PUT /api/sync-folders/{id}/mode` switches it, refused in words (422) for a folder that cannot be written to or that no project folder came from); `GET /api/sync-folders/{id}/arrangement` is the dry run (the moves, from and to, and any refusal; nothing moves); kept arranged, the folder follows the project's own folders (rule (a) of open question 10): a document moved or renamed, or a folder renamed, in the project moves or renames its file inside the folder, never out of it, never over a file (a clash takes `name 2.jpg`), never deleting one; a file moved by hand stays, and the project follows it (its record, its project folder, its name; marked placed by hand) (`sync_folder.plan`, `arrange`, `follow_hand_moves`; `fichero-server/tests/unit/jobs/test_synced_folder_keep_arranged.py`). *Not built: the app's preview and yes in setup; date and written-rule arrangements.* Keep arranged is Index plus arrangement (section
   7b): Fichero moves and renames files only inside the tied folder, by the project's chosen rule
   (Open questions), never out of it and never deleting one; before the first arrangement it shows
   how many files would move and a sample of the new paths, and nothing moves until the person says
   yes. *Test:* a fixture folder of five misplaced files shows five moves, and after yes each file
   is at its rule's path and none is gone.
-- `source.onboard.keep-arranged-undoable` — **[GAP]** (#5480) each arrangement is one audited,
+- `source.onboard.keep-arranged-undoable` — **[PARTIAL]** (#5480) **Built 2026-10-05 (engine half):** each arrangement is one audited `sync.arrange` action listing every move (from, to); undo (`POST /api/actions/audit/{id}/undo`) puts every file back and its record with it (`fichero-server/tests/unit/jobs/test_synced_folder_keep_arranged.py`). *Not built: a file added from outside moved into place by the rule (it is taken in where it lands).* each arrangement is one audited,
   undoable action listing every move (old path, new path); undo puts every file back; a file added
   from outside is taken in by intake after its preview and then moved into place by the same rule;
   a file the person moves by hand stays where they put it and is recorded as placed by hand.

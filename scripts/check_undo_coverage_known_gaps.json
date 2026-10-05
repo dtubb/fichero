@@ -1,6 +1,7 @@
 {
   "POST /api/sync-folders": "not undoable by design (sync.tie, audited): the files it wrote stay; untying (DELETE) stops it and leaves them, which is the inverse a person wants (#4952)",
   "DELETE /api/sync-folders/{folder_id}": "not undoable by design (sync.untie, audited): tying again is a new folder and rewrites its files (#4952)",
+  "PUT /api/sync-folders/{folder_id}/mode": "not undoable by design (sync.mode, audited): switching it back is the inverse; each arrangement it causes is its own undoable sync.arrange, undone from the audit (#5480)",
   "PUT /api/sync-folders/{folder_id}/intake": "not undoable by design (sync.intake, audited): switching it back is the inverse; passes that came in are undone one by one like any import (format.import) (#4952)",
   "POST /api/training/kraken/here": "not undoable by design (training.start_here, audited, undoable=False): training that ran has run; it is stopped with the cancel route, and its landed reader is removed like any reader (#5397)",
   "PUT /api/activity/jobs/{job_id}/paused": "undoable in the engine (job.pause, audited with an inverse: pause <-> resume); the app has no per-job control yet to register it (#5356)",

@@ -15402,6 +15402,7 @@ def register_generated_openapi_commands(
     def sync_folders_tie_the_project_to_a_on_the_engine_s_disk_post(
         ctx: typer.Context,
         formats: str = typer.Option(..., "--formats", help="Request field: formats."),
+        mode: Optional[str] = typer.Option(None, "--mode", help="Request field: mode."),
         path: str = typer.Option(..., "--path", help="Request field: path."),
     ) -> None:
         """Tie the project to a folder on the engine's disk (POST /api/sync-folders)."""
@@ -15410,9 +15411,11 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "formats": formats,
+                "mode": mode,
                 "path": path,
             }, {
-                "formats": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Formats', 'description': 'What to write there: pagexml, alto and/or tei', 'x-cli-required': True},
+                "formats": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Formats', 'description': 'What to write there: pagexml, alto and/or tei (may be none when the folder is kept arranged)', 'x-cli-required': True},
+                "mode": {'type': 'string', 'enum': ['index', 'keep-arranged'], 'title': 'Mode', 'description': "index: files stay where they are; keep-arranged: Fichero also moves and renames files inside the folder to follow the project's folders", 'default': 'index', 'x-cli-required': False},
                 "path": {'type': 'string', 'title': 'Path', 'description': "A full path to a folder on the engine's disk; made if it is not there", 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -15431,6 +15434,18 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/sync-folders/{folder_id}"
             params = None
             return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("what-keeping-the-arranged-would-move-now-a-dry-run-nothing-moves")
+    def sync_folders_what_keeping_the_arranged_would_move_now_a_dry_run_nothing_moves_get(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+    ) -> None:
+        """What keeping the folder arranged would move now (a dry run: nothing moves) (GET /api/sync-folders/{folder_id}/arrangement)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/sync-folders/{folder_id}/arrangement"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("whether-intake-is-on-and-what-it-would-bring-in")
@@ -15459,6 +15474,24 @@ def register_generated_openapi_commands(
                 "on": on,
             }, {
                 "on": {'type': 'boolean', 'title': 'On', 'description': 'Take files in from the folder: their edits come in as passes', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("keep-a-synced-as-index-or-keep-arranged")
+    def sync_folders_keep_a_synced_as_index_or_keep_arranged_put(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        mode: str = typer.Option(..., "--mode", help="Request field: mode."),
+    ) -> None:
+        """Keep a synced folder as Index or Keep arranged (PUT /api/sync-folders/{folder_id}/mode)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/sync-folders/{folder_id}/mode"
+            params = None
+            payload = _build_json_payload({
+                "mode": mode,
+            }, {
+                "mode": {'type': 'string', 'enum': ['index', 'keep-arranged'], 'title': 'Mode', 'description': 'index or keep-arranged', 'x-cli-required': True},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

@@ -6887,6 +6887,122 @@
         }
       }
     },
+    "/api/sync-folders/{folder_id}/arrangement": {
+      "get": {
+        "tags": [
+          "sync-folders"
+        ],
+        "summary": "What keeping the folder arranged would move now (a dry run: nothing moves)",
+        "description": "Shown before the first arrangement: each file that would move to follow the project's folders,\nand why it would be refused (say, a folder Fichero cannot write to).",
+        "operationId": "get_arrangement_api_sync_folders__folder_id__arrangement_get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrangementPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sync-folders/{folder_id}/mode": {
+      "put": {
+        "tags": [
+          "sync-folders"
+        ],
+        "summary": "Keep a synced folder as Index or Keep arranged",
+        "description": "Keep arranged: Fichero moves and renames files only inside the folder, to follow the project's\nfolders (a clash takes a numeric suffix; nothing is overwritten or deleted), each arrangement\nundoable; a file moved by hand stays and the project follows it. Refused (422) in words for a\nfolder that cannot be written to, or that no project folder came from.",
+        "operationId": "put_mode_api_sync_folders__folder_id__mode_put",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncFolderStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sync-folders": {
       "post": {
         "tags": [
@@ -45126,6 +45242,30 @@
         "title": "ApprovalState",
         "description": "State of an approval request."
       },
+      "ArrangeMove": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "from_path": {
+            "type": "string",
+            "title": "From Path"
+          },
+          "to_path": {
+            "type": "string",
+            "title": "To Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "from_path",
+          "to_path"
+        ],
+        "title": "ArrangeMove",
+        "description": "One file moved inside the folder: paths relative to it."
+      },
       "ArrangeNodesRequest": {
         "properties": {
           "node_ids": {
@@ -45172,6 +45312,39 @@
         ],
         "title": "ArrangeStrategy",
         "description": "The geometric arrangement strategies supported by ``compute_arrangement``."
+      },
+      "ArrangementPreview": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "index",
+              "keep-arranged"
+            ],
+            "title": "Mode"
+          },
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/ArrangeMove"
+            },
+            "type": "array",
+            "title": "Moves",
+            "description": "each file that would move: from, to (inside the folder)"
+          },
+          "refused": {
+            "type": "string",
+            "nullable": true,
+            "title": "Refused",
+            "description": "why it would not be arranged, in words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "moves"
+        ],
+        "title": "ArrangementPreview",
+        "description": "`source.onboard.keep-arranged`: what an arrangement would move now, before anything moves."
       },
       "Artifact": {
         "properties": {
@@ -65704,6 +65877,24 @@
         "title": "MigrationValidationResponse",
         "description": "Validation result for a migration."
       },
+      "ModeRequest": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "index",
+              "keep-arranged"
+            ],
+            "title": "Mode",
+            "description": "index or keep-arranged"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "ModeRequest"
+      },
       "ModelCreate": {
         "properties": {
           "provider_id": {
@@ -79938,6 +80129,15 @@
             "type": "array",
             "title": "Formats"
           },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "index",
+              "keep-arranged"
+            ],
+            "title": "Mode",
+            "description": "index, or keep-arranged: files follow the project's folders"
+          },
           "intake": {
             "type": "boolean",
             "title": "Intake",
@@ -80021,6 +80221,7 @@
           "id",
           "path",
           "formats",
+          "mode",
           "intake",
           "conflicts",
           "adopted",
@@ -80667,7 +80868,17 @@
             },
             "type": "array",
             "title": "Formats",
-            "description": "What to write there: pagexml, alto and/or tei"
+            "description": "What to write there: pagexml, alto and/or tei (may be none when the folder is kept arranged)"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "index",
+              "keep-arranged"
+            ],
+            "title": "Mode",
+            "description": "index: files stay where they are; keep-arranged: Fichero also moves and renames files inside the folder to follow the project's folders",
+            "default": "index"
           }
         },
         "type": "object",

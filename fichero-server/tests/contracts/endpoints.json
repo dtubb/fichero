@@ -10584,6 +10584,18 @@
       },
       {
         "method": "GET",
+        "path": "/sync-folders/{folder_id}/arrangement",
+        "operation_id": "get_arrangement_api_sync_folders__folder_id__arrangement_get",
+        "summary": "What keeping the folder arranged would move now (a dry run: nothing moves)",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ArrangementPreview"
+      },
+      {
+        "method": "GET",
         "path": "/sync-folders/{folder_id}/intake",
         "operation_id": "get_intake_api_sync_folders__folder_id__intake_get",
         "summary": "Whether intake is on, and what it would bring in",
@@ -10605,6 +10617,18 @@
         "query_params": [],
         "request_model": "IntakeRequest",
         "response_model": "IntakeState"
+      },
+      {
+        "method": "PUT",
+        "path": "/sync-folders/{folder_id}/mode",
+        "operation_id": "put_mode_api_sync_folders__folder_id__mode_put",
+        "summary": "Keep a synced folder as Index or Keep arranged",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": "ModeRequest",
+        "response_model": "SyncFolderStatus"
       }
     ],
     "tasks": [

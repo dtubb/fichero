@@ -7355,11 +7355,12 @@ def fichero_sync_folders_list(
 
 def fichero_sync_folders_tie(
     *,
-    formats: Annotated[list[Any], Field(description='What to write there: pagexml, alto and/or tei.')],
+    formats: Annotated[list[Any], Field(description='What to write there: pagexml, alto and/or tei (may be none when the folder is kept arranged)')],
+    mode: Annotated[Optional[str], Field(description='index: files stay where they are; keep-arranged: Fichero also moves and renames files inside the folder to follow the project\'s folders. One of: index, keep-arranged. Default: "index".')] = None,
     path: Annotated[str, Field(description="A full path to a folder on the engine's disk; made if it is not there.")],
 ) -> Any:
     "Tie the project to a folder on the engine's disk\n\nWrite the project's outputs into the folder and keep them current as the work goes on: one\nsubfolder per format, one file per source named by its title and lasting id, its loss report\nbeside it. Writing is background work (paused by Pause Background Work); a file Fichero did not\nwrite is never overwritten. Refused (422) for a path that is not a full path on the engine's\ndisk or a format a synced folder does not hold.\n\nRoute: POST /api/sync-folders (toolset `sync-folders`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/sync-folders", json=_rt.body({"formats": formats, "path": path}))
+    return _rt.call("POST", "/api/sync-folders", json=_rt.body({"formats": formats, "mode": mode, "path": path}))
 
 
 def fichero_sync_folders_untie(
@@ -7368,6 +7369,14 @@ def fichero_sync_folders_untie(
 ) -> Any:
     'Untie a synced folder (its files stay on disk)\n\nRoute: DELETE /api/sync-folders/{folder_id} (toolset `sync-folders`; changes data, as the agent account when one exists).'
     return _rt.call("DELETE", f"/api/sync-folders/{folder_id}")
+
+
+def fichero_sync_folders_get_arrangement(
+    *,
+    folder_id: Annotated[str, Field(description='Folder Id')],
+) -> Any:
+    "What keeping the folder arranged would move now (a dry run: nothing moves)\n\nShown before the first arrangement: each file that would move to follow the project's folders,\nand why it would be refused (say, a folder Fichero cannot write to).\n\nRoute: GET /api/sync-folders/{folder_id}/arrangement (toolset `sync-folders`; reads)."
+    return _rt.call("GET", f"/api/sync-folders/{folder_id}/arrangement")
 
 
 def fichero_sync_folders_get_intake(
@@ -7385,6 +7394,15 @@ def fichero_sync_folders_put_intake(
 ) -> Any:
     'Switch intake on or off for a synced folder\n\nSwitched on, the folder is read now and whenever it may have changed: each file Fichero\nwrote or adopted that was changed outside comes in as a new pass ("edited outside Fichero"),\noverwriting nothing; one whose page changed too is a conflict, both kept.\n\nRoute: PUT /api/sync-folders/{folder_id}/intake (toolset `sync-folders`; changes data, as the agent account when one exists).'
     return _rt.call("PUT", f"/api/sync-folders/{folder_id}/intake", json=_rt.body({"on": on}))
+
+
+def fichero_sync_folders_put_mode(
+    *,
+    folder_id: Annotated[str, Field(description='Folder Id')],
+    mode: Annotated[str, Field(description='index or keep-arranged. One of: index, keep-arranged.')],
+) -> Any:
+    "Keep a synced folder as Index or Keep arranged\n\nKeep arranged: Fichero moves and renames files only inside the folder, to follow the project's\nfolders (a clash takes a numeric suffix; nothing is overwritten or deleted), each arrangement\nundoable; a file moved by hand stays and the project follows it. Refused (422) in words for a\nfolder that cannot be written to, or that no project folder came from.\n\nRoute: PUT /api/sync-folders/{folder_id}/mode (toolset `sync-folders`; changes data, as the agent account when one exists)."
+    return _rt.call("PUT", f"/api/sync-folders/{folder_id}/mode", json=_rt.body({"mode": mode}))
 
 
 def fichero_tasks_list(
@@ -8932,8 +8950,10 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_sync_folders_list", "sync-folders", "GET", "/api/sync-folders", fichero_sync_folders_list),
     GeneratedTool("fichero_sync_folders_tie", "sync-folders", "POST", "/api/sync-folders", fichero_sync_folders_tie),
     GeneratedTool("fichero_sync_folders_untie", "sync-folders", "DELETE", "/api/sync-folders/{folder_id}", fichero_sync_folders_untie),
+    GeneratedTool("fichero_sync_folders_get_arrangement", "sync-folders", "GET", "/api/sync-folders/{folder_id}/arrangement", fichero_sync_folders_get_arrangement),
     GeneratedTool("fichero_sync_folders_get_intake", "sync-folders", "GET", "/api/sync-folders/{folder_id}/intake", fichero_sync_folders_get_intake),
     GeneratedTool("fichero_sync_folders_put_intake", "sync-folders", "PUT", "/api/sync-folders/{folder_id}/intake", fichero_sync_folders_put_intake),
+    GeneratedTool("fichero_sync_folders_put_mode", "sync-folders", "PUT", "/api/sync-folders/{folder_id}/mode", fichero_sync_folders_put_mode),
     GeneratedTool("fichero_tasks_list", "tasks", "GET", "/api/tasks", fichero_tasks_list),
     GeneratedTool("fichero_tasks_create_kg_metrics", "tasks", "POST", "/api/tasks/kg-metrics", fichero_tasks_create_kg_metrics),
     GeneratedTool("fichero_tasks_get_kg_metrics_data", "tasks", "GET", "/api/tasks/kg-metrics/{task_id}/data", fichero_tasks_get_kg_metrics_data),

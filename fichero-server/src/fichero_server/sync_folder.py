@@ -45,9 +45,25 @@ come in through the one import path (`import_file_set`, as a drop of files does:
 read (`source.sync.read-back-formats`). A folder with intake on is watched while the engine runs
 (watchdog, as the automation triggers use), so it is read soon after anything in it changes.
 
+A folder in mode `keep-arranged` (#5480, `source.onboard.keep-arranged`; the default is `index`) is
+also arranged: its files sit where the project's own structure says. The project folder made by
+importing the folder (its `path` is the folder) stands for the folder itself; each document under it
+with its file in the folder belongs at `<the project folders between>/<its name>`. A document moved
+or renamed in the project, or a folder renamed, queues one arrangement (`queue_arrangement`, kind
+`arrange-folder`), which runs the audited, undoable `sync.arrange` action: every file it moves is
+listed (from, to), and undo puts each one back. Files are moved and renamed only inside the folder,
+never out of it, never over another file (a clash takes a numeric suffix, `name 2.jpg`), and none is
+ever deleted; a folder that cannot be written to is refused in words and nothing moves. `plan`
+is the dry run: what would move, shown before the first arrangement. A file the person moves by
+hand inside the folder stays where they put it: the watcher finds it (by its checksum, where its
+document's file went missing) and the project follows it (`follow_hand_moves`): its record takes
+the new place, the document moves to the project folder of the same name (made if missing) and
+takes the file's new name, and it is marked as placed by hand.
+
 Not built yet: running a subfolder's own recipe on what lands in it, settling a conflict, adopting
 a TEI file spanning several images, restricted material, Rebuild Folder, and a folder of part of a
-project.
+project. Keep arranged by date or by a written rule (spec open question 10), and moving a layout
+file (an adopted folder's `page/` XML) along with its image.
 """
 from __future__ import annotations
 
@@ -89,7 +105,16 @@ _SCHEMA = (
     "format TEXT, sha256 TEXT, written_at TIMESTAMP, state TEXT NOT NULL, PRIMARY KEY (folder_id, rel_path))",
     # The exporter's output for the file when Fichero last wrote or read it (null: same as sha256).
     "ALTER TABLE sync_files ADD COLUMN IF NOT EXISTS exported_sha256 TEXT",
+    # `index` (files stay where they are) or `keep-arranged` (#5480).
+    "ALTER TABLE sync_folders ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'index'",
 )
+INDEX, KEEP_ARRANGED = "index", "keep-arranged"
+MODES = (INDEX, KEEP_ARRANGED)
+ARRANGE_KIND = "arrange-folder"
+#: Project changes that can change where a file belongs (a move, a rename, an undo of either).
+ARRANGING_ACTIONS = frozenset({"document.move", "document.update", "document.restore", "document.create"})
+#: Who arranges, in the audit: the files move because the project changed, not by a person's hand.
+ARRANGER = "Fichero, keeping the folder arranged"
 _ENSURED: set[str] = set()
 
 
@@ -108,10 +133,10 @@ def _sha(data: bytes) -> str:
 
 def _folders(db: Any) -> list[dict[str, Any]]:
     _ensure(db)
-    rows = db.execute_fetchall("SELECT id, path, formats, created_at, adopted, intake FROM sync_folders "
+    rows = db.execute_fetchall("SELECT id, path, formats, created_at, adopted, intake, mode FROM sync_folders "
                                "WHERE untied_at IS NULL ORDER BY created_at")
     return [{"id": r[0], "path": r[1], "formats": json.loads(r[2]), "created_at": r[3], "adopted": bool(r[4]),
-             "intake": bool(r[5])} for r in rows]
+             "intake": bool(r[5]), "mode": r[6] or INDEX} for r in rows]
 
 
 def _folder(db: Any, folder_id: str) -> dict[str, Any] | None:
@@ -135,25 +160,33 @@ def _sources(db: Any) -> list[str]:
     return [r[0] for r in rows]
 
 
-def tie(db: Any, path: str, formats: list[str]) -> str:
-    """Tie the project to a folder on the engine's disk, and queue its files."""
+def tie(db: Any, path: str, formats: list[str], mode: str = INDEX) -> str:
+    """Tie the project to a folder on the engine's disk, and queue its files. Kept arranged, the
+    folder must be one the project imported, and writable; it may hold no written formats."""
     from fichero_server.formats import format_named
 
     folder = Path(path)
     if not folder.is_absolute():
         raise ValueError(f"{path!r} is not a full path on the engine's disk")
-    if not formats:
+    if mode not in MODES:
+        raise ValueError(f"a synced folder is kept as {' or '.join(MODES)}; not {mode!r}")
+    if not formats and mode != KEEP_ARRANGED:
         raise ValueError("name at least one format to write")
     for name in formats:
         if format_named(name).name not in FORMATS:
             raise ValueError(f"a synced folder holds {', '.join(FORMATS)}; not {name!r}")
+    if mode == KEEP_ARRANGED:
+        _refuse_unless_arrangeable(db, folder)
     folder.mkdir(parents=True, exist_ok=True)
     register_job_kinds()
     _ensure(db)
     folder_id = uuid.uuid4().hex
-    db.execute("INSERT INTO sync_folders (id, path, formats, created_at) VALUES (?, ?, ?, ?)",
-               [folder_id, str(folder), json.dumps(list(formats)), utc_now()])
+    db.execute("INSERT INTO sync_folders (id, path, formats, created_at, mode) VALUES (?, ?, ?, ?, ?)",
+               [folder_id, str(folder), json.dumps(list(formats)), utc_now(), mode])
     jobs.enqueue_many(db, KIND, [f"{folder_id}:{doc_id}" for doc_id in _sources(db)], started_by="sync")
+    if mode == KEEP_ARRANGED:
+        _watch(db, _folder(db, folder_id))
+        _queue_arrange(db, folder_id)
     return folder_id
 
 
@@ -202,6 +235,8 @@ def _arrivals(db: Any, folder: dict[str, Any]) -> list[tuple[Path, str | None]]:
     root = Path(folder["path"])
     known = {r[0] for r in db.execute_fetchall("SELECT rel_path FROM sync_files WHERE folder_id = ?",
                                                [folder["id"]])}
+    if folder.get("mode") == KEEP_ARRANGED:  # a file that is a document's own file has not arrived
+        known |= {rel for _doc, rel in _documents_in(db, root)}
     found = []
     for path in sorted(root.rglob("*")):
         rel = path.relative_to(root)
@@ -224,7 +259,7 @@ def set_intake(db: Any, folder_id: str, on: bool) -> None:
     if on:
         _watch(db, _folder(db, folder_id))
         _queue_read(db, folder_id)
-    else:
+    elif _folder(db, folder_id)["mode"] != KEEP_ARRANGED:  # an arranged folder is still watched for hand moves
         _unwatch(folder_id)
 
 
@@ -362,10 +397,16 @@ def read(db: Any, folder_id: str) -> None:
     """The intake job: read back the folder's files that changed outside. Each comes in as a new
     pass; one whose page also changed since is a conflict, both kept; a deleted one is listed."""
     folder = _folder(db, folder_id)
-    if folder is None or not folder["intake"]:
+    arranged = folder is not None and folder["mode"] == KEEP_ARRANGED
+    if folder is None or not (folder["intake"] or arranged):
         return  # untied, or intake switched off, meanwhile
     root = Path(folder["path"])
-    arrivals = _follow_renames(db, folder, _arrivals(db, folder))
+    arrivals = _arrivals(db, folder)
+    if arranged:
+        arrivals = follow_hand_moves(db, folder, arrivals)
+        if not folder["intake"]:
+            return  # kept arranged without intake: hand moves are followed, nothing else comes in
+    arrivals = _follow_renames(db, folder, arrivals)
     rows = db.execute_fetchall(
         "SELECT rel_path, document_id, format, sha256, exported_sha256, state FROM sync_files WHERE folder_id = ? "
         "AND state IN ('written', 'changed-outside', 'deleted-outside')", [folder_id])
@@ -522,7 +563,7 @@ def rescan(db: Any) -> None:
     """On library open: compare each tied folder with the checksums Fichero recorded, so changes made
     while the engine was off are found (`source.sync.rescan-after-downtime`)."""
     for folder in _folders(db):
-        if folder["intake"]:
+        if folder["intake"] or folder["mode"] == KEEP_ARRANGED:
             _watch(db, folder)
             _queue_read(db, folder["id"])  # handled as though seen live
             continue
@@ -553,6 +594,7 @@ def status(db: Any) -> list[dict[str, Any]]:
         pending = jobs.count_jobs(db, KIND, subject_prefix=f"{folder['id']}:")
         out.append({
             "id": folder["id"], "path": folder["path"], "formats": folder["formats"], "adopted": folder["adopted"],
+            "mode": folder["mode"],
             "intake": folder["intake"], "conflicts": by_state.get("conflict", []),
             "last_written": max(written_times) if written_times else None, "pending": int(pending),
             "files": by_state.get("written", []), "in_the_way": by_state.get("in-the-way", []),
@@ -563,9 +605,352 @@ def status(db: Any) -> list[dict[str, Any]]:
     return out
 
 
+# ---------------------------------------------------------------------------------------------------
+# Keep arranged (#5480): the folder follows the project's structure, and the project follows a hand.
+# ---------------------------------------------------------------------------------------------------
+
+
+def _documents_in(db: Any, root: Path) -> list[tuple[str, str]]:
+    """Each live file document whose file is inside the folder: (document id, path in the folder)."""
+    roots = {str(root), os.path.realpath(root)}
+    found = []
+    for doc_id, path in db.execute_fetchall("SELECT id, path FROM documents WHERE doc_type = 'file' "
+                                            "AND deleted_at IS NULL AND path IS NOT NULL"):
+        for base in roots:
+            if path.startswith(base + os.sep):
+                found.append((doc_id, Path(os.path.relpath(path, base)).as_posix()))
+                break
+    return found
+
+
+def _anchor(db: Any, root: Path) -> str | None:
+    """The project folder that stands for the folder itself: the one importing it made."""
+    real = os.path.realpath(root)
+    for doc_id, path in db.execute_fetchall("SELECT id, path FROM documents WHERE doc_type = 'folder' "
+                                            "AND deleted_at IS NULL AND path IS NOT NULL ORDER BY created_at"):
+        if os.path.realpath(path) == real:
+            return doc_id
+    return None
+
+
+def _refuse_unless_arrangeable(db: Any, root: Path) -> None:
+    """Refused in words: a folder that is not there, cannot be written to, or that no project folder
+    came from (so the project has no structure for it)."""
+    if not root.is_dir():
+        raise ValueError(f"{root} is not a folder on the engine's disk, so it cannot be kept arranged.")
+    if not os.access(root, os.W_OK):
+        raise ValueError(f"Fichero cannot write to {root}, so it cannot keep it arranged: nothing was moved. "
+                         "Make the folder writable, or keep it as Index.")
+    if _anchor(db, root) is None:
+        raise ValueError(f"No project folder came from {root}: import it with Index first, then keep it arranged.")
+
+
+def _safe_name(name: str, fallback: str) -> str:
+    name = name.replace("/", "-").replace("\0", "").strip()
+    return fallback if name in ("", ".", "..") else name
+
+
+def _belongs_at(db: Any, anchor: str, doc_id: str, rel: str, cache: dict[str, Any]) -> str | None:
+    """Where the document's file belongs in the folder: the project folders between the anchor and
+    the document, then the document's name (keeping its file's extension). None: the document is
+    no longer under the anchor, so its file stays where it is (moves only inside the folder)."""
+    from fichero_server.models import Document
+
+    def get(i: str) -> Any:
+        if i not in cache:
+            cache[i] = db.get(Document, i)
+        return cache[i]
+
+    doc, current = get(doc_id), Path(rel)
+    if doc is None:
+        return None
+    name = _safe_name(doc.name, current.name)
+    if current.suffix and Path(name).suffix.lower() != current.suffix.lower():
+        name += current.suffix
+    parts, parent = [], doc.parent_id
+    while parent != anchor:
+        node = get(parent) if parent else None
+        if node is None or node.deleted_at is not None:
+            return None
+        parts.append(_safe_name(node.name, "folder"))
+        parent = node.parent_id
+    return Path(*reversed(parts), name).as_posix()
+
+
+def _suffixed(want: str, n: int) -> str:
+    path = Path(want)
+    return path.with_name(f"{path.stem} {n}{path.suffix}").as_posix()
+
+
+def _is_suffixed_variant(rel: str, want: str) -> bool:
+    """`name 2.jpg` beside `name.jpg`: a clash already resolved, not a file out of place."""
+    import re
+
+    current, wanted = Path(rel), Path(want)
+    return current.parent == wanted.parent and re.fullmatch(
+        rf"{re.escape(wanted.stem)} \d+{re.escape(wanted.suffix)}", current.name) is not None
+
+
+def _free(root: Path, want: str, claimed: set[str], own: Path | None = None) -> str:
+    """`want`, or the first `name N.ext` that is neither on disk nor claimed: never over a file."""
+    n, candidate = 1, want
+    while candidate in claimed or ((root / candidate).exists()
+                                   and not (own is not None and own.exists() and os.path.samefile(root / candidate, own))):
+        n += 1
+        candidate = _suffixed(want, n)
+    return candidate
+
+
+def _unwritable(root: Path, moves: list[dict[str, str]]) -> str | None:
+    """Words for why these moves cannot be made, or None."""
+    dirs = {root}
+    for move in moves:
+        dirs.add((root / move["from_path"]).parent)
+        target = (root / move["to_path"]).parent
+        while not target.exists() and target != root:
+            target = target.parent
+        dirs.add(target)
+    for directory in sorted(dirs):
+        if directory.exists() and not os.access(directory, os.W_OK):
+            return (f"Fichero cannot write to {directory}, so it cannot keep {root} arranged: nothing was moved. "
+                    "Make the folder writable, or keep it as Index.")
+    return None
+
+
+def plan(db: Any, folder_id: str) -> tuple[list[dict[str, str]], str | None]:
+    """The dry run: each move an arrangement would make now (document, from, to: paths in the
+    folder), and words for why it would be refused, if it would be. Moves nothing."""
+    folder = _folder(db, folder_id)
+    if folder is None:
+        raise KeyError(folder_id)
+    root = Path(folder["path"])
+    anchor = _anchor(db, root)
+    if anchor is None:
+        return [], f"No project folder came from {root}: import it with Index first, then keep it arranged."
+    moves: list[dict[str, str]] = []
+    claimed: set[str] = set()
+    cache: dict[str, Any] = {}
+    for doc_id, rel in sorted(_documents_in(db, root), key=lambda item: item[1]):
+        if not (root / rel).exists():
+            continue  # moved by hand and not yet followed: the read follows it
+        want = _belongs_at(db, anchor, doc_id, rel, cache)
+        if want is None or want == rel:
+            continue
+        if _is_suffixed_variant(rel, want) and ((root / want).exists() or want in claimed):
+            continue
+        target = _free(root, want, claimed, own=root / rel)
+        if target == rel:
+            continue
+        claimed.add(target)
+        moves.append({"document_id": doc_id, "from_path": rel, "to_path": target})
+    return moves, _unwritable(root, moves)
+
+
+def _inside(root: Path, rel: str) -> Path:
+    """`rel` as a path inside the folder; refused if it would leave it."""
+    norm = os.path.normpath(rel)
+    if os.path.isabs(norm) or norm == ".." or norm.startswith(".." + os.sep) or norm == ".":
+        raise ValueError(f"{rel!r} is not a path inside {root}: Fichero moves files only inside the folder.")
+    return root / norm
+
+
+def _move_no_overwrite(src: Path, dst: Path) -> None:
+    """Move one file, never over another (a hard link fails if the name is taken)."""
+    if dst.exists():
+        if not os.path.samefile(src, dst):  # a case-only rename on a case-blind disk is the same file
+            raise FileExistsError(dst)
+        os.rename(src, dst)
+        return
+    try:
+        os.link(src, dst)
+    except FileExistsError:
+        raise
+    except OSError:  # a disk that cannot hard-link: checked above, renamed
+        os.rename(src, dst)
+        return
+    os.unlink(src)
+
+
+def _prune(directory: Path, root: Path) -> None:
+    """Remove folders a move left empty, up to the tied folder (never it, never one holding anything)."""
+    while directory != root and root in directory.parents:
+        try:
+            directory.rmdir()  # fails on a folder that holds anything: nothing is ever deleted
+        except OSError:
+            return
+        directory = directory.parent
+
+
+def _repoint(db: Any, folder_id: str, doc_id: str, root: Path, old_rel: str, new_rel: str, **marks: Any) -> None:
+    """The document's record follows its file; so do the folder's own rows for it."""
+    from fichero_server.models import Document
+
+    doc = db.get(Document, doc_id)
+    old_path, new_path = doc.path, str(root / new_rel)
+    doc.path = new_path
+    metadata = dict(doc.metadata or {})
+    if metadata.get("source_path") in (old_path, str(root / old_rel)):
+        metadata["source_path"] = new_path
+    metadata.update(marks)
+    doc.metadata = metadata
+    db.save(doc)
+    db.execute("UPDATE sync_files SET rel_path = ? WHERE folder_id = ? AND rel_path = ?", [new_rel, folder_id, old_rel])
+
+
+def arrange(db: Any, folder_id: str, moves: list[dict[str, str]] | None = None) -> list[dict[str, str]]:
+    """Make the moves (the plan's, or the ones given: an undo's), each only inside the folder and
+    never over a file, and return the moves made. Refused in words (ValueError) if the folder cannot
+    be written to: then nothing moves."""
+    folder = _folder(db, folder_id)
+    if folder is None:
+        raise KeyError(folder_id)
+    root = Path(folder["path"])
+    if moves is None:
+        if folder["mode"] != KEEP_ARRANGED:
+            return []
+        moves, refused = plan(db, folder_id)
+    else:
+        refused = _unwritable(root, moves)
+    if refused:
+        raise ValueError(refused)
+    done, claimed = [], set()
+    for move in moves:
+        src, want = _inside(root, move["from_path"]), _inside(root, move["to_path"])
+        if not src.is_file():
+            continue  # gone, or moved by hand meanwhile: nothing to move
+        target = _free(root, want.relative_to(root).as_posix(), claimed, own=src)
+        dst = root / target
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        _move_no_overwrite(src, dst)
+        claimed.add(target)
+        _repoint(db, folder_id, move["document_id"], root, move["from_path"], target)
+        _prune(src.parent, root)
+        done.append({"document_id": move["document_id"], "from_path": move["from_path"], "to_path": target})
+    return done
+
+
+def set_mode(db: Any, folder_id: str, mode: str) -> None:
+    """Keep the folder as Index or Keep arranged. Switched to Keep arranged (after its preview: the
+    person said yes), it is arranged now and watched for hand moves."""
+    folder = _folder(db, folder_id)
+    if folder is None:
+        raise KeyError(folder_id)
+    if mode not in MODES:
+        raise ValueError(f"a synced folder is kept as {' or '.join(MODES)}; not {mode!r}")
+    if mode == KEEP_ARRANGED:
+        _refuse_unless_arrangeable(db, Path(folder["path"]))
+    db.execute("UPDATE sync_folders SET mode = ? WHERE id = ?", [mode, folder_id])
+    if mode == KEEP_ARRANGED:
+        _watch(db, _folder(db, folder_id))
+        _queue_arrange(db, folder_id)
+    elif not folder["intake"]:
+        _unwatch(folder_id)
+
+
+def _queue_arrange(db: Any, folder_id: str) -> None:
+    register_job_kinds()
+    jobs.enqueue(db, ARRANGE_KIND, folder_id, started_by="sync",
+                 run_after=utc_now() + timedelta(seconds=QUIET_SECONDS))
+
+
+def queue_arrangement(db: Any, action_name: str) -> None:
+    """A project change that can move where files belong: arrange each kept-arranged folder after
+    the quiet period, in the change's own transaction. Cheap for any other action."""
+    if action_name not in ARRANGING_ACTIONS:
+        return
+    for folder in _folders(db):
+        if folder["mode"] == KEEP_ARRANGED:
+            _queue_arrange(db, folder["id"])
+
+
+def _context(db: Any, actor: str) -> Any:
+    from fichero_server.actions.registry import ActionContext
+
+    return ActionContext(actor=actor, library_path=str(Path(db.path).parent), is_bootstrap=True)
+
+
+def _arrange_job(db: Any, folder_id: str) -> None:
+    """The job: one audited `sync.arrange` when anything is out of place (none when nothing is)."""
+    import fichero_server.api.routes.sync_folders  # noqa: F401  (registers sync.arrange)
+    from fichero_server.actions.registry import registry
+
+    folder = _folder(db, folder_id)
+    if folder is None or folder["mode"] != KEEP_ARRANGED or not plan(db, folder_id)[0]:
+        return
+    registry.invoke(db, "sync.arrange", {"folder_id": folder_id}, _context(db, ARRANGER))
+
+
+def follow_hand_moves(db: Any, folder: dict[str, Any], arrivals: list[tuple[Path, str | None]]
+                      ) -> list[tuple[Path, str | None]]:
+    """A file that arrived where a document's own file went missing, with the same checksum, is that
+    file moved by hand: it stays where the person put it, and the project follows (its record, its
+    project folder, its name), marked as placed by hand. The rest still arrive."""
+    from fichero_server.importers.ingest import _file_checksum
+    from fichero_server.models import Document
+
+    root = Path(folder["path"])
+    missing: dict[str, tuple[str, str]] = {}
+    for doc_id, rel in _documents_in(db, root):
+        if not (root / rel).exists():
+            doc = db.get(Document, doc_id)
+            checksum = (doc.metadata or {}).get("checksum") if doc else None
+            if isinstance(checksum, str):
+                missing.setdefault(checksum, (doc_id, rel))
+    if not missing:
+        return arrivals
+    import fichero_server.api.routes.document.documents  # noqa: F401  (registers document.*)
+    import fichero_server.api.routes.sync_folders  # noqa: F401  (registers sync.follow)
+    from fichero_server.actions.registry import registry
+
+    ctx, anchor, left = _context(db, FROM_SYNCED_FOLDER), _anchor(db, root), []
+    for path, kind in arrivals:
+        found = missing.pop(_file_checksum(path), None)
+        if found is None:
+            left.append((path, kind))
+            continue
+        doc_id, old_rel = found
+        new_rel = path.relative_to(root).as_posix()
+        registry.invoke(db, "sync.follow", {"folder_id": folder["id"], "document_id": doc_id,
+                                            "from_path": old_rel, "to_path": new_rel}, ctx)
+        if anchor is not None:
+            _follow_in_project(db, registry, ctx, anchor, doc_id, Path(new_rel))
+    return left
+
+
+def _follow_in_project(db: Any, registry: Any, ctx: Any, anchor: str, doc_id: str, rel: Path) -> None:
+    """The project follows the folder: the document takes the file's name and moves to the project
+    folder named as the file's folder is (made if missing), so nothing would move it back."""
+    from fichero_server.models import Document
+
+    parent = anchor
+    for part in rel.parent.parts:
+        child = next((d for d in db.query(Document, parent_id=parent, name=part)
+                      if d.doc_type == "folder" and d.deleted_at is None), None)
+        parent = child.id if child is not None else registry.invoke(
+            db, "document.create", {"name": part, "parent_id": parent, "doc_type": "folder"}, ctx).result["id"]
+    doc = db.get(Document, doc_id)
+    if doc.name != rel.name:
+        registry.invoke(db, "document.update", {"doc_id": doc_id, "update": {"name": rel.name}}, ctx)
+    if doc.parent_id != parent:
+        registry.invoke(db, "document.move", {"doc_id": doc_id, "parent_id": parent}, ctx)
+
+
+def follow(db: Any, folder_id: str, doc_id: str, old_rel: str, new_rel: str) -> None:
+    """Record a hand move: the document's file is now at `new_rel`, placed there by hand."""
+    folder = _folder(db, folder_id)
+    if folder is None:
+        raise KeyError(folder_id)
+    root = Path(folder["path"])
+    _inside(root, new_rel)
+    _repoint(db, folder_id, doc_id, root, old_rel, new_rel, placed_by_hand=utc_now().isoformat())
+
+
 def register_job_kinds() -> None:
     """Called by the scheduler before its first scan (`execution.jobs._KIND_MODULES`)."""
     if KIND not in jobs.KINDS:
         jobs.register_kind(KIND, write, model=None, lane="database", name="Write to a synced folder")
     if READ_KIND not in jobs.KINDS:
         jobs.register_kind(READ_KIND, read, model=None, lane="database", name="Read back a synced folder")
+    if ARRANGE_KIND not in jobs.KINDS:
+        jobs.register_kind(ARRANGE_KIND, _arrange_job, model=None, lane="database",
+                           name="Keep a synced folder arranged")

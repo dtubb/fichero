@@ -272,6 +272,8 @@ class ActionRegistry:
                 # And the rewrite of its files in any synced folder (#4952).
                 touched = [*refreshed, *spec.document_ids]
                 sync_folder.queue_rewrites(db, touched, watched=_waited_on(ctx, touched))
+                # A move or rename in the project re-arranges any kept-arranged folder (#5480).
+                sync_folder.queue_arrangement(db, name)
 
                 # Audit write is NOT best-effort: if it fails the action fails. The
                 # before/after captured by execute ARE the undo payload.
@@ -295,6 +297,7 @@ class ActionRegistry:
             page_text_cache.queue_reembed(db, refreshed)
             touched = [*refreshed, *spec.document_ids]
             sync_folder.queue_rewrites(db, touched, watched=_waited_on(ctx, touched))
+            sync_folder.queue_arrangement(db, name)
             audit = ActionAudit(
                 **({"id": spec.audit_id} if spec.audit_id else {}),
                 action_name=name,
