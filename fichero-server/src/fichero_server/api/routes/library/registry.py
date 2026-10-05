@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import shutil
+import threading
 from collections import defaultdict
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
@@ -880,6 +881,63 @@ def _caller_is_engine_owner(request: Request) -> bool:
         return False  # fail closed: a request whose origin can't be read is never the owner
 
 
+# #5464: the owner's allowance survives an engine restart. The app does not always register its
+# open projects again after a restart, so the in-memory allowance alone left an open project
+# refused (403 failed_check=roots) on every poll. Persisted in the global DB's
+# `owner_opened_packages` table, written ONLY by the owner branch of `add_known_library`; a plain
+# `known_libraries` row (a legacy one, a paired device's) never counts.
+_OWNER_OPENED_LOADED = False
+_OWNER_OPENED_LOAD_LOCK = threading.Lock()
+
+
+def _persist_owner_opened_package(db: Database, stored_path: str) -> None:
+    try:
+        db.execute(
+            "INSERT INTO owner_opened_packages (path, opened_at) VALUES (?, ?) ON CONFLICT (path) DO NOTHING",
+            [stored_path, utc_now()],
+        )
+    except Exception as exc:  # still allowed for this process; just not after a restart
+        logger.warning("Could not persist owner-opened package %s: %s", stored_path, exc)
+
+
+def load_owner_opened_packages(db: Database) -> int:
+    """Note every persisted owner-opened package that is still registered. Returns how many.
+
+    Fail closed: a row whose package no longer resolves to exactly its stored path (moved, deleted,
+    replaced by a symlink) or is no ``.fichero`` directory is skipped by ``note_owner_opened_package``
+    or the exact-path check here; a package no longer in the registry is skipped too.
+    """
+    noted = 0
+    for (stored_path,) in db.execute_fetchall("SELECT path FROM owner_opened_packages"):
+        if not db.query(KnownLibrary, path=stored_path):
+            continue
+        try:
+            exact = nfc_path(str(Path(stored_path).resolve())) == stored_path
+        except (OSError, RuntimeError, ValueError):
+            exact = False
+        if not exact:
+            continue
+        noted += note_owner_opened_package(stored_path)
+    return noted
+
+
+def ensure_owner_opened_packages_loaded() -> None:
+    """Load the persisted owner allowance once per process, on the first roots-check miss."""
+    global _OWNER_OPENED_LOADED
+    if _OWNER_OPENED_LOADED:
+        return
+    with _OWNER_OPENED_LOAD_LOCK:
+        if _OWNER_OPENED_LOADED:
+            return
+        try:
+            count = load_owner_opened_packages(get_global_database())
+        except Exception as exc:  # fail closed: nothing loaded, retried on the next miss
+            logger.warning("Could not load owner-opened packages: %s", exc)
+            return
+        _OWNER_OPENED_LOADED = True
+        logger.info("Loaded %d owner-opened package(s) from the global registry", count)
+
+
 @router.get("/registry", response_model=LibraryRegistryResponse)
 def list_known_libraries(
     db: Database = Depends(get_global_database),
@@ -1015,7 +1073,8 @@ def add_known_library(
         if _caller_is_engine_owner(request):
             # #5464: the app notes every project it opens here; its own engine must then serve it
             # wherever it lives. Owner only, exact package only (see note_owner_opened_package).
-            note_owner_opened_package(stored_path)
+            if note_owner_opened_package(stored_path):
+                _persist_owner_opened_package(db, stored_path)
 
         return library
     except Exception as e:
@@ -1099,6 +1158,10 @@ def remove_known_library(
         forget_owner_opened_package(stored_path)
 
     try:
+        if _caller_is_engine_owner(request):
+            # Withdraw the persisted allowance too, so a restart does not bring it back. (Any
+            # caller's removal of the registry row also withdraws it: loading needs both rows.)
+            db.execute("DELETE FROM owner_opened_packages WHERE path = ?", [stored_path])
         db_manager.close_database(stored_path)
         existing = db.query(KnownLibrary, path=stored_path)
         if not existing:
