@@ -20,7 +20,9 @@
    "has_original": true,
    "transformation": null,
    "working": true,
-   "working_basis": "newest-machine-unchosen"
+   "working_basis": "newest-machine-unchosen",
+   "drawn": true,
+   "rank": 0
   }
  ],
  "segments": [

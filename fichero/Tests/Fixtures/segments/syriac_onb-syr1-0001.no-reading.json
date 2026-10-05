@@ -21,7 +21,9 @@
     "has_original": true,
     "transformation": null,
     "working": true,
-    "working_basis": "human-touched"
+    "working_basis": "human-touched",
+    "drawn": true,
+    "rank": 0
    }
   ],
   "segments": [
@@ -1866,7 +1868,9 @@
     "has_original": true,
     "transformation": null,
     "working": true,
-    "working_basis": "human-touched"
+    "working_basis": "human-touched",
+    "drawn": true,
+    "rank": 0
    }
   ],
   "segments": [
