@@ -1551,15 +1551,30 @@ Purposes and layers
 - `source.onboard.purpose-sets-layers` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** purpose to steps in `assemble()` (`PURPOSE_STEPS`); running layers automatically at import is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the purpose decides which layers run at
   import, as the table says: the NLP layer runs by itself only where the purpose uses entities, and
   lines only where it includes them (refines the NLP and Kraken rulings, 2026-10-01).
-- `source.onboard.offers-never-hides` — **[GAP]** (#4951) a purpose changes what is offered first
-  and what runs by itself; every view and tool stays reachable in every project.
+- `source.onboard.offers-never-hides` — **[PARTIAL]** (#4951) **Built 2026-10-04 (app):** setup's
+  How It Will Be Done screen offers every job the registry knows (`RecipeSetupStore.offeredJobs`):
+  the purpose's recipe steps first, in the recipe's order, then the rest, in the registry's order,
+  under "Also on hand"; a purpose reorders the list and never shortens it (`fichero/Tests/Unit/general/Models/RecipeSetupFlowTests.swift`). *Default taken
+  2026-10-04 (design lead), awaiting the maintainer's ruling:* "offered first" in setup means the
+  recipe's own steps lead and every other registered job follows in one list. Not built: views
+  and menus elsewhere do not yet reorder by purpose (none hide by purpose today). a purpose
+  changes what is offered first and what runs by itself; every view and tool stays reachable in
+  every project.
 - `source.onboard.just-do-it` — **[OK]** (#4951, #5390; built: an import after Start queues one recipe run over its pages (`importers/derivatives.queue_derivatives`)) on a "just do it" purpose, after Start, new
   material runs through the recipe's automatic steps with no further question: each import is one
   `run-a-recipe` job over the pages it brought, and nothing runs for material already there.
 - `source.onboard.tools-not-automation` — **[PARTIAL]** (#4951; built: nothing runs at import on a tools purpose; offering its tools first is the app's) on a "tools" purpose (edit, decipher,
   train, not sure), nothing runs at import that the person did not ask for, and that purpose's
   tools are offered first.
-- `source.onboard.add-layer` — **[GAP]** (#4951) a layer or a language can be added later from the
+- `source.onboard.add-layer` — **[PARTIAL]** (#4951) **Built 2026-10-04 (app):** the language half:
+  the Inspector's Recipe section has a Languages field (search as in setup); adding or removing a
+  language re-proposes the recipe from the new answers and saves both on the project, starting
+  nothing (`RecipeSetupStore.updateLanguages`, `InspectorProjectLanguages`; `fichero/Tests/Unit/general/Models/RecipeSetupFlowTests.swift`). *Default taken
+  2026-10-04 (design lead), awaiting the maintainer's ruling:* a language added later changes the
+  recipe for material from then on; re-reading what is already there stays Start's or a run's.
+  Engine needed (stopped, owned by the engine worker): adding a layer has no route: `POST
+  /api/recipes/assemble` takes no added layers, and nothing runs one layer's steps over what is
+  already in the project as one job. a layer or a language can be added later from the
   library's Inspector; an added layer turns on the recipe's steps of that layer and runs them over
   everything already in the project, as one job.
 - `source.recipe.steps-name-layers` — **[GAP]** (#4950) every step names a layer; the resolved
@@ -1569,16 +1584,32 @@ Purposes and layers
 Setup
 - `source.onboard.widget-and-search` — **[PARTIAL]** (#4951) **Built 2026-10-03:** the Your Material step searches languages and scripts through the engine (2026-10-04: `RecipeSetupStore.searchLanguages`/`searchScripts`; a dialect shows whose dialect it is, a Glottolog-only language is kept as a private-use tag). The engine searches ISO 639-3 joined with Glottolog 5.3 (CC BY 4.0, vendored; languages ISO lacks and about 13,000 dialects, each answer with its BCP 47 tag and glottocode kept apart) and every ISO 15924 script: `GET /api/recipes/languages`, `/scripts`, `fichero-server/tests/unit/api/test_setup_searches_languages_and_scripts.py` and `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. setup is a form with search beside each
   field, not a conversation.
-- `source.onboard.screens-in-order` — **[GAP]** (#4951) setup asks the purpose first and shows
+- `source.onboard.screens-in-order` — **[PARTIAL]** (#4951) **Built 2026-10-04 (app):** first run
+  and Set Up… run one list (`FirstRunStep.setUpSteps`): What are you doing? → Your material (how
+  sources come in, Add a Folder…, roughly how many pages) → What it is (languages, scripts, the
+  facts worked out for them, the kind of material) → How it will be done (the proposed recipe, the
+  cloud question, everything else on hand) → Start. Leaving each screen before Start saves the
+  answers as a draft (`PUT /api/recipes/project`) and posts nothing else; Skip still saves nothing
+  (`fichero/Tests/Unit/general/Models/RecipeSetupFlowTests.swift`, `FirstRunStepSelectionTests`). *Default taken 2026-10-04 (design lead), awaiting the
+  maintainer's ruling:* section 7's order, with screen 5 (Check on your pages) left out until the
+  evaluation job exists (#5441; engine), and the draft saved on Continue rather than on every
+  keystroke. Not built: screen 5; the order is still to be aligned with the maintainer's step
+  document. setup asks the purpose first and shows
   Start last, with its screens in one fixed order (provisionally the six of section 7; to be
   aligned with the maintainer's step document of 2026-10-02); it can be closed at any screen with
   the answers kept as a draft, and nothing runs before Start.
-- `source.onboard.teaches-the-method` — **[GAP]** (#4951) across its steps setup explains each topic
+- `source.onboard.teaches-the-method` — **[GAP]** (#4951) *Engine needed (stopped 2026-10-04, owned by
+  the engine worker): the topics of section 7a have no registry and no route (`GET /api/recipes/jobs`
+  carries jobs only), so the app has no text to show without writing a second copy; each recipe step
+  already explains itself from the job registry (`source.onboard.self-documenting`).* across its steps setup explains each topic
   of section 7a (languages, scripts, fonts, glyphs and Unicode, a faithful way to write the script,
   finding sources, models and memory, Kraken, layout, tables, workflows and recipes, entities,
   statements, maps, calendars, normalisation, output formats, fine-tuning, remote compute) with an
   example from the person's own pages where there are some.
-- `source.onboard.topics-written-once` — **[GAP]** (#4951) each topic's and each job's explanation
+- `source.onboard.topics-written-once` — **[GAP]** (#4951) *Engine needed (stopped 2026-10-04): a
+  topic registry served by the engine (id, title, plain explanation, example recipe, trade-offs),
+  e.g. `GET /api/recipes/topics`; jobs already are written once (setup, the Inspector and "Also on
+  hand" all show `GET /api/recipes/jobs`).* each topic's and each job's explanation
   is stored once, with its job or topic in the registry, and the same text is shown in setup, the
   Inspector, an exported recipe's README and the user manual.
 - `source.onboard.new-project-offers-setup` — **[PARTIAL]** (#5430) **Built 2026-10-04:** creating a

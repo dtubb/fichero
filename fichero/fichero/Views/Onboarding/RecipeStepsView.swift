@@ -140,6 +140,7 @@ struct InspectorRecipeSection: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                InspectorProjectLanguages(store: appState.recipeSetupStore)
                 Button("Set Up…") { showingSetup = true }
                     .controlSize(.small)
             }
@@ -149,6 +150,36 @@ struct InspectorRecipeSection: View {
             }
         }
     }
+}
+
+/// A language added (or removed) after setup, from the Inspector
+/// (`source.onboard.add-layer`): the recipe is proposed again from the new
+/// answers and both are kept on the project. Nothing runs until Start.
+struct InspectorProjectLanguages: View {
+    let store: RecipeSetupStore
+
+    var body: some View {
+        CodeSearchField(
+            title: "Languages",
+            prompt: "Add a language: name, BCP 47 tag or glottocode",
+            search: store.searchLanguages,
+            codes: Binding(
+                get: { store.languages },
+                set: { codes in Task { await store.updateLanguages(codes) } }
+            )
+        )
+        .font(.caption)
+        // Edit what the project saved, never the defaults over it.
+        .task { await store.loadSaved() }
+    }
+}
+
+#Preview("Project languages") {
+    let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
+    store.languages = ["es", "la"]
+    return InspectorProjectLanguages(store: store)
+        .padding()
+        .frame(width: 320)
 }
 
 #Preview("Recipe steps") {

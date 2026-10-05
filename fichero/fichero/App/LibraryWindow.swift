@@ -275,6 +275,7 @@ struct LibraryWindow: View {
         )) {
             FirstRunWindow()
                 .environment(appState)
+                .environment(windowState.library?.importService)
         }
         // Setup for THIS window's project (#5430, #5421): a new project, File › Set Up Project…,
         // or an empty project's Set Up…. The same flow as Inspector › Info › Recipe › Set Up….
@@ -293,6 +294,7 @@ struct LibraryWindow: View {
         )) {
             FirstRunWindow(setUp: true)
                 .environment(appState)
+                .environment(windowState.library?.importService)
         }
         // #4064: the supervised backend dropped AND auto-restart ran out — show a
         // MODAL Retry/Quit over the live main GUI (the toolbar popover stays for

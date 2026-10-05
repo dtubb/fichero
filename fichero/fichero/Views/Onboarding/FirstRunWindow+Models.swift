@@ -14,11 +14,14 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
     case library
     case permissions
     case cloud
-    // Recipe setup (source.onboard.*): purpose first, then the material, ending
-    // in the proposed recipe and, only when a cloud model would fit, the one
-    // question whether pages may leave this Mac. Setup ends on what will run.
+    // Recipe setup (`source.onboard.screens-in-order`), the screens of the spec's
+    // section 7 in its order: what you are doing, your material (where it is and
+    // how it comes in), what it is, how it will be done, then Start. Screen 5
+    // (check on your pages) waits for the evaluation job (#5441).
     case purpose
     case material
+    case about
+    case recipe
     // The first yes (`source.project.automatic-after-first-yes`): what will run, on how many
     // pages, with an estimate; nothing runs by itself before Start.
     case start
@@ -32,6 +35,8 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
         case .purpose: return "Purpose"
         case .cloud: return "AI"
         case .material: return "Your Material"
+        case .about: return "What It Is"
+        case .recipe: return "How It Will Be Done"
         case .start: return "Start"
         case .permissions: return "Permissions"
         }
@@ -43,7 +48,9 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
         case .library: return "folder"
         case .purpose: return "target"
         case .cloud: return "brain"
-        case .material: return "doc.text.magnifyingglass"
+        case .material: return "tray.and.arrow.down"
+        case .about: return "character.book.closed"
+        case .recipe: return "list.bullet.rectangle"
         case .start: return "play.circle"
         case .permissions: return "lock.shield"
         }
@@ -56,7 +63,7 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
     var isMacOnly: Bool {
         switch self {
         case .welcome: return false
-        case .library, .purpose, .cloud, .material, .start, .permissions: return true
+        case .library, .purpose, .cloud, .material, .about, .recipe, .start, .permissions: return true
         }
     }
 
@@ -69,7 +76,11 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
 
     /// The steps Set Up… runs for an existing library from the Inspector: the
     /// same recipe steps as first run, one code path (`source.onboard.set-up-later`).
-    static let setUpSteps: [FirstRunStep] = [.purpose, .material, .start]
+    static let setUpSteps: [FirstRunStep] = [.purpose, .material, .about, .recipe, .start]
+
+    /// Leaving this screen keeps the answers so far as a draft on the project
+    /// (`source.onboard.screens-in-order`); saving is not Start, so nothing runs.
+    var savesDraft: Bool { Self.setUpSteps.contains(self) && self != .start }
 
     /// Whether THIS platform takes the companion first-run path (#2807).
     /// Compile-time: macOS owns the local engine; every other platform is a

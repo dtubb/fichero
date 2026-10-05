@@ -8,6 +8,18 @@ import OSLog
 /// identical output rather than a moved one.
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImportService")
 
+extension IngestMode {
+    /// The folder ingest's mode, mapped by case (never the upper-case rawValue, #3288).
+    var folderMode: Components.Schemas.IngestFolderRequest.ModePayload {
+        switch self {
+        case .link: .link
+        case .copy: .copy
+        case .move: .move
+        case .index: .index
+        }
+    }
+}
+
 // MARK: - Folder ingest (#4208)
 
 /// The async folder-import half of `ImportService`: starting a task, polling it,
@@ -52,7 +64,7 @@ extension ImportService {
                         // Explicit ingest mode so .move isn't downgraded to link
                         // (#3270); case-mapped to the generated enum, not rawValue
                         // (#3288 casing trap).
-                        mode: mode == .copy ? .copy : (mode == .move ? .move : .link),
+                        mode: mode.folderMode,
                         recursive: recursive,
                         extractText: extractText,
                         autoEmbed: autoEmbed

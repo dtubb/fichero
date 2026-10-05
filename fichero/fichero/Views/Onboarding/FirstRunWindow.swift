@@ -6,6 +6,8 @@ import SwiftUI
 struct FirstRunWindow: View {
     @Environment(AppState.self) var appState
     @Environment(\.dismiss) private var dismiss
+    /// The project's import path, for setup's Add a Folder…; absent where no project is open.
+    @Environment(ImportService.self) var importService: ImportService?
     private let featureManager = FeatureManager.shared
     @State private var libraryManager = LibraryManager.shared
 
@@ -56,22 +58,24 @@ struct FirstRunWindow: View {
 
     /// Advance within the platform step list; the LAST step finishes (#2807).
     private func advance() {
-        // Finishing the Material step saves the answers and the proposed recipe
-        // on the project. Saving is not Start: nothing runs.
-        if step == .material {
-            let store = appState.recipeSetupStore
-            Task { await store.save() }
-        }
+        let store = appState.recipeSetupStore
         // Start records the first yes; the window closes only when the engine kept it.
         if step == .start {
-            let store = appState.recipeSetupStore
             Task { if await store.start() { finish() } }
             return
         }
         if step == steps.last {
             finish()
-        } else {
-            step = step.next(in: steps)
+            return
+        }
+        let next = step.next(in: steps)
+        // Leaving a setup screen keeps the answers so far as a draft on the
+        // project, so setup can be closed at any screen; saving is not Start.
+        // The next screen opens once the engine has the draft (Start plans from it).
+        guard step.savesDraft else { step = next; return }
+        Task {
+            await store.save()
+            step = next
         }
     }
 
@@ -176,9 +180,6 @@ extension FirstRunWindow {
                                 .foregroundStyle(.green)
                                 .lineLimit(1)
                         }
-                        // How sources come in (ruled 2026-10-03): one choice, kept
-                        // on the store for the first import.
-                        ProjectIntakeChoice(store: appState.recipeSetupStore)
                     }
                 )
             }
@@ -256,8 +257,8 @@ extension FirstRunWindow {
             }
         case .purpose:
             recipeStepPage(.purpose)
-        case .material:
-            recipeStepPage(.material)
+        case .material, .about, .recipe:
+            recipeStepPage(step)
         case .start:
             recipeStepPage(.start)
         }

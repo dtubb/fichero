@@ -373,7 +373,7 @@ struct RecipeSetupStoreTests {
     }
     private static func planJSON(refusals: String) -> String {
         """
-        {"workflows":[{"steps":["find-lines","read-a-line"],"job":"read-a-line","workflow":"Transcribe (Kraken)",
+        {"runs":[],"skipped":[],"workflows":[{"steps":["find-lines","read-a-line"],"job":"read-a-line","workflow":"Transcribe (Kraken)",
           "workflow_id":"w1","runs_on":"this-mac"}],
          "offered":["train-a-model"],"refusals":[\(refusals)],
          "estimate":{"pages":49,"runs":[],"total_cost_usd":null}}
@@ -421,8 +421,8 @@ struct RecipeSetupStoreTests {
 }
 
 /// `URLRequest.httpBody` is nil once the request has gone through
-/// `URLProtocol` (the body moves to `httpBodyStream`).
-private extension URLRequest {
+/// `URLProtocol` (the body moves to `httpBodyStream`). Shared with `RecipeSetupFlowTests`.
+extension URLRequest {
     func bodyOrStream() -> Data {
         if let httpBody { return httpBody }
         guard let stream = httpBodyStream else { return Data() }

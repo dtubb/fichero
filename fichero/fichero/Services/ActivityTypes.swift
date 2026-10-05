@@ -299,6 +299,20 @@ struct BackgroundJobsSnapshot: Equatable {
     var cpuCount: Int = 0
     /// Pause Background Work is on (`activity.pause.global`).
     var paused: Bool = false
+    /// This Mac's state as the engine's throttle reads it (`activity.popover.summary`).
+    var machine: MachineState?
+}
+
+/// This Mac's state (`machine` of `GET /api/activity/jobs`, `execution/throttle.py`);
+/// a nil reading is one the engine could not take, and is not shown.
+struct MachineState: Equatable {
+    var memoryPressure: String?
+    var thermalState: String?
+    var onBattery = false
+    /// Someone is at the Mac.
+    var inUse = false
+    /// The throttle's current reason heavy work waits, or nil when it does not.
+    var whyWait: String?
 }
 
 /// One node of `GET /api/activity/jobs/{id}` (#5353): a run, a step or a

@@ -1,7 +1,8 @@
 import FicheroAPIClient
 import SwiftUI
+import UniformTypeIdentifiers
 
-// The recipe steps of first run (`FirstRunStep.purpose`, `.material`),
+// The recipe screens of first run (`FirstRunStep.setUpSteps`, in the spec's order),
 // as subviews `FirstRunWindow` hosts, so first run and the Inspector's Set Up…
 // are one flow (`source.onboard.purpose-first`, `source.onboard.widget-and-search`,
 // `source.onboard.five-questions`, `source.onboard.proposes-chain`). A form with
@@ -69,9 +70,9 @@ struct RecipeCloudQuestion: View {
     }
 }
 
-/// The Project step's one intake question: how sources come in (ruled
-/// 2026-10-03). Link is the default. Index is shown, disabled, until the
-/// two-way synced folder is built (#4952), rather than hidden.
+/// How sources come in (ruled 2026-10-03, `source.sync.four-ways-in`): Link,
+/// Copy, Move or Index, each with what it does to the originals. Link is the
+/// default; Move says plainly that the originals go.
 struct ProjectIntakeChoice: View {
     @Bindable var store: RecipeSetupStore
 
@@ -86,6 +87,10 @@ struct ProjectIntakeChoice: View {
                 option("Move", "The files move into the project, stored in the app; "
                        + "the originals are removed from where they were.")
                     .tag(IngestMode.move)
+                option("Index", "Fichero works on the folder in place and writes its changes back "
+                       + "into the original files, keeping that folder up to date. For folders; "
+                       + "single files are linked.")
+                    .tag(IngestMode.index)
             }
             .pickerStyle(.inline)
             .labelsHidden()
@@ -95,10 +100,6 @@ struct ProjectIntakeChoice: View {
                     .font(.callout)
                     .foregroundStyle(.orange)
             }
-            option("Index (coming)", "Fichero works on the folder in place and writes its changes back "
-                   + "into the original files, keeping that folder up to date.")
-                .foregroundStyle(.tertiary)
-                .help("The two-way synced folder is not built yet (#4952).")
         }
     }
 
@@ -110,8 +111,52 @@ struct ProjectIntakeChoice: View {
     }
 }
 
-/// Step "Your material": what it is, then the recipe the engine's rules propose.
-struct RecipeMaterialFields: View {
+/// Screen 2, "Your material": how sources come in, a folder to bring in now
+/// (or later, from the project), and how much there is.
+struct RecipeMaterialSourceFields: View {
+    @Bindable var store: RecipeSetupStore
+    /// The project's import path; nil where this window has no project open.
+    let importer: ImportService?
+    @State private var choosingFolder = false
+    @State private var adding = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ProjectIntakeChoice(store: store)
+            Divider()
+            HStack {
+                Button("Add a Folder…") { choosingFolder = true }
+                    .disabled(importer == nil || adding)
+                if adding { ProgressView().controlSize(.small) }
+            }
+            Text(importer == nil
+                 ? "Open a project to add material now, or add it later from the project."
+                 : "Or add material later; it comes in the way chosen above.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let added = store.materialAdded {
+                Label(added, systemImage: "checkmark.circle").font(.callout)
+            }
+            if let error = store.errorMessage {
+                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+            }
+            LabeledContent("Roughly how many pages") {
+                TextField("Pages", value: $store.pages, format: .number).labelsHidden()
+            }
+        }
+        .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
+            guard case .success(let url) = result, let importer else { return }
+            adding = true
+            Task {
+                await store.addFolder(url, importer: importer)
+                adding = false
+            }
+        }
+    }
+}
+
+/// Screen 3, "What it is": languages and scripts (each with search), what the
+/// engine works out for each script, and the kind of material.
+struct RecipeAboutFields: View {
     @Bindable var store: RecipeSetupStore
 
     var body: some View {
@@ -128,16 +173,19 @@ struct RecipeMaterialFields: View {
             Picker("Material", selection: $store.material) {
                 ForEach(RecipeSetupStore.materials, id: \.self) { Text($0.capitalized).tag($0) }
             }
-            LabeledContent("Roughly how many pages") {
-                TextField("Pages", value: $store.pages, format: .number).labelsHidden()
-            }
-            Divider()
-            HStack {
-                Text("How it will be done").font(.headline)
-                Spacer()
-                Button("Propose Recipe") { Task { await store.assemble() } }
-                    .disabled(!store.canAssemble || store.isAssembling)
-            }
+        }
+        .task(id: store.scripts) { await store.loadDerived() }
+    }
+}
+
+/// Screen 4, "How it will be done": the recipe the engine's rules propose from
+/// the answers, each step explained in the registry's words, the one cloud
+/// question, and every other tool, offered after the recipe's, never hidden.
+struct RecipeProposalFields: View {
+    @Bindable var store: RecipeSetupStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
             if let error = store.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             }
@@ -146,15 +194,40 @@ struct RecipeMaterialFields: View {
             } else if let recipe = store.recipe {
                 RecipeStepsView(store: store, recipe: recipe)
                 RecipeCloudQuestion(store: store)
-            } else {
-                Text(store.canAssemble
-                     ? "Propose a recipe to see each step and why it was chosen."
-                     : "Add at least one language and one script.")
+            } else if !store.canAssemble {
+                Text("Add at least one language and one script under What It Is.")
                     .font(.callout).foregroundStyle(.secondary)
             }
+            OfferedJobsList(store: store)
         }
-        .task { await store.loadJobs() }
-        .task(id: store.scripts) { await store.loadDerived() }
+        .task {
+            await store.loadJobs()
+            await store.assemble()
+        }
+    }
+}
+
+/// Every job the registry knows, the recipe's first: a purpose decides what is
+/// offered first, never what can be reached (`source.onboard.offers-never-hides`).
+struct OfferedJobsList: View {
+    let store: RecipeSetupStore
+
+    var body: some View {
+        let inRecipe = Set((store.recipe?.steps ?? []).map(\.job))
+        let others = store.offeredJobs.filter { !inRecipe.contains($0.id) }
+        if !others.isEmpty {
+            DisclosureGroup("Also on hand (\(others.count))") {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(others, id: \.id) { job in
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(job.name).font(.callout)
+                            Text(job.description).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
     }
 }
 
@@ -183,7 +256,7 @@ private struct DerivedScriptRow: View {
 /// A field that adds codes by searching names or typing the code itself. Suggestions come from
 /// the engine's catalogue (every ISO 639-3 language with Glottolog's, every ISO 15924 script); any
 /// code typed is accepted as is, since the engine checks it.
-private struct CodeSearchField: View {
+struct CodeSearchField: View {
     let title: String
     let prompt: String
     let search: (String) async -> [RecipeSetupStore.CodeChoice]
@@ -284,13 +357,28 @@ struct RecipeStartFields: View {
 
 #Preview("Your material") {
     let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
+    store.ingestMode = .index
+    store.pages = 1200
+    return RecipeMaterialSourceFields(store: store, importer: nil)
+        .padding()
+        .frame(width: 520, height: 480)
+}
+
+#Preview("What it is") {
+    let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
     store.languages = ["es", "la"]
     store.scripts = ["Latn"]
-    store.pages = 1200
-    return ScrollView {
-        RecipeMaterialFields(store: store).padding()
-    }
-    .frame(width: 520, height: 480)
+    return RecipeAboutFields(store: store)
+        .padding()
+        .frame(width: 520, height: 320)
+}
+
+#Preview("How it will be done") {
+    let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
+    store.languages = ["es"]
+    store.scripts = ["Latn"]
+    return ScrollView { RecipeProposalFields(store: store).padding() }
+        .frame(width: 520, height: 420)
 }
 
 #Preview("Project intake") {

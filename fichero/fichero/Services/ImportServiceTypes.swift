@@ -3,17 +3,21 @@ import UniformTypeIdentifiers
 
 // MARK: - Supporting Types
 
-/// Ingest mode - LINK creates bookmark reference, COPY imports file into library
+/// How sources come in (`source.sync.four-ways-in`, ruled 2026-10-03): the engine's ingest modes.
 enum IngestMode: String, Codable {
     case link = "LINK"  // Create bookmark reference (zero disk usage)
     case copy = "COPY"  // Copy file into library (uses APFS cloning)
     case move = "MOVE"  // Move file into library (original deleted)
+    /// The folder is worked on in place and kept in step (the adopted folder). A folder ingest
+    /// only: loose files chosen this way are linked, which is what Index does to each file.
+    case index = "INDEX"
 
     var displayName: String {
         switch self {
         case .link: return "Link Files"
         case .copy: return "Copy Files"
         case .move: return "Move Files"
+        case .index: return "Index Folder"
         }
     }
 
@@ -22,6 +26,7 @@ enum IngestMode: String, Codable {
         case .link: return "Reference files in place (no disk usage)"
         case .copy: return "Duplicate files into library"
         case .move: return "Move files into library (original deleted)"
+        case .index: return "Work on the folder in place and keep it up to date"
         }
     }
 
@@ -30,6 +35,7 @@ enum IngestMode: String, Codable {
         case .link: return "link"
         case .copy: return "doc.on.doc"
         case .move: return "arrow.right.doc"
+        case .index: return "arrow.triangle.2.circlepath"
         }
     }
 }

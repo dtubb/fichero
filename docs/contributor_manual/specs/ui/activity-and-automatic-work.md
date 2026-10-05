@@ -666,8 +666,12 @@ workflow by hand: a hand run is a job like any other.
   (memory pressure normal/warn/critical, thermal state nominal/fair/serious/critical, on battery,
   in use, and `why_wait`, the throttle's current reason heavy work is held back), read through
   the same readings the throttle acts on (`execution/throttle.py` `machine_state`;
-  `tests/unit/api/test_activity_machine_state.py`). Still a gap (#5415): the popover does not
-  show it yet, and nothing reads the GPU.
+  `tests/unit/api/test_activity_machine_state.py`). The popover shows it (2026-10-04): a "This
+  Mac" block (memory pressure, heat, on battery or power, in use or not), a reading the engine
+  could not take (null) left out, and `why_wait` said as why heavy work is held back ahead of a
+  waiting job's reason (`ActivityStore.machine`; `ActivityTableTests`
+  `testActivityPopoverSummary_saysThisMacsStateAndHidesAReadingTheEngineCouldNotTake`). Not yet
+  seen in the app. Still a gap (#5415): nothing reads the GPU.
 
 ### C. Pause and start
 
