@@ -1164,6 +1164,32 @@ def migrate_library_identity_table(
     _run_atomic_migration(conn, "migrate_library_identity_table", _step, failures)
 
 
+def migrate_kept_exports_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
+    """The project's kept exports and the files each one wrote (#5485, `kept_export.py`).
+
+    ``kept_exports``: one row per export kept (folder, format, one file per page or per
+    document); a removed one keeps its row with ``removed_at``. ``kept_export_files``: one row per
+    file the export wrote (``written``) or found in its way (``in-the-way``), so a later write
+    overwrites only its own files. Idempotent: create-if-missing only.
+    """
+
+    def _step() -> None:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS kept_exports (id VARCHAR PRIMARY KEY, folder VARCHAR NOT NULL, "
+            "format VARCHAR NOT NULL, per VARCHAR NOT NULL, created_at TIMESTAMP NOT NULL, "
+            "removed_at TIMESTAMP)"
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS kept_export_files (export_id VARCHAR NOT NULL, "
+            "rel_path VARCHAR NOT NULL, sha256 VARCHAR, written_at TIMESTAMP, state VARCHAR NOT NULL, "
+            "PRIMARY KEY (export_id, rel_path))"
+        )
+
+    _run_atomic_migration(conn, "migrate_kept_exports_table", _step, failures)
+
+
 def read_library_uuid(conn) -> str | None:
     """Return the library's stable sync UUID, or ``None`` if not yet minted.
 

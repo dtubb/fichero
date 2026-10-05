@@ -5610,6 +5610,67 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("the-project-s-kept-exports-and-what-they-wrote")
+    def export_the_project_s_kept_exports_and_what_they_wrote_get(
+        ctx: typer.Context,
+    ) -> None:
+        """The project's kept exports and what they wrote (GET /api/export/kept)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/export/kept"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("keep-an-in-a-folder-written-again-as-the-work-changes")
+    def export_keep_an_in_a_folder_written_again_as_the_work_changes_post(
+        ctx: typer.Context,
+        folder: str = typer.Option(..., "--folder", help="Request field: folder."),
+        format: str = typer.Option(..., "--format", help="Request field: format."),
+        per: str = typer.Option(..., "--per", help="Request field: per."),
+    ) -> None:
+        """Keep an export in a folder, written again as the work changes (POST /api/export/kept)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/export/kept"
+            params = None
+            payload = _build_json_payload({
+                "folder": folder,
+                "format": format,
+                "per": per,
+            }, {
+                "folder": {'type': 'string', 'title': 'Folder', 'description': "A full path to a folder on the engine's disk, outside the project", 'x-cli-required': True},
+                "format": {'type': 'string', 'enum': ['word', 'markdown', 'plain-text', 'alto', 'pagexml', 'tei', 'hocr'], 'title': 'Format', 'description': 'What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR', 'x-cli-required': True},
+                "per": {'type': 'string', 'enum': ['page', 'document'], 'title': 'Per', 'description': 'One file per page, or one per document (the page formats are one per page)', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-keeping-an-the-files-it-wrote-stay-in-the-folder")
+    def export_stop_keeping_an_the_files_it_wrote_stay_in_the_folder_delete(
+        ctx: typer.Context,
+        export_id: str = typer.Argument(..., help="Path parameter: export_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Stop keeping an export (the files it wrote stay in the folder) (DELETE /api/export/kept/{export_id})."""
+        if not yes:
+            typer.confirm("Delete export?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/export/kept/{export_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("write-a-kept-now-as-a-background-job")
+    def export_write_a_kept_now_as_a_background_job_post(
+        ctx: typer.Context,
+        export_id: str = typer.Argument(..., help="Path parameter: export_id."),
+    ) -> None:
+        """Write a kept export now, as a background job (POST /api/export/kept/{export_id}/write)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/export/kept/{export_id}/write"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("markdown-folder-route")
     def export_markdown_folder_route_post(
         ctx: typer.Context,

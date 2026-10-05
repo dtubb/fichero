@@ -19561,6 +19561,198 @@
         }
       }
     },
+    "/api/export/kept": {
+      "get": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "The project's kept exports and what they wrote",
+        "operationId": "list_kept_exports_api_export_kept_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeptExportList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Keep an export in a folder, written again as the work changes",
+        "description": "One-way: Fichero writes the folder and never reads it back. Each write overwrites only the\nfiles this export wrote (a hand edit to one is overwritten) and leaves every other file alone;\nnothing is deleted. Writing is background work (paused by Pause Background Work). Refused (422),\nin one sentence, for a folder that is not there, a system folder, a folder inside the project,\nor a page format asked for one file per document.",
+        "operationId": "keep_export_api_export_kept_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeptExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeptExport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/kept/{export_id}": {
+      "delete": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Stop keeping an export (the files it wrote stay in the folder)",
+        "operationId": "remove_kept_export_api_export_kept__export_id__delete",
+        "parameters": [
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Export Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeptExportRemoved"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/kept/{export_id}/write": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Write a kept export now, as a background job",
+        "description": "Queues one job that writes every file of the export (shown in Activity, paused with background\nwork). Files already being written are covered by the same job.",
+        "operationId": "write_kept_export_api_export_kept__export_id__write_post",
+        "parameters": [
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Export Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeptExportWriting"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/folders/{folder_id}/views": {
       "get": {
         "tags": [
@@ -61523,6 +61715,165 @@
           "counts"
         ],
         "title": "KGSearchResponse"
+      },
+      "KeptExport": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "word",
+              "markdown",
+              "plain-text",
+              "alto",
+              "pagexml",
+              "tei",
+              "hocr"
+            ],
+            "title": "Format"
+          },
+          "per": {
+            "type": "string",
+            "enum": [
+              "page",
+              "document"
+            ],
+            "title": "Per"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "files this export wrote, relative to the folder: overwritten at each write, a hand edit to one included"
+          },
+          "in_the_way": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "In The Way",
+            "description": "files already in the folder that this export did not write: left alone"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending",
+            "description": "writes waiting (their jobs are in Activity)"
+          },
+          "last_written": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Last Written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "folder",
+          "format",
+          "per",
+          "files",
+          "in_the_way",
+          "pending"
+        ],
+        "title": "KeptExport",
+        "description": "One kept export and what it has written."
+      },
+      "KeptExportList": {
+        "properties": {
+          "exports": {
+            "items": {
+              "$ref": "#/components/schemas/KeptExport"
+            },
+            "type": "array",
+            "title": "Exports"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exports"
+        ],
+        "title": "KeptExportList"
+      },
+      "KeptExportRemoved": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "KeptExportRemoved"
+      },
+      "KeptExportRequest": {
+        "properties": {
+          "folder": {
+            "type": "string",
+            "title": "Folder",
+            "description": "A full path to a folder on the engine's disk, outside the project"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "word",
+              "markdown",
+              "plain-text",
+              "alto",
+              "pagexml",
+              "tei",
+              "hocr"
+            ],
+            "title": "Format",
+            "description": "What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR"
+          },
+          "per": {
+            "type": "string",
+            "enum": [
+              "page",
+              "document"
+            ],
+            "title": "Per",
+            "description": "One file per page, or one per document (the page formats are one per page)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder",
+          "format",
+          "per"
+        ],
+        "title": "KeptExportRequest"
+      },
+      "KeptExportWriting": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "the write's job, in Activity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "job_id"
+        ],
+        "title": "KeptExportWriting"
       },
       "KeywordCloudEntry": {
         "properties": {

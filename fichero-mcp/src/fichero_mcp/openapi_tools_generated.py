@@ -2659,6 +2659,38 @@ def fichero_export_jsonl_route(
     return _rt.call("POST", "/api/export/jsonl", json=_rt.body({"output_path": output_path, "overwrite": overwrite, "recursive": recursive, "target_id": target_id}))
 
 
+def fichero_export_list_kept_exports(
+) -> Any:
+    "The project's kept exports and what they wrote\n\nRoute: GET /api/export/kept (toolset `export`; reads)."
+    return _rt.call("GET", "/api/export/kept")
+
+
+def fichero_export_keep(
+    *,
+    folder: Annotated[str, Field(description="A full path to a folder on the engine's disk, outside the project.")],
+    format: Annotated[str, Field(description='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr.')],
+    per: Annotated[str, Field(description='One file per page, or one per document (the page formats are one per page) One of: page, document.')],
+) -> Any:
+    'Keep an export in a folder, written again as the work changes\n\nOne-way: Fichero writes the folder and never reads it back. Each write overwrites only the\nfiles this export wrote (a hand edit to one is overwritten) and leaves every other file alone;\nnothing is deleted. Writing is background work (paused by Pause Background Work). Refused (422),\nin one sentence, for a folder that is not there, a system folder, a folder inside the project,\nor a page format asked for one file per document.\n\nRoute: POST /api/export/kept (toolset `export`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/export/kept", json=_rt.body({"folder": folder, "format": format, "per": per}))
+
+
+def fichero_export_remove_kept(
+    *,
+    export_id: Annotated[str, Field(description='Export Id')],
+) -> Any:
+    'Stop keeping an export (the files it wrote stay in the folder)\n\nRoute: DELETE /api/export/kept/{export_id} (toolset `export`; changes data, as the agent account when one exists).'
+    return _rt.call("DELETE", f"/api/export/kept/{export_id}")
+
+
+def fichero_export_write_kept(
+    *,
+    export_id: Annotated[str, Field(description='Export Id')],
+) -> Any:
+    'Write a kept export now, as a background job\n\nQueues one job that writes every file of the export (shown in Activity, paused with background\nwork). Files already being written are covered by the same job.\n\nRoute: POST /api/export/kept/{export_id}/write (toolset `export`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/export/kept/{export_id}/write")
+
+
 def fichero_export_markdown_folder_route(
     *,
     include_assets: Annotated[Optional[bool], Field(description='Copy image assets. Default: true.')] = None,
@@ -8460,6 +8492,10 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_export_eleventy_site_route", "export", "POST", "/api/export/eleventy-site", fichero_export_eleventy_site_route),
     GeneratedTool("fichero_export_excel_route", "export", "POST", "/api/export/excel", fichero_export_excel_route),
     GeneratedTool("fichero_export_jsonl_route", "export", "POST", "/api/export/jsonl", fichero_export_jsonl_route),
+    GeneratedTool("fichero_export_list_kept_exports", "export", "GET", "/api/export/kept", fichero_export_list_kept_exports),
+    GeneratedTool("fichero_export_keep", "export", "POST", "/api/export/kept", fichero_export_keep),
+    GeneratedTool("fichero_export_remove_kept", "export", "DELETE", "/api/export/kept/{export_id}", fichero_export_remove_kept),
+    GeneratedTool("fichero_export_write_kept", "export", "POST", "/api/export/kept/{export_id}/write", fichero_export_write_kept),
     GeneratedTool("fichero_export_markdown_folder_route", "export", "POST", "/api/export/markdown-folder", fichero_export_markdown_folder_route),
     GeneratedTool("fichero_export_parquet_route", "export", "POST", "/api/export/parquet", fichero_export_parquet_route),
     GeneratedTool("fichero_export_training_route", "export", "POST", "/api/export/training", fichero_export_training_route),

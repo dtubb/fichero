@@ -3939,6 +3939,50 @@
         "response_model": "JsonlExportResponse"
       },
       {
+        "method": "GET",
+        "path": "/export/kept",
+        "operation_id": "list_kept_exports_api_export_kept_get",
+        "summary": "The project's kept exports and what they wrote",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KeptExportList"
+      },
+      {
+        "method": "POST",
+        "path": "/export/kept",
+        "operation_id": "keep_export_api_export_kept_post",
+        "summary": "Keep an export in a folder, written again as the work changes",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "KeptExportRequest",
+        "response_model": "KeptExport"
+      },
+      {
+        "method": "DELETE",
+        "path": "/export/kept/{export_id}",
+        "operation_id": "remove_kept_export_api_export_kept__export_id__delete",
+        "summary": "Stop keeping an export (the files it wrote stay in the folder)",
+        "path_params": [
+          "export_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KeptExportRemoved"
+      },
+      {
+        "method": "POST",
+        "path": "/export/kept/{export_id}/write",
+        "operation_id": "write_kept_export_api_export_kept__export_id__write_post",
+        "summary": "Write a kept export now, as a background job",
+        "path_params": [
+          "export_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KeptExportWriting"
+      },
+      {
         "method": "POST",
         "path": "/export/markdown-folder",
         "operation_id": "export_markdown_folder_route_api_export_markdown_folder_post",

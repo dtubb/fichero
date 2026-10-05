@@ -109,6 +109,9 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "activity_id", "audit_id", "chain_id", "execution_id", "schedule_id", "trigger_id", "comparison_id",
     )},
     "server_id": (LIBRARY, _CONFIG),
+    # #5485: a kept export is the project's own setting (a folder, a format, per page or document);
+    # it writes the whole project's work, and a page it reads is read through the exporter.
+    "export_id": (LIBRARY, _CONFIG),
     # #5471: `GET /api/topics/{topic_id}` reads no library at all.
     "topic_id": (LIBRARY, "a topic of the engine's built-in help text (recipes/seed/topics.yaml), shipped with the "
                  "engine: it reads no library, so there is no page for a deny to reach"),

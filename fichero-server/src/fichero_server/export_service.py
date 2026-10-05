@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
-from typing import Any, Iterable, Literal
+from typing import Any, Callable, Iterable, Literal
 from xml.sax.saxutils import escape
 
 from fichero_server.db import Database
@@ -1144,12 +1144,19 @@ def export_word_docx(
     overwrite: bool = False,
     package_path: str | Path | None = None,
     include_knowledge_graph: bool = True,
+    documents: list[Document] | None = None,
+    title: str | None = None,
+    text_for: Callable[[Document], str] | None = None,
 ) -> WordExportResult:
     """Export documents as a minimal Word .docx file.
 
     This intentionally avoids optional dependencies. It writes a valid Office
     Open XML package with text content and, for image documents, a simple
     two-column table containing the image and its transcription/content.
+
+    A kept export (#5485, `kept_export.py`) hands its own pages (`documents`), the file's heading
+    (`title`) and the page's text as the record has it (`text_for`, the derived text) instead of
+    the target's documents and their cached text.
     """
 
     output_file = Path(output_path).expanduser()
@@ -1159,14 +1166,16 @@ def export_word_docx(
         raise FileExistsError(f"Export file already exists: {output_file}")
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    root, documents = _collect_documents(db, target_id=target_id, recursive=recursive)
+    if documents is None:
+        root, documents = _collect_documents(db, target_id=target_id, recursive=recursive)
+        title = title or (root.name if root else "Library Export")
     package = Path(package_path).expanduser() if package_path else None
 
     media: list[tuple[str, Path, str]] = []
-    body_parts: list[str] = [_docx_heading(root.name if root else "Library Export", 1)]
+    body_parts: list[str] = [_docx_heading(title or "Library Export", 1)]
 
     for index, doc in enumerate(documents, start=1):
-        text = _document_text(db, doc)
+        text = text_for(doc) if text_for is not None else _document_text(db, doc)
         image_source = _docx_image_source(db, doc, package)
         if image_source:
             rel_id = f"rIdImage{index}"
@@ -1562,6 +1571,26 @@ def _render_document_markdown(
     if not content and not artifacts and not assets:
         lines.extend(["_No text content available._", ""])
 
+    return "\n".join(lines).rstrip() + "\n"
+
+
+#: A line beginning like this would be read as Markdown's own heading, quote or list.
+_MARKDOWN_BLOCK_MARK = re.compile(r"^(\s*)([#>+*-]|\d+[.)])(?=\s|$)")
+
+
+def render_markdown_text(title: str, sections: list[tuple[str | None, str]]) -> str:
+    """Markdown of a page, or of a document's pages, in reading order (a kept export, #5485).
+
+    The title is the heading; with several pages each is a second-level heading of its name, its
+    text below. The text is the page's as derived (`document_text`), line for line: a line that
+    begins like a heading, quote or list is escaped, so the reading is never re-shaped.
+    """
+    lines = [f"# {title}", ""]
+    for heading, text in sections:
+        if heading is not None:
+            lines.extend([f"## {heading}", ""])
+        lines.extend(_MARKDOWN_BLOCK_MARK.sub(r"\1\\\2", line) for line in text.strip().splitlines())
+        lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 

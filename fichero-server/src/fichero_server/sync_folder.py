@@ -279,9 +279,13 @@ def untie(db: Any, folder_id: str) -> None:
 def queue_rewrites(db: Any, document_ids: list[str], *, watched: bool = False) -> None:
     """A change touched these pages: rewrite their files in every tied folder after the quiet period,
     in the change's own transaction. Cheap when nothing is tied. `watched`: a person made the change
-    and looks for it in the folder, so the rewrite goes first at utility QoS."""
+    and looks for it in the folder, so the rewrite goes first at utility QoS. Every kept export
+    (#5485) is rewritten from the same change."""
     if not document_ids:
         return
+    from fichero_server import kept_export
+
+    kept_export.queue_rewrites(db, document_ids, watched=watched)
     folders = _folders(db)
     if not folders:
         return
