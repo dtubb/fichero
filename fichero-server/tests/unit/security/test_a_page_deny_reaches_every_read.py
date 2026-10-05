@@ -74,12 +74,15 @@ NOT_ON_A_PAGE = {
     "linked_document_id": "a document, checked like any single id",
     "source_document_id": "a document, checked like any single id",
     "target_document_id": "a document, checked like any single id",
+    "topic_id": "a topic of the engine's built-in help text (recipes/seed/topics.yaml), not library content",
 }
 
 #: `*_ids` lists: a list route filters and counts; it is never a blanket 403.
 FILTERED_LISTS = {
     "document_ids": "test_a_list_of_documents_leaves_out_the_denied_one",
     "ids": "test_every_listing_of_documents_leaves_out_a_denied_one",
+    "scope_ids": "test_a_training_set_preview_leaves_out_a_denied_page",
+    "held_out_ids": "test_a_training_set_preview_leaves_out_a_denied_page",
 }
 
 #: GET routes that take an id and do not read the library through the library dependency, with why.
@@ -102,6 +105,7 @@ APP_LEVEL = {
         "/api/integrations/{app_name}/items/{external_id}", "/api/integrations/bookends/citation/{external_id}",
         "/api/integrations/tinderbox/notes/{external_id}/attributes")},
     "/api/authz/library": "the caller's own ACL snapshot; `target_id` is what it asks about",
+    "/api/topics/{topic_id}": "the engine's built-in help text (recipes/seed/topics.yaml); reads no library",
 }
 
 
@@ -333,3 +337,27 @@ def test_every_listing_of_documents_leaves_out_a_denied_one(denied_and_allowed, 
     roots, withheld = names("/api/documents/roots")
     assert "denied.jpg" not in roots and "allowed.jpg" in roots and withheld == 1
     assert names(f"/api/documents/{folder.id}/children") == ({"open child"}, 1)
+
+
+def test_a_training_set_preview_leaves_out_a_denied_page(denied_and_allowed, multiuser_client, app_db, users, db):
+    """WHY: `GET /api/training/set` takes LISTS (`scope_ids`, `held_out_ids`), which the read check never
+    sees, and a scope folder expands to its pages. Unfiltered, a viewer denied a page got its name and id
+    back in the preview's held-out and missing lists, and a training set built on their say-so would
+    hold it. With Multi-user on, a page the caller may not read is in no part of the preview -- named
+    directly, under a folder they may read, or held out."""
+    client, headers, denied, allowed = denied_and_allowed
+    folder = Document(name="letters", doc_type=DocType.folder)
+    db.save(folder)
+    secret = Document(name="secret page", doc_type=DocType.page, parent_id=folder.id, path="/secret.jpg")
+    shown = Document(name="open page", doc_type=DocType.page, parent_id=folder.id, path="/open.jpg")
+    db.save(secret), db.save(shown)
+    _override(app_db, users.editor, multiuser_client[2], secret.id, "deny")
+
+    response = client.get("/api/training/set", headers=headers, params={
+        "teacher": "nobody", "scope_ids": [folder.id, denied.id, allowed.id],
+        "held_out_ids": [secret.id, denied.id, shown.id]})
+    assert response.status_code == 200, response.text[:300]
+    body = response.json()
+    assert secret.id not in response.text and denied.id not in response.text, body
+    assert [h["document_id"] for h in body["held_out"]] == [shown.id]
+    assert [m["document_id"] for m in body["missing"]] == [allowed.id]   # no teacher pass: missing, still named

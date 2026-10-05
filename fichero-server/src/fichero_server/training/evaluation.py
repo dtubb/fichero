@@ -34,7 +34,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from fichero_server.execution import jobs
 from fichero_server.models.compute_requests import EvaluationCandidate, EvaluationRunRequest
@@ -324,8 +324,12 @@ def plan(db: Any, request: EvaluationRunRequest) -> dict[str, Any]:
             "not_on_this_mac": absent}
 
 
-def start(db: Any, request: EvaluationRunRequest, *, started_by: str) -> dict[str, str]:
+def start(db: Any, request: EvaluationRunRequest, *, started_by: str,
+          check_pages: Callable[[list[str]], None] | None = None) -> dict[str, str]:
+    """`check_pages` sees the planned pages before anything is queued, and refuses by raising."""
     planned = plan(db, request)
+    if check_pages is not None:
+        check_pages(planned["pages"])
     job_id = jobs.enqueue(db, KIND, f"evaluate:{uuid.uuid4()}", started_by=started_by, watched=True,
                           detail=json.dumps({"request": request.model_dump(), "plan": planned}))
     return {"job_id": job_id}

@@ -109,6 +109,9 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "activity_id", "audit_id", "chain_id", "execution_id", "schedule_id", "trigger_id", "comparison_id",
     )},
     "server_id": (LIBRARY, _CONFIG),
+    # #5471: `GET /api/topics/{topic_id}` reads no library at all.
+    "topic_id": (LIBRARY, "a topic of the engine's built-in help text (recipes/seed/topics.yaml), shipped with the "
+                 "engine: it reads no library, so there is no page for a deny to reach"),
     "external_id": (LIBRARY, "an item's id in ANOTHER application (Bookends, Tinderbox): nothing in this library"),
     "mutation_id": (LIBRARY, _KG),
     # maps D6/D7 (9205a2f25): a name or a dated geometry ON a place entity -- part of that KG record.
