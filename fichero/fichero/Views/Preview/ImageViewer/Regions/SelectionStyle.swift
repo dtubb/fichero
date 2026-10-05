@@ -15,6 +15,19 @@ extension SelectionStyle {
         .systemIndigo, .systemBrown, .systemMint, .systemCyan, .systemRed, .systemYellow
     ]
 
+    /// The palette's NAMES, parallel to `regionPalette`: what a surface that cannot hold an `NSColor` is sent
+    /// (the Reader's served page maps each to WebKit's `-apple-system-<name>`), and what a region's own set
+    /// colour stores -- never RGB, so every surface still adapts to the appearance.
+    nonisolated static let regionPaletteNames: [String] = [
+        "blue", "orange", "green", "purple", "pink", "teal",
+        "indigo", "brown", "mint", "cyan", "red", "yellow"
+    ]
+
+    /// A tone's palette name (`regionPaletteNames`).
+    nonisolated static func regionPaletteName(_ tone: RegionColours.Tone) -> String {
+        regionPaletteNames[tone.hue % regionPaletteNames.count]
+    }
+
     /// A box's colour: its region's hue at its reading-order strength, times `opacity`; the plain box colour
     /// (the accent) when it has no tone (artifact geometry, which has no regions).
     static func regionColour(_ tone: RegionColours.Tone?, opacity: CGFloat = 1) -> PlatformColor {
@@ -28,6 +41,33 @@ extension SelectionStyle {
         .controlAccentColor
         #else
         .tintColor
+        #endif
+    }
+
+    /// A region's legend swatch: its hue as a strip graded from full strength to `RegionColours.lightestStrength`,
+    /// the shade its lines take along the reading order (#5426). Drawn at display time from the system colour,
+    /// so it adapts to the appearance; an image because a menu item draws only an image beside its title.
+    static func regionLegendSwatch(hue: Int) -> Image {
+        #if os(macOS)
+        // The system colours, made here; each resolves for the appearance when the handler draws it.
+        let steps = 5
+        let colours = (0..<steps).map { step in
+            regionColour(RegionColours.Tone(
+                hue: hue, strength: 1 - (1 - RegionColours.lightestStrength) * Double(step) / Double(steps - 1)
+            ))
+        }
+        let image = NSImage(size: NSSize(width: 28, height: 10), flipped: false) { rect in
+            let width = rect.width / CGFloat(colours.count)
+            for (step, colour) in colours.enumerated() {
+                colour.setFill()
+                NSBezierPath(rect: NSRect(x: CGFloat(step) * width, y: 0, width: width, height: rect.height)).fill()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return Image(nsImage: image)
+        #else
+        return Image(systemName: "circle.fill")
         #endif
     }
 

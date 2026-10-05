@@ -138,6 +138,9 @@ struct ReaderToolbar: View {
     /// The segment-editing MODE (#5114). Lives in this menu because the ruling put it
     /// with the view's other options. nil where there are no segments to edit.
     var segmentEditingEnabled: Binding<Bool>?
+    /// The page's region hues, in region reading order: the menu's legend, each region's swatch with its
+    /// gradient (`source.editor.hierarchy.legend`, #5426). Empty: no legend.
+    var regionLegend: [Int] = []
 
     // ─── Loupe (image + PDF; nil ⇒ greyed) ───
     var loupeEnabled: Binding<Bool>?
@@ -234,6 +237,20 @@ struct ReaderToolbar: View {
                 }
                 if let inlineTextEnabled {
                     Toggle("Show Text Inline", isOn: inlineTextEnabled)
+                }
+                if !regionLegend.isEmpty {
+                    Divider()
+                    // The legend (#5426): each region's hue, its gradient from first line to last.
+                    Section("Region Colours") {
+                        ForEach(Array(regionLegend.enumerated()), id: \.offset) { position, hue in
+                            Label {
+                                Text("Region \(position + 1)")
+                            } icon: {
+                                SelectionStyle.regionLegendSwatch(hue: hue)
+                            }
+                        }
+                        Text("The shade is the reading order: the first line darkest.")
+                    }
                 }
                 if let segmentEditingEnabled {
                     Divider()

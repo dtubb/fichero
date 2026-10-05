@@ -66,6 +66,28 @@ enum SegmentsPane {
         return asWritten(segments, under: parentId)
     }
 
+    /// One row of the nested list (`source.editor.hierarchy.segments-list-nests`, hierarchy A, #5426): a
+    /// segment and what it holds -- a region its lines, a line its words -- each level in the page's
+    /// as-written order (the order `RegionColours` shades along, so a line's place and its shade agree).
+    struct OutlineRow: Equatable, Identifiable {
+        let segmentId: String
+        let kind: String
+        let children: [OutlineRow]
+        var id: String { segmentId }
+    }
+
+    /// The rows under `top` (the level the list shows, in its order), each holding its children as written,
+    /// to any depth. An id not on the page is a row with no children.
+    static func outline(_ segments: [Segment], top: [String]) -> [OutlineRow] {
+        let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let byParent = Dictionary(grouping: segments.filter { $0.parentSegmentId != nil }, by: { $0.parentSegmentId ?? "" })
+        func row(_ id: String, depth: Int) -> OutlineRow {
+            let children = depth < 8 ? (byParent[id] ?? []).map { row($0.id, depth: depth + 1) } : []
+            return OutlineRow(segmentId: id, kind: byId[id]?.kind ?? "", children: children)
+        }
+        return top.map { row($0, depth: 0) }
+    }
+
     static func hasChildren(_ segmentId: String, in segments: [Segment]) -> Bool {
         segments.contains { $0.parentSegmentId == segmentId }
     }

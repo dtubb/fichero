@@ -1679,6 +1679,24 @@ as-written order (`boxIndex`) on every surface: the Preview holds no `ReadingOrd
 chosen in the Segments pane does not yet reshade the boxes (a `ponytail:` in `SegmentDisplay.geometry`).
 Artifact geometry, which has no regions, is drawn in the plain accent. A region's own set colour is not built.
 
+**Built 2026-10-05 (the hierarchy, A, #5426).** `SegmentHierarchy` decides how each level is drawn from the one
+tone: a region at full strength with a faint wash (0.06) and a thin outline, a line at 0.8 of its shade, a word
+at 0.55 and a letter at 0.4, words and letters as half-width hairlines -- so every child is lighter than its
+parent. `OCRGeometry.displayIndexedBoxes` now returns every level (the words-only ladder is deleted), and each
+drawn box carries its `parentSegmentId`. The image overlay (`DocumentOverlayView.drawBoxes`), the SwiftUI canvas
+(`OCRGeometryOverlay`) and the PDF page (`applyOCRBoxes`, `PDFShapeAnnotations.look`) draw it; only the finest
+level drawn sets its reading inline. A selection lights its children, shows its ancestors at full strength and
+dims the rest (`SegmentHierarchy.emphasis`; on the image from the selected boxes, on a PDF page from its one
+selected box). The Segments list nests (`SegmentsPane.outline`, `SegmentOutlineRow`): a region row open on its
+lines, a line closed on its words, each row with its box's swatch; the strip and grid carry the swatch. The
+Reader's text rules each region's block of lines down its leading edge (right for RTL, top for a vertical
+page) in the region's hue, the app sending the palette NAME (`ReaderRegionRules`, `window.fichero.showRegions`,
+WebKit's `-apple-system-<name>`). The image page's "What to show" menu lists each region's gradient swatch and
+says the shade is the reading order. Pinned by `SegmentHierarchyTests` (through `SegmentStore`),
+`ImportedPageDrawsItsBoxesTests` (the hosted pane lists 4 regions and their 12 lines) and
+`test_reader_region_rules.py`. Not built: the Reader's Lines mode and a highlighted word in the region's hue;
+the PDF page's menu legend; a selection's lighting on the SwiftUI canvas has no caller passing a selection yet.
+
 **The design.**
 - *A region's hue.* Regions take palette hues in the order the working pass reads its regions: the
   first region takes the palette's first hue, the next the second, and so on, wrapping after twelve.
@@ -1719,7 +1737,8 @@ from the region instead of the role.
 
 - `source.editor.colour.region-hue` — **[PARTIAL]** (#5426) every region on a page is drawn in its own
   palette hue, assigned in the working pass's region order; its lines, words and letters take that
-  hue; a region's set colour replaces it. Built and pinned by `RegionColoursTests` and
+  hue; a region's set colour replaces it. The Segments list's swatches and the Reader's region rules take
+  the same tone (2026-10-05). Built and pinned by `RegionColoursTests` and
   `BoxColourThroughTheStoreTests` (through `SegmentStore` and `SegmentDisplay.selected`); not yet seen in
   the app, and the set colour is not built.
 - `source.editor.colour.reading-order-gradient` — **[PARTIAL]** (#5426) inside a region, lines are shaded
@@ -1736,17 +1755,24 @@ from the region instead of the role.
   ancestor are one implicit region of the page: one hue, placed in the region order where their first
   line falls, with the gradient along their reading order. Built and pinned by `RegionColoursTests` and
   `BoxColourThroughTheStoreTests`; not yet seen in the app.
-- `source.editor.hierarchy.children-drawn-as-children` — **[GAP]** (#5426) a child draws inside its
+- `source.editor.hierarchy.children-drawn-as-children` — **[PARTIAL]** (#5426) a child draws inside its
   parent, in its parent's colour, lighter than it; showing words or letters never hides the lines
   and regions they belong to; selecting a parent lights its children, selecting a child shows its
-  parent.
-- `source.editor.hierarchy.legend` — **[GAP]** (#5426) the pane's "What to show" menu shows each
-  region's swatch with its gradient and says that the shade is the reading order.
-- `source.editor.hierarchy.segments-list-nests` — **[GAP]** (#5426) the Segments list and strip show
+  parent. Built 2026-10-05 on the image, the PDF page and the SwiftUI canvas, pinned by
+  `SegmentHierarchyTests`; not yet seen in the app.
+- `source.editor.hierarchy.legend` — **[PARTIAL]** (#5426) the pane's "What to show" menu shows each
+  region's swatch with its gradient and says that the shade is the reading order. Built 2026-10-05 on
+  the image page (`RegionColours.legend`, `SelectionStyle.regionLegendSwatch`); not on the PDF page, not
+  yet seen in the app.
+- `source.editor.hierarchy.segments-list-nests` — **[PARTIAL]** (#5426) the Segments list and strip show
   the same hierarchy: lines indented under their region's row with its swatch, words disclosed under
-  their line, each row in the colour its box is drawn in.
-- `source.editor.hierarchy.reader-shows-regions` — **[GAP]** (#5426) the Reader marks each region's
-  block of lines with its hue, and a highlighted word, line or region is drawn in that hue.
+  their line, each row in the colour its box is drawn in. Built 2026-10-05 for the list (pinned by
+  `SegmentHierarchyTests` and the hosted pane in `ImportedPageDrawsItsBoxesTests`); the strip and grid
+  carry each picture's swatch but stay one level; not yet seen in the app.
+- `source.editor.hierarchy.reader-shows-regions` — **[PARTIAL]** (#5426) the Reader marks each region's
+  block of lines with its hue, and a highlighted word, line or region is drawn in that hue. Built
+  2026-10-05: the Reader's text rules each block (`ReaderRegionRules`, `test_reader_region_rules.py`).
+  Still owed: the highlight in the region's hue, and the Lines mode; not yet seen in the app.
 
 ## Test matrix
 

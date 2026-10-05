@@ -219,9 +219,10 @@ final class RegionSelectionTests: XCTestCase {
             renditionId: nil
         )
         let displayed = geometry.displayIndexedBoxes
-        // Words win, and they keep their FULL-list positions (1 and 2), not
-        // a renumbered 0 and 1 — the index is the engine's address.
-        XCTAssertEqual(displayed.map(\.index), [1, 2])
+        // Every level is drawn (hierarchy A, 2026-10-05, #5426), each at its
+        // FULL-list position -- the index is the engine's address.
+        XCTAssertEqual(displayed.map(\.index), [0, 1, 2])
+        XCTAssertEqual(displayed.map(\.box.level), ["line", "word", "word"])
     }
 
     func testDisplayIndexedBoxesFallBackToRegionsWhenNoWordsOrLines() {

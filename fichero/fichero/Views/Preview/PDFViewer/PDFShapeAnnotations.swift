@@ -11,12 +11,15 @@ import AppKit
 enum PDFShapeAnnotations {
     /// The annotations one box draws as on `page`, or nil when it has no shapes of its own (a box is
     /// then drawn as the square it always was). `userName` marks them for the renderer's sweep.
-    static func make(for box: OCRGeometryBox, on page: PDFPage, userName: String) -> [PDFAnnotation]? {
+    static func make(
+        for box: OCRGeometryBox, on page: PDFPage, userName: String, emphasis: SegmentHierarchy.Emphasis = .rest
+    ) -> [PDFAnnotation]? {
         guard !box.shapes.isEmpty else { return nil }
         let crop = page.bounds(for: .cropBox)
         let rotation = page.rotation
         let faint = box.noReading || OCRBoxConfidence.isUncertain(box)
-        let color = SelectionStyle.regionColour(box.tone, opacity: faint ? 0.35 : 1)
+        let look = Self.look(for: box, emphasis: emphasis)
+        let color = SelectionStyle.regionColour(look.hue, opacity: (faint ? 0.35 : 1) * look.stroke)
         var out: [PDFAnnotation] = []
         for shape in box.shapes {
             let points = shape.points.compactMap { PDFRegionGeometry.pagePoint(normalized: $0, rotation: rotation, crop: crop) }
@@ -31,7 +34,7 @@ enum PDFShapeAnnotations {
             case .polygon, .area, .path, .baseline:
                 guard points.count >= 2 else { continue }
                 let closed = shape.target.isClosed
-                let width: CGFloat = shape.target == .baseline ? 2 : 1
+                let width: CGFloat = (shape.target == .baseline ? 2 : 1) * look.width
                 let bounds = boundingRect(points).insetBy(dx: -width, dy: -width)
                 annotation = PDFAnnotation(bounds: bounds, forType: .ink, withProperties: nil)
                 // Ink paths are in the annotation's own space: relative to its bounds' origin.
@@ -43,6 +46,9 @@ enum PDFShapeAnnotations {
                 let border = PDFBorder()
                 border.lineWidth = width
                 annotation.border = border
+                if closed, look.wash > 0 {
+                    annotation.interiorColor = SelectionStyle.regionColour(look.hue, opacity: look.wash)
+                }
             }
             annotation.color = color
             if box.noReading {
@@ -56,6 +62,29 @@ enum PDFShapeAnnotations {
             out.append(annotation)
         }
         return out
+    }
+
+    /// How a box is drawn as its parent's child on a PDF page (hierarchy A, #5426), from the same rules as the
+    /// image (`SegmentHierarchy`): its region's hue (its shade applied in `stroke`), the outline's strength and
+    /// width, and the region's faint wash.
+    static func look(for box: OCRGeometryBox, emphasis: SegmentHierarchy.Emphasis) -> Look {
+        let level = SegmentHierarchy.Level(kind: box.level)
+        return Look(
+            hue: box.tone.map { RegionColours.Tone(hue: $0.hue, strength: 1) },
+            stroke: CGFloat(SegmentHierarchy.strokeOpacity(
+                level: level, toneStrength: box.tone?.strength ?? 1, emphasis: emphasis
+            )),
+            width: CGFloat(SegmentHierarchy.widthFactor(level)),
+            wash: CGFloat(SegmentHierarchy.washOpacity(level: level, emphasis: emphasis))
+        )
+    }
+
+    /// `look(for:emphasis:)`'s answer.
+    struct Look {
+        let hue: RegionColours.Tone?
+        let stroke: CGFloat
+        let width: CGFloat
+        let wash: CGFloat
     }
 
     /// Edit Segments on a PDF page: the selected box's handles -- a square on every point of its

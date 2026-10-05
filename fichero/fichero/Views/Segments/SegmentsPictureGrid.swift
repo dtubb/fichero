@@ -13,6 +13,9 @@ struct SegmentsPictureGrid: View {
     let pick: (String) -> Void
     let open: (String) -> Void
     let opens: (String) -> Bool
+    /// Each segment's region hue and shade (`RegionColours.tones`): the swatch beside its words is the colour
+    /// its box is drawn in, as the list's rows carry it (#5426).
+    var tones: [String: RegionColours.Tone] = [:]
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @State private var pictures: [String: PlatformImage] = [:]
@@ -61,9 +64,15 @@ struct SegmentsPictureGrid: View {
             .overlay(alignment: .topTrailing) {
                 if let line = flag(of: id) { FlaggedLineMark(line: line).padding(4) }
             }
-            Text(SegmentsPane.rowLabel(segments[id], at: index, direction: direction(of: id)))
-                .font(BundledFonts.shared.font(.caption)).lineLimit(2)
-                .frame(width: 140, alignment: .leading)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Circle()
+                    .fill(SelectionStyle.regionSwatch(tones[id]))
+                    .frame(width: 8, height: 8)
+                    .accessibilityHidden(true)
+                Text(SegmentsPane.rowLabel(segments[id], at: index, direction: direction(of: id)))
+                    .font(BundledFonts.shared.font(.caption)).lineLimit(2)
+            }
+            .frame(width: 140, alignment: .leading)
             if opens(id) {
                 Text("Double-click to open").font(.caption2).foregroundStyle(.tertiary)
             }
@@ -95,7 +104,8 @@ struct SegmentsPictureGrid: View {
     let ids = ["r1", "r2", "r3"]
     SegmentsPictureGrid(
         segmentIds: ids, segments: [:], isStrip: false, selected: "r1",
-        pick: { _ in }, open: { _ in }, opens: { $0 == "r1" }
+        pick: { _ in }, open: { _ in }, opens: { $0 == "r1" },
+        tones: ["r1": .init(hue: 0, strength: 1), "r2": .init(hue: 1, strength: 1), "r3": .init(hue: 2, strength: 1)]
     )
     .frame(width: 480, height: 260)
 }

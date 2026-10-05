@@ -200,6 +200,7 @@ enum SegmentDisplay {
                     shapes: SegmentShapes.drawn(for: segment),
                     noReading: SegmentsPane.lacksReading(segment),
                     segmentId: segment.id,
+                    parentSegmentId: segment.parentSegmentId,
                     tone: tones[segment.id]
                 )
             }

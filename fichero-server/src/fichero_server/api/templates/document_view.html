@@ -289,6 +289,19 @@
             background-color: color-mix(in srgb, Highlight 28%, transparent);
         }
 
+        /* Each region's block of lines (#5426, hierarchy A): a rule in the region's hue down the
+           block's leading edge, laid over the page beside the text -- never an element in the text,
+           so the caret, the line map and the claim highlighter see the body as it is. The colour is
+           the system's own named colour (the app sends the palette NAME), so it adapts to Light,
+           Dark and Increase Contrast. */
+        .transcript-page { position: relative; }
+        .region-rule {
+            position: absolute;
+            width: 3px;
+            border-radius: 1.5px;
+            pointer-events: none;
+        }
+
         /* A line whose words were refused because the reading they corrected no longer counts
            (13b, `stale-keeps-your-words`): the words stay, marked, with the three choices below
            the page. Nothing is sent until the person chooses. */
@@ -1152,6 +1165,67 @@ function applyShownLines() {
     return ranges;
 }
 
+// Each region's block of lines, marked by a rule in the region's hue down its leading edge (#5426). The app
+// sends the blocks (`window.fichero.showRegions`): each region's line ids and its palette NAME, never RGB.
+let regionBlocks = [];
+
+// The palette name -> the system colour WebKit resolves for the appearance; the accent when it has none.
+function regionRuleColour(name) {
+    const system = `-apple-system-${String(name || "").replace(/[^a-z]/g, "")}`;
+    const known = window.CSS && CSS.supports && CSS.supports("color", system);
+    return known ? system : "-apple-system-control-accent";
+}
+
+// The leading edge of a block: the left for left-to-right text, the right for right-to-left, the top for
+// a vertical column page (its columns start at the top).
+function regionRuleSide(direction) {
+    return direction === "rtl" ? "right" : direction === "ttb" ? "top" : "left";
+}
+
+// Each block's span on each page it reaches: from its first line's start to its last line's end, in the
+// page's line map. A block with no line on a page shown draws nothing there.
+function regionRuleSpans(maps, blocks) {
+    const out = [];
+    for (const block of Array.isArray(blocks) ? blocks : []) {
+        const byPage = new Map();
+        for (const span of selectedLineSpans(maps, block.segmentIds)) {
+            const at = byPage.get(span.pageId);
+            byPage.set(span.pageId, at
+                ? { start: Math.min(at.start, span.start), end: Math.max(at.end, span.end) }
+                : { start: span.start, end: span.end });
+        }
+        for (const [pageId, span] of byPage) out.push({ pageId, start: span.start, end: span.end, hue: block.hue });
+    }
+    return out;
+}
+
+function applyRegionRules() {
+    document.querySelectorAll(".region-rule").forEach((rule) => rule.remove());
+    for (const span of regionRuleSpans(pageLineMaps, regionBlocks)) {
+        const article = document.querySelector(`article[data-page-id="${CSS.escape(span.pageId)}"]`);
+        const body = article && article.querySelector(".transcript-page-body");
+        const range = body && rangeInBody(body, span.start, span.end);
+        if (!range) continue;
+        const rect = range.getBoundingClientRect(), page = article.getBoundingClientRect();
+        const text = body.getBoundingClientRect();
+        if (!rect.width && !rect.height) continue;
+        const direction = body.dataset.direction === "ttb" ? "ttb" : getComputedStyle(body).direction;
+        const side = regionRuleSide(direction);
+        const rule = document.createElement("div");
+        rule.className = "region-rule";
+        rule.setAttribute("aria-hidden", "true");
+        rule.style.background = regionRuleColour(span.hue);
+        if (side === "top") {
+            Object.assign(rule.style, { height: "3px", width: `${rect.width}px`,
+                left: `${rect.left - page.left}px`, top: `${text.top - page.top - 6}px` });
+        } else {
+            Object.assign(rule.style, { top: `${rect.top - page.top}px`, height: `${rect.height}px`,
+                left: side === "left" ? `${text.left - page.left - 8}px` : `${text.right - page.left + 5}px` });
+        }
+        article.appendChild(rule);
+    }
+}
+
 document.addEventListener("keydown", (event) => {
     const plain = !event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey;
     if (plain && (event.key === "Enter" || event.key === "Backspace")) {
@@ -1571,6 +1645,7 @@ async function refreshPage(pageId) {
     const newBody = article.querySelector(".transcript-page-body");
     makeEditable(article);
     applyShownLines();
+    applyRegionRules();
     applyStaleHighlight();
     if (offset !== null && newBody) {
         let rest = offset;
@@ -2739,6 +2814,17 @@ document.querySelectorAll(".tabs button").forEach((button) => {
 });
 
 let graphResizeTimer = null;
+// The region rules follow the text's layout: redrawn (debounced) when the window resizes, and when a
+// scroll brings an offscreen page into layout (`content-visibility: auto` lays out no page until it is near).
+let regionRuleTimer = null;
+function scheduleRegionRules() {
+    if (!regionBlocks.length) return;
+    window.clearTimeout(regionRuleTimer);
+    regionRuleTimer = window.setTimeout(applyRegionRules, 120);
+}
+window.addEventListener("resize", scheduleRegionRules);
+document.addEventListener("scroll", scheduleRegionRules, { capture: true, passive: true });
+
 window.addEventListener("resize", () => {
     if (state.tab !== "graph" && state.tab !== "map") return;
     window.clearTimeout(graphResizeTimer);
@@ -2815,6 +2901,14 @@ window.fichero = {
     // the caller reloads then.
     refreshPage(pageId) {
         return refreshPage(pageId);
+    },
+
+    // Each region's block of lines, ruled in its hue down its leading edge (#5426): [{segmentIds, hue}],
+    // hue a palette NAME. [] clears. Redrawn when a page is patched and when the window resizes.
+    showRegions(blocks) {
+        regionBlocks = Array.isArray(blocks) ? blocks.slice() : [];
+        applyRegionRules();
+        return regionRuleSpans(pageLineMaps, regionBlocks).length;
     },
 
     // The Source view's selection, shown on the Reader's lines (#5155). [] clears. Never moves the

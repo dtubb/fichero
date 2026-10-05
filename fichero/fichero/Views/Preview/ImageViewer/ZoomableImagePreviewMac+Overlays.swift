@@ -142,7 +142,8 @@ extension ZoomableImagePreview {
             inlineTextEnabled: $inlineTextEnabled,
             segmentEditingEnabled: windowState.map { state in
                 Binding(get: { state.isEditingSegments }, set: { state.isEditingSegments = $0 })
-            }
+            },
+            regionLegend: RegionColours.legend(of: ocrGeometry?.boxes.compactMap(\.tone) ?? [])
         )
     }
 }

@@ -72,10 +72,12 @@ extension ZoomableImagePreview {
                       showsText: inlineTextEnabled && OCRBoxConfidence.drawsInlineText(entry.box.confidence),
                       shapes: entry.box.shapes, noReading: entry.box.noReading,
                       segmentId: entry.box.segmentId, kind: entry.box.level,
+                      parentSegmentId: entry.box.parentSegmentId,
                       tone: entry.box.tone,
                       direction: direction(entry.box.segmentId))
             },
             selected: selected,
+            selectedSegmentIds: Set(selectedIndices.compactMap { all[$0].segmentId }),
             selectedShapes: selectedIndices.map { all[$0].shapes },
             selectedPoint: selectedShapePoint(in: all),
             entryWashes: annotationFrameMatchesDisplay(nil) ? highlightBoxes : [],

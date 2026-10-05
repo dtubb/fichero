@@ -28,6 +28,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// lines last shown to the page, so an unchanged selection is not sent again.
     weak var windowState: WindowState?
     var lastShownLines: [String]?
+    /// The region rules last sent to the page (#5426), so unchanged ones are not sent again.
+    var lastShownRegions: [ReaderRegionRules.Block]?
 
     var lastLoadedDocumentId: String?
     var lastLoadedLibraryPath: String?
@@ -368,6 +370,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         // A fresh page knows no selection: show it the current one (#5155).
         lastShownLines = nil
         syncSelectedLines(into: webView)
+        lastShownRegions = nil
+        syncRegionRules(into: webView)
         webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
         webView.evaluateJavaScript(DocumentKGPaneRoute.scrollSyncScript(pageCount: parent?.pageCount))
         // A finished navigation is a FRESH DOM: nothing has been patched into it,
@@ -519,6 +523,26 @@ extension DocumentKGWebPaneCoordinatorMacOS {
         guard ids != lastShownLines else { return }
         lastShownLines = ids
         webView.evaluateJavaScript(ReaderLineSelection.showLinesScript(ids))
+    }
+
+    /// Each region's block of lines on the pages shown, ruled in its hue (#5426): from the working pass's
+    /// segments, read from the ONE store (`SegmentStore`), so a segment event re-rules the page. A page whose
+    /// segments are not read yet is asked for once; its rules follow when they arrive.
+    @MainActor
+    func syncRegionRules(into webView: WKWebView) {
+        guard let library else { return }
+        let store = SegmentStore.shared(for: library.segmentService)
+        let pageIds = (parent?.pageIds ?? []).isEmpty ? [lastLoadedDocumentId].compactMap { $0 } : (parent?.pageIds ?? [])
+        var blocks: [ReaderRegionRules.Block] = []
+        for pageId in pageIds {
+            if store.segments(documentId: pageId).isEmpty, !store.isLoading(documentId: pageId) {
+                Task { await store.load(documentId: pageId) }
+            }
+            blocks += ReaderRegionRules.blocks(store.workingSegments(documentId: pageId))
+        }
+        guard blocks != lastShownRegions else { return }
+        lastShownRegions = blocks
+        webView.evaluateJavaScript(ReaderRegionRules.showRegionsScript(blocks))
     }
 
     func handleLineMove(_ body: [String: Any]) {

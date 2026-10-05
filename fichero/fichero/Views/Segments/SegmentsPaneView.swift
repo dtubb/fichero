@@ -50,7 +50,8 @@ struct SegmentsPaneView: View {
                     isStrip: lens == .strip, selected: picked,
                     pick: { id in pick(id, on: document.id) },
                     open: { parentId = $0 },
-                    opens: { SegmentsPane.hasChildren($0, in: segments) }
+                    opens: { SegmentsPane.hasChildren($0, in: segments) },
+                    tones: RegionColours.tones(of: segments)
                 )
             } else {
                 listHalf
@@ -95,7 +96,9 @@ struct SegmentsPaneView: View {
                                 SegmentStore.shared(for: $0).direction(of: id, documentId: document.id)
                             }
                         )
-                    }
+                    },
+                    // Lines under their region's row with its swatch, words disclosed under their line (#5426).
+                    nests: true
                 )
             }
         case .loading:
