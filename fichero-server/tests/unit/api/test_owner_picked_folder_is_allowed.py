@@ -144,7 +144,10 @@ def test_a_path_with_dotdot_is_refused_and_cannot_escape_a_granted_folder(picked
     assert _import(client, Path(f"{picked}/../Private/diary.txt")).status_code == 403
 
 
-@pytest.mark.parametrize("system", ["/", "/System", "/etc", "HOME", "HOME/Library/Keychains", "HOME/.ssh"])
+@pytest.mark.parametrize("system", [
+    "/", "/System", "/etc", "/Volumes", "HOME", "HOME/Library/Keychains", "HOME/.ssh",
+    "HOME/Library/Mobile Documents",
+])
 def test_a_system_folder_is_refused_even_for_the_owner(picked, client, system):
     """WHY: picking a folder allows everything under it; `/`, the OS's folders, HOME itself,
     ~/Library and HOME's hidden folders hold credentials and settings, never material."""
@@ -158,6 +161,31 @@ def test_a_system_folder_is_refused_even_for_the_owner(picked, client, system):
     assert refused.status_code == 400, refused.text
     assert "system folder" in refused.json()["detail"]
     assert registry.get_global_database().execute_fetchall("SELECT path FROM owner_granted_folders") == []
+
+
+@pytest.mark.parametrize("synced", [
+    "HOME/Library/Mobile Documents/com~apple~CloudDocs/Archive",
+    "HOME/Library/CloudStorage/Dropbox/Archive",
+])
+def test_a_folder_in_icloud_drive_or_a_cloud_drive_is_allowed(picked, client, synced):
+    """WHY: historians keep material in iCloud Drive or Dropbox, which live under ~/Library;
+    refusing all of ~/Library refused their archives."""
+    path = Path(synced.replace("HOME", str(Path.home())))
+    path.mkdir(parents=True)
+
+    assert _grant(TestClient(app), path).status_code == 200
+
+
+def test_a_drive_under_volumes_is_allowed_but_volumes_itself_is_not():
+    """WHY: archives often sit on an external drive; only /Volumes itself (every drive) is refused."""
+    from fichero_server.security.path_security import OwnerFolderGrantRefused, owner_folder_grant_key
+
+    with pytest.raises(OwnerFolderGrantRefused):
+        owner_folder_grant_key("/Volumes")
+    drives = [d for d in Path("/Volumes").iterdir() if d.is_dir()] if Path("/Volumes").exists() else []
+    if not drives:
+        pytest.skip("no mounted volume to pick on this machine")
+    assert owner_folder_grant_key(drives[0]) == str(drives[0].resolve())
 
 
 def test_a_symlink_to_a_system_folder_is_that_system_folder(picked, client):

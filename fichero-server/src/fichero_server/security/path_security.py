@@ -381,10 +381,15 @@ _OWNER_GRANT_LOADING = threading.local()
 # Never grantable, whoever asks: the system's own folders. Their contents are not an archive.
 _SYSTEM_FOLDERS = (
     "/System", "/Library", "/usr", "/bin", "/sbin", "/etc", "/private/etc", "/var", "/private/var",
-    "/dev", "/cores", "/opt", "/Applications", "/Volumes", "/Network",
+    "/dev", "/cores", "/opt", "/Applications",
 )
+# Refused only as themselves: a drive or share under them is where archives often live.
+_MOUNT_FOLDERS = ("/Volumes", "/Network")
 # …except the per-user temp folders under /var, which are already ingest roots (CI, test runs).
 _SYSTEM_FOLDER_EXCEPTIONS = ("/var/folders", "/private/var/folders")
+# ~/Library is refused except where synced drives keep people's files (iCloud Drive, Dropbox,
+# Google Drive, OneDrive): a folder under these is material; the two parents themselves are not.
+_HOME_LIBRARY_EXCEPTIONS = ("Library/Mobile Documents", "Library/CloudStorage")
 
 
 class OwnerFolderGrantRefused(ValueError):
@@ -437,7 +442,13 @@ def owner_folder_grant_key(path: str | Path) -> str:
             any(resolved.is_relative_to(root) for root in system)
             and not any(resolved.is_relative_to(Path(p)) for p in _SYSTEM_FOLDER_EXCEPTIONS)
         )
-        or resolved.is_relative_to(home / "Library")
+        or resolved in [Path(p) for p in _MOUNT_FOLDERS]
+        or (
+            resolved.is_relative_to(home / "Library")
+            and not any(
+                resolved.is_relative_to(home / e) and resolved != home / e for e in _HOME_LIBRARY_EXCEPTIONS
+            )
+        )
         or (resolved.is_relative_to(home) and resolved.relative_to(home).parts[0].startswith("."))
     ):
         raise OwnerFolderGrantRefused(
