@@ -140,7 +140,11 @@ private struct FicheroSharedPlatformRoot: View {
         }
         // Launch connects through the SAME entry point as the Retry button and
         // pairing (#3108) — one iOS connect path, no divergent launch task.
-        .task { await reconnectToConfiguredHost() }
+        .task {
+            // The one window state is the one a UI verb (App Intent) drives (#5453).
+            WindowState.front = windowState
+            await reconnectToConfiguredHost()
+        }
         // #2389: reconnectToConfiguredHost covers launch/Retry/pairing, but a
         // capture taken offline in the field must also flush when the connection
         // recovers on its own while the app stays foregrounded — the 5s heartbeat

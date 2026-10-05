@@ -219,6 +219,8 @@ extension ContentView {
                 // panes a workspace mounts (spec §Accessibility; WorkspaceAccessibilityUITests):
                 // "pane.library" / "pane.preview" / "pane.reading" / "pane.inspector" / "pane.chat".
                 .accessibilityIdentifier("pane.\(kind.rawValue)")
+                // Where the pane sits, for the screenshot verb (#5453, `openapi.ui.screenshot`).
+                .recordsPaneFrame(kind.rawValue, in: windowState)
                 // NOT a hosting boundary — corrected 2026-09-17. AnyView does not re-root the
                 // environment, so this modifier is a no-op here (see
                 // ContentView+WindowEnvironment for the evidence and the real cause). Kept

@@ -2,30 +2,22 @@
 //  FicheroUICapture.swift
 //  Fichero
 //
-//  In-process UI capture backing the AppleScript `screenshot` verb (#4535,
-//  #4536). Lives apart from AppleScriptCommands.swift only for file length.
+//  The screenshot UI verb (#5453, `openapi.ui.screenshot`; first #4535, #4536): the app draws its own
+//  window, or one pane of it, into a PNG. No screen recording, so no permission prompt.
 //
 
 #if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import Foundation
 import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppleScript")
 
-/// Capture the app's own rendered UI to a PNG file (#4535, #4536).
-///
-/// One verb, one `view` parameter: omitted (or "window") captures the key
-/// window's whole content; any other value names a view to capture by its
-/// accessibility identifier. Rendering uses the DOCUMENTED offscreen pair
-/// `bitmapImageRepForCachingDisplay(in:)` + `cacheDisplay(in:to:)` (renders
-/// the view and its descendants; no screen-recording permission involved).
-///
-/// EMPIRICAL, not documented: SwiftUI's `.accessibilityIdentifier` reaches the
-/// AX tree, but only some hosting-view descendants expose it via
-/// `NSView.accessibilityIdentifier()` — which views are findable is a fact to
-/// discover per build, so a miss FAILS with the identifiers that were actually
-/// present rather than guessing (#4536 tracks first-class per-pane capture).
+#if os(macOS)
+/// `screenshot "<path>" [of pane "<name>"]`: the front window, or one pane of it, saved as a PNG (`UIVerbs.screenshot`).
 @objc(FicheroScreenshotCommand)
 class FicheroScreenshotCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
@@ -34,95 +26,107 @@ class FicheroScreenshotCommand: NSScriptCommand {
             scriptErrorString = "Destination file path is required"
             return nil
         }
-        let viewName = (evaluatedArguments?["view"] as? String) ?? "window"
-
-        logger.info("AppleScript: screenshot view '\(viewName)' -> '\(path)'")
+        let name = (evaluatedArguments?["pane"] as? String) ?? "window"
+        logger.info("AppleScript: screenshot pane '\(name)' -> '\(path)'")
         do {
-            return try MainActor.assumeIsolated {
-                try FicheroUICapture.capture(viewNamed: viewName, to: path)
+            return try MainActor.assumeIsolated { () throws -> String in
+                let pane: UIPane?
+                if name.isEmpty || name.lowercased() == "window" {
+                    pane = nil
+                } else if let named = UIPane(named: name) {
+                    pane = named
+                } else {
+                    throw UIVerbs.Failure.unknownPane(name)
+                }
+                return try UIVerbs.screenshot(of: pane, to: path)
             }
         } catch {
             scriptErrorNumber = NSInternalScriptError
-            scriptErrorString = String(describing: error)
+            scriptErrorString = error.localizedDescription
             return nil
         }
     }
 }
+#endif
 
-/// In-process UI capture shared by the screenshot verb.
+/// The app drawing its own window into a PNG.
 @MainActor
 enum FicheroUICapture {
-    enum CaptureError: Error, CustomStringConvertible {
+    enum CaptureError: LocalizedError, CustomStringConvertible {
         case noWindow
-        case viewNotFound(name: String, available: [String])
+        case paneNotShown(name: String, shown: [String])
         case renderFailed(String)
 
         var description: String {
             switch self {
             case .noWindow:
-                return "No visible window to capture — is a library window open?"
-            case .viewNotFound(let name, let available):
-                return "No view with accessibility identifier '\(name)'. "
-                    + "Identifiers present: \(available.sorted().joined(separator: ", "))"
+                return "No visible window to capture -- is a project window open?"
+            case .paneNotShown(let name, let shown):
+                return "The \(name) pane is not shown. Panes shown: \(shown.sorted().joined(separator: ", "))"
             case .renderFailed(let why):
                 return "Could not render the capture: \(why)"
             }
         }
+
+        var errorDescription: String? { description }
     }
 
-    /// Render `viewName` ("window" = whole key-window content) into a PNG at
-    /// `path`. Returns the absolute path written.
-    static func capture(viewNamed viewName: String, to path: String) throws -> String {
-        guard let window = NSApp.keyWindow ?? NSApp.orderedWindows.first(where: \.isVisible),
-              let contentView = window.contentView
+    /// `pane` of `state`'s window (the whole window when nil) as a PNG at `path`. Answers the absolute path.
+    static func capture(pane: UIPane?, of state: WindowState?, to path: String) throws -> String {
+        #if os(macOS)
+        if pane == .activity {
+            // The Activity pane is its own window on the Mac.
+            guard let window = NSApp.windows.first(where: {
+                $0.isVisible && ($0.identifier?.rawValue.hasPrefix(ActivityWindowSelectionState.monitorWindowID) ?? false)
+            }) else { throw CaptureError.paneNotShown(name: "activity", shown: state.map { Array($0.paneFrames.keys) } ?? []) }
+            return try write(render(window, crop: nil), to: path)
+        }
+        guard let window = state?.hostWindow ?? NSApp.keyWindow ?? NSApp.orderedWindows.first(where: \.isVisible)
         else { throw CaptureError.noWindow }
-
-        let target: NSView
-        if viewName.isEmpty || viewName == "window" {
-            target = contentView
-        } else if let found = firstView(withIdentifier: viewName, under: contentView) {
-            target = found
-        } else {
-            throw CaptureError.viewNotFound(
-                name: viewName,
-                available: allIdentifiers(under: contentView)
-            )
+        #else
+        guard let window = UIApplication.shared.connectedScenes
+            .compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first
+        else { throw CaptureError.noWindow }
+        #endif
+        guard let pane else { return try write(render(window, crop: nil), to: path) }
+        guard let frame = state?.paneFrames[pane.frameKey], !frame.isEmpty else {
+            throw CaptureError.paneNotShown(name: pane.rawValue, shown: state.map { Array($0.paneFrames.keys) } ?? [])
         }
+        return try write(render(window, crop: frame), to: path)
+    }
 
-        guard let rep = target.bitmapImageRepForCachingDisplay(in: target.bounds) else {
-            throw CaptureError.renderFailed("bitmapImageRepForCachingDisplay returned nil")
+    #if os(macOS)
+    /// The window's content, or the `crop` of it (window points, top-left origin), drawn offscreen.
+    static func render(_ window: NSWindow, crop: CGRect?) throws -> Data {
+        guard let view = window.contentView,
+              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+        else { throw CaptureError.renderFailed("no content to draw") }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        guard var image = rep.cgImage else { throw CaptureError.renderFailed("no bitmap") }
+        if let crop {
+            let scale = CGFloat(rep.pixelsWide) / max(view.bounds.width, 1)
+            let pixels = CGRect(x: crop.minX * scale, y: crop.minY * scale, width: crop.width * scale, height: crop.height * scale)
+            guard let cropped = image.cropping(to: pixels.integral) else { throw CaptureError.renderFailed("pane outside the window") }
+            image = cropped
         }
-        target.cacheDisplay(in: target.bounds, to: rep)
-        guard let png = rep.representation(using: .png, properties: [:]) else {
+        guard let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
             throw CaptureError.renderFailed("PNG encoding failed")
         }
+        return png
+    }
+    #else
+    /// The window, or the `crop` of it (window points), drawn offscreen.
+    static func render(_ window: UIWindow, crop: CGRect?) throws -> Data {
+        UIGraphicsImageRenderer(bounds: crop ?? window.bounds).pngData { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+    }
+    #endif
+
+    private static func write(_ png: Data, to path: String) throws -> String {
         let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try png.write(to: url)
         return url.path
     }
-
-    private static func firstView(withIdentifier name: String, under root: NSView) -> NSView? {
-        var queue: [NSView] = [root]
-        while !queue.isEmpty {
-            let view = queue.removeFirst()
-            if view.accessibilityIdentifier() == name { return view }
-            queue.append(contentsOf: view.subviews)
-        }
-        return nil
-    }
-
-    private static func allIdentifiers(under root: NSView) -> [String] {
-        var found = Set<String>()
-        var queue: [NSView] = [root]
-        while !queue.isEmpty {
-            let view = queue.removeFirst()
-            let identifier = view.accessibilityIdentifier()
-            if !identifier.isEmpty { found.insert(identifier) }
-            queue.append(contentsOf: view.subviews)
-        }
-        return Array(found)
-    }
 }
-#endif

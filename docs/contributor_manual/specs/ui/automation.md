@@ -215,7 +215,7 @@ not a coherent new surface needing its own spec.
 
 ## Triaged from the backlog (2026-10-04)
 - `automation.run.history-inspector-tab` — **[GAP]** (#1474) the document inspector lists the workflow runs that ran on this document and lets the user delete (or disable) a run's results, as the image history does
-- `automation.applescript.debug-dictionary-loads` — **[BROKEN]** (#5258) the Debug build's FicheroDebug.sdef includes Fichero.sdef by a path that resolves inside the built bundle, so every scripting command works in Debug.
+- `automation.applescript.debug-dictionary-loads` — **[OK]** (#5258) the Debug build's FicheroDebug.sdef includes Fichero.sdef by a path that resolves inside the built bundle, so every scripting command works in Debug. Fixed by copying Fichero.sdef's suites into FicheroDebug.sdef instead of an XInclude (the system resolved the include against the reader's working directory); `AppleScriptSurfaceTests.testTheDebugDictionaryIsTheUserOnePlusTheTestSuite` fails if the copy drifts, and `testTheRunningAppLoadedItsDictionary` checks that the running Debug app loaded every UI verb and the test suite.
 - `automation.applescript.every-command-smoke-tested` — **[GAP]** (#5259) a test launches the built app (Debug and Release, isolated engine and fixture library) and runs every command in Fichero.sdef through osascript, asserting each result.
 - `automation.schedule.runs-on-chosen-documents` **[BROKEN]** (#5410): a schedule can name the pages or folder it runs on, typed as the run's own inputs, and triggering it runs on exactly those; the schedule editor shows what it runs on. Today POST /api/schedules with selected_doc_ids is refused with 422.
 

@@ -20,17 +20,17 @@ final class AppleScriptSurfaceTests: XCTestCase {
     /// The verbs the 2026-08-04 test-architecture decisions require, by name.
     func testTheAgentVerbsAreDeclared() throws {
         let sdef = try Self.sdef()
-        for verb in ["open library", "select document", "run workflow",
-                     "stop run", "screenshot", "get workflow status"] {
+        for verb in ["open project", "open node", "select nodes", "reveal segments", "show pane",
+                     "show inspector tab", "run workflow", "stop run", "screenshot", "get workflow status"] {
             XCTAssertTrue(
                 sdef.contains("<command name=\"\(verb)\""),
                 "Fichero.sdef must declare the '\(verb)' verb (#4535)"
             )
         }
-        // One screenshot verb, window-vs-view as a PARAMETER (not two verbs) —
-        // the #4536 shape.
-        XCTAssertTrue(sdef.contains("name=\"of view\" code=\"view\""),
-                      "screenshot must take its target as the 'of view' parameter")
+        // One screenshot verb, window-vs-pane as a PARAMETER (not two verbs) —
+        // the #4536 shape, by pane name since #5453.
+        XCTAssertTrue(sdef.contains("name=\"of pane\" code=\"pane\""),
+                      "screenshot must take its target as the 'of pane' parameter")
         // The declared-selection parameter on run workflow (#4414).
         XCTAssertTrue(sdef.contains("cocoa key=\"selectedDocIds\""),
                       "run workflow must accept the 'on documents' declared selection")
@@ -62,96 +62,101 @@ final class AppleScriptSurfaceTests: XCTestCase {
         }
     }
 
-    /// The Debug dictionary (#5193): `FicheroDebug.sdef` includes the whole user dictionary by XInclude
-    /// -- so the two never drift -- and adds the Debug-only test suite, whose `describe window` binds a
-    /// class this (Debug) build has. Info.plist names it through a build setting, so Release keeps
-    /// Fichero.sdef. Breaks if the include stops resolving (a Debug app with no user verbs) or the
-    /// verb names a class that is not there.
-    func testTheDebugDictionaryIncludesTheUserOneAndAddsDescribeWindow() throws {
-        let url = try AppSource.root().appendingPathComponent("FicheroDebug.sdef")
-        // Resolved by xmllint, as the system resolves it: the include uses
-        // `xpointer(/dictionary/suite)` (Apple's own sdef pattern), which Foundation's
-        // XMLDocument .documentXInclude does not implement -- it silently kept one suite.
-        let lint = Process()
-        lint.executableURL = URL(fileURLWithPath: "/usr/bin/xmllint")
-        lint.arguments = ["--xinclude", "--nowarning", url.path]
-        let out = Pipe()
-        lint.standardOutput = out
-        try lint.run()
-        let xml = out.fileHandleForReading.readDataToEndOfFile()
-        lint.waitUntilExit()
-        XCTAssertEqual(lint.terminationStatus, 0, "xmllint resolved the include")
-        let resolved = try XMLDocument(data: xml)
-        let suites = try resolved.nodes(forXPath: "/dictionary/suite/@name").compactMap(\.stringValue)
-        XCTAssertEqual(suites, ["Standard Suite", "Fichero Suite", "Fichero Test Suite"])
-        let binding = try resolved.nodes(forXPath: "//command[@name='describe window']/cocoa/@class").first?.stringValue
-        XCTAssertEqual(binding, "FicheroDescribeWindowCommand")
-        XCTAssertNotNil(NSClassFromString("FicheroDescribeWindowCommand"), "the Debug build has the class the verb binds")
+    /// The Debug dictionary (#5193, #5258): the whole user dictionary, then the Debug-only test suite.
+    /// It is a COPY of Fichero.sdef's suites, not an XInclude -- the system resolved the include against
+    /// the reader's working directory, so a Debug app had no verbs at all (#5258). Breaks if the copy
+    /// drifts from Fichero.sdef, if an include comes back, or a test verb binds a class not in this build.
+    func testTheDebugDictionaryIsTheUserOnePlusTheTestSuite() throws {
+        let user = try XMLDocument(contentsOf: AppSource.root().appendingPathComponent("Fichero.sdef"))
+        let debug = try XMLDocument(contentsOf: AppSource.root().appendingPathComponent("FicheroDebug.sdef"))
+        let userSuites = try user.nodes(forXPath: "/dictionary/suite").map { $0.xmlString }
+        let debugSuites = try debug.nodes(forXPath: "/dictionary/suite").map { $0.xmlString }
+        XCTAssertEqual(userSuites.count, 2, "the user dictionary's two suites were found")
+        XCTAssertEqual(Array(debugSuites.prefix(userSuites.count)), userSuites,
+                       "FicheroDebug.sdef's user suites are Fichero.sdef's, word for word")
+        XCTAssertEqual(debugSuites.count, userSuites.count + 1, "plus the test suite, and nothing else")
+        XCTAssertTrue(try debug.nodes(forXPath: "//*[local-name()='include']").isEmpty, "no XInclude (#5258)")
+        let testVerbs = ["describe window": "FicheroDescribeWindowCommand", "select segment": "FicheroSelectSegmentCommand"]
+        for (verb, cls) in testVerbs {
+            let bound = try debug.nodes(forXPath: "//suite[@name='Fichero Test Suite']/command[@name='\(verb)']/cocoa/@class")
+            XCTAssertEqual(bound.first?.stringValue, cls, verb)
+            XCTAssertNotNil(NSClassFromString(cls), "\(cls) is in the Debug build")
+        }
         let plist = try String(contentsOf: AppSource.root().appendingPathComponent("Info.plist"), encoding: .utf8)
         XCTAssertTrue(plist.range(of: "<string>$(FICHERO_SCRIPTING_DEFINITION)</string>") != nil,
                       "the dictionary is chosen per configuration, never one file for both")
     }
 
-    /// #5194 (`ui-testing.drive-below-a-document`): the Debug suite reaches below a document --
-    /// `select page`, `select segment`, `show pane` -- each bound to a class this Debug build has, each
-    /// answering whether it was accepted. The rules they use: a pane by the name a script says (and a
-    /// refusal naming the panes that would have worked), and the sidebar reveal's page + segment -- the
-    /// seam a citable reference already lands through. Breaks if a verb binds nothing, a pane name is
-    /// misread, or a segment lands without its page.
-    func testTheDebugSuiteReachesBelowADocument() throws {
-        let url = try AppSource.root().appendingPathComponent("FicheroDebug.sdef")
-        // Resolved by xmllint, as the system resolves it: the include uses
-        // `xpointer(/dictionary/suite)` (Apple's own sdef pattern), which Foundation's
-        // XMLDocument .documentXInclude does not implement -- it silently kept one suite.
-        let lint = Process()
-        lint.executableURL = URL(fileURLWithPath: "/usr/bin/xmllint")
-        lint.arguments = ["--xinclude", "--nowarning", url.path]
-        let out = Pipe()
-        lint.standardOutput = out
-        try lint.run()
-        let xml = out.fileHandleForReading.readDataToEndOfFile()
-        lint.waitUntilExit()
-        XCTAssertEqual(lint.terminationStatus, 0, "xmllint resolved the include")
-        let resolved = try XMLDocument(data: xml)
-        let bindings: [String: String] = [
-            "select page": "FicheroSelectPageCommand",
-            "select segment": "FicheroSelectSegmentCommand",
-            "show pane": "FicheroShowPaneCommand",
-        ]
-        for (verb, cls) in bindings {
-            let bound = try resolved.nodes(forXPath: "//suite[@name='Fichero Test Suite']/command[@name='\(verb)']/cocoa/@class")
-            XCTAssertEqual(bound.first?.stringValue, cls, verb)
-            XCTAssertNotNil(NSClassFromString(cls), "\(cls) is in the Debug build")
-        }
-        XCTAssertEqual(DebugScriptVerbs.paneKind(named: " Segments "), .segments)
-        XCTAssertEqual(DebugScriptVerbs.paneKind(named: "preview"), .preview)
-        XCTAssertNil(DebugScriptVerbs.paneKind(named: "kg"), "a panel is not a pane")
-        XCTAssertEqual(Set(DebugScriptVerbs.paneNames), Set(PaneKind.allCases.map(\.rawValue)))
-        XCTAssertEqual(DebugScriptVerbs.revealUserInfo(documentId: "doc-1"), ["documentId": "doc-1"])
-        XCTAssertEqual(DebugScriptVerbs.revealUserInfo(documentId: "doc-1", segmentId: "seg-3"),
-                       ["documentId": "doc-1", "segmentId": "seg-3"])
-        XCTAssertEqual(PaneList([.leaf(.preview)]).settingVisible(.segments, true).leafIDs(of: .segments).count, 1,
-                       "show pane adds the pane when it is absent")
+    private static func code(_ text: String) -> FourCharCode {
+        text.utf8.reduce(0) { $0 << 8 | FourCharCode($1) }
     }
 
-    /// The smoke's named-view step depends on the miss being LOUD and
-    /// self-describing — a capture that cannot find its view must say what it
-    /// could see, or every miss becomes an undebuggable blank.
+    /// `automation.applescript.debug-dictionary-loads` (#5258) and `openapi.ui.verbs-are-the-click`
+    /// (#5453): the dictionary THIS running (Debug) app loaded knows every UI verb and the test suite,
+    /// each bound to a class that exists. Before the fix the Debug app loaded no dictionary at all, so
+    /// every osascript call failed with -1728.
+    func testTheRunningAppLoadedItsDictionary() throws {
+        let registry = NSScriptSuiteRegistry.shared()
+        // Suite + event code -> the class it binds.
+        let verbs = [
+            "FICHoprj": "FicheroOpenProjectCommand", "FICHopnd": "FicheroOpenNodeCommand",
+            "FICHslnd": "FicheroSelectNodesCommand", "FICHrvsg": "FicheroRevealSegmentsCommand",
+            "FICHshpn": "FicheroShowPaneCommand", "FICHshit": "FicheroShowInspectorTabCommand",
+            "FICHshot": "FicheroScreenshotCommand", "FTSTdesw": "FicheroDescribeWindowCommand"
+        ]
+        for (codes, cls) in verbs {
+            let description = registry.commandDescription(
+                withAppleEventClass: Self.code(String(codes.prefix(4))), andAppleEventCode: Self.code(String(codes.suffix(4)))
+            )
+            XCTAssertEqual(description?.commandClassName, cls, "\(codes) is loaded")
+            XCTAssertNotNil(NSClassFromString(cls), cls)
+        }
+    }
+
+    private func command(_ event: String) throws -> NSScriptCommandDescription {
+        try XCTUnwrap(NSScriptSuiteRegistry.shared().commandDescription(
+            withAppleEventClass: Self.code("FICH"), andAppleEventCode: Self.code(event)
+        ))
+    }
+
+    /// `openapi.ui.verbs-are-the-click` (#5453): an AppleScript command is its App Intent's call -- the
+    /// same front-window request -- and a name that is not a pane or tab is refused naming the good ones.
     @MainActor
-    func testViewNotFoundNamesTheIdentifiersPresent() {
-        let error = FicheroUICapture.CaptureError.viewNotFound(
-            name: "sidebar", available: ["toolbar.status", "library.list"]
-        )
+    func testTheCommandsCallTheUIVerbs() throws {
+        let window = WindowState(libraryId: UUID())
+        WindowState.front = window
+
+        let show = FicheroShowPaneCommand(commandDescription: try command("shpn"))
+        show.directParameter = "reading"
+        XCTAssertEqual(show.performDefaultImplementation() as? Bool, true)
+        XCTAssertEqual(window.uiVerbRequest?.action, .showPane(.reader))
+        show.directParameter = "kg"
+        XCTAssertNil(show.performDefaultImplementation())
+        XCTAssertTrue(show.scriptErrorString?.contains("Panes: library, preview, reader") == true, show.scriptErrorString ?? "")
+
+        let nodes = FicheroSelectNodesCommand(commandDescription: try command("slnd"))
+        nodes.directParameter = ["doc-1", "doc-2"]
+        XCTAssertEqual(nodes.performDefaultImplementation() as? Bool, true)
+        XCTAssertEqual(window.uiVerbRequest?.action, .select(["doc-1", "doc-2"]))
+
+        let inspector = FicheroShowInspectorTabCommand(commandDescription: try command("shit"))
+        inspector.directParameter = "Entities"
+        XCTAssertEqual(inspector.performDefaultImplementation() as? Bool, true)
+        XCTAssertEqual(window.uiVerbRequest?.action, .showInspectorTab(.entities))
+    }
+
+    /// The smoke's pane step depends on the miss being LOUD and self-describing — a capture of a pane
+    /// that is not shown must say which panes are, or every miss becomes an undebuggable blank.
+    @MainActor
+    func testPaneNotShownNamesThePanesShown() {
+        let error = FicheroUICapture.CaptureError.paneNotShown(name: "preview", shown: ["reading", "library"])
         let message = String(describing: error)
-        XCTAssertTrue(message.contains("sidebar"))
-        XCTAssertTrue(message.contains("Identifiers present"))
-        XCTAssertTrue(message.contains("library.list"))
-        XCTAssertTrue(message.contains("toolbar.status"))
+        XCTAssertTrue(message.contains("preview"))
+        XCTAssertTrue(message.contains("Panes shown: library, reading"))
     }
 
     /// Whole-window capture with no window must throw `.noWindow`, never
-    /// return a path to nothing. (Unit hosts DO have windows sometimes; only
-    /// the error-shape is assertable here — the live capture is the smoke's.)
+    /// return a path to nothing.
     @MainActor
     func testNoWindowErrorIsSelfDescribing() {
         let message = String(describing: FicheroUICapture.CaptureError.noWindow)

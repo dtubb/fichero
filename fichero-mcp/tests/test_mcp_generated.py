@@ -152,7 +152,7 @@ def test_the_default_is_the_recipe_golden_path_and_all_is_every_tag():
         "recipes", "training", "check", "segments", "documents", "activity", "local-models", "hpc",
     )
     assert set(mcp_server.DEFAULT_TOOLSETS) <= set(generated.TAGS), "a default toolset is not a real tag"
-    assert mcp_server.parse_toolsets("all") == generated.TAGS
+    assert mcp_server.parse_toolsets("all") == (*generated.TAGS, "ui"), "every tag, and the app's UI verbs"
     names = _names(mcp_server.mcp)
     for tool in generated.TOOLS:
         assert (tool.name in names) == (tool.tag in mcp_server.DEFAULT_TOOLSETS) or tool.name in mcp_server.OPERATOR_ALIASES

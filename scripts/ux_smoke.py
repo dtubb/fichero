@@ -4,7 +4,7 @@ spawn-per-run engine harness (#4535, 2026-08-04 decisions).
 
 This is the layer between unit tests and XCUITest: real app process, real
 engine, real seeded library — driven through the app's own scriptable verbs
-(open library, select document, run workflow on documents, stop run,
+(open project, open node, run workflow on documents, stop run,
 screenshot) rather than synthesized UI events. Raw UI events stay reserved for
 what scripting can't reach (genuine Finder drags).
 
@@ -135,21 +135,21 @@ def main() -> int:
         wait_scriptable()
         print("[smoke] app is scriptable")
 
-        # -- open library ---------------------------------------------------
-        code, out, err = tell(f'open library "{ready["library"]}"')
+        # -- open project ---------------------------------------------------
+        code, out, err = tell(f'open project "{ready["library"]}"')
         if code != 0:
-            fail("open library", err)
-        print("[smoke] open library ok")
+            fail("open project", err)
+        print("[smoke] open project ok")
         time.sleep(3)  # let the window populate before capturing
 
         # -- select the seeded letter --------------------------------------
         letter = ready["keys"].get("doc_letter")
         if not letter:
-            fail("select document", f"seed keys carry no doc_letter: {ready['keys']}")
-        code, out, err = tell(f'select document id "{letter}"')
+            fail("open node", f"seed keys carry no doc_letter: {ready['keys']}")
+        code, out, err = tell(f'open node "{letter}"')
         if code != 0:
-            fail("select document", err)
-        print("[smoke] select document ok")
+            fail("open node", err)
+        print("[smoke] open node ok")
 
         # -- whole-window screenshot (must be a real PNG) -------------------
         shot = out_dir / "window.png"
@@ -160,17 +160,16 @@ def main() -> int:
             fail("screenshot window", f"{shot} missing or trivially small")
         print(f"[smoke] window screenshot ok ({shot.stat().st_size} bytes)")
 
-        # -- named-view capture: success, or the verb's LOUD miss ----------
-        pane = out_dir / "sidebar.png"
-        code, out, err = tell(f'screenshot "{pane}" of view "sidebar"')
+        # -- one pane's capture: success, or the verb's LOUD miss (#5453) ---
+        pane = out_dir / "library.png"
+        code, out, err = tell(f'screenshot "{pane}" of pane "library"')
         if code == 0 and pane.is_file() and pane.stat().st_size >= 1024:
-            print("[smoke] sidebar screenshot ok")
-        elif "Identifiers present:" in err:
-            # The verb failed the WAY it promises to fail — naming what exists.
-            # First-class per-pane identifiers are #4536's deliverable.
-            print(f"[smoke] named-view capture reported its miss loudly: {err[:160]}")
+            print("[smoke] library pane screenshot ok")
+        elif "Panes shown:" in err:
+            # The verb failed the WAY it promises to fail -- naming the panes shown.
+            print(f"[smoke] pane capture reported its miss loudly: {err[:160]}")
         else:
-            fail("screenshot named view", f"neither a capture nor a loud miss: {err}")
+            fail("screenshot pane", f"neither a capture nor a loud miss: {err}")
 
         # -- run the seeded nodes workflow on the letter, then stop it ------
         workflow = ready["full_ids"].get("workflow-nodes")

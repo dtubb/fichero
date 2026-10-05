@@ -185,6 +185,44 @@ class WindowState {
         }
     }
 
+    // MARK: - UI verbs (#5453, `openapi.ui.verbs-are-the-click`)
+
+    /// The window a UI verb (AppleScript, App Intent) acts on: the last one made key on the Mac, the
+    /// one scene's on iPhone and iPad. Weak, so a closed window is never driven.
+    static weak var front: WindowState?
+
+    /// What a UI verb asked THIS window for; `ContentView.applyUIVerb` does it through the click's own
+    /// method. A token, so asking twice acts twice.
+    var uiVerbRequest: UIVerbRequest?
+
+    /// Ask this window for what a click does (`UIVerbs` is the only caller).
+    func request(_ action: UIVerbRequest.Action) {
+        uiVerbRequest = UIVerbRequest(action: action, token: (uiVerbRequest?.token ?? 0) + 1)
+    }
+
+    /// Where each shown pane sits in the window (window points, top-left origin), by pane name, for
+    /// the screenshot verb. Not observed: nothing draws from it.
+    @ObservationIgnored var paneFrames: [String: CGRect] = [:]
+
+    #if os(macOS)
+    /// The window this state draws in; becoming key makes this state the `front` one.
+    @ObservationIgnored weak var hostWindow: NSWindow? {
+        didSet {
+            guard hostWindow !== oldValue else { return }
+            if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
+            keyObserver = nil
+            guard let hostWindow else { return }
+            if hostWindow.isKeyWindow || Self.front == nil { Self.front = self }
+            keyObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.didBecomeKeyNotification, object: hostWindow, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { WindowState.front = self }
+            }
+        }
+    }
+    @ObservationIgnored private var keyObserver: (any NSObjectProtocol)?
+    #endif
+
     init(libraryId: UUID) {
         self.libraryId = libraryId
     }

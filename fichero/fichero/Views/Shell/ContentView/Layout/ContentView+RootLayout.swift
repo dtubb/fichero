@@ -79,6 +79,8 @@ extension ContentView {
                         .environment(claimSourceNavigationState)
                         .environment(readerPageActivationState)
                         .environment(activeSurfaceState)
+                        // Where the Inspector sits, for the screenshot verb (#5453).
+                        .recordsPaneFrame(UIPane.inspector.frameKey, in: windowState)
                 } else {
                     // NO bare mount, ever (Daniel's table-open crash,
                     // 2026-08-09 morning): at launch the restored selection
@@ -497,11 +499,9 @@ extension ContentView {
             .environment(claimSourceNavigationState)
             .environment(readerPageActivationState)
             .environment(activeSurfaceState)
-            .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { note in
-                handleAppleScriptSelectDocument(note)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .ficheroShowPanelRequested)) { note in
-                handleAppleScriptShowPanel(note)
+            // A UI verb (AppleScript, App Intent; #5453) asked THIS window for what a click does.
+            .onChange(of: windowState.uiVerbRequest) { _, request in
+                if let request { applyUIVerb(request.action) }
             }
             .onChange(of: kgFocusState.sourceDocumentId) { _, _ in
                 handleKGFocusChanged()
