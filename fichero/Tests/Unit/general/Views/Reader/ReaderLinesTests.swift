@@ -10,8 +10,8 @@ import Testing
 /// answer for the imported Syriac page (the fixture `LineRevealTests` uses), through the real
 /// `SegmentStore`, `SegmentService`, `ReaderTextEditRunner` and `RegionSelection`; only the HTTP transport
 /// is stubbed, and it records what the app asked for. No row is rendered: the rows read these answers.
-@MainActor
 @Suite(.serialized, .tags(.reader))
+@MainActor
 struct ReaderLinesTests {
     /// Answers every request to the test host, recording the pictures asked for and the actions invoked.
     private final class RecordedEngine: URLProtocol {

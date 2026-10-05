@@ -1,11 +1,7 @@
-import CoreGraphics
+import CoreText
 import Foundation
 import Observation
-#if os(macOS)
-import AppKit
-#else
-import UIKit
-#endif
+import SwiftUI
 
 /// The Reader's Lines mode (#5414, `reader.lines.*`) and the Preview's double-click popover
 /// (`preview.segment.double-click-popover`), which is one row of it. The decisions live here, apart
@@ -77,11 +73,7 @@ enum ReaderLines {
 
     /// The body text style's point size on this platform: the size the words take at 100%.
     static var bodyPointSize: CGFloat {
-        #if os(macOS)
-        NSFont.preferredFont(forTextStyle: .body).pointSize
-        #else
-        UIFont.preferredFont(forTextStyle: .body).pointSize
-        #endif
+        CTFontGetSize(BundledFonts.ctFont(base: BundledFonts.systemDescriptor(.body), size: 0, cascade: []))
     }
 }
 
@@ -107,8 +99,9 @@ struct SegmentPopoverTarget: Identifiable, Equatable {
 @Observable
 final class ReaderLineEditor {
     let segment: Segment
-    /// The line cut from the page by the engine; nil until fetched, or when there is no page image.
-    private(set) var picture: PlatformImage?
+    /// The line cut from the page by the engine (PNG bytes; the row draws them); nil until fetched, or
+    /// when there is no page image.
+    private(set) var picture: Data?
     /// The reading that counts now, which a correction corrects; nil when none counts yet.
     private(set) var reading: InspectorText.Reading?
     /// The words in the field.
@@ -134,10 +127,9 @@ final class ReaderLineEditor {
         let untouched = draft == shownWords
         reading = (try? await service.readings(segmentId: segment.id))?.countingReading(ofKind: "transcription")
         if untouched { draft = shownWords }  // words typed while it loaded are kept
-        if picture == nil,
-           let data = try? await SegmentPictureService(client: service.client)
-               .picture(segmentId: segment.id, size: ReaderLines.pictureSize) {
-            picture = PlatformImage(data: data)
+        if picture == nil {
+            picture = try? await SegmentPictureService(client: service.client)
+                .picture(segmentId: segment.id, size: ReaderLines.pictureSize)
         }
     }
 

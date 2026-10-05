@@ -35,19 +35,16 @@ struct ReaderLinesView: View {
             let direction = store.directionResolver(documentId: documentId)
             let shown = ReaderLines.shown(selectedIds(store), among: lines, segments: store.segments(documentId: documentId))
             ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        ForEach(lines) { line in
-                            ReaderLineRow(
-                                segment: line, direction: direction(line.id), zoom: zoom,
-                                isSelected: shown.contains(line.id),
-                                onPick: { reveal(line.id, store: store) }
-                            )
-                            .id(line.id)
-                        }
-                    }
-                    .padding(12)
+                List(lines) { line in
+                    ReaderLineRow(
+                        segment: line, direction: direction(line.id), zoom: zoom,
+                        isSelected: shown.contains(line.id),
+                        onPick: { reveal(line.id, store: store) }
+                    )
+                    .id(line.id)
+                    .listRowSeparator(.hidden)
                 }
+                .listStyle(.plain)
                 .onChange(of: shown) { _, now in
                     guard let first = lines.first(where: { now.contains($0.id) }) else { return }
                     withAnimation { proxy.scrollTo(first.id, anchor: .center) }
@@ -123,7 +120,7 @@ struct ReaderLineRow: View {
         let vertical = ReaderLines.arrangement(direction: direction) == .beside
         Button { onPick?() } label: {
             Group {
-                if let image = editor.picture {
+                if let data = editor.picture, let image = PlatformImage(data: data) {
                     Image(platformImage: image).resizable().scaledToFit()
                 } else {
                     Rectangle().fill(.quaternary)
@@ -133,6 +130,10 @@ struct ReaderLineRow: View {
             }
             .frame(width: vertical ? extent : nil, height: vertical ? nil : extent)
             .clipShape(RoundedRectangle(cornerRadius: 3))
+            .frame(
+                minWidth: MiniToolbar<EmptyView, EmptyView>.touchTargetSide,
+                minHeight: MiniToolbar<EmptyView, EmptyView>.touchTargetSide
+            )
         }
         .buttonStyle(.plain)
         .disabled(onPick == nil)
