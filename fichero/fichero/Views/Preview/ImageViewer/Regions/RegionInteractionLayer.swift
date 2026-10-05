@@ -102,6 +102,8 @@ struct RegionInteractionLayer: View {
     @State var reshapeDrag: ReshapeDrag?
     /// Live Resize (#5215): the box, the handle pressed, and the box as it is now.
     @State var resizeDrag: BoxResize.Drag?
+    /// The segment box a double-click opened, shown in its popover (#5414); nil when none is open.
+    @State var segmentPopover: SegmentPopoverTarget?
 
     var body: some View {
         GeometryReader { geo in
@@ -127,6 +129,7 @@ struct RegionInteractionLayer: View {
                 // The ONE clickable thing: each marquee's name badge. A
                 // 20pt button claims only its own square.
                 marqueeBadges(in: geo.size)
+                segmentPopoverAnchor(in: geo.size)
             }
             // TOP-LEADING, never the default centre (#5214): every child is placed by `.offset` from the
             // layer's origin, and a centred frame put the content's (smaller) bounds in the MIDDLE -- with
@@ -349,9 +352,6 @@ struct RegionInteractionLayer: View {
         handleTap(at: point, in: size)
     }
 
-    /// The window's segment-editing mode (#5114). No window state reads as off.
-    var isEditing: Bool { windowState?.isEditingSegments ?? false }
-
     /// The select tool armed (the DEFAULT since 2026-09-02)?
     private var isBandSelecting: Bool {
         windowState?.activeMarkupTool == .select
@@ -414,7 +414,7 @@ struct RegionInteractionLayer: View {
             at: location, boxes: boxes.map { $0.box.bbox },
             in: size, visible: visible
         ) else { return }
-        onOpenRegion(boxes[picked].index)
+        if !openSegmentPopover(for: boxes[picked].box) { onOpenRegion(boxes[picked].index) }
     }
 
     /// A SELECTED box under the point (full-list index), for move drags.

@@ -551,10 +551,10 @@ struct KGSurfaceTabTests {
 
 struct ReaderTabTests {
 
-    @Test("ReaderTab folds the reader into Page, Knowledge, Notes in order")
+    @Test("ReaderTab folds the reader into Page, Lines, Knowledge, Notes in order")
     func orderingAndCount() {
-        // Order drives the native top tab bar's left-to-right layout.
-        #expect(ReaderTab.allCases == [.page, .knowledge, .notes])
+        // Order drives the lens list. Lines (#5414) reads the page line by line, beside Page.
+        #expect(ReaderTab.allCases == [.page, .lines, .knowledge, .notes])
     }
 
     @Test("ReaderTab id equals rawValue")
@@ -567,6 +567,7 @@ struct ReaderTabTests {
     @Test("ReaderTab titles are the approved human-readable labels")
     func titles() {
         #expect(ReaderTab.page.title == "Page")
+        #expect(ReaderTab.lines.title == "Lines")
         #expect(ReaderTab.knowledge.title == "Knowledge")
         #expect(ReaderTab.notes.title == "Notes")
     }
@@ -599,7 +600,7 @@ struct SurfaceChromeTests {
     @Test("ReaderTab conforms to SurfaceTab with complete metadata")
     func readerTabConformsToSurfaceTab() {
         let tabs: [any SurfaceTab] = ReaderTab.allCases
-        #expect(tabs.count == 3)
+        #expect(tabs.count == 4)
         for tab in ReaderTab.allCases {
             #expect(!tab.title.isEmpty)
             #expect(!tab.icon.isEmpty)

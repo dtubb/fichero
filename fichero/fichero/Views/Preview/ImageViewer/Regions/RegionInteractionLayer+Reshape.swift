@@ -7,6 +7,9 @@ import SwiftUI
 /// and drags it; ⌥-click removes a point (never below what the shape needs).
 /// Committed through the host's `onReshapeCommit`, which sends `segment.update` with ⌘Z.
 extension RegionInteractionLayer {
+    /// The window's segment-editing mode (#5114). No window state reads as off.
+    var isEditing: Bool { windowState?.isEditingSegments ?? false }
+
     /// The single selected box and its shapes, when it has any to reshape.
     private var reshapable: (index: Int, shapes: [SegmentShapes.Drawn])? {
         guard onReshapeCommit != nil, let artifactId, selection.artifactId == artifactId else { return nil }

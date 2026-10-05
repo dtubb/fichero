@@ -19,10 +19,25 @@ enum InspectorReadingEdit {
         }
     }
 
-    /// The Reader's own message for a typed line: the new text, correcting the reading shown.
-    static func message(documentId: String, segmentId: String, text: String, editing reading: InspectorText.Reading)
+    /// The Reader's own message for a typed line: the new text, correcting the reading shown. A segment
+    /// no reading counts for yet (`reading` nil) gets a first reading, correcting nothing.
+    static func message(documentId: String, segmentId: String, text: String, editing reading: InspectorText.Reading?)
         -> ReaderTextEdit.Message {
-        .edited(pageId: documentId, segmentId: segmentId, text: text, basedOn: reading.id)
+        .edited(pageId: documentId, segmentId: segmentId, text: text, basedOn: reading?.id)
+    }
+
+    /// THE save of a person's typed reading of one segment: the Inspector's Edit… and the Reader's Lines
+    /// row (#5414) both call it, so both are the Reader's `representation.create` through
+    /// `ReaderTextEditRunner` -- the same stale check and ⌘Z. Unchanged words write nothing. Answers why
+    /// nothing was written (`ReaderTextEditRunner.staleProblem` when another reading counts now), or nil.
+    static func save(
+        _ words: String, documentId: String, segmentId: String, editing reading: InspectorText.Reading?,
+        runner: ReaderTextEditRunner
+    ) async -> String? {
+        let text = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text != (reading?.content ?? "") else { return nil }
+        let answer = await runner.apply(message(documentId: documentId, segmentId: segmentId, text: text, editing: reading))
+        return answer?.problem
     }
 
     /// What the Inspector says when the edit did not land.
@@ -83,24 +98,31 @@ struct InspectorReadingEditor: View {
 /// orientation, which SwiftUI's fields do not offer.
 struct VerticalTextEditor: NSViewRepresentable {
     @Binding var text: String
+    /// The words' point size; 0 is the body style's own. The Reader's Lines mode zooms it (#5414).
+    var pointSize: CGFloat = 0
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSTextView.scrollableTextView()
         guard let view = scroll.documentView as? NSTextView else { return scroll }
         view.delegate = context.coordinator
         view.isRichText = false
-        // The engine's bundled faces after the system's, as every reading in the app (#5210).
-        view.font = BundledFonts.ctFont(
-            base: BundledFonts.systemDescriptor(.body), size: 0, cascade: BundledFonts.shared.cascade
-        ) as NSFont
+        view.font = font
         view.setLayoutOrientation(.vertical)
         view.string = text
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
-        guard let view = scroll.documentView as? NSTextView, view.string != text else { return }
-        view.string = text
+        guard let view = scroll.documentView as? NSTextView else { return }
+        if view.font?.pointSize != font.pointSize { view.font = font }
+        if view.string != text { view.string = text }
+    }
+
+    /// The engine's bundled faces after the system's, as every reading in the app (#5210).
+    private var font: NSFont {
+        BundledFonts.ctFont(
+            base: BundledFonts.systemDescriptor(.body), size: pointSize, cascade: BundledFonts.shared.cascade
+        ) as NSFont
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(text: $text) }

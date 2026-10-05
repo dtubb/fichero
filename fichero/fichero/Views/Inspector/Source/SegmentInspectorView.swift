@@ -193,16 +193,13 @@ struct SegmentInspectorView: View {
     /// `representation.create` correcting the reading shown, refused when another counts now, ⌘Z.
     private func saveEdit() async {
         guard let editing, let inspected, let segmentService, let actionsService = actionStore?.actionsService else { return }
-        let words = editing.words.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard words != editing.reading.content else { self.editing = nil; return }
         let runner = ReaderTextEditRunner(
             actionsService: actionsService, segmentService: segmentService, undoManager: undoManager,
             refreshPage: { _ in await reloadText() }
         )
-        let answer = await runner.apply(InspectorReadingEdit.message(
-            documentId: documentId, segmentId: inspected, text: words, editing: editing.reading
-        ))
-        if let problem = answer?.problem {
+        if let problem = await InspectorReadingEdit.save(
+            editing.words, documentId: documentId, segmentId: inspected, editing: editing.reading, runner: runner
+        ) {
             editNote = InspectorReadingEdit.note(for: problem)
             if problem == ReaderTextEditRunner.staleProblem { await reloadText() }
         } else {
