@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import OpenAPIRuntime
 
 // FastAPI error bodies, hoisted to file scope so no type nests more than one level
@@ -101,5 +102,28 @@ public enum EngineErrorDetail {
         guard let body = payload.body else { return nil }
         guard let data = try? await Data(collecting: body, upTo: maxBytes) else { return nil }
         return message(from: data)
+    }
+}
+
+/// Keeps an error response's body readable after the generated client has tried it.
+///
+/// The engine refuses in words (`HTTPException(422, "the recipe already has entities")`), but an
+/// operation documents its 422 as FastAPI's validation shape (`detail` an array), so decoding the
+/// sentence fails and the client throws a `ClientError`. A streamed body can be read only once, so
+/// without this the sentence is gone by then. Buffering the (small) body of a non-2xx response lets
+/// ``EngineErrorDetail/message(from:)`` read it from `ClientError.responseBody`.
+public struct EngineErrorBodyMiddleware: ClientMiddleware {
+    public init() {}
+
+    public func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String,
+        next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        let (response, responseBody) = try await next(request, body, baseURL)
+        guard response.status.code >= 400, let responseBody else { return (response, responseBody) }
+        return (response, HTTPBody(try await Data(collecting: responseBody, upTo: 1 << 20)))
     }
 }

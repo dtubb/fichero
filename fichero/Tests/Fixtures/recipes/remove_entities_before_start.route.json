@@ -1,0 +1,128 @@
+{
+ "request": {
+  "layers": [
+   "entities"
+  ],
+  "remove": true
+ },
+ "status": 200,
+ "response": {
+  "started": {
+   "started_at": "2026-10-05T04:22:18+00:00",
+   "recipe_id": "generated/transcribe-es-Latn",
+   "recipe_version": "0.1.0",
+   "workflows": [
+    "Transcribe (Kraken)",
+    "Paleographer Review"
+   ],
+   "pages": 3,
+   "job_id": "9e1d1c01-189a-430d-b9ff-de6bbb775ac2"
+  },
+  "runs": [
+   {
+    "steps": [
+     "find-lines",
+     "read-a-line"
+    ],
+    "job": "read-a-line",
+    "card": "workflow",
+    "runs_on": "this-mac",
+    "workflow": "Transcribe (Kraken)",
+    "workflow_id": "667dacb2-4a6f-5324-ac65-4222ce3e0c0d",
+    "provider_override": "kraken",
+    "model_override": "kraken-mccatmus",
+    "layer": null,
+    "provider": null,
+    "model": null,
+    "prompt": null,
+    "folder": null,
+    "formats": null,
+    "done": 0,
+    "of": 3,
+    "note": "already done on 0 of 3 pages; runs on the rest"
+   },
+   {
+    "steps": [
+     "correct"
+    ],
+    "job": "correct",
+    "card": "workflow",
+    "runs_on": "this-mac",
+    "workflow": "Paleographer Review",
+    "workflow_id": "2613da1c-61d2-54e5-87be-bd6336f3d568",
+    "provider_override": "omlx",
+    "model_override": "mlx-community/Qwen2.5-VL-7B-Instruct-4bit",
+    "layer": null,
+    "provider": null,
+    "model": null,
+    "prompt": null,
+    "folder": null,
+    "formats": null,
+    "done": null,
+    "of": 3,
+    "note": "cannot tell what is done; runs on every page (3)"
+   }
+  ],
+  "workflows": [
+   {
+    "steps": [
+     "find-lines",
+     "read-a-line"
+    ],
+    "job": "read-a-line",
+    "workflow": "Transcribe (Kraken)",
+    "workflow_id": "667dacb2-4a6f-5324-ac65-4222ce3e0c0d",
+    "provider_override": "kraken",
+    "model_override": "kraken-mccatmus",
+    "runs_on": "this-mac"
+   },
+   {
+    "steps": [
+     "correct"
+    ],
+    "job": "correct",
+    "workflow": "Paleographer Review",
+    "workflow_id": "2613da1c-61d2-54e5-87be-bd6336f3d568",
+    "provider_override": "omlx",
+    "model_override": "mlx-community/Qwen2.5-VL-7B-Instruct-4bit",
+    "runs_on": "this-mac"
+   }
+  ],
+  "skipped": [],
+  "offered": [],
+  "refusals": [],
+  "downloads": [],
+  "estimate": {
+   "pages": 3,
+   "runs": [
+    {
+     "workflow": "Transcribe (Kraken)",
+     "steps": [
+      "find-lines",
+      "read-a-line"
+     ],
+     "where": "this-mac",
+     "pages": 3,
+     "cost_usd": 0.0
+    },
+    {
+     "workflow": "Paleographer Review",
+     "steps": [
+      "correct"
+     ],
+     "where": "this-mac",
+     "pages": 3,
+     "cost_usd": 0.0
+    }
+   ],
+   "total_cost_usd": 0.0
+  },
+  "proposed": null,
+  "addable": [
+   "entities",
+   "graph",
+   "places",
+   "vectors"
+  ]
+ }
+}

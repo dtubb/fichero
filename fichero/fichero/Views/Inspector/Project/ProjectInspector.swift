@@ -61,6 +61,9 @@ struct ProjectInspector: View {
                 } else if recipeStore != nil {
                     Text("This project is not set up yet.").foregroundStyle(.secondary)
                 }
+                if let recipeStore, recipeStore.recipe != nil {
+                    InspectorProjectLayers(store: recipeStore)
+                }
                 Button("Set Up…") { libraryManager.requestSetUp(for: library.id) }
             }
             Section("Sharing") {

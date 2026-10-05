@@ -187,7 +187,8 @@ public final class FicheroClient: ObservableObject {
         let transport = Self.makeTransport(session: session, transportMode: transportMode)
         let middlewares: [any ClientMiddleware] = [
             AuthTokenMiddleware(),
-            libraryPathProvider.createMiddleware()
+            libraryPathProvider.createMiddleware(),
+            EngineErrorBodyMiddleware()
         ]
         self.transport = transport
         self.streamTransport = Self.makeTransport(
@@ -234,7 +235,8 @@ public final class FicheroClient: ObservableObject {
         let transport = Self.makeTransport(session: session, transportMode: .https)
         let middlewares: [any ClientMiddleware] = [
             AuthTokenMiddleware(),
-            libraryPathProvider.createMiddleware()
+            libraryPathProvider.createMiddleware(),
+            EngineErrorBodyMiddleware()
         ]
         self.transport = transport
         self.streamTransport = Self.makeTransport(

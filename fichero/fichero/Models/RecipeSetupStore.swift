@@ -29,6 +29,10 @@ final class RecipeSetupStore {
     var languages: [String] = []
     var scripts: [String] = []
     var material: String = "handwriting"
+    /// Layers added beyond the purpose's (`source.onboard.add-layer`): the engine writes them
+    /// (`POST /api/recipes/project/layers`); setup only carries them, into the recipe it asks
+    /// for and the answers it saves, so no save drops what the engine added.
+    private(set) var layers: [String] = []
     var pages: Int = 0
     /// May pages leave this Mac. Asked once per project; the default is that
     /// nothing leaves (`source.onboard.cloud-asked-once`).
@@ -95,6 +99,7 @@ final class RecipeSetupStore {
             guard case .ok(let success) = try await client.api.getProjectSetupApiRecipesProjectGet() else { return }
             let saved = try success.body.json
             if let answers = saved.answers {
+                savedAnswers = try JSONEncoder().encode(answers)
                 apply(try Self.convert(answers, to: RecipeSetupAnswers.self))
             }
             if let savedRecipe = saved.recipe {
@@ -112,7 +117,8 @@ final class RecipeSetupStore {
     func save() async -> Bool {
         do {
             let body = Components.Schemas.ProjectSetup(
-                answers: try Self.convert(currentAnswers, to: Components.Schemas.ProjectSetup.AnswersPayload.self),
+                answers: try JSONDecoder().decode(Components.Schemas.ProjectSetup.AnswersPayload.self,
+                                                  from: answersToSave()),
                 recipe: try recipe.map { try Self.convert($0, to: Components.Schemas.ProjectSetup.RecipePayload.self) }
             )
             switch try await client.api.saveProjectSetupApiRecipesProjectPut(headers: .init(), body: .json(body)) {
@@ -172,12 +178,27 @@ final class RecipeSetupStore {
 
     private var currentAnswers: RecipeSetupAnswers {
         RecipeSetupAnswers(purpose: purpose, languages: languages, scripts: scripts, material: material,
-                     pages: pages, cloudAllowed: cloudAllowed, ingestMode: ingestMode.rawValue.lowercased())
+                     pages: pages, cloudAllowed: cloudAllowed, ingestMode: ingestMode.rawValue.lowercased(),
+                     layers: layers)
+    }
+
+    /// The answers as the project last saved them, as JSON, so a save keeps every field the
+    /// engine wrote that setup does not ask about (`answers.layers`, `mac_memory_gb`, …).
+    private var savedAnswers: Data?
+
+    /// Setup's answers over the saved ones: a field setup asks about takes setup's value; any
+    /// other field the engine saved stays as it was (`source.onboard.add-layer`).
+    private func answersToSave() throws -> Data {
+        var merged = (savedAnswers.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
+        let current = try JSONSerialization.jsonObject(with: JSONEncoder().encode(currentAnswers)) as? [String: Any] ?? [:]
+        merged.merge(current) { _, new in new }
+        return try JSONSerialization.data(withJSONObject: merged)
     }
 
     private func apply(_ saved: RecipeSetupAnswers) {
         if let value = saved.purpose { purpose = value }
         if let value = saved.languages { languages = value }
+        layers = saved.layers ?? []
         if let value = saved.scripts { scripts = value }
         if let value = saved.material { material = value }
         if let value = saved.pages { pages = value }
@@ -282,7 +303,9 @@ final class RecipeSetupStore {
                     scripts: scripts,
                     material: material,
                     pages: pages,
-                    cloudAllowed: cloudAllowed
+                    cloudAllowed: cloudAllowed,
+                    // The layers added later stay in every recipe proposed again (source.onboard.add-layer).
+                    layers: layers.isEmpty ? nil : layers
                 ))
             )
             switch output {
@@ -364,6 +387,83 @@ final class RecipeSetupStore {
         guard recipe != nil else { return false }
         return await save()
     }
+
+    /// Add a layer to the project, or with `remove` take an added one out
+    /// (`POST /api/recipes/project/layers`, action `project.add_layer`, audited and undoable).
+    /// The engine adds the layer's steps to the recipe and proposes its jobs for the material
+    /// already there; the Start plan it returns shows them with the estimate. Nothing runs
+    /// until Start. Afterwards the saved answers and recipe are read back, so a later save
+    /// from setup or the Inspector carries the layer. Returns whether the engine kept it.
+    @discardableResult
+    func changeLayer(_ layer: String, remove: Bool = false) async -> Bool {
+        errorMessage = nil
+        do {
+            switch try await client.api.changeProjectLayersApiRecipesProjectLayersPost(
+                headers: .init(), body: .json(.init(layers: [layer], remove: remove))
+            ) {
+            case .ok(let success):
+                startPlan = try success.body.json
+                spliceLayer(layer, remove: remove)
+                await adoptRecipeTheEngineWrote()
+                return true
+            case .unprocessableContent(let error):
+                errorMessage = (try? error.body.json)?.detail?.description
+                    ?? (remove ? "The engine would not remove the \(layer) layer" : "The engine would not add the \(layer) layer")
+            case .undocumented(let code, let body):
+                errorMessage = await EngineErrorDetail.message(from: body)
+                    ?? "Could not change the project's layers (HTTP \(code))"
+            }
+        } catch {
+            if error.isCancellationError { return false }
+            // A refusal in words ("the recipe already has entities") arrives as a 422 whose
+            // `detail` is a sentence, which the generated validation shape cannot decode: say
+            // the engine's sentence, never the decoding error.
+            errorMessage = await Self.engineWords(error) ?? error.localizedDescription
+        }
+        return false
+    }
+
+    /// The engine kept the change: the one layer joins (or leaves) the answers in place, in
+    /// `layers` and in the saved answers a later save starts from.
+    private func spliceLayer(_ layer: String, remove: Bool) {
+        if remove { layers.removeAll { $0 == layer } } else if !layers.contains(layer) { layers.append(layer) }
+        var saved = (savedAnswers.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
+        saved["layers"] = layers
+        savedAnswers = try? JSONSerialization.data(withJSONObject: saved)
+    }
+
+    /// The engine rewrote the recipe (the layer's steps joined it or left it, a model the person
+    /// chose stayed): take that one object as the engine saved it, so a later save sends it
+    /// back unchanged rather than the recipe from before the layer.
+    private func adoptRecipeTheEngineWrote() async {
+        do {
+            guard case .ok(let success) = try await client.api.getProjectSetupApiRecipesProjectGet(),
+                  let saved = try success.body.json.recipe else { return }
+            recipe = try Self.convert(saved, to: Components.Schemas.AssembledRecipe.self)
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not read the recipe the engine saved: \(error.localizedDescription)"
+        }
+    }
+
+    /// The engine's own sentence from a response the generated client could not decode.
+    private static func engineWords(_ error: Error) async -> String? {
+        guard let clientError = error as? ClientError, let body = clientError.responseBody,
+              let data = try? await Data(collecting: body, upTo: 1 << 16) else { return nil }
+        return EngineErrorDetail.message(from: data)
+    }
+
+    /// The layers the Inspector offers to add, as the engine's Start plan names them
+    /// (`addable`: the addable layers less those the project has and those its purpose
+    /// brings). The app never works the rule out (`source.onboard.add-layer`).
+    var addableLayers: [String] { startPlan?.addable ?? [] }
+
+    /// What an added layer proposes for the material already in the project, with each step's
+    /// topic text, as the engine's Start plan carries it; nil when nothing is proposed.
+    var proposedJobs: Components.Schemas.ProposedJobs? {
+        guard let proposed = startPlan?.proposed, !proposed.steps.isEmpty else { return nil }
+        return proposed
+    }
 }
 
 /// The answers as saved: the engine's own field names.
@@ -375,9 +475,10 @@ struct RecipeSetupAnswers: Codable, Equatable {
     var pages: Int?
     var cloudAllowed: Bool?
     var ingestMode: String?
+    var layers: [String]?
 
     enum CodingKeys: String, CodingKey {
-        case purpose, languages, scripts, material, pages
+        case purpose, languages, scripts, material, pages, layers
         case cloudAllowed = "cloud_allowed"
         case ingestMode = "ingest_mode"
     }

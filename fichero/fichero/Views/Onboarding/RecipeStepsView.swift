@@ -166,6 +166,7 @@ struct InspectorRecipeSection: View {
                         .foregroundStyle(.secondary)
                 }
                 InspectorProjectLanguages(store: appState.recipeSetupStore)
+                InspectorProjectLayers(store: appState.recipeSetupStore)
                 Button("Set Up…") { showingSetup = true }
                     .controlSize(.small)
             }
@@ -199,6 +200,75 @@ struct InspectorProjectLanguages: View {
         // Edit what the project saved, never the defaults over it.
         .task { await store.loadSaved() }
     }
+}
+
+/// A layer added (or removed) after setup, from the Inspector (`source.onboard.add-layer`):
+/// the engine adds its steps to the recipe and proposes its jobs for the pages already there;
+/// this shows those jobs, each explained by its topic, with the estimate, and Start runs them
+/// through the same Start as setup. Nothing runs before Start.
+struct InspectorProjectLayers: View {
+    let store: RecipeSetupStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(store.layers, id: \.self) { layer in
+                HStack {
+                    Label(layer.capitalized, systemImage: "square.3.layers.3d")
+                    Spacer()
+                    Button("Remove") { Task { await store.changeLayer(layer, remove: true) } }
+                        .controlSize(.small)
+                }
+            }
+            Menu("Add a Layer…") {
+                ForEach(store.addableLayers, id: \.self) { layer in
+                    Button(layer.capitalized) { Task { await store.changeLayer(layer) } }
+                }
+            }
+            .controlSize(.small)
+            .disabled(store.addableLayers.isEmpty)
+            if let proposed = store.proposedJobs, let plan = store.startPlan {
+                proposal(proposed, plan: plan)
+            }
+        }
+        .font(.caption)
+        .task {
+            await store.loadJobs()
+            await store.loadStartPlan()
+        }
+    }
+
+    private func proposal(_ proposed: Components.Schemas.ProposedJobs,
+                          plan: Components.Schemas.StartPlan) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("For the pages already here: \(plan.estimate.pages) pages · \(RecipeStartFields.cost(plan.estimate.totalCostUsd))")
+                .font(.callout)
+            ForEach(proposed.steps, id: \.step) { step in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(step.title).bold()
+                    if let topic = store.topics.topic(step.topic) {
+                        TopicExplanation(topic: topic)
+                    } else {
+                        Text(step.explanation).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            ForEach(plan.refusals, id: \.self) { refusal in
+                Label(refusal, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+            }
+            Button("Start") { Task { await store.start() } }
+                .disabled(!store.canStart)
+            if let message = store.errorMessage {
+                Text(message).foregroundStyle(.red)
+            }
+        }
+    }
+}
+
+#Preview("Project layers") {
+    let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
+    return InspectorProjectLayers(store: store)
+        .padding()
+        .frame(width: 320)
 }
 
 #Preview("Project languages") {

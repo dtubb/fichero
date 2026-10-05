@@ -1586,8 +1586,16 @@ Purposes and layers
   purpose already has, or one removed that the purpose brings, is refused in words; before the first
   yes the added layer simply runs with the whole recipe at Start; a language added through this
   route proposes the recipe again and proposes nothing for what is already there (as the 2026-10-04
-  default). Not built: the app's Inspector control (it still keeps `answers.layers` only if it
-  carries the field when it saves), and the plan's time and carbon (as `estimate-before-start`).
+  default). **Built 2026-10-05 (app, #5470):** the Inspector's Recipe section (and the project's
+  own Inspector) has Add a Layer… offering the layers the Start plan names as `addable` (the app
+  works out none); adding one shows the jobs proposed for the pages already there, each with its
+  topic's words, and the estimate (pages, cost); Start is setup's Start; Remove withdraws them; a
+  refusal shows the engine's sentence. Every save from setup or the Inspector keeps
+  `answers.layers` (and any other answer the engine wrote), and a recipe proposed again asks for the
+  added layers too (`RecipeSetupStore.changeLayer`, `InspectorProjectLayers`;
+  `fichero/Tests/Unit/general/Models/RecipeAddLayerTests.swift`, over responses recorded from the
+  engine's routes in `fichero/Tests/Fixtures/recipes/`). Not built: the plan's time and carbon (as
+  `estimate-before-start`).
   a layer or a language can be added later from the
   library's Inspector; an added layer turns on the recipe's steps of that layer and runs them over
   everything already in the project, as one job.
