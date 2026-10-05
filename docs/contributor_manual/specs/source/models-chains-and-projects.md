@@ -1742,18 +1742,18 @@ Profiles (the defaults section of a recipe)
   licences.
 
 Purposes and layers
-- `source.onboard.purpose-first` — **[GAP]** (#4951, #5478) *Built 2026-10-03 (app + engine), as a single choice: first run's Purpose step lists the engine's purposes (GET /api/recipes/purposes) before material; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`, `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. Ruled 2026-10-05 (#5478): checkboxes, not a single choice.* setup's first question after where the project lives asks
+- `source.onboard.purpose-first` — **[PARTIAL]** (#4951, #5478) **Built 2026-10-05 (engine):** the saved answers hold `purposes` as a list (a project saved with one `purpose` reads as a list of one, nothing lost; none ticked is `not-sure`), and `GET /api/recipes/purposes` offers the five new purposes; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. *Not built: the app's checkboxes (#5478).* *Built 2026-10-03 (app + engine), as a single choice: first run's Purpose step lists the engine's purposes (GET /api/recipes/purposes) before material; `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`, `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. Ruled 2026-10-05 (#5478): checkboxes, not a single choice.* setup's first question after where the project lives asks
   what it is for, as **checkboxes** over the purposes of section 7b (screen 2), any combination;
   none ticked is "Not sure yet"; the purposes are saved on the project as a list
   (`answers.purposes`; a saved single `purpose` reads as a list of one) and shown in its Inspector.
-- `source.onboard.purpose-sets-layers` — **[GAP]** (#4951, #5478) *Built 2026-10-03 (engine), for one purpose: purpose to steps in `assemble()` (`PURPOSE_STEPS`); pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. `assemble()` takes one purpose (`Answers.purpose`).* the
+- `source.onboard.purpose-sets-layers` — **[OK]** (#4951, #5478) **Built 2026-10-05 (engine):** `assemble()` and `POST /api/recipes/assemble` take `purposes` (and jobs ticked on their own, `jobs`); the recipe is the union of their jobs, each once, in `STEP_ORDER` (every registered job), whatever order they were ticked in; each step carries its topic (`topic`, `title`, `sentence`). Catalogue also finds names (dates need them) and Tables also finds lines (cells are read line by line), so both recipes pass the check. Pinned by `fichero-server/tests/unit/api/test_setup_round_two.py` and `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the
   recipe's steps are the **union** of the ticked purposes' jobs, each once, in the registry's step
   order; `assemble()` and `POST /api/recipes/assemble` take a list of purposes, and the same list
   in any order gives the same recipe. The NLP layer is proposed only where a ticked purpose uses
   entities, and lines only where one includes them (refines the NLP and Kraken rulings,
   2026-10-01). *Test:* purposes [transcribe, map-places, search] assemble find-lines, read-a-line,
   correct, find-names-tag-words, place-in-a-gazetteer, make-a-vector, each once.
-- `source.onboard.purposes-show-their-jobs` — **[GAP]** (#5478) under each ticked purpose, setup
+- `source.onboard.purposes-show-their-jobs` — **[PARTIAL]** (#5478) **Built 2026-10-05 (engine):** each purpose in `GET /api/recipes/purposes` carries its `jobs` (id and topic title, in step order); Map places gives Find lines, Read each line, Correct, Find names, Place in a gazetteer; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. *Not built: the app's line under each ticked purpose.* under each ticked purpose, setup
   lists the jobs it proposes, one line, by their topic titles from the registry; the purposes
   offered are those of section 7b, screen 2 (the original eight, with Statements, Translate or
   normalise, Gather quotations, Catalogue my sources and Tables and forms proposed); a job not in the
@@ -1834,19 +1834,19 @@ Setup
   name; several can be chosen at once, each shown as a token with its name (its tag or code on
   hover) and removed with its ×. *Test:* typing "spanish" offers Spanish (es); choosing it and
   Latin shows two tokens.
-- `source.onboard.language-stored-as-tag` — **[GAP]** (#5479) what setup saves for a language is
+- `source.onboard.language-stored-as-tag` — **[OK]** (#5479) **Built 2026-10-05 (engine):** `PUT /api/recipes/project` and `POST /api/recipes/assemble` resolve each language to its tag (`recipes/names.resolve_language`: a tag or ISO 639 code stays a tag, a name resolves when exactly one language has it, a Glottolog-only one to `und-x-<glottocode>`) and each script to its code, and refuse anything else with 422 in words; a project already holding a word reads it as its tag where it resolves and keeps it otherwise. Saving "spanish" stores `es`, and the names step then takes the card that lists `es`; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. what setup saves for a language is
   its tag (`es`, `la`, a private-use tag for a Glottolog-only language) and for a script its ISO
   15924 code, never the typed word; the engine, given a word that is not a tag (a project saved
   before this, or a call from MCP or the command line), resolves it to the tag when exactly one
   language has that name and otherwise refuses in words ("Fichero doesn't know the language
   'spanish'. Choose it from the list."), never passing the word to the rules. *Test:* saving
   languages ["spanish"] stores ["es"], and the recipe proposes a reader whose card lists `es`.
-- `source.onboard.direction-chosen` — **[GAP]** (#5479) direction is chosen in setup, pre-filled from
+- `source.onboard.direction-chosen` — **[PARTIAL]** (#5479) **Built 2026-10-05 (engine):** the saved answers hold `directions` (script code to `ltr`, `rtl`, `ttb` or `ttb-lr`), each pre-filled from the script's derived direction and kept when changed; any other value is refused in words; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. *Not built: the app's choice on screen 4; the steps reading it.* direction is chosen in setup, pre-filled from
   each chosen script (the engine's derived fact, with where it came from) and changeable: left to
   right, right to left, top to bottom with columns right to left, or with columns left to right;
   one per script; saved on the project (`answers.directions`) and read by the steps that need it.
   *Test:* choosing Arab pre-fills right to left; changing it to left to right is saved.
-- `source.onboard.material-any-mix` — **[GAP]** (#5478) material is checkboxes, Handwriting, Print and
+- `source.onboard.material-any-mix` — **[PARTIAL]** (#5478) **Built 2026-10-05 (engine):** the answers hold `materials` (a saved single `material` reads as a list of one); with more than one kind, the reading step carries `readers`, one choice per kind, and its own model is the default kind's (handwriting first), so Start still reads each page once; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. *Not built: the app's checkboxes; the folder or page override choosing a reader.* material is checkboxes, Handwriting, Print and
   Typescript, any mix (at least one; default Handwriting), saved as a list (`answers.materials`);
   the rules propose a reader for each kind ticked, and a card's `material` must cover the kind its
   step reads. *Test:* materials [handwriting, print] assemble two reading choices, one per kind.
@@ -1926,7 +1926,7 @@ Setup
   that cannot be written is refused on the screen in words; Set Up… on an existing project skips
   this screen. *Test:* through the real first-run path, Continue with a chosen folder leaves a
   package there that the engine opens.
-- `source.onboard.saves-into-the-project` — **[GAP]** (#5477) every setup read and save after Where it
+- `source.onboard.saves-into-the-project` — **[PARTIAL]** (#5477) **Built 2026-10-05 (engine):** a project made by `POST /api/library` (under `~/Fichero/`, an allowed root, among others) takes `PUT`/`GET /api/recipes/project` and `GET /api/recipes/project/start` at once through its own path, and the same calls with no path answer 400 (the first-run bug's shape); pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. Proposing `~/Fichero/<project name>` is the app's. *Not built: first run using that project's client.* every setup read and save after Where it
   lives goes through **that project's** client (its library path sent), the one path Set Up… from
   a project uses; the app-wide client is never used for setup, so `GET`/`PUT /api/recipes/project`
   never answer 400 in first run. *Test:* first run through the real app environment saves the
@@ -2054,14 +2054,14 @@ Setup
   answers from samples; it runs locally unless the project allows the cloud, and never decides the
   recipe.
 The bake-off's behaviours (`source.onboard.bakeoff`, `-combinations`, `-records-combination`, `-tesseract-baseline`, `-minimum`, `-is-a-job`, `-skippable`, `-random-sample`) moved on 2026-10-04 to the one home for evaluation, `compute/distillation.md` ("Evaluation against out-of-the-box models").
-- `source.onboard.says-no-model` — **[GAP]** (#4951, #5481) *Built 2026-10-03: a step with no fitting model shows its gap, but as the rules' raw reason, model ids included, and twice (under the step and again below; seen 2026-10-05); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`.* where no candidate passes the hard constraints
+- `source.onboard.says-no-model` — **[PARTIAL]** (#4951, #5481) **Built 2026-10-05 (engine):** a step with no fitting model carries one `problem`: `kind` (no-model-for-job, -script, -language, no-reader-for-material, licence-not-accepted, cloud-not-allowed, not-enough-memory; the refusal of the card that got furthest through the rules), one `sentence` naming languages and scripts by name ("No correcting model here knows Spanish yet."), `fix` and `fixes` (download, choose-cloud, choose-model, allow-cloud, accept-licence), and the rules' raw reason in `detail` (the field is `kind`, not `code`: a recipe refuses any key named code); pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. *Not built: the app showing it once with its buttons.* *Built 2026-10-03: a step with no fitting model shows its gap, but as the rules' raw reason, model ids included, and twice (under the step and again below; seen 2026-10-05); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`.* where no candidate passes the hard constraints
   for a step, setup says so **once**, on that step's row, in words a historian reads, built from the
   rule that refused ("No reading model here knows Spanish yet."), with each fix as a button
   (download a fitting model, use a cloud model, choose a model; hand-transcribe, draft-and-correct
   and train where they apply); the rules' own reason goes to the log and the Inspector; it never
   substitutes silently. *Test:* a recipe whose correct step is refused for language shows one
   sentence naming the language, and no card id.
-- `source.onboard.never-raw-model-ids` — **[GAP]** (#5481) nothing in setup shows a model's id, pin,
+- `source.onboard.never-raw-model-ids` — **[PARTIAL]** (#5481) **Built 2026-10-05 (engine):** a step problem's `sentence` holds no `mlx:`, `hf/`, `@`, `kraken:` or repository; the raw ids stay in `detail` and `gap`; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. *Not built: the app naming a model by its card's display name.* nothing in setup shows a model's id, pin,
   repository path or revision; a model is named by its card's display name. *Test:* every string
   setup renders for a recipe whose cards are `mlx:hf/...@unpinned` contains no `mlx:`, `hf/` or
   `@`.

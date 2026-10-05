@@ -94,3 +94,83 @@ def search_languages(query: str, limit: int = 20) -> list[dict]:
 
 def search_scripts(query: str, limit: int = 20) -> list[dict]:
     return _search(_scripts(), query, limit)
+
+
+# --- Resolving a typed word to its tag (`source.onboard.language-stored-as-tag`, #5479) -------------
+
+#: A Glottolog-only language's private-use tag, as setup stores it (`RecipeSetupStore`).
+PRIVATE_USE_PREFIX = "und-x-"
+
+
+@lru_cache(maxsize=1)
+def _language_tags() -> dict[str, str]:
+    """Every ISO 639 code (1, 2B, 2T, 3), lower case -> the BCP 47 tag setup stores for it."""
+    from iso639 import iter_langs
+
+    tags: dict[str, str] = {}
+    for lang in iter_langs():
+        if lang.pt3:
+            tag = lang.pt1 or lang.pt3
+            for code in (lang.pt1, lang.pt2b, lang.pt2t, lang.pt3):
+                if code:
+                    tags.setdefault(code.lower(), tag)
+    return tags
+
+
+def _as_tag(value: str) -> str | None:
+    """The tag a value already is (a known primary subtag, its subtags kept), or None."""
+    v = value.strip()
+    if v.lower().startswith(PRIVATE_USE_PREFIX):
+        return PRIVATE_USE_PREFIX + v[len(PRIVATE_USE_PREFIX):].lower() \
+            if v[len(PRIVATE_USE_PREFIX):].lower() in _glottolog() else None
+    primary, _, rest = v.partition("-")
+    tag = _language_tags().get(primary.lower())
+    return None if tag is None else (f"{tag}-{rest}" if rest else tag)
+
+
+def resolve_language(value: str) -> str:
+    """A language's tag for what setup was given: a tag stays a tag (an ISO 639-2/3 code becomes the
+    BCP 47 tag, `spa` -> `es`); a name resolves when exactly one language has it ("spanish" -> `es`).
+    Otherwise ValueError, in words: the word is never passed to the rules as if it were a tag."""
+    tag = _as_tag(value)
+    if tag:
+        return tag
+    word = value.strip().lower()
+    found: dict[str, str] = {}
+    for row, text in _languages():
+        if row.get("level") == "language" and word in text.split("\n"):
+            code = row["code"] or f"{PRIVATE_USE_PREFIX}{row['glottocode']}"
+            found.setdefault(code, row["name"])
+    if len(found) == 1:
+        return next(iter(found))
+    if found:
+        named = ", ".join(f"{name} ({code})" for code, name in sorted(found.items()))
+        raise ValueError(f"'{value}' names more than one language ({named}). Choose it from the list.")
+    raise ValueError(f"Fichero doesn't know the language '{value}'. Choose it from the list.")
+
+
+def resolve_script(value: str) -> str:
+    """A script's ISO 15924 code for what setup was given: a code (any case) or the script's English
+    name ("latin" -> `Latn`). Otherwise ValueError, in words."""
+    word = value.strip().lower()
+    for row, text in _scripts():
+        if word == row["code"].lower() or word == text:
+            return row["code"]
+    raise ValueError(f"Fichero doesn't know the script '{value}'. Choose it from the list.")
+
+
+def language_name(tag: str) -> str:
+    """A tag's language name for a sentence ("es" -> "Spanish"); the tag itself when unknown."""
+    primary = tag.split("-")[0].lower()
+    if tag.lower().startswith(PRIVATE_USE_PREFIX):
+        row = _glottolog().get(tag[len(PRIVATE_USE_PREFIX):].lower())
+        return row[2] if row else tag
+    for row, _text in _languages():
+        if row.get("level") == "language" and (row["code"] or "").lower() == primary:
+            return row["name"]
+    return tag
+
+
+def script_name(code: str) -> str:
+    """A script code's English name for a sentence ("Latn" -> "Latin"); the code itself when unknown."""
+    return next((row["name"] for row, _text in _scripts() if row["code"] == code), code)

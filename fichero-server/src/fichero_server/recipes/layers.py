@@ -9,18 +9,26 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from fichero_server.recipes.assemble import PURPOSE_STEPS, STEP_ORDER, addable_layers, layer_jobs
+from fichero_server.recipes.assemble import STEP_ORDER, addable_layers, layer_jobs, purpose_jobs
 
+
+def _purposes(answers: dict) -> list[str]:
+    """The project's purposes (a project saved with one `purpose` has a list of one)."""
+    return list(answers.get("purposes") or ([answers["purpose"]] if answers.get("purpose") else []))
+
+
+def _purpose_layers(answers: dict) -> set[str]:
+    from fichero_server.recipes.jobs import get_job
+
+    return {get_job(j).layer for j in purpose_jobs(_purposes(answers))}
 
 
 def addable_now(answers: dict) -> list[str]:
     """The layers this project can add now (#5470, `source.onboard.add-layer`): the addable ones less
-    those it has and those its purpose brings. What the app offers, so it never works the rule out."""
-    if not answers.get("purpose"):
+    those it has and those its purposes bring. What the app offers, so it never works the rule out."""
+    if not _purposes(answers):
         return []
-    from fichero_server.recipes.jobs import get_job
-
-    from_purpose = {get_job(j).layer for j in PURPOSE_STEPS.get(answers["purpose"], ())}
+    from_purpose = _purpose_layers(answers)
     have = set(answers.get("layers") or [])
     return [layer for layer in addable_layers() if layer not in have and layer not in from_purpose]
 
@@ -50,7 +58,7 @@ def change(setup: dict[str, Any], proposal: dict[str, Any] | None, *, layers: li
     Raises ValueError, in words, for anything it cannot do.
     """
     answers = dict(setup.get("answers") or {})
-    if not answers.get("purpose"):
+    if not _purposes(answers):
         raise ValueError("this project has not been set up yet: run setup first")
     if not layers and not languages:
         raise ValueError("name a layer or a language to add")
@@ -58,9 +66,7 @@ def change(setup: dict[str, Any], proposal: dict[str, Any] | None, *, layers: li
     unknown = [layer for layer in layers if layer not in known]
     if unknown:
         raise ValueError(f"no layer {', '.join(unknown)}: a project can add {', '.join(known)}")
-    from fichero_server.recipes.jobs import get_job
-
-    from_purpose = {get_job(j).layer for j in PURPOSE_STEPS.get(answers["purpose"], ())}
+    from_purpose = _purpose_layers(answers)
     have_layers = list(answers.get("layers") or [])
     have_languages = list(answers.get("languages") or [])
     if remove:
