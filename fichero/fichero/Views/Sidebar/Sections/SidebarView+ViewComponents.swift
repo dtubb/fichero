@@ -28,7 +28,8 @@ extension SidebarView {
                     importFiles: importFiles,
                     deleteItem: handleDeleteSelection,
                     hasSelection: selectedItem != nil,
-                    sidebarFilterText: $sidebarFilterText
+                    sidebarFilterText: $sidebarFilterText,
+                    knowledgeRowStores: libraryManager.openLibraries.map(\.knowledgeRowCountsStore)
                 )
             }
         }

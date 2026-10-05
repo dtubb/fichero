@@ -189,47 +189,13 @@ extension SidebarView {
     ) -> some View {
         let libraryItems = flattenedLibraryItems(libraryId: libraryId, buckets: buckets)
         unifiedRows(libraryItems, libraryId: libraryId)
-        libraryKnowledgeRows(libraryId: libraryId)
-        // Training is a node of the project (#5439); it draws nothing until a model is trained.
         if let library = libraryManager.getLibrary(id: libraryId) {
+            // Each knowledge row draws only while it holds an item (#5413); the bottom bar's
+            // control hides them all.
+            SidebarKnowledgeRowsNode(store: library.knowledgeRowCountsStore, libraryId: libraryId)
+            // Training is a node of the project (#5439); it draws nothing until a model is trained.
             SidebarTrainingNode(store: library.trainedModelsStore, libraryId: libraryId)
         }
-    }
-
-    /// EACH library's knowledge-graph collections — Entities and Claims — at
-    /// LIBRARY level (Daniel: "these need to be for EACH library"), scoped to THIS
-    /// library. A claim and an entity are nodes that flow through the SAME library
-    /// as a document, so each row re-scopes the pane to that node kind and opens
-    /// that library's library-wide table (P4, per-library).
-    ///
-    /// The destination carries `libraryId`, so every open library's rows have
-    /// their OWN selection identity (no duplicate tags) and selecting one makes
-    /// that library active — Marshall, Istmina and SCOOP each get their own pair.
-    @ViewBuilder
-    func libraryKnowledgeRows(libraryId: UUID) -> some View {
-        knowledgeCollectionRow(
-            title: "Entities",
-            systemImage: "person.2",
-            destination: .knowledgeCollection(.entities, libraryId: libraryId)
-        )
-        knowledgeCollectionRow(
-            title: "Claims",
-            systemImage: "quote.bubble",
-            destination: .knowledgeCollection(.claims, libraryId: libraryId)
-        )
-    }
-
-    /// One knowledge-graph collection row. Tagged with its `SidebarDestination` so
-    /// the list's own selection routes it through `handleSelectionDestination`
-    /// exactly like every other node — no bespoke tap handling.
-    private func knowledgeCollectionRow(
-        title: String,
-        systemImage: String,
-        destination: SidebarDestination
-    ) -> some View {
-        Label(title, systemImage: systemImage)
-            .tag(destination)
-            .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
     }
 
     private func flattenedLibraryItems(
