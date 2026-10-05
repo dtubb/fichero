@@ -66,7 +66,7 @@ def _uses_cloud(step: dict) -> bool:
     return str(step.get("runs_on") or "").startswith("cloud") or "cloud" in (step.get("model") or {})
 
 
-def plan_start(recipe: dict | None, *, stays_local: bool) -> dict[str, Any]:
+def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None = None) -> dict[str, Any]:
     """What Start would run, in order, what it skips and why, and what refuses it outright.
 
     Returns `{"runs": [...], "workflows": [...], "skipped": [...], "offered": [...], "refusals": [...]}`.
@@ -75,7 +75,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool) -> dict[str, Any]:
     is the workflow runs among them. A step that cannot run is SKIPPED with its reason, and the others
     still run (`source.recipe.step-skipped-says-why`). `offered` lists steps that wait to be offered
     (train), never run at Start (`source.recipe.train-never-automatic`). Start may go ahead only when
-    `refusals` is empty: a recipe that fails the recipe check, or one with nothing to run.
+    `refusals` is empty: a recipe that fails the recipe check, or one with nothing to run. `only` limits
+    the plan to those step ids: the jobs a layer added later proposes for the material already there
+    (`source.onboard.add-layer`); the whole recipe is still checked.
     """
     from fichero_server.workflows.default_workflows import preset_workflow_id
 
@@ -94,6 +96,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool) -> dict[str, Any]:
     for step in recipe.get("steps") or []:
         sid, job = step.get("id", "?"), step.get("job", "")
         label = f"step {sid}"
+        if only is not None and sid not in only:
+            continue
         if step.get("offered_when"):
             offered.append(sid)
             continue

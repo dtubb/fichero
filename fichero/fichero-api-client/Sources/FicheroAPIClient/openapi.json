@@ -12479,6 +12479,70 @@
         }
       }
     },
+    "/api/recipes/project/layers": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Change Project Layers",
+        "description": "Add a layer (or a language) to the project's recipe (audited, undoable). The layer's steps join the\nrecipe and are proposed for the material already in the project: the Start plan returned shows those\njobs with the estimate, each explained by its topic, and nothing runs until the person presses Start.\n`remove` takes a layer out again and withdraws its proposed jobs. Refused with 422, in words, for a\nproject not set up, an unknown layer, or one it already has.",
+        "operationId": "change_project_layers_api_recipes_project_layers_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayerChangeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/runs": {
       "get": {
         "tags": [
@@ -45441,6 +45505,14 @@
             "nullable": true,
             "title": "Mac Memory Gb",
             "description": "defaults to this machine's memory"
+          },
+          "layers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Layers",
+            "description": "layers added beyond the purpose's (source.onboard.add-layer)"
           }
         },
         "additionalProperties": false,
@@ -62301,6 +62373,36 @@
         "title": "LanguageTierCounts",
         "description": "LOOVE tier counts for exemplar characters."
       },
+      "LayerChangeRequest": {
+        "properties": {
+          "layers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Layers",
+            "description": "layers to add, e.g. entities, graph, places, vectors"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Languages",
+            "description": "BCP 47 language tags to add"
+          },
+          "remove": {
+            "type": "boolean",
+            "title": "Remove",
+            "description": "take these out; a layer removed before Start withdraws its proposed jobs",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "LayerChangeRequest",
+        "description": "Layers and languages to add to the project (or, with `remove`, to take out)."
+      },
       "LeftAsItWas": {
         "properties": {
           "artifact_type": {
@@ -69367,6 +69469,76 @@
         "type": "object",
         "title": "PromptResponse",
         "description": "Response with built prompt."
+      },
+      "ProposedJobs": {
+        "properties": {
+          "layers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Layers"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "proposed_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Proposed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "layers",
+          "steps"
+        ],
+        "title": "ProposedJobs",
+        "description": "What an added layer proposes for the material already in the project; nothing runs before Start."
+      },
+      "ProposedStep": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "job": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job"
+          },
+          "layer": {
+            "type": "string",
+            "nullable": true,
+            "title": "Layer"
+          },
+          "topic": {
+            "type": "string",
+            "nullable": true,
+            "title": "Topic",
+            "description": "the topic registry id that explains it (GET /api/topics/{id})"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation",
+            "description": "its topic's text: what it does and why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "title",
+          "explanation"
+        ],
+        "title": "ProposedStep"
       },
       "PrototypeAssignRequest": {
         "properties": {
@@ -78485,6 +78657,11 @@
           },
           "estimate": {
             "$ref": "#/components/schemas/StartEstimate"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/ProposedJobs",
+            "nullable": true,
+            "description": "jobs proposed for the material already in the project by a layer added later; once the project has started, the plan is these alone (source.onboard.add-layer)"
           }
         },
         "type": "object",
