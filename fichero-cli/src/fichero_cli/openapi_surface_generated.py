@@ -12004,6 +12004,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         cloud_allowed: Optional[bool] = typer.Option(None, "--cloud-allowed/--no-cloud-allowed", help="Request field: cloud_allowed."),
         languages: str = typer.Option(..., "--languages", help="Request field: languages."),
+        layers: Optional[str] = typer.Option(None, "--layers", help="Request field: layers."),
         mac_memory_gb: Optional[float] = typer.Option(None, "--mac-memory-gb", help="Request field: mac_memory_gb."),
         material: Optional[str] = typer.Option(None, "--material", help="Request field: material."),
         pages: Optional[int] = typer.Option(None, "--pages", help="Request field: pages."),
@@ -12017,6 +12018,7 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "cloud_allowed": cloud_allowed,
                 "languages": languages,
+                "layers": layers,
                 "mac_memory_gb": mac_memory_gb,
                 "material": material,
                 "pages": pages,
@@ -12025,6 +12027,7 @@ def register_generated_openapi_commands(
             }, {
                 "cloud_allowed": {'type': 'boolean', 'title': 'Cloud Allowed', 'default': False, 'x-cli-required': False},
                 "languages": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Languages', 'description': 'BCP 47 language tags', 'x-cli-required': True},
+                "layers": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Layers', 'description': "layers added beyond the purpose's (source.onboard.add-layer)", 'x-cli-required': False},
                 "mac_memory_gb": {'type': 'number', 'nullable': True, 'title': 'Mac Memory Gb', 'description': "defaults to this machine's memory", 'x-cli-required': False},
                 "material": {'type': 'string', 'title': 'Material', 'default': 'handwriting', 'x-cli-required': False},
                 "pages": {'type': 'integer', 'minimum': 0.0, 'title': 'Pages', 'description': 'roughly how many pages', 'default': 0, 'x-cli-required': False},
@@ -12121,6 +12124,29 @@ def register_generated_openapi_commands(
                 "recipe": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Recipe', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("change-project-layers")
+    def recipes_change_project_layers_post(
+        ctx: typer.Context,
+        languages: Optional[str] = typer.Option(None, "--languages", help="Request field: languages."),
+        layers: Optional[str] = typer.Option(None, "--layers", help="Request field: layers."),
+        remove: Optional[bool] = typer.Option(None, "--remove/--no-remove", help="Request field: remove."),
+    ) -> None:
+        """Change Project Layers (POST /api/recipes/project/layers)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/layers"
+            params = None
+            payload = _build_json_payload({
+                "languages": languages,
+                "layers": layers,
+                "remove": remove,
+            }, {
+                "languages": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Languages', 'description': 'BCP 47 language tags to add', 'x-cli-required': False},
+                "layers": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Layers', 'description': 'layers to add, e.g. entities, graph, places, vectors', 'x-cli-required': False},
+                "remove": {'type': 'boolean', 'title': 'Remove', 'description': 'take these out; a layer removed before Start withdraws its proposed jobs', 'default': False, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("runs")

@@ -82,3 +82,25 @@ def write_start(library: Path, record: dict[str, Any] | None) -> None:
         path.unlink(missing_ok=True)
     else:
         _write_yaml(path, record)
+
+
+#: The jobs proposed for the material already in the project when a layer is added later
+#: (`source.onboard.add-layer`): which layers, which recipe steps, and when. Nothing runs from it;
+#: the Start plan shows those steps with their estimate, and Start runs them and clears it.
+PROPOSED_FILE = "proposed.yaml"
+
+
+def read_proposed(library: Path) -> dict[str, Any] | None:
+    import yaml
+
+    path = Path(library) / FOLDER / PROPOSED_FILE
+    return yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
+
+
+def write_proposed(library: Path, proposal: dict[str, Any] | None) -> None:
+    """Record (or, with None, withdraw) the jobs proposed for the material already there."""
+    path = Path(library) / FOLDER / PROPOSED_FILE
+    if proposal is None:
+        path.unlink(missing_ok=True)
+    else:
+        _write_yaml(path, proposal)

@@ -5758,6 +5758,7 @@ def fichero_recipes_assemble(
     *,
     cloud_allowed: Annotated[Optional[bool], Field(description='Cloud Allowed. Default: false.')] = None,
     languages: Annotated[list[Any], Field(description='BCP 47 language tags.')],
+    layers: Annotated[Optional[list[Any]], Field(description="layers added beyond the purpose's (source.onboard.add-layer)")] = None,
     mac_memory_gb: Annotated[Optional[float], Field(description="defaults to this machine's memory.")] = None,
     material: Annotated[Optional[str], Field(description='Material. Default: "handwriting".')] = None,
     pages: Annotated[Optional[int], Field(description='roughly how many pages. Default: 0.')] = None,
@@ -5765,7 +5766,7 @@ def fichero_recipes_assemble(
     scripts: Annotated[list[Any], Field(description='ISO 15924 script codes.')],
 ) -> Any:
     'Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\n(`source.onboard.deterministic-recipe`). Proposes; writes nothing.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "languages": languages, "mac_memory_gb": mac_memory_gb, "material": material, "pages": pages, "purpose": purpose, "scripts": scripts}))
+    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "languages": languages, "layers": layers, "mac_memory_gb": mac_memory_gb, "material": material, "pages": pages, "purpose": purpose, "scripts": scripts}))
 
 
 def fichero_recipes_check(
@@ -5812,6 +5813,16 @@ def fichero_recipes_save_project_setup(
 ) -> Any:
     "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). A null part is removed.\nRefused with 422 when either holds code or credentials.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
+
+
+def fichero_recipes_change_project_layers(
+    *,
+    languages: Annotated[Optional[list[Any]], Field(description='BCP 47 language tags to add.')] = None,
+    layers: Annotated[Optional[list[Any]], Field(description='layers to add, e.g. entities, graph, places, vectors.')] = None,
+    remove: Annotated[Optional[bool], Field(description='take these out; a layer removed before Start withdraws its proposed jobs. Default: false.')] = None,
+) -> Any:
+    "Change Project Layers\n\nAdd a layer (or a language) to the project's recipe (audited, undoable). The layer's steps join the\nrecipe and are proposed for the material already in the project: the Start plan returned shows those\njobs with the estimate, each explained by its topic, and nothing runs until the person presses Start.\n`remove` takes a layer out again and withdraws its proposed jobs. Refused with 422, in words, for a\nproject not set up, an unknown layer, or one it already has.\n\nRoute: POST /api/recipes/project/layers (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/layers", json=_rt.body({"languages": languages, "layers": layers, "remove": remove}))
 
 
 def fichero_recipes_runs(
@@ -8700,6 +8711,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),
     GeneratedTool("fichero_recipes_save_project_setup", "recipes", "PUT", "/api/recipes/project", fichero_recipes_save_project_setup),
+    GeneratedTool("fichero_recipes_change_project_layers", "recipes", "POST", "/api/recipes/project/layers", fichero_recipes_change_project_layers),
     GeneratedTool("fichero_recipes_runs", "recipes", "GET", "/api/recipes/project/runs", fichero_recipes_runs),
     GeneratedTool("fichero_recipes_run_status", "recipes", "GET", "/api/recipes/project/runs/{job_id}", fichero_recipes_run_status),
     GeneratedTool("fichero_recipes_get_start_plan", "recipes", "GET", "/api/recipes/project/start", fichero_recipes_get_start_plan),
