@@ -108,6 +108,9 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "workflow_id", "workflow_ids", "batch_id", "run_id", "job_id", "thread_id", "thread_ids", "action_id",
         "activity_id", "audit_id", "chain_id", "execution_id", "schedule_id", "trigger_id", "comparison_id",
     )},
+    # #4951: a bake-off is the project's comparison of readers (its evaluation job's id); starting it
+    # checks every sample page through `evaluation.run`.
+    "bakeoff_id": (LIBRARY, _WORKFLOW),
     "server_id": (LIBRARY, _CONFIG),
     # #5485: a kept export is the project's own setting (a folder, a format, per page or document);
     # it writes the whole project's work, and a page it reads is read through the exporter.

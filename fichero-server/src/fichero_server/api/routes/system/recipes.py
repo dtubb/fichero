@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -400,15 +400,20 @@ def _assemble(answers: dict[str, Any]) -> dict[str, Any]:
     """The rules' recipe for setup's answers (as sent to `/assemble`, or as saved on the project).
     A language or script given as a word is resolved to its tag first, or refused (ValueError, in
     words): the rules only ever see tags (`source.onboard.language-stored-as-tag`)."""
+    return assemble(_answers(answers), list(seed_cards()))
+
+
+def _answers(answers: dict[str, Any]) -> Answers:
+    """Setup's answers as the rules read them (the one place they are turned into `Answers`)."""
     a = normalise_answers(answers, strict=True)
-    return assemble(Answers(
+    return Answers(
         purposes=tuple(a["purposes"]), languages=frozenset(a.get("languages") or ()),
         scripts=frozenset(a.get("scripts") or ()), materials=tuple(a["materials"]),
         jobs=tuple(a.get("jobs") or ()),
         pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()),
-    ), list(seed_cards()))
+    )
 
 
 @router.post("/assemble", response_model=AssembledRecipe)
@@ -821,3 +826,175 @@ async def recipe_run_status(job_id: str, db: Database = Depends(get_library_data
         return RecipeRunStatus(**runner.status(db, job_id))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+# =============================================================================
+# The bake-off, slice 1: the readers (#4951, `source.try.bakeoff-is-the-same-tool`). The evaluation job run on
+# the project's corrected sample pages; one comparison code path (`recipes/bakeoff.py`).
+# =============================================================================
+
+
+class BakeoffStartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    page_ids: list[str] = Field(default_factory=list, description="the sample pages; none: every page with a pass a "
+                                "person made")
+
+
+class BakeoffPage(BaseModel):
+    document_id: str
+    name: str
+    lines: int = Field(description="its corrected lines: the lines of the newest pass a person made")
+
+
+class BakeoffLeftOut(BaseModel):
+    document_id: str
+    why: str
+
+
+class BakeoffPageScore(BaseModel):
+    document_id: str
+    name: str
+    lines: int
+    cer: Optional[float] = None
+
+
+class BakeoffRow(BaseModel):
+    """One candidate reader in the bake-off table."""
+
+    rank: int = Field(description="its place in the fixed order: accuracy in one-point bands, then local, cheaper, "
+                      "faster, lower carbon, trainable, smaller, the card id")
+    card: str = Field(description="its model card id")
+    role: Literal["rule rank", "baseline for print"]
+    rule_rank: Optional[int] = Field(default=None, description="its place by the rules before measurement")
+    reader: Optional[Literal["kraken", "vision", "tesseract"]] = None
+    model: Optional[str] = Field(default=None, description="the model id the evaluation reads with")
+    runs_on: str
+    local: bool
+    cer: Optional[float] = Field(default=None, description="its character error rate on the sample pages, under `policy`")
+    policy: Optional[str] = None
+    scores: dict[str, Optional[float]] = Field(default_factory=dict, description="CER under every named policy")
+    per_page: list[BakeoffPageScore] = Field(default_factory=list)
+    pages_per_hour: Optional[float] = Field(default=None, description="measured on this Mac in this run")
+    seconds: Optional[float] = None
+    cost_usd: Figure = Field(description="for the whole volume, before anything runs")
+    carbon_g_per_page: Optional[float] = None
+    trainable: bool
+    size_gb: float
+    why: Optional[str] = Field(default=None, description="why it has no score (not on this Mac, not in this build, "
+                               "remote, still running)")
+
+
+class BakeoffResult(BaseModel):
+    id: str
+    job_id: str = Field(description="the evaluation job in Activity")
+    step: str
+    started_at: str
+    state: str = Field(description="the job's state: waiting, running, done, failed, cancelled, or cleared")
+    reason: Optional[str] = None
+    pages: list[BakeoffPage]
+    left_out: list[BakeoffLeftOut]
+    lines: int
+    rows: list[BakeoffRow]
+    winner: Optional[str] = Field(default=None, description="the first scored row's card")
+
+
+class BakeoffList(BaseModel):
+    items: list[BakeoffResult]
+
+
+class BakeoffUseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    card: str = Field(description="the candidate's card id")
+    scope: Literal["project", "folder"] = "project"
+    folder_id: Optional[str] = Field(default=None, description="the folder, when the scope is a folder")
+
+
+def _bakeoff() -> Any:
+    from fichero_server.recipes import bakeoff  # loaded on first use (#3950)
+
+    return bakeoff
+
+
+@router.post("/project/bakeoffs", response_model=BakeoffResult, response_model_by_alias=True)
+async def start_bakeoff(
+    request: Optional[BakeoffStartRequest] = None,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> BakeoffResult:
+    """Compare the readers on the project's corrected sample pages: the top three by rule rank (and Tesseract
+    for print, when it has the language), each scored by the evaluation job (`evaluation.run`, audited) on
+    the same pages. Refused (422) in words, with nothing run, below 100 corrected lines on two pages (saying
+    how many more), for a project not set up, or when no candidate can be scored on this Mac."""
+    from fichero_server.core.timeutil import utc_now_iso
+    from fichero_server.recipes.cards import all_seed_cards
+    from fichero_server.recipes.start import count_pages
+
+    library = _library(db)
+    setup = read_project_setup(library)
+    if not setup["answers"]:
+        raise HTTPException(status_code=422, detail="this project has not been set up: run setup first")
+    bakeoff = _bakeoff()
+    try:
+        a = _answers(setup["answers"])
+        record = bakeoff.start(
+            db, library, a, list(all_seed_cards()), page_ids=request.page_ids if request else None,
+            volume=a.pages or count_pages(db), now=utc_now_iso(timespec="seconds"),
+            run_evaluation=lambda params: registry.invoke(db, "evaluation.run", params, ctx).result["job_id"])
+        return BakeoffResult(**bakeoff.result(db, library, record["id"]))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/project/bakeoffs", response_model=BakeoffList, response_model_by_alias=True)
+async def list_bakeoffs(db: Database = Depends(get_library_database)) -> BakeoffList:
+    """Every bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`)."""
+    bakeoff, library = _bakeoff(), _library(db)
+    return BakeoffList(items=[BakeoffResult(**bakeoff.result(db, library, r["id"]))
+                              for r in bakeoff.list_records(library)])
+
+
+@router.get("/project/bakeoffs/{bakeoff_id}", response_model=BakeoffResult, response_model_by_alias=True)
+async def bakeoff_result(bakeoff_id: str, db: Database = Depends(get_library_database)) -> BakeoffResult:
+    """A bake-off's pages, its job's state and its table, ranked by the fixed order; the scores are read from
+    each model's card, so the table outlives the job row."""
+    try:
+        return BakeoffResult(**_bakeoff().result(db, _library(db), bakeoff_id))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/project/bakeoffs/{bakeoff_id}/use", response_model=ProjectSetup)
+async def use_bakeoff_choice(
+    bakeoff_id: str,
+    request: BakeoffUseRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ProjectSetup:
+    """Use This: make a scored candidate the reading step's reader for the project or one folder, kept as an
+    override on the recipe (for the project, the step's model too), through `project.save_setup` (audited,
+    undoable). Refused (422) for a candidate not scored in this bake-off, a folder that is not one, or a
+    project with no recipe."""
+    from fichero_server.core.timeutil import utc_now_iso
+    from fichero_server.models import DocType, Document
+    from fichero_server.recipes.cards import all_seed_cards
+
+    bakeoff, library = _bakeoff(), _library(db)
+    try:
+        table = bakeoff.result(db, library, bakeoff_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    card = next((c for c in all_seed_cards() if c.id == request.card), None)
+    if card is None:
+        raise HTTPException(status_code=422, detail=f"no model card {request.card}")
+    if request.scope == "folder":
+        folder = db.get(Document, request.folder_id) if request.folder_id else None
+        if folder is None or folder.doc_type != DocType.folder:
+            raise HTTPException(status_code=422, detail=f"{request.folder_id} is not a folder in this project")
+    setup = read_project_setup(library)
+    try:
+        recipe = bakeoff.use_this(setup["recipe"], table, card, scope=request.scope, folder_id=request.folder_id,
+                                  now=utc_now_iso(timespec="seconds"))
+        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ProjectSetup(**result.result)

@@ -10,7 +10,7 @@ project's held-out pages with each candidate and scores each against the checked
   on would make its score meaningless. A trained model whose card holds no held-out page is refused in
   words. Out-of-the-box models trained on none of the project's pages.
 * **The reference.** On each page, the newest live pass whose model or name is `checked` (the checked
-  pass). Its lines, empty and `null` readings left out (`kraken_set.line_flag`), are the right readings;
+  pass); with no `checked` named, the newest live pass a person made (the bake-off's ground truth). Its lines, empty and `null` readings left out (`kraken_set.line_flag`), are the right readings;
   each page records who checked it (`person` when a person wrote the pass, else `model`,
   `distill.scale.check-trust-levels`).
 * **The reading.** Each candidate reads the checked pass's own lines: a Kraken reader on each line's
@@ -21,6 +21,8 @@ project's held-out pages with each candidate and scores each against the checked
   readings (lines joined by newlines) against the checked text, under every named normalisation policy
   (`POLICIES`: diplomatic, layout-insensitive, lenient, accent-blind); per model, total edits over total
   reference characters across the pages. Every figure names its policy and carries the definition.
+* **The speed.** The seconds each candidate spent reading, and so its pages an hour on this Mac, measured
+  in the run (`source.try.bakeoff-is-the-same-tool`: speed is measured where the model has run).
 * **Where it lands.** On each model's card, appended to `evaluations` and never overwriting one: a
   Kraken reader's install record (the marker that carries a trained reader's card), a trained vision
   model's `fichero-card.json`, and for a downloaded vision model with no card yet, a card of its own in
@@ -31,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -181,12 +184,21 @@ def held_out_pages(request: EvaluationRunRequest, candidates: list[EvaluationCan
     return pages
 
 
-def checked_pass(db: Any, page_id: str, checked: str) -> Any | None:
-    """The newest live pass on the page whose model or name is `checked`."""
+def by_whom(checked: str | None) -> str:
+    """The reference named in words: the checked pass's model or name, or a person."""
+    return f"checked by {checked}" if checked is not None else "made by a person"
+
+
+def checked_pass(db: Any, page_id: str, checked: str | None) -> Any | None:
+    """The newest live pass on the page whose model or name is `checked`; with None, the newest a person made."""
     from fichero_server.models.segments import SegmentPass
 
-    passes = [p for p in db.query(SegmentPass, document_id=page_id)
-              if not p.deleted_at and checked in (p.model, p.name)]
+    def is_reference(p: Any) -> bool:
+        if checked is None:
+            return getattr(p.provenance_kind, "value", p.provenance_kind) == "human"
+        return checked in (p.model, p.name)
+
+    passes = [p for p in db.query(SegmentPass, document_id=page_id) if not p.deleted_at and is_reference(p)]
     return max(passes, key=lambda p: p.created_at) if passes else None
 
 
@@ -198,7 +210,7 @@ def trust_of(chosen: Any) -> str:
     return "model" if chosen.model else "not recorded"
 
 
-def reference_page(db: Any, page_id: str, checked: str) -> tuple[dict[str, Any] | None, str | None]:
+def reference_page(db: Any, page_id: str, checked: str | None) -> tuple[dict[str, Any] | None, str | None]:
     """(the page's checked lines, photograph and trust; or None with why)."""
     from fichero_server.checking.line_check import page_lines
     from fichero_server.models import Document
@@ -210,7 +222,7 @@ def reference_page(db: Any, page_id: str, checked: str) -> tuple[dict[str, Any] 
         return None, "no such page"
     chosen = checked_pass(db, page_id, checked)
     if chosen is None:
-        return None, f"no pass checked by {checked}"
+        return None, f"no pass {by_whom(checked)}"
     if not doc.path or not Path(doc.path).is_file():
         return None, "its photograph is not on this Mac"
     try:
@@ -219,7 +231,7 @@ def reference_page(db: Any, page_id: str, checked: str) -> tuple[dict[str, Any] 
         return None, str(exc)
     lines = [ln for ln in page_lines(xml) if line_flag(ln["text"], False) is None]
     if not lines:
-        return None, f"the pass checked by {checked} has no read lines"
+        return None, f"the pass {by_whom(checked)} has no read lines"
     return {"document_id": page_id, "name": doc.name, "photo": doc.path, "pass_id": chosen.id,
             "trust": trust_of(chosen), "lines": lines}, None
 
@@ -294,6 +306,13 @@ def totals(per_page: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def speed(seconds: float, pages: int) -> dict[str, Any]:
+    """The reading time measured in this run, and the pages an hour it gives on this Mac."""
+    return {"seconds": round(seconds, 3), "pages": pages,
+            "pages_per_hour": round(pages * 3600 / seconds, 1) if seconds > 0 and pages else None,
+            "basis": "measured on this Mac"}
+
+
 # --- the job -------------------------------------------------------------------------------------------
 
 
@@ -318,8 +337,8 @@ def plan(db: Any, request: EvaluationRunRequest) -> dict[str, Any]:
         else:
             pages.append(page_id)
     if not pages:
-        raise EvaluationRefused(f"none of the {len(missing)} held-out pages has a reading checked by "
-                                f"{request.checked} to score against")
+        raise EvaluationRefused(f"none of the {len(missing)} held-out pages has a reading "
+                                f"{by_whom(request.checked)} to score against")
     return {"candidates": [c.model_dump() for c in candidates], "pages": pages, "missing": missing,
             "not_on_this_mac": absent}
 
@@ -349,25 +368,28 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
     models = []
     for i, c in enumerate(candidates, 1):
         per_page = []
+        seconds = 0.0
         for page in pages:
             if _cancelled(db, job_id):
                 return {"stopped": True, "models": models}
             if progress:
                 progress(f"Reading {page['name']} with {c.model} (model {i} of {len(candidates)})")
             reference = [ln["text"] for ln in page["lines"]]
+            began = time.monotonic()
             reads = (read_with_kraken(page["photo"], c.model, page["lines"]) if c.reader == "kraken"
                      else read_with_vision(page["photo"], c, page["lines"], request.language))
+            seconds += time.monotonic() - began
             per_page.append({"document_id": page["document_id"], "name": page["name"], "trust": page["trust"],
                              "lines": len(reference), "scores": score_page(reference, reads)})
         models.append({"model": c.model, "reader": c.reader,
                        "role": "trained" if trained_card(c) is not None else "out of the box",
-                       "scores": totals(per_page), "per_page": per_page})
+                       "scores": totals(per_page), "per_page": per_page, "speed": speed(seconds, len(pages))})
     measured_at = datetime.now(timezone.utc).isoformat()
     for m in models:
         record_on_card(m["model"], m["reader"], {
             "job_id": job_id, "measured_at": measured_at, "checked": request.checked, "trust": trust,
             "definition": CER_DEFINITION, "pages": [p["document_id"] for p in pages], "role": m["role"],
-            "scores": m["scores"], "per_page": m["per_page"],
+            "scores": m["scores"], "per_page": m["per_page"], "speed": m["speed"],
             "compared_with": [o["model"] for o in models if o is not m]})
     ranked = sorted((m for m in models if m["scores"][DEFAULT_POLICY_NAME]["cer"] is not None),
                     key=lambda m: m["scores"][DEFAULT_POLICY_NAME]["cer"])

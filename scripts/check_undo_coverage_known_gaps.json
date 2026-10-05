@@ -430,6 +430,8 @@
   "POST /api/training/reasons": "not undoable by design (training.gather_reasons, audited, undoable=False): the model calls were made (and may have been paid for); the ledger is append-only by design, and a trace is only used through a training set",
   "POST /api/training/reasons/{job_id}/cancel": "not undoable by design (training.cancel_reasons, audited, undoable=False): start a new job to ask about the remaining lines",
   "POST /api/training/reasons-ab": "not undoable by design (training.measure_reasons_ab, audited, undoable=False): a measurement; its result is appended to the students' cards as a dated record, never replacing an earlier one",
+  "POST /api/recipes/project/bakeoffs": "not undoable by design: the bake-off is the evaluation job (evaluation.run, audited, undoable=False); a score is a result, kept as a dated comparison record",
+  "POST /api/recipes/project/bakeoffs/{bakeoff_id}/use": "undone through project.save_setup (audited, undoable), which this route invokes to write the override; the guard sees the route, not the action it calls",
   "POST /api/evaluation/runs": "not undoable by design (evaluation.run, audited, undoable=False): a score is a result, not an edit; it is appended to each model's card as a dated record, never replacing an earlier one",
   "POST /api/check/runs": "not undoable by design (check.run, audited, undoable=False): the checker's calls were made; each verdict is a dated record, and a corrected reading is undone like any reading (representation.retract)",
   "POST /api/check/runs/{job_id}/cancel": "not undoable by design (check.cancel, audited, undoable=False): start a new run to check the remaining proposals",

@@ -35,8 +35,15 @@ def kraken_reader_for(pin: dict) -> str | None:
                  if row.get("doi") == pin["zenodo"]), None) or reader_id_for_doi(pin["zenodo"])
 
 
-@lru_cache(maxsize=1)
 def seed_cards() -> tuple[Card, ...]:
+    """The cards the rules choose from: only those whose runtime is in this build."""
+    return tuple(c for c in all_seed_cards() if c.runs_here)
+
+
+@lru_cache(maxsize=1)
+def all_seed_cards() -> tuple[Card, ...]:
+    """Every seed card, those whose runtime is not in this build yet included (`runs_here` False): the
+    bake-off names Tesseract for print even before it is bundled, and says why it is not scored."""
     import yaml
 
     rows = yaml.safe_load(SEED.read_text(encoding="utf-8"))["cards"]
@@ -44,10 +51,8 @@ def seed_cards() -> tuple[Card, ...]:
     for row in rows:
         if not CARD_ID.match(row["id"]):
             raise ValueError(f"card id {row['id']!r} is not <runtime>:<source>@<version>")
-        if row.get("runs_here") is False:
-            continue  # its runtime is not in this build yet; it is not a candidate
-
         cards.append(Card(
+            runs_here=row.get("runs_here") is not False,
             id=row["id"],
             pin=dict(row["pin"]),
             jobs=frozenset(row["jobs"]),

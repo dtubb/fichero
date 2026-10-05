@@ -13063,6 +13063,207 @@
         }
       }
     },
+    "/api/recipes/project/bakeoffs": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Start Bakeoff",
+        "description": "Compare the readers on the project's corrected sample pages: the top three by rule rank (and Tesseract\nfor print, when it has the language), each scored by the evaluation job (`evaluation.run`, audited) on\nthe same pages. Refused (422) in words, with nothing run, below 100 corrected lines on two pages (saying\nhow many more), for a project not set up, or when no candidate can be scored on this Mac.",
+        "operationId": "start_bakeoff_api_recipes_project_bakeoffs_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BakeoffStartRequest",
+                "nullable": true,
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BakeoffResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "List Bakeoffs",
+        "description": "Every bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`).",
+        "operationId": "list_bakeoffs_api_recipes_project_bakeoffs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BakeoffList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/project/bakeoffs/{bakeoff_id}": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Bakeoff Result",
+        "description": "A bake-off's pages, its job's state and its table, ranked by the fixed order; the scores are read from\neach model's card, so the table outlives the job row.",
+        "operationId": "bakeoff_result_api_recipes_project_bakeoffs__bakeoff_id__get",
+        "parameters": [
+          {
+            "name": "bakeoff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Bakeoff Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BakeoffResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/project/bakeoffs/{bakeoff_id}/use": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Use Bakeoff Choice",
+        "description": "Use This: make a scored candidate the reading step's reader for the project or one folder, kept as an\noverride on the recipe (for the project, the step's model too), through `project.save_setup` (audited,\nundoable). Refused (422) for a candidate not scored in this bake-off, a folder that is not one, or a\nproject with no recipe.",
+        "operationId": "use_bakeoff_choice_api_recipes_project_bakeoffs__bakeoff_id__use_post",
+        "parameters": [
+          {
+            "name": "bakeoff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Bakeoff Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BakeoffUseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/topics": {
       "get": {
         "tags": [
@@ -46825,6 +47026,338 @@
         ],
         "title": "BackgroundPauseResponse"
       },
+      "BakeoffLeftOut": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "why"
+        ],
+        "title": "BakeoffLeftOut"
+      },
+      "BakeoffList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BakeoffResult"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "BakeoffList"
+      },
+      "BakeoffPage": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines",
+            "description": "its corrected lines: the lines of the newest pass a person made"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "name",
+          "lines"
+        ],
+        "title": "BakeoffPage"
+      },
+      "BakeoffPageScore": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines"
+          },
+          "cer": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "name",
+          "lines"
+        ],
+        "title": "BakeoffPageScore"
+      },
+      "BakeoffResult": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "the evaluation job in Activity"
+          },
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "the job's state: waiting, running, done, failed, cancelled, or cleared"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/BakeoffPage"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "left_out": {
+            "items": {
+              "$ref": "#/components/schemas/BakeoffLeftOut"
+            },
+            "type": "array",
+            "title": "Left Out"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BakeoffRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "winner": {
+            "type": "string",
+            "nullable": true,
+            "title": "Winner",
+            "description": "the first scored row's card"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "job_id",
+          "step",
+          "started_at",
+          "state",
+          "pages",
+          "left_out",
+          "lines",
+          "rows"
+        ],
+        "title": "BakeoffResult"
+      },
+      "BakeoffRow": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank",
+            "description": "its place in the fixed order: accuracy in one-point bands, then local, cheaper, faster, lower carbon, trainable, smaller, the card id"
+          },
+          "card": {
+            "type": "string",
+            "title": "Card",
+            "description": "its model card id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "rule rank",
+              "baseline for print"
+            ],
+            "title": "Role"
+          },
+          "rule_rank": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Rule Rank",
+            "description": "its place by the rules before measurement"
+          },
+          "reader": {
+            "type": "string",
+            "enum": [
+              "kraken",
+              "vision",
+              "tesseract"
+            ],
+            "nullable": true,
+            "title": "Reader"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model",
+            "description": "the model id the evaluation reads with"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On"
+          },
+          "local": {
+            "type": "boolean",
+            "title": "Local"
+          },
+          "cer": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cer",
+            "description": "its character error rate on the sample pages, under `policy`"
+          },
+          "policy": {
+            "type": "string",
+            "nullable": true,
+            "title": "Policy"
+          },
+          "scores": {
+            "additionalProperties": {
+              "type": "number",
+              "nullable": true
+            },
+            "type": "object",
+            "title": "Scores",
+            "description": "CER under every named policy"
+          },
+          "per_page": {
+            "items": {
+              "$ref": "#/components/schemas/BakeoffPageScore"
+            },
+            "type": "array",
+            "title": "Per Page"
+          },
+          "pages_per_hour": {
+            "type": "number",
+            "nullable": true,
+            "title": "Pages Per Hour",
+            "description": "measured on this Mac in this run"
+          },
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds"
+          },
+          "cost_usd": {
+            "$ref": "#/components/schemas/Figure",
+            "description": "for the whole volume, before anything runs"
+          },
+          "carbon_g_per_page": {
+            "type": "number",
+            "nullable": true,
+            "title": "Carbon G Per Page"
+          },
+          "trainable": {
+            "type": "boolean",
+            "title": "Trainable"
+          },
+          "size_gb": {
+            "type": "number",
+            "title": "Size Gb"
+          },
+          "why": {
+            "type": "string",
+            "nullable": true,
+            "title": "Why",
+            "description": "why it has no score (not on this Mac, not in this build, remote, still running)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "card",
+          "role",
+          "runs_on",
+          "local",
+          "cost_usd",
+          "trainable",
+          "size_gb"
+        ],
+        "title": "BakeoffRow",
+        "description": "One candidate reader in the bake-off table."
+      },
+      "BakeoffStartRequest": {
+        "properties": {
+          "page_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Page Ids",
+            "description": "the sample pages; none: every page with a pass a person made"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "BakeoffStartRequest"
+      },
+      "BakeoffUseRequest": {
+        "properties": {
+          "card": {
+            "type": "string",
+            "title": "Card",
+            "description": "the candidate's card id"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "folder"
+            ],
+            "title": "Scope",
+            "default": "project"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "the folder, when the scope is a folder"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "card"
+        ],
+        "title": "BakeoffUseRequest"
+      },
       "BatchClaimCurationRequest": {
         "properties": {
           "claim_ids": {
@@ -57412,8 +57945,9 @@
         "properties": {
           "checked": {
             "type": "string",
+            "nullable": true,
             "title": "Checked",
-            "description": "The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against."
+            "description": "The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against. None: on each page, the newest pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`)."
           },
           "candidates": {
             "items": {
@@ -57447,7 +57981,6 @@
         },
         "type": "object",
         "required": [
-          "checked",
           "candidates"
         ],
         "title": "EvaluationRunRequest",

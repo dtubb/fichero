@@ -51,6 +51,7 @@ NOT_ON_A_PAGE = {
     "task_id": "an engine task", "job_id": "a model download", "profile_id": "a model profile",
     "cluster_id": "a compute cluster", "snapshot_id": "a storage snapshot", "rule_id": "an orchestration rule",
     "record_id": "an agent-write audit row", "run_id": "a migration run", "action_id": "an action-log row",
+    "bakeoff_id": "a project's comparison of readers (its pages were checked when it was started)",
     # Library-level records. Their aggregates over pages are the knowledge-graph scope (a ruling
     # pending with the maintainer), except hands and signs, which are filtered here.
     "entity_id": "a KG entity", "claim_id": "a KG claim", "project_id": "a project",
