@@ -370,6 +370,7 @@ private struct ActivityRowControls: View {
                 }
                 .buttonStyle(.borderless)
                 .help("\(control.label) \(row.name)")
+                .accessibilityLabel("\(control.label) \(row.name)")
                 .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).\(control == .stop ? "cancel" : control.rawValue)")
             }
         }
