@@ -45910,12 +45910,16 @@
             "type": "boolean",
             "title": "Paused",
             "default": false
+          },
+          "machine": {
+            "$ref": "#/components/schemas/MachineState"
           }
         },
         "type": "object",
         "required": [
           "count",
-          "cpu_count"
+          "cpu_count",
+          "machine"
         ],
         "title": "BackgroundJobsResponse",
         "description": "Snapshot of running background jobs + rough process CPU usage."
@@ -64448,6 +64452,49 @@
           "from"
         ],
         "title": "MacFacts"
+      },
+      "MachineState": {
+        "properties": {
+          "memory_pressure": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "warn",
+              "critical"
+            ],
+            "nullable": true,
+            "title": "Memory Pressure"
+          },
+          "thermal_state": {
+            "type": "string",
+            "enum": [
+              "nominal",
+              "fair",
+              "serious",
+              "critical"
+            ],
+            "nullable": true,
+            "title": "Thermal State"
+          },
+          "on_battery": {
+            "type": "boolean",
+            "title": "On Battery",
+            "default": false
+          },
+          "in_use": {
+            "type": "boolean",
+            "title": "In Use",
+            "default": false
+          },
+          "why_wait": {
+            "type": "string",
+            "nullable": true,
+            "title": "Why Wait"
+          }
+        },
+        "type": "object",
+        "title": "MachineState",
+        "description": "This Mac's state, as the throttle reads it (`activity.popover.summary`, #5415)."
       },
       "ManualPairRequest": {
         "properties": {

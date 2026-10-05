@@ -17,7 +17,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from uuid import uuid4
 
 from fastapi import (
@@ -146,6 +146,20 @@ class BackgroundJob(BaseModel):
     parent_id: Optional[str] = None
 
 
+class MachineState(BaseModel):
+    """This Mac's state, as the throttle reads it (`activity.popover.summary`, #5415)."""
+
+    # None when the level cannot be read (not macOS, a sandbox refusal).
+    memory_pressure: Optional[Literal["normal", "warn", "critical"]] = None
+    thermal_state: Optional[Literal["nominal", "fair", "serious", "critical"]] = None
+    # On battery power or in Low Power Mode.
+    on_battery: bool = False
+    # The person touched keyboard or mouse in the last 30 seconds.
+    in_use: bool = False
+    # Why heavy local work is held back right now, in words; None when it may go ahead.
+    why_wait: Optional[str] = None
+
+
 class BackgroundJobsResponse(BaseModel):
     """Snapshot of running background jobs + rough process CPU usage."""
 
@@ -158,6 +172,8 @@ class BackgroundJobsResponse(BaseModel):
     cpu_count: int
     # Pause Background Work is on (`activity.pause.global`): nothing that runs by itself starts.
     paused: bool = False
+    # This Mac's memory, heat, power and use, and why heavy work waits (#5415).
+    machine: MachineState
 
 
 class JobTree(BaseModel):
@@ -351,6 +367,7 @@ async def list_background_jobs(
     from pathlib import Path as _Path
 
     from fichero_server.core.background_compute import cpu_count, process_cpu_percent
+    from fichero_server.execution import throttle
     from fichero_server.importers.derivatives import background_jobs_snapshot
 
     library = str(_Path(db.path).parent)
@@ -415,6 +432,7 @@ async def list_background_jobs(
         process_cpu_percent=process_cpu_percent(),
         cpu_count=cpu_count(),
         paused=job_queue.is_paused(),
+        machine=MachineState(**throttle.machine_state()),
     )
 
 

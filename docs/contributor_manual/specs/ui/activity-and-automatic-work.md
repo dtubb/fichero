@@ -662,9 +662,12 @@ workflow by hand: a hand run is a job like any other.
   window reads (`ActivityTableTests` `testActivityPopoverSummary_saysWhatRunsWhatWaitsAndWhyAndTheLastThreeErrors`,
   `testActivityPopoverSummary_pausedBackgroundWorkIsSaidFirst`,
   `testActivityPopoverSummary_nothingHeldBackWhenNothingWaitsOnTheMac`). Not yet seen in the app.
-  Still a gap (#5415): the Mac's own state. The engine reads memory pressure, heat, battery and
-  whether the Mac is in use to decide (`execution/throttle.py`) but serves no route for them, and
-  nothing reads the GPU.
+  The engine serves the Mac's own state (2026-10-04): `GET /api/activity/jobs` carries `machine`
+  (memory pressure normal/warn/critical, thermal state nominal/fair/serious/critical, on battery,
+  in use, and `why_wait`, the throttle's current reason heavy work is held back), read through
+  the same readings the throttle acts on (`execution/throttle.py` `machine_state`;
+  `tests/unit/api/test_activity_machine_state.py`). Still a gap (#5415): the popover does not
+  show it yet, and nothing reads the GPU.
 
 ### C. Pause and start
 

@@ -41,38 +41,62 @@ def _enabled() -> bool:
     return os.environ.get("FICHERO_JOB_THROTTLE", "1") != "0"
 
 
-def memory_is_tight() -> str | None:
+#: `kern.memorystatus_vm_pressure_level` 4 is critical.
+_PRESSURE_CRITICAL = 4
+_THERMAL_NAMES = ("nominal", "fair", "serious", "critical")
+
+
+# The readings. Each probe below and `machine_state` (the Activity popover's "this Mac" line,
+# #5415) read the Mac through these, so the popover shows exactly what the throttle acts on.
+
+def memory_pressure_level() -> int | None:
+    """The raw pressure level (1 normal, 2 warn, 4 critical), or None when unreadable."""
     from fichero_server.llm.kraken_runtime import _memory_pressure_level
 
-    level = _memory_pressure_level()
+    return _memory_pressure_level()
+
+
+def thermal_state_level() -> int | None:
+    """`NSProcessInfoThermalState` (0 nominal .. 3 critical), or None when unreadable."""
+    try:
+        from Foundation import NSProcessInfo
+
+        return int(NSProcessInfo.processInfo().thermalState())
+    except Exception:  # noqa: BLE001 -- no reading is no reason to wait
+        return None
+
+
+def seconds_since_input() -> float | None:
+    """Seconds since the person last touched keyboard or mouse, or None when unreadable."""
+    try:
+        import Quartz
+
+        return float(Quartz.CGEventSourceSecondsSinceLastEventType(
+            Quartz.kCGEventSourceStateCombinedSessionState, Quartz.kCGAnyInputEventType))
+    except Exception:  # noqa: BLE001 -- no reading is no reason to wait
+        return None
+
+
+def memory_is_tight() -> str | None:
+    level = memory_pressure_level()
     return MEMORY_REASON if level is not None and level >= _PRESSURE_WARN else None
 
 
 def mac_is_hot() -> str | None:
-    try:
-        from Foundation import NSProcessInfo
-
-        state = int(NSProcessInfo.processInfo().thermalState())
-    except Exception:  # noqa: BLE001 -- no reading is no reason to wait
-        return None
-    return "Waiting: the Mac is hot" if state >= _THERMAL_SERIOUS else None
+    state = thermal_state_level()
+    return "Waiting: the Mac is hot" if state is not None and state >= _THERMAL_SERIOUS else None
 
 
 def mac_is_in_use() -> str | None:
-    try:
-        import Quartz
-
-        idle = float(Quartz.CGEventSourceSecondsSinceLastEventType(
-            Quartz.kCGEventSourceStateCombinedSessionState, Quartz.kCGAnyInputEventType))
-    except Exception:  # noqa: BLE001 -- no reading is no reason to wait
-        return None
-    return "Waiting: you're using the Mac" if idle < IDLE_BEFORE_HEAVY_SECONDS else None
+    idle = seconds_since_input()
+    return "Waiting: you're using the Mac" if idle is not None and idle < IDLE_BEFORE_HEAVY_SECONDS else None
 
 
 _battery: tuple[float, bool] | None = None
 
 
-def on_battery() -> str | None:
+def battery_or_low_power() -> bool:
+    """On battery power or in Low Power Mode; read at most every `BATTERY_READING_SECONDS`."""
     global _battery
     now = time.monotonic()
     if _battery is None or now - _battery[0] > BATTERY_READING_SECONDS:
@@ -89,7 +113,11 @@ def on_battery() -> str | None:
         except Exception:  # noqa: BLE001 -- no reading is no reason to wait
             draining = False
         _battery = (now, draining or low_power)
-    return "Waiting: the Mac is on battery" if _battery[1] else None
+    return _battery[1]
+
+
+def on_battery() -> str | None:
+    return "Waiting: the Mac is on battery" if battery_or_low_power() else None
 
 
 #: (probe, also for work a person is waiting for?) -- in the order their reasons are given.
@@ -112,3 +140,22 @@ def why_wait(*, person_waiting: bool = False) -> str | None:
         if reason:
             return reason
     return None
+
+
+def machine_state() -> dict:
+    """This Mac's state for the Activity popover (`activity.popover.summary`, #5415): the same
+    readings the probes act on, plus `why_wait`, the reason heavy work is held back now (None
+    when it may go ahead, or when the throttle is off). An unreadable level is None; an
+    unreadable battery or input reading is False, as it is to the probes. No GPU reading: no
+    probe for it exists."""
+    pressure = memory_pressure_level()
+    thermal = thermal_state_level()
+    return {
+        "memory_pressure": None if pressure is None else (
+            "critical" if pressure >= _PRESSURE_CRITICAL
+            else "warn" if pressure >= _PRESSURE_WARN else "normal"),
+        "thermal_state": None if thermal is None else _THERMAL_NAMES[max(0, min(thermal, 3))],
+        "on_battery": on_battery() is not None,
+        "in_use": mac_is_in_use() is not None,
+        "why_wait": why_wait(),
+    }
