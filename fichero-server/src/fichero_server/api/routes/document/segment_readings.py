@@ -70,6 +70,7 @@ from fichero_server.models.readings import (
     project_record_rule,
     reading_kinds,
     resolve_counting,
+    rank_passes,
     resolve_working_pass,
 )
 from fichero_server.models.segments import (
@@ -872,6 +873,29 @@ def working_pass(db: Database, document_id: str) -> PassAnswer:
         list(db.query(SegmentPassChoice, document_id=document_id)),
         _pass_candidates(db, document_id) + _unconverted_candidates(db, document_id),
     )
+
+
+def ranked_passes(db: Database, document_id: str) -> list[PassAnswer]:
+    """The page's passes in the working-pass order, the working pass first: the same candidates
+    `working_pass` offers, through the same ranking (`rank_passes`)."""
+    return rank_passes(
+        project_record_rule(db),
+        list(db.query(SegmentPassChoice, document_id=document_id)),
+        _pass_candidates(db, document_id) + _unconverted_candidates(db, document_id),
+    )
+
+
+def passes_with_shapes(db: Database, document_id: str) -> set[str]:
+    """The page's passes, real or an unconverted result's provisional one, that have a box to draw
+    (`ui.preview.draws-a-pass-with-shapes`): a box with size and no `shape: unstated`."""
+    from fichero_server.models.segments import legacy_pass_id
+
+    shaped = db.pass_ids_with_shapes(document_id)
+    for result in db._query_where(Artifact, _UNCONVERTED_RESULT_SQL, {}, document_id=document_id):
+        boxes = result.ocr_geometry.boxes if result.ocr_geometry is not None else []  # raw-geometry-ok: unconverted only
+        if any((b.bbox[2] > 0 or b.bbox[3] > 0) and b.metadata.get("shape") != "unstated" for b in boxes):
+            shaped.add(legacy_pass_id(result.id))
+    return shaped
 
 
 def is_unconverted_pass(pass_id: str | None) -> bool:

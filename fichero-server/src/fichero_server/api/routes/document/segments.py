@@ -757,14 +757,22 @@ def _mark_working_pass(db: Database, doc_id: str, passes: list[PassRead], segmen
     It used to rank here with a rule of its own for the PROVISIONAL passes (an unconverted result's
     boxes) and with only the passes this response held, so a filtered read and the page's text could
     name different passes. The provisional rule now lives in `resolve_working_pass`, and the page's
-    every pass and result is judged whatever this read was filtered to."""
-    from fichero_server.api.routes.document.segment_readings import working_pass
+    every pass and result is judged whatever this read was filtered to.
 
-    answer = working_pass(db, doc_id)
+    The same ranking says which pass the image draws (`resolve_drawn_pass`, #5467) and each pass's
+    place in it, so the app draws `drawn` and keeps no fallback ranking of its own."""
+    from fichero_server.api.routes.document.segment_readings import passes_with_shapes, ranked_passes
+    from fichero_server.models.readings import resolve_drawn_pass
+
+    ranked = ranked_passes(db, doc_id)
+    drawn_id = resolve_drawn_pass(ranked, passes_with_shapes(db, doc_id)) if ranked else None
+    place = {answer.pass_id: index for index, answer in enumerate(ranked)}
     for pass_read in passes:
-        if pass_read.id == answer.pass_id:
+        pass_read.rank = place.get(pass_read.id)
+        pass_read.drawn = pass_read.id == drawn_id
+        if pass_read.rank == 0:
             pass_read.working = True
-            pass_read.working_basis = answer.basis.value
+            pass_read.working_basis = ranked[0].basis.value
 
 
 # ---------------------------------------------------------------------------

@@ -203,8 +203,13 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   Mosquera pages (SM_NPQ_C01_005, C01_052, #5425). **Built 2026-10-04:** the import rank is gone
   (engine and app) and `rankedPasses` moves a pass whose segments are all `shape: unstated` behind
   every pass with shapes, so the page shows the Gemini reading of Kraken's lines it already has.
-  Pinned by `fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`. PARTIAL until seen on
-  screen on C01_005 and C01_052.
+  Pinned by `fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`. **The engine serves
+  the drawn pass (#5467, built 2026-10-05):** the segments route marks one `PassRead.drawn` -- the
+  working pass when it has shapes, else the next in the working-pass ranking (`rank`) that has them,
+  none when no pass has any (`resolve_drawn_pass`, pinned by
+  `fichero-server/tests/unit/api/test_the_engine_serves_the_drawn_pass.py`); the app reads `drawn`
+  in place of its own fallback ranking (the app half of #5467). PARTIAL until the app reads it and
+  it is seen on screen on C01_005 and C01_052.
 - `ui.preview.draws-what-the-segments-list-lists` — **[PARTIAL]** (#5463; owner: the engine) With every
   box switch on, Preview draws every box of the page's working pass, the same pass the Segments list
   lists and the page's text reads, whatever other result the page has beside it. On a Marshall diary

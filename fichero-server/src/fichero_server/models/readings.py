@@ -588,45 +588,75 @@ def resolve_working_pass(
 
     ``pass_choices`` takes ``SegmentPassChoice`` rows (slice 6 already writes
     them); typed loosely to keep this module below the one that defines them.
-    """
-    if not passes_with_makers:
-        return PassAnswer()
 
+    The answer is the head of :func:`rank_passes`, the ONE ranking, which the drawn pass
+    (:func:`resolve_drawn_pass`) walks too.
+    """
+    ranked = rank_passes(project_rule, pass_choices, passes_with_makers)
+    return ranked[0] if ranked else PassAnswer()
+
+
+def rank_passes(
+    project_rule: ProjectRecordRule,
+    pass_choices: list[Any],
+    passes_with_makers: list[PassCandidate],
+) -> list[PassAnswer]:
+    """Every pass of a page in the working-pass order (`source.pass.working`): the first is the
+    working pass (see :func:`resolve_working_pass` for the order and why), the rest follow by the
+    same tiers, each newest first. A pass the ladder passes over -- an untouched unconverted result
+    beside real passes, an outside edit waiting to be chosen -- comes last, not out: it can still be
+    the pass the image draws when nothing above it has shapes (#5467). Only the head's basis is
+    the working basis; the others' say which tier placed them."""
+    if not passes_with_makers:
+        return []
+
+    def newest_first(rows: list[PassCandidate]) -> list[PassCandidate]:
+        return sorted(rows, key=lambda row: (row.created_at, row.pass_id), reverse=True)
+
+    ranked: list[PassAnswer] = []
     live = [row for row in pass_choices if getattr(row, "superseded_at", None) is None]
     live.sort(key=lambda row: (row.chosen_at, row.id), reverse=True)
     by_id = {row.pass_id: row for row in passes_with_makers}
     for choice in live:
         if choice.pass_id in by_id:
-            return PassAnswer(pass_id=choice.pass_id, basis=PassBasis.chosen)
+            ranked.append(PassAnswer(pass_id=choice.pass_id, basis=PassBasis.chosen))
+            break
 
     # An unconverted result counts only when a person corrected it, or when the page has no pass at
     # all (#5467: this rule lived in the segments route alone, so the Preview and the text could name
     # different passes for the same page).
-    if any(not row.unconverted for row in passes_with_makers):
-        passes_with_makers = [row for row in passes_with_makers if not row.unconverted or row.touched_by_a_person]
+    eligible = passes_with_makers
+    if any(not row.unconverted for row in eligible):
+        eligible = [row for row in eligible if not row.unconverted or row.touched_by_a_person]
 
     # A pass that waits to be chosen ranks only when there is nothing else to show.
-    passes_with_makers = [row for row in passes_with_makers if not row.waits_to_be_chosen] or passes_with_makers
-
-    def newest(rows: list[PassCandidate]) -> PassCandidate:
-        return sorted(rows, key=lambda row: (row.created_at, row.pass_id), reverse=True)[0]
-
-    touched = [row for row in passes_with_makers if row.touched_by_a_person]
-    if touched:
-        return PassAnswer(pass_id=newest(touched).pass_id, basis=PassBasis.human_touched)
+    eligible = [row for row in eligible if not row.waits_to_be_chosen] or eligible
 
     # An import has NO rank of its own (ruled 2026-10-04, #5443): it is just the first pass, ranked
     # by date with the rest. An "imported" tier here kept a geometry-free TEI draft the working pass
     # of 358 of 374 Mosquera pages, over every later run.
+    machine = PassBasis.newest if project_rule is ProjectRecordRule.relaxed else PassBasis.newest_machine_unchosen
+    touched = [row for row in eligible if row.touched_by_a_person]
+    text_layer = [row for row in eligible if not row.touched_by_a_person and row.from_text_layer]
+    rest = [row for row in eligible if not row.touched_by_a_person and not row.from_text_layer]
+    eligible_ids = {row.pass_id for row in eligible}
+    passed_over = [row for row in passes_with_makers if row.pass_id not in eligible_ids]
+    chosen_id = ranked[0].pass_id if ranked else None
+    for rows, basis in (
+        (touched, PassBasis.human_touched), (text_layer, PassBasis.text_layer), (rest, machine), (passed_over, machine),
+    ):
+        ranked += [PassAnswer(pass_id=row.pass_id, basis=basis) for row in newest_first(rows) if row.pass_id != chosen_id]
+    return ranked
 
-    text_layer = [row for row in passes_with_makers if row.from_text_layer]
-    if text_layer:
-        return PassAnswer(pass_id=newest(text_layer).pass_id, basis=PassBasis.text_layer)
 
-    winner = newest(passes_with_makers)
-    if project_rule is ProjectRecordRule.relaxed:
-        return PassAnswer(pass_id=winner.pass_id, basis=PassBasis.newest)
-    return PassAnswer(pass_id=winner.pass_id, basis=PassBasis.newest_machine_unchosen)
+def resolve_drawn_pass(ranked: list[PassAnswer], passes_with_shapes: set[str]) -> str | None:
+    """The pass the image draws (`ui.preview.draws-a-pass-with-shapes`, #5443, #5467): the working
+    pass when it has shapes, else the next pass in the SAME ranking (:func:`rank_passes`) that has
+    them; None when no pass has any. A pass "has shapes" when one of its segments has a place on the
+    image -- not `shape: unstated` (a file that gave no place, kept on a whole-page box only because
+    a segment must sit somewhere) and not an empty box. The working pass stays the page's text
+    either way; this only says whose boxes are drawn, so the app keeps no ranking of its own."""
+    return next((answer.pass_id for answer in ranked if answer.pass_id in passes_with_shapes), None)
 
 
 def project_record_rule(db: Any) -> ProjectRecordRule:
