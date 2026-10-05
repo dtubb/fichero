@@ -7460,6 +7460,20 @@ def fichero_tasks_get_result(
     return _rt.call("GET", f"/api/tasks/{task_id}/result")
 
 
+def fichero_topics_list(
+) -> Any:
+    'List Topics\n\nEvery topic and every recipe job, each explained once.\n\nRoute: GET /api/topics (toolset `topics`; reads).'
+    return _rt.call("GET", "/api/topics")
+
+
+def fichero_topics_get(
+    *,
+    topic_id: Annotated[str, Field(description='Topic Id')],
+) -> Any:
+    "Get Topic\n\nOne topic or recipe job's explanation.\n\nRoute: GET /api/topics/{topic_id} (toolset `topics`; reads)."
+    return _rt.call("GET", f"/api/topics/{topic_id}")
+
+
 def fichero_training_job_status(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
@@ -8853,6 +8867,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_tasks_get", "tasks", "GET", "/api/tasks/{task_id}", fichero_tasks_get),
     GeneratedTool("fichero_tasks_cancel", "tasks", "POST", "/api/tasks/{task_id}/cancel", fichero_tasks_cancel),
     GeneratedTool("fichero_tasks_get_result", "tasks", "GET", "/api/tasks/{task_id}/result", fichero_tasks_get_result),
+    GeneratedTool("fichero_topics_list", "topics", "GET", "/api/topics", fichero_topics_list),
+    GeneratedTool("fichero_topics_get", "topics", "GET", "/api/topics/{topic_id}", fichero_topics_get),
     GeneratedTool("fichero_training_job_status", "training", "GET", "/api/training/jobs/{job_id}", fichero_training_job_status),
     GeneratedTool("fichero_training_cancel_job", "training", "POST", "/api/training/jobs/{job_id}/cancel", fichero_training_cancel_job),
     GeneratedTool("fichero_training_start_kraken", "training", "POST", "/api/training/kraken", fichero_training_start_kraken),
@@ -8917,4 +8933,4 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_views_document", "views", "GET", "/view/document/{doc_id}", fichero_views_document),
     GeneratedTool("fichero_views_global_kg", "views", "GET", "/view/kg/global", fichero_views_global_kg),
 )
-TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "export", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "training", "triggers", "users", "views", "workflow-execution", "workflows",)
+TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "export", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workflow-execution", "workflows",)
