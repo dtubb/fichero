@@ -2243,13 +2243,21 @@ Trying another option
   Activity store while the job runs (setup can be left); the table in the engine's order (reader, error
   rate, this Mac or cloud, speed, cost for all pages, why not scored); Use This for this project or a
   folder, updating the reading step in place and keeping the override through later saves. Pinned by
-  `fichero/Tests/Unit/general/Models/BakeoffStoreTests.swift`. *Not built: combinations across steps (find
-  lines then read; at most nine); other steps than reading; per-line confirmations inside a model's pass
-  as ground truth; WER (the one function gives CER only); per hand and page kind (per page only); a cloud
-  candidate scored (the evaluation job has no remote target yet: it is priced, not scored); Start honouring
-  a folder override; the card's own name on a bake-off row (the engine's row carries only the card id, so
-  the app names a reader not in the recipe by its kind and rule place); setup proposing the recipe again
-  re-applying a Use This (assemble ignores the recipe's overrides).* setup's bake-off is Try Another
+  `fichero/Tests/Unit/general/Models/BakeoffStoreTests.swift`. **Fixed 2026-10-05 (engine and app, app not
+  yet seen):** each bake-off row carries its reader's `name`, the card's own name (its `note`, the name a
+  recipe step shows for its model), and the table shows it; a refusal or a Use This refusal names readers
+  by that name, never a card id; assembling for an open project with a saved recipe returns its
+  `overrides` and applies each project-scope one to its step (`bakeoff.apply_project_overrides`, the path
+  Use This takes; a folder override stays an override), so setup proposing the recipe again keeps a Use
+  This; `GET /api/recipes/project/bakeoffs` reports `readiness` (corrected lines and pages, how many more,
+  the sentence; `bakeoff.readiness`, the one count a start refuses by), and the app says the sentence
+  before anything is pressed and shows Compare Readers only when ready. Pinned by
+  `test_bakeoff_readers.py` (the row's name, assemble keeps Use This, readiness matches the start
+  refusal, no card id in a refusal) and `BakeoffStoreTests.swift`. *Not built: combinations across steps
+  (find lines then read; at most nine); other steps than reading; per-line confirmations inside a model's
+  pass as ground truth; WER (the one function gives CER only); per hand and page kind (per page only); a
+  cloud candidate scored (the evaluation job has no remote target yet: it is priced, not scored); Start
+  honouring a folder override.* setup's bake-off is Try Another
   Option… run on the sample ground-truth pages over the rule-proposed combinations; there is one
   comparison code path.
 

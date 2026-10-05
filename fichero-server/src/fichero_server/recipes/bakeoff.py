@@ -106,10 +106,23 @@ def _cost(card: Card, provider: str, model: str | None, volume: int) -> dict[str
                    f"price list x per-page tokens, {volume} pages")
 
 
+def reader_name(card: Card) -> str:
+    """A reader as a person reads it: its card's own name, the `note` setup's recipe rows show for a step's
+    model (one source), never its card id (section 7b: "never a raw model id")."""
+    return card.note.strip().rstrip(".")
+
+
+def _name_of(card_id: str) -> str:
+    """The card's own name for a card id a record kept; empty for a card no longer shipped."""
+    from fichero_server.recipes.cards import all_seed_cards
+
+    return next((reader_name(c) for c in all_seed_cards() if c.id == card_id), "")
+
+
 def _candidate(card: Card, *, rule_rank: int | None, role: str, volume: int) -> dict[str, Any]:
     reader, model, provider = _reader_of(card)
     return {
-        "card": card.id, "pin": dict(card.pin), "role": role, "rule_rank": rule_rank,
+        "card": card.id, "name": reader_name(card), "pin": dict(card.pin), "role": role, "rule_rank": rule_rank,
         "reader": reader, "model": model, "provider": provider, "runs_on": card.runs_on, "local": card.local,
         "not_scored": _not_scored_because(card, reader, model, provider),
         "cost_usd": _cost(card, provider, model, volume),
@@ -164,21 +177,25 @@ def ground_truth(db: Any, page_ids: list[str] | None) -> tuple[list[dict[str, An
     return pages, left_out
 
 
-def shortfall(pages: list[dict[str, Any]]) -> str | None:
-    """How much more ground truth the bake-off needs, in words; None when there is enough."""
+def readiness(pages: list[dict[str, Any]]) -> dict[str, Any]:
+    """Whether the sample pages hold enough ground truth for a fair bake-off: the corrected lines and pages
+    counted, how many more of each are needed, and, when short, the sentence that says so. The one count
+    behind both the list's readiness (shown before anything is pressed) and Start's refusal."""
     lines = sum(p["lines"] for p in pages)
-    if lines >= MIN_LINES and len(pages) >= MIN_PAGES:
-        return None
-    more = []
-    if lines < MIN_LINES:
-        n = MIN_LINES - lines
-        more.append(f"{n} more corrected line{'s' if n != 1 else ''}")
-    if len(pages) < MIN_PAGES:
-        n = MIN_PAGES - len(pages)
-        more.append(f"corrected lines on {n} more page{'s' if n != 1 else ''}")
-    return (f"The bake-off needs at least {MIN_LINES} corrected lines on at least {MIN_PAGES} pages; there "
-            f"{'is' if lines == 1 else 'are'} {lines} on {len(pages)} page{'s' if len(pages) != 1 else ''}. "
-            f"Correct {' and '.join(more)}, and it will be offered again.")
+    more_lines, more_pages = max(0, MIN_LINES - lines), max(0, MIN_PAGES - len(pages))
+    sentence = None
+    if more_lines or more_pages:
+        more = []
+        if more_lines:
+            more.append(f"{more_lines} more corrected line{'s' if more_lines != 1 else ''}")
+        if more_pages:
+            more.append(f"corrected lines on {more_pages} more page{'s' if more_pages != 1 else ''}")
+        sentence = (f"The bake-off needs at least {MIN_LINES} corrected lines on at least {MIN_PAGES} pages; "
+                    f"there {'is' if lines == 1 else 'are'} {lines} on {len(pages)} "
+                    f"page{'s' if len(pages) != 1 else ''}. Correct {' and '.join(more)}, and it will be "
+                    f"offered again.")
+    return {"ready": sentence is None, "lines": lines, "pages": len(pages), "min_lines": MIN_LINES,
+            "min_pages": MIN_PAGES, "more_lines": more_lines, "more_pages": more_pages, "sentence": sentence}
 
 
 # --- starting --------------------------------------------------------------------------------------------
@@ -192,14 +209,15 @@ def start(db: Any, library: Path, a: Answers, cards: list[Card], *, page_ids: li
     `evaluation.run` action). Refused in words, with nothing run, below the threshold or when no
     candidate can be scored here."""
     pages, left_out = ground_truth(db, page_ids)
-    short = shortfall(pages)
-    if short is not None:
-        raise BakeoffRefused(short)
+    ready = readiness(pages)
+    if not ready["ready"]:
+        raise BakeoffRefused(ready["sentence"])
     chosen = candidates(a, cards, volume=volume)
     scored = [c for c in chosen if c["not_scored"] is None]
     if not scored:
-        why = "; ".join(f"{c['card']}: {c['not_scored']}" for c in chosen) or "no reader fits this project's answers"
-        raise BakeoffRefused(f"no candidate reader can be scored on this Mac ({why})")
+        # Each reader by its card's name, never its id (section 7b).
+        why = " ".join(f"{c['name'] or 'A reader'}: {c['not_scored']}." for c in chosen)
+        raise BakeoffRefused(f"No reader can be compared on this Mac yet. {why or 'No reader fits this project.'}")
     job_id = run_evaluation({
         "checked": None, "add_out_of_the_box": False, "held_out_ids": [p["document_id"] for p in pages],
         "language": sorted(a.languages)[0] if a.languages else None,
@@ -302,6 +320,8 @@ def result(db: Any, library: Path, bakeoff_id: str) -> dict[str, Any]:
     for c in record["candidates"]:
         row = {k: c[k] for k in ("card", "pin", "role", "rule_rank", "reader", "model", "runs_on", "local",
                                  "cost_usd", "carbon_g_per_page", "trainable", "size_gb", "material")}
+        # A record kept before rows carried a name reads it from the card now (one source: the card).
+        row["name"] = c.get("name") or _name_of(c["card"])
         row.update(cer=None, policy=None, scores={}, per_page=[], pages_per_hour=None, seconds=None,
                    why=c["not_scored"])
         if c["not_scored"] is None:
@@ -333,11 +353,12 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
 
     if not recipe:
         raise BakeoffRefused("this project has no recipe yet: run setup first")
+    name = reader_name(card) or "That reader"
     row = next((r for r in table["rows"] if r["card"] == card.id), None)
     if row is None:
-        raise BakeoffRefused(f"{card.id} is not one of this bake-off's candidates")
+        raise BakeoffRefused(f"{name} is not one of this bake-off's candidates")
     if row["cer"] is None:
-        raise BakeoffRefused(f"{card.id} was not scored in this bake-off ({row['why']}), so it cannot be chosen from it")
+        raise BakeoffRefused(f"{name} was not scored in this bake-off ({row['why']}), so it cannot be chosen from it")
     if scope == "folder" and not folder_id:
         raise BakeoffRefused("name the folder to use it for")
     out = copy.deepcopy(recipe)
@@ -353,9 +374,24 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
     out["overrides"] = [o for o in out.get("overrides") or []
                         if (o.get("step"), o.get("scope"), o.get("folder_id"))
                         != (override["step"], override["scope"], override["folder_id"])] + [override]
-    if scope == "project":
+    return apply_project_overrides(out, [card])
+
+
+def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[str, Any]:
+    """Set each step a project-scope override names to that override's reader, as the step's own choice, so
+    the recipe Start reads and the one setup proposes again both read with the reader the person chose
+    (`source.try.use-this-scope`). The one code path for Use This and for assembling a project's recipe
+    again. A folder override stays an override only: the step's own model is the project's. An override
+    whose card is no longer shipped is kept and leaves the step to the rules. Changes `recipe` in place."""
+    by_id = {c.id: c for c in cards}
+    steps = {s.get("id"): s for s in recipe.get("steps") or []}
+    for override in recipe.get("overrides") or []:
+        step, card = steps.get(override.get("step")), by_id.get(override.get("card"))
+        if override.get("scope") != "project" or step is None or card is None:
+            continue
         for stale in ("gap", "problem"):
             step.pop(stale, None)
-        step.update(_chosen(Choice(step["job"], replace(card, cer_measured_here=row["cer"]), reasons=[because])))
+        measured = replace(card, cer_measured_here=override.get("cer"))
+        step.update(_chosen(Choice(step["job"], measured, reasons=[override.get("because") or "chosen by you"])))
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
-    return out
+    return recipe

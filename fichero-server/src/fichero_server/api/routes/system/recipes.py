@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
@@ -190,6 +190,9 @@ class AssembledRecipe(BaseModel):
         "setup asks the egress question only when this is not empty",
     )
     problems: list[str] = Field(description="what the recipe check finds (empty when it can run)")
+    overrides: Optional[list[dict[str, Any]]] = Field(default=None, description=(
+        "the open project's saved overrides (Use This, for the project or a folder), kept so a recipe proposed "
+        "again and saved keeps them; a project-scope one has already set its step's reader"))
 
 
 def _this_machine_memory_gb() -> float:
@@ -396,11 +399,32 @@ def normalise_answers(answers: Any, *, strict: bool) -> Any:
     return normalise(answers, strict=strict)
 
 
-def _assemble(answers: dict[str, Any]) -> dict[str, Any]:
+def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[str, Any]:
     """The rules' recipe for setup's answers (as sent to `/assemble`, or as saved on the project).
     A language or script given as a word is resolved to its tag first, or refused (ValueError, in
-    words): the rules only ever see tags (`source.onboard.language-stored-as-tag`)."""
-    return assemble(_answers(answers), list(seed_cards()))
+    words): the rules only ever see tags (`source.onboard.language-stored-as-tag`).
+
+    For a project with a saved recipe, its overrides come with the recipe and each project-scope one
+    sets its step's reader (`bakeoff.apply_project_overrides`, the path Use This takes), so proposing
+    the recipe again never undoes a reader the person chose; folder overrides stay overrides."""
+    recipe = assemble(_answers(answers), list(seed_cards()))
+    saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
+    if saved.get("overrides"):
+        from fichero_server.recipes.bakeoff import apply_project_overrides
+        from fichero_server.recipes.cards import all_seed_cards
+
+        recipe["overrides"] = list(saved["overrides"])
+        apply_project_overrides(recipe, list(all_seed_cards()))
+    return recipe
+
+
+def _optional_library(request: Request) -> Optional[Path]:
+    """The open project's folder when the caller names one (the project's own client), else None (setup
+    before a project exists); a named project is opened through the same checks as every library route."""
+    from fichero_server.api.library_header import optional_library_path
+
+    path = optional_library_path(request)
+    return _library(get_library_database(request, path)) if path else None
 
 
 def _answers(answers: dict[str, Any]) -> Answers:
@@ -417,13 +441,16 @@ def _answers(answers: dict[str, Any]) -> Answers:
 
 
 @router.post("/assemble", response_model=AssembledRecipe)
-async def assemble_recipe(request: AssembleRequest) -> AssembledRecipe:
+async def assemble_recipe(
+    request: AssembleRequest, library: Optional[Path] = Depends(_optional_library),
+) -> AssembledRecipe:
     """The recipe the rules give for these answers, each choice with its reasons and each gap named
     once as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).
-    Proposes; writes nothing. Refused with 422, in words, for a language, script, purpose, material,
-    job or direction Fichero does not know."""
+    For an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)
+    sets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,
+    script, purpose, material, job or direction Fichero does not know."""
     try:
-        recipe = _assemble(request.model_dump())
+        recipe = _assemble(request.model_dump(), library)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     problems = [] if recipe["gaps"] else check_recipe(recipe)
@@ -431,7 +458,7 @@ async def assemble_recipe(request: AssembleRequest) -> AssembledRecipe:
         fichero_recipe=recipe["fichero_recipe"], version=recipe["version"], suits=recipe["suits"],
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
         steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"],
-        cloud_options=recipe["cloud_options"], problems=problems,
+        cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
     )
 
 
@@ -863,7 +890,9 @@ class BakeoffRow(BaseModel):
 
     rank: int = Field(description="its place in the fixed order: accuracy in one-point bands, then local, cheaper, "
                       "faster, lower carbon, trainable, smaller, the card id")
-    card: str = Field(description="its model card id")
+    card: str = Field(description="its model card id: for Use This, never shown")
+    name: str = Field(default="", description="the reader by its card's own name (the card's note, as a recipe step "
+                      "names its model): what the table shows, never the card id")
     role: Literal["rule rank", "baseline for print"]
     rule_rank: Optional[int] = Field(default=None, description="its place by the rules before measurement")
     reader: Optional[Literal["kraken", "vision", "tesseract"]] = None
@@ -898,8 +927,23 @@ class BakeoffResult(BaseModel):
     winner: Optional[str] = Field(default=None, description="the first scored row's card")
 
 
+class BakeoffReadiness(BaseModel):
+    """Whether the project holds enough corrected lines for a bake-off now: the same count and constants as
+    the refusal of a start (`bakeoff.readiness`), so setup can say it before anything is pressed."""
+
+    ready: bool
+    lines: int = Field(description="corrected lines on the sample pages (each page's newest pass a person made)")
+    pages: int = Field(description="pages with such lines")
+    min_lines: int
+    min_pages: int
+    more_lines: int = Field(description="how many more corrected lines are needed; 0 when there are enough")
+    more_pages: int = Field(description="how many more pages with corrected lines are needed; 0 when there are enough")
+    sentence: Optional[str] = Field(default=None, description="when not ready, what to correct, in words")
+
+
 class BakeoffList(BaseModel):
     items: list[BakeoffResult]
+    readiness: BakeoffReadiness
 
 
 class BakeoffUseRequest(BaseModel):
@@ -947,10 +991,13 @@ async def start_bakeoff(
 
 @router.get("/project/bakeoffs", response_model=BakeoffList, response_model_by_alias=True)
 async def list_bakeoffs(db: Database = Depends(get_library_database)) -> BakeoffList:
-    """Every bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`)."""
+    """Every bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`),
+    and whether the project has enough corrected lines to run one now (`readiness`, counted as a start is)."""
     bakeoff, library = _bakeoff(), _library(db)
+    pages, _ = bakeoff.ground_truth(db, None)
     return BakeoffList(items=[BakeoffResult(**bakeoff.result(db, library, r["id"]))
-                              for r in bakeoff.list_records(library)])
+                              for r in bakeoff.list_records(library)],
+                       readiness=BakeoffReadiness(**bakeoff.readiness(pages)))
 
 
 @router.get("/project/bakeoffs/{bakeoff_id}", response_model=BakeoffResult, response_model_by_alias=True)
@@ -985,7 +1032,7 @@ async def use_bakeoff_choice(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     card = next((c for c in all_seed_cards() if c.id == request.card), None)
     if card is None:
-        raise HTTPException(status_code=422, detail=f"no model card {request.card}")
+        raise HTTPException(status_code=422, detail="that reader is not one Fichero has a card for")
     if request.scope == "folder":
         folder = db.get(Document, request.folder_id) if request.folder_id else None
         if folder is None or folder.doc_type != DocType.folder:

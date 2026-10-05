@@ -268,8 +268,10 @@ final class RecipeSetupStore {
     // MARK: What the engine wrote on the recipe (Use This, #4951)
 
     /// The recipe's `overrides` as the engine last saved them (Use This writes them,
-    /// `source.try.use-this-scope`). `AssembledRecipe` does not carry them, so they are kept
-    /// here and sent back with every save; a save never drops a reader the person chose.
+    /// `source.try.use-this-scope`). A recipe proposed for an open project carries them (and a
+    /// project-scope one has already set its step's reader); one that does not (read before the
+    /// engine sent them) has them kept here and sent back with every save, so a save never drops
+    /// a reader the person chose.
     @ObservationIgnored private var savedRecipeOverrides: Data?
 
     private func rememberOverrides(from recipeJSON: Data) {
@@ -307,6 +309,11 @@ final class RecipeSetupStore {
             if let index = current.steps.firstIndex(where: { $0.id == step.id }), current.steps[index] != step {
                 recipe?.steps[index] = step
             }
+        }
+        // A recipe proposed for the project carries its overrides; the engine's newer ones replace
+        // them, so the next save does not send back the list from before this change.
+        if current.overrides != saved.overrides {
+            recipe?.overrides = saved.overrides
         }
     }
 

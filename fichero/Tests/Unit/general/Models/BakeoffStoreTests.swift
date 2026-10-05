@@ -74,10 +74,10 @@ struct BakeoffStoreTests {
         return (response, Data(json.utf8))
     }
 
-    private static func row(rank: Int, card: String, reader: String = "kraken", ruleRank: Int? = 1,
-                            local: Bool = true, cer: Double?, why: String? = nil) -> String {
+    private static func row(rank: Int, card: String, name: String? = nil, reader: String = "kraken",
+                            ruleRank: Int? = 1, local: Bool = true, cer: Double?, why: String? = nil) -> String {
         """
-        {"rank":\(rank),"card":"\(card)","role":"\(ruleRank == nil ? "baseline for print" : "rule rank")",
+        {"rank":\(rank),"card":"\(card)","name":"\(name ?? "Reader \(card.uppercased())")","role":"\(ruleRank == nil ? "baseline for print" : "rule rank")",
          "rule_rank":\(ruleRank.map(String.init) ?? "null"),"reader":"\(reader)","model":"m-\(card)",
          "runs_on":"\(local ? "this-mac" : "cloud")","local":\(local),
          "cer":\(cer.map { "\($0)" } ?? "null"),"policy":\(cer == nil ? "null" : "\"diplomatic\""),
@@ -94,6 +94,23 @@ struct BakeoffStoreTests {
          "pages":[{"document_id":"p1","name":"f. 1r","lines":61},{"document_id":"p2","name":"f. 1v","lines":58}],
          "left_out":[],"lines":119,"rows":[\(rows.joined(separator: ","))],"winner":null}
         """
+    }
+
+    /// The engine's readiness as `GET …/bakeoffs` reports it: enough corrected lines, or how many more.
+    private static func readinessJSON(lines: Int = 119, pages: Int = 2) -> String {
+        let moreLines = max(0, 100 - lines), morePages = max(0, 2 - pages)
+        let ready = moreLines == 0 && morePages == 0
+        let sentence = ready ? "null"
+            : "\"The bake-off needs at least 100 corrected lines on at least 2 pages; there are \(lines) on \(pages) page. Correct \(moreLines) more corrected lines, and it will be offered again.\""
+        return """
+        {"ready":\(ready),"lines":\(lines),"pages":\(pages),"min_lines":100,"min_pages":2,
+         "more_lines":\(moreLines),"more_pages":\(morePages),"sentence":\(sentence)}
+        """
+    }
+
+    private static func list(_ rows: [String]?, readiness: String? = nil) -> String {
+        let items = rows.map { "[\(comparison(state: "done", rows: $0))]" } ?? "[]"
+        return #"{"items":\#(items),"readiness":\#(readiness ?? readinessJSON())}"#
     }
 
     private static let recipeJSON = """
@@ -118,12 +135,12 @@ struct BakeoffStoreTests {
             Self.reply(request, 422, #"{"detail":"\#(sentence)"}"#)
         }
         let store = BakeoffStore(client: client)
-        #expect(store.canRun)
 
         let started = await store.start()
 
         #expect(!started)
         #expect(store.refusal == sentence)
+        #expect(store.notReadySentence == sentence, "the refusal stands where the button was")
         #expect(!store.canRun, "a refused bake-off offers no button to run it again")
         #expect(store.comparison == nil)
         #expect(store.errorMessage == nil, "the refusal is said once, not again as an error")
@@ -172,7 +189,7 @@ struct BakeoffStoreTests {
             Self.row(rank: 2, card: "alpha-cloud", reader: "vision", ruleRank: 1, local: false, cer: 0.045),
             Self.row(rank: 3, card: "mid-reader", ruleRank: 3, cer: 0.120)
         ]
-        let client = makeClient { request in Self.reply(request, 200, #"{"items":[\#(Self.comparison(state: "done", rows: rows))]}"#) }
+        let client = makeClient { request in Self.reply(request, 200, Self.list(rows)) }
         let store = BakeoffStore(client: client)
 
         await store.loadLatest()
@@ -188,8 +205,9 @@ struct BakeoffStoreTests {
     @Test func aCandidateWithoutAScoreShowsItsReason() async throws {
         let why = "not on this Mac: download it to score it"
         let rows = [Self.row(rank: 1, card: "kraken-catmus", cer: 0.04),
-                    Self.row(rank: 2, card: "kraken-tridis", ruleRank: 2, cer: nil, why: why)]
-        let client = makeClient { request in Self.reply(request, 200, #"{"items":[\#(Self.comparison(state: "done", rows: rows))]}"#) }
+                    Self.row(rank: 2, card: "kraken-tridis", name: "TRIDIS, medieval documentary hands",
+                             ruleRank: 2, cer: nil, why: why)]
+        let client = makeClient { request in Self.reply(request, 200, Self.list(rows)) }
         let store = BakeoffStore(client: client)
         await store.loadLatest()
 
@@ -198,9 +216,9 @@ struct BakeoffStoreTests {
         #expect(BakeoffStore.errorRate(unscored) == "—")
         let scored = try #require(store.comparison?.rows.first)
         #expect(BakeoffStore.note(scored).isEmpty, "a scored reader has no 'why not scored' note")
-        let name = BakeoffStore.name(of: unscored, recipe: nil)
+        let name = BakeoffStore.name(of: unscored)
         #expect(!name.contains("kraken-tridis"), "a candidate is never named by its card id")
-        #expect(name == "Kraken reader, the rules' 2nd choice")
+        #expect(name == "TRIDIS, medieval documentary hands", "named by its card's own name, as the engine sends it")
 
         // Use This is not sent for an unscored candidate.
         let setup = RecipeSetupStore(client: client)
@@ -229,7 +247,7 @@ struct BakeoffStoreTests {
         let client = makeClient { request in
             switch (request.httpMethod, request.url?.path) {
             case ("GET", "/api/recipes/project/bakeoffs"):
-                Self.reply(request, 200, #"{"items":[\#(Self.comparison(state: "done", rows: rows))]}"#)
+                Self.reply(request, 200, Self.list(rows))
             case ("PUT", "/api/recipes/project"):
                 Self.reply(request, 200, #"{"answers":{},"recipe":\#(Self.recipeJSON)}"#)
             case ("POST", "/api/recipes/project/bakeoffs/job-7/use"):
@@ -259,8 +277,7 @@ struct BakeoffStoreTests {
         #expect(read.card?.id == "kraken-catmus")
         #expect(read.card?.note == "CATMuS medieval")
         #expect(setup.recipe?.steps.first == linesBefore, "a step Use This did not change is left as it was")
-        #expect(BakeoffStore.name(of: row, recipe: setup.recipe) == "CATMuS medieval",
-                "the chosen reader is named by its card's name once the recipe carries it")
+        #expect(BakeoffStore.name(of: row) == "Reader KRAKEN-CATMUS", "the chosen reader is named by the name its row carries")
 
         // A later save sends the engine's override back, so Continue never drops the choice.
         BakeoffMockURLProtocol.seen = []
@@ -276,7 +293,7 @@ struct BakeoffStoreTests {
         let rows = [Self.row(rank: 1, card: "kraken-catmus", cer: 0.04)]
         let client = makeClient { request in
             switch (request.httpMethod, request.url?.path) {
-            case ("GET", _): Self.reply(request, 200, #"{"items":[\#(Self.comparison(state: "done", rows: rows))]}"#)
+            case ("GET", _): Self.reply(request, 200, Self.list(rows))
             default: Self.reply(request, 200, #"{"answers":{},"recipe":\#(Self.recipeJSON)}"#)
             }
         }
@@ -289,5 +306,60 @@ struct BakeoffStoreTests {
         let use = try #require(BakeoffMockURLProtocol.seen.last { $0.path.hasSuffix("/use") })
         #expect(use.body["scope"] as? String == "project")
         #expect(use.body["folder_id"] == nil)
+    }
+
+    // MARK: The gaps the app found (2026-10-05)
+
+    /// WHY: section 7b rules a reader is never shown by a raw model id. The engine's row carries
+    /// the card's own name (the name the reading step shows for its model), so every reader in
+    /// the table, not only the one already in the recipe, is named in words; the app no longer
+    /// makes up "Kraken reader, the rules' 2nd choice". Only a row with no name (a card no longer
+    /// shipped) falls back to its kind, still never its id.
+    @Test func everyRowIsNamedByItsCardsName() async throws {
+        let rows = [
+            Self.row(rank: 1, card: "kraken:zenodo/10.5281/zenodo.12743230@unpinned",
+                     name: "CATMuS Medieval, medieval manuscripts (French, Latin, Spanish)", ruleRank: 2, cer: 0.04),
+            Self.row(rank: 2, card: "kraken:zenodo/10.5281/zenodo.13788177@unpinned",
+                     name: "McCATMuS, general Latin-script recognition, 16th-21st century", ruleRank: 1, cer: 0.06),
+            Self.row(rank: 3, card: "kraken:zenodo/gone@1", name: "", ruleRank: 3, cer: nil, why: "gone")
+        ]
+        let client = makeClient { request in Self.reply(request, 200, Self.list(rows)) }
+        let store = BakeoffStore(client: client)
+        await store.loadLatest()
+
+        let names = try #require(store.comparison?.rows).map(BakeoffStore.name(of:))
+        #expect(names == ["CATMuS Medieval, medieval manuscripts (French, Latin, Spanish)",
+                          "McCATMuS, general Latin-script recognition, 16th-21st century",
+                          "A Kraken reader"])
+        #expect(!names.contains { $0.contains("zenodo") || $0.contains("choice") },
+                "no card id, and no name made up from the rules' place")
+    }
+
+    /// WHY: below 100 corrected lines on two pages the bake-off cannot run
+    /// (`source.onboard.bakeoff-minimum`). The person must read how many more lines to correct
+    /// before pressing anything, and must not be offered a button the engine would refuse; the
+    /// engine's readiness (counted as its start counts) decides both. Nothing is started.
+    @Test func readinessIsSaidBeforePressingAndTheButtonWaits() async {
+        var readiness = Self.readinessJSON(lines: 44, pages: 1)
+        let client = makeClient { request in Self.reply(request, 200, Self.list(nil, readiness: readiness)) }
+        let store = BakeoffStore(client: client)
+        #expect(!store.canRun, "no button before the engine has said there are enough corrected lines")
+
+        await store.loadLatest()
+
+        #expect(store.readiness?.ready == false)
+        #expect(store.readiness?.moreLines == 56 && store.readiness?.morePages == 1)
+        let sentence = store.notReadySentence ?? ""
+        #expect(sentence.hasPrefix("The bake-off needs at least 100 corrected lines"),
+                "the engine's sentence is shown before anything is pressed")
+        #expect(!store.canRun, "Compare Readers is hidden until there are enough")
+        #expect(!BakeoffMockURLProtocol.seen.contains { $0.method == "POST" }, "nothing was started")
+
+        readiness = Self.readinessJSON(lines: 132, pages: 3)
+        await store.loadLatest()
+
+        #expect(store.readiness?.ready == true)
+        #expect(store.notReadySentence == nil)
+        #expect(store.canRun, "offered again once there are enough corrected lines")
     }
 }
