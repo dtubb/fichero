@@ -87,6 +87,12 @@ nonisolated enum RegionColours {
         return tones
     }
 
+    /// The legend's hues (`source.editor.hierarchy.legend`): each region's hue once, in the order regions take
+    /// them -- the reading order (`tones` hands hues out in it). At most the palette's length.
+    static func legend(of tones: [Tone]) -> [Int] {
+        Array(Set(tones.map(\.hue))).sorted()
+    }
+
     /// The tone a box from ANOTHER list of the same page is drawn in on the Preview: the seam's box with the
     /// same identity (`BoxKey`), or nil when the seam draws no such box (artifact geometry, drawn plain). How the
     /// Inspector's rows, which list the artifact's boxes, colour each row as the Preview draws it.

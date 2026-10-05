@@ -46,11 +46,13 @@ extension PDFPageView.Coordinator {
             owner.ocrBoxes, on: page, selectedId: owner.segmentEditing.selected?.box.segmentId
         )
         (view as? PinchOwningPDFView)?.segmentPageId = owner.segmentEditing.pageDocumentId
-        // `ocrBoxes` arrives already reduced to ONE level by the owner (words
-        // when the pass produced them, lines otherwise). Drawing every level
-        // would nest a line box around each of its own word boxes, which reads
-        // as clutter rather than structure and carpets a dense page.
+        // `ocrBoxes` is EVERY level (hierarchy A, ruled 2026-10-05, #5426): each inside its parent and lighter
+        // than it, so a word reads as its line's and a line as its region's. The selection lights its children,
+        // shows its parent at full strength and dims the rest (`SegmentHierarchy`).
         guard !owner.ocrBoxes.isEmpty else { return }
+        let emphasis = OCRGeometryOverlay.emphasis(
+            of: owner.ocrBoxes, selected: Set([owner.segmentEditing.selected?.box.segmentId].compactMap { $0 })
+        )
         let cropBounds = page.bounds(for: .cropBox)
         // `bounds(for:)` and every `PDFAnnotation` are UNROTATED page space —
         // "you might need to transform the points if the page has a rotation
@@ -62,7 +64,10 @@ extension PDFPageView.Coordinator {
         let rotation = page.rotation
         for box in owner.ocrBoxes {
             // A segment with its own shapes is drawn AS them -- outline, baseline, points -- as on an image.
-            if let shaped = PDFShapeAnnotations.make(for: box, on: page, userName: Self.ocrBoxAnnotationName) {
+            let shown = box.segmentId.flatMap { emphasis[$0] } ?? .rest
+            if let shaped = PDFShapeAnnotations.make(
+                for: box, on: page, userName: Self.ocrBoxAnnotationName, emphasis: shown
+            ) {
                 shaped.forEach(page.addAnnotation)
                 continue
             }
@@ -88,15 +93,19 @@ extension PDFPageView.Coordinator {
             // spelled the same way: recessive colour plus a dash.
             // A box with no reading is dashed the same way (`SegmentsPane.lacksReading`).
             let uncertain = OCRBoxConfidence.isUncertain(box) || box.noReading
-            // The ONE colour path (#5467): the region's hue at its reading-order shade, as on an image.
-            annotation.color = SelectionStyle.regionColour(box.tone, opacity: uncertain ? 0.35 : 1)
+            // The ONE colour path (#5467): the region's hue, at its level's and its shade's strength, as on an image.
+            let look = PDFShapeAnnotations.look(for: box, emphasis: shown)
+            annotation.color = SelectionStyle.regionColour(look.hue, opacity: (uncertain ? 0.35 : 1) * look.stroke)
+            if look.wash > 0 {
+                annotation.interiorColor = SelectionStyle.regionColour(look.hue, opacity: look.wash)
+            }
+            let border = PDFBorder()
+            border.lineWidth = look.width
             if uncertain {
-                let border = PDFBorder()
-                border.lineWidth = 1
                 border.style = .dashed
                 border.dashPattern = [3, 2]
-                annotation.border = border
             }
+            annotation.border = border
             annotation.userName = Self.ocrBoxAnnotationName
             page.addAnnotation(annotation)
         }

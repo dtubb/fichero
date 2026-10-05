@@ -23,6 +23,8 @@ struct DocumentOverlay: Equatable {
         /// The segment drawn, and its kind: what the box is called as an accessibility element (#5192).
         var segmentId: String?
         var kind = ""
+        /// The segment it sits in: how a selection lights its children and shows its parent (#5426).
+        var parentSegmentId: String?
         /// Its region's hue and its shade along the reading order (`RegionColours.Tone`); nil draws plain.
         var tone: RegionColours.Tone?
         /// The segment's resolved direction (`SegmentStore`, from the page text), so its inline reading is
@@ -32,22 +34,28 @@ struct DocumentOverlay: Equatable {
 
     var boxes: [Box] = []
 
-    /// Whether any line is drawn: read once per draw, not once per box.
-    var showsLines: Bool { boxes.contains { $0.kind == "line" } }
-
-    /// How strongly a box is drawn, 0...1 (#5284, ruled 2026-10-01): a region under lines is lighter, so
-    /// the page's structure reads without competing with its lines; anything else at full strength.
-    static func strength(ofKind kind: String, linesShown: Bool) -> CGFloat {
-        kind == "line" || !linesShown ? 1 : regionUnderLinesStrength
-    }
-
-    static let regionUnderLinesStrength: CGFloat = 0.4
+    /// The finest level drawn: read once per draw, not once per box. Only it sets its reading inline.
+    var finestLevel: SegmentHierarchy.Level { SegmentHierarchy.finestLevel(boxes.map(\.kind)) }
 
     /// Whether a box of `kind` sets its reading inline (#5411, `source.editor.inline-text-fits-its-box`):
-    /// a region under lines does not -- its words are its lines', and its reading is every line joined,
-    /// which drawn at the region's size ran off the page.
-    static func setsTextInline(kind: String, linesShown: Bool) -> Bool {
-        kind == "line" || !linesShown
+    /// only the finest level drawn does. A region under lines does not -- its words are its lines', and its
+    /// reading is every line joined, which drawn at the region's size ran off the page -- and with every level
+    /// drawn at once (#5426) a line under its words does not set its reading over them.
+    static func setsTextInline(kind: String, finest: SegmentHierarchy.Level) -> Bool {
+        SegmentHierarchy.Level(kind: kind) >= finest
+    }
+
+    /// Each box's emphasis under the selection (`SegmentHierarchy.emphasis`), by segment id: selecting a parent
+    /// lights its children and dims the rest; selecting a child shows its parent. Empty with no selection.
+    var emphasis: [String: SegmentHierarchy.Emphasis] {
+        guard !selectedSegmentIds.isEmpty else { return [:] }
+        var parents: [String: String] = [:]
+        for box in boxes {
+            if let id = box.segmentId, let parent = box.parentSegmentId { parents[id] = parent }
+        }
+        return SegmentHierarchy.emphasis(
+            of: boxes.compactMap(\.segmentId), parents: parents, selected: selectedSegmentIds
+        )
     }
 
     /// The index of the smallest rect containing `point`, or nil (#5411, `source.editor.hover-picks-the-line`):
@@ -83,6 +91,8 @@ struct DocumentOverlay: Equatable {
     /// The selected boxes' rects, normalized. Drawn in the SAME view and pass as the boxes, so a
     /// highlight can never sit a transform away from the box it marks.
     var selected: [[Double]] = []
+    /// The selected boxes' segments: what lights their children and shows their parents (#5426).
+    var selectedSegmentIds: Set<String> = []
     /// Each selected box's shapes, parallel to `selected`: outlined as themselves, and in Edit
     /// Segments given a handle per point and one per side to add a point (Reshape).
     var selectedShapes: [[SegmentShapes.Drawn]] = []

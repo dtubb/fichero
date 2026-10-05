@@ -20,6 +20,9 @@ struct OCRGeometryOverlay: View {
     var drawsInlineText: Bool = true
     /// A box's resolved direction, for its hover label (#5199); nil lays every label out as isolated text.
     var labelDirection: ((OCRGeometryBox) -> String?)?
+    /// The selected segments: selecting a parent lights its children and dims the rest, selecting a child
+    /// shows its parent (`SegmentHierarchy`, #5426). Empty: every box at rest.
+    var selectedSegmentIds: Set<String> = []
 
     /// Draw each word's recognised text INSIDE its box (Daniel, 2026-08-31).
     /// The hover readout answers "what does this ONE box say"; this answers
@@ -30,8 +33,7 @@ struct OCRGeometryOverlay: View {
     @State private var hoverPoint: CGPoint?
     @Environment(\.colorScheme) private var colorScheme
 
-    /// Words when the pass produced them; otherwise regions and lines, the
-    /// regions lighter (#5284). The ladder lives on
+    /// Every level at once, each lighter than its parent (hierarchy A, #5426). The set lives on
     /// `OCRGeometry.displayIndexedBoxes` so the interactive region layer
     /// hit-tests EXACTLY the boxes this canvas draws (2026-08-29).
     private var boxes: [OCRGeometryBox] {
@@ -67,7 +69,8 @@ struct OCRGeometryOverlay: View {
                         .opacity(InlineWordText.plateOpacity)
                     // Nothing to draw at all: no per-tick mapping of every box for nothing.
                     guard drawsBoxes || (inlineTextEnabled && drawsInlineText) else { return }
-                    let linesShown = boxes.contains { $0.level == "line" }
+                    let finest = SegmentHierarchy.finestLevel(boxes.map(\.level))
+                    let emphasis = Self.emphasis(of: boxes, selected: selectedSegmentIds)
                     for box in boxes {
                         guard let rect = BoundingBoxGeometry.viewRect(
                             normalized: box.bbox, in: size, visible: visible
@@ -83,14 +86,24 @@ struct OCRGeometryOverlay: View {
                         // provenance (measured / aligned / interpolated) is a
                         // different one and keeps the channels it has left.
                         let uncertain = OCRBoxConfidence.isUncertain(box)
-                        let strength = DocumentOverlay.strength(ofKind: box.level, linesShown: linesShown)
-                        // The ONE colour path (#5467): the box's region hue and reading-order shade.
+                        // Each level inside its parent and lighter than it (hierarchy A, #5426): the ONE colour
+                        // path (#5467) gives the hue, `SegmentHierarchy` the strength, width and region wash.
+                        let level = SegmentHierarchy.Level(kind: box.level)
+                        let shown = box.segmentId.flatMap { emphasis[$0] } ?? .rest
+                        let hue = box.tone.map { RegionColours.Tone(hue: $0.hue, strength: 1) }
+                        let strength = SegmentHierarchy.strokeOpacity(
+                            level: level, toneStrength: box.tone?.strength ?? 1, emphasis: shown
+                        )
                         let stroke = Color(platformColor: SelectionStyle.regionColour(
-                            box.tone, opacity: OCRBoxConfidence.strokeOpacity(box.confidence) * strength
+                            hue, opacity: OCRBoxConfidence.strokeOpacity(box.confidence) * strength
                         ))
-                        let wash = Color(platformColor: SelectionStyle.regionColour(box.tone, opacity: 0.08))
+                        let wash = Color(platformColor: SelectionStyle.regionColour(
+                            hue, opacity: SegmentHierarchy.washOpacity(level: level, emphasis: shown)
+                        ))
+                        // Only the finest level drawn sets its reading inline (#5411, #5426).
                         let drawsText = drawsInlineText && inlineTextEnabled && !box.text.isEmpty
                             && OCRBoxConfidence.drawsInlineText(box.confidence)
+                            && DocumentOverlay.setsTextInline(kind: box.level, finest: finest)
                         if drawsText {
                             context.fill(path, with: .color(plate))
                         } else if drawsBoxes {
@@ -101,7 +114,7 @@ struct OCRGeometryOverlay: View {
                                 path,
                                 with: .color(stroke),
                                 style: StrokeStyle(
-                                    lineWidth: 1, dash: uncertain ? [3, 2] : []
+                                    lineWidth: SegmentHierarchy.widthFactor(level), dash: uncertain ? [3, 2] : []
                                 )
                             )
                         }
@@ -182,6 +195,18 @@ struct OCRGeometryOverlay: View {
         }
         return DocumentOverlay.smallestContaining(point, in: hits.map { $0.rect.insetBy(dx: -2, dy: -2) })
             .map { hits[$0] }
+    }
+
+    /// Each box's emphasis under `selected`, from the boxes' own parent ids (`SegmentHierarchy.emphasis`).
+    nonisolated static func emphasis(
+        of boxes: [OCRGeometryBox], selected: Set<String>
+    ) -> [String: SegmentHierarchy.Emphasis] {
+        guard !selected.isEmpty else { return [:] }
+        var parents: [String: String] = [:]
+        for box in boxes {
+            if let id = box.segmentId, let parent = box.parentSegmentId { parents[id] = parent }
+        }
+        return SegmentHierarchy.emphasis(of: boxes.compactMap(\.segmentId), parents: parents, selected: selected)
     }
 
     /// What the layer says to VoiceOver. The per-box nodes went away with the
@@ -354,3 +379,42 @@ private enum InlineWordText {
         min(max(value, minFontSize), maxFontSize)
     }
 }
+
+#if DEBUG
+/// A page of two regions, the first holding three lines and the first line its words (#5426): every level at
+/// once, each inside its parent and lighter than it.
+private func hierarchyFixture() -> OCRGeometry {
+    func box(_ id: String, _ kind: String, _ bbox: [Double], parent: String?, _ tone: RegionColours.Tone) -> OCRGeometryBox {
+        var box = OCRGeometryBox(text: id, bbox: bbox, level: kind, confidence: nil)
+        box.segmentId = id
+        box.parentSegmentId = parent
+        box.tone = tone
+        return box
+    }
+    let body = RegionColours.Tone(hue: 0, strength: 1)
+    return OCRGeometry(text: "", provider: "preview", model: nil, boxes: [
+        box("body", "region", [0.05, 0.05, 0.9, 0.5], parent: nil, body),
+        box("line 1", "line", [0.08, 0.08, 0.84, 0.12], parent: "body", body),
+        box("line 2", "line", [0.08, 0.24, 0.84, 0.12], parent: "body", .init(hue: 0, strength: 0.725)),
+        box("line 3", "line", [0.08, 0.40, 0.84, 0.12], parent: "body", .init(hue: 0, strength: 0.45)),
+        box("In", "word", [0.10, 0.09, 0.15, 0.10], parent: "line 1", body),
+        box("the", "word", [0.28, 0.09, 0.15, 0.10], parent: "line 1", body),
+        box("note", "region", [0.05, 0.65, 0.9, 0.25], parent: nil, .init(hue: 1, strength: 1)),
+        box("note line", "line", [0.08, 0.70, 0.84, 0.15], parent: "note", .init(hue: 1, strength: 1))
+    ], renditionId: nil)
+}
+
+#Preview("Hierarchy: region, lines, words") {
+    OCRGeometryOverlay(geometry: hierarchyFixture(), visible: CGRect(x: 0, y: 0, width: 1, height: 1))
+        .frame(width: 400, height: 300)
+        .background(.background)
+}
+
+#Preview("Hierarchy: the first region selected") {
+    OCRGeometryOverlay(
+        geometry: hierarchyFixture(), visible: CGRect(x: 0, y: 0, width: 1, height: 1), selectedSegmentIds: ["body"]
+    )
+    .frame(width: 400, height: 300)
+    .background(.background)
+}
+#endif

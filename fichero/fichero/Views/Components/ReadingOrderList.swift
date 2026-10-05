@@ -20,6 +20,9 @@ struct ReadingOrderList: View {
     var rowLabel: ((String, Int) -> String)?
     /// The ids a row click or double-click wrote into the focused selection: the Inspector's hold (#5424).
     var onSelected: (([String]) -> Void)?
+    /// The Segments pane's: each row holds its children, nested (a region its lines, a line its words), with
+    /// the swatch of the colour its box is drawn in (hierarchy A, #5426). The Inspector's list stays one level.
+    var nests = false
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
     @Environment(SegmentService.self) private var segmentService: SegmentService?
@@ -32,7 +35,7 @@ struct ReadingOrderList: View {
     init(
         documentId: String, parentSegmentId: String? = nil, hidesWhenEmpty: Bool = false,
         store: ReadingOrderStore? = nil, onOpen: ((String) -> Void)? = nil, opens: ((String) -> Bool)? = nil,
-        rowLabel: ((String, Int) -> String)? = nil, onSelected: (([String]) -> Void)? = nil
+        rowLabel: ((String, Int) -> String)? = nil, onSelected: (([String]) -> Void)? = nil, nests: Bool = false
     ) {
         self.documentId = documentId
         self.parentSegmentId = parentSegmentId
@@ -41,6 +44,7 @@ struct ReadingOrderList: View {
         self.opens = opens
         self.rowLabel = rowLabel
         self.onSelected = onSelected
+        self.nests = nests
         // A store handed in (a preview's, over a fixture transport) is used as is; otherwise the
         // library's service makes one.
         _store = State(initialValue: store)
@@ -60,10 +64,10 @@ struct ReadingOrderList: View {
                 Divider()
             }
             if let store, !store.shown.isEmpty {
+                let nested = nestedRows(top: store.shown.map(\.segmentId))
                 List(selection: $selection) {
                     ForEach(Array(store.shown.enumerated()), id: \.element.segmentId) { index, entry in
-                        row(entry.segmentId, at: index)
-                            .tag(entry.segmentId)
+                        entryRow(entry.segmentId, at: index, nesting: nested)
                     }
                     .onMove { offsets, destination in
                         guard let from = offsets.first else { return }
@@ -150,9 +154,10 @@ struct ReadingOrderList: View {
     /// verb that gives it an order. No move keys: there is no order to move in.
     private func unordered(_ ids: [String]) -> some View {
         VStack(spacing: 0) {
+            let nested = nestedRows(top: ids)
             List(selection: $selection) {
                 ForEach(Array(ids.enumerated()), id: \.element) { index, segmentId in
-                    row(segmentId, at: index).tag(segmentId)
+                    entryRow(segmentId, at: index, nesting: nested)
                 }
             }
             .contextMenu(forSelectionType: String.self, menu: { _ in EmptyView() }, primaryAction: reveal)
@@ -199,6 +204,33 @@ struct ReadingOrderList: View {
         }
     }
 
+    /// What the nested rows hold and the tones their swatches take, made ONCE per list from the working pass's
+    /// segments (per row it would be quadratic on a page of thousands of lines). Nil when the list does not nest.
+    private func nestedRows(top: [String]) -> (rows: [String: SegmentsPane.OutlineRow], tones: [String: RegionColours.Tone])? {
+        guard nests, let segmentService else { return nil }
+        let segments = SegmentStore.shared(for: segmentService).workingSegments(documentId: documentId)
+        let rows = SegmentsPane.outline(segments, top: top)
+        return (Dictionary(rows.map { ($0.segmentId, $0) }, uniquingKeysWith: { first, _ in first }),
+                RegionColours.tones(of: segments))
+    }
+
+    /// A row of the level shown: flat, or -- nesting -- holding its children (`SegmentsPane.outline`), each
+    /// with its swatch. Rows are keyed by segment id, so a segment event redraws its row, never the list.
+    @ViewBuilder
+    private func entryRow(
+        _ segmentId: String, at index: Int,
+        nesting: (rows: [String: SegmentsPane.OutlineRow], tones: [String: RegionColours.Tone])?
+    ) -> some View {
+        if let nesting, let node = nesting.rows[segmentId] {
+            SegmentOutlineRow(
+                node: node, index: index, tones: nesting.tones,
+                content: { id, position in AnyView(row(id, at: position)) }
+            )
+        } else {
+            row(segmentId, at: index).tag(segmentId)
+        }
+    }
+
     /// A row: its words, and -- in the Segments pane -- a control that opens it to its children.
     private func row(_ segmentId: String, at index: Int) -> some View {
         HStack {
@@ -210,7 +242,7 @@ struct ReadingOrderList: View {
                 Spacer(minLength: 4)
                 FlaggedLineMark(line: line)
             }
-            if let onOpen, opens?(segmentId) ?? false {
+            if !nests, let onOpen, opens?(segmentId) ?? false {
                 Spacer(minLength: 4)
                 Button { onOpen(segmentId) } label: {
                     Image(systemName: "chevron.right")
@@ -277,6 +309,56 @@ struct ReadingOrderList: View {
     }
 }
 
+/// One row of the nested Segments list (hierarchy A, #5426, `source.editor.hierarchy.segments-list-nests`): the
+/// swatch of the colour its box is drawn in (`SelectionStyle.regionSwatch`, the one colour path), its words, and
+/// its children disclosed under it, indented -- a region open on its lines, a line closed on its words.
+struct SegmentOutlineRow: View {
+    let node: SegmentsPane.OutlineRow
+    let index: Int
+    let tones: [String: RegionColours.Tone]
+    /// The list's own row for an id (its words, its flag).
+    let content: (String, Int) -> AnyView
+
+    @State private var expanded: Bool
+
+    init(
+        node: SegmentsPane.OutlineRow, index: Int, tones: [String: RegionColours.Tone],
+        content: @escaping (String, Int) -> AnyView
+    ) {
+        self.node = node
+        self.index = index
+        self.tones = tones
+        self.content = content
+        // A region shows its lines; a line keeps its words until asked.
+        _expanded = State(initialValue: SegmentHierarchy.Level(kind: node.kind) == .region)
+    }
+
+    var body: some View {
+        if node.children.isEmpty {
+            labelled
+        } else {
+            DisclosureGroup(isExpanded: $expanded) {
+                ForEach(Array(node.children.enumerated()), id: \.element.id) { position, child in
+                    SegmentOutlineRow(node: child, index: position, tones: tones, content: content)
+                }
+            } label: {
+                labelled
+            }
+        }
+    }
+
+    private var labelled: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(SelectionStyle.regionSwatch(tones[node.segmentId]))
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+            content(node.segmentId, index)
+        }
+        .tag(node.segmentId)
+    }
+}
+
 /// The list's ⌥⌘ keys, claimed only while the list has focus. `.keyboardShortcut` on a button is
 /// WINDOW-wide: with the list showing a selection, ⌥⌘↑ pressed in the Reader moved the list's row
 /// instead of the Reader's caret line. Nil detaches the shortcut; the buttons still work by click.
@@ -306,6 +388,30 @@ private final class PreviewOrderTransport: ReadingOrderTransport {
 #Preview("A page's order") {
     ReadingOrderList(documentId: "page-1", store: ReadingOrderStore(transport: PreviewOrderTransport()))
         .frame(width: 320, height: 260)
+}
+
+#Preview("Nested: a region, its lines, a line's words") {
+    let words = ["In", "the", "beginning"].map { SegmentsPane.OutlineRow(segmentId: $0, kind: "word", children: []) }
+    let lines = (1...3).map {
+        SegmentsPane.OutlineRow(segmentId: "line \($0)", kind: "line", children: $0 == 1 ? words : [])
+    }
+    let regions = [
+        SegmentsPane.OutlineRow(segmentId: "body", kind: "region", children: lines),
+        SegmentsPane.OutlineRow(segmentId: "marginal note", kind: "region", children: [])
+    ]
+    // The region at full strength, its lines shaded along the order, the first line's words in its shade.
+    let tones: [String: RegionColours.Tone] = [
+        "body": .init(hue: 0, strength: 1), "marginal note": .init(hue: 1, strength: 1),
+        "line 1": .init(hue: 0, strength: 1), "line 2": .init(hue: 0, strength: 0.725),
+        "line 3": .init(hue: 0, strength: 0.45),
+        "In": .init(hue: 0, strength: 1), "the": .init(hue: 0, strength: 1), "beginning": .init(hue: 0, strength: 1)
+    ]
+    return List {
+        ForEach(Array(regions.enumerated()), id: \.element.id) { index, region in
+            SegmentOutlineRow(node: region, index: index, tones: tones, content: { id, _ in AnyView(Text(id)) })
+        }
+    }
+    .frame(width: 320, height: 300)
 }
 
 #Preview("A block's lines") {

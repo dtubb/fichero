@@ -75,10 +75,12 @@ struct PreviewVerticalPageTests {
 
     @Test("inline-text-fits-its-box: a region under lines sets no text; alone, or a line, it does")
     func regionUnderLinesSetsNoText() {
-        #expect(!DocumentOverlay.setsTextInline(kind: "region", linesShown: true))
-        #expect(DocumentOverlay.setsTextInline(kind: "line", linesShown: true))
-        #expect(DocumentOverlay.setsTextInline(kind: "region", linesShown: false))
-        #expect(DocumentOverlay.setsTextInline(kind: "word", linesShown: false))
+        #expect(!DocumentOverlay.setsTextInline(kind: "region", finest: .line))
+        #expect(DocumentOverlay.setsTextInline(kind: "line", finest: .line))
+        #expect(DocumentOverlay.setsTextInline(kind: "region", finest: .region))
+        #expect(DocumentOverlay.setsTextInline(kind: "word", finest: .word))
+        // Hierarchy A (#5426): with words drawn too, a line no longer sets its reading over its own words.
+        #expect(!DocumentOverlay.setsTextInline(kind: "line", finest: .word))
     }
 
     // MARK: source.editor.hover-picks-the-line

@@ -21,22 +21,20 @@ struct RegionsUnderLinesTests {
         #expect(shown.filter { $0.box.level == "region" }.count == 2)
     }
 
-    @Test("words still take over when the page has them")
-    func wordsTakeOver() {
+    // Superseded 2026-10-05 (hierarchy A, #5426): words no longer take over -- a page with words draws its
+    // regions and lines under them -- and a region is no longer faded under its lines: each child is drawn
+    // lighter than its PARENT. Pinned now by `SegmentHierarchyTests`, through the store.
+    @Test("words no longer hide the lines and regions they sit in")
+    func wordsKeepTheirParents() {
         let geometry = OCRGeometry(text: "", provider: "ocr", model: nil,
                                    boxes: [box("region", 0.1), box("line", 0.1), box("word", 0.1), box("word", 0.2)])
-        #expect(geometry.displayIndexedBoxes.map(\.index) == [2, 3])
+        #expect(geometry.displayIndexedBoxes.map(\.index) == [0, 1, 2, 3])
     }
 
-    @Test("a region is drawn lighter than the lines over it, and at full strength alone")
-    func regionsLighter() {
-        let region = DocumentOverlay.Box(bbox: [0.1, 0.1, 0.5, 0.3], confidence: nil, kind: "region")
-        let line = DocumentOverlay.Box(bbox: [0.1, 0.1, 0.5, 0.05], confidence: nil, kind: "line")
-        let both = DocumentOverlay(boxes: [region, line])
-        #expect(both.showsLines)
-        #expect(DocumentOverlay.strength(ofKind: region.kind, linesShown: both.showsLines) < 1)
-        #expect(DocumentOverlay.strength(ofKind: line.kind, linesShown: both.showsLines) == 1)
-        let alone = DocumentOverlay(boxes: [region])
-        #expect(DocumentOverlay.strength(ofKind: region.kind, linesShown: alone.showsLines) == 1, "a page of regions alone is not faded")
+    @Test("a line is drawn lighter than its region, and a region alone at full strength")
+    func linesLighterThanTheirRegion() {
+        #expect(SegmentHierarchy.strokeOpacity(level: .line, toneStrength: 1)
+            < SegmentHierarchy.strokeOpacity(level: .region, toneStrength: 1))
+        #expect(SegmentHierarchy.strokeOpacity(level: .region, toneStrength: 1) == 1, "a region is not faded")
     }
 }

@@ -39,6 +39,10 @@ struct OCRGeometryBox: Codable, Hashable, Identifiable {
     /// The segment this box draws, when it comes from a segment pass (`SegmentDisplay.geometry`): the id a
     /// drawn box is known by from outside the app (`SegmentBox-<id>`, #5192). Not part of the artifact wire format.
     var segmentId: String?
+    /// The segment this one sits in (`Segment.parentSegmentId`): how a child is drawn as its parent's child and a
+    /// selection lights its children (`SegmentHierarchy`, #5426). Nil for a flat pass and for artifact geometry.
+    /// Not part of the artifact wire format.
+    var parentSegmentId: String?
     /// Its region's hue and its shade along the reading order (`RegionColours.tones`), from a segment pass;
     /// nil for artifact geometry, which is drawn in the plain box colour. Not part of the artifact wire format.
     var tone: RegionColours.Tone?
@@ -89,15 +93,13 @@ struct OCRGeometry: Codable, Hashable {
     /// the display set must carry it — filtering first and enumerating after
     /// would renumber every box.
     ///
-    /// Words when the pass produced them; otherwise every box -- a page's
-    /// regions AND its lines (#5284, ruled 2026-10-01; the overlay draws the
-    /// regions lighter). The old middle rung, lines only, hid a page's regions
-    /// the moment it had lines, a rule from before regions and lines were
-    /// segments of one page.
+    /// EVERY level at once: regions, lines, words and letters (ruled 2026-10-05, hierarchy A, #5426,
+    /// `source.editor.hierarchy.children-drawn-as-children`). A finer level never hides its parents: a page
+    /// with words still draws its lines and regions under them, each lighter than its parent
+    /// (`SegmentHierarchy`). The old ladder -- words only when the page had words -- made a page's lines and
+    /// regions vanish the moment it had words; its older middle rung hid regions under lines (#5284).
     var displayIndexedBoxes: [(index: Int, box: OCRGeometryBox)] {
-        let indexed = boxes.enumerated().map { (index: $0.offset, box: $0.element) }
-        let words = indexed.filter { $0.box.level == "word" }
-        return words.isEmpty ? indexed : words
+        boxes.enumerated().map { (index: $0.offset, box: $0.element) }
     }
 
     enum CodingKeys: String, CodingKey {

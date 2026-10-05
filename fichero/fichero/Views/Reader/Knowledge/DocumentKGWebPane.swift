@@ -182,6 +182,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         context.coordinator.library = libraryManager.library(atPath: libraryPath)
         context.coordinator.windowState = windowState
         context.coordinator.syncSelectedLines(into: webView)
+        context.coordinator.syncRegionRules(into: webView)
         context.coordinator.injectContext(into: webView)
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)

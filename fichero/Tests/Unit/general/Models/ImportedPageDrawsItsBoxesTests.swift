@@ -711,8 +711,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
     }
 
     /// The Segments pane, hosted the same way (`SegmentsPaneView` in the library window's tree), lists the
-    /// recorded page's four regions -- rows, not a spinner. Breaks if the pane cannot reach its order
-    /// service in the window again.
+    /// recorded page's four regions -- rows, not a spinner -- each open on its lines, indented under it (hierarchy
+    /// A, #5426, `segments-list-nests`): 4 region rows and their 12 line rows; the lines' words stay closed.
+    /// Breaks if the pane cannot reach its order service in the window again, or the list goes back to one level.
     func testTheRealSegmentsPaneInTheLibraryWindowsTreeListsThePagesRows() async throws {
         let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
             contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.reading-order.json")
@@ -729,10 +730,10 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         for _ in 0..<500 {
             root.layoutSubtreeIfNeeded()
             rows = Self.firstSubview(NSTableView.self, in: root)?.numberOfRows ?? 0
-            if rows == 4 { break }
+            if rows == 16 { break }
             try await Task.sleep(nanoseconds: 20_000_000)
         }
-        XCTAssertEqual(rows, 4, "the page's four regions, as rows")
+        XCTAssertEqual(rows, 16, "the page's four regions, as rows, each with its lines under it")
     }
 
     /// #5152: the boxes drew but a click selected nothing, because a click needs a selection scope

@@ -202,24 +202,40 @@ final class DocumentOverlayView: NSView {
         }
     }
 
-    /// Every box THIN, in its region's hue shaded along the reading order (#5207, #5426): an outline and its
-    /// baseline, no fill at rest -- the fill is hover's and selection's.
+    /// Every level at once, each inside its parent and lighter than it (ruled 2026-10-05, hierarchy A, #5426):
+    /// a region as a faint wash of its hue and a thin outline, its lines as thin outlines in their reading-order
+    /// shade, words and letters as hairlines in their line's shade (`SegmentHierarchy`). A selection lights its
+    /// children, shows its parent at full strength and dims the rest. Only a region fills at rest; hover and
+    /// selection keep their own look (#5207).
     private func drawBoxes(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, line: CGFloat) {
-        let linesShown = overlay.showsLines
+        let finest = overlay.finestLevel
+        let emphasis = overlay.emphasis
         for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
-            // A region under lines is lighter (#5284).
-            let strength = DocumentOverlay.strength(ofKind: box.kind, linesShown: linesShown)
-            let colour = { (opacity: CGFloat) in SelectionStyle.regionColour(box.tone, opacity: opacity * strength) }
-            // A region under lines sets no reading of its own: its lines carry it (#5411).
+            let level = SegmentHierarchy.Level(kind: box.kind)
+            let shown = box.segmentId.flatMap { emphasis[$0] } ?? .rest
+            let strength = CGFloat(SegmentHierarchy.strokeOpacity(
+                level: level, toneStrength: box.tone?.strength ?? 1, emphasis: shown
+            ))
+            // The tone carries the hue; its own strength is already in `strength`, so it is applied at 1 here.
+            let hue = box.tone.map { RegionColours.Tone(hue: $0.hue, strength: 1) }
+            let colour = { (opacity: CGFloat) in SelectionStyle.regionColour(hue, opacity: opacity * strength) }
+            let width = line * CGFloat(SegmentHierarchy.widthFactor(level))
+            let wash = SegmentHierarchy.washOpacity(level: level, emphasis: shown)
+            if wash > 0, box.shapes.isEmpty {
+                SelectionStyle.regionColour(hue, opacity: CGFloat(wash)).setFill()
+                NSBezierPath(rect: rect).fill()
+            }
+            // Only the finest level drawn sets its reading inline (#5411, #5426).
             let setsText = box.showsText && !box.text.isEmpty
-                && DocumentOverlay.setsTextInline(kind: box.kind, linesShown: linesShown)
+                && DocumentOverlay.setsTextInline(kind: box.kind, finest: finest)
             // A segment with its own shapes is drawn AS them -- the outline its file drew, the baseline
             // under its ink -- never as the box around them (#5163's residue).
             if !box.shapes.isEmpty, !setsText {
                 ShapeDrawing.draw(box.shapes, imageRect: imageRect, scale: scale, look: .init(
-                    line: line,
+                    line: width,
                     stroke: colour(OCRBoxConfidence.strokeOpacity(box.confidence)),
-                    wash: .clear,
+                    // A region drawn as its outline keeps its faint wash, inside the outline.
+                    wash: wash > 0 ? SelectionStyle.regionColour(hue, opacity: CGFloat(wash)) : .clear,
                     dashed: box.noReading || OCRBoxConfidence.isUncertain(box.confidence)
                 ))
                 continue
@@ -228,7 +244,7 @@ final class DocumentOverlayView: NSView {
                 // No reading yet: hollow and dashed, never hidden, so it can be seen, picked and typed.
                 let hollow = NSBezierPath(rect: rect)
                 colour(1).setStroke()
-                hollow.lineWidth = line
+                hollow.lineWidth = width
                 hollow.setLineDash([4 / scale, 3 / scale], count: 2, phase: 0)
                 hollow.stroke()
                 continue
@@ -241,7 +257,7 @@ final class DocumentOverlayView: NSView {
                 InlineWords.draw(box.text, direction: box.direction, in: rect)
             }
             colour(OCRBoxConfidence.strokeOpacity(box.confidence)).setStroke()
-            path.lineWidth = line
+            path.lineWidth = width
             if OCRBoxConfidence.isUncertain(box.confidence) {
                 path.setLineDash([3 / scale, 2 / scale], count: 2, phase: 0)
             }

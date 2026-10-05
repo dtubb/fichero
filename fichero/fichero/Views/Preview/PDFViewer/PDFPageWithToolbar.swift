@@ -279,10 +279,10 @@ struct PDFPageWithToolbar: View {
     /// in one place (#4418). Empty whenever the toggle is off.
     private var drawableOCRBoxes: [OCRGeometryBox] {
         guard ocrBoxesEnabled, let ocrGeometry else { return [] }
-        let words = ocrGeometry.wordBoxes
-        let level = words.isEmpty ? ocrGeometry.lineBoxes : words
+        // Every level at once, each lighter than its parent (hierarchy A, #5426): a page with words still
+        // draws its lines and regions under them, as on an image.
         return Self.boxesForDisplayedPage(
-            level,
+            ocrGeometry.displayIndexedBoxes.map(\.box),
             pageIndex: effectivePageIndex,
             isPageScoped: paneGeometryDocumentId != nil
         )
