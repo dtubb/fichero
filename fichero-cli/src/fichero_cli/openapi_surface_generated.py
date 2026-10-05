@@ -2866,6 +2866,7 @@ def register_generated_openapi_commands(
     @target_app.command("verdicts-on-a-proposal-or-of-a-run")
     def check_verdicts_on_a_proposal_or_of_a_run_get(
         ctx: typer.Context,
+        document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
         layer: Optional[str] = typer.Option(None, "--layer", help="Query parameter: layer."),
         run_id: Optional[str] = typer.Option(None, "--run-id", help="Query parameter: run_id."),
         target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
@@ -2874,6 +2875,7 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/check/verdicts"
             params = {
+                "document_id": document_id,
                 "layer": layer,
                 "run_id": run_id,
                 "target_id": target_id,

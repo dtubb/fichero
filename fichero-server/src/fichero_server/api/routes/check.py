@@ -109,8 +109,12 @@ async def record_verdict(
 @router.get("/verdicts", summary="Verdicts on a proposal, or of a run")
 async def list_verdicts(
     target_id: str | None = Query(None), run_id: str | None = Query(None), layer: str | None = Query(None),
+    document_id: str | None = Query(None, description="one page's verdicts (a page view never reads the library's)"),
     db: Database = Depends(get_library_database),
 ) -> dict[str, Any]:
-    filters = {k: v for k, v in {"target_id": target_id, "run_id": run_id, "layer": layer}.items() if v}
+    filters = {
+        k: v for k, v in {"target_id": target_id, "run_id": run_id, "layer": layer, "document_id": document_id}.items()
+        if v
+    }
     rows = sorted(db.query(CheckVerdict, **filters), key=lambda v: (v.created_at, v.id))
     return {"items": [v.model_dump(mode="json") for v in rows], "count": len(rows)}

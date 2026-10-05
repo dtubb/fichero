@@ -1984,6 +1984,11 @@
         "path_params": [],
         "query_params": [
           {
+            "name": "document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "layer",
             "required": false,
             "type": "string"

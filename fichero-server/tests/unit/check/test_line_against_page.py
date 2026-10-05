@@ -249,3 +249,23 @@ def test_the_rough_read_goes_through_the_kraken_seam(monkeypatch):
     assert kraken_runtime.read_given_lines("/x.png", "/m.mlmodel", lines) == ["read"] and len(called) == 1
     assert kraken_runtime.read_given_lines("/x.png", "/m.mlmodel", [{"id": "l2", "baseline": [], "polygon": []}]) == [""]
     assert len(called) == 1
+
+
+def test_verdicts_filter_to_one_page(client, db, folder, reader):
+    """WHY: the app reads a page's flags with `document_id`; without the filter a page view reads every
+    verdict in the library, which an archive of tens of thousands of pages can't afford."""
+    picked = {}
+
+    def plan(lines):
+        m = picked.setdefault("m", _poor_at(lines, 0))
+        return {m: lines[m]["text"][:3]}
+
+    reader.plan = plan
+    _run(client, db, folder)
+    every = client.get("/api/check/verdicts", params={"layer": "readings"}).json()["items"]
+    assert every
+    page = every[0]["document_id"]
+    one = client.get("/api/check/verdicts", params={"layer": "readings", "document_id": page}).json()["items"]
+    assert one and all(v["document_id"] == page for v in one)
+    none = client.get("/api/check/verdicts", params={"layer": "readings", "document_id": "no-such-page"}).json()
+    assert none["items"] == [] and none["count"] == 0

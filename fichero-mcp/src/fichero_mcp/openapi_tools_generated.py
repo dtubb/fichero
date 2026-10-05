@@ -1342,12 +1342,13 @@ def fichero_check_cancel_run(
 
 def fichero_check_list_verdicts(
     *,
+    document_id: Annotated[Optional[str], Field(description="one page's verdicts (a page view never reads the library's)")] = None,
     layer: Annotated[Optional[str], Field(description='Layer')] = None,
     run_id: Annotated[Optional[str], Field(description='Run Id')] = None,
     target_id: Annotated[Optional[str], Field(description='Target Id')] = None,
 ) -> Any:
     'Verdicts on a proposal, or of a run\n\nRoute: GET /api/check/verdicts (toolset `check`; reads).'
-    return _rt.call("GET", "/api/check/verdicts", params={"layer": layer, "run_id": run_id, "target_id": target_id})
+    return _rt.call("GET", "/api/check/verdicts", params={"document_id": document_id, "layer": layer, "run_id": run_id, "target_id": target_id})
 
 
 def fichero_check_record_verdict(

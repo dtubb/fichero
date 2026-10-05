@@ -46,7 +46,7 @@ final class FlaggedLineStore {
         if !force, flagsByDocument[documentId] != nil { return }
         do {
             let decoder = JSONDecoder()
-            let verdicts = try decoder.decode(FlaggedLines.VerdictList.self, from: try await transport.readingVerdicts()).items
+            let verdicts = try decoder.decode(FlaggedLines.VerdictList.self, from: try await transport.readingVerdicts(documentId: documentId)).items
             for runId in FlaggedLines.runIds(verdicts, documentId: documentId) where runs[runId] == nil {
                 // A run that is not the teacher-line check (no `flagged` list) or cannot be read flags nothing.
                 guard let data = try? await transport.run(id: runId),

@@ -6311,6 +6311,18 @@
               "nullable": true,
               "title": "Layer"
             }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "one page's verdicts (a page view never reads the library's)",
+              "title": "Document Id"
+            },
+            "description": "one page's verdicts (a page view never reads the library's)"
           }
         ],
         "responses": {

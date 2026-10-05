@@ -6,7 +6,7 @@ import Foundation
 @MainActor
 protocol FlaggedLineTransport: AnyObject {
     /// `GET /api/check/verdicts?layer=readings`.
-    func readingVerdicts() async throws -> Data
+    func readingVerdicts(documentId: String) async throws -> Data
     /// `GET /api/check/runs/{id}`.
     func run(id: String) async throws -> Data
     /// `POST /api/check/verdicts`: a person's confirm of one reading of one line.
@@ -24,10 +24,11 @@ final class CheckService: FlaggedLineTransport {
         self.client = client
     }
 
-    func readingVerdicts() async throws -> Data {
-        // ponytail: the route has no page filter, so every reading verdict in the library is read and the
-        // page's are picked out in `FlaggedLines`; a `document_id` query when libraries hold many checks.
-        let response = try await client.api.listVerdictsApiCheckVerdictsGet(query: .init(layer: "readings"))
+    func readingVerdicts(documentId: String) async throws -> Data {
+        // One page's verdicts only: a page view never reads the whole library's (an archive holds many).
+        let response = try await client.api.listVerdictsApiCheckVerdictsGet(
+            query: .init(layer: "readings", documentId: documentId)
+        )
         switch response {
         case .ok(let okResponse):
             return try JSONEncoder().encode(okResponse.body.json)

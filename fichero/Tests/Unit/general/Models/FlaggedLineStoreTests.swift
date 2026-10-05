@@ -22,7 +22,7 @@ struct FlaggedLineStoreTests {
             self.runs = runs
         }
 
-        func readingVerdicts() async throws -> Data { Data(verdicts.utf8) }
+        func readingVerdicts(documentId: String) async throws -> Data { Data(verdicts.utf8) }
 
         func run(id: String) async throws -> Data {
             runReads += 1
