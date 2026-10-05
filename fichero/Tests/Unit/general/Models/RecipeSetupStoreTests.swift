@@ -87,14 +87,14 @@ struct RecipeSetupStoreTests {
             RecipesMockURLProtocol.lastBody = (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:]
             return Self.reply(request, 200, Self.recipeJSON)
         }
-        store.purpose = "transcribe"
+        store.purposes = ["transcribe"]
         store.languages = ["es"]
         store.scripts = ["Latn"]
         store.pages = 1200
 
         await store.assemble()
 
-        #expect(RecipesMockURLProtocol.lastBody["purpose"] as? String == "transcribe")
+        #expect(RecipesMockURLProtocol.lastBody["purposes"] as? [String] == ["transcribe"])
         #expect(RecipesMockURLProtocol.lastBody["languages"] as? [String] == ["es"])
         #expect(RecipesMockURLProtocol.lastBody["scripts"] as? [String] == ["Latn"])
         #expect(RecipesMockURLProtocol.lastBody["pages"] as? Int == 1200)
@@ -236,9 +236,9 @@ struct RecipeSetupStoreTests {
         await store.loadPurposes()
         await store.loadPurposes()
 
-        #expect(store.purposes.map(\.id) == ["transcribe", "not-sure"])
-        #expect(store.purposes.first?.description == "Lines and readings.")
-        #expect(store.purposes.map(\.runsByItself) == [true, false])
+        #expect(store.purposeOptions.map(\.id) == ["transcribe", "not-sure"])
+        #expect(store.purposeOptions.first?.description == "Lines and readings.")
+        #expect(store.purposeOptions.map(\.runsByItself) == [true, false])
         #expect(RecipesMockURLProtocol.calls == 1, "the list is loaded once and kept")
     }
 
@@ -300,10 +300,10 @@ struct RecipeSetupStoreTests {
 
         await store.loadSaved()
 
-        #expect(store.purpose == "entities")
+        #expect(store.purposes == ["entities"], "a project saved with one purpose reads as a list of one")
         #expect(store.languages == ["es", "la"])
         #expect(store.scripts == ["Latn"])
-        #expect(store.material == "print")
+        #expect(store.materials == ["print"])
         #expect(store.pages == 40)
         #expect(store.cloudAllowed)
         #expect(store.ingestMode == .copy)
@@ -320,7 +320,7 @@ struct RecipeSetupStoreTests {
 
         await store.loadSaved()
 
-        #expect(store.purpose == "transcribe")
+        #expect(store.purposes == ["transcribe"])
         #expect(store.ingestMode == .link)
         #expect(store.recipe == nil)
         #expect(store.errorMessage == nil)
@@ -351,7 +351,7 @@ struct RecipeSetupStoreTests {
 
         #expect(saved)
         let answers = try #require(RecipesMockURLProtocol.lastBody["answers"] as? [String: Any])
-        #expect(answers["purpose"] as? String == "transcribe")
+        #expect(answers["purposes"] as? [String] == ["transcribe"])
         #expect(answers["languages"] as? [String] == ["es"])
         #expect(answers["scripts"] as? [String] == ["Latn"])
         #expect(answers["cloud_allowed"] as? Bool == false)

@@ -41,7 +41,7 @@ struct FileMenuCommands: View {
             // A window-scoped action is now a PREFERENCE (it creates in-place,
             // #4062), never a precondition; without one, the app-scoped
             // fallback does the same work and opens a window to show it.
-            Button("New Library...") {
+            Button("Set Up New Project…") {
                 if let newLibraryAction {
                     newLibraryAction.run()
                 } else {
@@ -299,36 +299,12 @@ struct FileMenuCommands: View {
 // private environment properties above.
 private extension FileMenuCommands {
 
-    /// New Library… with NO key window (#4530). Same panel and same on-disk
-    /// naming as the in-window path (both go through `NewLibraryPanel`), but
-    /// since there is no window to switch in place, it opens one to show the
-    /// result — `initializeWindow` picks the library up from `currentLibraryId`,
-    /// which `createNewLibrary` has already set.
-    ///
-    /// A failed save does NOT open a window: a blank window is a worse answer
-    /// than the error, and the library reference stays in the open set for the
-    /// user to retry via Save Library As.
+    /// Set Up New Project… with NO key window (#4530, #5482): open a window and have it present
+    /// setup from Where it lives, the same setup the in-window path opens.
     private func createLibraryAtAppScope() {
-        #if os(macOS)
-        let savePanel = NewLibraryPanel.makeSavePanel()
-        guard savePanel.runModal() == .OK, let url = savePanel.url else { return }
-        let finalURL = NewLibraryPanel.resolvedLibraryURL(for: url)
-        guard NewLibraryPanel.confirmSyncedLocationIfNeeded(at: finalURL) else {
-            createLibraryAtAppScope()  // reopen the panel — the user chose to relocate
-            return
-        }
-
-        do {
-            let newLibrary = try libraryManager.createProject(at: finalURL)
-            libraryManager.currentLibraryId = newLibrary.id
-            NewLibraryPanel.noteChosenDirectory(forLibraryAt: finalURL)
-            openWindow(id: "main")
-            logger.info("Created new library at app scope: \(finalURL.lastPathComponent)")
-        } catch {
-            logger.error("Failed to create new library at app scope: \(error.localizedDescription)")
-            NewLibraryPanel.presentCreateFailure(error, at: finalURL)
-        }
-        #endif
+        libraryManager.newProjectSetUpRequested = true
+        openWindow(id: "main")
+        logger.info("Set Up New Project… at app scope: opening a window for setup")
     }
 
     /// Open… with NO key window (#4530). The in-window path uses

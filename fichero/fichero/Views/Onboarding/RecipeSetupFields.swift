@@ -2,77 +2,142 @@ import FicheroAPIClient
 import SwiftUI
 import UniformTypeIdentifiers
 
-// The recipe screens of first run (`FirstRunStep.setUpSteps`, in the spec's order),
-// as subviews `FirstRunWindow` hosts, so first run and the Inspector's Set Up…
-// are one flow (`source.onboard.purpose-first`, `source.onboard.widget-and-search`,
-// `source.onboard.five-questions`, `source.onboard.proposes-chain`). A form with
-// search, not a conversation; the answers stay on the store; nothing runs here.
+// Setup's first four screens (section 7b), as subviews `FirstRunWindow` hosts, so first run,
+// Set Up New Project… and Set Up… are one flow (`source.onboard.where-it-lives`,
+// `source.onboard.purpose-first`, `source.onboard.widget-and-search`,
+// `source.onboard.five-questions`). A form with search, not a conversation; the answers stay
+// on the project's store; nothing runs here. No disclosure anywhere (#5481).
 
-/// Step "Purpose": what the person is doing, in plain words, each purpose with
-/// the engine's own description (`GET /api/recipes/purposes`).
+/// Screen 1, "Where it lives" (#5482): the name, and Inside Fichero (the default) or a folder
+/// the person chooses. A place that cannot be written is refused here in words.
+struct SetupWhereItLivesFields: View {
+    @Bindable var store: NewProjectStore
+    @State private var choosingFolder = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LabeledContent("Name") {
+                TextField("Name", text: $store.name, prompt: Text("My Project"))
+                    .labelsHidden()
+                    .disabled(store.created != nil)
+            }
+            Picker("Where it lives", selection: placeChoice) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Inside Fichero")
+                    Text("Fichero keeps it in its own folder and looks after it for you.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .tag(false)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Choose a location…")
+                    Text(chosenFolderText).font(.caption).foregroundStyle(.secondary)
+                }
+                .tag(true)
+            }
+            .setupRadioGroup()
+            .disabled(store.created != nil)
+            if let url = store.projectURL {
+                Text(url.path)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+            }
+            if let created = store.created {
+                Label("Made: \(created.displayName)", systemImage: "checkmark.circle").font(.callout)
+            }
+            if let error = store.errorMessage {
+                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+            }
+        }
+        .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
+            guard case .success(let folder) = result else { return }
+            #if os(macOS)
+            // A synced folder can upload the live database mid-write: say so before choosing it.
+            guard NewLibraryPanel.confirmSyncedLocationIfNeeded(at: folder.appendingPathComponent(store.fileName)) else { return }
+            #endif
+            store.place = .chosen(folder)
+        }
+    }
+
+    /// Choosing "Choose a location…" opens the folder picker at once; Inside Fichero is one click back.
+    private var placeChoice: Binding<Bool> {
+        Binding(
+            get: { if case .chosen = store.place { true } else { false } },
+            set: { chosen in
+                if chosen { choosingFolder = true } else { store.place = .insideFichero }
+            }
+        )
+    }
+
+    private var chosenFolderText: String {
+        if case .chosen(let folder) = store.place { return folder.path }
+        return "A folder you pick, such as ~/Fichero; it shows in Finder."
+    }
+}
+
+/// Screen 2, "What it is for" (#5478): the engine's purposes as checkboxes, any combination, each
+/// ticked purpose with its jobs in one line; then every job as a checkbox. A job a ticked purpose
+/// brings is ticked and stays ticked while the purpose is (the engine adds jobs, never removes one).
 struct RecipePurposeFields: View {
     @Bindable var store: RecipeSetupStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if store.purposes.isEmpty, let error = store.errorMessage {
+        VStack(alignment: .leading, spacing: 10) {
+            if store.purposeOptions.isEmpty, let error = store.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
-            } else if store.purposes.isEmpty {
+            } else if store.purposeOptions.isEmpty {
                 ProgressView()
             }
-            Picker("Purpose", selection: $store.purpose) {
-                ForEach(store.purposes, id: \.id) { purpose in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(purpose.title)
-                        Text(purpose.description)
+            ForEach(store.purposeOptions.filter { $0.id != "not-sure" }, id: \.id) { purpose in
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle(isOn: Binding(get: { store.purposes.contains(purpose.id) },
+                                         set: { _ in store.toggle(purpose: purpose.id) })) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(purpose.title)
+                            Text(purpose.description).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .setupCheckbox()
+                    if store.purposes.contains(purpose.id), let jobs = purpose.jobs, !jobs.isEmpty {
+                        Text(jobs.map(\.title).joined(separator: " · "))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .padding(.leading, 20)
                     }
-                    .tag(purpose.id)
                 }
             }
-            .pickerStyle(.inline)
-            .labelsHidden()
-            if let purpose = store.purposes.first(where: { $0.id == store.purpose }) {
-                Text(purpose.runsByItself
-                     ? "New material goes through these steps by itself."
-                     : "Nothing runs by itself; this purpose's tools are offered first.")
-                    .font(.caption).foregroundStyle(.secondary)
+            if store.purposes.isEmpty {
+                Text("Not sure yet: nothing is proposed, and every tool is on hand when you want it.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            if !store.jobOrder.isEmpty {
+                Divider()
+                Text("Jobs").font(.headline)
+                ForEach(store.jobOrder, id: \.self) { job in
+                    let fromPurposes = store.purposeTitles(bringing: job)
+                    Toggle(store.title(ofJob: job), isOn: Binding(
+                        get: { store.tickedJobs.contains(job) },
+                        set: { _ in store.toggle(job: job) }
+                    ))
+                    .setupCheckbox()
+                    .disabled(!fromPurposes.isEmpty)
+                    .help(fromPurposes.isEmpty ? "" : "Part of \(fromPurposes.joined(separator: ", "))")
+                }
             }
         }
-        .task { await store.loadPurposes() }
-    }
-}
-
-/// The one cloud question (`source.onboard.cloud-asked-once`), asked only when
-/// the proposed recipe has a step a cloud model would also fit; otherwise it
-/// says plainly that everything runs here. Changing it re-proposes the recipe.
-struct RecipeCloudQuestion: View {
-    @Bindable var store: RecipeSetupStore
-
-    var body: some View {
-        if store.asksCloudQuestion {
-            VStack(alignment: .leading, spacing: 2) {
-                Toggle("Pages may leave this Mac", isOn: $store.cloudAllowed)
-                    .onChange(of: store.cloudAllowed) { Task { await store.assemble() } }
-                let options = store.recipe?.cloudOptions ?? []
-                Text(options.isEmpty
-                     ? "Asked once for this project. Off means nothing is sent to a cloud service."
-                     : "A cloud model would also fit: \(options.joined(separator: ", ")). "
-                        + "Off means nothing is sent to a cloud service.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-        } else {
-            Label("Everything runs on this Mac.", systemImage: "desktopcomputer")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+        .task {
+            await store.loadPurposes()
+            await store.loadJobs()
         }
     }
 }
 
-/// How sources come in (ruled 2026-10-03, `source.sync.four-ways-in`): Link,
-/// Copy, Move or Index, each with what it does to the originals. Link is the
-/// default; Move says plainly that the originals go.
+/// How sources come in (ruled 2026-10-03 and 2026-10-05, `source.onboard.five-ways-in`): Link,
+/// Copy, Move or Index, each with what it does to the originals. Link is the default; Move says
+/// plainly that the originals go. Keep arranged is shown as not yet available: the engine has no
+/// arranging yet (#5480), so it is not offered as if it worked.
 struct ProjectIntakeChoice: View {
     @Bindable var store: RecipeSetupStore
 
@@ -92,8 +157,12 @@ struct ProjectIntakeChoice: View {
                        + "single files are linked.")
                     .tag(IngestMode.index)
             }
-            .pickerStyle(.inline)
+            .setupRadioGroup()
             .labelsHidden()
+            option("Keep arranged (not available yet)",
+                   "As Index, and Fichero also keeps the files in the folder arranged.")
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 20)
             if store.ingestMode == .move {
                 Label("Your original files will be removed from where they are now.",
                       systemImage: "exclamationmark.triangle")
@@ -111,11 +180,11 @@ struct ProjectIntakeChoice: View {
     }
 }
 
-/// Screen 2, "Your material": how sources come in, a folder to bring in now
+/// Screen 3, "Your material": how sources come in, a folder to bring in now
 /// (or later, from the project), and how much there is.
 struct RecipeMaterialSourceFields: View {
     @Bindable var store: RecipeSetupStore
-    /// The project's import path; nil where this window has no project open.
+    /// The project's import path; nil where setup has no project yet.
     let importer: ImportService?
     @State private var choosingFolder = false
     @State private var adding = false
@@ -129,9 +198,7 @@ struct RecipeMaterialSourceFields: View {
                     .disabled(importer == nil || adding)
                 if adding { ProgressView().controlSize(.small) }
             }
-            Text(importer == nil
-                 ? "Open a project to add material now, or add it later from the project."
-                 : "Or add material later; it comes in the way chosen above.")
+            Text("Or add material later; it comes in the way chosen above.")
                 .font(.caption).foregroundStyle(.secondary)
             if let added = store.materialAdded {
                 Label(added, systemImage: "checkmark.circle").font(.callout)
@@ -154,98 +221,63 @@ struct RecipeMaterialSourceFields: View {
     }
 }
 
-/// Screen 3, "What it is": languages and scripts (each with search), what the
-/// engine works out for each script, and the kind of material.
+/// Screen 4, "What it is" (#5479, #5478): languages and scripts, each searched and browsed and
+/// shown as tokens; one direction per script, pre-filled from it; the kinds of material.
 struct RecipeAboutFields: View {
     @Bindable var store: RecipeSetupStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            CodeSearchField(title: "Languages", prompt: "Name, BCP 47 tag or glottocode, e.g. es",
-                            search: store.searchLanguages, codes: $store.languages)
-            if let topic = store.topics.topic("languages") { TopicExplanation(topic: topic) }
-            CodeSearchField(title: "Scripts", prompt: "Name or ISO 15924 code, e.g. Latn",
-                            search: store.searchScripts, codes: $store.scripts)
-            if let topic = store.topics.topic("scripts") { TopicExplanation(topic: topic) }
+        VStack(alignment: .leading, spacing: 12) {
+            CodeTokenField(store: store, scripts: false)
+            CodeTokenField(store: store, scripts: true)
             ForEach(store.scripts, id: \.self) { code in
-                if let facts = store.derivedScripts[code] {
-                    DerivedScriptRow(facts: facts)
+                VStack(alignment: .leading, spacing: 2) {
+                    Picker("Direction of \(store.name(of: code))", selection: Binding(
+                        get: { store.direction(of: code) },
+                        set: { store.directions[code] = $0 }
+                    )) {
+                        ForEach(RecipeSetupStore.directionChoices, id: \.id) { Text($0.title).tag($0.id) }
+                    }
+                    if let facts = store.derivedScripts[code] {
+                        DerivedScriptRow(facts: facts)
+                    }
                 }
             }
-            Picker("Material", selection: $store.material) {
-                ForEach(RecipeSetupStore.materials, id: \.self) { Text($0.capitalized).tag($0) }
-            }
-        }
-        .task(id: store.scripts) { await store.loadDerived() }
-        .task { await store.topics.load() }
-    }
-}
-
-/// Screen 4, "How it will be done": the recipe the engine's rules propose from
-/// the answers, each step explained in the topic registry's words, the one cloud
-/// question, and every other tool, offered after the recipe's, never hidden.
-struct RecipeProposalFields: View {
-    @Bindable var store: RecipeSetupStore
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
             if let error = store.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             }
-            if store.isAssembling {
-                ProgressView()
-            } else if let recipe = store.recipe {
-                RecipeStepsView(store: store, recipe: recipe)
-                RecipeCloudQuestion(store: store)
-            } else if !store.canAssemble {
-                Text("Add at least one language and one script under What It Is.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            OfferedJobsList(store: store)
-        }
-        .task {
-            await store.loadJobs()
-            await store.assemble()
-        }
-    }
-}
-
-/// Every job the registry knows, the recipe's first: a purpose decides what is
-/// offered first, never what can be reached (`source.onboard.offers-never-hides`).
-struct OfferedJobsList: View {
-    let store: RecipeSetupStore
-
-    var body: some View {
-        let inRecipe = Set((store.recipe?.steps ?? []).map(\.job))
-        let others = store.offeredJobs.filter { !inRecipe.contains($0.id) }
-        if !others.isEmpty {
-            DisclosureGroup("Also on hand (\(others.count))") {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(others, id: \.id) { job in
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(job.name).font(.callout)
-                            if let topic = store.explanation(ofJob: job.id) {
-                                Text(topic.short).font(.caption).foregroundStyle(.secondary)
+            Divider()
+            Text("Material").font(.headline)
+            HStack(spacing: 16) {
+                ForEach(RecipeSetupStore.materialKinds, id: \.self) { kind in
+                    Toggle(kind.capitalized, isOn: Binding(
+                        get: { store.materials.contains(kind) },
+                        set: { on in
+                            if on {
+                                store.materials.append(kind)
+                            } else if store.materials.count > 1 {
+                                store.materials.removeAll { $0 == kind }
                             }
                         }
-                    }
+                    ))
+                    .setupCheckbox()
                 }
-                .padding(.top, 4)
             }
+            Text("Tick every kind there is; a reader is proposed for each.")
+                .font(.caption).foregroundStyle(.secondary)
         }
+        .task(id: store.scripts) { await store.loadDerived() }
     }
 }
 
-/// What the engine worked out for one script, shown rather than asked
-/// (`source.onboard.derives-not-asks`): direction, a bundled font, and, for a script that may be
-/// written vertically, the one thing only the pages can settle.
+/// What the engine worked out for one script, shown under its direction
+/// (`source.onboard.derives-not-asks`): a bundled font, and, for a script that may be written
+/// vertically, the one thing only the pages can settle.
 private struct DerivedScriptRow: View {
     let facts: Components.Schemas.ScriptFacts
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("\(facts.script): \(facts.direction == "rtl" ? "right to left" : "left to right")")
-                .help(facts.directionFrom)
             if let font = facts.font {
                 Text("Shown in \(font)").help(facts.fontFrom)
             }
@@ -258,30 +290,53 @@ private struct DerivedScriptRow: View {
     }
 }
 
-/// A field that adds codes by searching names or typing the code itself. Suggestions come from
-/// the engine's catalogue (every ISO 639-3 language with Glottolog's, every ISO 15924 script); any
-/// code typed is accepted as is, since the engine checks it.
-struct CodeSearchField: View {
-    let title: String
-    let prompt: String
-    let search: (String) async -> [RecipeSetupStore.CodeChoice]
-    @Binding var codes: [String]
+/// Languages or scripts: a search field that autocompletes from the engine's registry, a Browse…
+/// list, and the chosen ones as tokens. Return on a typed word takes the engine's best answer
+/// (its tag, never the word); a word the engine does not know is refused in words.
+struct CodeTokenField: View {
+    let store: RecipeSetupStore
+    let scripts: Bool
+    /// Called after a token is added or removed (the Inspector saves then).
+    var onChange: () -> Void = {}
     @State private var query = ""
     @State private var matches: [RecipeSetupStore.CodeChoice] = []
+    @State private var browsing = false
+
+    private var title: String { scripts ? "Scripts" : "Languages" }
+    private var codes: [String] { scripts ? store.scripts : store.languages }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             LabeledContent(title) {
-                TextField(title, text: $query, prompt: Text(prompt))
-                    .labelsHidden()
-                    .onSubmit { add(matches.first?.code ?? query.trimmingCharacters(in: .whitespaces)) }
+                HStack {
+                    TextField(title, text: $query, prompt: Text(scripts ? "Search, e.g. Latin" : "Search, e.g. Spanish"))
+                        .labelsHidden()
+                        .onSubmit {
+                            let typed = query
+                            Task {
+                                if await store.addTyped(typed, toScripts: scripts) {
+                                    clear()
+                                    onChange()
+                                }
+                            }
+                        }
+                    Button("Browse…") { browsing = true }
+                        .popover(isPresented: $browsing) {
+                            CodeBrowseList(store: store, scripts: scripts) { choice in
+                                store.add(choice, toScripts: scripts)
+                                onChange()
+                            }
+                        }
+                }
             }
             ForEach(matches.filter { !codes.contains($0.code) }, id: \.self) { match in
                 Button {
-                    add(match.code)
+                    store.add(match, toScripts: scripts)
+                    clear()
+                    onChange()
                 } label: {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("\(match.name) (\(match.code))")
+                        Text(match.name)
                         if let detail = match.detail { Text(detail).foregroundStyle(.secondary) }
                     }
                 }
@@ -289,14 +344,9 @@ struct CodeSearchField: View {
                 .font(.caption)
             }
             if !codes.isEmpty {
-                HStack {
-                    ForEach(codes, id: \.self) { code in
-                        Button { codes.removeAll { $0 == code } } label: {
-                            Label(code, systemImage: "xmark.circle.fill")
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
+                FlowTokens(codes: codes, name: store.name(of:)) { code in
+                    store.remove(code, fromScripts: scripts)
+                    onChange()
                 }
             }
         }
@@ -305,59 +355,113 @@ struct CodeSearchField: View {
             guard !needle.isEmpty else { matches = []; return }
             try? await Task.sleep(for: .milliseconds(200))  // typing: ask once the person pauses
             guard !Task.isCancelled else { return }
-            matches = await search(needle)
+            matches = scripts ? await store.searchScripts(needle) : await store.searchLanguages(needle)
         }
     }
 
-    private func add(_ code: String) {
-        guard !code.isEmpty, !codes.contains(code) else { return }
-        codes.append(code)
+    private func clear() {
         query = ""
         matches = []
     }
 }
 
-/// The Start step: what the recipe will run, on how many pages, what it costs, and any step
-/// the engine refuses, by name (`source.project.automatic-after-first-yes`,
-/// `source.onboard.estimate-before-start`). The engine plans; this only shows the plan.
-struct RecipeStartFields: View {
-    let store: RecipeSetupStore
+/// The chosen languages or scripts as blue lozenges, each with its name (its tag on hover) and ×.
+private struct FlowTokens: View {
+    let codes: [String]
+    let name: (String) -> String
+    let remove: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let plan = store.startPlan {
-                Text("\(plan.estimate.pages) pages · \(Self.cost(plan.estimate.totalCostUsd))")
-                    .font(.headline)
-                ForEach(Array(plan.workflows.enumerated()), id: \.offset) { _, run in
-                    Label("\(run.workflow) — \(run.steps.joined(separator: ", "))",
-                          systemImage: run.runsOn.hasPrefix("cloud") ? "cloud" : "desktopcomputer")
-                        .font(.body)
+        HStack(spacing: 6) {
+            ForEach(codes, id: \.self) { code in
+                HStack(spacing: 4) {
+                    Text(name(code))
+                    Button { remove(code) } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Remove \(name(code))")
                 }
-                if !plan.offered.isEmpty {
-                    Text("Offered later: \(plan.offered.joined(separator: ", "))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(plan.refusals, id: \.self) { refusal in
-                    Label(refusal, systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-            } else {
-                ProgressView("Planning what Start would run…")
-            }
-            if let message = store.errorMessage {
-                Text(message).font(.caption).foregroundStyle(.red)
+                .font(.callout)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.accentColor, in: Capsule())
+                .help(code)
             }
         }
-        .task { await store.loadStartPlan() }
+    }
+}
+
+/// Browse… for a person who knows neither the name's spelling nor the code: pick a letter, then
+/// a name. Families and regions wait for the engine to list them.
+private struct CodeBrowseList: View {
+    let store: RecipeSetupStore
+    let scripts: Bool
+    let choose: (RecipeSetupStore.CodeChoice) -> Void
+    @State private var letter = "A"
+    @State private var choices: [RecipeSetupStore.CodeChoice] = []
+
+    private static let letters = (65...90).compactMap { UnicodeScalar($0).map { String(Character($0)) } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Begins with", selection: $letter) {
+                ForEach(Self.letters, id: \.self) { Text($0).tag($0) }
+            }
+            List(choices, id: \.self) { choice in
+                Button {
+                    choose(choice)
+                } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(choice.name)
+                        if let detail = choice.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(minHeight: 240)
+        }
+        .padding()
+        .frame(width: 320, height: 340)
+        .task(id: letter) {
+            choices = scripts ? await store.browseScripts(letter) : await store.browseLanguages(letter)
+        }
+    }
+}
+
+extension View {
+    /// A checkbox on the Mac; the platform's own toggle elsewhere.
+    @ViewBuilder
+    func setupCheckbox() -> some View {
+        #if os(macOS)
+        toggleStyle(.checkbox)
+        #else
+        self
+        #endif
     }
 
-    /// Unpriced is not free: a missing total is shown as unknown, never $0.
-    static func cost(_ value: Double?) -> String {
-        guard let value else { return "price unknown" }
-        return value == 0 ? "free, runs on this Mac" : value.formatted(.currency(code: "USD"))
+    /// Radio buttons on the Mac; an inline list elsewhere.
+    @ViewBuilder
+    func setupRadioGroup() -> some View {
+        #if os(macOS)
+        pickerStyle(.radioGroup)
+        #else
+        pickerStyle(.inline)
+        #endif
     }
+}
+
+#Preview("Where it lives") {
+    SetupWhereItLivesFields(store: NewProjectStore(libraryManager: LibraryManager.shared))
+        .padding()
+        .frame(width: 520, height: 300)
+}
+
+#Preview("What it is for") {
+    RecipePurposeFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
+        .padding()
+        .frame(width: 520, height: 480)
 }
 
 #Preview("Your material") {
@@ -371,28 +475,16 @@ struct RecipeStartFields: View {
 
 #Preview("What it is") {
     let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
-    store.languages = ["es", "la"]
-    store.scripts = ["Latn"]
+    store.add(.init(code: "es", name: "Spanish", detail: nil), toScripts: false)
+    store.add(.init(code: "la", name: "Latin", detail: nil), toScripts: false)
+    store.add(.init(code: "Latn", name: "Latin", detail: nil), toScripts: true)
+    store.materials = ["handwriting", "print"]
     return RecipeAboutFields(store: store)
         .padding()
-        .frame(width: 520, height: 320)
-}
-
-#Preview("How it will be done") {
-    let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
-    store.languages = ["es"]
-    store.scripts = ["Latn"]
-    return ScrollView { RecipeProposalFields(store: store).padding() }
         .frame(width: 520, height: 420)
 }
 
 #Preview("Project intake") {
     ProjectIntakeChoice(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
         .padding()
-}
-
-#Preview("Start") {
-    RecipeStartFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
-        .padding()
-        .frame(width: 520, height: 300)
 }

@@ -128,7 +128,7 @@ struct DocumentInspectorInfoTab: View {
 
         // The project's recipe and Set Up… (source.onboard.set-up-later).
         infoSection("Recipe") {
-            InspectorRecipeSection()
+            InspectorRecipeSection(library: currentLibrary)
         }
     }
 

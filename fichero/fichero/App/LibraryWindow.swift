@@ -33,11 +33,10 @@ func libraryIsLoadedAndEmpty(isLoaded: Bool, rootCollections: [Document]) -> Boo
     }
 }
 
-/// Whether a window presents setup (`FirstRunWindow(setUp: true)`) now: setup was asked for the
+/// Whether a window presents setup (`FirstRunWindow(mode: .setUp)`) now: setup was asked for the
 /// project THIS window shows, and the app's own first run is not already showing (it runs the
 /// same recipe steps). Deliberately never reads `firstRunCompleted`, which governs only the app's
-/// first launch: a project created after it still opens setup
-/// (`source.onboard.new-project-offers-setup`, #5430).
+/// first launch (#5430, #5421).
 func projectSetUpIsDue(requestedLibraryId: UUID?, windowLibraryId: UUID, firstRunShowing: Bool) -> Bool {
     !firstRunShowing && requestedLibraryId == windowLibraryId
 }
@@ -81,6 +80,8 @@ struct LibraryWindow: View {
     // This flag trails backend-ready by a settle beat (see the .task in `body`)
     // so the first-run sheet can only present AFTER that first toolbar layout.
     @State private var firstRunSheetArmed = false
+    /// File › Set Up New Project… in this window (#5482); internal for LibraryWindow+Actions.
+    @State var showingNewProjectSetUp = false
     @State var hostWindow: NSWindow?
     @SceneStorage("libraryWindow.libraryId") var persistedLibraryId: String?
 
@@ -273,12 +274,12 @@ struct LibraryWindow: View {
                 }
             }
         )) {
-            FirstRunWindow()
+            FirstRunWindow(mode: .firstRun, onProjectReady: { assignLibrary(id: $0) })
                 .environment(appState)
-                .environment(windowState.library?.importService)
         }
-        // Setup for THIS window's project (#5430, #5421): a new project, File › Set Up Project…,
-        // or an empty project's Set Up…. The same flow as Inspector › Info › Recipe › Set Up….
+        .modifier(NewProjectSetUpSheet(isPresented: $showingNewProjectSetUp) { assignLibrary(id: $0) })
+        // Setup for THIS window's project (#5421): File › Set Up Project…, or an empty project's
+        // Set Up…. The same flow as Inspector › Info › Recipe › Set Up….
         // Armed like first run (#3163), and never gated on `firstRunCompleted`.
         .sheet(isPresented: Binding(
             get: {
@@ -292,9 +293,8 @@ struct LibraryWindow: View {
             },
             set: { if !$0 { libraryManager.setUpRequestedLibraryId = nil } }
         )) {
-            FirstRunWindow(setUp: true)
+            FirstRunWindow(mode: .setUp, project: windowState.library)
                 .environment(appState)
-                .environment(windowState.library?.importService)
         }
         // #4064: the supervised backend dropped AND auto-restart ran out — show a
         // MODAL Retry/Quit over the live main GUI (the toolbar popover stays for

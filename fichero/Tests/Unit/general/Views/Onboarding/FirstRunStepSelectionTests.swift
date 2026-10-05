@@ -2,40 +2,36 @@
 import XCTest
 
 /// #2807 — iOS first-run parity: the platform-gated step list must skip the
-/// Mac-only Library/Permissions/Cloud steps on companion platforms (iPhone/
-/// iPad have no local engine), and the list-relative navigation must clamp at
-/// both ends of WHICHEVER list the platform runs.
+/// Mac-only steps on companion platforms (iPhone/iPad have no local engine), and the
+/// list-relative navigation must clamp at both ends of WHICHEVER list the platform runs.
 final class FirstRunStepSelectionTests: XCTestCase {
 
     // MARK: - Step selection
 
-    /// The Mac runs the full flow, in declaration order. Recipe setup is part of
-    /// first run, not a second onboarding: purpose first, then the material, what
-    /// it is, the proposed recipe and Start (source.onboard.screens-in-order).
+    /// The Mac runs the full flow, in declaration order. Setup is part of first run, not a
+    /// second onboarding, in section 7b's order (ruled 2026-10-05): where it lives, what it is
+    /// for, your material, what it is, each ticked job, how it will be done, what runs by
+    /// itself, Start.
     func testMacStepListIsTheFullFlow() {
         XCTAssertEqual(
             FirstRunStep.steps(isCompanionPlatform: false),
-            [.welcome, .library, .permissions, .cloud, .purpose, .material, .about, .recipe, .start]
+            [.welcome, .permissions, .cloud, .location, .purpose, .material, .about, .jobs, .recipe, .automatic, .start]
         )
     }
 
-    /// Onboarding says "Project", not "Library" (ruled 2026-10-03); only the
-    /// user-facing words change, the code keeps `.library` until a spec-first rename.
-    func testLibraryStepIsTitledProject() {
-        XCTAssertEqual(FirstRunStep.library.title, "Project")
-    }
-
-    /// Set Up… from the Inspector runs the same recipe steps as first run (one
-    /// code path), purpose first; if it drifted, an existing library would be set
-    /// up by a different flow than a new one.
+    /// Set Up… from a project runs the same setup steps as first run (one code path), starting
+    /// at What it is for (the project already lives somewhere); Set Up New Project… adds Where
+    /// it lives before them. If either drifted, a new project and an existing one would be set
+    /// up by different flows.
     func testSetUpRunsTheFirstRunRecipeSteps() {
-        XCTAssertEqual(FirstRunStep.setUpSteps, [.purpose, .material, .about, .recipe, .start])
+        XCTAssertEqual(FirstRunStep.setUpSteps, [.purpose, .material, .about, .jobs, .recipe, .automatic, .start])
+        XCTAssertEqual(FirstRunStep.newProjectSteps, [.location] + FirstRunStep.setUpSteps)
         let full = FirstRunStep.steps(isCompanionPlatform: false)
-        XCTAssertEqual(Array(full.suffix(FirstRunStep.setUpSteps.count)), FirstRunStep.setUpSteps)
+        XCTAssertEqual(Array(full.suffix(FirstRunStep.newProjectSteps.count)), FirstRunStep.newProjectSteps)
     }
 
-    /// Companion platforms skip every Mac-only step: library location,
-    /// folder permissions, and AI provider setup all configure a LOCAL
+    /// Companion platforms skip every Mac-only step: project location,
+    /// folder permissions, AI provider setup and the recipe all configure a LOCAL
     /// engine, which the companion does not have.
     func testCompanionStepListSkipsMacOnlySteps() {
         XCTAssertEqual(
@@ -45,8 +41,7 @@ final class FirstRunStepSelectionTests: XCTestCase {
     }
 
     /// The Mac-only marker is the single source of the split — welcome is the
-    /// only shared step; everything else is Mac-only. A new step added without
-    /// deciding its platform fails `CaseIterable` coverage here.
+    /// only shared step; everything else is Mac-only.
     func testMacOnlyMarkerTruthTable() {
         for step in FirstRunStep.allCases {
             XCTAssertEqual(
@@ -72,28 +67,18 @@ final class FirstRunStepSelectionTests: XCTestCase {
     /// last step (the caller finishes there — it never wraps).
     func testNextWalksMacListAndClampsAtEnd() {
         let steps = FirstRunStep.steps(isCompanionPlatform: false)
-        XCTAssertEqual(FirstRunStep.welcome.next(in: steps), .library)
-        XCTAssertEqual(FirstRunStep.library.next(in: steps), .permissions)
-        XCTAssertEqual(FirstRunStep.permissions.next(in: steps), .cloud)
-        XCTAssertEqual(FirstRunStep.cloud.next(in: steps), .purpose)
-        XCTAssertEqual(FirstRunStep.purpose.next(in: steps), .material)
-        XCTAssertEqual(FirstRunStep.material.next(in: steps), .about)
-        XCTAssertEqual(FirstRunStep.about.next(in: steps), .recipe)
-        XCTAssertEqual(FirstRunStep.recipe.next(in: steps), .start)
+        var walked = [FirstRunStep.welcome]
+        while walked.last != .start { walked.append(walked.last!.next(in: steps)) }
+        XCTAssertEqual(walked, steps)
         XCTAssertEqual(FirstRunStep.start.next(in: steps), .start)
     }
 
     /// Backward navigation clamps at the first step.
     func testPreviousWalksMacListAndClampsAtStart() {
         let steps = FirstRunStep.steps(isCompanionPlatform: false)
-        XCTAssertEqual(FirstRunStep.start.previous(in: steps), .recipe)
-        XCTAssertEqual(FirstRunStep.recipe.previous(in: steps), .about)
-        XCTAssertEqual(FirstRunStep.about.previous(in: steps), .material)
-        XCTAssertEqual(FirstRunStep.material.previous(in: steps), .purpose)
-        XCTAssertEqual(FirstRunStep.purpose.previous(in: steps), .cloud)
-        XCTAssertEqual(FirstRunStep.cloud.previous(in: steps), .permissions)
-        XCTAssertEqual(FirstRunStep.permissions.previous(in: steps), .library)
-        XCTAssertEqual(FirstRunStep.library.previous(in: steps), .welcome)
+        var walked = [FirstRunStep.start]
+        while walked.last != .welcome { walked.append(walked.last!.previous(in: steps)) }
+        XCTAssertEqual(walked, steps.reversed())
         XCTAssertEqual(FirstRunStep.welcome.previous(in: steps), .welcome)
     }
 

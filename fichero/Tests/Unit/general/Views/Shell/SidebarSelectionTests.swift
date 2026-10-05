@@ -204,9 +204,9 @@ struct SidebarSelectionTests {
 
     @Test("#4062 New Library creates in-place, does not open a new window")
     func newLibraryDoesNotOpenNewWindow() throws {
-        // handleNewLibrary must switch the CURRENT window to the new library
-        // (assignLibrary), not open a fresh window via WindowOpener. New Window
-        // is the only new-window path; New Library is an in-place create.
+        // handleNewLibrary (Set Up New Project…, #5482) opens setup in THIS window, and the
+        // project setup makes is shown in the CURRENT window (assignLibrary), not a fresh window
+        // via WindowOpener. New Window is the only new-window path.
         let source = try appSource("App/LibraryWindow+Actions.swift")
         let functionStart = try #require(source.range(of: "func handleNewLibrary() {"))
         let nextFunction = try #require(
@@ -214,7 +214,8 @@ struct SidebarSelectionTests {
         )
         let functionBody = String(source[functionStart.lowerBound..<nextFunction.lowerBound])
 
-        #expect(functionBody.contains("assignLibrary(id: newLibrary.id)"))
+        #expect(functionBody.contains("showingNewProjectSetUp = true"))
+        #expect(try appSource("App/LibraryWindow.swift").contains("NewProjectSetUpSheet(isPresented: $showingNewProjectSetUp) { assignLibrary(id: $0) }"))
         #expect(!functionBody.contains("WindowOpener.open"))
         #expect(!functionBody.contains("openWindow(id:"))
     }

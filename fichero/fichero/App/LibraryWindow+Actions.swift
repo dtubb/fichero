@@ -189,43 +189,38 @@ extension LibraryWindow {
         libraryWindowLogger.info("Duplicated window for library: \(library.id)")
     }
 
+    /// File › Set Up New Project… (#5482, ruled 2026-10-05): setup opens in THIS window at Where
+    /// it lives, which makes the project (Inside Fichero, or a folder the person chooses); when
+    /// setup ends the window shows it in place, with `assignLibrary` (#4062, no new window).
     func handleNewLibrary() {
-        // Panel configuration and the on-disk naming decision are shared with
-        // the app-scoped File-menu fallback (#4530) so the two paths cannot
-        // drift; see NewLibraryPanel.
-        let savePanel = NewLibraryPanel.makeSavePanel()
-
-        if savePanel.runModal() == .OK, let url = savePanel.url {
-            let finalURL = NewLibraryPanel.resolvedLibraryURL(for: url)
-            guard NewLibraryPanel.confirmSyncedLocationIfNeeded(at: finalURL) else {
-                handleNewLibrary()  // reopen the panel — the user chose to relocate
-                return
-            }
-
-            // Create unsaved library, immediately save to chosen location, then
-            // switch THIS window to it in-place — no new window (#4062). New
-            // Library… is distinct from New Window (which reuses the current
-            // library): it creates a fresh library and selects it in the
-            // current window's sidebar, mirroring Finder's "New Folder" flow.
-            // Keeping it in-window also preserves the current window's
-            // connection/store, so we don't re-trigger #3362's new-window
-            // re-auth path.
-            // One create path for both File-menu routes (#5430): it saves, remembers the project
-            // for the next launch, marks its sidebar row for selection and asks for its setup.
-            do {
-                let newLibrary = try libraryManager.createProject(at: finalURL)
-                assignLibrary(id: newLibrary.id)
-                NewLibraryPanel.noteChosenDirectory(forLibraryAt: finalURL)
-                libraryWindowLogger.info("Created and saved new library in-place: \(finalURL.lastPathComponent)")
-            } catch {
-                // #4530: a failed create used to be log-only, so the user
-                // pressed Create, got no library and no reason. Rule zero —
-                // fail loudly.
-                libraryWindowLogger.error("Failed to create new library: \(error.localizedDescription)")
-                NewLibraryPanel.presentCreateFailure(error, at: finalURL)
-            }
-        }
+        showingNewProjectSetUp = true
     }
+}
+
+/// Set Up New Project…'s sheet on a window (#5482): setup from Where it lives, which makes the
+/// project; `onProjectReady` shows it in this window when setup ends, in place (#4062). Asked
+/// with no window to show it (#4530), the first window to see the request takes it.
+struct NewProjectSetUpSheet: ViewModifier {
+    @Binding var isPresented: Bool
+    let onProjectReady: (UUID) -> Void
+    @Environment(LibraryManager.self) private var libraryManager
+    @Environment(AppState.self) private var appState
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(isPresented: $isPresented) {
+                FirstRunWindow(mode: .newProject, onProjectReady: onProjectReady)
+                    .environment(appState)
+            }
+            .onChange(of: libraryManager.newProjectSetUpRequested, initial: true) { _, requested in
+                guard requested else { return }
+                libraryManager.newProjectSetUpRequested = false
+                isPresented = true
+            }
+    }
+}
+
+extension LibraryWindow {
 
     func handleSaveLibrary() {
         guard let library = windowState.library else { return }

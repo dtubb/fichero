@@ -85,7 +85,7 @@ struct RecipeSetupFlowTests {
     /// would be set up by two flows.
     @Test("setup's screens run purpose first, Start last, in the spec's order")
     func screensInOrder() {
-        #expect(FirstRunStep.setUpSteps == [.purpose, .material, .about, .recipe, .start])
+        #expect(FirstRunStep.setUpSteps == [.purpose, .material, .about, .jobs, .recipe, .automatic, .start])
         let firstRun = FirstRunStep.steps(isCompanionPlatform: false)
         #expect(Array(firstRun.suffix(FirstRunStep.setUpSteps.count)) == FirstRunStep.setUpSteps)
         var walked = [FirstRunStep.setUpSteps[0]]
@@ -102,7 +102,7 @@ struct RecipeSetupFlowTests {
     func everyScreenBeforeStartKeepsADraft() async {
         let store = RecipeSetupStore(client: makeClient { _ in (200, #"{"answers":{},"recipe":null}"#) })
         let draftScreens = FirstRunStep.setUpSteps.filter(\.savesDraft)
-        #expect(draftScreens == [.purpose, .material, .about, .recipe], "every screen but Start saves")
+        #expect(draftScreens == [.purpose, .material, .about, .jobs, .recipe, .automatic], "every screen but Start saves")
         #expect(!FirstRunStep.start.savesDraft)
         for _ in draftScreens { #expect(await store.save()) }
         let calls = SetupFlowURLProtocol.seen.map { "\($0.method) \($0.path)" }
@@ -127,14 +127,14 @@ struct RecipeSetupFlowTests {
         await store.loadJobs()
         let everyJob = ["find-lines", "read-a-line", "find-names-tag-words", "embed"]
 
-        store.purpose = "entities"
+        store.purposes = ["entities"]
         await store.assemble()
         let entities = store.offeredJobs.map(\.id)
         #expect(entities == ["read-a-line", "find-names-tag-words", "find-lines", "embed"],
                 "the recipe's steps first, in its order, then the rest in the registry's")
 
         recipeJSON = Self.recipe(steps: [])   // a tools purpose runs nothing by itself
-        store.purpose = "decipher"
+        store.purposes = ["decipher"]
         await store.assemble()
         let decipher = store.offeredJobs.map(\.id)
         #expect(decipher == everyJob, "with nothing first, every job is still offered")

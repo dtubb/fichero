@@ -4,17 +4,26 @@ import Observation
 import OpenAPIRuntime
 
 /// Setup's answers and the recipe the engine assembles from them
-/// (`source/models-chains-and-projects.md` sections 7 and 8;
+/// (`source/models-chains-and-projects.md` sections 7b and 8;
 /// `source.onboard.purpose-first`, `source.onboard.deterministic-recipe`,
 /// `source.onboard.self-documenting`). The app never decides a step or a model:
 /// it sends the answers to `POST /api/recipes/assemble` and shows what the rules
 /// gave back, and it explains each step with the topic registry's own words
 /// (`TopicStore`, `GET /api/topics`), so setup, the Inspector and the manual say the
-/// same thing. Proposes only; nothing runs and nothing is written.
+/// same thing. Proposes only; nothing runs before Start.
+///
+/// One per project (`LibraryReference.recipeSetupStore`), over THAT project's client, so every
+/// read and save names the project (#5477: the app-wide client sent no project path and the
+/// engine answered 400).
 @MainActor
 @Observable
 final class RecipeSetupStore {
-    static let materials = ["handwriting", "print", "typescript"]
+    static let materialKinds = ["handwriting", "print", "typescript"]
+    /// The directions setup offers, as the engine names them (`recipes/answers.SETUP_DIRECTIONS`).
+    static let directionChoices: [(id: String, title: String)] = [
+        ("ltr", "Left to right"), ("rtl", "Right to left"),
+        ("ttb", "Top to bottom, columns right to left"), ("ttb-lr", "Top to bottom, columns left to right")
+    ]
 
     // MARK: Answers (a draft until Start; nothing runs before it)
 
@@ -25,10 +34,21 @@ final class RecipeSetupStore {
     /// engine's folder ingest modes. Setup's Add a Folder… imports with it.
     var ingestMode: IngestMode = .link
 
-    var purpose: String = "transcribe"
+    /// The purposes ticked (section 7b screen 2, #5478): any combination; none is "Not sure yet".
+    var purposes: [String] = ["transcribe"]
+    /// Jobs ticked on their own, beyond the purposes' (`answers.jobs`).
+    var addedJobs: [String] = []
+    /// Language tags (`es`, `und-x-<glottocode>`), never the typed word (#5479).
     var languages: [String] = []
+    /// ISO 15924 codes.
     var scripts: [String] = []
-    var material: String = "handwriting"
+    /// One direction per script (`ltr`, `rtl`, `ttb`, `ttb-lr`), pre-filled from the script.
+    var directions: [String: String] = [:]
+    /// Handwriting, print, typescript: any mix, at least one (#5478).
+    var materials: [String] = ["handwriting"]
+    /// What each chosen tag or code is called, for its token; a saved code with no name here
+    /// shows as the code.
+    private(set) var names: [String: String] = [:]
     /// Layers added beyond the purpose's (`source.onboard.add-layer`): the engine writes them
     /// (`POST /api/recipes/project/layers`); setup only carries them, into the recipe it asks
     /// for and the answers it saves, so no save drops what the engine added.
@@ -37,11 +57,16 @@ final class RecipeSetupStore {
     /// May pages leave this Mac. Asked once per project; the default is that
     /// nothing leaves (`source.onboard.cloud-asked-once`).
     var cloudAllowed = false
+    /// What runs by itself after Start (`source.onboard.what-runs-by-itself`): nil until the
+    /// person or the saved answers say, then whether new material runs, and through which steps.
+    var automatic: RecipeSetupAnswers.Automatic?
+    /// The answers a ticked job's own screen asks (`source.onboard.job-detail-screens`).
+    var jobAnswers = RecipeSetupAnswers.JobAnswers()
 
     // MARK: What the engine gave back
 
-    /// The purposes setup offers, from the engine (`GET /api/recipes/purposes`).
-    private(set) var purposes: [Components.Schemas.PurposeInfo] = []
+    /// The purposes setup offers, each with its jobs, from the engine (`GET /api/recipes/purposes`).
+    private(set) var purposeOptions: [Components.Schemas.PurposeInfo] = []
     private(set) var recipe: Components.Schemas.AssembledRecipe?
     private(set) var jobs: [String: Components.Schemas.JobInfo] = [:]
     /// The registry's own order, so what is offered after the recipe's steps is stable.
@@ -49,7 +74,7 @@ final class RecipeSetupStore {
     /// What setup's Add a Folder… brought in, said back to the person.
     private(set) var materialAdded: String?
     private(set) var isAssembling = false
-    private(set) var errorMessage: String?
+    var errorMessage: String?
     /// What the engine worked out for each chosen script: direction, whether it may be vertical,
     /// its bundled font (`source.onboard.derives-not-asks`). Keyed by ISO 15924 code.
     private(set) var derivedScripts: [String: Components.Schemas.ScriptFacts] = [:]
@@ -65,6 +90,10 @@ final class RecipeSetupStore {
         self.topics = topics ?? TopicStore(client: client)
     }
 
+    /// The project this store reads and saves (the client's library path); nil is the app-wide
+    /// client, which the engine refuses for a project's setup (#5477).
+    var projectPath: String? { client.currentLibraryPath }
+
     /// The scripts and languages are the two facts the rules cannot do without
     /// (the engine requires at least one of each).
     var canAssemble: Bool { !languages.isEmpty && !scripts.isEmpty }
@@ -78,10 +107,10 @@ final class RecipeSetupStore {
 
     /// The purposes, once, in the engine's order.
     func loadPurposes() async {
-        guard purposes.isEmpty else { return }
+        guard purposeOptions.isEmpty else { return }
         do {
             if case .ok(let success) = try await client.api.listPurposesApiRecipesPurposesGet() {
-                purposes = try success.body.json.items
+                purposeOptions = try success.body.json.items
             }
         } catch {
             if error.isCancellationError { return }
@@ -89,11 +118,55 @@ final class RecipeSetupStore {
         }
     }
 
+    // MARK: Purposes and jobs as checkboxes (#5478)
+
+    /// Tick or untick a purpose. None ticked is "Not sure yet" (the engine reads an empty list so).
+    func toggle(purpose id: String) {
+        if let index = purposes.firstIndex(of: id) { purposes.remove(at: index) } else { purposes.append(id) }
+    }
+
+    /// Tick or untick a job on its own. A job a ticked purpose brings stays ticked while that
+    /// purpose is (the engine adds jobs to a purpose's, it never takes one away).
+    func toggle(job id: String) {
+        if let index = addedJobs.firstIndex(of: id) { addedJobs.remove(at: index) } else { addedJobs.append(id) }
+    }
+
+    /// The jobs the ticked purposes bring, as the engine lists them (`PurposeInfo.jobs`).
+    var jobsFromPurposes: Set<String> {
+        Set(purposeOptions.filter { purposes.contains($0.id) }.flatMap { ($0.jobs ?? []).map(\.id) })
+    }
+
+    /// Every ticked job, each once: the purposes' and those ticked on their own, in the
+    /// registry's order (the recipe's step order) where the registry is loaded.
+    var tickedJobs: [String] {
+        let ticked = jobsFromPurposes.union(addedJobs)
+        let ordered = jobOrder.filter { ticked.contains($0) }
+        return ordered + ticked.subtracting(ordered).sorted()
+    }
+
+    /// The purposes that tick a job, by title, for its checkbox's help.
+    func purposeTitles(bringing job: String) -> [String] {
+        purposeOptions.filter { purposes.contains($0.id) && ($0.jobs ?? []).contains { $0.id == job } }.map(\.title)
+    }
+
+    // MARK: What runs by itself (source.onboard.what-runs-by-itself)
+
+    /// The proposal before the person says: steps of a purpose that runs by itself are ticked
+    /// (training never is, `source.recipe.train-never-automatic`); with none, nothing runs.
+    var proposedAutomatic: RecipeSetupAnswers.Automatic {
+        let running = purposeOptions.filter { purposes.contains($0.id) && $0.runsByItself }
+        let jobs = Set(running.flatMap { ($0.jobs ?? []).map(\.id) })
+        let steps = (recipe?.steps ?? []).map(\.job).filter { jobs.contains($0) && $0 != "train-a-model" }
+        return .init(runs: !steps.isEmpty, steps: steps)
+    }
+
+    /// What runs by itself: the person's answer, else the proposal.
+    var automaticAnswer: RecipeSetupAnswers.Automatic { automatic ?? proposedAutomatic }
+
     // MARK: Saved on the project (GET/PUT /api/recipes/project)
 
     /// Fill the answers and the recipe from what the project already saved, so
-    /// first run and Set Up… reopen where the person left off. Nothing saved
-    /// leaves the defaults.
+    /// setup reopens where the person left off. Nothing saved leaves the defaults.
     func loadSaved() async {
         do {
             guard case .ok(let success) = try await client.api.getProjectSetupApiRecipesProjectGet() else { return }
@@ -126,12 +199,12 @@ final class RecipeSetupStore {
                 return true
             case .unprocessableContent(let error):
                 errorMessage = (try? error.body.json)?.detail?.description ?? "The engine refused to save this setup"
-            case .undocumented(let code, _):
-                errorMessage = "Could not save this setup (HTTP \(code))"
+            case .undocumented(let code, let body):
+                errorMessage = await EngineErrorDetail.message(from: body) ?? "Could not save this setup (HTTP \(code))"
             }
         } catch {
             if error.isCancellationError { return false }
-            errorMessage = error.localizedDescription
+            errorMessage = await Self.engineWords(error) ?? error.localizedDescription
         }
         return false
     }
@@ -177,9 +250,10 @@ final class RecipeSetupStore {
     }
 
     private var currentAnswers: RecipeSetupAnswers {
-        RecipeSetupAnswers(purpose: purpose, languages: languages, scripts: scripts, material: material,
-                     pages: pages, cloudAllowed: cloudAllowed, ingestMode: ingestMode.rawValue.lowercased(),
-                     layers: layers)
+        RecipeSetupAnswers(purposes: purposes, jobs: addedJobs, languages: languages, scripts: scripts,
+                           directions: directions, materials: materials, pages: pages,
+                           cloudAllowed: cloudAllowed, ingestMode: ingestMode.rawValue.lowercased(),
+                           layers: layers, automatic: automatic, jobAnswers: jobAnswers)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
@@ -187,22 +261,32 @@ final class RecipeSetupStore {
     private var savedAnswers: Data?
 
     /// Setup's answers over the saved ones: a field setup asks about takes setup's value; any
-    /// other field the engine saved stays as it was (`source.onboard.add-layer`).
+    /// other field the engine saved stays as it was (`source.onboard.add-layer`). The old
+    /// single `purpose` and `material` give way to the lists.
     private func answersToSave() throws -> Data {
         var merged = (savedAnswers.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
+        merged.removeValue(forKey: "purpose")
+        merged.removeValue(forKey: "material")
         let current = try JSONSerialization.jsonObject(with: JSONEncoder().encode(currentAnswers)) as? [String: Any] ?? [:]
         merged.merge(current) { _, new in new }
         return try JSONSerialization.data(withJSONObject: merged)
     }
 
     private func apply(_ saved: RecipeSetupAnswers) {
-        if let value = saved.purpose { purpose = value }
+        // A project saved before 2026-10-05 holds one purpose and one material: a list of one.
+        if let value = saved.purposes ?? saved.purpose.map({ [$0] }) {
+            purposes = value.filter { $0 != "not-sure" }
+        }
+        if let value = saved.jobs { addedJobs = value }
         if let value = saved.languages { languages = value }
         layers = saved.layers ?? []
         if let value = saved.scripts { scripts = value }
-        if let value = saved.material { material = value }
+        if let value = saved.directions { directions = value }
+        if let value = saved.materials ?? saved.material.map({ [$0] }), !value.isEmpty { materials = value }
         if let value = saved.pages { pages = value }
         if let value = saved.cloudAllowed { cloudAllowed = value }
+        if let value = saved.automatic { automatic = value }
+        if let value = saved.jobAnswers { jobAnswers = value }
         if let value = saved.ingestMode {
             // The engine's ingest modes are lowercase; the app's enum is upper.
             // An unknown mode is an error, never a silent fallback to link.
@@ -220,6 +304,12 @@ final class RecipeSetupStore {
         try JSONDecoder().decode(type, from: JSONEncoder().encode(value))
     }
 
+}
+
+// Behaviour over the stored answers above, in an extension so the class body holds the state.
+extension RecipeSetupStore {
+    // MARK: Languages and scripts (#5479)
+
     /// One answer from setup's language or script search, as the field shows it.
     struct CodeChoice: Hashable {
         let code: String
@@ -232,9 +322,13 @@ final class RecipeSetupStore {
     /// (`source.onboard.widget-and-search`). A languoid with no BCP 47 tag is added as a private-use
     /// tag carrying its glottocode, so nothing a person picks is lost.
     func searchLanguages(_ query: String) async -> [CodeChoice] {
+        await searchLanguages(query, limit: 8)
+    }
+
+    private func searchLanguages(_ query: String, limit: Int) async -> [CodeChoice] {
         do {
             guard case .ok(let ok) = try await client.api.searchLanguagesApiRecipesLanguagesGet(
-                query: .init(q: query, limit: 8)) else { return [] }
+                query: .init(q: query, limit: limit)) else { return [] }
             return try ok.body.json.items.map { match in
                 let code = match.code ?? match.glottocode.map { "und-x-\($0)" } ?? match.name
                 let detail = [match.language.map { "dialect of \($0)" }, match.glottocode.map { "Glottolog \($0)" }]
@@ -249,14 +343,75 @@ final class RecipeSetupStore {
 
     /// Search every ISO 15924 script.
     func searchScripts(_ query: String) async -> [CodeChoice] {
+        await searchScripts(query, limit: 8)
+    }
+
+    private func searchScripts(_ query: String, limit: Int) async -> [CodeChoice] {
         do {
             guard case .ok(let ok) = try await client.api.searchScriptsApiRecipesScriptsGet(
-                query: .init(q: query, limit: 8)) else { return [] }
+                query: .init(q: query, limit: limit)) else { return [] }
             return try ok.body.json.items.map { CodeChoice(code: $0.code, name: $0.name, detail: nil) }
         } catch {
             if !error.isCancellationError { errorMessage = "Could not search scripts: \(error.localizedDescription)" }
             return []
         }
+    }
+
+    /// Browse by first letter: the registry's names that begin with it, for a person who knows
+    /// neither the name's spelling nor the code. The engine has no family listing yet.
+    func browseLanguages(_ letter: String) async -> [CodeChoice] {
+        await searchLanguages(letter, limit: 100).filter { $0.name.lowercased().hasPrefix(letter.lowercased()) }
+    }
+
+    func browseScripts(_ letter: String) async -> [CodeChoice] {
+        await searchScripts(letter, limit: 100).filter { $0.name.lowercased().hasPrefix(letter.lowercased()) }
+    }
+
+    /// Add a chosen language or script as a token, by its tag or code, keeping its name.
+    func add(_ choice: CodeChoice, toScripts: Bool) {
+        names[choice.code] = choice.name
+        if toScripts {
+            guard !scripts.contains(choice.code) else { return }
+            scripts.append(choice.code)
+        } else if !languages.contains(choice.code) {
+            languages.append(choice.code)
+        }
+    }
+
+    /// What the person typed and pressed Return on: the engine's best answer becomes the token
+    /// (a name the registry has exactly, else its first match: "spanish" is Spanish, `es`), and
+    /// a word it does not know is refused in words, never kept as typed (#5479).
+    @discardableResult
+    func addTyped(_ typed: String, toScripts: Bool) async -> Bool {
+        let word = typed.trimmingCharacters(in: .whitespaces)
+        guard !word.isEmpty else { return false }
+        let matches = toScripts ? await searchScripts(word) : await searchLanguages(word)
+        let lowered = word.lowercased()
+        guard let choice = matches.first(where: { $0.name.lowercased() == lowered || $0.code.lowercased() == lowered })
+                ?? matches.first else {
+            errorMessage = "Fichero doesn't know a \(toScripts ? "script" : "language") called “\(word)”."
+            return false
+        }
+        add(choice, toScripts: toScripts)
+        return true
+    }
+
+    /// The name of a tag or code where setup knows it; else the code itself.
+    func name(of code: String) -> String { names[code] ?? code }
+
+    /// Remove a token.
+    func remove(_ code: String, fromScripts: Bool) {
+        if fromScripts {
+            scripts.removeAll { $0 == code }
+            directions.removeValue(forKey: code)
+        } else {
+            languages.removeAll { $0 == code }
+        }
+    }
+
+    /// The direction a script is read in: the person's choice, else the engine's derived fact.
+    func direction(of script: String) -> String {
+        directions[script] ?? derivedScripts[script]?.direction ?? "ltr"
     }
 
     /// Ask the engine what it works out for the chosen scripts, rather than asking the person.
@@ -298,10 +453,12 @@ final class RecipeSetupStore {
         do {
             let output = try await client.api.assembleRecipeApiRecipesAssemblePost(
                 body: .json(.init(
-                    purpose: purpose,
+                    purposes: purposes,
                     languages: languages,
                     scripts: scripts,
-                    material: material,
+                    materials: materials,
+                    jobs: addedJobs.isEmpty ? nil : addedJobs,
+                    directions: directions.isEmpty ? nil : .init(additionalProperties: directions),
                     pages: pages,
                     cloudAllowed: cloudAllowed,
                     // The layers added later stay in every recipe proposed again (source.onboard.add-layer).
@@ -314,15 +471,22 @@ final class RecipeSetupStore {
             case .unprocessableContent(let error):
                 recipe = nil
                 errorMessage = (try? error.body.json)?.detail?.description ?? "The engine refused these answers"
-            case .undocumented(let code, _):
+            case .undocumented(let code, let body):
                 recipe = nil
-                errorMessage = "Could not assemble a recipe (HTTP \(code))"
+                errorMessage = await EngineErrorDetail.message(from: body) ?? "Could not assemble a recipe (HTTP \(code))"
             }
         } catch {
             if error.isCancellationError { return }   // superseded by a newer answer
             recipe = nil
-            errorMessage = error.localizedDescription
+            errorMessage = await Self.engineWords(error) ?? error.localizedDescription
         }
+    }
+
+    /// A step problem's `allow-cloud` fix: the person says pages may leave this Mac, and the
+    /// recipe is proposed again with that answer.
+    func allowCloud() async {
+        cloudAllowed = true
+        await assemble()
     }
 
     /// The job's registered name, or nil when the registry does not know it
@@ -334,13 +498,22 @@ final class RecipeSetupStore {
     /// What explains a job: its topic in the registry, or nil when the job names
     /// none the registry has (the job's name is shown alone).
     func explanation(ofJob id: String) -> Components.Schemas.TopicInfo? {
-        topics.topic(jobs[id]?.topic)
+        topics.topic(jobs[id]?.topic ?? id)
     }
 
-    /// A step's heading: its topic's title, else the job's registered name, else
-    /// the bare job id. Never empty, never invented.
+    /// A job's title: its topic's, else its registered name, else the bare id.
+    func title(ofJob id: String) -> String {
+        explanation(ofJob: id)?.title ?? jobs[id]?.name ?? id
+    }
+
+    /// A step's heading: the title the engine gave it, else its job's title. Never empty, never invented.
     func title(of step: Components.Schemas.RecipeStep) -> String {
-        explanation(ofJob: step.job)?.title ?? jobs[step.job]?.name ?? step.job
+        step.title ?? title(ofJob: step.job)
+    }
+
+    /// A step's one sentence: the engine's, else its topic's short sentence.
+    func sentence(of step: Components.Schemas.RecipeStep) -> String? {
+        step.sentence ?? explanation(ofJob: step.job)?.short
     }
 
     // MARK: Offered first, never hidden (source.onboard.offers-never-hides)
@@ -468,18 +641,79 @@ final class RecipeSetupStore {
 
 /// The answers as saved: the engine's own field names.
 struct RecipeSetupAnswers: Codable, Equatable {
+    var purposes: [String]?
+    /// Read only: a project saved before 2026-10-05 (a list of one).
     var purpose: String?
+    var jobs: [String]?
     var languages: [String]?
     var scripts: [String]?
+    var directions: [String: String]?
+    var materials: [String]?
+    /// Read only, as `purpose`.
     var material: String?
     var pages: Int?
     var cloudAllowed: Bool?
     var ingestMode: String?
     var layers: [String]?
+    var automatic: Automatic?
+    var jobAnswers: JobAnswers?
+
+    /// What runs by itself after Start (`answers.automatic`).
+    struct Automatic: Codable, Equatable {
+        /// False is "Nothing runs automatically": an import after Start runs nothing.
+        var runs: Bool
+        /// The recipe steps (by job) an import runs over the pages it brought.
+        var steps: [String]
+    }
+
+    /// The questions a ticked job's own screen asks (`answers.job_answers`).
+    struct JobAnswers: Codable, Equatable {
+        /// Entities (`find-names-tag-words`): the kinds to find.
+        var entityKinds: [String] = ["people", "places"]
+        /// Translate or normalise: how far (as-written, expanded, normalised).
+        var normaliseHowFar: String = "expanded"
+        /// Map places (`place-in-a-gazetteer`): which gazetteer.
+        var gazetteer: String = "geonames"
+
+        enum CodingKeys: String, CodingKey {
+            case entityKinds = "entity_kinds"
+            case normaliseHowFar = "normalise_how_far"
+            case gazetteer
+        }
+
+        init() {}
+
+        /// A field not saved yet keeps its default.
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            entityKinds = try values.decodeIfPresent([String].self, forKey: .entityKinds) ?? entityKinds
+            normaliseHowFar = try values.decodeIfPresent(String.self, forKey: .normaliseHowFar) ?? normaliseHowFar
+            gazetteer = try values.decodeIfPresent(String.self, forKey: .gazetteer) ?? gazetteer
+        }
+    }
+
+    init(purposes: [String]? = nil, jobs: [String]? = nil, languages: [String]? = nil,
+         scripts: [String]? = nil, directions: [String: String]? = nil, materials: [String]? = nil,
+         pages: Int? = nil, cloudAllowed: Bool? = nil, ingestMode: String? = nil, layers: [String]? = nil,
+         automatic: Automatic? = nil, jobAnswers: JobAnswers? = nil) {
+        self.purposes = purposes
+        self.jobs = jobs
+        self.languages = languages
+        self.scripts = scripts
+        self.directions = directions
+        self.materials = materials
+        self.pages = pages
+        self.cloudAllowed = cloudAllowed
+        self.ingestMode = ingestMode
+        self.layers = layers
+        self.automatic = automatic
+        self.jobAnswers = jobAnswers
+    }
 
     enum CodingKeys: String, CodingKey {
-        case purpose, languages, scripts, material, pages, layers
+        case purposes, purpose, jobs, languages, scripts, directions, materials, material, pages, layers, automatic
         case cloudAllowed = "cloud_allowed"
         case ingestMode = "ingest_mode"
+        case jobAnswers = "job_answers"
     }
 }
