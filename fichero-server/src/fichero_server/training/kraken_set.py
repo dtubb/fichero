@@ -14,17 +14,27 @@ The manifest (`manifest.json`) names pages by file name and document id only: no
 crosses (`compute.package.no-paths-cross`), no key or token (`compute.package.no-secrets`). It counts
 how many lines a model wrote and how many a person checked (`compute.tune.bootstrapped-data-is-marked`):
 a set made by a teacher is never mistaken for one a person checked.
+
+Flagged lines are left out (`compute.tune.set-excludes-flagged-lines`, #5446): a line whose reading is
+empty or the word `null` (a model's "no writing" kept as text, #5447), and a line whose newest check
+verdict (`check.verdict`, by a person or a checker model such as Fable) rejects it. The manifest counts
+what was left out, by flag, names each line, and says whether the check had run on the set's lines at
+all. The reading check's own flags (a reading closer to a neighbour's line, one below the set score)
+are not built yet; `flags_checked` names the flags this set was checked for.
 """
 from __future__ import annotations
 
 import json
 import shutil
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 MANIFEST = "manifest.json"
 FORMAT = "fichero-kraken-training-set-v1"
+#: Why a line is left out of a set, in the order they are tested (`compute.tune.set-excludes-flagged-lines`).
+FLAGS = ("empty", "null", "rejected")
 
 
 @dataclass
@@ -43,10 +53,22 @@ class TrainingSet:
     pages: list[SetPage] = field(default_factory=list)
     held_out: list[dict[str, str]] = field(default_factory=list)
     missing: list[dict[str, str]] = field(default_factory=list)
+    #: Each line left out: its page, its segment and its flag.
+    left_out_lines: list[dict[str, str]] = field(default_factory=list)
+    #: Lines in scope with a check verdict on their reading; 0 means the check had not run on them.
+    lines_with_a_verdict: int = 0
 
     @property
     def lines(self) -> int:
         return sum(p.lines for p in self.pages)
+
+    def left_out(self) -> dict[str, int]:
+        counts = Counter(line["flag"] for line in self.left_out_lines)
+        return {flag: counts[flag] for flag in FLAGS}
+
+    def summary(self) -> dict[str, Any]:
+        """The set in numbers, without its page list: what a job's card and a preview carry."""
+        return {k: v for k, v in self.manifest().items() if k != "pages"} | {"pages": len(self.pages)}
 
     def manifest(self) -> dict[str, Any]:
         return {
@@ -59,6 +81,12 @@ class TrainingSet:
             # Every line here was read by the teacher, none checked by a person.
             "lines_read_by_a_model": self.lines,
             "lines_checked_by_a_person": 0,
+            "lines_left_out": len(self.left_out_lines),
+            "left_out": self.left_out(),
+            "left_out_lines": self.left_out_lines,
+            "lines_with_a_verdict": self.lines_with_a_verdict,
+            "check_ran": self.lines_with_a_verdict > 0,
+            "flags_checked": list(FLAGS),
         }
 
 
@@ -116,14 +144,83 @@ def read_lines(page_xml: str) -> int:
     return count
 
 
-def export_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_ids: list[str],
-                        out_dir: str | Path) -> TrainingSet:
-    """Write the set under `out_dir` (PAGE XML and photographs side by side, and the manifest)."""
+def line_flag(text: str, rejected: bool) -> str | None:
+    """Why this line stays out of a training set, or None when it may teach."""
+    words = text.strip()
+    if not words:
+        return "empty"
+    if words.casefold() == "null":
+        return "null"
+    return "rejected" if rejected else None
+
+
+def newest_reading_verdicts(db: Any) -> dict[str, Any]:
+    """The newest check verdict on each reading, by the reading's id."""
+    from fichero_server.models.checking import CheckVerdict
+
+    newest: dict[str, Any] = {}
+    for verdict in sorted(db.query(CheckVerdict, layer="readings"), key=lambda v: (v.created_at, v.id)):
+        newest[verdict.target_id] = verdict
+    return newest
+
+
+def lines_of_pass(db: Any, pass_id: str, verdicts: dict[str, Any]) -> tuple[dict[str, str], set[str], int]:
+    """The pass's lines by their PAGE id (to their segment id), the PAGE ids of those whose newest
+    verdict, over all the line's readings, is a reject, and how many lines carry a verdict at all."""
+    from fichero_server.api.routes.document.segment_readings import readings_of_segment
+    from fichero_server.formats.harness import xml_id
+    from fichero_server.models import Segment
+
+    segments = {xml_id(s.id): s.id for s in db.query(Segment, pass_id=pass_id) if s.kind == "line" and not s.deleted_at}
+    rejected: set[str] = set()
+    with_verdict = 0
+    if not verdicts:
+        return segments, rejected, 0
+    for page_id, segment_id in segments.items():
+        on_line = [verdicts[r.id] for r in readings_of_segment(db, segment_id) if r.id in verdicts]
+        if not on_line:
+            continue
+        with_verdict += 1
+        if max(on_line, key=lambda v: (v.created_at, v.id)).verdict == "reject":
+            rejected.add(page_id)
+    return segments, rejected, with_verdict
+
+
+def drop_flagged_lines(page_xml: str, rejected: set[str]) -> tuple[str, list[tuple[str, str]]]:
+    """The PAGE file without its flagged TextLines, and (PAGE id, flag) for each line taken out. A file
+    with nothing flagged comes back exactly as it was."""
+    from fichero_server.formats.pagexml import PAGE_NS_2019
+    from fichero_server.formats.validation import parse
+
+    ns = f"{{{PAGE_NS_2019}}}"
+    root = parse(page_xml.encode("utf-8"))
+    dropped: list[tuple[str, str]] = []
+    for line in list(root.iter(f"{ns}TextLine")):
+        line_id = line.get("id") or ""
+        text = "".join(u.text or "" for u in line.iter(f"{ns}Unicode"))
+        flag = line_flag(text, line_id in rejected)
+        if flag:
+            line.getparent().remove(line)
+            dropped.append((line_id, flag))
+    if not dropped:
+        return page_xml, dropped
+    from lxml import etree
+
+    return etree.tostring(root, xml_declaration=True, encoding="UTF-8").decode("utf-8"), dropped
+
+
+def build_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_ids: list[str],
+                       out_dir: str | Path | None) -> TrainingSet:
+    """The set, with its flagged lines left out; written under `out_dir` (PAGE XML and photographs side
+    by side, and the manifest), or only counted when `out_dir` is None. One code path for both, so a
+    preview counts exactly what a training job sends."""
     from fichero_server.page_export import ExportRefused, export_page
 
-    out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
+    out = Path(out_dir) if out_dir is not None else None
+    if out is not None:
+        out.mkdir(parents=True, exist_ok=True)
     held = set(held_out_ids)
+    verdicts = newest_reading_verdicts(db)
     result = TrainingSet(teacher=teacher)
     for page in pages_in_scope(db, scope_ids):
         if page.id in held:
@@ -139,20 +236,38 @@ def export_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out
         except ExportRefused as exc:
             result.missing.append({"document_id": page.id, "name": page.name, "why": str(exc)})
             continue
-        content = exported.data.decode("utf-8")
+        segments, rejected, with_verdict = lines_of_pass(db, chosen.id, verdicts)
+        result.lines_with_a_verdict += with_verdict
+        content, dropped = drop_flagged_lines(exported.data.decode("utf-8"), rejected)
+        result.left_out_lines.extend({"document_id": page.id, "segment_id": segments.get(line_id, line_id),
+                                      "flag": flag} for line_id, flag in dropped)
         lines = read_lines(content)
         source = Path(page.path)
         if lines == 0 or not source.is_file():
-            why = "its teacher pass has no read lines" if lines == 0 else "its photograph is not on this Mac"
+            if lines:
+                why = "its photograph is not on this Mac"
+            elif dropped:
+                why = "every line of its teacher pass was flagged"
+            else:
+                why = "its teacher pass has no read lines"
             result.missing.append({"document_id": page.id, "name": page.name, "why": why})
             continue
         image_name = PurePosixPath(page.path).name
         stem = Path(image_name).stem
-        (out / f"{stem}.xml").write_text(content, encoding="utf-8")
-        shutil.copy2(source, out / image_name)
+        if out is not None:
+            (out / f"{stem}.xml").write_text(content, encoding="utf-8")
+            shutil.copy2(source, out / image_name)
         result.pages.append(SetPage(document_id=page.id, name=page.name, xml=f"{stem}.xml",
                                     image=image_name, pass_id=chosen.id, lines=lines))
-    (out / MANIFEST).write_text(json.dumps(result.manifest(), indent=1), encoding="utf-8")
+    if out is not None:
+        (out / MANIFEST).write_text(json.dumps(result.manifest(), indent=1), encoding="utf-8")
+    return result
+
+
+def export_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_ids: list[str],
+                        out_dir: str | Path) -> TrainingSet:
+    """Write the set under `out_dir`; refused when no page has a line to teach."""
+    result = build_training_set(db, scope_ids=scope_ids, teacher=teacher, held_out_ids=held_out_ids, out_dir=out_dir)
     if not result.pages:
         raise EmptyTrainingSet(
             f"no page in scope has a pass read by {teacher} with read lines "

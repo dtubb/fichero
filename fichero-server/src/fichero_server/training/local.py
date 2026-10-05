@@ -214,7 +214,7 @@ def run(db: Any, subject: str) -> str:
             shutil.rmtree(data)
         made = export_training_set(db, scope_ids=request.scope_ids, teacher=request.teacher,
                                    held_out_ids=request.held_out_ids, out_dir=data)
-        detail["training_set"] = {k: v for k, v in made.manifest().items() if k != "pages"} | {"pages": len(made.pages)}
+        detail["training_set"] = made.summary()
         if request.base:
             base_path = Path(resolve_recognition_model(request.base)[0])
             (data / "base").mkdir()

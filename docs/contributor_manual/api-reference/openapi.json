@@ -5535,6 +5535,80 @@
         }
       }
     },
+    "/api/training/set": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "What a training set from these pages would hold, and the flagged lines it leaves out",
+        "description": "Counted exactly as a training job builds its set, nothing written or sent\n(`compute.tune.set-excludes-flagged-lines`): the pages and lines that would teach, the lines left\nout by flag (an empty or `null` reading, a reading whose newest check verdict rejects it) with\neach line's segment, whether the check had run on the set's lines, the held-out pages and the\npages missing with why.",
+        "operationId": "preview_training_set_api_training_set_get",
+        "parameters": [
+          {
+            "name": "teacher",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The model whose line readings are the lessons.",
+              "title": "Teacher"
+            },
+            "description": "The model whose line readings are the lessons."
+          },
+          {
+            "name": "scope_ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Folders or pages whose teacher-read lines are the lessons.",
+              "title": "Scope Ids"
+            },
+            "description": "Folders or pages whose teacher-read lines are the lessons."
+          },
+          {
+            "name": "held_out_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Pages kept home as the test.",
+              "default": [],
+              "title": "Held Out Ids"
+            },
+            "description": "Pages kept home as the test."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingSetPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/training/jobs/{job_id}/cancel": {
       "post": {
         "tags": [
@@ -80679,6 +80753,104 @@
         ],
         "title": "TrainingResult",
         "description": "Training job result."
+      },
+      "TrainingSetPreview": {
+        "properties": {
+          "teacher": {
+            "type": "string",
+            "title": "Teacher"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines"
+          },
+          "lines_read_by_a_model": {
+            "type": "integer",
+            "title": "Lines Read By A Model"
+          },
+          "lines_checked_by_a_person": {
+            "type": "integer",
+            "title": "Lines Checked By A Person"
+          },
+          "lines_left_out": {
+            "type": "integer",
+            "title": "Lines Left Out"
+          },
+          "left_out": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Left Out"
+          },
+          "left_out_lines": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Left Out Lines"
+          },
+          "lines_with_a_verdict": {
+            "type": "integer",
+            "title": "Lines With A Verdict"
+          },
+          "check_ran": {
+            "type": "boolean",
+            "title": "Check Ran"
+          },
+          "flags_checked": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags Checked"
+          },
+          "held_out": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Held Out"
+          },
+          "missing": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Missing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "teacher",
+          "pages",
+          "lines",
+          "lines_read_by_a_model",
+          "lines_checked_by_a_person",
+          "lines_left_out",
+          "left_out",
+          "left_out_lines",
+          "lines_with_a_verdict",
+          "check_ran",
+          "flags_checked",
+          "held_out",
+          "missing"
+        ],
+        "title": "TrainingSetPreview",
+        "description": "What a training set from these pages holds, and what it leaves out and why."
       },
       "TrainingStarted": {
         "properties": {

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
@@ -192,6 +192,43 @@ async def training_job_status(job_id: str, db: Database = Depends(get_library_da
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return TrainingJobStatus(**{k: v for k, v in row.items() if k in TrainingJobStatus.model_fields})
+
+
+class TrainingSetPreview(BaseModel):
+    """What a training set from these pages holds, and what it leaves out and why."""
+
+    teacher: str
+    pages: int
+    lines: int
+    lines_read_by_a_model: int
+    lines_checked_by_a_person: int
+    lines_left_out: int
+    left_out: dict[str, int]
+    left_out_lines: list[dict[str, str]]
+    lines_with_a_verdict: int
+    check_ran: bool
+    flags_checked: list[str]
+    held_out: list[dict[str, str]]
+    missing: list[dict[str, str]]
+
+
+@router.get("/set", response_model=TrainingSetPreview,
+            summary="What a training set from these pages would hold, and the flagged lines it leaves out")
+async def preview_training_set(
+    teacher: str = Query(..., description="The model whose line readings are the lessons."),
+    scope_ids: list[str] = Query(..., description="Folders or pages whose teacher-read lines are the lessons."),
+    held_out_ids: list[str] = Query([], description="Pages kept home as the test."),
+    db: Database = Depends(get_library_database),
+) -> TrainingSetPreview:
+    """Counted exactly as a training job builds its set, nothing written or sent
+    (`compute.tune.set-excludes-flagged-lines`): the pages and lines that would teach, the lines left
+    out by flag (an empty or `null` reading, a reading whose newest check verdict rejects it) with
+    each line's segment, whether the check had run on the set's lines, the held-out pages and the
+    pages missing with why."""
+    from fichero_server.training.kraken_set import build_training_set
+
+    made = build_training_set(db, scope_ids=scope_ids, teacher=teacher, held_out_ids=held_out_ids, out_dir=None)
+    return TrainingSetPreview(**{k: v for k, v in made.summary().items() if k in TrainingSetPreview.model_fields})
 
 
 @router.post("/jobs/{job_id}/cancel", summary="Stop a training job (cancels its Job on Hugging Face)")

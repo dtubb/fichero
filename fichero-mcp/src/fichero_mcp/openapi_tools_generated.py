@@ -7576,6 +7576,16 @@ def fichero_training_cancel_reasons_job(
     return _rt.call("POST", f"/api/training/reasons/{job_id}/cancel")
 
 
+def fichero_training_preview_set(
+    *,
+    held_out_ids: Annotated[Optional[list[str]], Field(description='Pages kept home as the test.')] = None,
+    scope_ids: Annotated[list[str], Field(description='Folders or pages whose teacher-read lines are the lessons.')],
+    teacher: Annotated[str, Field(description='The model whose line readings are the lessons.')],
+) -> Any:
+    "What a training set from these pages would hold, and the flagged lines it leaves out\n\nCounted exactly as a training job builds its set, nothing written or sent\n(`compute.tune.set-excludes-flagged-lines`): the pages and lines that would teach, the lines left\nout by flag (an empty or `null` reading, a reading whose newest check verdict rejects it) with\neach line's segment, whether the check had run on the set's lines, the held-out pages and the\npages missing with why.\n\nRoute: GET /api/training/set (toolset `training`; reads)."
+    return _rt.call("GET", "/api/training/set", params={"held_out_ids": held_out_ids, "scope_ids": scope_ids, "teacher": teacher})
+
+
 def fichero_training_start_vision_lora(
     *,
     all_lines: Annotated[Optional[bool], Field(description='Train an A/B arm on every line it has, not only the lines every reasoning arm covers. Default: false.')] = None,
@@ -8878,6 +8888,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_training_reasons_ab_status", "training", "GET", "/api/training/reasons-ab/{job_id}", fichero_training_reasons_ab_status),
     GeneratedTool("fichero_training_reasons_job_status", "training", "GET", "/api/training/reasons/{job_id}", fichero_training_reasons_job_status),
     GeneratedTool("fichero_training_cancel_reasons_job", "training", "POST", "/api/training/reasons/{job_id}/cancel", fichero_training_cancel_reasons_job),
+    GeneratedTool("fichero_training_preview_set", "training", "GET", "/api/training/set", fichero_training_preview_set),
     GeneratedTool("fichero_training_start_vision_lora", "training", "POST", "/api/training/vision-lora", fichero_training_start_vision_lora),
     GeneratedTool("fichero_triggers_list", "triggers", "GET", "/api/triggers", fichero_triggers_list),
     GeneratedTool("fichero_triggers_create", "triggers", "POST", "/api/triggers", fichero_triggers_create),

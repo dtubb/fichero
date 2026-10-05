@@ -10852,6 +10852,32 @@
         "response_model": null
       },
       {
+        "method": "GET",
+        "path": "/training/set",
+        "operation_id": "preview_training_set_api_training_set_get",
+        "summary": "What a training set from these pages would hold, and the flagged lines it leaves out",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "held_out_ids",
+            "required": false,
+            "type": "array"
+          },
+          {
+            "name": "scope_ids",
+            "required": true,
+            "type": "array"
+          },
+          {
+            "name": "teacher",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "TrainingSetPreview"
+      },
+      {
         "method": "POST",
         "path": "/training/vision-lora",
         "operation_id": "start_vision_lora_training_api_training_vision_lora_post",
