@@ -553,6 +553,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/training/landing.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/line_pairs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/local.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/mlx_landing.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/model_nodes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons_ab.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons_job.py

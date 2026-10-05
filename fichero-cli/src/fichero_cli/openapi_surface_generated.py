@@ -15831,6 +15831,31 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("one-trained-model-s-inspector-facts")
+    def training_one_trained_model_s_inspector_facts_get(
+        ctx: typer.Context,
+        model: str = typer.Option(..., "--model", help="Query parameter: model."),
+    ) -> None:
+        """One trained model's Inspector facts (GET /api/training/model)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/model"
+            params = {
+                "model": model,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("the-models-fichero-trained-or-fine-tuned-as-the-node-lists-them")
+    def training_the_models_fichero_trained_or_fine_tuned_as_the_node_lists_them_get(
+        ctx: typer.Context,
+    ) -> None:
+        """The models Fichero trained or fine-tuned, as the training node lists them (GET /api/training/models)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/models"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("ask-a-palaeographer-for-its-reasons-or-review-on-each-checked-line")
     def training_ask_a_palaeographer_for_its_reasons_or_review_on_each_checked_line_post(
         ctx: typer.Context,

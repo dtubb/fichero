@@ -10851,6 +10851,32 @@
         "response_model": "TrainingStartedHere"
       },
       {
+        "method": "GET",
+        "path": "/training/model",
+        "operation_id": "trained_model_inspector_api_training_model_get",
+        "summary": "One trained model's Inspector facts",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "model",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "TrainedModelInspector"
+      },
+      {
+        "method": "GET",
+        "path": "/training/models",
+        "operation_id": "list_trained_models_api_training_models_get",
+        "summary": "The models Fichero trained or fine-tuned, as the training node lists them",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TrainedModelNodes"
+      },
+      {
         "method": "POST",
         "path": "/training/reasons",
         "operation_id": "start_gathering_reasons_api_training_reasons_post",

@@ -7567,6 +7567,20 @@ def fichero_training_start_kraken_here(
     return _rt.call("POST", "/api/training/kraken/here", json=_rt.body({"base": base, "batch_size": batch_size, "display_name": display_name, "epochs": epochs, "held_out_ids": held_out_ids, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "release_note": release_note, "scope_ids": scope_ids, "teacher": teacher}))
 
 
+def fichero_training_trained_model_inspector(
+    *,
+    model: Annotated[str, Field(description='The model id: kraken-trained-<job> or fichero-trained/<name>.')],
+) -> Any:
+    "One trained model's Inspector facts\n\n`source.model.node-inspector`: the node's facts plus its whole card and every evaluation on it. 404\nfor a model Fichero did not train (it has no training card).\n\nRoute: GET /api/training/model (toolset `training`; reads)."
+    return _rt.call("GET", "/api/training/model", params={"model": model})
+
+
+def fichero_training_list_trained_models(
+) -> Any:
+    'The models Fichero trained or fine-tuned, as the training node lists them\n\nNewest first, each read from its card (`source.model.node-in-sidebar`): provenance (base, teacher,\ntraining set, job, when, where), the newest held-out scores per normalisation policy, size, where it\nruns, licence and whether it may be published. A downloaded or imported model is not listed: it lives\nin Settings.\n\nRoute: GET /api/training/models (toolset `training`; reads).'
+    return _rt.call("GET", "/api/training/models")
+
+
 def fichero_training_start_gathering_reasons(
     *,
     checked: Annotated[str, Field(description='The model id of the CHECKED pass (its lines and their right readings).')],
@@ -8928,6 +8942,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_training_cancel_job", "training", "POST", "/api/training/jobs/{job_id}/cancel", fichero_training_cancel_job),
     GeneratedTool("fichero_training_start_kraken", "training", "POST", "/api/training/kraken", fichero_training_start_kraken),
     GeneratedTool("fichero_training_start_kraken_here", "training", "POST", "/api/training/kraken/here", fichero_training_start_kraken_here),
+    GeneratedTool("fichero_training_trained_model_inspector", "training", "GET", "/api/training/model", fichero_training_trained_model_inspector),
+    GeneratedTool("fichero_training_list_trained_models", "training", "GET", "/api/training/models", fichero_training_list_trained_models),
     GeneratedTool("fichero_training_start_gathering_reasons", "training", "POST", "/api/training/reasons", fichero_training_start_gathering_reasons),
     GeneratedTool("fichero_training_start_reasons_ab", "training", "POST", "/api/training/reasons-ab", fichero_training_start_reasons_ab),
     GeneratedTool("fichero_training_reasons_ab_status", "training", "GET", "/api/training/reasons-ab/{job_id}", fichero_training_reasons_ab_status),
