@@ -874,7 +874,10 @@ def _caller_is_engine_owner(request: Request) -> bool:
     from fichero_server.api.auth import _is_loopback_request
     from fichero_server.api.main import _auth_enabled
 
-    return not _auth_enabled() and _is_loopback_request(request)
+    try:
+        return not _auth_enabled() and _is_loopback_request(request)
+    except AttributeError:
+        return False  # fail closed: a request whose origin can't be read is never the owner
 
 
 @router.get("/registry", response_model=LibraryRegistryResponse)
