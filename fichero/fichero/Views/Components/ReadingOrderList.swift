@@ -107,6 +107,7 @@ struct ReadingOrderList: View {
             if let segmentService { await SegmentStore.shared(for: segmentService).load(documentId: documentId) }
             try? await store?.loadFollowing(documentId: documentId, workingPassId: workingPassId)
             await store?.show(childrenOf: parentSegmentId)
+            await flags?.load(documentId: documentId)
             // Next in a flow crossed onto this page: select the segment it went to.
             if let pending = windowState?.pendingSegmentSelection, pending.documentId == documentId {
                 selection = pending.segmentId
@@ -133,6 +134,11 @@ struct ReadingOrderList: View {
         guard let segmentService else { return [] }
         let segments = SegmentStore.shared(for: segmentService).workingSegments(documentId: documentId)
         return SegmentsPane.asWritten(segments, under: parentSegmentId)
+    }
+
+    /// Which lines the teacher-line check flagged (#5446): the one store every line list reads.
+    private var flags: FlaggedLineStore? {
+        segmentService.map { FlaggedLineStore.shared(for: $0) }
     }
 
     /// The page's working pass as the engine names it; nil until the page is read.
@@ -199,6 +205,11 @@ struct ReadingOrderList: View {
             Text(rowLabel?(segmentId, index) ?? label(for: segmentId, at: index))
                 .font(BundledFonts.shared.font(.body))
                 .lineLimit(2)
+            // A line the teacher-line check flagged (#5446): marked, its scores on hover.
+            if let line = flags?.flag(segmentId: segmentId, documentId: documentId) {
+                Spacer(minLength: 4)
+                FlaggedLineMark(line: line)
+            }
             if let onOpen, opens?(segmentId) ?? false {
                 Spacer(minLength: 4)
                 Button { onOpen(segmentId) } label: {

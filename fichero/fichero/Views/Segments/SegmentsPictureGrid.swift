@@ -23,6 +23,12 @@ struct SegmentsPictureGrid: View {
         return SegmentStore.shared(for: segmentService).direction(of: id, documentId: documentId)
     }
 
+    /// The segment's flag from the teacher-line check, read from the one store the list reads (#5446).
+    private func flag(of id: String) -> FlaggedLines.Line? {
+        guard let segmentService, let documentId = segments[id]?.documentId else { return nil }
+        return FlaggedLineStore.shared(for: segmentService).flag(segmentId: id, documentId: documentId)
+    }
+
     var body: some View {
         ScrollView(isStrip ? .horizontal : .vertical) {
             if isStrip {
@@ -51,6 +57,10 @@ struct SegmentsPictureGrid: View {
             }
             .frame(width: 140, height: 90)
             .clipShape(RoundedRectangle(cornerRadius: 4))
+            // A line the teacher-line check flagged (#5446), as the list marks it.
+            .overlay(alignment: .topTrailing) {
+                if let line = flag(of: id) { FlaggedLineMark(line: line).padding(4) }
+            }
             Text(SegmentsPane.rowLabel(segments[id], at: index, direction: direction(of: id)))
                 .font(BundledFonts.shared.font(.caption)).lineLimit(2)
                 .frame(width: 140, alignment: .leading)

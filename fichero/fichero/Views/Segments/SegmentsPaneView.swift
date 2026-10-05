@@ -64,6 +64,8 @@ struct SegmentsPaneView: View {
             let store = SegmentStore.shared(for: segmentService)
             await store.load(documentId: document.id)
             proposedMatches = (try? await segmentService.proposedMatches(documentId: document.id).count) ?? 0
+            // The teacher-line check's flags (#5446), for the strip and grid as well as the list.
+            await FlaggedLineStore.shared(for: segmentService).load(documentId: document.id)
             // A gathered row's page has arrived: select its segment in the focused Source view.
             if let pending = pendingSelect, pending.documentId == document.id,
                let selection = windowState?.focusedRegionSelection {
@@ -138,6 +140,12 @@ struct SegmentsPaneView: View {
         NotificationCenter.default.post(name: .sidebarRevealDocument, object: nil, userInfo: ["documentId": documentId])
     }
 
+    /// How many lines on the page the teacher-line check flagged and nobody has confirmed (#5446).
+    private var flaggedOnPage: Int {
+        guard let document, let segmentService else { return 0 }
+        return FlaggedLineStore.shared(for: segmentService).flaggedCount(documentId: document.id)
+    }
+
     private var head: some View {
         if let gather = windowState?.segmentsGather {
             return AnyView(PaneHead(
@@ -174,6 +182,12 @@ struct SegmentsPaneView: View {
             selector: { kindSelector },
             controls: { EmptyView() },
             tools: {
+                if flaggedOnPage > 0 {
+                    Label("\(flaggedOnPage) Flagged", systemImage: "flag.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .help("Lines the teacher-line check flagged on this page; select one to see why and confirm it")
+                }
                 if proposedMatches > 0, let document {
                     Button { windowState?.segmentsGather = .matches(documentId: document.id) } label: {
                         Label("\(proposedMatches) Proposed Matches", systemImage: "arrow.triangle.merge")
