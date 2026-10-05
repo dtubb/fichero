@@ -831,6 +831,54 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
     return candidates
 
 
+#: The unconverted results of a page: those with boxes and no conversion marker. A constant, as
+#: `Database._query_where` requires; the converted ones (most, on a page anyone has opened) are
+#: never hydrated, so asking costs nothing on a 20,000-box page.
+_UNCONVERTED_RESULT_SQL = "ocr_geometry IS NOT NULL AND geometry_superseded_by_pass_id IS NULL"
+
+
+def _unconverted_candidates(db: Database, document_id: str) -> list[PassCandidate]:
+    """Each unconverted result of a page as the provisional pass the segments route serves for it,
+    judged as the ranking needs: touched by a person when a person made it, drew a box in it
+    (`_box_is_hand_drawn`, the same signal its served segments carry) or corrected it (#5222)."""
+    from datetime import timezone
+
+    from fichero_server.models.segments import _box_is_hand_drawn, legacy_pass_id
+
+    results = [
+        a for a in db._query_where(Artifact, _UNCONVERTED_RESULT_SQL, {}, document_id=document_id)
+        if a.ocr_geometry is not None
+    ]
+    corrected = artifacts_a_person_worked_on(db, (a.id for a in results))
+    return [
+        PassCandidate(
+            pass_id=legacy_pass_id(a.id),
+            provenance_kind=derive_pass_provenance_kind(provider=a.provider, model=a.model),
+            has_human_segment=a.id in corrected or any(_box_is_hand_drawn(b) for b in a.ocr_geometry.boxes),
+            from_text_layer=a.artifact_type == TEXT_LAYER_ARTIFACT_TYPE,
+            unconverted=True,
+            created_at=a.created_at or datetime.min.replace(tzinfo=timezone.utc),
+        )
+        for a in results
+    ]
+
+
+def working_pass(db: Database, document_id: str) -> PassAnswer:
+    """The page's working pass and why (`source.pass.working`, #5467): THE one answer the segments
+    route, the page's text, the Order list, the text cache and export all read. Its real passes and
+    its unconverted results are offered together; `resolve_working_pass` decides."""
+    return resolve_working_pass(
+        project_record_rule(db),
+        list(db.query(SegmentPassChoice, document_id=document_id)),
+        _pass_candidates(db, document_id) + _unconverted_candidates(db, document_id),
+    )
+
+
+def is_unconverted_pass(pass_id: str | None) -> bool:
+    """True for a provisional pass: an unconverted result, whose words have no rows to derive from."""
+    return pass_id is not None and pass_id.startswith(LEGACY_ID_PREFIX)
+
+
 def _as_written_sequence(db: Database, pass_id: str) -> dict[str, int] | None:
     """Each segment's place when the pass's `as-written` order is walked depth first, each level
     by position (a block, then its lines, then their words), or None when the pass has no such
@@ -1071,7 +1119,10 @@ def _why_omitted(
 DERIVATION_VERSION = 12
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
-DERIVATION_SOURCE_SHA256 = "9628241c803631645014fc69635ca19559fd232ed85fa54311efc7800d064198"
+#: Re-pinned without a bump for #5467: the working pass is read through `working_pass`; a page
+#: whose working pass is a real pass derives the same text, and one whose working pass is an
+#: unconverted result derives nothing the cache stores (`page_text_cache._derives_text`).
+DERIVATION_SOURCE_SHA256 = "cab1074762c34d357541bf60101d45b6e48e3bf9943c34d96b51e680e7d104f1"
 
 
 def derivation_source_digest() -> str:
@@ -1207,8 +1258,8 @@ def document_text(
         ordered_segment_ids = [
             row.segment_id for row in entries_in_sequence(db, named_order.id)
         ]
-    candidates = _pass_candidates(db, document_id)
     if pass_id is not None:
+        candidates = _pass_candidates(db, document_id)
         answer = PassAnswer(pass_id=pass_id, basis=PassBasis.chosen)
         # A pass NAMED is read whatever its kind: the working-pass rule ranks text passes only, but
         # a georeferencing pass named by its id (its export, #5122) is still a pass of this page.
@@ -1218,14 +1269,13 @@ def document_text(
         if not any(row.pass_id == pass_id for row in candidates):
             raise LookupError(f"Pass not found on document {document_id}: {pass_id}")
     else:
-        answer = resolve_working_pass(
-            project_record_rule(db),
-            list(db.query(SegmentPassChoice, document_id=document_id)),
-            candidates,
-        )
-    if answer.pass_id is None:
+        answer = working_pass(db, document_id)
+    if answer.pass_id is None or is_unconverted_pass(answer.pass_id):
+        # No pass, or an unconverted result: nothing to derive from yet (its words become rows when
+        # it converts), so the text is empty and the page's stored text stands. The pass is still
+        # NAMED, so every surface names the same working pass (#5467).
         return DerivedText(
-            text="", spans=[], pass_id=None, pass_basis=answer.basis.value, kind=kind,
+            text="", spans=[], pass_id=answer.pass_id, pass_basis=answer.basis.value, kind=kind,
             order=order,
         )
 

@@ -535,6 +535,11 @@ class PassCandidate(BaseModel):
     #: True for a pass that came in from a synced folder, edited outside Fichero (#4952): it is
     #: never the working pass until a person chooses it (`source.sync.outside-edits-are-passes`).
     waits_to_be_chosen: bool = False
+    #: True for a run's result whose boxes have not yet become a pass (an unconverted result, served
+    #: as a provisional pass). It counts only when a person corrected it, or when the page has no
+    #: pass at all (#5463, #5467): newest by date, it would otherwise take the page from its real
+    #: passes while nobody has looked at it.
+    unconverted: bool = False
     created_at: datetime
 
     @property
@@ -569,6 +574,11 @@ def resolve_working_pass(
     A pass edited outside Fichero (a synced folder's file, #4952) is passed over by every tier
     but a choice: an outside edit never takes the record by itself.
 
+    An unconverted result (a run's boxes not yet made a pass) is a candidate only when a person
+    corrected it or the page has no pass at all (#5467). THIS is the one place a page's working
+    pass is decided: every route that names one (segments, text, Order, export) asks it, through
+    `segment_readings.working_pass`, and keeps no ranking of its own.
+
     The project rule does NOT withhold a pass -- the Reader has to show
     something -- it decides what the answer MEANS. In a strict project the
     ranked machine pass comes back as ``newest-machine-unchosen``: shown,
@@ -588,6 +598,12 @@ def resolve_working_pass(
     for choice in live:
         if choice.pass_id in by_id:
             return PassAnswer(pass_id=choice.pass_id, basis=PassBasis.chosen)
+
+    # An unconverted result counts only when a person corrected it, or when the page has no pass at
+    # all (#5467: this rule lived in the segments route alone, so the Preview and the text could name
+    # different passes for the same page).
+    if any(not row.unconverted for row in passes_with_makers):
+        passes_with_makers = [row for row in passes_with_makers if not row.unconverted or row.touched_by_a_person]
 
     # A pass that waits to be chosen ranks only when there is nothing else to show.
     passes_with_makers = [row for row in passes_with_makers if not row.waits_to_be_chosen] or passes_with_makers

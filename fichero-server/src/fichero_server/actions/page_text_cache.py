@@ -124,20 +124,19 @@ def _touched_passes(db: Any, spec: Any) -> set[str]:
 
 
 def _working_pass_id(db: Any, document_id: str) -> str | None:
-    """The document's working pass, the way `document_text` resolves it, without deriving text."""
-    from fichero_server.api.routes.document.segment_readings import (
-        SegmentPassChoice,
-        _pass_candidates,
-        project_record_rule,
-        resolve_working_pass,
-    )
+    """The document's working pass, the one answer every surface reads (`working_pass`, #5467),
+    without deriving text."""
+    from fichero_server.api.routes.document.segment_readings import working_pass
 
-    answer = resolve_working_pass(
-        project_record_rule(db),
-        list(db.query(SegmentPassChoice, document_id=document_id)),
-        _pass_candidates(db, document_id),
-    )
-    return answer.pass_id
+    return working_pass(db, document_id).pass_id
+
+
+def _derives_text(pass_id: str | None) -> bool:
+    """Whether a working pass has rows to derive the page's text from. An unconverted result does
+    not (its words become rows when it converts): the stored text stands, never replaced by ""."""
+    from fichero_server.api.routes.document.segment_readings import is_unconverted_pass
+
+    return pass_id is not None and not is_unconverted_pass(pass_id)
 
 
 def cache_text(derived: Any) -> str:
@@ -305,10 +304,10 @@ def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
         doc = db.get(Document, document_id)
         if doc is None or (doc.metadata or {}).get(DERIVATION_STAMP) == DERIVATION_VERSION:
             continue
-        if page_content_is_user_edited(doc) or _working_pass_id(db, document_id) is None:
+        if page_content_is_user_edited(doc) or not _derives_text(_working_pass_id(db, document_id)):
             continue
         derived = document_text(db, document_id)
-        if derived.pass_id is None:
+        if not _derives_text(derived.pass_id):
             continue
         text = cache_text(derived)
         # The map is re-stored with the text: a stale stamp means a stale map too.
@@ -347,8 +346,8 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
             # check by action name: any future action with this property is covered.
             continue
         derived = document_text(db, document_id)
-        if derived.pass_id is None:
-            continue  # no working pass: nothing derives, so nothing is cached
+        if not _derives_text(derived.pass_id):
+            continue  # no working pass, or an unconverted result: nothing derives, so nothing is cached
         text = cache_text(derived)
         # Stored even when the text is unchanged: two lines that read alike can swap places.
         _save_line_map(db, doc, text, derived)

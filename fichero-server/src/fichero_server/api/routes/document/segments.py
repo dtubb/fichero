@@ -751,51 +751,16 @@ async def list_document_segments(
 
 
 def _mark_working_pass(db: Database, doc_id: str, passes: list[PassRead], segments: list[SegmentRead]) -> None:
-    """Say which pass is the page's working pass, and why (#5156) -- by the rule `document_text` uses
-    (`resolve_working_pass`), worked out once per page, never per row.
+    """Say which pass is the page's working pass, and why (#5156), worked out once per page, never
+    per row -- by `working_pass`, the one answer the text, the Order list and export read (#5467).
 
-    The PROVISIONAL passes the seam serves (an artifact's boxes, not yet converted) are candidates
-    too, judged the same way. They are what the canvas draws on an unconverted page, and conversion
-    must change nothing you can see: before this, the pass on screen read "not working" until its
-    first edit converted it, then "working · newest-machine-unchosen" -- the same boxes, a different
-    answer (test_segment_conversion_action, found by the gate). On a page that already has real
-    passes, only a provisional pass a person touched is a candidate (#5463)."""
-    from datetime import datetime, timezone
+    It used to rank here with a rule of its own for the PROVISIONAL passes (an unconverted result's
+    boxes) and with only the passes this response held, so a filtered read and the page's text could
+    name different passes. The provisional rule now lives in `resolve_working_pass`, and the page's
+    every pass and result is judged whatever this read was filtered to."""
+    from fichero_server.api.routes.document.segment_readings import working_pass
 
-    from fichero_server.api.routes.document.segment_readings import (
-        TEXT_LAYER_ARTIFACT_TYPE,
-        PassCandidate,
-        SegmentPassChoice,
-        _pass_candidates,
-        artifacts_a_person_worked_on,
-        project_record_rule,
-        resolve_working_pass,
-    )
-
-    human_passes = {s.pass_id for s in segments if s.provisional and s.provenance_kind == ProvenanceKind.human}
-    corrected = artifacts_a_person_worked_on(db, (p.source_artifact_id for p in passes if p.provisional))
-    provisional = [
-        PassCandidate(
-            pass_id=p.id, provenance_kind=p.provenance_kind,
-            has_human_segment=p.id in human_passes or p.source_artifact_id in corrected,
-            from_text_layer=p.artifact_type == TEXT_LAYER_ARTIFACT_TYPE,
-            created_at=p.created_at or datetime.min.replace(tzinfo=timezone.utc),
-        )
-        for p in passes if p.provisional
-    ]
-    real = _pass_candidates(db, doc_id)
-    if real:
-        # A page with real passes takes its working pass from them, as `document_text` and the Order
-        # list do (#5463). An unconverted machine result beside them -- a run's result not yet made a
-        # pass -- is newest by date, and counting it here alone made the Preview draw it while the
-        # Segments list and the text read the real pass: the words were listed and not drawn. A result
-        # a person corrected still counts (`source.pass.working`: a person's work is never hidden).
-        provisional = [row for row in provisional if row.touched_by_a_person]
-    answer = resolve_working_pass(
-        project_record_rule(db),
-        list(db.query(SegmentPassChoice, document_id=doc_id)),
-        real + provisional,
-    )
+    answer = working_pass(db, doc_id)
     for pass_read in passes:
         if pass_read.id == answer.pass_id:
             pass_read.working = True
