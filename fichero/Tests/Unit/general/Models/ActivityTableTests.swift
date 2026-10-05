@@ -500,7 +500,8 @@ final class ActivityTableTests: XCTestCase {
         ]
         return Data("""
         {"jobs":[\(jobs.joined(separator: ","))],"count":\(jobs.count),"process_cpu_percent":142.0,\
-        "cpu_count":8,"paused":\(paused)}
+        "cpu_count":8,"paused":\(paused),\
+        "machine":{"memory_pressure":"normal","thermal_state":"nominal","on_battery":false,"in_use":false,"why_wait":null}}
         """.utf8)
     }
 
