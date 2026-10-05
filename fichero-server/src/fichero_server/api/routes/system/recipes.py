@@ -57,8 +57,10 @@ router = APIRouter(prefix="/recipes")
 
 class JobInfo(BaseModel):
     id: str
-    name: str
-    description: str
+    name: str = Field(description="the title of its entry in the topic registry")
+    # Kept because setup (RecipeStepsView) shows it; it is the topic's text, not a second copy.
+    description: str = Field(description="the short sentence and paragraph of its topic (GET /api/topics/{id})")
+    topic: str = Field(description="the topic registry id that explains this job (GET /api/topics/{id})")
     layer: str
     takes: list[str]
     gives: list[str]
@@ -76,7 +78,7 @@ class JobListResponse(BaseModel):
 async def list_jobs() -> JobListResponse:
     """Every job a recipe can name, with the plain description setup and the manual show."""
     items = [
-        JobInfo(id=j.id, name=j.name, description=j.description, layer=j.layer,
+        JobInfo(id=j.id, name=j.name, description=j.description, topic=j.topic.id, layer=j.layer,
                 takes=sorted(j.takes), gives=sorted(j.gives), compare=j.compare,
                 settings=list(j.settings), since=j.since)
         for j in all_jobs()

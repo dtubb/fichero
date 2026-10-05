@@ -1598,18 +1598,22 @@ Setup
   Start last, with its screens in one fixed order (provisionally the six of section 7; to be
   aligned with the maintainer's step document of 2026-10-02); it can be closed at any screen with
   the answers kept as a draft, and nothing runs before Start.
-- `source.onboard.teaches-the-method` — **[GAP]** (#4951) *Engine needed (stopped 2026-10-04, owned by
-  the engine worker): the topics of section 7a have no registry and no route (`GET /api/recipes/jobs`
-  carries jobs only), so the app has no text to show without writing a second copy; each recipe step
-  already explains itself from the job registry (`source.onboard.self-documenting`).* across its steps setup explains each topic
+- `source.onboard.teaches-the-method` — **[PARTIAL]** (#4951, #5471) **Engine built 2026-10-04:** each
+  topic of section 7a has a title, one sentence, a paragraph and the example to show, served by
+  `GET /api/topics` and `GET /api/topics/{id}` from `fichero-server/src/fichero_server/recipes/seed/topics.yaml`;
+  pinned by `fichero-server/tests/unit/recipes/test_topic_registry.py`. *Owed (app): setup does not
+  read the topics yet, and the example is described, not yet drawn from the person's own pages.* across its steps setup explains each topic
   of section 7a (languages, scripts, fonts, glyphs and Unicode, a faithful way to write the script,
   finding sources, models and memory, Kraken, layout, tables, workflows and recipes, entities,
   statements, maps, calendars, normalisation, output formats, fine-tuning, remote compute) with an
   example from the person's own pages where there are some.
-- `source.onboard.topics-written-once` — **[GAP]** (#4951) *Engine needed (stopped 2026-10-04): a
-  topic registry served by the engine (id, title, plain explanation, example recipe, trade-offs),
-  e.g. `GET /api/recipes/topics`; jobs already are written once (setup, the Inspector and "Also on
-  hand" all show `GET /api/recipes/jobs`).* each topic's and each job's explanation
+- `source.onboard.topics-written-once` — **[PARTIAL]** (#4951, #5471) **Engine built 2026-10-04:** one
+  registry (`fichero-server/src/fichero_server/recipes/seed/topics.yaml`) holds every topic's and every recipe
+  job's words; a job's name and description are read from its entry (the text moved out of
+  `recipes/jobs.py`), `GET /api/recipes/jobs` names each job's `topic`, and a test fails if a
+  sentence is written in a second engine file (`fichero-server/tests/unit/recipes/test_topic_registry.py`).
+  *Owed (app): the Inspector and Activity do not read `GET /api/topics` yet; no user manual page
+  links back yet.* each topic's and each job's explanation
   is stored once, with its job or topic in the registry, and the same text is shown in setup, the
   Inspector, an exported recipe's README and the user manual.
 - `source.onboard.new-project-offers-setup` — **[PARTIAL]** (#5430) **Built 2026-10-04:** creating a

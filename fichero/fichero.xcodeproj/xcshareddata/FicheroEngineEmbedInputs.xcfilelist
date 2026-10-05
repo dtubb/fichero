@@ -175,6 +175,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/recipes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/registries.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/settings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/storage.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/topics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/views.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/training.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/workflow/__init__.py
@@ -423,7 +424,9 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/READM
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/prompts/correct-line.prompt.md
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/prompts/statements.prompt.md
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/recipe.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/topics.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/start.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/package.py

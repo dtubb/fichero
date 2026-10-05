@@ -1052,7 +1052,8 @@ Each line is drawn from the route's own summary in `openapi.json`.
 Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`source.recipe.*`,
 `source.onboard.*`, `source.project.*`).
 
-- `GET /api/recipes/jobs`: every job a recipe can name, with what it takes and gives and its plain description.
+- `GET /api/recipes/jobs`: every job a recipe can name, with what it takes and gives, its plain description and the `topic` that explains it.
+- `GET /api/topics`, `GET /api/topics/{topic_id}`: each topic setup teaches and each recipe job, explained once (#5471): `kind` (`job` or `topic`), `title`, `short` (one sentence), `long` (a paragraph after it), `example` and `manual`. `404` for an unknown id. The text lives only in `fichero-server/src/fichero_server/recipes/seed/topics.yaml`; a job's name and description are read from it.
 - `GET /api/recipes/purposes`: the purposes setup offers, in order, and whether each runs by itself.
 - `POST /api/recipes/assemble`: the recipe the rules give for setup's answers, each choice with its reasons and each gap named; a whole recipe (`fichero_recipe`, `version`, `suits`) that passes the check. Writes nothing.
 - `POST /api/recipes/check`: every reason a recipe cannot run as it stands, step by step.

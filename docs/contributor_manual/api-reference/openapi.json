@@ -12544,6 +12544,71 @@
         }
       }
     },
+    "/api/topics": {
+      "get": {
+        "tags": [
+          "topics"
+        ],
+        "summary": "List Topics",
+        "description": "Every topic and every recipe job, each explained once.",
+        "operationId": "list_topics_api_topics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/topics/{topic_id}": {
+      "get": {
+        "tags": [
+          "topics"
+        ],
+        "summary": "Get Topic",
+        "description": "One topic or recipe job's explanation.",
+        "operationId": "get_topic_api_topics__topic_id__get",
+        "parameters": [
+          {
+            "name": "topic_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Topic Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/citations/graph": {
       "post": {
         "tags": [
@@ -60161,11 +60226,18 @@
           },
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "the title of its entry in the topic registry"
           },
           "description": {
             "type": "string",
-            "title": "Description"
+            "title": "Description",
+            "description": "the short sentence and paragraph of its topic (GET /api/topics/{id})"
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic",
+            "description": "the topic registry id that explains this job (GET /api/topics/{id})"
           },
           "layer": {
             "type": "string",
@@ -60206,6 +60278,7 @@
           "id",
           "name",
           "description",
+          "topic",
           "layer",
           "takes",
           "gives",
@@ -79960,6 +80033,81 @@
         ],
         "title": "TopEntityListResponse",
         "description": "Standardized envelope for GET /api/entities/top."
+      },
+      "TopicInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "the topic's id; for a recipe job, the job's id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "job",
+              "topic"
+            ],
+            "title": "Kind",
+            "description": "a recipe job, or a topic setup teaches"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "short": {
+            "type": "string",
+            "title": "Short",
+            "description": "one sentence"
+          },
+          "long": {
+            "type": "string",
+            "title": "Long",
+            "description": "a paragraph that follows the short sentence, never repeating it"
+          },
+          "example": {
+            "type": "string",
+            "nullable": true,
+            "title": "Example",
+            "description": "what to show from the person's own pages"
+          },
+          "manual": {
+            "type": "string",
+            "nullable": true,
+            "title": "Manual",
+            "description": "the user manual page, when one exists"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "short",
+          "long"
+        ],
+        "title": "TopicInfo",
+        "description": "One explanation, as setup, the Inspector and Activity show it."
+      },
+      "TopicListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopicInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "TopicListResponse"
       },
       "TrainKrakenHereRequest": {
         "properties": {

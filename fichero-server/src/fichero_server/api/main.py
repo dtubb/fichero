@@ -2007,6 +2007,7 @@ from fichero_server.api.routes.system import (  # noqa: E402
     registries,
     settings,
     storage,
+    topics,
     views,
 )
 from fichero_server.api.routes.workflow import (  # noqa: E402
@@ -2107,6 +2108,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (chat.router, "/api/chat", ["chat"]),
     # Recipes (#4951): the job registry, checking a recipe, and assembling one from setup's answers.
     (recipes.router, "/api", ["recipes"]),
+    # Topics (#5471): each topic's and each recipe job's explanation, written once.
+    (topics.router, "/api", ["topics"]),
     (citations.router, "/api", ["citations"]),
     (classifications.router, "/api", ["classifications"]),
     (claim_links.router, "/api", ["claim-links"]),

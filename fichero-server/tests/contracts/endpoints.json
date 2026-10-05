@@ -10726,6 +10726,30 @@
         "response_model": "TaskResultResponse"
       }
     ],
+    "topics": [
+      {
+        "method": "GET",
+        "path": "/topics",
+        "operation_id": "list_topics_api_topics_get",
+        "summary": "List Topics",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TopicListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/topics/{topic_id}",
+        "operation_id": "get_topic_api_topics__topic_id__get",
+        "summary": "Get Topic",
+        "path_params": [
+          "topic_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TopicInfo"
+      }
+    ],
     "training": [
       {
         "method": "GET",

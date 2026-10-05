@@ -15586,6 +15586,35 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('topics')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for topics endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='topics')
+        existing_apps['topics'] = target_app
+
+    @target_app.command("list")
+    def topics_list_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Topics (GET /api/topics)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/topics"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get")
+    def topics_get_get(
+        ctx: typer.Context,
+        topic_id: str = typer.Argument(..., help="Path parameter: topic_id."),
+    ) -> None:
+        """Get Topic (GET /api/topics/{topic_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/topics/{topic_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('training')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for training endpoints.', no_args_is_help=True)

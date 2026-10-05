@@ -39,7 +39,8 @@ def test_a_job_registers_once_and_must_explain_itself():
     with pytest.raises(ValueError):
         jobs.register_job(jobs.get_job("find-lines"))
     with pytest.raises(ValueError):
-        jobs.register_job(jobs.Job("x_new", "X", frozenset(), frozenset({"y"}), "z", "c", "  "))
+        # A job with no entry in the topic registry (#5471) cannot explain itself, so it is refused.
+        jobs.register_job(jobs.Job("x_new", frozenset(), frozenset({"y"}), "z", "c"))
 
 
 def test_check_is_a_job_a_recipe_can_name_after_any_layer(client):
