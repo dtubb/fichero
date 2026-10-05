@@ -1,7 +1,7 @@
 """Step 2b: the same reads through the MCP server's own tool functions.
 
-Calls the tool functions in `fichero_mcp.server` in-process (each is one FicheroClient call,
-exactly what the stdio server runs per request) and lists every tool registered, so the
+Calls the generated tool functions (`fichero_mcp.openapi_tools_generated`, #5453) in-process (each
+is one FicheroClient call, exactly what the stdio server runs per request) and lists every tool registered, so the
 report can say which levels an agent can reach and which it cannot.
 
 Writes ACCEPTANCE_OUT/mcp.json. Starts and stops its own engine.
@@ -35,6 +35,7 @@ def main() -> None:
     out: dict = {}
     with engine():
         client_env()
+        from fichero_mcp import openapi_tools_generated as generated  # noqa: PLC0415
         from fichero_mcp import server  # noqa: PLC0415 -- after the env points at our engine
 
         tools = asyncio.run(server.mcp.list_tools()) if hasattr(server.mcp, "list_tools") else []
@@ -42,13 +43,14 @@ def main() -> None:
         out["tool_count"] = len(names)
         out["segment_like_tools"] = [n for n in names if any(k in n for k in ("segment", "page", "reading", "text", "order", "pass"))]
         for label, page in (("syriac", syriac), ("clm", clm)):
-            segs = _fn(server.fichero_segments)(page["id"])
+            segs = _fn(generated.fichero_segments_list_document)(doc_id=page["id"])
             kinds: dict[str, int] = {}
             for s in segs["segments"]:
                 kinds[s["kind"]] = kinds.get(s["kind"], 0) + 1
             first_word_or_line = next(s for s in segs["segments"] if s["kind"] in ("word", "line") and s["kind"] != "region")
-            one = _fn(server.fichero_segment)(first_word_or_line["id"])
-            exp = _fn(server.fichero_page_export)(page["id"], "pagexml" if label == "syriac" else "alto")
+            one = _fn(generated.fichero_segments_get)(segment_id=first_word_or_line["id"])
+            exp = _fn(generated.fichero_formats_export_document_page)(
+                doc_id=page["id"], format_name="pagexml" if label == "syriac" else "alto")
             out[label] = {
                 "kinds": kinds,
                 "segment_text_field": first_word_or_line.get("text"),

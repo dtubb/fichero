@@ -10,6 +10,8 @@ Repository automation scripts for the Fichero Python backend.
 | `start_backend.py` | Python entry point for bundled backend (Briefcase) |
 | `sync_openapi_schema.sh` | Export Python OpenAPI schema → Swift client. **Run after any API change.** |
 | `generate_openapi_cli.py` | Regenerate the typed CLI surface (called by `sync_openapi_schema.sh`) |
+| `generate_openapi_mcp.py` | Regenerate the MCP tools, one per operation (called by `sync_openapi_schema.sh`) |
+| `openapi_operations.py` | The contract's parse, exclusion list and naming, shared by both generators |
 | `seed_test_library.py` | Build the shared deterministic `.fichero` fixture used by Python + Swift integration harnesses |
 
 ## Validation

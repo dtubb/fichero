@@ -3,19 +3,34 @@
 
 Emits a Typer registration module with one default command per OpenAPI
 operation. The generated source embeds literal backend paths so
-scripts/check_ui_wiring.py can count CLI coverage deterministically.
+scripts/check_endpoint_coverage_matrix.py and scripts/check_openapi_client_parity.py
+can count CLI coverage deterministically. The contract's parse, exclusion list and
+naming helpers live in openapi_operations.py, shared with generate_openapi_mcp.py.
 """
 
 from __future__ import annotations
 
 import json
-import keyword
 import re
-from dataclasses import dataclass
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-OPENAPI = ROOT / "fichero-server" / "tests" / "contracts" / "openapi.json"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from openapi_operations import (  # noqa: E402,F401  (re-exported: tests read them off this module)
+    HTTP_METHODS,
+    INTENTIONALLY_UNWIRED_PATHS,
+    OPENAPI,
+    ROOT,
+    Operation,
+    QueryParam,
+    RequestField,
+    _build_operations,
+    _camel_resource_tokens,
+    _identifier,
+    _is_event_stream,
+    _slug,
+)
+
 OUTPUT = ROOT / "fichero-cli" / "src" / "fichero_cli" / "openapi_surface_generated.py"
 
 RESOURCE_NAME_OVERRIDES = {
@@ -38,64 +53,6 @@ RESOURCE_HELP_OVERRIDES = {
     "search": "Generated OpenAPI commands for search endpoints.",
 }
 EXISTING_APP_RESOURCES = {"artifacts", "kg", "library", "notes", "providers", "settings"}
-HTTP_METHODS = ("get", "post", "put", "patch", "delete")
-INTENTIONALLY_UNWIRED_PATHS = {
-    "/api/activity/stream",
-    "/api/health",
-    "/api/storage/debug/{doc_id}",
-    "/api/tasks/health",
-    "/api/workflow-execution/stream/{thread_id}",
-}
-
-
-@dataclass(frozen=True)
-class QueryParam:
-    name: str
-    required: bool
-    schema_type: str
-
-
-@dataclass(frozen=True)
-class Operation:
-    resource: str
-    method: str
-    path: str
-    summary: str
-    operation_id: str
-    path_params: tuple[str, ...]
-    query_params: tuple[QueryParam, ...]
-    request_kind: str | None
-    request_required: bool
-    request_fields: tuple["RequestField", ...]
-
-
-@dataclass(frozen=True)
-class RequestField:
-    name: str
-    required: bool
-    schema: dict
-
-
-def _is_event_stream(op: "Operation") -> bool:
-    """A server-sent-event endpoint. The contract does not mark their content type, but every one
-    is a GET on a ``…/stream`` path (``/api/changes/stream``, ``/api/workflow-execution/stream/{id}``)."""
-    return op.method == "GET" and re.search(r"/stream(/|$)", op.path) is not None
-
-
-def _slug(text: str) -> str:
-    value = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return value or "op"
-
-
-def _camel_resource_tokens(resource: str) -> set[str]:
-    raw = re.split(r"[-_]+", resource.lower())
-    out = set(raw)
-    for token in raw:
-        if token.endswith("s") and len(token) > 3:
-            out.add(token[:-1])
-        if token.endswith("ies") and len(token) > 4:
-            out.add(token[:-3] + "y")
-    return {t for t in out if t}
 
 
 def _default_name(op: Operation) -> str:
@@ -163,21 +120,6 @@ def _command_name(op: Operation, seen: set[str]) -> str:
         i += 1
 
 
-def _identifier(name: str, used: set[str]) -> str:
-    value = re.sub(r"[^a-zA-Z0-9_]+", "_", name).strip("_") or "value"
-    if value and value[0].isdigit():
-        value = f"p_{value}"
-    if keyword.iskeyword(value):
-        value = f"{value}_value"
-    base = value
-    index = 2
-    while value in used:
-        value = f"{base}_{index}"
-        index += 1
-    used.add(value)
-    return value
-
-
 def _annotation(schema_type: str, required: bool) -> str:
     base = {
         "integer": "int",
@@ -196,94 +138,6 @@ def _option_expr(var_name: str, param: QueryParam) -> str:
         return f'typer.Option(None, "{flag}/--no-{param.name.replace("_", "-")}", help="{help_text}")'
     default = "..." if param.required else "None"
     return f'typer.Option({default}, "{flag}", help="{help_text}")'
-
-
-def _request_kind(details: dict) -> tuple[str | None, bool]:
-    request_body = details.get("requestBody") or {}
-    content = request_body.get("content") or {}
-    if "application/json" in content:
-        return "json", bool(request_body.get("required"))
-    if "multipart/form-data" in content:
-        return "multipart", bool(request_body.get("required"))
-    return None, bool(request_body.get("required"))
-
-
-def _resolve_schema(schema: dict, components: dict[str, dict]) -> dict:
-    if "$ref" in schema:
-        ref_name = schema["$ref"].split("/")[-1]
-        return _resolve_schema(components.get(ref_name, {}), components)
-    if "allOf" in schema:
-        merged: dict = {"type": "object", "properties": {}, "required": []}
-        for item in schema.get("allOf", []):
-            resolved = _resolve_schema(item, components)
-            merged["properties"].update(resolved.get("properties", {}))
-            merged["required"].extend(resolved.get("required", []))
-        return {**schema, **merged}
-    return schema
-
-
-def _request_fields(details: dict, components: dict[str, dict]) -> tuple[RequestField, ...]:
-    request_body = details.get("requestBody") or {}
-    content = request_body.get("content") or {}
-    schema = content.get("application/json", {}).get("schema") or {}
-    resolved = _resolve_schema(schema, components)
-    if resolved.get("type") != "object":
-        return ()
-    required = set(resolved.get("required", []))
-    return tuple(
-        RequestField(
-            name=name,
-            required=name in required,
-            schema=_resolve_schema(field_schema, components),
-        )
-        for name, field_schema in sorted((resolved.get("properties") or {}).items())
-    )
-
-
-def _build_operations() -> list[Operation]:
-    schema = json.loads(OPENAPI.read_text())
-    components = schema.get("components", {}).get("schemas", {})
-    operations: list[Operation] = []
-    for path, methods in sorted(schema.get("paths", {}).items()):
-        if path in INTENTIONALLY_UNWIRED_PATHS:
-            continue
-        clean_path = path.replace("/api", "", 1) if path.startswith("/api") else path
-        segments = [segment for segment in clean_path.strip("/").split("/") if segment]
-        resource = segments[0] if segments else "root"
-        for method, details in sorted(methods.items()):
-            if method not in HTTP_METHODS:
-                continue
-            query_params = []
-            for param in sorted(details.get("parameters", []), key=lambda item: item.get("name", "")):
-                if param.get("in") == "query":
-                    query_params.append(
-                        QueryParam(
-                            name=param["name"],
-                            required=bool(param.get("required")),
-                            schema_type=param.get("schema", {}).get("type", "string"),
-                        )
-                    )
-            path_params = tuple(
-                part[1:-1]
-                for part in path.split("/")
-                if part.startswith("{") and part.endswith("}")
-            )
-            request_kind, request_required = _request_kind(details)
-            operations.append(
-                Operation(
-                    resource=resource,
-                    method=method.upper(),
-                    path=path,
-                    summary=details.get("summary") or details.get("operationId") or f"{method.upper()} {path}",
-                    operation_id=details.get("operationId") or _slug(f"{method}-{path}"),
-                    path_params=path_params,
-                    query_params=tuple(query_params),
-                    request_kind=request_kind,
-                    request_required=request_required,
-                    request_fields=_request_fields(details, components),
-                )
-            )
-    return operations
 
 
 def _request_field_annotation(field: RequestField) -> str:

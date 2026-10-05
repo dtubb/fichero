@@ -1,13 +1,14 @@
 """An agent can bring a folder in over MCP, linked in place, through the real engine route (#5400).
 
-`fichero_import` takes one file and uploads a copy; over MCP there was no way to bring a folder in
-as a folder, or to leave files where they are. In the Sergio notebooks project that meant
-importing 221 photos with the CLI instead. These tests drive the MCP tools through the real
+Over MCP there was no way to bring a folder in as a folder, or to leave files where they are. In
+the Sergio notebooks project that meant importing 221 photos with the CLI instead. These tests drive
+the MCP tools (generated from the OpenAPI contract since #5453) through the real
 `/api/ingest/folder` route and its background import (no mocked importer), because a test that
 only checks the request would pass while the library stayed empty.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import httpx
@@ -18,7 +19,9 @@ pytest.importorskip("PIL")
 from PIL import Image
 
 from fichero_cli import FicheroClient
+from fichero_mcp import openapi_tools_generated as generated
 from fichero_mcp import server as mcp_server
+from fichero_mcp.openapi_runtime import EngineError
 from fichero_server.models import Document
 
 
@@ -54,11 +57,11 @@ def test_a_folder_comes_in_as_a_folder_with_its_files_linked_in_place(mcp_on_the
     read; linked, they stay in their archive folder and the library records where. The folder must
     arrive as a folder holding its photos, and the agent must be able to see the import finish."""
     folder = _notebook(tmp_path)
-    task = mcp_server.fichero_ingest_folder(str(folder))
-    status = mcp_server.fichero_ingest_status(task.task_id)
+    task = generated.fichero_ingest_folder(path=str(folder), mode="link")
+    status = generated.fichero_ingest_get_status(task_id=task["task_id"])
 
-    assert status.status == "completed", status
-    assert status.failed == 0 and len(status.document_ids) >= 2
+    assert status["status"] == "completed", status
+    assert status["failed"] == 0 and len(status["document_ids"]) >= 2
     (parent,) = [d for d in db.query(Document) if d.name == "SM_NPQ_C09"]
     photos = sorted(db.query(Document, parent_id=parent.id), key=lambda d: d.name)
     assert [p.name for p in photos] == ["SM_NPQ_C09_001.jpg", "SM_NPQ_C09_002.jpg"]
@@ -68,8 +71,10 @@ def test_a_folder_comes_in_as_a_folder_with_its_files_linked_in_place(mcp_on_the
 
 def test_an_unknown_mode_is_refused_before_anything_is_imported(mcp_on_the_real_app, db, tmp_path):
     """WHY: a typo in the mode must not fall back to some default way of importing (rule 0: never
-    substitute silently); nothing is written."""
+    substitute silently); nothing is written, and the agent is told the engine's refusal, typed
+    (openapi.mcp.errors-reach-the-agent)."""
     folder = _notebook(tmp_path)
-    with pytest.raises(ValueError):
-        mcp_server.fichero_ingest_folder(str(folder), mode="symlink")
+    with pytest.raises(EngineError) as excinfo:
+        generated.fichero_ingest_folder(path=str(folder), mode="symlink")
+    assert excinfo.value.status == 422 and "symlink" in json.dumps(excinfo.value.detail)
     assert not [d for d in db.query(Document) if d.name == "SM_NPQ_C09"]

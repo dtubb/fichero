@@ -45,26 +45,46 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
 
 ### A. MCP generated from the contract
 
-- `openapi.mcp.one-tool-per-operation` **[MISSING]** (#5453) every operation in the contract, outside the
+- `openapi.mcp.one-tool-per-operation` **[OK]** (#5453) every operation in the contract, outside the
   shared exclusion list, has exactly one MCP tool. It is named from its tag and operation, and its
   description and parameter docs come from the route's summary, description and schema. The tool
-  makes one `FicheroClient.request` call and holds no logic of its own.
-- `openapi.mcp.toolsets-by-tag` **[MISSING]** (#5453) the MCP server starts with `--toolsets`, a list of
+  makes one `FicheroClient.request` call and holds no logic of its own. Built:
+  `fichero-server/scripts/generate_openapi_mcp.py` writes
+  `fichero-mcp/src/fichero_mcp/openapi_tools_generated.py` (825 tools; the event streams are left
+  out with the exclusion list, which lives in `fichero-server/scripts/openapi_operations.py`,
+  shared with the CLI generator). A tool is `fichero_<tag>_<handler>`. Pinned by
+  `fichero-mcp/tests/test_mcp_generated.py` and, against the real routes,
+  `fichero-server/tests/unit/mcp/test_generated_mcp_tools_reach_the_engine.py`.
+- `openapi.mcp.toolsets-by-tag` **[OK]** (#5453) the MCP server starts with `--toolsets`, a list of
   OpenAPI tags, and lists only those tags' tools. The default is the recipe golden path: recipes,
   training, segments, documents, activity, local-models and hpc. `--toolsets all` lists every tool.
-- `openapi.mcp.current-with-the-contract` **[MISSING]** (#5453) a guard regenerates the MCP module and fails
+  An unknown tag is refused, naming the known ones. Pinned by `fichero-mcp/tests/test_mcp_generated.py`.
+- `openapi.mcp.current-with-the-contract` **[OK]** (#5453) a guard regenerates the MCP module and fails
   if it differs from the committed one, as the CLI's does. A route added without regenerating
-  fails the gate.
-- `openapi.mcp.one-route-one-tool` **[MISSING]** (#5453) no route has both a generated tool and a
+  fails the gate. Built: `scripts/check_mcp_generated_current.py` (run by
+  `test_every_guard_passes_on_the_real_tree.py`); `sync_openapi_schema.sh` regenerates both
+  surfaces. Pinned failing on a stale module by `fichero-mcp/tests/test_mcp_generated.py`.
+- `openapi.mcp.one-route-one-tool` **[PARTIAL]** (#5453) no route has both a generated tool and a
   hand-written one. A guard lists any hand-written tool whose route a generated tool covers. That
   hand-written tool is removed, or kept only where it composes several routes, and then says
-  which routes.
-- `openapi.mcp.mutations-act-as-the-agent` **[PARTIAL]** (#5453) a generated tool that changes data
+  which routes. Built: the covered hand-written tools are retired, and
+  `test_one_route_one_tool` in `fichero-mcp/tests/test_mcp_generated.py` fails on any left that
+  names one covered route and is not in `KEPT_SINGLE_ROUTE`. Still partial: four stay on one route
+  each for what the route does not do (`fichero_docs_list` and `fichero_workflow_list` answer lean
+  summaries the routes have no view for; `fichero_page_import` sends the YOLO dataset file found
+  beside the labels; `fichero_use_library` sets the session's library), and `OPERATOR_ALIASES`
+  keeps the old tool names an agent configuration still calls, pointing at the generated tools.
+- `openapi.mcp.mutations-act-as-the-agent` **[OK]** (#5453) a generated tool that changes data
   calls as the agent account (`_agent_client` in `fichero-mcp/src/fichero_mcp/server.py`), so the
-  audit log names the agent. Reads may use the default client. Today only the hand-written
-  mutating tools do this.
-- `openapi.mcp.errors-reach-the-agent` **[MISSING]** (#5453) a refused or failed call returns the
+  audit log names the agent. Reads may use the default client. Built through `_mutating_client`:
+  the agent account when one is signed in; on a single-user engine with no accounts, the owner,
+  labelled `client=fichero-mcp` in the audit (#4469). Pinned by
+  `fichero-mcp/tests/test_mutating_client_attribution.py`.
+- `openapi.mcp.errors-reach-the-agent` **[OK]** (#5453) a refused or failed call returns the
   engine's typed error (status and detail) as an MCP tool error. It is never an empty result.
+  The error text is `{"status", "detail", "route"}` as JSON. Pinned through the MCP protocol by
+  `fichero-mcp/tests/test_mcp_generated.py` and against the real routes by
+  `fichero-server/tests/unit/mcp/test_generated_mcp_tools_reach_the_engine.py`.
 
 ### B. CLI (already generated)
 
@@ -98,9 +118,9 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Python) | y | generator: naming, exclusions, toolsets | planned: a generated-MCP test in `fichero-mcp/tests/` |
-| Backend (pytest) | y | a generated tool calls the live route and returns its result | same |
-| MCP | y | toolsets list the right tools; errors are typed | same |
+| Pure rule (Python) | y | generator: naming, exclusions, toolsets; drift guard | `fichero-mcp/tests/test_mcp_generated.py` |
+| Backend (pytest) | y | a generated tool calls the live route and returns its result | `fichero-server/tests/unit/mcp/test_generated_mcp_tools_reach_the_engine.py` |
+| MCP | y | toolsets list the right tools; errors are typed | `fichero-mcp/tests/test_mcp_generated.py`, `fichero-server/tests/integration/test_mcp_server_contract.py` |
 | CLI | y | one command per operation | `fichero-server/tests/integration/test_cli_generated_*` |
 | Click-around (XCUITest, Mac) | y | an intent drives what the click drives | planned |
 | iPhone (iOS) | y | open a node, reveal a line through intents | planned |

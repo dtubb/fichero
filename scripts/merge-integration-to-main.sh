@@ -161,6 +161,7 @@ else
   if ! git diff --quiet; then
     git add docs/contributor_manual/api-reference/openapi.json \
       fichero-cli/src/fichero_cli/openapi_surface_generated.py \
+      fichero-mcp/src/fichero_mcp/openapi_tools_generated.py \
       fichero-server/tests/contracts/endpoints.json \
       fichero-server/tests/contracts/openapi.json \
       fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json

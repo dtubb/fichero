@@ -92,6 +92,8 @@ if [ -n "$PREV_SCHEMA" ]; then
 fi
 
 PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/generate_openapi_cli.py"
+# The MCP tools come from the same contract (#5453); scripts/check_mcp_generated_current.py fails if skipped.
+PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/generate_openapi_mcp.py"
 DEST_SCHEMA="$REPO_ROOT/fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
 DOCS_SCHEMA="$REPO_ROOT/docs/contributor_manual/api-reference/openapi.json"
 
