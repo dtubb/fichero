@@ -12,6 +12,18 @@ from typing import Any, Callable
 from fichero_server.recipes.assemble import PURPOSE_STEPS, STEP_ORDER, addable_layers, layer_jobs
 
 
+
+def addable_now(answers: dict) -> list[str]:
+    """The layers this project can add now (#5470, `source.onboard.add-layer`): the addable ones less
+    those it has and those its purpose brings. What the app offers, so it never works the rule out."""
+    if not answers.get("purpose"):
+        return []
+    from fichero_server.recipes.jobs import get_job
+
+    from_purpose = {get_job(j).layer for j in PURPOSE_STEPS.get(answers["purpose"], ())}
+    have = set(answers.get("layers") or [])
+    return [layer for layer in addable_layers() if layer not in have and layer not in from_purpose]
+
 def _insert(steps: list[dict], new: dict) -> None:
     """Put `new` before the first step the rules order after it, or before the checks and output
     (check, export, publish), which come last."""

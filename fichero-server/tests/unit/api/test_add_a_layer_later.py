@@ -170,3 +170,13 @@ def test_setup_assembles_an_added_layer_too(client):
     r = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": ["es"],
                                                    "scripts": ["Latn"], "layers": ["entities"]})
     assert [s["job"] for s in r.json()["steps"]] == ["find-lines", "read-a-line", "correct", NAMES]
+
+
+def test_the_plan_says_which_layers_can_be_added_now(client, project):
+    """WHY: the app offers exactly the engine's list (#5470). If this breaks, the Inspector offers layers
+    the engine refuses, or works the rule out itself (a second path). Adding one takes it off the list."""
+    before = _start(client)["addable"]
+    assert before and "entities" in before
+    assert all(layer not in before for layer in ("check", "output", "train"))
+    after = _add(client, layers=["entities"]).json()["addable"]
+    assert "entities" not in after and set(after) < set(before)

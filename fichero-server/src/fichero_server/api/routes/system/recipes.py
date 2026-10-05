@@ -540,10 +540,13 @@ class StartPlan(BaseModel):
     proposed: Optional[ProposedJobs] = Field(default=None, description=(
         "jobs proposed for the material already in the project by a layer added later; once the project has "
         "started, the plan is these alone (source.onboard.add-layer)"))
+    addable: list[str] = Field(default_factory=list, description=(
+        "layers this project can add now: the addable ones less those it has and those its purpose brings "
+        "(source.onboard.add-layer)"))
 
 
 def _start_plan(db: Database) -> dict[str, Any]:
-    from fichero_server.recipes.layers import explain
+    from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
     from fichero_server.recipes.start import count_pages, estimate, plan_start
 
@@ -559,6 +562,7 @@ def _start_plan(db: Database) -> dict[str, Any]:
     plan["estimate"] = estimate(plan["workflows"], count_pages(db))
     plan["started"] = started
     plan["proposed"] = explain(setup["recipe"], proposal)
+    plan["addable"] = addable_now(setup["answers"] or {})
     from fichero_server.recipes.done import annotate
 
     annotate(db, plan)

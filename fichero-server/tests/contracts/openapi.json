@@ -78662,6 +78662,14 @@
             "$ref": "#/components/schemas/ProposedJobs",
             "nullable": true,
             "description": "jobs proposed for the material already in the project by a layer added later; once the project has started, the plan is these alone (source.onboard.add-layer)"
+          },
+          "addable": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Addable",
+            "description": "layers this project can add now: the addable ones less those it has and those its purpose brings (source.onboard.add-layer)"
           }
         },
         "type": "object",
