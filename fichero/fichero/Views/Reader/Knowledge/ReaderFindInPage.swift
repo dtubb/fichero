@@ -77,6 +77,26 @@ extension DocumentKGPaneRoute {
         "window.__ficheroFindSelect ? window.__ficheroFindSelect(\(max(0, index))) : 0;"
     }
 
+    /// Light a library search's hits on one page (#5466): every span lit, the
+    /// one at `current` stronger, through the same `__ficheroLightHits` rule
+    /// the find bar uses. `pageId == nil` (or no spans) clears them. Installs
+    /// the finder first, so it works whether or not the find bar ever ran, and
+    /// shows the transcript tab when there is something to light. Returns how
+    /// many hits were lit.
+    static func pageHitsScript(pageId: String?, spans: [ReaderHitSpan], current: Int) -> String {
+        let page = pageId.map { "'\(jsStringLiteral($0))'" } ?? "null"
+        let list = spans.map { "[\($0.start), \($0.end)]" }.joined(separator: ", ")
+        return """
+        (function() {
+            \(findInstallScript)
+            if (\(page) != null && window.fichero && window.fichero.highlightMatchInPage) {
+                window.fichero.highlightMatchInPage(\(page));
+            }
+            return window.__ficheroLightPageHits(\(page), [\(list)], \(current));
+        })();
+        """
+    }
+
     /// The injected finder. Case-insensitive substring match over every text
     /// node in the page (matches inside a single text node — the transcript
     /// renders plain paragraphs, so that covers reading content).
@@ -84,10 +104,76 @@ extension DocumentKGPaneRoute {
         if (!window.__ficheroFind) {
             var style = document.createElement('style');
             style.id = 'fichero-find-style';
-            style.textContent = '::highlight(fichero-find){background-color:rgba(255,214,10,.45);}'
-                + '::highlight(fichero-find-current){background-color:rgba(255,149,0,.9);color:#000;}';
+            // ONE rule for "every hit lit, the current one stronger" (#5466):
+            // the find bar's matches (`fichero-find`) and a library search's
+            // anchored hits (`fichero-hit`) share these colours. Two highlight
+            // NAMES only so an empty find (which clears `fichero-find`) does
+            // not unlight the search's hits.
+            style.textContent = '::highlight(fichero-find),::highlight(fichero-hit){background-color:rgba(255,214,10,.45);}'
+                + '::highlight(fichero-find-current),::highlight(fichero-hit-current){background-color:rgba(255,149,0,.9);color:#000;}';
             (document.head || document.documentElement).appendChild(style);
-            window.__ficheroFindState = { ranges: [] };
+            window.__ficheroFindState = { ranges: [], hits: [] };
+            // The one lighting path (#5466): every range under `name`, the one
+            // at `current` (0-based) also under `name-current`, scrolled to.
+            // `current` < 0 lights them all with none current yet. Returns the
+            // clamped current index, or -1.
+            window.__ficheroLightHits = function(name, ranges, current) {
+                if (!(window.CSS && CSS.highlights)) { return -1; }
+                CSS.highlights.delete(name);
+                CSS.highlights.delete(name + '-current');
+                if (!ranges.length) { return -1; }
+                CSS.highlights.set(name, new Highlight(...ranges));
+                if (current < 0) { return -1; }
+                var i = Math.min(current, ranges.length - 1);
+                var r = ranges[i];
+                CSS.highlights.set(name + '-current', new Highlight(r));
+                var el = r.startContainer.parentElement;
+                if (el && el.scrollIntoView) { el.scrollIntoView({ block: 'center' }); }
+                return i;
+            };
+            // A library search's hits on one page (#5466): `spans` are
+            // [start, end] PAGE-relative offsets into the page's
+            // `.transcript-page-body` text (the anchor's own coordinates; a
+            // span may cross a line break or an isolate, so offsets run over
+            // every text node of the body). A null page clears.
+            window.__ficheroLightPageHits = function(pageId, spans, current) {
+                var state = window.__ficheroFindState;
+                state.hits = [];
+                var body = null;
+                if (pageId != null) {
+                    var sel = '.transcript-page[data-page-id="'
+                        + ((window.CSS && CSS.escape) ? CSS.escape(pageId) : pageId) + '"]';
+                    var article = document.querySelector(sel);
+                    body = article ? article.querySelector('.transcript-page-body') : null;
+                }
+                if (body) {
+                    var nodes = [];
+                    var w = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+                    for (var n = w.nextNode(); n; n = w.nextNode()) { nodes.push(n); }
+                    var at = function(offset, isEnd) {
+                        var base = 0;
+                        for (var k = 0; k < nodes.length; k++) {
+                            var len = nodes[k].nodeValue.length;
+                            if (offset < base + len || (isEnd && offset === base + len)) {
+                                return [nodes[k], offset - base];
+                            }
+                            base += len;
+                        }
+                        return null;
+                    };
+                    for (var s = 0; s < spans.length; s++) {
+                        var from = at(spans[s][0], false);
+                        var to = at(spans[s][1], true);
+                        if (!from || !to || spans[s][1] <= spans[s][0]) { continue; }
+                        var r = new Range();
+                        r.setStart(from[0], from[1]);
+                        r.setEnd(to[0], to[1]);
+                        state.hits.push(r);
+                    }
+                }
+                window.__ficheroLightHits('fichero-hit', state.hits, current);
+                return state.hits.length;
+            };
             // #4406: is this element actually on screen? `checkVisibility`
             // accounts for `display:none` on any ancestor, which is exactly how
             // the inactive tabs are hidden. The `offsetParent`/`getClientRects`
@@ -104,10 +190,7 @@ extension DocumentKGPaneRoute {
             window.__ficheroFind = function(query, activePageId) {
                 var state = window.__ficheroFindState;
                 state.ranges = [];
-                if (window.CSS && CSS.highlights) {
-                    CSS.highlights.delete('fichero-find');
-                    CSS.highlights.delete('fichero-find-current');
-                }
+                window.__ficheroLightHits('fichero-find', [], -1);
                 if (!query || !(window.CSS && CSS.highlights)) { return 0; }
                 var q = query.toLowerCase();
                 // #4406: every tab's markup is RETAINED in the DOM — the
@@ -181,20 +264,13 @@ extension DocumentKGPaneRoute {
                     }
                     if (onPage.length) { state.ranges = onPage.concat(offPage); }
                 }
-                if (state.ranges.length) {
-                    CSS.highlights.set('fichero-find', new Highlight(...state.ranges));
-                }
+                window.__ficheroLightHits('fichero-find', state.ranges, -1);
                 return state.ranges.length;
             };
             window.__ficheroFindSelect = function(index) {
                 var state = window.__ficheroFindState;
                 if (!state.ranges.length || !(window.CSS && CSS.highlights)) { return 0; }
-                var i = Math.max(0, Math.min(index, state.ranges.length - 1));
-                var r = state.ranges[i];
-                CSS.highlights.set('fichero-find-current', new Highlight(r));
-                var el = r.startContainer.parentElement;
-                if (el && el.scrollIntoView) { el.scrollIntoView({ block: 'center' }); }
-                return i;
+                return window.__ficheroLightHits('fichero-find', state.ranges, Math.max(0, index));
             };
         }
         """

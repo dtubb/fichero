@@ -233,10 +233,10 @@ extension ContentView {
         // the CSS Custom Highlight API through `WebPaneFindSync` (#4338) —
         // it was simply never told what the library search was looking for.
         //
-        // Do NOT seed the find bar. The backend now lights the relevant
-        // passage in place from the search anchor (applySearchMatchHighlight /
-        // ReaderSearchMatchState, 2026-09-07) — a page-relative char range the
-        // SwiftUI finder can't express. Seeding a term here re-imposed the
+        // Do NOT seed the find bar. The relevant passages are lit in place
+        // from the search anchors (ReaderSearchMatchState → pageHitsScript,
+        // 2026-09-07; every hit on the page since #5466) — page-relative char
+        // ranges the substring finder can't express. Seeding a term here re-imposed the
         // find-filter Daniel disliked ("more than one or two together…"), so
         // leave the find bar empty; manual Cmd-F stays untouched.
         chromeUX.readerFindQuery = ""

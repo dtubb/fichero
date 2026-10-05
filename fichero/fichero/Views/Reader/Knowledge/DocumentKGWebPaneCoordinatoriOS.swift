@@ -225,23 +225,22 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         }
     }
 
-    /// Light the library-search MATCH on its page from the backend anchor
-    /// (`ReaderSearchMatchState`) — the exact matched passage, not a substring
-    /// re-scan of the query. Re-issued only when the match moves; a nil match
-    /// clears the mark. The JS scopes to the page's own article, so a match for
-    /// a page not currently rendered is a harmless no-op.
+    /// Light the library search's hits on their page from the backend anchors
+    /// (`ReaderSearchMatchState`) — every matched passage at once, the current
+    /// one stronger (#5466), through the find bar's one lighting rule
+    /// (`pageHitsScript`). Re-issued only when the hits or the current one
+    /// move; no match clears them. The JS scopes to the page's own article, so
+    /// hits for a page not currently rendered are a harmless no-op.
     func syncSearchMatch(into webView: WKWebView) {
         let match = ReaderSearchMatchState.shared
         guard match.signature != lastSearchMatchSignature else { return }
         lastSearchMatchSignature = match.signature
-        if let pageId = match.pageId, let start = match.charStart,
-           let end = match.charEnd, end > start {
-            let literal = DocumentKGPaneRoute.jsStringLiteral(pageId)
+        if let pageId = match.pageId, !match.spans.isEmpty {
             webView.evaluateJavaScript(
-                "window.fichero?.highlightMatchInPage('\(literal)', \(start), \(end));"
+                DocumentKGPaneRoute.pageHitsScript(pageId: pageId, spans: match.spans, current: match.currentIndex)
             )
         } else {
-            webView.evaluateJavaScript("window.fichero?.highlightMatchInPage(null, null, null);")
+            webView.evaluateJavaScript(DocumentKGPaneRoute.pageHitsScript(pageId: nil, spans: [], current: 0))
         }
     }
 
