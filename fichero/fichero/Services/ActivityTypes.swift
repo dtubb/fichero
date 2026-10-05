@@ -193,6 +193,9 @@ struct ActivityJob: Identifiable, Equatable {
         case running
         case stalled
         case paused
+        /// Queued, not started: the row's `reason` says what it waits for
+        /// ("Paused by you", "Waiting: memory is tight", …).
+        case waiting
         case failed
         case completed
         case other(String)
@@ -202,6 +205,7 @@ struct ActivityJob: Identifiable, Equatable {
             case "running": self = .running
             case "stalled": self = .stalled
             case "paused": self = .paused
+            case "waiting": self = .waiting
             case "failed", "error": self = .failed
             case "completed", "complete", "done", "finished": self = .completed
             default: self = .other(raw)
@@ -215,7 +219,7 @@ struct ActivityJob: Identifiable, Equatable {
         var isActive: Bool {
             switch self {
             case .running, .stalled, .paused: return true
-            case .failed, .completed, .other: return false
+            case .waiting, .failed, .completed, .other: return false
             }
         }
     }
@@ -234,6 +238,9 @@ struct ActivityJob: Identifiable, Equatable {
     /// Why a FAILED job failed, when the backend knows it ("Kraken not
     /// installed"). `nil` for non-failed jobs or when no reason was recorded.
     let reason: String?
+    /// The job this one belongs to (a page's step, a step's run), #5353;
+    /// `nil` for a job of its own, which is what the Activity table lists.
+    let parentId: String?
 
     init(_ job: Components.Schemas.BackgroundJob) {
         self.id = job.id
@@ -245,6 +252,7 @@ struct ActivityJob: Identifiable, Equatable {
         self.percent = job.percent
         self.state = State(raw: job.state)
         self.reason = job.reason
+        self.parentId = job.parentId
     }
 
     /// Test/preview seam — construct without the generated schema.
@@ -257,7 +265,8 @@ struct ActivityJob: Identifiable, Equatable {
         total: Int = 0,
         percent: Double = 0,
         state: State = .running,
-        reason: String? = nil
+        reason: String? = nil,
+        parentId: String? = nil
     ) {
         self.id = id
         self.taskType = taskType
@@ -268,6 +277,7 @@ struct ActivityJob: Identifiable, Equatable {
         self.percent = percent
         self.state = state
         self.reason = reason
+        self.parentId = parentId
     }
 
     /// A determinate bar is only meaningful once the backend knows the total.
@@ -287,6 +297,67 @@ struct BackgroundJobsSnapshot: Equatable {
     /// on multiple cores). `nil` on the first poll or if unavailable.
     var processCpuPercent: Double?
     var cpuCount: Int = 0
+    /// Pause Background Work is on (`activity.pause.global`).
+    var paused: Bool = false
+}
+
+/// One node of `GET /api/activity/jobs/{id}` (#5353): a run, a step or a
+/// page, with what is under it rolled up (pages done, in all and failed, time,
+/// tokens, cost). Mirrors the engine's `JobTree` field for field; the Activity
+/// table's rows are built from it (`ActivityMonitorRow`).
+struct ActivityJobNode: Identifiable, Equatable {
+    let id: String
+    let kind: String
+    let name: String
+    let subject: String
+    let model: String?
+    var state: String
+    let reason: String?
+    let parentId: String?
+    let done: Int
+    let total: Int
+    let failed: Int
+    let seconds: Double?
+    let tokens: Int
+    /// `nil` unless every model call under it is priced (never a guess).
+    let costUsd: Double?
+    var children: [ActivityJobNode]
+
+    init(_ tree: Components.Schemas.JobTree) {
+        id = tree.id
+        kind = tree.kind
+        name = tree.name
+        subject = tree.subject
+        model = tree.model
+        state = tree.state
+        reason = tree.reason
+        parentId = tree.parentId
+        done = tree.done
+        total = tree.total
+        failed = tree.failed ?? 0
+        seconds = tree.seconds
+        tokens = tree.tokens ?? 0
+        costUsd = tree.costUsd
+        children = (tree.children ?? []).map(ActivityJobNode.init)
+    }
+
+    /// This node with `id`'s state set to `state`, wherever it is under it;
+    /// `nil` when `id` is not in this tree.
+    func settingState(_ state: String, of id: String) -> ActivityJobNode? {
+        if self.id == id {
+            var copy = self
+            copy.state = state
+            return copy
+        }
+        for (index, child) in children.enumerated() {
+            if let changed = child.settingState(state, of: id) {
+                var copy = self
+                copy.children[index] = changed
+                return copy
+            }
+        }
+        return nil
+    }
 }
 
 /// Activity statistics from the API

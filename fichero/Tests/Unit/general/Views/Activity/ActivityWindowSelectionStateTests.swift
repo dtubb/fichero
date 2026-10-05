@@ -114,10 +114,10 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(appSource.contains(
             "Window(\"Activity Detail\", id: ActivityWindowSelectionState.detailWindowID)"
         ))
-        // The 2026-08-28 unified list replaced the per-library sections: the
-        // route into a run's step trace is UnifiedActivityRow's open action
-        // (info button + double-click, the Mail grammar) → the detail Window.
-        XCTAssertTrue(monitorSource.contains("UnifiedActivityRow(run: run) { openDetails(for: run) }"))
+        // The table (#5415) replaced the unified list: the route into a run's
+        // step trace is a double-click on any row of its tree (the table's
+        // primary action) → the detail Window.
+        XCTAssertTrue(monitorSource.contains("let run = run(owning: id) else { return }\n            openDetails(for: run)"))
         XCTAssertTrue(monitorSource.contains(
             "openWindow(id: ActivityWindowSelectionState.detailWindowID)"
         ))

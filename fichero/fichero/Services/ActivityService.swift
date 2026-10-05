@@ -220,7 +220,8 @@ class ActivityService {
             return BackgroundJobsSnapshot(
                 jobs: (body.jobs ?? []).map { ActivityJob($0) },
                 processCpuPercent: body.processCpuPercent,
-                cpuCount: body.cpuCount
+                cpuCount: body.cpuCount,
+                paused: body.paused ?? false
             )
         case .undocumented(let statusCode, _):
             throw ActivityServiceError.unexpectedResponse(statusCode)
@@ -406,6 +407,64 @@ enum ActivityServiceError: LocalizedError {
             return "Bad request: \(message)"
         case .unexpectedResponse(let statusCode):
             return "Unexpected response: HTTP \(statusCode)"
+        }
+    }
+}
+
+// MARK: - One job and everything under it (#5353, #5415)
+
+extension ActivityService {
+    /// `GET /api/activity/jobs/{id}`: a run (its id is its thread id), its
+    /// steps and their pages, with time, cost and errors rolled up. `nil` when
+    /// the project has no job by that id: a run recorded before the jobs
+    /// table existed has no tree, and the window shows its run row alone.
+    func getJobTree(id: String) async throws -> ActivityJobNode? {
+        let response = try await client.api.getJobTreeApiActivityJobsJobIdGet(path: .init(jobId: id))
+        switch response {
+        case .ok(let okResponse):
+            return ActivityJobNode(try okResponse.body.json)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            if statusCode == 404 { return nil }
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw denial
+            }
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
+    /// Pause or resume one job and what is under it (`activity.pause.per-job`):
+    /// the audited `job.pause` action. Returns the job's state after the request.
+    func setJobPaused(id: String, paused: Bool) async throws -> String {
+        let response = try await client.api.setJobPausedApiActivityJobsJobIdPausedPut(
+            path: .init(jobId: id),
+            body: .json(.init(paused: paused))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.state
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
+    /// Stop one job and what is under it (the audited `job.cancel` action).
+    /// Returns the job's state after the request.
+    func cancelJob(id: String) async throws -> String {
+        let response = try await client.api.cancelJobApiActivityJobsJobIdCancelPost(path: .init(jobId: id))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.state
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw ActivityServiceError.unexpectedResponse(statusCode)
         }
     }
 }

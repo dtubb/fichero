@@ -526,18 +526,41 @@ workflow by hand: a hand run is a job like any other.
 
 - `activity.window.all-projects` — **[PARTIAL]** (#5354) the Activity window merges
   every open library and the global one (`ActivityMonitorWindow.swift`); unpinned.
-- `activity.window.table` — **[GAP]** (#5415, #5354) the window is a table of every job of
-  every kind; today it is a list of workflow runs only (`Views/Activity/Window/ActivityMonitorWindow.swift:67`),
-  and background jobs appear only in the sidebar mode and the toolbar popover.
-- `activity.window.expand` — **[GAP]** (#5415, #5354) a row expands, with a disclosure triangle,
+- `activity.window.table` — **[PARTIAL]** (#5415, #5354) the window is a table of every job of
+  every kind. **Built 2026-10-04:** a SwiftUI `Table` (`Views/Activity/Window/ActivityMonitorWindow.swift`)
+  of every open library's runs plus each one's jobs of their own from `GET /api/activity/jobs` (a
+  page under a run is not listed twice). Columns: name, state, progress, started, time, cost,
+  errors, model, each sortable, and Pause or Resume and Stop on a row through the job routes
+  (`activity.pause.per-job`). A run's row is updated in place: its tree is read when the row is
+  first drawn and again when the change stream names its run (`ActivityStore.applyActivityEvent`),
+  one key patched. Pinned by app tests through the real store and the real decoding of a run tree
+  recorded from the engine's route (`fichero/Tests/Unit/general/Models/ActivityTableTests.swift`:
+  `testActivityWindowTable_aChangeEventRereadsOnlyItsOwnRunsTree`,
+  `testActivityWindowTable_rowsSortByAColumnAndTheirChildrenToo`,
+  `testActivityWindowTable_pauseOnAStepRowSetsThatOneRowsState`,
+  `testActivityWindowTable_aJobOfItsOwnIsARowAndAPageOfARunIsNot`). Not yet seen in the app: no
+  test drives the real window. Still a gap: ingest progress, conversion and downloads
+  (`activity.window.one-surface`), and filters.
+- `activity.window.expand` — **[PARTIAL]** (#5415, #5354) a row expands, with a disclosure triangle,
   into its children as `activity.jobs-follow-the-graph` defines them; a failed page shows its
-  reason. The engine serves the tree (`GET /api/activity/jobs/{id}`); the app does not read it.
-- `activity.window.working-on` — **[GAP]** (#5415, #5354) a running row says what it is
+  reason. **Built 2026-10-04:** a run's row opens into its steps and their pages from
+  `GET /api/activity/jobs/{id}`; a run the engine has no tree for keeps its row and is asked once
+  (`ActivityTableTests` `testActivityWindowExpand_aRunRowOpensIntoItsStepsAndTheirPages`,
+  `testActivityWindowExpand_aRunTheEngineHasNoTreeForStillHasItsRowAndIsNotAskedAgain`). Not yet
+  seen in the app. Still a gap: branches skipped and remote jobs, which the tree does not carry.
+- `activity.window.working-on` — **[PARTIAL]** (#5415, #5354) a running row says what it is
   working on now (as defined in `activity.jobs-follow-the-graph`) and how long remains.
+  **Built 2026-10-04:** a running row's state reads "Running: <step>" (the live run's step, or
+  the tree's running node) and its progress "1 of 2, 0s left" at the pace so far
+  (`ActivityTableTests` `testActivityWindowWorkingOn_aRunningRowSaysWhatItIsOnAndHowLongRemains`).
+  Not yet seen in the app.
 - `activity.window.cost` — **[PARTIAL]** (→ #4343, #5415) a row shows what it cost, summed up
   the tree. Built in the engine: each node of `GET /api/activity/jobs/{id}` has `cost_usd`, null
   unless every call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`).
-  Still a gap: the window shows it (`activity.window.measures`).
+  **Built 2026-10-04** in the window: the Cost column shows it in dollars, "Not priced" when a call
+  under it has no price, and nothing when no model was called, never "$0"
+  (`ActivityTableTests` `testActivityWindowMeasures_theColumnsCarryTimeCostErrorsAndModelRolledUp`).
+  Not yet seen in the app.
 - `activity.window.started-by` — **[GAP]** (#5354) a row says who or what started
   it: a person, the recipe, a schedule, a trigger, an assistant.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion
@@ -577,9 +600,12 @@ workflow by hand: a hand run is a job like any other.
   page, rolled up the tree, are the table's main columns: **time to run, cost, greenhouse gas, images
   run and steps run**. Built in the engine: each node of `GET /api/activity/jobs/{id}` has `seconds`,
   `cost_usd` (null unless every call under it is priced), `tokens`, `failed`, and pages done and in
-  all (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Still a gap: greenhouse gas
-  (`activity.ghg.estimate-with-its-basis`), images run and steps run as counted measures, and the
-  window's columns.
+  all (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). **Built 2026-10-04** in the
+  window: time, cost, errors, progress (pages done of all) and model are the table's columns, read
+  from each node of the tree, a run's model being the models its pages used (`ActivityTableTests`
+  `testActivityWindowMeasures_theColumnsCarryTimeCostErrorsAndModelRolledUp`). Not yet seen in the
+  app. Still a gap: greenhouse gas (`activity.ghg.estimate-with-its-basis`), and images run and
+  steps run as counted measures of their own.
 - `activity.ghg.estimate-with-its-basis` — **[GAP]** (#5420) each run, step and page carries its
   greenhouse gas, rolled up the tree: an estimate from the energy it used times the grid intensity
   where that energy was drawn. Energy on this Mac is its power draw over the job's time; on a remote
@@ -607,19 +633,38 @@ workflow by hand: a hand run is a job like any other.
     `ActivityWindowAbsoluteTimesTests`): an engine string of today's shape, an hour old, renders
     as its clock time; and `ActivityStoreRunsTests`
     `testActivityWindowAbsoluteTimes_theEngineTimeShapeIsReadNotReplacedByNow`.
-  Still a gap: the window's rows show no finish time or remaining time.
-- `activity.window.grouped-by-project` — **[GAP]** (#5415) the window can group its rows by
+  The table (2026-10-04) shows each row's time to run (a live run's as a timer) and a running
+  row's remaining time (`activity.window.working-on`). Still a gap: a finish time, which
+  `GET /api/activity/jobs/{id}` does not carry.
+- `activity.window.grouped-by-project` — **[PARTIAL]** (#5415) the window can group its rows by
   project; the Mac's own work (`activity.global-work-is-the-macs`) is a group of its own.
+  **Built 2026-10-04:** a *Group by Project* toolbar switch (kept across launches) puts each open
+  library's rows in a section of its own, the global library's titled "This Mac"
+  (`ActivityTableTests` `testActivityWindowGroupedByProject_eachLibraryIsAGroupAndTheGlobalOneIsTheMacs`).
+  Not yet seen in the app.
 - `activity.window.row-shows-lane-state-reason` — **[PARTIAL]** (#5415) every row shows its state,
   its lane and, while it waits, why. Built: rows carry `state` and `reason`, and waiting rows say
   why ("Paused by you", "Waiting for Kraken", "Waiting: memory is tight", "Waiting: you're using
-  the Mac"). Still a gap: no row carries its lane (neither the `jobs` table nor `JobTree` nor
-  `BackgroundJob` has it, `api/routes/system/activity.py:127-146`), and the app shows a reason only
-  on a failed row (`Views/Activity/ActivityJobsView.swift:64-81`).
-- `activity.popover.summary` — **[GAP]** (#5415) the toolbar popover is a summary, not a list:
+  the Mac"). **Built 2026-10-04** in the window: the State column gives a failed row its reason and
+  a waiting row what it waits for (`ActivityTableTests`
+  `testActivityWindowRowShowsReason_aFailedRowSaysWhy`,
+  `testActivityWindowRowShowsReason_aWaitingJobSaysWhatItWaitsFor`). Not yet seen in the app.
+  Still a gap: no row carries its lane (neither the `jobs` table nor `JobTree` nor `BackgroundJob`
+  has it, `api/routes/system/activity.py:127-146`).
+- `activity.popover.summary` — **[PARTIAL]** (#5415) the toolbar popover is a summary, not a list:
   what is running, what is waiting and the main reason why, the last three errors, and the Mac's
   state (memory pressure, heat, battery, in use), read from the engine. CPU and GPU percentages
-  join it with `activity.lane.measures-processors`.
+  join it with `activity.lane.measures-processors`. **Built 2026-10-04:** the popover
+  (`Views/Shell/Toolbar/ActivityStatusToolbarItem.swift`, `Views/Activity/ActivityPopoverSummary.swift`)
+  says what runs now, how many wait and the main reason, the last three errors with why, whether
+  heavy work is held back and why (paused by you, or the throttle's reason a waiting job gives),
+  the process CPU, and has Open Activity; all from `GET /api/activity/jobs` through the store the
+  window reads (`ActivityTableTests` `testActivityPopoverSummary_saysWhatRunsWhatWaitsAndWhyAndTheLastThreeErrors`,
+  `testActivityPopoverSummary_pausedBackgroundWorkIsSaidFirst`,
+  `testActivityPopoverSummary_nothingHeldBackWhenNothingWaitsOnTheMac`). Not yet seen in the app.
+  Still a gap (#5415): the Mac's own state. The engine reads memory pressure, heat, battery and
+  whether the Mac is in use to decide (`execution/throttle.py`) but serves no route for them, and
+  nothing reads the GPU.
 
 ### C. Pause and start
 
@@ -637,8 +682,10 @@ workflow by hand: a hand run is a job like any other.
   resumed and cancelled (`PUT /api/activity/jobs/{id}/paused`, `POST /api/activity/jobs/{id}/cancel`);
   a run's row reaches the run and its waiting pages and its sub-workflows; a training Job is
   cancelled on Hugging Face (`fichero-server/tests/unit/jobs/test_job_queue.py`, `fichero-server/tests/unit/jobs/test_runs_are_jobs.py`,
-  `fichero-server/tests/unit/jobs/test_sub_workflows_are_child_runs.py`). Still a gap: the window's per-row controls (#5415),
-  retry, and pausing every waiting job of one kind at once; and kinds keep stop routes of their own
+  `fichero-server/tests/unit/jobs/test_sub_workflows_are_child_runs.py`). The window's rows carry
+  Pause or Resume and Stop through these routes (2026-10-04, `ActivityTableTests`
+  `testActivityWindowTable_pauseOnAStepRowSetsThatOneRowsState`; not yet seen in the app); a job of
+  its own from the jobs read has none yet. Still a gap: retry, and pausing every waiting job of one kind at once; and kinds keep stop routes of their own
   beside it (`activity.pause.one-start-stop`).
 - `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
   boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for. Owned
