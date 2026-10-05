@@ -122,6 +122,14 @@ class JobDeferred(Exception):
     reason, and the attempt is not counted against it. The job resumes from its own checkpoint."""
 
 
+class JobOutOfReach(Exception):
+    """Raised by a remote job's run when this engine cannot reach the place its work runs (it cannot
+    read the token for it) while that work may still be running there (#5449,
+    `compute.job.another-engine-never-fails-what-it-cannot-reach`). The row is left `running`, with
+    the reason in words, and is not failed: failing it would lose track of paid work nobody could
+    then cancel. The attempt is not counted; the job is taken up again when the library next opens."""
+
+
 @dataclass(frozen=True)
 class Kind:
     """What the scheduler needs to know about a kind of job."""
@@ -481,6 +489,13 @@ def job_id_for(db: "Database", kind: str, subject: str) -> str | None:
     return row[0] if row else None
 
 
+def end_cancelled(db: "Database", job_id: str, reason: str) -> None:
+    """End a job whose work elsewhere was cancelled from here while nothing here was following it
+    (an adopted job this engine could not reach, #5449): `cancelled`, with the reason."""
+    db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? WHERE id = ?",
+               [reason, utc_now(), job_id])
+
+
 def cancel_waiting(db: "Database", job_id: str) -> None:
     """End a job that has not started: `cancelled`, "Stopped by you"."""
     db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
@@ -766,10 +781,12 @@ def resume(db: "Database") -> None:
         f"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)})",
         [utc_now(), *attached],
     )
+    # A job watching a Job on Hugging Face is never set aside for being interrupted: the Job runs (and
+    # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449).
     db.execute(
         "UPDATE jobs SET state = 'failed', finished_at = ?, "
         "reason = 'Interrupted ' || attempts || ' times; set aside' "
-        "WHERE state = 'running' AND attempts >= ?",
+        "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs'",
         [utc_now(), MAX_ATTEMPTS],
     )
     db.execute(
@@ -1331,6 +1348,8 @@ class _Scheduler:
             state, reason, error = "cancelled", str(exc) or "Stopped by you", exc
         except JobDeferred as exc:
             state, reason, error = "waiting", str(exc), exc
+        except JobOutOfReach as exc:
+            state, reason, error = "running", str(exc), exc
         except Exception as exc:  # noqa: BLE001 -- recorded on the row, and handed to whoever waits
             logger.warning("job %s (%s on %s) failed: %s", job_id, kind_name, subject, exc)
             state, reason, error = "failed", str(exc) or type(exc).__name__, exc
@@ -1338,11 +1357,13 @@ class _Scheduler:
             _current.job_id = None
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
-        if state == "waiting":  # deferred: not finished; it comes back, and its watchers wait on
+        if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
+            # it comes back (deferred: soon; out of reach: when the library next opens), and its watchers wait on
             if db_manager.open_database(key) is db:
-                db.execute("UPDATE jobs SET state = 'waiting', reason = ?, attempts = attempts - 1 WHERE id = ?",
-                           [reason, job_id])
-            lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                db.execute("UPDATE jobs SET state = ?, reason = ?, attempts = attempts - 1 WHERE id = ?",
+                           [state, reason, job_id])
+            if state == "waiting":
+                lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
             return
         # The row first, then whoever waits: a caller told the outcome must find it on the row.
         if db_manager.open_database(key) is db:

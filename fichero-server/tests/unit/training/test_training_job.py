@@ -283,3 +283,161 @@ def test_the_conversion_frees_kraken_first():
 
     assert jobs._heavy_switch("kraken:kraken-mccatmus", CONVERT_MODEL)
     assert jobs._heavy_switch("embedder", CONVERT_MODEL)
+
+
+# --- another engine adopts a job it cannot reach (#5449) -----------------------------------------
+# `compute.job.another-engine-never-fails-what-it-cannot-reach`. The real `HfJobsTarget` is used with
+# a fake API client (no network) and a stubbed provider key (never the Keychain).
+
+
+class FakeHfApi:
+    """The `HfApi` calls a watched Job makes; records cancels."""
+
+    def __init__(self):
+        self.cancelled: list[str] = []
+
+    def inspect_job(self, job_id, token):
+        return SimpleNamespace(status=SimpleNamespace(stage="RUNNING", message=None))
+
+    def cancel_job(self, job_id, token):
+        self.cancelled.append(job_id)
+
+
+class RefusedToken(RuntimeError):
+    """What `huggingface_hub` raises for a token the service refuses (an HTTP error with a response)."""
+
+    response = SimpleNamespace(status_code=401)
+
+
+@pytest.fixture
+def engine(monkeypatch):
+    """This engine: whether it can read a Hugging Face token, and the Hub it would reach."""
+    from fichero_server import llm
+    from fichero_server.db.manager import db_manager
+    from fichero_server.training import hf_jobs
+
+    real = hf_jobs.HfJobsTarget
+    state = SimpleNamespace(api=FakeHfApi(), token=None, db=None)
+    monkeypatch.setattr(llm, "get_api_key", lambda provider: state.token if provider == "huggingface" else None)
+    monkeypatch.setattr(hf_jobs, "HfJobsTarget", lambda: real(api=state.api))
+    monkeypatch.setattr(db_manager, "open_database", lambda key: state.db)
+    training_job.register_job_kinds()
+    return state
+
+
+def _left_running_by_another_engine(db, notebook):
+    """A job another engine sent: its Job's id is stored and the row was running when that engine quit."""
+    started = _start(db, notebook, FakeHub())
+    job_id = started["job_id"]
+    _state, detail = training_job._row(db, job_id)
+    detail.update(far_id="hf-job-1", phase="running", training_set={"pages": 1, "lines": 44, "held_out": []})
+    db.execute("UPDATE jobs SET state = 'running', attempts = 1, detail = ? WHERE id = ?",
+               [json.dumps(detail), job_id])
+    return job_id
+
+
+def _adopt(db, job_id):
+    """What an engine does on opening the library: resume, then the scheduler runs the job."""
+    jobs.resume(db)
+    # The scheduler's claim, as `_Scheduler._claim` writes it.
+    db.execute("UPDATE jobs SET state = 'running', attempts = attempts + 1 WHERE id = ? AND state = 'waiting'",
+               [job_id])
+    row = db.execute_fetchone("SELECT id, kind, subject, model, created_at FROM jobs WHERE id = ?", [job_id])
+    jobs._scheduler._run(jobs._scheduler.lanes["remote"], "key", db, row, None)
+
+
+def _refuse(*_args, **_kw):
+    raise RefusedToken("Invalid user token.")
+
+
+@pytest.mark.parametrize("why", ["no token", "token refused"])
+def test_an_engine_that_cannot_reach_an_adopted_job_keeps_it_tracked_not_failed(db, notebook, engine, why):
+    """WHY (#5449): a sandboxed engine without the token failed two rows while their Jobs kept running
+    and billing on Hugging Face, and a failed row could not be cancelled. The row must stay running,
+    keep its Job's id, say why in words, and not spend an attempt (three opens would set it aside)."""
+    engine.db = db
+    if why == "token refused":
+        engine.token = "hf_test_not_a_real_token"
+        engine.api.inspect_job = _refuse
+    job_id = _left_running_by_another_engine(db, notebook)
+
+    _adopt(db, job_id)
+
+    state, reason, attempts = db.execute_fetchone("SELECT state, reason, attempts FROM jobs WHERE id = ?", [job_id])
+    assert state == "running" and reason.startswith("Needs attention: this engine can't read the Hugging Face token")
+    assert attempts == 1  # the adoption did not count against it
+    status = training_job.status(db, job_id)
+    assert status["far_id"] == "hf-job-1" and status["out_of_reach"]
+    # Opened again and again on engines without the token, it is never set aside as failed.
+    db.execute("UPDATE jobs SET attempts = ? WHERE id = ?", [jobs.MAX_ATTEMPTS + 2, job_id])
+    jobs.resume(db)
+    assert db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [job_id])[0] == "waiting"
+
+
+def test_activity_shows_the_adopted_job_with_why_it_cannot_be_followed(db, notebook, engine):
+    """WHY: the person must see, in Activity, that paid work may still run elsewhere and what to do,
+    not a silent "running" nor a "failed" that hides a live Job."""
+    engine.db = db
+    job_id = _left_running_by_another_engine(db, notebook)
+    _adopt(db, job_id)
+
+    (row,) = [r for r in jobs.snapshot(db) if r["id"] == job_id]
+    assert row["state"] == "running"
+    assert "can't read the Hugging Face token" in row["reason"] and "hf-job-1" in row["reason"]
+
+
+def test_cancel_from_an_engine_with_the_token_reaches_hugging_face(db, notebook, engine):
+    """WHY: nothing on this engine follows an out-of-reach row, so a cancel that only set a flag would
+    leave the Job billing. An engine with the token cancels it on Hugging Face at once."""
+    engine.db = db
+    job_id = _left_running_by_another_engine(db, notebook)
+    _adopt(db, job_id)  # no token: out of reach
+
+    engine.token = "hf_test_not_a_real_token"
+    assert jobs.cancel_job(db, job_id) == "cancelled"
+    assert engine.api.cancelled == ["hf-job-1"]
+    assert db.execute_fetchone("SELECT state, reason FROM jobs WHERE id = ?", [job_id]) == (
+        "cancelled", training_job.CANCELLED_THERE)
+
+
+def test_a_row_failed_while_its_job_still_ran_can_still_be_cancelled_there(db, notebook, engine):
+    """WHY (#5449): the rows already failed by the bug answered `failed` to a cancel and cancelled
+    nothing; the Job was stopped by hand on Hugging Face after 44 minutes."""
+    engine.db = db
+    engine.token = "hf_test_not_a_real_token"
+    job_id = _left_running_by_another_engine(db, notebook)
+    db.execute("UPDATE jobs SET state = 'failed', reason = 'Invalid user token.' WHERE id = ?", [job_id])
+
+    assert jobs.cancel_job(db, job_id) == "cancelled"
+    assert engine.api.cancelled == ["hf-job-1"]
+
+
+def test_a_stop_pressed_where_the_token_is_missing_is_carried_out_where_it_is(db, notebook, engine):
+    """WHY: a person may press Stop on the engine that cannot reach the Job; the stop must not be lost,
+    and must not pretend to have happened."""
+    engine.db = db
+    job_id = _left_running_by_another_engine(db, notebook)
+    _adopt(db, job_id)
+
+    assert jobs.cancel_job(db, job_id) == "running"
+    assert engine.api.cancelled == []
+    assert "Stopping" in db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id])[0]
+
+    engine.token = "hf_test_not_a_real_token"  # the library opens where the token is
+    _adopt(db, job_id)
+    assert engine.api.cancelled == ["hf-job-1"]
+    assert db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [job_id])[0] == "cancelled"
+
+
+def test_a_job_that_failed_on_hugging_face_still_fails(db, notebook, engine):
+    """WHY: only an unreachable Job is kept running; a Job the service itself reports failed must
+    still end the row failed, with its reason (`compute.job.fails-with-a-reason`)."""
+    engine.db = db
+    engine.token = "hf_test_not_a_real_token"
+    engine.api.inspect_job = lambda job_id, token: SimpleNamespace(
+        status=SimpleNamespace(stage="ERROR", message="Job exited with code 1"))
+    engine.api.fetch_job_logs = lambda job_id, tail, token: ["CUDA out of memory"]
+    job_id = _left_running_by_another_engine(db, notebook)
+    _adopt(db, job_id)
+    state, reason = db.execute_fetchone("SELECT state, reason FROM jobs WHERE id = ?", [job_id])
+    assert state == "failed" and "exited with code 1" in reason
