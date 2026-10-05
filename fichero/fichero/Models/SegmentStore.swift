@@ -117,6 +117,22 @@ final class SegmentStore {
         passesByDocument[documentId] ?? []
     }
 
+    /// The page's working pass AS THE ENGINE NAMES IT (`PassRead.working`, `resolve_working_pass`;
+    /// #5467). The app never ranks passes to find it: the segments route marks one, and nil means
+    /// it marked none.
+    func workingPass(documentId: String) -> SegmentPassValue? {
+        passes(documentId: documentId).first(where: \.working)
+    }
+
+    /// THE pass-filtered read of a page (#5467 (d)): the working pass's segments, nothing of any
+    /// other pass. The Segments list lists these, the Preview draws them first
+    /// (`SegmentDisplay.drawingOrder`), and the Reader's lines are the engine's reading of the same
+    /// pass. `segments(documentId:)` stays the page's whole answer for a lookup by id.
+    func workingSegments(documentId: String) -> [Segment] {
+        guard let working = workingPass(documentId: documentId) else { return [] }
+        return segments(documentId: documentId).filter { $0.passId == working.id }
+    }
+
     func isLoading(documentId: String) -> Bool {
         loadingDocumentIds.contains(documentId)
     }

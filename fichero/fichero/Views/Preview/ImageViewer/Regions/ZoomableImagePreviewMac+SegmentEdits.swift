@@ -62,11 +62,12 @@ extension ZoomableImagePreview {
         }
     }
 
-    /// The segment drawn as box `index`, on the pass the overlay drew (the same answer, asked again).
+    /// The segment drawn as box `index`: the one the box on screen names (`OCRGeometryBox.segmentId`, from
+    /// the one `SegmentDisplay.selected` the overlay loaded), never the shown pass asked for again (#5467).
     private func shownSegment(at index: Int, _ documentId: String, _ store: SegmentStore) -> Segment? {
-        guard let passId = shownArtifactlessPassId ?? SegmentDisplay.selected(for: documentId, store: store)?.passId
+        guard let boxes = ocrGeometry?.boxes, boxes.indices.contains(index), let segmentId = boxes[index].segmentId
         else { return nil }
-        return store.segments(documentId: documentId).first { $0.passId == passId && $0.boxIndex == index }
+        return store.segments(documentId: documentId).first { $0.id == segmentId }
     }
 
     /// The Segments store re-read, then the boxes redrawn from it (#5235): the overlay draws from the store,

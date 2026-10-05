@@ -28,7 +28,7 @@ The geometry contract is `fichero_server/media/ocr_geometry.py`.
   it; `/api/documents/…/artifacts` serves it behind `include_geometry`.
 - The Mac app already renders boxes: `Views/Preview/ImageViewer/OCRGeometryOverlay.swift`
   and `Views/Preview/PDFViewer/PDFPageView+OCRBoxes.swift`, with selection
-  handling in `Models/OCRGeometrySelection.swift`.
+  handling in `Models/SegmentDisplay.swift` (the drawn pass, read from the segments seam).
 
 ## Which producers actually emit word boxes today
 

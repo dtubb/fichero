@@ -99,11 +99,13 @@ struct ReadingOrderList: View {
                 store: SegmentStore.shared(for: segmentService)
             ))
         }
-        .task(id: "\(documentId)/\(parentSegmentId ?? "")") {
+        // The working pass is in the key (#5465): when a run's result becomes the page's working pass (a
+        // pass event re-reads this page in `SegmentStore`), the list re-reads this page's orders.
+        .task(id: "\(documentId)/\(parentSegmentId ?? "")/\(workingPassId ?? "")") {
             if store == nil, let service { store = ReadingOrderStore(transport: service) }
             // The as-written fallback reads the page's segments; loading is a no-op once loaded.
             if let segmentService { await SegmentStore.shared(for: segmentService).load(documentId: documentId) }
-            if store?.documentId != documentId { try? await store?.load(documentId: documentId) }
+            try? await store?.loadFollowing(documentId: documentId, workingPassId: workingPassId)
             await store?.show(childrenOf: parentSegmentId)
             // Next in a flow crossed onto this page: select the segment it went to.
             if let pending = windowState?.pendingSegmentSelection, pending.documentId == documentId {
@@ -125,11 +127,17 @@ struct ReadingOrderList: View {
     /// Why Create Named Order did not happen; nil after it did.
     @State private var createNote: String?
 
-    /// The level shown, as the page holds it, for a page with no named order.
+    /// The level shown, as the page holds it, for a page with no named order: the WORKING pass's
+    /// segments only (`SegmentStore.workingSegments`, #5467), never the top level of every pass.
     private var asWritten: [String] {
         guard let segmentService else { return [] }
-        let segments = SegmentStore.shared(for: segmentService).segments(documentId: documentId)
+        let segments = SegmentStore.shared(for: segmentService).workingSegments(documentId: documentId)
         return SegmentsPane.asWritten(segments, under: parentSegmentId)
+    }
+
+    /// The page's working pass as the engine names it; nil until the page is read.
+    private var workingPassId: String? {
+        segmentService.flatMap { SegmentStore.shared(for: $0).workingPass(documentId: documentId)?.id }
     }
 
     /// A page with no named order: its segments as written, selectable like the order's rows, and the one

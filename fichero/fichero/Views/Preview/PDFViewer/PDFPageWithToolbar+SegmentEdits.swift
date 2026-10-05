@@ -11,7 +11,7 @@ extension PDFPageWithToolbar {
         #if canImport(AppKit)
         let boxes = ocrGeometry?.boxes ?? []
         let documentId = effectiveGeometryDocumentId
-        let scope = pdfSelectionScope
+        let scope = pdfGeometryScope
         let selection = pdfRegionSelection
         let windowState = pdfWindowState
         return PDFSegmentEditing(
@@ -30,22 +30,15 @@ extension PDFPageWithToolbar {
     }
 
     #if canImport(AppKit)
-    /// The shown pass's selection scope (`SegmentDisplay.selectionScope`), nil when the boxes have no pass.
-    var pdfSelectionScope: String? {
-        guard let segmentService,
-              let shown = SegmentDisplay.selected(for: effectiveGeometryDocumentId, store: SegmentStore.shared(for: segmentService))
-        else { return nil }
-        return SegmentDisplay.selectionScope(artifactId: shown.artifactId, passId: shown.passId)
-    }
-
-    /// The shown pass's segment at `index` reshaped: the image's rule, sent through `SegmentEditRunner`.
+    /// The drawn box at `index` reshaped: the image's rule, sent through `SegmentEditRunner`. The segment is
+    /// the one the box on screen draws (`OCRGeometryBox.segmentId`, set by `loadOCRGeometry` from the one
+    /// `SegmentDisplay.selected`), never a second answer to which pass is shown (#5467).
     func reshapePDFSegment(index: Int, _ target: SegmentShapes.Target, to points: [[Double]]) {
         guard let segmentService, let actionsService = pdfActionStore?.actionsService else { return }
         let store = SegmentStore.shared(for: segmentService)
         let documentId = effectiveGeometryDocumentId
-        guard let shown = SegmentDisplay.selected(for: documentId, store: store),
-              let segment = store.segments(documentId: documentId)
-                .first(where: { $0.passId == shown.passId && $0.boxIndex == index }) else { return }
+        guard let boxes = ocrGeometry?.boxes, boxes.indices.contains(index), let segmentId = boxes[index].segmentId,
+              let segment = store.segments(documentId: documentId).first(where: { $0.id == segmentId }) else { return }
         let name = target == .polygon ? "Reshape Segment" : "Reshape Baseline"
         guard case .success(let call) = SegmentShapes.reshape(segment, target, to: points) else {
             pdfSegmentEditLogger.notice("\(name, privacy: .public) not sent: refused")

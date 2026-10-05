@@ -323,23 +323,20 @@ struct ZoomableImagePreview: View {
         }
         .task(id: url) { await handleImageURLChanged() }
         .task(
-            // FocusedArtifact.shared.id is part of the task identity so
-            // selecting an artifact in the inspector re-runs the geometry
-            // load — the selection now drives which artifact's boxes render.
+            // The inspector's focused artifact is NOT part of this identity (#5467): it no longer
+            // chooses which pass is drawn -- the engine's working pass does.
             id: "\(documentId ?? "")|\(ocrBoxesEnabled)"
                 + "|\(executionObserver?.activeExecutions.count ?? 0)"
                 // Auto-show (Daniel, 2026-09-06: regions "don't appear when
                 // done, I had to open artifacts"). activeExecutions.count moves
                 // when a run STARTS and STOPS, and the stop can beat the
                 // artifact's write-back — so the reload fetched before the boxes
-                // were persisted and nothing retriggered until the inspector set
-                // FocusedArtifact. fileCompletedCount / workflowCompletedCount
+                // were persisted and nothing retriggered. fileCompletedCount / workflowCompletedCount
                 // are the POST-persist SSE signals the inspectors and the reader
                 // already refresh on; keying on them makes a Detect Regions (or
                 // Align Transcript) result appear on the page on its own.
                 + "|\(executionObserver?.fileCompletedCount ?? 0)"
                 + "|\(executionObserver?.workflowCompletedCount ?? 0)"
-                + "|\(FocusedArtifact.shared.id ?? "")"
                 // #4890 (spec: segment.overlay.refreshes-when-segmentation-
                 // finishes): `ArtifactEntityStore`'s per-document generation
                 // counter, bumped by the engine's "artifact.updated" event on

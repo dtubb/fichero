@@ -75,24 +75,18 @@ struct InspectorPath: Equatable {
     }
 
     /// The Source view's selection on one page as segment ids -- what the Inspector inspects. Its box
-    /// indices are resolved against the boxes of the pass its scope names, read through the
-    /// selection's own identity keys (`resolvedIndices(in:)`), so a list that changed order is not
-    /// misread. The ONE resolution, called by `SourceSectionView` and by its end-to-end test.
+    /// indices are resolved against the boxes of the pass the Preview DRAWS (`SegmentDisplay.selected`, the
+    /// one answer; #5467), read through the selection's own identity keys (`resolvedIndices(in:)`), so a list
+    /// that changed order is not misread. A selection scoped to any other pass names boxes that are not on
+    /// screen and resolves to nothing. The ONE resolution, called by `SourceSectionView` and its tests.
     @MainActor
     static func selectedSegmentIds(selection: RegionSelection, documentId: String, store: SegmentStore) -> [String] {
-        guard !selection.isEmpty, selection.documentId == documentId else { return [] }
-        let passes = store.passes(documentId: documentId)
-        let segments = store.segments(documentId: documentId)
-        guard let pass = passes.first(where: {
-            SegmentDisplay.selectionScope(artifactId: $0.sourceArtifactId, passId: $0.id) == selection.artifactId
-        }),
-              let boxes = SegmentDisplay.geometry(
-                  from: segments.filter { $0.passId == pass.id }, provider: "", model: nil, renditionId: nil
-              )?.boxes else { return [] }
-        return segmentIds(
-            selectedIndices: selection.resolvedIndices(in: boxes), artifactId: selection.artifactId,
-            passes: passes, segments: segments
-        )
+        guard !selection.isEmpty, selection.documentId == documentId,
+              let shown = SegmentDisplay.selected(for: documentId, store: store),
+              SegmentDisplay.selectionScope(artifactId: shown.artifactId, passId: shown.passId) == selection.artifactId
+        else { return [] }
+        let boxes = shown.geometry.boxes
+        return selection.resolvedIndices(in: boxes).compactMap { boxes.indices.contains($0) ? boxes[$0].segmentId : nil }
     }
 
     /// The INVERSE (#5155, one selection across the three surfaces): make `segmentIds` the Source
@@ -108,11 +102,12 @@ struct InspectorPath: Equatable {
         guard let shown = SegmentDisplay.selected(for: documentId, store: store),
               let scope = SegmentDisplay.selectionScope(artifactId: shown.artifactId, passId: shown.passId)
         else { return [] }
-        let byId = Dictionary(
-            store.segments(documentId: documentId).filter { $0.passId == shown.passId }.map { ($0.id, $0) },
+        // A segment's index is its place among the DRAWN boxes, read from them, not from the store again.
+        let indexById = Dictionary(
+            shown.geometry.boxes.enumerated().compactMap { index, box in box.segmentId.map { ($0, index) } },
             uniquingKeysWith: { first, _ in first }
         )
-        let picked = segmentIds.compactMap { id in byId[id].flatMap { seg in seg.boxIndex.map { (id, $0) } } }
+        let picked = segmentIds.compactMap { id in indexById[id].map { (id, $0) } }
         guard !picked.isEmpty else { return [] }
         selection.selectAll(picked.map(\.1), artifactId: scope, documentId: documentId, in: shown.geometry.boxes)
         return picked.map(\.0)
@@ -157,24 +152,5 @@ struct InspectorPath: Equatable {
               let maxX = whole.map({ $0[0] + $0[2] }).max(), let maxY = whole.map({ $0[1] + $0[3] }).max()
         else { return nil }
         return [minX, minY, maxX - minX, maxY - minY]
-    }
-
-    /// The Source view's selection -- indices into the boxes of the pass its scope names (the pass's
-    /// artifact, or the pass itself when it has none: `SegmentDisplay.selectionScope`) -- as segment
-    /// ids, in the order picked. A box index is the segment's `boxIndex` in that pass
-    /// (`SegmentDisplay.geometry`). No pass for the artifact means no segments, never a guess at
-    /// another pass: the same boxes in another pass are other segments.
-    static func segmentIds(
-        selectedIndices: [Int], artifactId: String?,
-        passes: [SegmentPassValue], segments: [Segment]
-    ) -> [String] {
-        guard let artifactId, let pass = passes.first(where: {
-            SegmentDisplay.selectionScope(artifactId: $0.sourceArtifactId, passId: $0.id) == artifactId
-        }) else { return [] }
-        let byIndex = Dictionary(
-            segments.filter { $0.passId == pass.id }.compactMap { seg in seg.boxIndex.map { ($0, seg.id) } },
-            uniquingKeysWith: { first, _ in first }
-        )
-        return selectedIndices.compactMap { byIndex[$0] }
     }
 }

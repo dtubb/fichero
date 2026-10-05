@@ -128,6 +128,9 @@ struct PDFPageWithToolbar: View {
     /// Annotation overlays show/hide (what-to-show menu, 2026-08-30).
     @PaneStorage("preview.annotationsEnabled") var annotationsEnabled = true
     @State var ocrGeometry: OCRGeometry?
+    /// The selection scope of the pass `ocrGeometry` was drawn from (`SegmentDisplay.selectionScope`),
+    /// set with it by `loadOCRGeometry`; nil when nothing is drawn.
+    @State var pdfGeometryScope: String?
     @State private var isDrawingRegion = false
     @State private var pendingTool: ReaderAnnotationTool = .highlight
 

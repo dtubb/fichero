@@ -268,20 +268,13 @@ extension ZoomableImagePreview {
         return SegmentStore.shared(for: segmentService).revision(for: documentId)
     }
 
-    /// Fetch this page's typed geometry (#4309, repaired by #4418).
+    /// This page's boxes, from the ONE seam (#4954, `source.app.overlays-draw-from-the-seam`): one
+    /// engine call returns the page's passes and segments, and `SegmentDisplay.selected` names the pass
+    /// to draw -- the engine's working pass, or the next with shapes (#5467). There is no second path:
+    /// the artifact ladder that used to run when the seam had nothing (and its inspector-focus override)
+    /// is gone, because the seam already serves every unconverted result as a pass. No pass, no boxes.
     ///
-    /// List first (lean payload), then the single GET which carries geometry.
-    /// Which artifact wins is `OCRGeometrySelection`'s decision, not this
-    /// function's — see there for why it cannot be "the newest transcription"
-    /// and cannot be "the text_geometry one" either.
-    ///
-    /// Probes candidates best-first and stops at the first that actually
-    /// carries boxes, because an artifact of the right type can still be empty:
-    /// the importer writes a zero-box `text_geometry` artifact for every
-    /// scanned page on purpose.
-    ///
-    /// Lives here so the (large) preview struct body stays under the
-    /// type-body-length budget.
+    /// Lives here so the (large) preview struct body stays under the type-body-length budget.
     func loadOCRGeometry() async {
         ocrGeometry = nil
         ocrGeometryArtifactId = nil
@@ -289,57 +282,23 @@ extension ZoomableImagePreview {
         // Loads regardless of the boxes TOGGLE (2026-08-23): the reader's
         // word-selection linking needs the geometry even when the full box
         // layer is off — the toggle gates drawing that layer, not knowing.
-        guard let documentId else { return }
-
-        // THE SEAM FIRST (#4954, `source.app.overlays-draw-from-the-seam`): one engine
-        // call returns the page's passes and segments, and `SegmentDisplay` maps the
-        // winning pass to the SAME `OCRGeometry` draw model the artifact path builds —
-        // same Canvas, same box shapes, no new overlay. Pinned equivalent field for
-        // field, including `isHandDrawn`, by
-        // `SegmentDisplayTests.seamMatchesTheArtifactPathForTheSamePage`.
-        //
-        // The artifact path stays as the fallback for a host with no library
-        // environment (previews), and for a page the seam has nothing for — not as a
-        // second source of truth: when the seam answers, it wins, and the inspector's
-        // focused-artifact override lives INSIDE it now rather than beside it.
-        if let segmentService {
-            let store = SegmentStore.shared(for: segmentService)
-            await store.load(documentId: documentId)
-            if let selected = SegmentDisplay.selected(for: documentId, store: store) {
-                ocrGeometry = selected.geometry
-                // The artifact the WINNING pass came from, so the curation verbs address
-                // the rows whose boxes are on screen (2026-08-29). Taken from the same
-                // answer as the geometry rather than looked up again, because a lookup
-                // could name a different pass.
-                ocrGeometryArtifactId = selected.artifactId
-                // What a click selects in: the artifact, or the pass itself when it has none (#5152).
-                ocrGeometrySelectionScope = SegmentDisplay.selectionScope(
-                    artifactId: selected.artifactId, passId: selected.passId
-                )
-                return
-            }
+        guard let documentId, let segmentService else { return }
+        let store = SegmentStore.shared(for: segmentService)
+        await store.load(documentId: documentId)
+        if let error = store.loadError(documentId: documentId) {
+            // Surface in the log, render nothing — the toggle stays honest (no boxes ≠ silent success).
+            Self.logger.error("Segments load failed for \(documentId): \(error)")
+            return
         }
-
-        guard let artifactService else { return }
-        do {
-            // The probe itself lives on OCRGeometrySelection so the PDF surface
-            // shares this exact decision rather than reimplementing it (#4418).
-            // The artifact id rides along (2026-08-29): the curation verbs
-            // must address the artifact whose boxes are on screen.
-            let selected = try await OCRGeometrySelection.loadSelected(
-                documentId: documentId,
-                using: artifactService
-            )
-            ocrGeometry = selected?.geometry
-            ocrGeometryArtifactId = selected?.artifactId
-            ocrGeometrySelectionScope = selected?.artifactId
-        } catch {
-            // Surface in the log, render nothing — the toggle stays honest
-            // (no boxes ≠ silent success).
-            Self.logger.error(
-                "OCR geometry load failed for \(documentId): \(String(describing: error))"
-            )
-        }
+        guard let selected = SegmentDisplay.selected(for: documentId, store: store) else { return }
+        ocrGeometry = selected.geometry
+        // The artifact the DRAWN pass came from, so the curation verbs address the rows whose boxes
+        // are on screen (2026-08-29) -- from the same answer as the geometry, never looked up again.
+        ocrGeometryArtifactId = selected.artifactId
+        // What a click selects in: the artifact, or the pass itself when it has none (#5152).
+        ocrGeometrySelectionScope = SegmentDisplay.selectionScope(
+            artifactId: selected.artifactId, passId: selected.passId
+        )
     }
 }
 #endif

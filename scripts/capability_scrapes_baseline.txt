@@ -36,7 +36,6 @@ fichero/Tests/Unit/general/Models/FeatureManagerTests.swift
 fichero/Tests/Unit/general/Models/KGFocusStateTests.swift
 fichero/Tests/Unit/general/Models/LLMProviderVisionFilterTests.swift
 fichero/Tests/Unit/general/Models/LibraryAccessPromptWiringTests.swift
-fichero/Tests/Unit/general/Models/OCRGeometrySelectionTests.swift
 fichero/Tests/Unit/general/Models/SearchAgreementTests.swift
 fichero/Tests/Unit/general/Models/SearchMatchProvenanceTests.swift
 fichero/Tests/Unit/general/Models/SearchStoreTests.swift

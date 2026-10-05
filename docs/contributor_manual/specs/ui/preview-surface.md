@@ -197,19 +197,23 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
 - `ui.preview.draws-a-pass-with-shapes` — **[PARTIAL]** (#5443; owner: the app) Preview draws the
   best-ranked pass THAT HAS SHAPES (`source/segment-editor.md`, "Which pass the image draws"): a pass
   whose segments carry no polygon and only the whole page as their box is passed over for drawing, while
-  it may still be the pass whose text shows. Until 2026-10-04 `OCRGeometrySelection.rankedPasses` picked
+  it may still be the pass whose text shows. Until 2026-10-04 the app's `rankedPasses` picked
   the top pass whether or not it had shapes, and an import ranked above machine passes, so a
   geometry-free TEI import (a draft with no coordinates) left the image with no boxes on 358 of 374
   Mosquera pages (SM_NPQ_C01_005, C01_052, #5425). **Built 2026-10-04:** the import rank is gone
-  (engine and app) and `rankedPasses` moves a pass whose segments are all `shape: unstated` behind
+  (engine and app) and the app moves a pass whose segments are all `shape: unstated` behind
   every pass with shapes, so the page shows the Gemini reading of Kraken's lines it already has.
   Pinned by `fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`. **The engine serves
   the drawn pass (#5467, built 2026-10-05):** the segments route marks one `PassRead.drawn` -- the
   working pass when it has shapes, else the next in the working-pass ranking (`rank`) that has them,
   none when no pass has any (`resolve_drawn_pass`, pinned by
-  `fichero-server/tests/unit/api/test_the_engine_serves_the_drawn_pass.py`); the app reads `drawn`
-  in place of its own fallback ranking (the app half of #5467). PARTIAL until the app reads it and
-  it is seen on screen on C01_005 and C01_052.
+  `fichero-server/tests/unit/api/test_the_engine_serves_the_drawn_pass.py`). **The app reads it
+  (2026-10-05):** `SegmentDisplay.drawingOrder` draws the Inspector's focused artifact first when it
+  has boxes, then the engine's `drawn` pass, then the rest by the engine's `rank`; the app ranks
+  nothing itself. Pinned through the real store by
+  `fichero/Tests/Unit/general/Models/ImportedPageDrawsItsBoxesTests.swift`
+  (`testAShapelessWorkingPassKeepsItsListAndThePreviewDrawsTheNextPassWithShapes`). PARTIAL until seen
+  on screen on C01_005 and C01_052.
 - `ui.preview.draws-what-the-segments-list-lists` — **[PARTIAL]** (#5463; owner: the engine) With every
   box switch on, Preview draws every box of the page's working pass, the same pass the Segments list
   lists and the page's text reads, whatever other result the page has beside it. On a Marshall diary
@@ -223,6 +227,12 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   to it together. Pinned by `fichero-server/tests/unit/api/test_preview_draws_the_pass_the_strip_lists.py`
   and, through the real image preview in the library window's tree, by
   `ImportedPageDrawsItsBoxesTests.testTheWordsTheSegmentsListListsAreDrawnBesideAnUnconvertedRun`.
+  **App half built 2026-10-05 (#5467, #5465):** the Segments list reads only the working pass
+  (`SegmentStore.workingSegments`; before, a page with no named order listed the top level of EVERY
+  pass). When a pass event makes another pass working, the list re-reads that page's orders
+  (`ReadingOrderStore.loadFollowing`). Pinned by
+  `ImportedPageDrawsItsBoxesTests.testPreviewTheSegmentsListAndTheReaderNameTheSamePassOnAPageWithTwoPasses`
+  and `.testAPassChangeEventMovesThatPagesSegmentsListToTheNewWorkingPassInPlace`.
   PARTIAL until seen on screen on the Marshall page. Box colours are not part of this behaviour: they are
   owned by `source/segment-editor.md`, "Box colour and the segment hierarchy" (ruled 2026-10-04:
   the region's hue, shaded along the working pass's reading order; #5426, #5463).

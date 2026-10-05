@@ -478,6 +478,200 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(drawn.map(\.kind), ["word", "word", "word", "word"])
     }
 
+    // MARK: - One pass per page (#5467, #5465)
+
+    /// The diary page's recorded engine answer (`diary_words_beside_an_unconverted_run.route.json`): the
+    /// working pass `pass-0002` (four Apple Vision words) beside `pass-0003` (three Kraken lines), with
+    /// `edit` applied to the decoded route first -- the engine's answer in another state.
+    private func diaryRoute(_ edit: (inout [String: Any]) throws -> Void = { _ in }) throws -> Data {
+        var route = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("diary_words_beside_an_unconverted_run.route.json")
+        )) as? [String: Any])
+        try edit(&route)
+        return try JSONSerialization.data(withJSONObject: route)
+    }
+
+    /// `route` with each pass's fields set by `fields[passId]`.
+    private static func setPasses(_ route: inout [String: Any], _ fields: [String: [String: Any]]) throws {
+        var passes = try XCTUnwrap(route["passes"] as? [[String: Any]])
+        for index in passes.indices {
+            guard let id = passes[index]["id"] as? String, let set = fields[id] else { continue }
+            passes[index].merge(set) { _, new in new }
+        }
+        route["passes"] = passes
+    }
+
+    /// `route` with every segment of `passId` stated as having no place on the image (`shape: unstated`, on
+    /// the whole page), as a geometry-free import stores its lines.
+    private static func makeShapeless(_ route: inout [String: Any], pass passId: String) throws {
+        var segments = try XCTUnwrap(route["segments"] as? [[String: Any]])
+        for index in segments.indices where segments[index]["pass_id"] as? String == passId {
+            var anchor = segments[index]["anchor"] as? [String: Any] ?? [:]
+            anchor["rect"] = [0.0, 0.0, 1.0, 1.0]
+            anchor["polygon"] = nil
+            segments[index]["anchor"] = anchor
+            var metadata = segments[index]["metadata"] as? [String: Any] ?? [:]
+            metadata["shape"] = "unstated"
+            segments[index]["metadata"] = metadata
+        }
+        route["segments"] = segments
+    }
+
+    /// The canvas's store over `body` through the real service, as `loadedStore` makes it.
+    private func diaryStore(answering body: Data) async throws -> SegmentStore {
+        _ = try await loadedStore()  // the client, over the recorded engine
+        RecordedEngine.body = body
+        let store = SegmentStore(service: SegmentService(ficheroClient: try XCTUnwrap(storeClient)))
+        await store.load(documentId: "doc-0001")
+        return store
+    }
+
+    /// The rows the Segments pane hosted in the library window's tree lists, once it lists `count`.
+    private func segmentsPaneRows(_ root: NSView, reaching count: Int) async throws -> Int {
+        var rows = -1
+        for _ in 0..<500 {
+            root.layoutSubtreeIfNeeded()
+            rows = Self.firstSubview(NSTableView.self, in: root)?.numberOfRows ?? -1
+            if rows == count { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        return rows
+    }
+
+    /// WHY (#5467 (d)): the Preview drew the pass the engine marked, the Segments list listed the top level
+    /// of EVERY pass (`SegmentStore.segments`, not pass-filtered), and the Reader read the engine's working
+    /// pass: three surfaces, one page, two answers. On the diary page with two passes, all three now name
+    /// the working pass: the Preview draws its four words, the Segments pane (hosted in the library
+    /// window's tree, no named order) lists exactly those four and none of the run's three lines, and a
+    /// line the Reader names (its `lineFocused` message) is on the Preview, while a segment of the other
+    /// pass is not. Breaks if any surface reads another pass again.
+    func testPreviewTheSegmentsListAndTheReaderNameTheSamePassOnAPageWithTwoPasses() async throws {
+        let store = try await diaryStore(answering: try diaryRoute())
+        let working = try XCTUnwrap(store.workingPass(documentId: "doc-0001"))
+        XCTAssertEqual(working.id, "pass-0002", "the pass the engine marks")
+        XCTAssertEqual(store.passes(documentId: "doc-0001").count, 2, "a page with two passes")
+
+        // Preview.
+        let drawn = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        XCTAssertEqual(drawn.passId, working.id)
+        let words = store.workingSegments(documentId: "doc-0001").map(\.id)
+        XCTAssertEqual(drawn.geometry.boxes.compactMap(\.segmentId), words)
+
+        // The Segments list: the real pane, the page with no named order (#5204), lists the working pass.
+        let library = try hostedLibrary()
+        RecordedEngine.body = try diaryRoute()
+        RecordedEngine.ordersReply = Data(#"{"document_id":"doc-0001","orders":[]}"#.utf8)
+        let window = hostInWindow(
+            SegmentsPaneView(document: Document(id: "doc-0001", docType: .page, name: "Diary")), library: library
+        )
+        defer { window.contentView = nil }
+        let rows = try await segmentsPaneRows(try XCTUnwrap(window.contentView), reaching: words.count)
+        XCTAssertEqual(rows, words.count, "the working pass's four words, not the seven top-level segments of both passes")
+
+        // The Reader: the line it names is revealed on the Preview; the other pass's is not drawn there.
+        let preview = RegionSelection()
+        let windowState = WindowState(libraryId: UUID())
+        windowState.offerRegionSelection(preview)
+        let focus = try XCTUnwrap(ReaderLineSelection.focus(from: ["pageId": "doc-0001", "segmentId": words[1]]))
+        XCTAssertEqual(windowState.revealSegments([focus.segmentId], documentId: focus.pageId, store: store), [words[1]])
+        XCTAssertEqual(InspectorPath.selectedSegmentIds(selection: preview, documentId: "doc-0001", store: store), [words[1]])
+        XCTAssertEqual(windowState.revealSegments(["seg-0008"], documentId: "doc-0001", store: store), [],
+                       "a line of the pass not drawn is not on screen to reveal")
+    }
+
+    /// WHY (#5467 (a)): the app ranked passes on top of the engine's mark, and the inspector's focused
+    /// artifact went first of all, so a newer pass -- or the artifact a person clicked in the Inspector --
+    /// took the canvas by an app rule while the list and the text read the working pass. Here the run's
+    /// pass is REAL, NEWER and focused in the Inspector, and the engine still marks the words: the
+    /// Preview draws the words. Made shapeless as well, it still does not take over.
+    func testANewerPassOrAFocusedArtifactDoesNotTakeThePreviewByAnAppRule() async throws {
+        let newer = try diaryRoute { route in
+            try Self.setPasses(&route, ["pass-0003": ["provisional": false, "created_at": "2026-10-01T12:00:00Z"]])
+        }
+        let store = try await diaryStore(answering: newer)
+        let focus = FocusedArtifact.shared
+        defer { focus.clear() }
+        focus.select(
+            "artifact-0002", documentId: "doc-0001",
+            in: [Artifact(id: "artifact-0002", documentId: "doc-0001", artifactType: "regions", createdAt: Date())]
+        )
+        XCTAssertEqual(focus.id, "artifact-0002", "the run's result is the Inspector's focus")
+        XCTAssertEqual(SegmentDisplay.selected(for: "doc-0001", store: store)?.passId, "pass-0002",
+                       "the engine's working pass, not the newer pass nor the focused artifact")
+
+        let newerAndShapeless = try diaryRoute { route in
+            try Self.setPasses(&route, ["pass-0003": ["provisional": false, "created_at": "2026-10-01T12:00:00Z"]])
+            try Self.makeShapeless(&route, pass: "pass-0003")
+        }
+        let shapelessStore = try await diaryStore(answering: newerAndShapeless)
+        XCTAssertEqual(SegmentDisplay.selected(for: "doc-0001", store: shapelessStore)?.passId, "pass-0002")
+    }
+
+    /// WHY (`ui.preview.draws-a-pass-with-shapes`, ruled 2026-10-04, kept by #5467): when the working pass
+    /// has no shapes the Preview draws the next pass that has them, and the working pass is still the page's
+    /// text and its list. The words made shapeless: the Preview draws the run's lines, the Segments list
+    /// still reads the four words.
+    func testAShapelessWorkingPassKeepsItsListAndThePreviewDrawsTheNextPassWithShapes() async throws {
+        let store = try await diaryStore(answering: try diaryRoute { route in try Self.makeShapeless(&route, pass: "pass-0002") })
+        XCTAssertEqual(store.workingPass(documentId: "doc-0001")?.id, "pass-0002")
+        XCTAssertEqual(SegmentDisplay.selected(for: "doc-0001", store: store)?.passId, "pass-0003")
+        XCTAssertEqual(store.workingSegments(documentId: "doc-0001").map(\.kind), ["word", "word", "word", "word"])
+    }
+
+    /// WHY (#5465): the Segments pane read its order only when the page changed, so when a run's result
+    /// became a pass while the page was open, the Preview moved to the new working pass and the list kept
+    /// the old one until the page was reopened. Hosted in the library window's tree with the words' order,
+    /// then the engine's answer changes (the run's lines are the working pass now, with their own
+    /// `as-written` order) and a `pass.created` event for the page reaches the window's store: the list
+    /// re-reads THAT page in place and lists the three lines. Another page the store holds is not re-read.
+    func testAPassChangeEventMovesThatPagesSegmentsListToTheNewWorkingPassInPlace() async throws {
+        let library = try hostedLibrary()
+        RecordedEngine.body = try diaryRoute()
+        let order = { (orderId: String, passId: String) in
+            #"{"id":"\#(orderId)","document_id":"doc-0001","pass_id":"\#(passId)","name":"as-written","kind":"as-written","provenance_kind":"workflow","created_by":null,"certainty":null,"entry_count":0}"#
+        }
+        let entries = { (orderId: String, ids: [String]) in
+            let rows = ids.enumerated().map { index, id in
+                #"{"id":"e-\#(id)","order_id":"\#(orderId)","segment_id":"\#(id)","position":\#(index + 1).0,"parent_entry_id":null,"version":1}"#
+            }
+            return Data(#"{"order_id":"\#(orderId)","parent_entry_id":null,"entries":[\#(rows.joined(separator: ","))]}"#.utf8)
+        }
+        RecordedEngine.ordersReply = Data(#"{"document_id":"doc-0001","orders":[\#(order("order-words", "pass-0002"))]}"#.utf8)
+        RecordedEngine.topEntriesReply = entries("order-words", ["seg-0004", "seg-0005", "seg-0006", "seg-0007"])
+
+        let segmentStore = SegmentStore.shared(for: library.segmentService)
+        let window = hostInWindow(
+            SegmentsPaneView(document: Document(id: "doc-0001", docType: .page, name: "Diary")), library: library
+        )
+        defer { window.contentView = nil }
+        let root = try XCTUnwrap(window.contentView)
+        let before = try await segmentsPaneRows(root, reaching: 4)
+        XCTAssertEqual(before, 4, "the words' order")
+
+        // The run's result became a pass and the working one; its order is listed first.
+        RecordedEngine.body = try diaryRoute { route in
+            try Self.setPasses(&route, [
+                "pass-0002": ["working": false, "working_basis": NSNull()],
+                "pass-0003": ["provisional": false, "working": true, "working_basis": "newest-machine-unchosen"]
+            ])
+        }
+        RecordedEngine.ordersReply = Data(
+            #"{"document_id":"doc-0001","orders":[\#(order("order-lines", "pass-0003")),\#(order("order-words", "pass-0002"))]}"#.utf8
+        )
+        RecordedEngine.topEntriesReply = entries("order-lines", ["seg-0008", "seg-0009", "seg-0010"])
+        let event = try JSONDecoder().decode(ChangeEvent.self, from: JSONSerialization.data(withJSONObject: [
+            "type": "pass.created", "document_ids": ["doc-0001"], "pass_ids": ["pass-0003"], "actor": "workflow"
+        ]))
+        // What the store does with it: re-read THIS page, and no other page it holds.
+        XCTAssertEqual(SegmentStore.plan(for: event, heldSegmentIds: [], loadedDocumentIds: ["doc-0001", "doc-0002"]),
+                       .reload(documentIds: ["doc-0001"]))
+        segmentStore.apply(event)
+
+        let after = try await segmentsPaneRows(root, reaching: 3)
+        XCTAssertEqual(after, 3, "the new working pass's three lines, without reopening the page")
+        XCTAssertEqual(segmentStore.workingPass(documentId: "doc-0001")?.id, "pass-0003")
+    }
+
     /// #5192 on a PDF page: the recorded Syriac segments drawn on the corpus's real PDF page are named to
     /// accessibility by the PDF view itself (`PinchOwningPDFView.accessibilityChildren`), one
     /// `SegmentBox-<id>` per region and line, placed by the squares' own rule, the selected one marked.

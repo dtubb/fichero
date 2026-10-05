@@ -79,17 +79,6 @@ struct PreviewSelectionDefaultsTests {
                 + "authority ladder re-ranks it away on the next reload"))
     }
 
-    @Test("the focused artifact outranks the authority ladder")
-    func focusOutranksLadder() throws {
-        // The seam the fix depends on: OCRGeometrySelection consults
-        // FocusedArtifact BEFORE the ranked probe. If this goes, the promote
-        // fix silently stops working.
-        let selection = try appSource("Models/OCRGeometrySelection.swift")
-        let focusIndex = try #require(selection.range(of: "FocusedArtifact.shared"))
-        let ladderIndex = try #require(selection.range(of: "for candidate in ranked(candidates)"))
-        #expect(focusIndex.lowerBound < ladderIndex.lowerBound)
-    }
-
     @Test("selecting a region row in the artifacts browser focuses that artifact")
     func artifactRowFocuses() throws {
         let panel = try appSource("Views/Inspector/Artifacts/ArtifactPanel+Regions.swift")
