@@ -359,6 +359,7 @@ private struct StorageDisplayImageCanvas: View {
                         guard claimed == loadGeneration else { return }
                         image = loaded
                         renderedRenditionId = target.id
+                        InteractionProfile.end(.siblingStepToImage, detail: documentId)
                         return
                     }
                 }
@@ -370,6 +371,7 @@ private struct StorageDisplayImageCanvas: View {
             guard claimed == loadGeneration else { return }  // a newer flip won
             image = loaded
             renderedRenditionId = nil
+            InteractionProfile.end(.siblingStepToImage, detail: documentId)
         } catch {
             // The retry loop in loadImage owns failure handling.
             throw error

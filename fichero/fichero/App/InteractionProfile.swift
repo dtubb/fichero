@@ -54,6 +54,11 @@ enum InteractionProfile {
         /// #4235 could not tell apart without it.
         case contentDataLoad
 
+        /// A Preview swipe (or ←/→) to the neighbouring item → the Preview's canvas holds that
+        /// item's image (#5462). Begun by `SiblingStep.commit`, ended where the display canvas
+        /// publishes the image, so the bar is the whole wait the user sees.
+        case siblingStepToImage
+
         /// Signpost names must be `StaticString` (a dynamic name collapses every
         /// interval into one indistinguishable lane in Instruments), so the
         /// mapping is a switch rather than a raw value.
@@ -62,6 +67,7 @@ enum InteractionProfile {
             case .selectionCommit: return "sidebar selection commit"
             case .selectionToContent: return "sidebar selection → content"
             case .contentDataLoad: return "sidebar content data load"
+            case .siblingStepToImage: return "preview swipe → image"
             }
         }
     }
