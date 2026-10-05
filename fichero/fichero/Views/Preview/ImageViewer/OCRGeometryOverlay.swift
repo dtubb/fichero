@@ -56,7 +56,6 @@ struct OCRGeometryOverlay: View {
                 // hover readout still speaks individual words, and the layer
                 // carries a summary instead.
                 Canvas { context, size in
-                    let wash = Color.accentColor.opacity(0.08)
                     // Inline text needs GROUND to read against (Daniel,
                     // 2026-08-31: "you need to fade, or make the word
                     // bounding box less transparent, so we can see it") —
@@ -85,8 +84,11 @@ struct OCRGeometryOverlay: View {
                         // different one and keeps the channels it has left.
                         let uncertain = OCRBoxConfidence.isUncertain(box)
                         let strength = DocumentOverlay.strength(ofKind: box.level, linesShown: linesShown)
-                        let stroke = Color.accentColor
-                            .opacity(OCRBoxConfidence.strokeOpacity(box.confidence) * strength)
+                        // The ONE colour path (#5467): the box's region hue and reading-order shade.
+                        let stroke = Color(platformColor: SelectionStyle.regionColour(
+                            box.tone, opacity: OCRBoxConfidence.strokeOpacity(box.confidence) * strength
+                        ))
+                        let wash = Color(platformColor: SelectionStyle.regionColour(box.tone, opacity: 0.08))
                         let drawsText = drawsInlineText && inlineTextEnabled && !box.text.isEmpty
                             && OCRBoxConfidence.drawsInlineText(box.confidence)
                         if drawsText {

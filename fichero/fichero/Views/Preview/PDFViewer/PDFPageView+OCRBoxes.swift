@@ -88,9 +88,8 @@ extension PDFPageView.Coordinator {
             // spelled the same way: recessive colour plus a dash.
             // A box with no reading is dashed the same way (`SegmentsPane.lacksReading`).
             let uncertain = OCRBoxConfidence.isUncertain(box) || box.noReading
-            annotation.color = uncertain
-                ? NSColor.systemTeal.withAlphaComponent(0.35)
-                : NSColor.systemTeal
+            // The ONE colour path (#5467): the region's hue at its reading-order shade, as on an image.
+            annotation.color = SelectionStyle.regionColour(box.tone, opacity: uncertain ? 0.35 : 1)
             if uncertain {
                 let border = PDFBorder()
                 border.lineWidth = 1

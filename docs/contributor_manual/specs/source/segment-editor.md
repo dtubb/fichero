@@ -1079,9 +1079,8 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
 
   Pinned by `RegionColoursTests`. **Still PARTIAL:**
   - the Inspector's Colour setting, which needs a `colour` field on `segment.update` (engine);
-  - the ruled colour rule below, which replaces the hash key (`RegionColours.paletteIndex`) and the
-    two-tint alternation the code still draws;
-  - the PDF page.
+  - the ruled colour rule below is built (2026-10-04: the hash key and the two-tint alternation are
+    gone), not yet seen in the app; see `source.editor.colour.*`.
 
 - `source.editor.selection-like-preview` — **[PARTIAL]** (#5215) **Selection as Preview.app draws it.**
 
@@ -1643,6 +1642,18 @@ two tints in as-written order (`boxIndex`), not in a reading order. The image ov
 (`OCRGeometryOverlay`) strokes every box in the accent colour. When a page has words, only the
 words are drawn (`OCRGeometry.displayIndexedBoxes`), so their lines and regions vanish.
 
+**Built 2026-10-04 (the colour, not the hierarchy).** `RegionColours.tones` assigns each region a hue in
+the order the reading order reaches it, gives region-less segments the page's one implicit region, and
+shades a region's lines from full strength to 0.45 along the order; the hash (`paletteIndex`) and the
+two-tint alternation are deleted. ONE colour path (#5467 part b): `SelectionStyle.regionColour(tone)` colours
+the image overlay (`DocumentOverlayView.drawBoxes`), the SwiftUI canvas (`OCRGeometryOverlay`, its accent
+stroke deleted), the PDF page (`applyOCRBoxes`, `PDFShapeAnnotations`, their teal deleted) and the
+Inspector's region rows (`ArtifactRegionsSection`, whose `RegionPalette` keyed by box index is deleted;
+each row takes the tone of the box the Preview draws, by `BoxKey`). The order is the working pass's
+as-written order (`boxIndex`) on every surface: the Preview holds no `ReadingOrderStore`, so a named order
+chosen in the Segments pane does not yet reshade the boxes (a `ponytail:` in `SegmentDisplay.geometry`).
+Artifact geometry, which has no regions, is drawn in the plain accent. A region's own set colour is not built.
+
 **The design.**
 - *A region's hue.* Regions take palette hues in the order the working pass reads its regions: the
   first region takes the palette's first hue, the next the second, and so on, wrapping after twelve.
@@ -1681,19 +1692,25 @@ level with a colour per element type and lets the user choose which levels to sh
 a parent's outline visible under its children. This design keeps the nesting and takes the colour
 from the region instead of the role.
 
-- `source.editor.colour.region-hue` — **[GAP]** (#5426) every region on a page is drawn in its own
+- `source.editor.colour.region-hue` — **[PARTIAL]** (#5426) every region on a page is drawn in its own
   palette hue, assigned in the working pass's region order; its lines, words and letters take that
-  hue; a region's set colour replaces it.
-- `source.editor.colour.reading-order-gradient` — **[GAP]** (#5426) inside a region, lines are shaded
+  hue; a region's set colour replaces it. Built and pinned by `RegionColoursTests` and
+  `BoxColourThroughTheStoreTests` (through `SegmentStore` and `SegmentDisplay.selected`); not yet seen in
+  the app, and the set colour is not built.
+- `source.editor.colour.reading-order-gradient` — **[PARTIAL]** (#5426) inside a region, lines are shaded
   from the hue's full strength to a lighter strength along the working pass's reading order (the
   pane's chosen order, else as written); moving a line in the order changes its shade. Replaces the
-  two-tint alternation.
-- `source.editor.colour.never-random` — **[GAP]** (#5463) no box's colour comes from a hash of its
+  two-tint alternation. Built on the as-written order and pinned by `RegionColoursTests` (a reordered
+  order moves the shade); not yet seen in the app, and the Preview does not yet read the pane's chosen order.
+- `source.editor.colour.never-random` — **[PARTIAL]** (#5463) no box's colour comes from a hash of its
   own id: the same page draws in the same colours every time, and no line is coloured apart from its
-  region.
-- `source.editor.colour.regionless-lines-are-one-region` — **[GAP]** (#5463) lines with no region
+  region. Built (the hash is deleted) and pinned by `RegionColoursTests` (renaming every id changes no
+  colour) and `BoxColourThroughTheStoreTests` (the Inspector's row is the Preview box's colour); not yet
+  seen in the app.
+- `source.editor.colour.regionless-lines-are-one-region` — **[PARTIAL]** (#5463) lines with no region
   ancestor are one implicit region of the page: one hue, placed in the region order where their first
-  line falls, with the gradient along their reading order.
+  line falls, with the gradient along their reading order. Built and pinned by `RegionColoursTests` and
+  `BoxColourThroughTheStoreTests`; not yet seen in the app.
 - `source.editor.hierarchy.children-drawn-as-children` — **[GAP]** (#5426) a child draws inside its
   parent, in its parent's colour, lighter than it; showing words or letters never hides the lines
   and regions they belong to; selecting a parent lights its children, selecting a child shows its

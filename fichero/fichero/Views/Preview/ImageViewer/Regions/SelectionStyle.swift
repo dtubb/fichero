@@ -1,6 +1,41 @@
+import CoreGraphics
+import SwiftUI
 #if os(macOS)
 import AppKit
-import CoreGraphics
+#endif
+
+/// A box's colour (`segment-editor.md` "Box colour and the segment hierarchy", #5467 part b): ONE function,
+/// on every platform, for every surface that colours a box -- the Preview overlay, the PDF page, the
+/// Inspector's rows. `RegionColours` decides the tone; this turns it into a SYSTEM colour, so each adapts to
+/// Light, Dark and Increase Contrast. No RGB here either.
+extension SelectionStyle {
+    /// The hues, in the order regions take them (`RegionColours.paletteCount` long).
+    static let regionPalette: [PlatformColor] = [
+        .systemBlue, .systemOrange, .systemGreen, .systemPurple, .systemPink, .systemTeal,
+        .systemIndigo, .systemBrown, .systemMint, .systemCyan, .systemRed, .systemYellow
+    ]
+
+    /// A box's colour: its region's hue at its reading-order strength, times `opacity`; the plain box colour
+    /// (the accent) when it has no tone (artifact geometry, which has no regions).
+    static func regionColour(_ tone: RegionColours.Tone?, opacity: CGFloat = 1) -> PlatformColor {
+        guard let tone else { return plainBox.withAlphaComponent(opacity) }
+        return regionPalette[tone.hue % regionPalette.count].withAlphaComponent(CGFloat(tone.strength) * opacity)
+    }
+
+    /// A box with no region: the accent (the Mac's own accent colour; the tint on iOS).
+    private static var plainBox: PlatformColor {
+        #if os(macOS)
+        .controlAccentColor
+        #else
+        .tintColor
+        #endif
+    }
+
+    /// The same colour for a SwiftUI swatch (the Inspector's rows).
+    static func regionSwatch(_ tone: RegionColours.Tone?) -> Color {
+        Color(platformColor: regionColour(tone))
+    }
+}
 
 /// How a segment's box, its selection and its hover look on the page -- in ONE place, so every
 /// overlay layer uses the same values (the maintainer, 2026-09-27: the old look was "not Mac OS X
@@ -12,7 +47,10 @@ import CoreGraphics
 /// dim a selection in a window that is not in front. Every colour is a SYSTEM colour resolved at draw
 /// time, so it follows the user's accent colour, Dark Mode and Increase Contrast by itself. No RGB
 /// appears in this file, and a test says so.
-enum SelectionStyle {
+enum SelectionStyle {}
+
+#if os(macOS)
+extension SelectionStyle {
     // MARK: Colours -- system colours only
 
     /// The selection's outline.
@@ -34,21 +72,6 @@ enum SelectionStyle {
 
     /// An unselected box: the accent, faint, its stroke dimmed by how sure the machine is.
     static let boxBase: NSColor = .controlAccentColor
-
-    /// Regions in distinct colours (#5200): SYSTEM colours, so each adapts to Light, Dark and Increase
-    /// Contrast. `RegionColours.paletteCount` long; a region's place is `RegionColours.paletteIndex`.
-    static let regionPalette: [NSColor] = [
-        .systemBlue, .systemOrange, .systemGreen, .systemPurple, .systemPink, .systemTeal,
-        .systemIndigo, .systemBrown, .systemMint, .systemCyan, .systemRed, .systemYellow
-    ]
-
-    /// A box's colour: its region's, or the plain box colour when it has no region (artifact geometry).
-    static func regionColour(_ regionId: String?) -> NSColor {
-        regionId.map { regionPalette[RegionColours.paletteIndex(for: $0) % regionPalette.count] } ?? boxBase
-    }
-
-    /// The lighter of a region's two line tints.
-    static let alternateTintAlpha: CGFloat = 0.5
 
     /// The wash under a hovered box: a fill only on hover or selection, never at rest (#5207).
     static let hoverWashAlpha: CGFloat = 0.1

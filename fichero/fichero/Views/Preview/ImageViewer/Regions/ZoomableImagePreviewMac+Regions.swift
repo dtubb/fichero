@@ -72,7 +72,7 @@ extension ZoomableImagePreview {
                       showsText: inlineTextEnabled && OCRBoxConfidence.drawsInlineText(entry.box.confidence),
                       shapes: entry.box.shapes, noReading: entry.box.noReading,
                       segmentId: entry.box.segmentId, kind: entry.box.level,
-                      regionId: entry.box.regionId, alternateTint: entry.box.alternateTint,
+                      tone: entry.box.tone,
                       direction: direction(entry.box.segmentId))
             },
             selected: selected,

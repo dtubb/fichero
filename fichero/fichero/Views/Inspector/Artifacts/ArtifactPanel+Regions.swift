@@ -38,6 +38,8 @@ struct ArtifactRegionsSection: View {
     /// (full-list index, box) pairs — the index is how the engine addresses a
     /// region for curation, so filtering must not renumber.
     @State private var rows: [(index: Int, box: OCRGeometryBox)] = []
+    /// Each row's colour as the Preview draws its box (`RegionColours.tone(of:drawnIn:)`), keyed by row index.
+    @State private var tones: [Int: RegionColours.Tone] = [:]
     @State private var loaded = false
     @Environment(WindowState.self) private var windowState: WindowState?
     /// The FOCUSED Source-view pane's selection (#5020, ruled 2026-09-27): the Inspector follows the
@@ -115,11 +117,8 @@ struct ArtifactRegionsSection: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: isSelected ? "rectangle.inset.filled" : "rectangle.dashed")
-                    .foregroundStyle(
-                        isSelected
-                            ? RegionPalette.color(forBoxIndex: row.index)
-                            : Color.accentColor
-                    )
+                    // The box's own colour, from the one path the Preview draws it with (#5467).
+                    .foregroundStyle(SelectionStyle.regionSwatch(tones[row.index]))
                     .font(.caption)
                 Text(row.box.text.isEmpty ? "Untitled region" : row.box.text)
                     .lineLimit(1)
@@ -139,6 +138,7 @@ struct ArtifactRegionsSection: View {
     private func loadBoxes() async {
         loaded = false
         rows = []
+        tones = [:]
         guard let artifactService else { return }
         guard let full = try? await artifactService.getArtifact(id: artifactId),
               let geometry = full.ocrGeometry else { return }
@@ -152,6 +152,17 @@ struct ArtifactRegionsSection: View {
         rows = lines.isEmpty
             ? Array(indexed.filter { !$0.box.text.isEmpty }.prefix(60))
             : lines
+        // The page's segment pass, as the Preview draws it: the shared store's (one load per document, a
+        // no-op when the Preview already loaded it), never a call per row.
+        var seam: OCRGeometry?
+        if let segmentService {
+            let store = SegmentStore.shared(for: segmentService)
+            await store.load(documentId: documentId)
+            seam = SegmentDisplay.selected(for: documentId, store: store)?.geometry
+        }
+        tones = Dictionary(uniqueKeysWithValues: rows.compactMap { row in
+            RegionColours.tone(of: row.box, drawnIn: seam).map { (row.index, $0) }
+        })
         loaded = true
     }
 

@@ -1,19 +1,5 @@
 import SwiftUI
 
-/// Stable palette for multi-selected regions (Daniel, 2026-08-29: N selected
-/// rows highlight in DISTINCT colors). Keyed by the BOX index so a region
-/// keeps its color while the selection around it changes. Outside the macOS
-/// gate: the inspector's region rows use the same colors on every platform.
-enum RegionPalette {
-    static let colors: [Color] = [
-        .blue, .orange, .green, .purple, .pink, .teal, .red, .indigo
-    ]
-
-    static func color(forBoxIndex index: Int) -> Color {
-        colors[((index % colors.count) + colors.count) % colors.count]
-    }
-}
-
 #if os(macOS)
 
 /// The INTERACTIVE region layer over the Preview image: click-to-select,

@@ -39,10 +39,9 @@ struct OCRGeometryBox: Codable, Hashable, Identifiable {
     /// The segment this box draws, when it comes from a segment pass (`SegmentDisplay.geometry`): the id a
     /// drawn box is known by from outside the app (`SegmentBox-<id>`, #5192). Not part of the artifact wire format.
     var segmentId: String?
-    /// The region whose colour it is drawn in, and whether it takes the lighter tint (#5200); from a segment
-    /// pass (`RegionColours.tones`). Not part of the artifact wire format.
-    var regionId: String?
-    var alternateTint = false
+    /// Its region's hue and its shade along the reading order (`RegionColours.tones`), from a segment pass;
+    /// nil for artifact geometry, which is drawn in the plain box colour. Not part of the artifact wire format.
+    var tone: RegionColours.Tone?
 
     /// A box a person drew, rather than a pass measuring one.
     var isHandDrawn: Bool { provider?.lowercased() == "user" || source?.lowercased() == "manual" }
