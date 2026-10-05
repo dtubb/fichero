@@ -8,10 +8,11 @@ import Foundation
 ///
 /// 1. an edit goes to the result the SHOWN pass came from, and to no other. The
 ///    shown artifact id is whatever `loadOCRGeometry` last recorded, and since
-///    2026-09-27 that comes from the drawn PASS
+///    2026-09-27 that comes from the winning PASS
 ///    (`SegmentDisplay.selected(for:store:)`) rather than a separate lookup.
 /// 2. when what is shown changes, the next edit follows it. That falls out of (1):
-///    a change to the page's passes reloads the geometry and reassigns the id.
+///    `FocusedArtifact.shared.id` is part of the preview's `.task(id:)` identity,
+///    so choosing another artifact reloads the geometry and reassigns the id.
 /// 3. **with nothing shown, no edit is sent.** A refusal with no test is how a
 ///    silent write to the wrong pass ships, and the verbs' own `guard` could not be
 ///    tested without mounting a view.

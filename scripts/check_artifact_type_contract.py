@@ -112,10 +112,9 @@ _ORPHAN_BASELINE: frozenset[str] = frozenset(
         "entity_merge_proposals",
         # The page-geometry types (#5467): read through the segments seam, never by a
         # type query. `GET /api/segments/document/{id}` serves each unconverted result's
-        # boxes as a provisional pass carrying `artifact_type`, and the app draws it by
-        # that type (`SegmentDisplay.geometryBearingTypes`). The artifact-path probe that
-        # queried them by name (`OCRGeometrySelection.loadSelected`) was a second ladder
-        # and is deleted.
+        # boxes as a provisional pass, ranked by the engine (`rank`, `drawn`), and the app
+        # draws what the engine marks. The artifact-path probe that queried them by name
+        # (`OCRGeometrySelection.loadSelected`) was a second ladder and is deleted.
         "aligned_transcript", "regions", "text_geometry", "transcription",
         "analysis", "book_index_topics", "caption", "catalogue", "classification",
         "clean_text", "colors", "comparison", "description", "diagram", "entities",

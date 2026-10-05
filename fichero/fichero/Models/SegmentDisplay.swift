@@ -14,16 +14,18 @@ enum SegmentDisplay {
     /// overlay, the PDF page, a reveal, a selection and the edit verbs all read (#5467). The id is
     /// load-bearing: the curation verbs address the artifact whose boxes are on screen (2026-08-29),
     /// so a loader that took the geometry from one pass and the id from another would point them at
-    /// the wrong rows.
-    ///
-    /// Nothing outside the store chooses: no inspector focus (a focused artifact used to take the
-    /// canvas over by an app rule of its own, #5467), no second ladder over artifacts. The pass is the
-    /// engine's working pass whenever it has shapes (`drawingOrder`).
+    /// the wrong rows. The inspector's focused artifact, when it is this page's, is handed to
+    /// `drawingOrder` -- the one place it counts.
     @MainActor
     static func selected(
         for documentId: String, store: SegmentStore
     ) -> Selected? {
-        drawn(passes: store.passes(documentId: documentId), segments: store.segments(documentId: documentId))
+        let focus = FocusedArtifact.shared
+        return drawn(
+            passes: store.passes(documentId: documentId),
+            segments: store.segments(documentId: documentId),
+            focusedArtifactId: focus.documentId == documentId ? focus.id : nil
+        )
     }
 
     /// What the canvas draws and what it came from: the boxes, the artifact of the drawn pass (nil
@@ -46,9 +48,11 @@ enum SegmentDisplay {
     /// The pure half of `selected(for:store:)`: the first pass in `drawingOrder` whose segments map to
     /// boxes. A pass whose `boxIndex` values are not exactly `0..<count` is refused by
     /// `geometry(from:...)` and passed over, never guessed at.
-    nonisolated static func drawn(passes: [SegmentPassValue], segments: [Segment]) -> Selected? {
+    nonisolated static func drawn(
+        passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil
+    ) -> Selected? {
         let segmentsByPass = Dictionary(grouping: segments, by: \.passId)
-        for pass in drawingOrder(passes, segments: segments) {
+        for pass in drawingOrder(passes, segments: segments, focusedArtifactId: focusedArtifactId) {
             guard let passSegments = segmentsByPass[pass.id], !passSegments.isEmpty,
                   let geometry = geometry(
                       from: passSegments,
@@ -63,56 +67,38 @@ enum SegmentDisplay {
         return nil
     }
 
-    /// Artifact types whose UNCONVERTED result can be drawn (a legacy pass, read from an artifact's
-    /// `ocr_geometry`): the PDF's own text layer first, then the measured types tied.
-    nonisolated static let geometryBearingTypes = [
-        "text_geometry", "transcription", "aligned_transcript", "regions"
-    ]
-
-    /// The ONE order the Preview tries passes in (#5467): **the engine's working pass** (`PassRead.working`,
-    /// `resolve_working_pass`), unless every one of its segments in hand has no shape
-    /// (`ui.preview.draws-a-pass-with-shapes`, ruled 2026-10-04, #5443): then the next pass that has
-    /// shapes is drawn, and the working pass still owns the page's text and its list.
+    /// The ONE order the Preview tries a page's passes in (#5467). The app ranks nothing itself:
     ///
-    /// ponytail: the "next pass" below the working one is still ranked HERE -- hand-curated, then every
-    /// other real pass newest first, then legacy artifact geometry by its type -- because the segments
-    /// route marks the working pass but serves no rank for the rest (it sorts by date). The ceiling: the
-    /// engine serves the drawn pass, or each pass's rank, and this function shrinks to "working, else the
-    /// engine's next with shapes". Nothing else in the app may rank passes.
+    /// 1. **the inspector's focused artifact**, when this page has a pass from it with a shape to draw
+    ///    (ruled 2026-08-27: clicking a result in the Inspector shows its boxes). A REORDER, never a
+    ///    filter: a focused pass with nothing usable falls through to the rest.
+    /// 2. **the engine's drawn pass** (`PassRead.drawn`, `resolve_drawn_pass`): the working pass when it
+    ///    has shapes, else the next pass in the engine's ranking that has them
+    ///    (`ui.preview.draws-a-pass-with-shapes`, ruled 2026-10-04).
+    /// 3. every other pass by the engine's `rank` (0 is the working pass), so a page with no shapes at
+    ///    all still selects its working pass's lines. A pass the ranking does not hold comes last, in
+    ///    the order served.
     ///
-    /// A georeferencing pass holds control points, not the page's text (#5122): never drawn. A pass none
-    /// of whose segments are in hand is not judged shapeless: absence of segments is not absence of shapes.
-    nonisolated static func drawingOrder(_ passes: [SegmentPassValue], segments: [Segment]) -> [SegmentPassValue] {
-        let curatedPassIds = Set(segments.filter(\.isHandCurated).map(\.passId))
-        let heldPassIds = Set(segments.map(\.passId))
+    /// A georeferencing pass holds control points, not the page's text (#5122): never drawn.
+    nonisolated static func drawingOrder(
+        _ passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil
+    ) -> [SegmentPassValue] {
+        let text = passes.filter { !$0.isGeoreferencing }
         let shapedPassIds = Set(segments.filter(hasShape).map(\.passId))
-        var ranked: [RankedPass] = []
-        for pass in passes where !pass.isGeoreferencing {
-            let tier: Int
-            var typeRank = 0
-            if pass.working {
-                tier = -1
-            } else if pass.provenanceKind == .human || curatedPassIds.contains(pass.id) {
-                tier = 0
-            } else if !pass.provisional {
-                tier = 2
-            } else {
-                guard let type = pass.artifactType, let rank = geometryBearingTypes.firstIndex(of: type) else { continue }
-                tier = 3
-                typeRank = rank == 0 ? 0 : 1
+        let focused = focusedArtifactId.map { id in
+            text.filter { $0.sourceArtifactId == id && shapedPassIds.contains($0.id) }
+        } ?? []
+        let rest = text.enumerated().sorted { lhs, rhs in
+            if lhs.element.drawn != rhs.element.drawn { return lhs.element.drawn }
+            switch (lhs.element.rank, rhs.element.rank) {
+            case let (left?, right?) where left != right: return left < right
+            case (.some, nil): return true
+            case (nil, .some): return false
+            default: return lhs.offset < rhs.offset
             }
-            ranked.append(RankedPass(
-                shapeless: heldPassIds.contains(pass.id) && !shapedPassIds.contains(pass.id),
-                tier: tier, typeRank: typeRank, createdAt: pass.createdAt ?? .distantPast, pass: pass
-            ))
-        }
-        ranked.sort { lhs, rhs in
-            if lhs.shapeless != rhs.shapeless { return !lhs.shapeless }
-            if lhs.tier != rhs.tier { return lhs.tier < rhs.tier }
-            if lhs.typeRank != rhs.typeRank { return lhs.typeRank < rhs.typeRank }
-            return lhs.createdAt > rhs.createdAt
-        }
-        return ranked.map(\.pass)
+        }.map(\.element)
+        let focusedIds = Set(focused.map(\.id))
+        return focused + rest.filter { !focusedIds.contains($0.id) }
     }
 
     /// Whether a segment has a place on the image to draw: not one whose file stated no place (the
@@ -121,15 +107,6 @@ enum SegmentDisplay {
     nonisolated static func hasShape(_ segment: Segment) -> Bool {
         guard !segment.shapeIsUnstated else { return false }
         return segment.anchor.rect != nil || !SegmentShapes.drawn(for: segment).isEmpty
-    }
-
-    /// One pass with its place in `drawingOrder` -- a struct, not a tuple (SwiftLint `large_tuple`).
-    private struct RankedPass {
-        let shapeless: Bool
-        let tier: Int
-        let typeRank: Int
-        let createdAt: Date
-        let pass: SegmentPassValue
     }
 
     /// The pure mapping half, pulled out so a test can feed it a fixed

@@ -285,11 +285,11 @@ struct SegmentDisplayTests {
         #expect(geometry.boxes[2].text == "mundo", "the box AFTER the placeholder keeps its index")
     }
 
-    // MARK: - The drawn pass (#5467)
+    // MARK: - The inspector's selection outranks the engine's drawn pass (ruled 2026-08-27)
     //
-    // The inspector's focused artifact no longer outranks the engine's working pass: that was an app
-    // rule of its own, and it let the canvas draw a pass the list and the text did not read. Pinned
-    // through the real store by `OnePassPerPageTests.aFocusedArtifactDoesNotTakeTheCanvas`.
+    // "When I click on different regions in artifacts, should bounding boxes update?" -- yes. Since #5467
+    // the rule lives in `SegmentDisplay.drawingOrder`, the one function that orders passes for drawing,
+    // ahead of the engine's `drawn` pass.
 
     private func pass(
         id: String, artifactId: String, type: String = "transcription",
@@ -301,6 +301,51 @@ struct SegmentDisplayTests {
             createdAt: Date(timeIntervalSince1970: createdAt), text: nil,
             sourceArtifactId: artifactId, artifactType: type
         )
+    }
+
+    /// WHY (2026-08-27): clicking a result in the Inspector must change the boxes, even when the engine
+    /// draws another pass; otherwise the click does nothing on the page.
+    @Test("the focused artifact's pass is drawn even when the engine draws another")
+    func focusedArtifactOutranksTheDrawnPass() {
+        var engines = pass(id: "drawn", artifactId: "art-drawn", type: "text_geometry", createdAt: 200)
+        engines.drawn = true
+        engines.rank = 0
+        let passes = [engines, pass(id: "clicked", artifactId: "art-clicked", createdAt: 0)]
+        let segments = [
+            segment(id: "l-0", passId: "drawn", boxIndex: 0, rect: [0, 0, 1, 1], text: "drawn"),
+            segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "clicked")
+        ]
+        #expect(SegmentDisplay.drawn(passes: passes, segments: segments)?.geometry.boxes.map(\.text) == ["drawn"])
+        let focused = SegmentDisplay.drawn(passes: passes, segments: segments, focusedArtifactId: "art-clicked")
+        #expect(focused?.geometry.boxes.map(\.text) == ["clicked"])
+        #expect(focused?.artifactId == "art-clicked", "the curation verbs address the focused artifact's rows")
+    }
+
+    /// WHY: the focus is a REORDER, never a filter -- an artifact focused on another page must not blank
+    /// this one.
+    @Test("a focused artifact this page has no pass for leaves the engine's order alone")
+    func focusOnAnotherPagesArtifactChangesNothing() {
+        let passes = [pass(id: "drawn", artifactId: "art-drawn")]
+        let segments = [segment(id: "l-0", passId: "drawn", boxIndex: 0, rect: [0, 0, 1, 1], text: "drawn")]
+        let geometry = SegmentDisplay.drawn(
+            passes: passes, segments: segments, focusedArtifactId: "art-from-another-page"
+        )?.geometry
+        #expect(geometry?.boxes.map(\.text) == ["drawn"], "a reorder, never a filter")
+    }
+
+    /// WHY: drawing nothing because the clicked artifact's boxes cannot be drawn would be a regression
+    /// dressed as obedience; it falls through to the engine's pass.
+    @Test("a focused artifact whose pass carries no usable boxes falls through")
+    func focusedButUnusablePassFallsThrough() {
+        let passes = [pass(id: "clicked", artifactId: "art-clicked"), pass(id: "drawn", artifactId: "art-drawn")]
+        let segments = [
+            // `clicked` has a duplicate boxIndex, so its whole pass is refused.
+            segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "dup-a"),
+            segment(id: "c-1", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "dup-b"),
+            segment(id: "l-0", passId: "drawn", boxIndex: 0, rect: [0, 0, 1, 1], text: "drawn")
+        ]
+        let geometry = SegmentDisplay.drawn(passes: passes, segments: segments, focusedArtifactId: "art-clicked")?.geometry
+        #expect(geometry?.boxes.map(\.text) == ["drawn"])
     }
 
     @Test("the drawn pass carries the artifact id the curation verbs must address")

@@ -133,6 +133,8 @@ struct SegmentMappingTests {
             "source_artifact_id", "artifact_type",
             "import_file", "import_checksum", "import_format", "has_original",
             "working", "working_basis",
+            // The pass the image draws and its place in the engine's ranking (#5467): what Preview orders by.
+            "drawn", "rank",
             // A georeferencing pass's transformation type (#5122): what ranks it apart from text passes.
             "transformation"
         ]
@@ -415,9 +417,12 @@ struct SegmentMappingTests {
             id: "legacy:a1", provisional: true, documentId: "doc-1", name: "transcription",
             provenanceKind: .workflow, provider: "anthropic", model: "sonnet-5.1", runId: "run-7",
             createdAt: createdAt, text: "the pass's own result text",
-            sourceArtifactId: "art-9", artifactType: "text_geometry", transformation: "polynomial-2"
+            sourceArtifactId: "art-9", artifactType: "text_geometry", transformation: "polynomial-2",
+            drawn: true, rank: 3
         )
         let pass = SegmentPassValue(generated: generated)
+        #expect(pass.drawn)
+        #expect(pass.rank == 3)
         #expect(pass.transformation == "polynomial-2")
         #expect(pass.isGeoreferencing)
         #expect(pass.id == "legacy:a1")

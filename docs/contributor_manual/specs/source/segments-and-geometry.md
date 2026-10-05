@@ -746,7 +746,8 @@ Passes, orders, links
   Segments list takes the one pass-filtered read (`SegmentStore.workingSegments`), and Preview draws by
   the engine's `drawn` and `rank` (`SegmentDisplay.drawingOrder`). The app's copy of the ladder
   (`OCRGeometrySelection`) and the artifact path's own ranking are deleted. The Inspector's focused
-  artifact still goes first on Preview (ruled 2026-08-27; see `segment-editor.md`). On the diary page with
+  artifact still goes first on Preview (ruled 2026-08-27; whether the list and the text should follow it
+  is an open question in `segment-editor.md`). On the diary page with
   two passes, Preview, the Segments list and a line the Reader names are the same pass, and a newer pass
   the engine did not mark does not take Preview. Pinned by
   `fichero/Tests/Unit/general/Models/ImportedPageDrawsItsBoxesTests.swift`

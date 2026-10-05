@@ -340,16 +340,17 @@ ranked among themselves by the 2026-08-25 type tiers). **An import has no rank o
 date like a machine's, and its maker is named where the file says it (the Mosquera DOCX draft was
 Qwen-VL's). Until 2026-10-04 an "imported" tier sat above machine passes, so a geometry-free TEI import
 of a draft blanked Preview on 358 of 374 Mosquera pages. **A pass without shapes is passed over for
-drawing** (`ui.preview.draws-a-pass-with-shapes`): `SegmentDisplay.drawingOrder` moves a pass whose segments are all
-`shape: unstated` (or have no box) behind every pass with shapes -- behind, not out, so a text-only
+drawing** (`ui.preview.draws-a-pass-with-shapes`): a pass whose segments are all
+`shape: unstated` (or have no box) goes behind every pass with shapes -- behind, not out, so a text-only
 page still selects its own lines (built 2026-10-04, #5443;
-`fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`).
+`fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`). Since #5467 the engine does this
+ranking and serves its answer on each pass: `drawn` (the pass the image draws) and `rank`.
 A pass with no artifact behind it is ranked, never dropped: an imported page's only pass has none,
 and dropping it is why an imported page showed its text and no boxes. **The inspector's focused
-artifact no longer goes first (#5467, 2026-10-05):** it let the canvas draw a pass the list and the text
-did not read. Code: `SegmentDisplay.drawingOrder`, the one function that orders passes for drawing.
-Below the working pass it still ranks the rest itself, because the segments route marks the working
-pass but serves no rank for the others; that is its stated ceiling.
+artifact still goes first when it has boxes (2026-08-27).** Code: `SegmentDisplay.drawingOrder`, the one
+function that orders passes for drawing (#5467): the focused artifact's pass when it has a shape, then the
+engine's `drawn` pass, then the rest by the engine's `rank`. The app ranks nothing itself
+(`fichero/Tests/Unit/general/Models/DrawingOrderTests.swift`).
 
 **Ruling, the Inspector rethought from the archive model (2026-09-27)**, on the four questions of
 `build-notes-inspector.md`:
@@ -525,10 +526,15 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
   falls through to the ladder, as the artifact path does. Pinned by
   `SegmentDisplayTests.focusedArtifactOutranksTheLadder`,
   `.focusOnAnotherPagesArtifactChangesNothing` and `.focusedButUnusablePassFallsThrough`.
-  **Reversed by #5467 (2026-10-05):** the focus override and the artifact-path fallback are deleted, and
-  those three tests with them. The Preview draws the engine's working pass whatever the Inspector has
-  focused, and both loaders read the seam alone, which serves every unconverted result as a pass
-  (`ImportedPageDrawsItsBoxesTests.testANewerPassOrAFocusedArtifactDoesNotTakeThePreviewByAnAppRule`).
+  **The focus override stands (ruled 2026-08-27).** Since #5467 it lives in `SegmentDisplay.drawingOrder`,
+  ahead of the engine's `drawn` pass, still a reorder and never a filter: a focused artifact with no
+  shape, or another page's, falls through. The artifact-path fallback is deleted, and both loaders read
+  the seam alone, which serves every unconverted result as a pass. Re-pinned by
+  `SegmentDisplayTests.focusedArtifactOutranksTheDrawnPass`, `.focusOnAnotherPagesArtifactChangesNothing`
+  and `.focusedButUnusablePassFallsThrough`, and through the real store by
+  `ImportedPageDrawsItsBoxesTests.testANewerPassDoesNotTakeThePreviewButAFocusedArtifactDoes`. With an
+  artifact focused, Preview can show a different pass from the Segments list and the text (an open
+  question, below).
   `SegmentDisplay.selected(for:store:)` returns the geometry **and** the winning pass's artifact
   id from one answer, because the curation verbs address the artifact whose boxes are on screen
   and a separate lookup could name a pass that did not win
@@ -1790,6 +1796,11 @@ segment hierarchy" above).
 A smaller choice inside A: region hues assigned in region reading order (recommended: the same page
 always looks the same, and neighbours differ) or kept by a stable hash of the region's id (a region
 keeps its hue when another region is added, but colours look arbitrary).
+
+**Open (for the maintainer, 2026-10-05): a focused artifact and the other surfaces** (#5467). When you
+click an artifact in the Inspector, should the Segments list and the text follow that pass too, or only
+Preview? Today only Preview follows it (the 2026-08-27 ruling); the Segments list and the Reader keep
+the page's working pass, so the page can show one pass's boxes beside another pass's list.
 
 ## Rulings
 

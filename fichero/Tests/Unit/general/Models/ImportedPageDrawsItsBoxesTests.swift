@@ -579,25 +579,22 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                        "a line of the pass not drawn is not on screen to reveal")
     }
 
-    /// WHY (#5467 (a)): the app ranked passes on top of the engine's mark, and the inspector's focused
-    /// artifact went first of all, so a newer pass -- or the artifact a person clicked in the Inspector --
-    /// took the canvas by an app rule while the list and the text read the working pass. Here the run's
-    /// pass is REAL, NEWER and focused in the Inspector, and the engine still marks the words: the
-    /// Preview draws the words. Made shapeless as well, it still does not take over.
-    func testANewerPassOrAFocusedArtifactDoesNotTakeThePreviewByAnAppRule() async throws {
+    /// WHY (#5467 (a)): the app ranked passes on top of the engine's mark, so a newer pass took the canvas
+    /// by an app rule while the list and the text read the working pass. Here the run's pass is REAL and
+    /// NEWER, and the engine still marks the words working and drawn: the Preview draws the words. Made
+    /// shapeless as well, it still does not take over. The one exception is the person's own: with the
+    /// run's result focused in the Inspector, Preview shows its boxes (ruled 2026-08-27), and the Segments
+    /// list still reads the working pass (whether it should follow is an open question in the spec).
+    func testANewerPassDoesNotTakeThePreviewButAFocusedArtifactDoes() async throws {
         let newer = try diaryRoute { route in
             try Self.setPasses(&route, ["pass-0003": ["provisional": false, "created_at": "2026-10-01T12:00:00Z"]])
         }
         let store = try await diaryStore(answering: newer)
         let focus = FocusedArtifact.shared
         defer { focus.clear() }
-        focus.select(
-            "artifact-0002", documentId: "doc-0001",
-            in: [Artifact(id: "artifact-0002", documentId: "doc-0001", artifactType: "regions", createdAt: Date())]
-        )
-        XCTAssertEqual(focus.id, "artifact-0002", "the run's result is the Inspector's focus")
+        focus.clear()
         XCTAssertEqual(SegmentDisplay.selected(for: "doc-0001", store: store)?.passId, "pass-0002",
-                       "the engine's working pass, not the newer pass nor the focused artifact")
+                       "the engine's drawn pass, not the newer one")
 
         let newerAndShapeless = try diaryRoute { route in
             try Self.setPasses(&route, ["pass-0003": ["provisional": false, "created_at": "2026-10-01T12:00:00Z"]])
@@ -605,6 +602,15 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         }
         let shapelessStore = try await diaryStore(answering: newerAndShapeless)
         XCTAssertEqual(SegmentDisplay.selected(for: "doc-0001", store: shapelessStore)?.passId, "pass-0002")
+
+        focus.select(
+            "artifact-0002", documentId: "doc-0001",
+            in: [Artifact(id: "artifact-0002", documentId: "doc-0001", artifactType: "regions", createdAt: Date())]
+        )
+        XCTAssertEqual(SegmentDisplay.selected(for: "doc-0001", store: store)?.passId, "pass-0003",
+                       "the result clicked in the Inspector is drawn")
+        XCTAssertEqual(store.workingSegments(documentId: "doc-0001").map(\.passId), Array(repeating: "pass-0002", count: 4),
+                       "the Segments list still reads the working pass")
     }
 
     /// WHY (`ui.preview.draws-a-pass-with-shapes`, ruled 2026-10-04, kept by #5467): when the working pass
@@ -612,7 +618,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
     /// text and its list. The words made shapeless: the Preview draws the run's lines, the Segments list
     /// still reads the four words.
     func testAShapelessWorkingPassKeepsItsListAndThePreviewDrawsTheNextPassWithShapes() async throws {
-        let store = try await diaryStore(answering: try diaryRoute { route in try Self.makeShapeless(&route, pass: "pass-0002") })
+        // The engine's answer for that page: the words still working (rank 0), the lines drawn.
+        let store = try await diaryStore(answering: try diaryRoute { route in
+            try Self.makeShapeless(&route, pass: "pass-0002")
+            try Self.setPasses(&route, ["pass-0002": ["drawn": false], "pass-0003": ["drawn": true]])
+        })
         XCTAssertEqual(store.workingPass(documentId: "doc-0001")?.id, "pass-0002")
         XCTAssertEqual(SegmentDisplay.selected(for: "doc-0001", store: store)?.passId, "pass-0003")
         XCTAssertEqual(store.workingSegments(documentId: "doc-0001").map(\.kind), ["word", "word", "word", "word"])
@@ -651,8 +661,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         // The run's result became a pass and the working one; its order is listed first.
         RecordedEngine.body = try diaryRoute { route in
             try Self.setPasses(&route, [
-                "pass-0002": ["working": false, "working_basis": NSNull()],
-                "pass-0003": ["provisional": false, "working": true, "working_basis": "newest-machine-unchosen"]
+                "pass-0002": ["working": false, "working_basis": NSNull(), "drawn": false, "rank": 1],
+                "pass-0003": ["provisional": false, "working": true, "working_basis": "newest-machine-unchosen",
+                              "drawn": true, "rank": 0]
             ])
         }
         RecordedEngine.ordersReply = Data(

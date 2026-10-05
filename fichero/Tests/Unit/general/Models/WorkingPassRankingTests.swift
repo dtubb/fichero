@@ -6,25 +6,32 @@ import Testing
 /// An import has no rank of its own, and Preview draws a pass with shapes (#5443, #5425;
 /// `source.pass.working`, `ui.preview.draws-a-pass-with-shapes`).
 ///
-/// The SAME cases as the engine's `tests/unit/api/test_an_import_has_no_rank_of_its_own.py`, so the
-/// two halves of the one rule are pinned alike. The Mosquera page (SM_NPQ_C01_005): a TEI import of
-/// a Qwen-VL draft, every line `shape: unstated` on a whole-page rect, and a newer Gemini-on-Kraken
-/// pass whose lines carry polygons. The app's old ladder put the import in a tier of its own above every
-/// machine pass and did not look for shapes, so Preview drew the import -- nothing -- on 358 of 374
-/// pages. If these fail, a file imported once outranks every later run, or the image goes blank.
+/// The Mosquera page (SM_NPQ_C01_005): a TEI import of a Qwen-VL draft, every line `shape: unstated` on a
+/// whole-page rect, and a newer Gemini-on-Kraken pass whose lines carry polygons. The app's old ladder put
+/// the import in a tier of its own and did not look for shapes, so Preview drew the import -- nothing -- on
+/// 358 of 374 pages.
 ///
-/// Rewritten for #5467: the engine names the working pass (`PassRead.working`) and the app no longer
-/// ranks by date or by kind to find it. What these pin now is `SegmentDisplay.drawingOrder`, the one
-/// function that orders passes for drawing: the engine's mark first, a shapeless pass behind the passes
-/// with shapes.
+/// Rewritten for #5467: the ranking is the engine's alone (`test_an_import_has_no_rank_of_its_own.py`,
+/// `test_the_engine_serves_the_drawn_pass.py`), served as `working`, `drawn` and `rank` on each pass. These
+/// cases give the app the engine's answer for each state of that page and pin that the app draws exactly
+/// what the engine marks, with no ranking of its own laid over it. If these fail, the app re-ranks again.
 struct WorkingPassRankingTests {
 
-    private func realPass(id: String, kind: Components.Schemas.ProvenanceKind, ageInHours: Double) -> SegmentPassValue {
-        SegmentPassValue(
+    /// A real pass as the engine serves it: its kind and age, and the engine's marks.
+    private func served(
+        _ id: String, kind: Components.Schemas.ProvenanceKind, ageInHours: Double,
+        rank: Int?, drawn: Bool = false, basis: String? = nil
+    ) -> SegmentPassValue {
+        var pass = SegmentPassValue(
             id: id, provisional: false, documentId: "page-1", name: id, provenanceKind: kind,
             createdAt: Date(timeIntervalSince1970: 1_000_000 - ageInHours * 3600),
             sourceArtifactId: nil, artifactType: nil
         )
+        pass.rank = rank
+        pass.drawn = drawn
+        pass.working = rank == 0
+        pass.workingBasis = rank == 0 ? (basis ?? "newest-machine-unchosen") : nil
+        return pass
     }
 
     /// A line of a pass: drawn (a rect and a polygon), or with no place its file stated (`unstated`).
@@ -41,84 +48,52 @@ struct WorkingPassRankingTests {
         )
     }
 
-    /// `source.pass.working` (#5443/#5425, #5467): the pass the engine marks working is drawn first,
-    /// whatever is newer beside it. Before #5467 the app re-ranked by date on top of the mark; now a
-    /// newer import the engine did not mark cannot take the canvas by an app rule.
-    @Test("source.pass.working: the engine's working pass is drawn first, over a newer import")
-    func theEnginesWorkingPassIsDrawnOverANewerImport() {
-        var kraken = realPass(id: "gemini-on-kraken", kind: .workflow, ageInHours: 2)
-        kraken.working = true
-        kraken.workingBasis = "newest-machine-unchosen"
-        let imported = realPass(id: "docx-draft", kind: .externalImport, ageInHours: 0)
-        let ranked = SegmentDisplay.drawingOrder([imported, kraken], segments: [])
-        #expect(ranked.first?.id == "gemini-on-kraken")
-    }
-
-    /// `source.pass.working`: a person's live choice always wins, over a newer run and an import.
-    @Test("source.pass.working: a person's choice beats both the import and the newer run")
-    func aPersonsChoiceBeatsBoth() {
-        var imported = realPass(id: "docx-draft", kind: .externalImport, ageInHours: 48)
-        imported.working = true
-        imported.workingBasis = "chosen"
-        let kraken = realPass(id: "gemini-on-kraken", kind: .workflow, ageInHours: 1)
-        let older = realPass(id: "apple-vision", kind: .workflow, ageInHours: 72)
-        let ranked = SegmentDisplay.drawingOrder([kraken, older, imported], segments: [])
-        #expect(ranked.map(\.id) == ["docx-draft", "gemini-on-kraken", "apple-vision"])
-    }
-
-    /// `ui.preview.draws-a-pass-with-shapes`: the import a person chose is the TEXT, but it has no
-    /// shapes, so the boxes come from the best-ranked pass that has them. Before, the chosen import
-    /// won the drawing too and the image was blank.
-    @Test("ui.preview.draws-a-pass-with-shapes: a geometry-free winner yields boxes from the best pass with shapes")
-    func aGeometryFreeWinnerYieldsBoxesFromTheBestPassWithShapes() throws {
-        var imported = realPass(id: "docx-draft", kind: .externalImport, ageInHours: 48)
-        imported.working = true
-        imported.workingBasis = "chosen"
-        let kraken = realPass(id: "gemini-on-kraken", kind: .workflow, ageInHours: 1)
-        let segments = [
+    private var mosqueraLines: [Segment] {
+        [
             line("d0", pass: "docx-draft", index: 0, unstated: true),
             line("d1", pass: "docx-draft", index: 1, unstated: true),
             line("k0", pass: "gemini-on-kraken", index: 0),
             line("k1", pass: "gemini-on-kraken", index: 1)
         ]
-        let ranked = SegmentDisplay.drawingOrder([imported, kraken], segments: segments)
-        #expect(ranked.map(\.id) == ["gemini-on-kraken", "docx-draft"])
-        let drawn = try #require(SegmentDisplay.drawn(passes: [imported, kraken], segments: segments))
+    }
+
+    /// `source.pass.working` (#5443/#5425): with nobody's choice, the run that landed after the import is
+    /// the working pass and is drawn -- no manual promote.
+    @Test("source.pass.working: an import beside a newer machine pass -- the newer is drawn")
+    func anImportBesideANewerMachinePass() {
+        let imported = served("docx-draft", kind: .externalImport, ageInHours: 48, rank: 1)
+        let kraken = served("gemini-on-kraken", kind: .workflow, ageInHours: 1, rank: 0, drawn: true)
+        #expect(SegmentDisplay.drawn(passes: [imported, kraken], segments: mosqueraLines)?.passId == "gemini-on-kraken")
+    }
+
+    /// `ui.preview.draws-a-pass-with-shapes`: a person chose the shapeless import, so it is the working pass
+    /// and the page's TEXT; the engine marks the Kraken pass `drawn`, and Preview draws its boxes.
+    @Test("ui.preview.draws-a-pass-with-shapes: a chosen geometry-free pass is the text; the drawn pass is the boxes")
+    func aChosenShapelessPassLeavesTheBoxesToTheDrawnPass() throws {
+        let imported = served("docx-draft", kind: .externalImport, ageInHours: 48, rank: 0, basis: "chosen")
+        let kraken = served("gemini-on-kraken", kind: .workflow, ageInHours: 1, rank: 1, drawn: true)
+        let drawn = try #require(SegmentDisplay.drawn(passes: [imported, kraken], segments: mosqueraLines))
         #expect(drawn.passId == "gemini-on-kraken")
         #expect(drawn.geometry.boxes.count == 2)
     }
 
-    /// A shapeless pass is moved behind the passes with shapes, never dropped: on a text-only page
-    /// (a TEI edition with no facsimile, its only pass) it is still the pass whose lines the Reader
-    /// and the Order list select, as before this change.
+    /// A text-only page (a TEI edition with no facsimile, its only pass) has no drawn pass; its working pass
+    /// is still the one selected, so the Reader and the Order list select its lines.
     @Test("ui.preview.draws-a-pass-with-shapes: a text-only page's only pass is still the one selected")
     func aTextOnlyPagesOnlyPassIsStillSelected() {
-        var imported = realPass(id: "papyrus-tei", kind: .externalImport, ageInHours: 48)
-        imported.working = true
-        imported.workingBasis = "newest-machine-unchosen"
+        let imported = served("papyrus-tei", kind: .externalImport, ageInHours: 48, rank: 0)
         let segments = [line("p0", pass: "papyrus-tei", index: 0, unstated: true)]
         #expect(SegmentDisplay.drawn(passes: [imported], segments: segments)?.passId == "papyrus-tei")
     }
 
-    /// A pass whose segments the caller does not hold is not judged shapeless: absence of the
-    /// segments is not evidence of absence of shapes.
-    @Test("ui.preview.draws-a-pass-with-shapes: a pass with no segments in hand is still ranked")
-    func aPassWithNoSegmentsInHandIsStillRanked() {
-        let kraken = realPass(id: "gemini-on-kraken", kind: .workflow, ageInHours: 1)
-        #expect(SegmentDisplay.drawingOrder([kraken], segments: []).map(\.id) == ["gemini-on-kraken"])
-    }
-
-    /// The exception ruled 2026-10-04: an outside edit arriving through a synced folder is the
-    /// NEWEST pass, and still never becomes working until a person chooses it. The app cannot tell an
-    /// outside edit from any other import (`PassRead` carries no actor), which is why it takes the
-    /// engine's working pass rather than ranking passes itself.
+    /// The exception ruled 2026-10-04: an outside edit through a synced folder is the NEWEST pass and still
+    /// never working until a person chooses it. The app cannot tell it from any other import (`PassRead`
+    /// carries no actor), which is why it draws the engine's marks and ranks nothing itself.
     @Test("source.pass.working: a synced-folder outside edit does not win")
     func aSyncedFolderOutsideEditDoesNotWin() {
-        var kraken = realPass(id: "gemini-on-kraken", kind: .workflow, ageInHours: 1)
-        kraken.working = true
-        kraken.workingBasis = "newest-machine-unchosen"
-        let outside = realPass(id: "edited-outside", kind: .externalImport, ageInHours: 0)
-        let ranked = SegmentDisplay.drawingOrder([outside, kraken], segments: [])
-        #expect(ranked.first?.id == "gemini-on-kraken")
+        let kraken = served("gemini-on-kraken", kind: .workflow, ageInHours: 1, rank: 0, drawn: true)
+        let outside = served("edited-outside", kind: .externalImport, ageInHours: 0, rank: 1)
+        let segments = [line("k0", pass: "gemini-on-kraken", index: 0), line("o0", pass: "edited-outside", index: 0)]
+        #expect(SegmentDisplay.drawn(passes: [outside, kraken], segments: segments)?.passId == "gemini-on-kraken")
     }
 }

@@ -303,6 +303,12 @@ struct SegmentPassValue: Codable, Hashable, Identifiable {
     /// Whether this is the page's working pass, and why ("chosen" when a person chose it) (#5156).
     var working = false
     var workingBasis: String?
+    /// Whether this is the pass the page's image draws (#5467; the engine's `resolve_drawn_pass`): the working
+    /// pass when it has shapes, else the next ranked pass that has them. At most one per page.
+    var drawn = false
+    /// This pass's place in the engine's working-pass ranking (`rank_passes`), 0 for the working pass; nil for
+    /// a pass the ranking does not hold (a georeferencing pass).
+    var rank: Int?
     /// A georeferencing pass's transformation type (#5122); nil for every other pass. Set means the pass
     /// holds control points and a mask -- it places the page in the world and has no text.
     var transformation: String?
@@ -380,6 +386,8 @@ extension SegmentPassValue {
         self.hasOriginal = generated.hasOriginal ?? false
         self.working = generated.working ?? false
         self.workingBasis = generated.workingBasis
+        self.drawn = generated.drawn ?? false
+        self.rank = generated.rank
         self.transformation = generated.transformation
     }
 }
