@@ -749,6 +749,27 @@ def migrate_owner_opened_packages_table(
     _run_atomic_migration(conn, "migrate_owner_opened_packages_table", _step, failures)
 
 
+def migrate_owner_granted_folders_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
+    """Ensure the owner-granted folders table exists (#5484).
+
+    One row per folder the engine's OWNER (loopback + bootstrap token) picked in
+    the app's own panel, stored resolved, so an unsandboxed engine still reads it
+    (and everything under it) after a restart. Paired devices never write here.
+    """
+
+    def _step() -> None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS owner_granted_folders (
+                path VARCHAR PRIMARY KEY,
+                granted_at TIMESTAMP NOT NULL
+            )
+        """)
+
+    _run_atomic_migration(conn, "migrate_owner_granted_folders_table", _step, failures)
+
+
 def migrate_references_table(
     conn, failures: list[MigrationFailure] | None = None
 ) -> None:

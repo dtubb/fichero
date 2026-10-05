@@ -25,8 +25,9 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+import threading
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -366,6 +367,116 @@ def is_owner_opened_package(path: str | Path) -> bool:
     return key is not None and key in _OPENED_PACKAGES
 
 
+# Folders the engine's OWNER picked in the app's own panel (setup › Add a Folder…, File ›
+# Import…) and handed over through ``POST /api/sandbox/security-scoped-access`` (#5484). An
+# unsandboxed engine cannot use the app's bookmark (audit A1), so the owner's pick itself is the
+# grant: that exact folder (resolved) and everything under it. Owner only (loopback + bootstrap
+# token); a paired device or remote session never adds one. Persisted by the route in the global
+# DB's ``owner_granted_folders`` and loaded back once per process through the loader the registry
+# routes register below, like the owner-opened packages (#5464).
+_OWNER_GRANTED_FOLDERS: set[str] = set()
+_OWNER_GRANT_LOADER: Callable[[], None] | None = None
+_OWNER_GRANT_LOADING = threading.local()
+
+# Never grantable, whoever asks: the system's own folders. Their contents are not an archive.
+_SYSTEM_FOLDERS = (
+    "/System", "/Library", "/usr", "/bin", "/sbin", "/etc", "/private/etc", "/var", "/private/var",
+    "/dev", "/cores", "/opt", "/Applications",
+)
+# Refused only as themselves: a drive or share under them is where archives often live.
+_MOUNT_FOLDERS = ("/Volumes", "/Network")
+# …except the per-user temp folders under /var, which are already ingest roots (CI, test runs).
+_SYSTEM_FOLDER_EXCEPTIONS = ("/var/folders", "/private/var/folders")
+# ~/Library is refused except where synced drives keep people's files (iCloud Drive, Dropbox,
+# Google Drive, OneDrive): a folder under these is material; the two parents themselves are not.
+_HOME_LIBRARY_EXCEPTIONS = ("Library/Mobile Documents", "Library/CloudStorage")
+
+
+class OwnerFolderGrantRefused(ValueError):
+    """The owner's pick cannot be allowed. The message says why, in one sentence."""
+
+
+def set_owner_grant_loader(loader: Callable[[], None] | None) -> None:
+    """Register the once-per-process loader of persisted owner grants (set by the registry routes)."""
+    global _OWNER_GRANT_LOADER
+    _OWNER_GRANT_LOADER = loader
+
+
+def _load_owner_grants() -> None:
+    loader = _OWNER_GRANT_LOADER
+    if loader is None or getattr(_OWNER_GRANT_LOADING, "active", False):
+        return  # not wired (a bare unit test), or already loading on this thread (no recursion)
+    _OWNER_GRANT_LOADING.active = True
+    try:
+        loader()
+    except Exception as exc:  # fail closed: nothing loaded
+        logger.warning("Could not load the owner's granted folders: %s", exc)
+    finally:
+        _OWNER_GRANT_LOADING.active = False
+
+
+def owner_folder_grant_key(path: str | Path) -> str:
+    """The resolved key the owner's pick is allowed under, or raise ``OwnerFolderGrantRefused``.
+
+    Fail closed: a path with ``..`` (the panel never sends one), one that does not exist, and a
+    system folder (``/``, ``/System``, …, HOME itself or an ancestor of it, ``~/Library``, a hidden
+    folder of HOME) are refused. Symlinks are resolved first, so a link to a system folder is that
+    system folder.
+    """
+    import unicodedata
+
+    raw = Path(path).expanduser()
+    if not raw.is_absolute() or ".." in raw.parts:
+        raise OwnerFolderGrantRefused(f"Fichero allows only a folder picked by its full path, not {path}.")
+    try:
+        resolved = raw.resolve(strict=True)
+    except (OSError, RuntimeError, ValueError):
+        raise OwnerFolderGrantRefused(f"{path} does not exist.") from None
+    home = Path.home().resolve()
+    system = [Path(p) for p in _SYSTEM_FOLDERS]
+    if (
+        resolved == Path(resolved.anchor)
+        or resolved == home
+        or home.is_relative_to(resolved)
+        or (
+            any(resolved.is_relative_to(root) for root in system)
+            and not any(resolved.is_relative_to(Path(p)) for p in _SYSTEM_FOLDER_EXCEPTIONS)
+        )
+        or resolved in [Path(p) for p in _MOUNT_FOLDERS]
+        or (
+            resolved.is_relative_to(home / "Library")
+            and not any(
+                resolved.is_relative_to(home / e) and resolved != home / e for e in _HOME_LIBRARY_EXCEPTIONS
+            )
+        )
+        or (resolved.is_relative_to(home) and resolved.relative_to(home).parts[0].startswith("."))
+    ):
+        raise OwnerFolderGrantRefused(
+            f"{resolved} is a system folder; choose the folder that holds your material instead."
+        )
+    return unicodedata.normalize("NFC", str(resolved))
+
+
+def note_owner_granted_folder(path: str | Path) -> str:
+    """Allow one folder the owner picked (and everything under it). Returns its resolved key."""
+    key = owner_folder_grant_key(path)
+    _OWNER_GRANTED_FOLDERS.add(key)
+    return key
+
+
+def is_owner_granted_folder(path: str | Path) -> bool:
+    """Is ``path`` exactly a folder the owner picked (already noted), after resolving?"""
+    try:
+        return owner_folder_grant_key(path) in _OWNER_GRANTED_FOLDERS
+    except OwnerFolderGrantRefused:
+        return False
+
+
+def _within_owner_granted_folder(candidate: Path) -> bool:
+    _load_owner_grants()  # once per process; the loader returns at once after its first success
+    return any(candidate.is_relative_to(Path(folder)) for folder in tuple(_OWNER_GRANTED_FOLDERS))
+
+
 def is_allowed_ingest_path(path: str | Path) -> bool:
     """Return whether a local file path is below an engine-approved root.
 
@@ -394,7 +505,7 @@ def is_allowed_ingest_path(path: str | Path) -> bool:
         is_sandbox_container_drop_staging(candidate, home) for candidate in candidates
     ) or any(
         is_sandbox_container_library_staging(candidate, home) for candidate in candidates
-    )
+    ) or _within_owner_granted_folder(resolved)  # #5484: the RESOLVED path only, so `..` and links can't escape
 
 
 def resolve_document_source_path(

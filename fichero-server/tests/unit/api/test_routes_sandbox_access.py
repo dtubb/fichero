@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from pydantic import ValidationError
 
 from fichero_server.api.routes.auth import sandbox_access
@@ -11,6 +11,11 @@ from fichero_server.api.routes.auth import sandbox_access
 
 def _payload(path: str = "/tmp/library.fichero", bookmark: str = "Ym9va21hcms="):
     return sandbox_access.SecurityScopedAccessRequest(path=path, bookmark=bookmark)
+
+
+def _remote() -> Request:
+    """A caller that is not the engine's owner (a paired device): the bookmark path, unchanged."""
+    return Request({"type": "http", "client": ("10.0.0.7", 50000), "headers": []})
 
 
 def test_request_rejects_unknown_fields():
@@ -27,7 +32,7 @@ def test_grant_returns_success_and_reports_existing_access(monkeypatch):
         lambda path, bookmark: calls.append((path, bookmark)) or True,
     )
 
-    response = sandbox_access.create_security_scoped_access(_payload())
+    response = sandbox_access.create_security_scoped_access(_payload(), _remote())
 
     assert response.model_dump() == {
         "path": "/tmp/library.fichero",
@@ -44,7 +49,7 @@ def test_grant_failure_is_a_bad_request(monkeypatch):
     monkeypatch.setattr(sandbox_access, "grant_access", fail)
 
     with pytest.raises(HTTPException) as caught:
-        sandbox_access.create_security_scoped_access(_payload())
+        sandbox_access.create_security_scoped_access(_payload(), _remote())
 
     assert caught.value.status_code == 400
     assert caught.value.detail == "bookmark refused"
@@ -54,7 +59,7 @@ def test_grant_success_does_not_claim_unheld_path(monkeypatch):
     monkeypatch.setattr(sandbox_access, "granted_paths", lambda: frozenset())
     monkeypatch.setattr(sandbox_access, "grant_access", lambda _path, _bookmark: True)
 
-    response = sandbox_access.create_security_scoped_access(_payload())
+    response = sandbox_access.create_security_scoped_access(_payload(), _remote())
 
     assert response.granted is True
     assert response.already_held is False

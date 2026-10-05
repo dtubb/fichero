@@ -50,7 +50,12 @@ def _validate_ingest_path(raw_path: str) -> None:
         # Flat `{detail, code, path}` (#5219): the app keys "Grant Access…" off `code`, never off
         # the sentence. `exc.detail` stays the sentence for every caller that reads it.
         raise LibraryAccessDeniedError({
-            "detail": f"Ingest path is not in an allowed location: {raw_path}",
+            # #5484: the sentence says how to allow it in one step -- picking the folder in
+            # Fichero's own panel is the permission -- never "grant, then drop it again".
+            "detail": (
+                f"Ingest path is not in an allowed location: {raw_path}. To allow it, choose its "
+                "folder with Add a Folder\u2026 or File \u203a Import\u2026 in Fichero."
+            ),
             "code": INGEST_PATH_OUTSIDE_ALLOWED,
             "path": raw_path,
         })
