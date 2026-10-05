@@ -847,14 +847,14 @@ def _unconverted_candidates(db: Database, document_id: str) -> list[PassCandidat
 
     results = [
         a for a in db._query_where(Artifact, _UNCONVERTED_RESULT_SQL, {}, document_id=document_id)
-        if a.ocr_geometry is not None
+        if a.ocr_geometry is not None  # raw-geometry-ok: unconverted only; its block is its only geometry
     ]
     corrected = artifacts_a_person_worked_on(db, (a.id for a in results))
     return [
         PassCandidate(
             pass_id=legacy_pass_id(a.id),
             provenance_kind=derive_pass_provenance_kind(provider=a.provider, model=a.model),
-            has_human_segment=a.id in corrected or any(_box_is_hand_drawn(b) for b in a.ocr_geometry.boxes),
+            has_human_segment=a.id in corrected or any(_box_is_hand_drawn(b) for b in a.ocr_geometry.boxes),  # raw-geometry-ok: unconverted only
             from_text_layer=a.artifact_type == TEXT_LAYER_ARTIFACT_TYPE,
             unconverted=True,
             created_at=a.created_at or datetime.min.replace(tzinfo=timezone.utc),
