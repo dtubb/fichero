@@ -225,18 +225,17 @@ extension LibraryManager {
         return library
     }
 
-    /// Create a project at the location the save panel chose: the ONE create path behind File ›
-    /// New Library…, in a window and with no window (#4530). The project is inserted once into
-    /// `openLibraries` (the sidebar's rows), saved, remembered for the next launch (`saveLibrary`),
-    /// marked for the sidebar to select, and asks for its setup (#5430).
-    /// - Throws: `LibraryError.saveFailed` when the package cannot be saved; the unsaved library
-    ///   stays open so the person can retry with Save Library As.
+    /// Create a project at the location setup's Where it lives chose (`NewProjectStore`): the ONE
+    /// create path behind first run and File › Set Up New Project…, in a window and with no window
+    /// (#4530, #5482). The project is inserted once into `openLibraries` (the sidebar's rows),
+    /// saved, remembered for the next launch (`saveLibrary`) and marked for the sidebar to select.
+    /// It asks for no setup of its own: setup made it and carries on through its client (#5477).
+    /// - Throws: `LibraryError.saveFailed` when the package cannot be saved.
     @discardableResult
     func createProject(at url: URL) throws -> LibraryReference {
         let created = createNewLibrary()
         try saveLibrary(created.id, to: url)
         createdProjectId = created.id
-        requestSetUp(for: created.id)
         return getLibrary(id: created.id) ?? created
     }
 

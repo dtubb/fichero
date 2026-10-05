@@ -144,10 +144,10 @@ class ActionSpec:
 
 ACTION_SPECS: tuple[ActionSpec, ...] = (
     ActionSpec(
-        action="New Library...",
+        action="Set Up New Project…",
         expected=("menu", "keyboard"),
-        menu_patterns=("Button(\"New Library...\"",),
-        keyboard_patterns=("Button(\"New Library...\"",),
+        menu_patterns=("Button(\"Set Up New Project…\"",),
+        keyboard_patterns=("Button(\"Set Up New Project…\"",),
     ),
     ActionSpec(
         action="Open...",

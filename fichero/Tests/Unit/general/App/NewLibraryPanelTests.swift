@@ -2,48 +2,43 @@
 import UniformTypeIdentifiers
 import XCTest
 
-/// #4530 — the New Library… panel seam.
+/// #4530, #5482 — where a new project lands on disk, and how both File-menu routes reach it.
 ///
-/// Two callers can now start a library create: the in-window path
-/// (`LibraryWindow.handleNewLibrary`) and the app-scoped File-menu fallback for
-/// when no window is key. They share `NewLibraryPanel` so the panel
-/// configuration and the on-disk naming decision cannot drift apart; these
-/// tests pin the part that decides what actually lands on disk.
+/// A project is made by setup's Where it lives (ruled 2026-10-05): Inside Fichero, or a folder
+/// the person chooses (`NewProjectStore`). Both File › Set Up New Project… routes, in a window
+/// and with no window key, open that one setup; these tests pin the part that decides what
+/// actually lands on disk and that neither route grew its own create path again.
 @MainActor
 final class NewLibraryPanelTests: XCTestCase {
 
+    private func url(name: String, in folder: String) -> URL? {
+        let store = NewProjectStore(libraryManager: LibraryManager.shared)
+        store.name = name
+        store.place = .chosen(URL(fileURLWithPath: folder, isDirectory: true))
+        return store.projectURL
+    }
+
     // MARK: - Naming (the part that can be wrong on disk)
 
-    func testMissingExtensionIsAdded() {
-        let resolved = NewLibraryPanel.resolvedLibraryURL(for: URL(fileURLWithPath: "/tmp/Fieldwork"))
-        XCTAssertEqual(resolved.lastPathComponent, "Fieldwork.fichero")
+    /// The package always carries the `.fichero` extension.
+    func testExtensionIsAdded() throws {
+        XCTAssertEqual(try XCTUnwrap(url(name: "Fieldwork", in: "/tmp")).lastPathComponent, "Fieldwork.fichero")
     }
 
-    /// Idempotent: a name the user already typed with the extension must not
-    /// become "Fieldwork.fichero.fichero".
-    func testExistingExtensionIsNotDuplicated() {
-        let resolved = NewLibraryPanel.resolvedLibraryURL(for: URL(fileURLWithPath: "/tmp/Fieldwork.fichero"))
-        XCTAssertEqual(resolved.lastPathComponent, "Fieldwork.fichero")
-        XCTAssertFalse(resolved.path.contains(".fichero.fichero"))
+    /// A name with a slash or colon would make a folder path, not a name: it is replaced.
+    func testNameCannotMakeAPath() throws {
+        let made = try XCTUnwrap(url(name: "A/B:C", in: "/tmp"))
+        XCTAssertEqual(made.lastPathComponent, "A-B-C.fichero")
+        XCTAssertEqual(made.deletingLastPathComponent().path, "/tmp")
     }
 
-    /// Case is not significance: `.FICHERO` is the same package type, and
-    /// appending again would create a second extension.
-    func testExtensionMatchIsCaseInsensitive() {
-        let resolved = NewLibraryPanel.resolvedLibraryURL(for: URL(fileURLWithPath: "/tmp/Fieldwork.FICHERO"))
-        XCTAssertEqual(resolved.lastPathComponent, "Fieldwork.FICHERO")
-    }
-
-    /// #3076: the package NAME is NFC-normalized so a decomposed "ó" from the
-    /// panel never becomes a mojibake-variant path.
-    func testPackageNameIsNFCNormalized() {
+    /// #3076: the package NAME is NFC-normalized so a decomposed "ó" never becomes a
+    /// mojibake-variant path.
+    func testPackageNameIsNFCNormalized() throws {
         let decomposed = "Choco\u{0301}"                       // NFD
         let composed = "Chocó".precomposedStringWithCanonicalMapping  // NFC
         // Scalar-level comparison is load-bearing: Swift's String == uses
-        // CANONICAL equivalence, so NFD and NFC forms always compare equal —
-        // the original `XCTAssertNotEqual(decomposed, composed)` could never
-        // pass and this test was born failing in the era the target didn't
-        // compile (Aug 4-9). The byte contract lives at the STRING boundary:
+        // CANONICAL equivalence, so NFD and NFC forms always compare equal.
         XCTAssertNotEqual(
             Array(decomposed.unicodeScalars), Array(composed.unicodeScalars),
             "fixture is not actually decomposed"
@@ -53,40 +48,25 @@ final class NewLibraryPanelTests: XCTestCase {
             Array(composed.unicodeScalars),
             "String.nfcNormalized must produce byte-for-byte NFC (#3076)"
         )
-
-        // PLATFORM TRUTH, measured: EVERY Foundation URL init re-decomposes
-        // path components (fileURLWithPath, filePath:, appendingPathComponent
-        // all hand back NFD), so byte-NFC cannot be pinned through a URL.
-        // What the URL layer CAN promise is the canonical name+extension; the
-        // wire re-normalizes the string where it actually leaves the app
-        // (LibraryPathMiddleware.nfcNormalized, backend #3071).
-        let resolved = NewLibraryPanel.resolvedLibraryURL(
-            for: URL(fileURLWithPath: "/tmp/\(decomposed)")
-        )
-        XCTAssertEqual(resolved.lastPathComponent, "\(composed).fichero")
+        // Foundation URLs re-decompose path components, so byte-NFC cannot be pinned through a
+        // URL; what the URL layer promises is the canonical name and extension.
+        XCTAssertEqual(try XCTUnwrap(url(name: decomposed, in: "/tmp")).lastPathComponent, "\(composed).fichero")
     }
 
-    /// Side effect that must NOT happen: normalization is scoped to the leaf.
-    /// The parent directory already exists on disk under whatever form the
-    /// filesystem gave it, so rewriting it would point the save at a path that
-    /// does not exist.
-    func testParentDirectoryIsLeftUntouched() {
+    /// Normalization is scoped to the leaf: the chosen folder already exists on disk under
+    /// whatever form the filesystem gave it, so rewriting it would point at a path that does not.
+    func testParentDirectoryIsLeftUntouched() throws {
         let decomposedParent = "Campo\u{0301}"
-        let resolved = NewLibraryPanel.resolvedLibraryURL(
-            for: URL(fileURLWithPath: "/tmp/\(decomposedParent)/Notes")
-        )
+        let made = try XCTUnwrap(url(name: "Notes", in: "/tmp/\(decomposedParent)"))
         XCTAssertTrue(
-            resolved.deletingLastPathComponent().path.hasSuffix(decomposedParent),
-            "the user-chosen parent directory must be preserved byte-for-byte"
+            made.deletingLastPathComponent().path.hasSuffix(decomposedParent),
+            "the chosen folder must be preserved byte-for-byte"
         )
-        XCTAssertEqual(resolved.lastPathComponent, "Notes.fichero")
+        XCTAssertEqual(made.lastPathComponent, "Notes.fichero")
     }
 
-    // MARK: - Panel configuration
-
-    /// The panel must offer the app's OWN library type, not the abstract
-    /// `.package` it used to use — `.package` also matches `.app`, `.rtfd` and
-    /// every other bundle, and carries no extension for the panel to apply.
+    /// Open… offers the app's OWN library type, not the abstract `.package`, which also
+    /// matches `.app`, `.rtfd` and every other bundle.
     func testLibraryUTTypeResolvesFromTheInfoPlistDeclaration() throws {
         let type = try XCTUnwrap(
             UTType.ficheroLibrary,
@@ -96,74 +76,39 @@ final class NewLibraryPanelTests: XCTestCase {
         XCTAssertEqual(type.preferredFilenameExtension, "fichero")
     }
 
-    /// The create panel opens somewhere the ENGINE will serve. The engine
-    /// refuses any library outside `ingest_allowed_roots()` with a 403 that the
-    /// app reports only as "Library load failed", so a default of "wherever the
-    /// panel last was" produces libraries that are created successfully and
-    /// then never work. `~/Documents` is on the allowed list.
-    func testDefaultDirectoryIsAnEngineServableLocation() throws {
-        let directory = try XCTUnwrap(
-            NewLibraryPanel.defaultLibraryDirectory,
-            "no default create location — the panel would open on an arbitrary path (#4530)"
-        )
-        let documents = try XCTUnwrap(
-            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-        )
-        XCTAssertEqual(directory.standardizedFileURL, documents.standardizedFileURL)
-    }
+    // MARK: - Both routes open the one setup
 
-    // MARK: - Both callers share the seam
-
-    /// #4493: routed through the shared `AppSource` walk instead of
-    /// counting `deletingLastPathComponent()` calls. Counting is correct
-    /// only for this file's CURRENT depth — move the file and it resolves
-    /// somewhere else and fails later as an unrelated file-not-found.
     private static func appSource(_ relativePath: String) throws -> String {
         let source = try AppSource.text(relativePath)
         XCTAssertFalse(source.isEmpty, "\(relativePath) is empty — this guard measures nothing")
         return source
     }
 
-    /// Neither caller may re-implement the panel or the naming rule: a second
-    /// copy is how the two create paths would start producing different files.
-    func testBothCreatePathsGoThroughTheSharedSeam() throws {
-        for path in ["App/LibraryWindow+Actions.swift", "App/Menus/FileMenuCommands.swift"] {
-            let source = try Self.appSource(path)
-            XCTAssertTrue(
-                source.contains("NewLibraryPanel.makeSavePanel()"),
-                "\(path) builds its own save panel instead of sharing the seam (#4530)"
-            )
-            XCTAssertTrue(
-                source.contains("NewLibraryPanel.resolvedLibraryURL(for:"),
-                "\(path) re-implements the extension/NFC naming rule (#4530)"
-            )
+    /// Neither route may create a project itself: setup's Where it lives is the one place a
+    /// project is made (`createProject` from `NewProjectStore`), so the two routes cannot start
+    /// producing different projects again.
+    func testBothRoutesOpenSetupAndCreateNothingThemselves() throws {
+        let window = try Self.appSource("App/LibraryWindow+Actions.swift")
+        let menu = try Self.appSource("App/Menus/FileMenuCommands.swift")
+        XCTAssertTrue(window.contains("showingNewProjectSetUp = true"), "the window route opens setup")
+        XCTAssertTrue(menu.contains("libraryManager.newProjectSetUpRequested = true"), "the windowless route asks for setup")
+        for source in [window, menu] {
+            XCTAssertFalse(source.contains("createProject(at:"), "a route creates a project outside setup")
         }
     }
 
-    /// A failed create must reach the user. It was log-only, so pressing
-    /// Create could produce no library and no reason — the silent-failure
-    /// shape rule zero forbids.
-    func testBothCreatePathsSurfaceFailureToTheUser() throws {
-        for path in ["App/LibraryWindow+Actions.swift", "App/Menus/FileMenuCommands.swift"] {
-            let source = try Self.appSource(path)
-            XCTAssertTrue(
-                source.contains("NewLibraryPanel.presentCreateFailure("),
-                "\(path) swallows a create failure into the log (#4530)"
-            )
-        }
-    }
-
-    /// #4062 must survive this refactor: New Library… still creates in place in
-    /// the window that ran it, and does not open a window.
-    func testInWindowCreateStillDoesNotOpenAWindow() throws {
+    /// #4062 must survive: Set Up New Project… in a window works in that window and does not
+    /// open another; the made project is shown in place when setup ends.
+    func testInWindowRouteDoesNotOpenAWindow() throws {
         let source = try Self.appSource("App/LibraryWindow+Actions.swift")
         let start = try XCTUnwrap(source.range(of: "func handleNewLibrary() {"))
         let end = try XCTUnwrap(
             source.range(of: "func handleSaveLibrary() {", range: start.lowerBound..<source.endIndex)
         )
         let body = String(source[start.lowerBound..<end.lowerBound])
-
-        XCTAssertTrue(body.contains("assignLibrary(id: newLibrary.id)"))
         XCTAssertFalse(body.contains("openWindow(id:"))
+        let window = try Self.appSource("App/LibraryWindow.swift")
+        XCTAssertTrue(window.contains("NewProjectSetUpSheet(isPresented: $showingNewProjectSetUp) { assignLibrary(id: $0) }"),
+                      "the project setup made is shown in THIS window")
     }
 }

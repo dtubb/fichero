@@ -299,3 +299,6 @@ fichero/Tests/Unit/general/Models/LineRevealTests.swift
 # One toolbar search item (#5024): asserts the toolbar declares exactly one search item and that the
 # second button, the old options item and the scope bar are gone; a layout invariant with no store to observe.
 fichero/Tests/Unit/general/Views/Shell/OneToolbarSearchItemTests.swift
+# Setup round 2 (#5481): one forbidden-pattern absence check (no DisclosureGroup in Views/Onboarding);
+# every other test in the file drives RecipeSetupStore through recorded engine responses.
+fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift

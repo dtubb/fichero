@@ -1,15 +1,18 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// An assembled recipe, step by step: what each step does (the topic registry's
-/// own words, `TopicStore`), why the rules chose it, what is missing, and an Advanced
-/// disclosure with the model and settings (`source.onboard.proposes-chain`,
-/// `source.onboard.self-documenting`, `source.onboard.says-no-model`,
-/// `source.recipe.advanced-per-step`). Shared by setup and the Inspector so both
-/// explain a step the same way.
+/// An assembled recipe, one row per step (`source.onboard.proposes-chain`,
+/// `source.onboard.self-documenting`, `source.onboard.says-no-model`, #5481): the step's title,
+/// its one sentence, where it runs and the model by its card's name, never its id. A step that
+/// cannot run says so once, in the engine's sentence, with its fix as a button. No disclosure:
+/// in setup nothing hides behind More or Advanced; the Inspector shows, as plain lines, the
+/// topic's paragraph and the rules' own reason (`problem.detail`), which setup never shows.
+/// Shared by setup and the Inspector so both name a step the same way.
 struct RecipeStepsView: View {
     let store: RecipeSetupStore
     let recipe: Components.Schemas.AssembledRecipe
+    /// A problem's fix button was pressed; nil in the Inspector, which shows the reason instead.
+    var onFix: ((String) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -19,163 +22,167 @@ struct RecipeStepsView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(recipe.steps, id: \.id) { step in
-                RecipeStepRow(step: step, title: store.title(of: step), job: store.job(for: step),
-                              explanation: store.explanation(ofJob: step.job))
+                RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil),
+                              explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,
+                              onFix: onFix)
             }
-            ForEach(recipe.gaps, id: \.self) { gap in
-                Label(gap, systemImage: "exclamationmark.triangle")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
-            }
-            ForEach(recipe.problems, id: \.self) { problem in
-                Label(problem, systemImage: "xmark.octagon")
-                    .font(.callout)
-                    .foregroundStyle(.red)
+            // The recipe's own check, in the rules' words: the Inspector only.
+            if onFix == nil {
+                ForEach(recipe.problems, id: \.self) { problem in
+                    Label(problem, systemImage: "xmark.octagon")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             }
         }
     }
 }
 
-private struct RecipeStepRow: View {
-    let step: Components.Schemas.RecipeStep
-    let title: String
-    let job: Components.Schemas.JobInfo?
+extension RecipeStepsView {
+    /// One line of a step's row: what the person reads, in order. The row draws exactly these,
+    /// so what a step says can be checked without drawing it.
+    enum StepLine: Equatable {
+        case title(String)
+        case sentence(String)
+        /// Where it runs, and the model by its card's name.
+        case place(String, cloud: Bool)
+        /// The step's problem, once, in the engine's sentence.
+        case problem(String)
+        /// The problem's fix, as a button (setup).
+        case fix(title: String, fix: String)
+        /// The rules' own reason, model ids included (the Inspector only).
+        case detail(String)
+    }
+
+    /// What a step's row says: in setup its title, one sentence, and either its problem once
+    /// with the fix as a button, or where it runs; in the Inspector the rules' reason in place of
+    /// the button.
+    static func lines(for step: Components.Schemas.RecipeStep, store: RecipeSetupStore, inSetup: Bool) -> [StepLine] {
+        var lines: [StepLine] = [.title(store.title(of: step))]
+        if let sentence = store.sentence(of: step) { lines.append(.sentence(sentence)) }
+        if let problem = step.problem {
+            lines.append(.problem(problem.sentence))
+            lines.append(inSetup ? .fix(title: RecipeStepRow.fixTitle(problem.fix), fix: problem.fix) : .detail(problem.detail))
+        } else if let place = RecipeStepRow.whereItRuns(step) {
+            lines.append(.place(place, cloud: step.usesCloud == true))
+        }
+        return lines
+    }
+}
+
+struct RecipeStepRow: View {
+    let lines: [RecipeStepsView.StepLine]
+    /// The topic's paragraph and example: the Inspector only (setup keeps one sentence).
     let explanation: Components.Schemas.TopicInfo?
+    let onFix: ((String) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(title).font(.headline)
-                if let layer = step.layer ?? job?.layer {
-                    Text(layer).font(.caption).foregroundStyle(.secondary)
-                }
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                lineView(line)
             }
             if let explanation {
-                TopicExplanation(topic: explanation)
+                TopicExplanation(topic: explanation, full: true)
             }
-            if let card = step.card {
-                Label(Self.cardSummary(card), systemImage: step.usesCloud == true ? "cloud" : "desktopcomputer")
-                    .font(.callout)
-            }
-            if let gap = step.gap {
-                Label("Needs a model: \(gap)", systemImage: "exclamationmark.triangle")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
-            }
-            ForEach(step.reasons ?? [], id: \.self) { reason in
-                Label(reason, systemImage: "checkmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            DisclosureGroup("Advanced") {
-                VStack(alignment: .leading, spacing: 2) {
-                    if let runsOn = step.runsOn { row("Runs on", runsOn) }
-                    if let card = step.card {
-                        row("Card", card.id)
-                        if let memory = card.memoryGb { row("Memory", "\(memory.formatted()) GB") }
-                        if let published = card.cerPublished { row("Error rate (published)", Self.percent(published)) }
-                        if let trainable = card.trainable { row("Trainable", trainable ? "Yes" : "No") }
-                    }
-                    pairs("Model", step.model?.additionalProperties.value)
-                    pairs("Setting", step.settings?.additionalProperties.value)
-                    pairs("Offered when", step.offeredWhen?.additionalProperties.value)
-                    if let job {
-                        row("Takes", job.takes.joined(separator: ", "))
-                        row("Gives", job.gives.joined(separator: ", "))
-                        row("Compared by", job.compare)
-                    }
-                }
-            }
-            .font(.caption)
         }
         .padding(.vertical, 4)
     }
 
-    /// The card's note as the model's name, then licence, download size and
-    /// the error rate measured here (or else the published one).
-    static func cardSummary(_ card: Components.Schemas.RecipeCard) -> String {
-        var parts = [card.note ?? card.id]
-        if let licence = card.licence { parts.append(licence) }
-        if let size = card.sizeGb { parts.append("\(size.formatted()) GB") }
-        if let cer = card.cerMeasuredHere {
-            parts.append("\(percent(cer)) errors on your pages")
-        } else if let cer = card.cerPublished {
-            parts.append("\(percent(cer)) errors (published)")
-        }
-        return parts.joined(separator: " · ")
-    }
-
-    static func percent(_ rate: Double) -> String {
-        rate.formatted(.percent.precision(.fractionLength(0...1)))
-    }
-
-    private func row(_ label: String, _ value: String) -> some View {
-        LabeledContent(label) { Text(value).textSelection(.enabled) }
-    }
-
     @ViewBuilder
-    private func pairs(_ label: String, _ values: [String: (any Sendable)?]?) -> some View {
-        if let values {
-            ForEach(values.keys.sorted(), id: \.self) { key in
-                row("\(label) · \(key)", values[key].flatMap { $0 }.map { String(describing: $0) } ?? "—")
-            }
+    private func lineView(_ line: RecipeStepsView.StepLine) -> some View {
+        switch line {
+        case .title(let text):
+            Text(text).font(.headline)
+        case .sentence(let text):
+            Text(text).font(.callout)
+        case .place(let text, let cloud):
+            Label(text, systemImage: cloud ? "cloud" : "desktopcomputer")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        case .problem(let text):
+            Label(text, systemImage: "exclamationmark.triangle")
+                .font(.callout)
+                .foregroundStyle(.orange)
+        case .fix(let title, let fix):
+            Button(title) { onFix?(fix) }
+                .controlSize(.small)
+        case .detail(let text):
+            // The rules' own reason, model ids included, belongs here and in the log only.
+            Text(text).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+        }
+    }
+
+    /// Where the step runs and the model by its card's name; nothing when the card has no name
+    /// (an id is never shown in its place).
+    static func whereItRuns(_ step: Components.Schemas.RecipeStep) -> String? {
+        guard step.card != nil || step.runsOn != nil else { return nil }
+        let place = step.usesCloud == true ? "In the cloud" : "On this Mac"
+        guard let name = step.card?.note, !name.isEmpty else { return place }
+        return "\(place) · \(name)"
+    }
+
+    /// The fix button's words, from the engine's `fix` (`StepProblem.fix`).
+    static func fixTitle(_ fix: String) -> String {
+        switch fix {
+        case "download": "Download a model…"
+        case "choose-cloud": "Use a cloud model…"
+        case "allow-cloud": "Let pages leave this Mac"
+        case "accept-licence": "Review the licence…"
+        default: "Choose a model…"
         }
     }
 }
 
-/// One topic's explanation as the registry wrote it (`source.onboard.topics-written-once`):
-/// its one sentence, and its paragraph and example on disclosure. Setup and the Inspector
-/// show a topic only through this, so the words are the registry's, never the app's.
+/// One topic's explanation as the registry wrote it (`source.onboard.topics-written-once`): its
+/// one sentence, and with `full` its paragraph and example as plain text, never behind a
+/// disclosure. Setup and the Inspector show a topic only through this, so the words are the
+/// registry's, never the app's.
 struct TopicExplanation: View {
     let topic: Components.Schemas.TopicInfo
+    var full = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(topic.short).font(.callout)
-            DisclosureGroup("More") {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(topic.long)
-                    if let example = topic.example {
-                        Label(example, systemImage: "doc.text.magnifyingglass")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .font(.caption)
-                .textSelection(.enabled)
-            }
-            .font(.caption)
-        }
-    }
-}
-
-/// The Inspector's recipe section: the recipe setup proposed, and Set Up…,
-/// which opens first run's own recipe steps (`FirstRunStep.setUpSteps`), one
-/// code path (`source.onboard.set-up-later`, `source.onboard.edited-in-the-inspector`).
-struct InspectorRecipeSection: View {
-    @Environment(AppState.self) private var appState: AppState?
-    @State private var showingSetup = false
-
-    var body: some View {
-        if let appState {
-            VStack(alignment: .leading, spacing: 6) {
-                if let recipe = appState.recipeSetupStore.recipe {
-                    RecipeStepsView(store: appState.recipeSetupStore, recipe: recipe)
-                } else {
-                    Text("No recipe yet. Setup proposes one from your purpose and material.")
+            if full {
+                Text(topic.long).font(.caption)
+                if let example = topic.example {
+                    Label(example, systemImage: "doc.text.magnifyingglass")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                InspectorProjectLanguages(store: appState.recipeSetupStore)
-                InspectorProjectLayers(store: appState.recipeSetupStore)
-                Button("Set Up…") { showingSetup = true }
+            } else {
+                Text(topic.short).font(.callout)
+            }
+        }
+        .textSelection(.enabled)
+    }
+}
+
+/// The Inspector's recipe section: the recipe setup proposed for THIS project, and Set Up…, which
+/// asks the window to open setup for it (`LibraryManager.requestSetUp`), one code path
+/// (`source.onboard.set-up-later`, `source.onboard.edited-in-the-inspector`).
+struct InspectorRecipeSection: View {
+    let library: LibraryManager.LibraryReference?
+    @Environment(LibraryManager.self) private var libraryManager
+
+    var body: some View {
+        if let library {
+            let store = library.recipeSetupStore
+            VStack(alignment: .leading, spacing: 6) {
+                if let recipe = store.recipe {
+                    RecipeStepsView(store: store, recipe: recipe)
+                } else {
+                    Text("No recipe yet. Setup proposes one from your purposes and material.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                InspectorProjectLanguages(store: store)
+                InspectorProjectLayers(store: store)
+                Button("Set Up…") { libraryManager.requestSetUp(for: library.id) }
                     .controlSize(.small)
             }
-            .sheet(isPresented: $showingSetup) {
-                FirstRunWindow(setUp: true)
-                    .environment(appState)
-            }
             // Each step's name and explanation (the job and topic registries).
-            .task { await appState.recipeSetupStore.loadJobs() }
+            .task { await store.loadJobs() }
         }
     }
 }
@@ -187,15 +194,9 @@ struct InspectorProjectLanguages: View {
     let store: RecipeSetupStore
 
     var body: some View {
-        CodeSearchField(
-            title: "Languages",
-            prompt: "Add a language: name, BCP 47 tag or glottocode",
-            search: store.searchLanguages,
-            codes: Binding(
-                get: { store.languages },
-                set: { codes in Task { await store.updateLanguages(codes) } }
-            )
-        )
+        CodeTokenField(store: store, scripts: false) {
+            Task { await store.updateLanguages(store.languages) }
+        }
         .font(.caption)
         // Edit what the project saved, never the defaults over it.
         .task { await store.loadSaved() }
@@ -287,28 +288,28 @@ struct InspectorProjectLayers: View {
         purposes: ["transcribe"],
         steps: [
             .init(
-                id: "lines", job: "find-lines",
+                id: "lines", job: "find-lines", title: "Find lines",
+                sentence: "Finds each line of writing on the page.",
                 card: .init(id: "kraken:builtin/blla@bundled", note: "Kraken's built-in line finder",
                             licence: "Apache-2.0", sizeGb: 0.01, memoryGb: 3.6, trainable: true),
                 usesCloud: false, runsOn: "this-mac",
                 reasons: ["ships inside the app"], layer: "lines"
             ),
             .init(
-                id: "read", job: "read-a-line",
-                card: .init(id: "kraken:zenodo/10.5281/zenodo.13788177@unpinned",
-                            note: "McCATMuS, general Latin-script recognition",
-                            licence: "CC-BY-4.0", sizeGb: 0.016, cerPublished: 0.0391),
-                usesCloud: false, runsOn: "this-mac",
-                reasons: ["covers Latn", "runs on this Mac"], layer: "reading"
-            ),
-            .init(id: "correct", job: "correct", reasons: [], gap: "no local corrector knows es")
+                id: "correct", job: "correct", title: "Correct",
+                sentence: "A language model corrects the reading.",
+                reasons: [], gap: "no local corrector knows es",
+                problem: .init(kind: "no-model-for-language", sentence: "No correcting model here knows Spanish yet.",
+                               fix: "download", fixes: ["download", "choose-cloud"],
+                               detail: "mlx:Qwen/Qwen2.5-3B@main: languages [en] lack es")
+            )
         ],
         gaps: ["correct: no local corrector knows es"],
         cloudOptions: ["correct"],
         problems: []
     )
     return ScrollView {
-        RecipeStepsView(store: store, recipe: recipe).padding()
+        RecipeStepsView(store: store, recipe: recipe, onFix: { _ in }).padding()
     }
     .frame(width: 480, height: 520)
 }

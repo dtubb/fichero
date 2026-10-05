@@ -70,11 +70,22 @@ class LibraryManager {
     /// (`create.project.appears-and-is-selected`, #5430).
     var createdProjectId: UUID?
 
-    /// The project whose setup (`FirstRunWindow(setUp: true)`) is asked for: by a new project, by
-    /// File › Set Up Project…, or by an empty project's Set Up… (#5430, #5421). The window showing
-    /// that project presents setup and clears this when it closes. Never gated on
+    /// The project whose setup (`FirstRunWindow(mode: .setUp)`) is asked for: by File › Set Up
+    /// Project…, or by an empty project's Set Up… (#5421). The window showing that project
+    /// presents setup and clears this when it closes. Never gated on
     /// `FeatureManager.firstRunCompleted`, which governs only the app's first launch.
     var setUpRequestedLibraryId: UUID?
+
+    /// File › Set Up New Project… was chosen with no window to show it (#4530): the window that
+    /// opens next presents setup from Where it lives, and clears this.
+    var newProjectSetUpRequested = false
+
+    /// Inside Fichero: where a project lives when the person does not choose a place (section 7b
+    /// screen 1, ruled 2026-10-05), beside the app's own Local project in the app's data folder
+    /// (`~/Library/Application Support/Fichero`, or the container's, which the engine serves).
+    var insideFicheroDirectory: URL? {
+        globalLibrary?.url.deletingLastPathComponent().appendingPathComponent("Projects", isDirectory: true)
+    }
 
     /// Represents an open library with its associated resources
     /// Each library has one instance of each service, shared across all windows/tabs viewing this library
@@ -173,6 +184,11 @@ class LibraryManager {
         /// Each topic's and recipe job's explanation, from the engine's one registry
         /// (`GET /api/topics`, #5471). Setup and the Inspector read their words here.
         @ObservationIgnored lazy var topicStore = TopicStore(client: ficheroClient)
+
+        /// This project's setup: its answers and recipe, read and saved through ITS client, so
+        /// every setup call names the project (#5477). First run, Set Up New Project… and Set Up…
+        /// all use it.
+        @ObservationIgnored lazy var recipeSetupStore = RecipeSetupStore(client: ficheroClient, topics: topicStore)
 
         /// The models Fichero trained or fine-tuned, for this project's Training node (#5439).
         /// The engine's list (no card records a project), read through this library's client.

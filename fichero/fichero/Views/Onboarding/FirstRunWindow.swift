@@ -3,39 +3,59 @@ import AppKit
 #endif
 import SwiftUI
 
+/// First run, File › Set Up New Project… and Set Up… are one flow (section 7b,
+/// `source.onboard.screens-in-order`). First run and a new project begin at Where it lives,
+/// which makes the project; Set Up… begins at What it is for on the project it was asked for.
+/// Every setup screen after Where it lives reads and saves through THAT project's own store
+/// (`LibraryReference.recipeSetupStore`), so the engine always knows which project (#5477).
 struct FirstRunWindow: View {
+    enum Mode {
+        case firstRun
+        case newProject
+        case setUp
+    }
+
     @Environment(AppState.self) var appState
     @Environment(\.dismiss) private var dismiss
-    /// The project's import path, for setup's Add a Folder…; absent where no project is open.
-    @Environment(ImportService.self) var importService: ImportService?
     private let featureManager = FeatureManager.shared
     @State private var libraryManager = LibraryManager.shared
 
-    @State private var step: FirstRunStep
-    @State private var selectedLibraryName: String?
+    @State private var page: SetupPage
     @State private var documentsPermission = false
     /// "Choose a Provider" on the AI step no longer ends the flow (the recipe
     /// steps follow it); the Add Provider sheet opens when the flow finishes.
     @State private var wantsProviderSetup = false
+    /// The project setup works on: given for Set Up…, made by Where it lives otherwise.
+    @State var project: LibraryManager.LibraryReference?
+    @State var newProject = NewProjectStore(libraryManager: LibraryManager.shared)
+    @State private var isSaving = false
 
-    /// The PLATFORM's step list (#2807): the Mac runs the full flow; companion
-    /// platforms (iPhone/iPad — no local engine) skip the Mac-only
-    /// Library/Permissions/Cloud steps, so Welcome finishes straight into the
-    /// companion connect flow (`RemoteConnectionSetupView`).
-    /// Set Up… from the Inspector runs only `FirstRunStep.setUpSteps`: the same
-    /// recipe steps, one code path (`source.onboard.set-up-later`).
     private let steps: [FirstRunStep]
-    /// True for Set Up… (an existing library): finishing it does not mark first
-    /// run complete.
-    private let isSetUp: Bool
+    private let mode: Mode
+    /// Tells the window which project setup made, when setup finishes, so it shows that project.
+    private let onProjectReady: (UUID) -> Void
 
-    init(setUp: Bool = false) {
-        let steps = setUp
-            ? FirstRunStep.setUpSteps
-            : FirstRunStep.steps(isCompanionPlatform: FirstRunStep.isCompanionPlatform)
+    init(mode: Mode = .firstRun,
+         project: LibraryManager.LibraryReference? = nil,
+         onProjectReady: @escaping (UUID) -> Void = { _ in }) {
+        let steps: [FirstRunStep] = switch mode {
+        case .firstRun: FirstRunStep.steps(isCompanionPlatform: FirstRunStep.isCompanionPlatform)
+        case .newProject: FirstRunStep.newProjectSteps
+        case .setUp: FirstRunStep.setUpSteps
+        }
         self.steps = steps
-        self.isSetUp = setUp
-        _step = State(initialValue: steps.first ?? .welcome)
+        self.mode = mode
+        self.onProjectReady = onProjectReady
+        _project = State(initialValue: project)
+        _page = State(initialValue: .step(steps.first ?? .welcome))
+    }
+
+    /// The store of the project being set up; nil until Where it lives has made one.
+    var store: RecipeSetupStore? { project?.recipeSetupStore }
+
+    /// The pages in order, a ticked job's screen in the place of `.jobs`.
+    var pages: [SetupPage] {
+        SetupPage.pages(steps: steps, tickedJobs: store?.tickedJobs ?? [])
     }
 
     var body: some View {
@@ -48,74 +68,96 @@ struct FirstRunWindow: View {
         // The fixed two-pane card is a desktop window size; a compact companion
         // presentation sizes to its sheet instead (#2807).
         #if os(macOS)
-        .frame(width: 760, height: 520)
+        .frame(width: 820, height: 600)
         #endif
-        .onAppear { surfaceDefaultLibrary() }
         // Reopen where the person left off: the project's saved answers and
-        // recipe (GET /api/recipes/project).
-        .task { await appState.recipeSetupStore.loadSaved() }
+        // recipe (GET /api/recipes/project), and the purposes' jobs for the job screens.
+        .task(id: project?.id) {
+            guard let store else { return }
+            await store.loadSaved()
+            await store.loadPurposes()
+            await store.loadJobs()
+        }
     }
 
-    /// Advance within the platform step list; the LAST step finishes (#2807).
+    /// Advance within the pages; the LAST one finishes (#2807).
     private func advance() {
-        let store = appState.recipeSetupStore
+        // Where it lives makes the project; the screens after it save into it.
+        if page == .step(.location) {
+            Task {
+                guard let made = await newProject.create() else { return }
+                project = made
+                page = next(after: page)
+            }
+            return
+        }
         // Start records the first yes; the window closes only when the engine kept it.
-        if step == .start {
+        if page == .step(.start), let store {
             Task { if await store.start() { finish() } }
             return
         }
-        if step == steps.last {
+        if page == pages.last {
             finish()
             return
         }
-        let next = step.next(in: steps)
-        // Leaving a setup screen keeps the answers so far as a draft on the
-        // project, so setup can be closed at any screen; saving is not Start.
-        // The next screen opens once the engine has the draft (Start plans from it).
-        guard step.savesDraft else { step = next; return }
+        // Leaving a setup screen keeps the answers so far as a draft on the project,
+        // so setup can be closed at any screen; saving is not Start.
+        guard page.savesDraft, let store else { page = next(after: page); return }
         Task {
-            await store.save()
-            step = next
+            isSaving = true
+            let saved = await store.save()
+            isSaving = false
+            // A refused save stays on its screen with the engine's words.
+            if saved { page = next(after: page) }
         }
     }
 
-    /// #2715 — A new user already lands in a working state: the app-managed
-    /// "Local" library (~/Library/Application Support/Fichero/global.fichero) is
-    /// always loaded by `LibraryManager` and auto-assigned to the window. Surface
-    /// it here so library setup reads as optional, not a blocking step.
-    private func surfaceDefaultLibrary() {
-        if selectedLibraryName == nil {
-            selectedLibraryName = libraryManager.globalLibrary?.displayName
-        }
+    private func next(after current: SetupPage) -> SetupPage {
+        let all = pages
+        guard let index = all.firstIndex(of: current), index + 1 < all.count else { return all.last ?? current }
+        return all[index + 1]
+    }
+
+    private func previous(before current: SetupPage) -> SetupPage {
+        let all = pages
+        guard let index = all.firstIndex(of: current), index > 0 else { return all.first ?? current }
+        return all[index - 1]
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("Fichero")
                 .font(.title2.weight(.semibold))
                 .padding(.bottom, 12)
 
-            ForEach(steps) { item in
-                Button {
-                    step = item
-                } label: {
-                    Label(item.title, systemImage: item.icon)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 7)
-                        .padding(.horizontal, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(step == item ? Color.accentColor.opacity(0.14) : Color.clear)
-                        )
-                }
-                .buttonStyle(.plain)
+            List(pages, selection: Binding(get: { page }, set: { if let chosen = $0 { page = chosen } })) { item in
+                sidebarLabel(item)
+                    .tag(item)
+                    // Nothing after Where it lives can be reached before there is a project.
+                    .disabled(store == nil && item != .step(.location) && !isBeforeLocation(item))
             }
-
-            Spacer()
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
         }
         .padding(20)
-        .frame(width: 220)
+        .frame(width: 230)
         .background(Color(platformColor: .controlBackgroundColor))
+    }
+
+    @ViewBuilder
+    private func sidebarLabel(_ item: SetupPage) -> some View {
+        switch item {
+        case .step(let step):
+            Label(step.title, systemImage: step.icon)
+        case .job(let job):
+            Label(store?.title(ofJob: job) ?? job, systemImage: "checkmark.square")
+                .padding(.leading, 14)
+        }
+    }
+
+    private func isBeforeLocation(_ item: SetupPage) -> Bool {
+        guard case .step(let step) = item else { return false }
+        return [.welcome, .permissions, .cloud].contains(step)
     }
 }
 
@@ -123,8 +165,8 @@ struct FirstRunWindow: View {
 extension FirstRunWindow {
     @ViewBuilder
     private var content: some View {
-        switch step {
-        case .welcome:
+        switch page {
+        case .step(.welcome):
             stepPage(
                 title: "Welcome to Fichero",
                 subtitle: "A research workspace for scanned sources, PDFs, notes, and knowledge graphs.",
@@ -133,9 +175,9 @@ extension FirstRunWindow {
                 firstRunCard(
                     FirstRunCardConfig(
                         icon: "books.vertical",
-                        title: "You're ready to go",
-                        body: "Fichero already set up a local project so you can start right away. "
-                            + "Customize it later — or just begin importing scans, PDFs, notes, and graphs.",
+                        title: "Set up your first project",
+                        body: "A few questions: where the project lives, what it is for, and your material. "
+                            + "Fichero proposes how the work will be done, and nothing runs until you press Start.",
                         primaryTitle: "Get Started",
                         primaryIcon: "arrow.right",
                         primaryAction: { advance() }
@@ -152,38 +194,7 @@ extension FirstRunWindow {
                     }
                 )
             }
-        case .library:
-            stepPage(
-                title: "Project",
-                subtitle: "You already have a working project. Add another only if you want to.",
-                systemImage: "folder"
-            ) {
-                firstRunCard(
-                    FirstRunCardConfig(
-                        icon: "folder.badge.gearshape",
-                        title: "Your working project",
-                        body: selectedLibraryName.map {
-                            "Ready to use: \($0). You can create more projects anytime, "
-                                + "or save this one to a folder of your choice from the File menu."
-                        }
-                            ?? "A local project is ready to use. Create more projects anytime from the File menu.",
-                        primaryTitle: "Continue",
-                        primaryIcon: "arrow.right",
-                        primaryAction: { advance() }
-                    ),
-                    footer: {
-                        // #2716 — "Open Existing" lives in File ▸ Open Library (⌘O)
-                        // and Settings, not in first-run onboarding. Keep this step
-                        // focused on the ready-to-use default library.
-                        if let selectedLibraryName {
-                            Label(selectedLibraryName, systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .lineLimit(1)
-                        }
-                    }
-                )
-            }
-        case .permissions:
+        case .step(.permissions):
             stepPage(
                 title: "Permissions",
                 subtitle: "Grant access only to the locations Fichero should work with.",
@@ -217,7 +228,7 @@ extension FirstRunWindow {
                     }
                 )
             }
-        case .cloud:
+        case .step(.cloud):
             stepPage(
                 title: "AI is optional",
                 subtitle: "Fichero is local-first. Add a provider only when you want AI.",
@@ -255,12 +266,12 @@ extension FirstRunWindow {
                     }
                 )
             }
-        case .purpose:
-            recipeStepPage(.purpose)
-        case .material, .about, .recipe:
+        case .step(.location):
+            recipeStepPage(.location)
+        case .step(let step):
             recipeStepPage(step)
-        case .start:
-            recipeStepPage(.start)
+        case .job(let job):
+            jobPage(job)
         }
     }
 
@@ -276,6 +287,7 @@ extension FirstRunWindow {
                     .font(.title2)
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 42, height: 42)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.title.weight(.semibold))
@@ -286,18 +298,19 @@ extension FirstRunWindow {
 
             body()
 
-            Spacer()
+            Spacer(minLength: 0)
             HStack {
-                Button("Skip") { finish() }
+                Button(mode == .setUp ? "Close" : "Skip") { finish() }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Back") { step = step.previous(in: steps) }
-                    .disabled(step == steps.first)
-                Button(step == .start ? "Start" : step == steps.last ? "Finish" : "Continue") {
+                if isSaving || newProject.isCreating { ProgressView().controlSize(.small) }
+                Button("Back") { page = previous(before: page) }
+                    .disabled(page == pages.first)
+                Button(page == .step(.start) ? "Start" : page == pages.last ? "Finish" : "Continue") {
                     advance()
                 }
-                .disabled(step == .start && !appState.recipeSetupStore.canStart)
+                .disabled(page == .step(.start) && !(store?.canStart ?? false))
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
             }
@@ -312,6 +325,7 @@ extension FirstRunWindow {
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 64, height: 64)
                 .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(config.title)
@@ -370,11 +384,14 @@ extension FirstRunWindow {
     /// existing local-first Add Provider flow (full provider catalog +
     /// default-model selection) rather than hardcoding any single provider.
     /// Setting `isFirstLaunchProviderSetup` makes that sheet pre-select a local
-    /// provider.
+    /// provider. A project setup made is shown in the window.
     private func finish() {
-        if !isSetUp {
+        if mode == .firstRun {
             featureManager.firstRunCompleted = true
             UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        }
+        if mode != .setUp, let made = newProject.created {
+            onProjectReady(made.id)
         }
         if wantsProviderSetup {
             appState.isFirstLaunchProviderSetup = true

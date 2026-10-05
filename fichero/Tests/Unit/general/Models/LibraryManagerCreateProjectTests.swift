@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import XCTest
 
 /// A project created in the app, and the setup it offers, through the REAL create path
@@ -126,49 +127,113 @@ final class LibraryManagerCreateProjectTests: XCTestCase {
         )
     }
 
-    // MARK: - source.onboard.new-project-offers-setup
+    // MARK: - source.onboard.where-it-lives
 
-    /// WHY: setup was gated on `!featureManager.firstRunCompleted`, so after the app's first
-    /// launch a new project never offered setup (#5430). `firstRunCompleted` governs only the
-    /// app's first launch. If this goes red, a new project after first run opens with no setup.
-    func test_source_onboard_new_project_offers_setup() throws {
+    /// WHY: a project is now made BY setup (Where it lives, ruled 2026-10-05, #5482), which
+    /// carries on through the project's client. If the create path still asked for setup, the
+    /// window would stack a second setup sheet on the one that made the project.
+    func test_create_project_asks_for_no_second_setup() throws {
         _ = installGlobalLibrary()
         FeatureManager.shared.firstRunCompleted = true
 
-        let created = try libraryManager.createProject(at: tempDirectory.appendingPathComponent("Chocó.fichero"))
+        _ = try libraryManager.createProject(at: tempDirectory.appendingPathComponent("Chocó.fichero"))
 
-        XCTAssertEqual(libraryManager.setUpRequestedLibraryId, created.id)
-        XCTAssertTrue(
-            projectSetUpIsDue(
-                requestedLibraryId: libraryManager.setUpRequestedLibraryId,
-                windowLibraryId: created.id,
-                firstRunShowing: false
-            ),
-            "the window showing the new project presents setup for it, first run completed or not"
-        )
-        XCTAssertFalse(
-            projectSetUpIsDue(
-                requestedLibraryId: libraryManager.setUpRequestedLibraryId,
-                windowLibraryId: LibraryManager.globalLibraryId,
-                firstRunShowing: false
-            ),
-            "a window on another project does not present it"
-        )
+        XCTAssertNil(libraryManager.setUpRequestedLibraryId)
     }
 
-    /// WHY: when the app's own first run is showing, that flow already runs the recipe steps;
-    /// stacking a second setup sheet on it would ask the same questions twice.
-    func test_source_onboard_new_project_offers_setup_waits_for_first_run() throws {
-        let created = try libraryManager.createProject(at: tempDirectory.appendingPathComponent("A.fichero"))
+    /// WHY (#5477, #5482): first run's setup used the app-wide client, which names no project,
+    /// so the engine answered `PUT /api/recipes/project` with 400 and Start never enabled. Where
+    /// it lives must make the project at the chosen place through the one create path, have the
+    /// engine open it, and hand setup a store that names THAT project; the same save then
+    /// succeeds where the app-wide client's is refused. The stub answers as the engine does
+    /// (`test_setup_round_two.py`): 400 with no project path, 200 with one.
+    func test_first_run_creates_the_project_where_chosen_and_saves_into_it() async throws {
+        _ = installGlobalLibrary()
+        let chosen = tempDirectory.appendingPathComponent("Fichero", isDirectory: true)
+        var opened: [String] = []
+        let newProject = NewProjectStore(libraryManager: libraryManager) { opened.append($0.url.path) }
+        newProject.name = "Mosquera"
+        newProject.place = .chosen(chosen)
 
-        XCTAssertFalse(
-            projectSetUpIsDue(
-                requestedLibraryId: libraryManager.setUpRequestedLibraryId,
-                windowLibraryId: created.id,
-                firstRunShowing: true
-            )
-        )
+        let made = await newProject.create()
+        let created = try XCTUnwrap(made, newProject.errorMessage ?? "not created")
+
+        XCTAssertEqual(created.url.standardizedFileURL,
+                       chosen.appendingPathComponent("Mosquera.fichero").standardizedFileURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: created.url.path), "the package is on disk")
+        XCTAssertEqual(opened, [created.url.path], "the engine is asked to open the project once")
+        XCTAssertEqual(created.recipeSetupStore.projectPath, created.url.path,
+                       "setup's store reads and saves through THIS project's client")
+
+        let path = try XCTUnwrap(created.recipeSetupStore.projectPath)
+        let projectSaved = await Self.stubbedStore(libraryPath: path).save()
+        XCTAssertTrue(projectSaved, "the project's save is kept")
+        let appWide = Self.stubbedStore(libraryPath: nil)
+        let appWideSaved = await appWide.save()
+        XCTAssertFalse(appWideSaved, "the app-wide client is what the engine refused")
+        XCTAssertEqual(appWide.errorMessage, "Open a project first.")
     }
+
+    /// WHY: a place that cannot be written is refused on Where it lives, in words, and nothing
+    /// is made; the person stays on the screen to choose another.
+    func test_where_it_lives_refuses_a_folder_it_cannot_write() async throws {
+        _ = installGlobalLibrary()
+        let locked = tempDirectory.appendingPathComponent("Locked", isDirectory: true)
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path) }
+        let before = libraryManager.openLibraries.count
+        let newProject = NewProjectStore(libraryManager: libraryManager) { _ in }
+        newProject.place = .chosen(locked)
+
+        let created = await newProject.create()
+
+        XCTAssertNil(created)
+        XCTAssertEqual(newProject.errorMessage, NewProjectStore.cannotWrite)
+        XCTAssertEqual(libraryManager.openLibraries.count, before, "nothing is made")
+    }
+
+    /// Inside Fichero, the default, is beside the app's own Local project.
+    func test_inside_fichero_is_the_default_beside_the_local_project() throws {
+        let global = installGlobalLibrary()
+        let newProject = NewProjectStore(libraryManager: libraryManager)
+        XCTAssertEqual(newProject.place, .insideFichero)
+        XCTAssertEqual(newProject.projectURL?.deletingLastPathComponent().deletingLastPathComponent(),
+                       global.url.deletingLastPathComponent())
+        XCTAssertEqual(newProject.projectURL?.lastPathComponent, "My Project.fichero")
+    }
+
+    /// A setup store over a transport that answers `PUT /api/recipes/project` as the engine does.
+    private static func stubbedStore(libraryPath: String?) -> RecipeSetupStore {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ProjectPathEngineStub.self]
+        return RecipeSetupStore(client: FicheroClient(baseURL: URL(string: "https://test.fichero")!,
+                                                      libraryPath: libraryPath,
+                                                      session: URLSession(configuration: configuration)))
+    }
+}
+
+/// The engine's answer to a setup save: 400 "Open a project first." with no project path.
+private final class ProjectPathEngineStub: URLProtocol {
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.path == "/api/recipes/project"
+    }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let named = request.value(forHTTPHeaderField: "X-Fichero-Library-Path")?.isEmpty == false
+        let (status, json) = named
+            ? (200, #"{"answers":{},"recipe":null}"#)
+            : (400, #"{"detail":"Open a project first."}"#)
+        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
+                                       headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(json.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+extension LibraryManagerCreateProjectTests {
 
     // MARK: - source.onboard.reachable
 
