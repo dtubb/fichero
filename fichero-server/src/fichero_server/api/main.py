@@ -61,6 +61,7 @@ from fichero_server.security.remote_backend import build_remote_backend_status
 # side can consult the same authority (#4230). Kept under the historical
 # private name: every caller and the library-path middleware below use it.
 from fichero_server.security.path_security import is_allowed_ingest_path as _is_allowed_local_path
+from fichero_server.security.path_security import is_owner_opened_package
 from fichero_server.db.storage import (
     start_periodic_snapshot_task,
     stop_periodic_snapshot_task,
@@ -1314,6 +1315,8 @@ def _is_allowed_library_path(library_path: str) -> bool:
     - /tmp and /private/tmp — Linux CI and macOS sandbox pytest tmp_path
     - FICHERO_LIBRARY_ALLOWED_ROOTS entries for remote/server deployments
     - security-scoped bookmark grants held by this engine process
+    - exact packages the owner opened via POST /api/registry/add this process
+      (#5464: a project the app has open is never refused by its own engine)
 
     Symlink tolerance: when "Desktop & Documents in iCloud" is ON, ~/Documents
     is a symlink into ~/Library/Mobile Documents/com~apple~CloudDocs/Documents.
@@ -1333,7 +1336,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
     if expanded.suffix != ".fichero":
         return False
 
-    return _is_allowed_local_path(library_path)
+    return _is_allowed_local_path(library_path) or is_owner_opened_package(library_path)
 
 
 def get_library_database(

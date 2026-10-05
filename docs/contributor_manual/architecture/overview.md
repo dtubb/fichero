@@ -32,6 +32,8 @@ library paths only under the allowlisted user-data roots:
   used by CI and local pytest
 - any roots listed in `FICHERO_LIBRARY_ALLOWED_ROOTS` (os.pathsep-separated),
   plus folders the app has granted via a security-scoped bookmark
+- the exact packages the owner opened via `POST /api/registry/add` while the
+  engine runs (#5464), wherever they live
 
 (The authoritative list is `_is_allowed_library_path` in `fichero-server/src/fichero_server/api/main.py`.)
 
