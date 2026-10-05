@@ -315,6 +315,17 @@ very engine spawn those tests exist to exercise.
   process (built, see section A above); the library owns its own connection state (not built).
   A `grantedLibraryIds`-style third set, named in the issue's own text, was not found under that
   name this pass — not confirmed consolidated away or never existing.
+- `engine.owner-opened-library-is-served` — **[OK]** (#5464) a project the app has open is never
+  refused by its own engine, wherever it lives: when the owner (loopback + the bootstrap token)
+  notes a `.fichero` package through `POST /api/registry/add`, as the app does for every project it
+  opens, the library-path check accepts that exact package for the life of the engine process, and
+  forgets it when the owner removes it from the registry. The check stays fail-closed for everything
+  else: an unknown path, the package's folder or a sibling, and a package registered by a non-owner
+  caller (a paired device, a remote session) are still refused (403
+  `library_outside_allowed_locations`, logged `failed_check=roots`). Before, an unsandboxed engine
+  (Dev Local external) refused projects in a folder outside the fixed roots (~/Fichero Test
+  Library) on every Activity poll, since it cannot read the app's bookmarks. Pinned by
+  `fichero-server/tests/unit/api/test_owner_opened_library_is_served.py`.
 
 ### E. Typed errors, not silent fallbacks
 

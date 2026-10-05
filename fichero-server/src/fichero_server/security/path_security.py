@@ -326,6 +326,46 @@ def _granted_roots() -> list[Path]:
     return roots
 
 
+# Library packages the engine's OWNER opened through ``POST /api/registry/add`` this
+# process (#5464). An unsandboxed engine (Dev Local external, a server) cannot read the
+# app's bookmarks, so a project the app opened in a folder outside the fixed roots (say
+# ~/Fichero Test Library) was refused on every request by its own engine. Exact packages
+# only — never their folder — and only from the owner (loopback + bootstrap token), so a
+# remote caller still cannot widen what this engine opens (audit A1's concern).
+_OPENED_PACKAGES: set[str] = set()
+
+
+def _package_key(path: str | Path) -> str | None:
+    import unicodedata
+
+    try:
+        resolved = Path(path).expanduser().resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return unicodedata.normalize("NFC", str(resolved))
+
+
+def note_owner_opened_package(path: str | Path) -> bool:
+    """Allow one existing ``.fichero`` package the owner opened. Returns whether it was noted."""
+    key = _package_key(path)
+    if key is None or not key.endswith(".fichero") or not Path(key).is_dir():
+        return False
+    _OPENED_PACKAGES.add(key)
+    return True
+
+
+def forget_owner_opened_package(path: str | Path) -> None:
+    key = _package_key(path)
+    if key is not None:
+        _OPENED_PACKAGES.discard(key)
+
+
+def is_owner_opened_package(path: str | Path) -> bool:
+    """Is ``path`` exactly a package the owner opened (after resolving symlinks and ``..``)?"""
+    key = _package_key(path)
+    return key is not None and key in _OPENED_PACKAGES
+
+
 def is_allowed_ingest_path(path: str | Path) -> bool:
     """Return whether a local file path is below an engine-approved root.
 

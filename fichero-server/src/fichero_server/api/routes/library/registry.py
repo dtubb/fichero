@@ -40,6 +40,7 @@ from fichero_server.db import Database
 from fichero_server.db.manager import db_manager
 from fichero_server.models.knowledge import Annotation, KnowledgeEntity, Note
 from fichero_server.db.library_paths import nfc_path
+from fichero_server.security.path_security import forget_owner_opened_package, note_owner_opened_package
 from fichero_server.models import (
     DocType,
     Document,
@@ -865,6 +866,17 @@ def get_global_database() -> Database:
     return db_manager.get_database(str(settings.global_library_path), create=True)
 
 
+def _caller_is_engine_owner(request: Request) -> bool:
+    """Loopback + the bootstrap token -- the owner, ruled (#5464). With auth disabled (tests only)
+    a loopback caller stands in. A paired device or a remote session is never this."""
+    if getattr(request.state, "bootstrap_auth", False) is True:
+        return True
+    from fichero_server.api.auth import _is_loopback_request
+    from fichero_server.api.main import _auth_enabled
+
+    return not _auth_enabled() and _is_loopback_request(request)
+
+
 @router.get("/registry", response_model=LibraryRegistryResponse)
 def list_known_libraries(
     db: Database = Depends(get_global_database),
@@ -997,6 +1009,11 @@ def add_known_library(
         except Exception as exc:
             logger.warning("Library database open failed for %s: %s", pkg_path, exc)
 
+        if _caller_is_engine_owner(request):
+            # #5464: the app notes every project it opens here; its own engine must then serve it
+            # wherever it lives. Owner only, exact package only (see note_owner_opened_package).
+            note_owner_opened_package(stored_path)
+
         return library
     except Exception as e:
         logger.error("Failed to add known library: %s", e)
@@ -1052,6 +1069,7 @@ def update_library_access(
 
 @router.delete("/registry/{library_path:path}")
 def remove_known_library(
+    request: Request,
     library_path: str,
     db: Database = Depends(get_global_database),
 ) -> dict:
@@ -1073,6 +1091,9 @@ def remove_known_library(
     path = nfc_path(unquote(library_path))
     pkg_path = Path(path).expanduser().resolve()
     stored_path = nfc_path(str(pkg_path))
+
+    if _caller_is_engine_owner(request):
+        forget_owner_opened_package(stored_path)
 
     try:
         db_manager.close_database(stored_path)
