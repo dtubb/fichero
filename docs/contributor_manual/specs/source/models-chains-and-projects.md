@@ -649,6 +649,10 @@ link here and do not restate it. Each screen's behaviours are the `source.onboar
 - **Languages and scripts are type-to-find only** (later the same day): typing shows matching
   languages or scripts in a dropdown as you type; a pick becomes a token. No Browse… button or
   alphabetical list.
+- **The order is: where the project lives, then its files, then keeping it exported**, then the
+  purposes and the rest (later the same day).
+- **Kept exported**: setup can set up exports that stay current, to a folder, in a chosen format
+  (Word, Markdown, ALTO XML and the others) and one file per page or per document (screen 3).
 - **Keep arranged** arranges the folder by the project's own structure (its folders), so Fichero
   keeps the material organised. A file a person moves by hand inside the folder stays where they
   put it, and Fichero's records follow the move (the folder and the project stay in sync).
@@ -691,16 +695,37 @@ into the project as a draft (`PUT /api/recipes/project`, through the project's o
 nothing runs before Start. Set Up… on an existing project starts at screen 2 (the project already
 lives somewhere).
 
-1. **Where it lives** (#5482). One line: the project's name (default "My Project") and its folder,
-   proposed as `~/Fichero/<project name>` (ruled 2026-10-05), with **Choose…**, which opens a save
-   panel. Continue makes the `.fichero` package there through the one create path
+1. **Where it lives** (#5482). The project's name (default "My Project") and where it lives: **Inside
+   Fichero** (the default, the app's own container) or **Choose a location…**, which opens a save
+   panel (ruled 2026-10-05, revised the same day). Continue makes the `.fichero` package there through the one create path
    (`LibraryManager.createProject(at:)`, which grants the folder and has the engine open it with
    `POST /api/library`), and from then on setup reads and writes through **that project's**
    client, the same path as Set Up… from a project. A location that cannot be written is refused
    on this screen in words ("Fichero can't write to that folder. Choose another."), and the
    person stays on it. This is what fixes the first-run 400 (#5477): there is always a project to
    save to.
-2. **What it is for** (#5478). The engine's purposes as **checkboxes**, any combination; none
+2. **Your material** (#5480). How material comes in, five ways, each with one sentence of what it
+   does to the originals: **Link** (default; read where they are, never changed), **Copy** (the
+   project keeps its own copy), **Move** (the files move into the project; the originals go),
+   **Index** (the folder stays where it is; Fichero writes its changes back into it and takes in
+   files added to it after a preview), and **Keep arranged** (as Index, and Fichero also keeps the
+   files in the folder arranged; below). Then Add a Folder… or Add Files…, a IIIF manifest, or
+   "later"; the page count (counted, or asked in bands only when it cannot be counted). Choosing
+   Index or Keep arranged with a folder ties that folder through `/api/sync-folders` and shows it
+   (its path, how many files, intake on or off with the preview's count), so Index is whole, not
+   only a recorded mode.
+3. **Kept exported** (#5485). Optional, and skipped with Continue. The project can keep an
+   up-to-date copy of its work in a folder outside it, written again as the work changes, so a
+   person always has the files they hand on. One row per export: the **folder** (Choose…), the
+   **format** (Word, Markdown, plain text, ALTO XML, PAGE XML, TEI, hOCR), and **one file per
+   page or per document**; more than one export may be kept (Word per document for reading and
+   ALTO per page for another tool). It is one-way: Fichero writes the folder and never reads it
+   back; a file changed there by hand is overwritten at the next write and the person is told so
+   once, when the export is set up. Writing goes through the one export path
+   (`page_export.py` and `formats/` for page formats, `export_service.py` for Word), as a
+   background job that waits while the person works (`user-machine-always-useful`). Markdown has
+   no writer today.
+4. **What it is for** (#5478). The engine's purposes as **checkboxes**, any combination; none
    ticked is "Not sure yet" (the tools are offered when wanted; nothing is proposed). Under each
    ticked purpose, its jobs in one line each, by their topic titles ("Find lines · Read each line ·
    Correct"). The recipe is the union of the ticked purposes' jobs, each once, in the registry's
@@ -709,7 +734,7 @@ lives somewhere).
    | Purpose (checkbox) | Jobs it proposes (registry ids) |
    |---|---|
    | Transcribe | `find-lines`, `read-a-line`, `correct` |
-   | People, places and things | the above + `find-names-tag-words` (entity kinds chosen on screen 5) |
+   | People, places and things | the above + `find-names-tag-words` (entity kinds chosen on screen 6) |
    | Search my sources | the above transcribe jobs + `make-a-vector` |
    | Statements (who did what to whom) | transcribe jobs + `find-names-tag-words`, `find-statements` (subject, verb, object) |
    | The full knowledge graph | transcribe jobs + `find-names-tag-words`, `work-out-dates`, `find-statements`, `link-to-authorities`, `make-a-vector` |
@@ -721,7 +746,7 @@ lives somewhere).
    | Edit a corpus | `find-lines`, `read-a-line` (then tools, nothing more by itself) |
    | Decipher a script | `find-signs`, `identify-signs` offered as tools; nothing proposed to run |
 
-   Jobs any purpose may add, offered on screen 6 as "Also on hand" (never hidden, as
+   Jobs any purpose may add, offered on screen 7 as "Also on hand" (never hidden, as
    `source.onboard.offers-never-hides`): `prepare-the-image` (clean up images: crop, straighten,
    brighten), `split-pages`, `put-in-order` (reading order), `refine-shapes`, `check`, `export`,
    `publish`, `train-a-model`. **Hands** (telling one writer's hand from another) has no job in the
@@ -730,17 +755,7 @@ lives somewhere).
    and forms) are proposed by this spec, not yet ruled (Open questions). The engine's `assemble()`
    and the saved answers take a **list** of purposes (`answers.purposes`); a project saved with one
    `purpose` reads as a list of one.
-3. **Your material** (#5480). How material comes in, five ways, each with one sentence of what it
-   does to the originals: **Link** (default; read where they are, never changed), **Copy** (the
-   project keeps its own copy), **Move** (the files move into the project; the originals go),
-   **Index** (the folder stays where it is; Fichero writes its changes back into it and takes in
-   files added to it after a preview), and **Keep arranged** (as Index, and Fichero also keeps the
-   files in the folder arranged; below). Then Add a Folder… or Add Files…, a IIIF manifest, or
-   "later"; the page count (counted, or asked in bands only when it cannot be counted). Choosing
-   Index or Keep arranged with a folder ties that folder through `/api/sync-folders` and shows it
-   (its path, how many files, intake on or off with the preview's count), so Index is whole, not
-   only a recorded mode.
-4. **What it is** (#5479, #5478). Four rows, each pre-filled where the samples or the engine can
+5. **What it is** (#5479, #5478). Four rows, each pre-filled where the samples or the engine can
    say, each changeable:
    - **Languages**: a search field that autocompletes from the engine's language registry (ISO
      639-3 joined with Glottolog; typing "spanish" offers Spanish `es`, and its dialects with whose
@@ -760,13 +775,13 @@ lives somewhere).
      override says which applies where; until it is known, the handwriting reader is the default).
    The derived facts (fonts a script needs, may-be-vertical) stay as one line under the script
    row.
-5. **The details a job needs** (#5478). One short screen for each ticked job that needs an answer
+6. **The details a job needs** (#5478). One short screen for each ticked job that needs an answer
    the engine cannot work out, and only for those; none of them appears for a job not ticked:
    - **Entities** (`find-names-tag-words`): which kinds to find, as checkboxes: people, places,
      organisations, dates, things (objects, goods), events, and the project's own kinds; default
      people and places.
    - **Translate or normalise** (`translate-transliterate-normalise`): into which language (the
-     same language field as screen 4) and how far: as written, abbreviations expanded, or
+     same language field as screen 5) and how far: as written, abbreviations expanded, or
      normalised spelling.
    - **Gazetteer** (`place-in-a-gazetteer`, Map places): which gazetteer (GeoNames, Wikidata, the
      project's own list) and the region and period to favour.
@@ -775,7 +790,7 @@ lives somewhere).
    - **Tables** (`extract-to-a-table`): the columns, from the project's metadata fields or typed.
    Cleaning up images, reading order, dates and statements need no screen: their settings have
    defaults and live in the Inspector.
-6. **How it will be done** (#5481). The proposed recipe, one row per step: the step's title and
+7. **How it will be done** (#5481). The proposed recipe, one row per step: the step's title and
    **one sentence** from its topic in the registry (`GET /api/topics`), where it runs, and the
    model by its card's display name (never its id, pin or repository path). **No disclosure
    chevrons**: no More, no Advanced; the topic's paragraph and example belong in the Inspector and
@@ -783,18 +798,18 @@ lives somewhere).
    from the rule that refused it ("No reading model here knows Spanish yet."), with the fix as
    a button ("Download a Spanish reader…", "Use a cloud model…", "Choose a model…"); the reason as
    the rules wrote it goes to the log and the Inspector, not here. The cloud question is here, once,
-   only when a step would use the cloud. "Also on hand" lists the other jobs (screen 2) as rows the
+   only when a step would use the cloud. "Also on hand" lists the other jobs (screen 4) as rows the
    person can add.
-7. **What runs by itself** (#5478). Its own screen. At the top, one choice: **Nothing runs
+8. **What runs by itself** (#5478). Its own screen. At the top, one choice: **Nothing runs
    automatically** (new material waits for a run by hand) or **New material runs through
    the ticked steps**. Below, each step of the recipe with a checkbox, pre-ticked by the purposes'
    kind (a just-do-it purpose ticks its steps; Edit a corpus, Decipher and none ticked tick
    nothing). It says plainly what Start does and what import does: **Start** runs the recipe once
-   over the material already in the project (the first yes; screen 8 lists what that is); **after
+   over the material already in the project (the first yes; screen 9 lists what that is); **after
    Start**, each import runs only the ticked steps over the pages it brought, and with Nothing runs
    automatically, an import runs nothing; an unticked step runs only when the person runs it.
    A train step is ticked only if the person ticks it (`source.recipe.train-never-automatic`).
-8. **Start** (#5477). Unchanged from today (the summary, the plan's pages and cost, Start as the
+9. **Start** (#5477). Unchanged from today (the summary, the plan's pages and cost, Start as the
    first yes), with one requirement: it works in first run, through the project made on screen 1.
 
 **Keep arranged (#5480, specified here; its questions are under Open questions).** Keep arranged
