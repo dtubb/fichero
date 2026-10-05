@@ -86,7 +86,7 @@ struct RecipeSetupFlowTests {
     /// not built yet: #5485.)
     @Test("Set Up… starts at Your material, then What it is for, and ends at Start")
     func screensInOrder() {
-        #expect(FirstRunStep.setUpSteps == [.material, .purpose, .about, .jobs, .recipe, .automatic, .start])
+        #expect(FirstRunStep.setUpSteps == [.material, .keptExported, .purpose, .about, .jobs, .recipe, .automatic, .start])
         let firstRun = FirstRunStep.steps(isCompanionPlatform: false)
         #expect(Array(firstRun.suffix(FirstRunStep.setUpSteps.count)) == FirstRunStep.setUpSteps)
         var walked = [FirstRunStep.setUpSteps[0]]
@@ -103,7 +103,7 @@ struct RecipeSetupFlowTests {
     func everyScreenBeforeStartKeepsADraft() async {
         let store = RecipeSetupStore(client: makeClient { _ in (200, #"{"answers":{},"recipe":null}"#) })
         let draftScreens = FirstRunStep.setUpSteps.filter(\.savesDraft)
-        #expect(draftScreens == [.material, .purpose, .about, .jobs, .recipe, .automatic], "every screen but Start saves")
+        #expect(draftScreens == [.material, .keptExported, .purpose, .about, .jobs, .recipe, .automatic], "every screen but Start saves")
         #expect(!FirstRunStep.start.savesDraft)
         for _ in draftScreens { #expect(await store.save()) }
         let calls = SetupFlowURLProtocol.seen.map { "\($0.method) \($0.path)" }

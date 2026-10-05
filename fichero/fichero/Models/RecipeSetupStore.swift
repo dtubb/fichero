@@ -33,6 +33,19 @@ final class RecipeSetupStore {
     /// or index (the folder worked on in place and kept up to date), the
     /// engine's folder ingest modes. Setup's Add a Folder… imports with it.
     var ingestMode: IngestMode = .link
+    /// Keep arranged (#5480, `source.onboard.keep-arranged`): Index, and Fichero also keeps the
+    /// folder's files arranged by the project's folders. Only with `ingestMode == .index`.
+    var keepsArranged = false
+
+    /// The five ways in as setup offers them (`source.onboard.five-ways-in`): the import's mode,
+    /// and for Keep arranged, Index plus arrangement.
+    var wayIn: SetupWayIn {
+        get { keepsArranged && ingestMode == .index ? .keepArranged : SetupWayIn(ingestMode) }
+        set {
+            ingestMode = newValue.ingestMode
+            keepsArranged = newValue == .keepArranged
+        }
+    }
 
     /// The purposes ticked (section 7b screen 2, #5478): any combination; none is "Not sure yet".
     var purposes: [String] = ["transcribe"]
@@ -254,7 +267,7 @@ final class RecipeSetupStore {
     private var currentAnswers: RecipeSetupAnswers {
         RecipeSetupAnswers(purposes: purposes, jobs: addedJobs, languages: languages, scripts: scripts,
                            directions: directions, materials: materials, pages: pages,
-                           cloudAllowed: cloudAllowed, ingestMode: ingestMode.rawValue.lowercased(),
+                           cloudAllowed: cloudAllowed, ingestMode: wayIn.savedName,
                            layers: layers, automatic: automatic, jobAnswers: jobAnswers)
     }
 
@@ -292,11 +305,11 @@ final class RecipeSetupStore {
         if let value = saved.ingestMode {
             // The engine's ingest modes are lowercase; the app's enum is upper.
             // An unknown mode is an error, never a silent fallback to link.
-            guard let mode = IngestMode(rawValue: value.uppercased()) else {
+            guard let way = SetupWayIn(savedName: value) else {
                 errorMessage = "This project's saved import choice “\(value)” is not one Fichero knows"
                 return
             }
-            ingestMode = mode
+            wayIn = way
         }
     }
 
@@ -536,16 +549,23 @@ extension RecipeSetupStore {
     /// Start: no recipe step runs on it. With Index, the folder is then tied
     /// through `/api/sync-folders` (`source.onboard.index-ties-the-folder`), so
     /// Index is whole and not only a recorded mode; `tiedFolderPath` names it
-    /// for the screen to show.
+    /// for the screen to show. With Keep arranged the folder is tied the same way (as Index, so
+    /// nothing moves yet) and its dry run is read and shown with Arrange: the engine arranges a
+    /// folder the moment it is kept arranged, so the mode changes only on that yes
+    /// (`source.onboard.keep-arranged`, `SyncFolderStore.confirmKeepArranged`).
     func addFolder(_ url: URL, importer: ImportService, syncFolders: SyncFolderStore? = nil) async {
         materialAdded = nil
         tiedFolderPath = nil
         do {
             let ids = try await importer.importFolder(url, mode: ingestMode)
-            materialAdded = "\(url.lastPathComponent): \(ids.count) added (\(ingestMode.displayName.lowercased()))."
+            materialAdded = "\(url.lastPathComponent): \(ids.count) added (\(wayIn.title.lowercased()))."
             if ingestMode == .index, let syncFolders {
-                if await syncFolders.tie(path: url.path) != nil {
+                if let tied = await syncFolders.tie(path: url.path) {
                     tiedFolderPath = url.path
+                    if keepsArranged, tied.mode != .keepArranged,
+                       await syncFolders.proposeKeepArranged(tied.id) == nil {
+                        errorMessage = syncFolders.errorMessage
+                    }
                 } else {
                     errorMessage = syncFolders.errorMessage
                 }
@@ -646,6 +666,66 @@ extension RecipeSetupStore {
     var proposedJobs: Components.Schemas.ProposedJobs? {
         guard let proposed = startPlan?.proposed, !proposed.steps.isEmpty else { return nil }
         return proposed
+    }
+}
+
+/// The five ways material comes in, as setup offers them (`source.onboard.five-ways-in`): the
+/// import's four modes, and Keep arranged, which imports as Index and also keeps the folder
+/// arranged (#5480). Saved in `answers.ingest_mode` by the engine's lowercase name.
+enum SetupWayIn: String, CaseIterable, Identifiable {
+    case link, copy, move, index
+    case keepArranged = "keep-arranged"
+
+    var id: String { rawValue }
+
+    init(_ mode: IngestMode) {
+        switch mode {
+        case .link: self = .link
+        case .copy: self = .copy
+        case .move: self = .move
+        case .index: self = .index
+        }
+    }
+
+    /// A saved `ingest_mode` ("link", "index", "keep-arranged", any case); nil for one Fichero
+    /// does not know (never a silent fallback to link).
+    init?(savedName: String) {
+        self.init(rawValue: savedName.lowercased())
+    }
+
+    var savedName: String { rawValue }
+
+    /// The import's own mode: Keep arranged imports as Index.
+    var ingestMode: IngestMode {
+        switch self {
+        case .link: .link
+        case .copy: .copy
+        case .move: .move
+        case .index, .keepArranged: .index
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .link: "Link"
+        case .copy: "Copy"
+        case .move: "Move"
+        case .index: "Index"
+        case .keepArranged: "Keep arranged"
+        }
+    }
+
+    /// One sentence: what this way does to the originals.
+    var sentence: String {
+        switch self {
+        case .link: "Fichero reads the files where they are and never changes the originals."
+        case .copy: "Fichero makes its own copy in the project; the originals are never touched."
+        case .move: "The files move into the project, stored in the app; the originals are removed from where they were."
+        case .index: "Fichero works on the folder in place and writes its changes back into the original files, "
+            + "keeping that folder up to date. For folders; single files are linked."
+        case .keepArranged: "As Index, and Fichero also moves files inside the folder to follow the project's folders; "
+            + "you see what would move before anything does."
+        }
     }
 }
 

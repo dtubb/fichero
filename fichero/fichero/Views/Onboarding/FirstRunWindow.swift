@@ -105,6 +105,12 @@ struct FirstRunWindow: View {
         guard page.savesDraft, let store else { page = next(after: page); return }
         Task {
             isSaving = true
+            // Kept exported keeps its rows on Continue; a refused row stays, with the engine's words.
+            if page == .step(.keptExported), let keptExports = project?.keptExportStore,
+               !(await keptExports.keepDrafts()) {
+                isSaving = false
+                return
+            }
             let saved = await store.save()
             isSaving = false
             // A refused save stays on its screen with the engine's words.

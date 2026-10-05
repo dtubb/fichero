@@ -1,7 +1,5 @@
 {
   "GET /api/iiif/iiif/lines/{document_id}": "served to IIIF viewers through a manifest's canvas annotations, not called by the app (#5326)",
-  "GET /api/sync-folders/{folder_id}/arrangement": "keep arranged (#5480): engine and CLI first; the dry run shown in setup before the first arrangement is the app half",
-  "PUT /api/sync-folders/{folder_id}/mode": "keep arranged (#5480): engine and CLI first; the yes after the preview, in setup, is the app half",
   "GET /api/activity/jobs/{job_id}": "a job and everything under it (a run, its steps, their pages, #5353): engine and CLI first; the Activity window's table with disclosure rows is the app half (#5354)",
   "POST /api/training/kraken/here": "training on this Mac (#5397): engine, CLI and MCP (fichero_train_kraken_here) first; the app's Train a Reader sheet is not built yet",
   "GET /api/recipes/routes": "engine half of setup's routes for the volume; the app's Ready step shows them next (#4951)",
@@ -285,9 +283,5 @@
   "POST /api/mcp/tools/check/verdicts": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
   "GET /api/recipes/project/runs": "recipe execution (#5390): engine and API first; the app's Start screen shows the plan, but its run's own view is not built yet",
   "GET /api/recipes/project/runs/{job_id}": "recipe execution (#5390): engine and API first; the app's Start screen shows the plan, but its run's own view is not built yet",
-  "GET /api/training/set": "previews a training set before it is sent (#5446): for the operator through the MCP (fichero_training_preview_set); the app shows a set's counts on the model's training card when that is built (#5439)",
-  "GET /api/export/kept": "kept exported (#5485): engine, CLI and MCP first; the setup screen is the app half",
-  "POST /api/export/kept": "kept exported (#5485): engine, CLI and MCP first; the setup screen is the app half",
-  "DELETE /api/export/kept/{export_id}": "kept exported (#5485): engine, CLI and MCP first; the setup screen is the app half",
-  "POST /api/export/kept/{export_id}/write": "kept exported (#5485): engine, CLI and MCP first; the setup screen is the app half"
+  "GET /api/training/set": "previews a training set before it is sent (#5446): for the operator through the MCP (fichero_training_preview_set); the app shows a set's counts on the model's training card when that is built (#5439)"
 }
