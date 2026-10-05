@@ -361,3 +361,50 @@ def test_a_training_set_preview_leaves_out_a_denied_page(denied_and_allowed, mul
     assert secret.id not in response.text and denied.id not in response.text, body
     assert [h["document_id"] for h in body["held_out"]] == [shown.id]
     assert [m["document_id"] for m in body["missing"]] == [allowed.id]   # no teacher pass: missing, still named
+
+
+def test_a_reading_at_scale_over_a_folder_with_a_denied_page_is_refused(multiuser_client, app_db, users, db,
+                                                                        monkeypatch):
+    """WHY (#5475): a reading run SENDS every page under its `scope_ids` to Hugging Face, but the action
+    layer checks only the ids the request names. A folder the caller may read can hold a page denied on
+    its own; unchecked, an editor could ship that page's image off the Mac by naming its folder. Under
+    Multi-user the run is refused, nothing queued -- the same rule as training, check and evaluation
+    starts (`authz.assert_can_read_every`). A folder holding only readable pages still starts, and the
+    owner's request over the very same folder is unchanged. The far side is a fake: nothing is sent."""
+    from fichero_server.remote_read import job as read_job
+
+    client, login, library_path = multiuser_client
+    _grant_role(app_db, users.editor, library_path, "editor")
+    letters = Document(name="letters", doc_type=DocType.folder)
+    open_folder = Document(name="open", doc_type=DocType.folder)
+    db.save(letters), db.save(open_folder)
+    secret = Document(name="secret page", doc_type=DocType.page, parent_id=letters.id, path="/secret.jpg")
+    shown = Document(name="open page", doc_type=DocType.page, parent_id=open_folder.id, path="/open.jpg")
+    db.save(secret), db.save(shown)
+    _override(app_db, users.editor, library_path, secret.id, "deny")
+    started = []
+    monkeypatch.setattr(read_job, "start", lambda db, request, *, started_by, **kw: started.append(
+        request.scope_ids) or {"job_id": f"job-{len(started)}", "flavor": request.flavor})
+
+    def start(headers, scope_ids):
+        return client.post("/api/reading-at-scale", headers=headers, json={
+            "scope_ids": scope_ids, "card": "k", "pages_may_leave": True})
+
+    editor = login("editor")
+    refused = start(editor, [letters.id])
+    assert refused.status_code == 403, refused.text[:300]
+    refused_by_page = start(editor, [secret.id])
+    assert refused_by_page.status_code == 403, refused_by_page.text[:300]
+    assert started == []                                   # nothing queued, nothing sent
+
+    ok = start(editor, [open_folder.id])
+    assert ok.status_code == 200, ok.text[:300]
+    # The owner (bootstrap) reads everything: the same folder starts, the request unchanged.
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.remote_read.job import ReadAtScaleRequest
+
+    owner = registry.invoke(db, "reading.start_at_scale", ReadAtScaleRequest(
+        scope_ids=[letters.id], card="k", pages_may_leave=True).model_dump(),
+        ActionContext(actor="owner", library_path=library_path, is_bootstrap=True))
+    assert owner.result["job_id"] == "job-2"
+    assert started == [[open_folder.id], [letters.id]]

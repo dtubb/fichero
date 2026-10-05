@@ -68,6 +68,14 @@ def _job_change(job_id: str, emit: str, **after: Any) -> ChangeSpec:
 
 @action("reading.start_at_scale", ReadAtScaleRequest, domains=["job"], undoable=False)
 def _action_start(db: Database, params: ReadAtScaleRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    if not ctx.is_bootstrap:
+        # The action layer checked the ids named; a reading run sends every page UNDER them (`pages_to_read`,
+        # the same walk the package makes). One the caller may not read refuses the run (fail closed, #5475).
+        from fichero_server.remote_read.package import pages_to_read
+        from fichero_server.security import authz
+
+        authz.assert_can_read_every(ctx.actor, ctx.library_path, [p.id for p in pages_to_read(db, params.scope_ids)],
+                                    bootstrap=False)
     started = _read_job().start(db, params, started_by=ctx.actor or "owner")
     return started, _job_change(started["job_id"], "job.created", kind=_read_job().KIND)
 
