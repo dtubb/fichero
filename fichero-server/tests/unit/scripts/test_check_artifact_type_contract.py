@@ -98,16 +98,14 @@ def test_the_check_fires_on_a_type_mismatch(mod, tmp_path):
     assert orphans == {"text_geometry"}, "a producer nothing reads must be flagged"
 
 
-def test_text_geometry_is_not_baselined(mod):
-    """#4418 is still open: ingest writes "text_geometry", the overlay queries
-    "transcription". Baselining it would silence a live defect — which is what
-    an unexamined allowlist does (#2508).
-
-    When #4418 is fixed, the overlay reads the type and this stays true because
-    it is no longer an orphan at all. Only add it to the baseline if someone
-    decides it is read generically.
-    """
-    assert "text_geometry" not in mod._ORPHAN_BASELINE
+def test_text_geometry_is_baselined_only_as_a_generic_read(mod):
+    """WHY: baselining "text_geometry" silenced a live defect while the overlay queried
+    "transcription" by name (#4418, #2508). It may sit in the baseline only because it is read
+    GENERICALLY, through the segments seam with the other geometry types (#5467), and the
+    baseline must say so beside it; an unexplained entry would hide the next such defect."""
+    if "text_geometry" in mod._ORPHAN_BASELINE:
+        source = Path(mod.__file__).read_text(encoding="utf-8")
+        assert "segments seam" in source and "#5467" in source
 
 
 def test_docstring_states_the_dynamic_blind_spot(mod):

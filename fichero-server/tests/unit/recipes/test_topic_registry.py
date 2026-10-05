@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 
 import fichero_server
+from _scan_files import scan_rglob
 from fichero_server.recipes import topics as registry
 
 #: The topics of section 7a ("What onboarding teaches"). Setup must be able to explain every one.
@@ -125,7 +126,7 @@ def test_each_sentence_of_a_topic_is_written_in_exactly_one_engine_file():
     sentences = {s: t.id for t in registry.all_topics() for s in _sentences(t.short) + _sentences(t.long)}
     assert sentences
     seen_in: dict[str, list[str]] = {s: [] for s in sentences}
-    for path in ENGINE.rglob("*"):
+    for path in scan_rglob(ENGINE, "*"):
         if not path.is_file() or path.suffix not in TEXT_SUFFIXES:
             continue
         try:
