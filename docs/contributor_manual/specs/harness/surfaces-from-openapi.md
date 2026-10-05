@@ -103,6 +103,17 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
 - `openapi.ui.mcp-reaches-the-verbs` **[MISSING]** (#5453) on the Mac, MCP `ui` tools call the AppleScript
   verbs (`fichero-mcp/src/fichero_mcp/ui_control.py` grows from its four commands). An agent can
   then check on screen what it did through the engine tools.
+- `openapi.ui.screenshot` **[MISSING]** (#5453) an agent can ask the app for a picture of the
+  window, or of one pane (Library, Preview, Reader, Inspector, Activity), saved as a PNG at a path it
+  names, through the same UI verb surface (AppleScript on the Mac, an App Intent everywhere). It is
+  how an agent checks on screen what it did, and how documentation screenshots are made
+  (`docs/assets/<milestone>/`), never a second capture path. Ruled 2026-10-04.
+- `openapi.ui.agents-connect-as-accounts` **[GAP]** (#5453) with Multi-user on, an agent connects to
+  the engine as its own account, which the owner adds in Settings' accounts list like a person's;
+  its MCP writes are audited under that account and its device. No new switch: sharing and
+  Multi-user stay the only two. With Multi-user off the MCP acts as the owner, labelled
+  `fichero-mcp`. Driving the app this way is also how Multi-user gets tested end to end. Ruled
+  2026-10-04.
 - `openapi.applescript.engine-verbs-from-the-contract` **[GAP]** (#5453) any AppleScript command that
   reaches the engine calls the generated Swift client, never a hand-built URL (see
   `automation.applescript.*` in `ui/automation.md` for the dictionary's own checks: #5258, #5259).
