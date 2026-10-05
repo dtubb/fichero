@@ -20,7 +20,9 @@
    "has_original": false,
    "transformation": null,
    "working": true,
-   "working_basis": "newest-machine-unchosen"
+   "working_basis": "newest-machine-unchosen",
+   "drawn": true,
+   "rank": 0
   },
   {
    "id": "pass-0003",
@@ -41,7 +43,9 @@
    "has_original": false,
    "transformation": null,
    "working": false,
-   "working_basis": null
+   "working_basis": null,
+   "drawn": false,
+   "rank": 1
   }
  ],
  "segments": [
