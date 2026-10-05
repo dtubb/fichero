@@ -397,6 +397,6 @@ finding was posted as GitHub-comment evidence with "Left OPEN; not closing mysel
 
 ## Triaged from the backlog (2026-10-04)
 - `search.all-libraries-fanout` — **[GAP]** (#4110) an engine endpoint fans a search out across open libraries with normalised scores and library_path provenance per result, enabling the All Libraries scope.
-- `search.one-toolbar-button-with-the-kind-menu` **[GAP]** (#5024): the toolbar has one search button; its menu holds Ask and Keyword with a checkmark and whatever the second button offered, and the Ask/Keyword bar under the toolbar is gone (this replaces `search.ask-keyword-native-scopes`).
+- `search.one-toolbar-button-with-the-kind-menu` **[PARTIAL]** (#5024; built 12c8096f8, OneToolbarSearchItemTests; not yet seen in the app): the toolbar has one search button; its menu holds Ask and Keyword with a checkmark and whatever the second button offered, and the Ask/Keyword bar under the toolbar is gone (this replaces `search.ask-keyword-native-scopes`).
 - `search.results-load-as-you-scroll` **[GAP]** (#5028): search results have no 'Load 50 more' button; the next page loads as the end of the list comes into view, with a quiet Loading row, and the header gives the total.
 - `search.index-build-failure-is-a-failed-job` **[GAP]** (#5315): when building a project's full-text index fails, the build shows as a failed job in Activity, with its reason and Retry, and the project's health shows the index as failed with the same Retry; a failure is never only written to the log. (Ruled 2026-10-04.)
