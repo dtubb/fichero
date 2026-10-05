@@ -1374,7 +1374,23 @@ Jobs and chains
   and segments name the rendition they used.
 - `source.job.split-pages` — **[PARTIAL]** (#4949, #5382) *Built: the `split_pages` tool (51dbbfa93) cuts an open notebook at its gutter inside Apple Vision's outline and never a closed cover, pinned by `fichero-server/tests/unit/workflows/test_split_pages.py`; a recipe runs it as the `Split Pages` workflow (#5390), its pages then read by the steps after it, pinned by `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`.* splitting a spread or a strip of frames into ordered
   pages is a job a recipe can name.
-- `source.job.tie-text-to-lines` — **[GAP]** (#5444) a page's reading is tied to its lines for free, on
+- `source.job.tie-text-to-lines` — **[PARTIAL]** (#5444) *Built (2026-10-05): `POST /api/check/runs`
+  with `check: tie-text-to-lines` (provider `kraken`, a Kraken reader; `pass_model` names the lines' pass)
+  queues a `tie-text-to-lines` job on the local model lane; `checking/tie_text.py` reads each line of the
+  page's newest lines pass through `kraken_runtime.read_given_lines`, aligns the page's newest model
+  transcription to those rough reads in one monotonic character alignment (accent-, case- and
+  space-blind; a cut inside a word moves to the nearest space), and writes a new pass (named for the page
+  reading, its provider and model) with a copy of each Kraken line in the Kraken pass's order and each
+  line's stretch as its reading, all through audited, undoable actions under the job's run, so every row
+  is `workflow`, never `human`. A line whose stretch agrees with its own rough read (1 − accent-blind CER)
+  below the threshold keeps the stretch and is rejected (`check.verdict`, trust `model`, "doubtful: page
+  text and line disagree" with its score), so the training set leaves it out until a person confirms it;
+  a page already tied to that reading is not tied again; `GET /api/check/runs/{id}` gives the counts and
+  each doubtful line. Default taken 2026-10-05 (design lead), awaiting the maintainer's ruling: the match
+  threshold is 0.30, the line check's own-score floor. Tested in
+  `fichero-server/tests/unit/check/test_tie_text_to_lines.py`. Not built: a person's or a checked page
+  reading ranked before the newest model one; the old line's readings retired as counting; a recipe
+  card that runs this job.* a page's reading is tied to its lines for free, on
   this Mac: Kraken finds the lines, a Kraken reader reads each roughly, and the page's best reading is
   aligned to them in order by the characters they share (a monotonic alignment; no line takes text
   from beyond its neighbours'). Each line gets the stretch of the page reading it matches, automatically,

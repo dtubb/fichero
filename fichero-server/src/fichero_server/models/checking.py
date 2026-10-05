@@ -47,11 +47,14 @@ class CheckRunRequest(BaseModel):
     kind: str = Field("transcription", description="readings: the kind of reading checked.")
     pass_model: str | None = Field(None, description="readings: check the lines of this model's pass, not the "
                                    "page's newest.")
-    check: Literal["model", "line-against-page"] = Field(
+    check: Literal["model", "line-against-page", "tie-text-to-lines"] = Field(
         "model", description="model: the checker model reads each proposal. line-against-page (readings only, "
         "provider kraken, model a Kraken reader): each line's reading is scored against Kraken's rough read of "
         "that line and of its neighbours; a reading closer to a neighbour's line, or below the threshold, is "
-        "rejected (#5446).")
+        "rejected (#5446). tie-text-to-lines (readings only, provider kraken, model a Kraken reader): the "
+        "page's reading is aligned in order to the Kraken lines' rough reads and each line given its stretch in a "
+        "new pass; a line whose stretch agrees with its rough read below the threshold is rejected as doubtful "
+        "(#5444).")
 
 
 class CheckVerdictParams(BaseModel):
