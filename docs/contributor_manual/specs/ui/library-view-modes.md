@@ -391,6 +391,15 @@ homeless until a map-view UI spec exists (#5128).
   and the move is the same saved move as in the library's Canvas mode (one layout per folder, one
   write path). Clicking a card selects that item, and the Preview then shows the item. Depends on
   `library.canvas.positions-persist`: a canvas that forgets what you moved teaches the wrong thing.
+  - **Why the cards jumped on zoom (#5476, 2026-10-05):** the canvas resolved its board only inside
+    the renderer's update step, which nothing watched. The pane's size, page shapes that landed late
+    (they set the grid's spacing) and saved places that loaded late all changed without a redraw, and
+    the next unrelated update, a pinch, applied them at once. Two tall pages laid out before their
+    shapes were known also stayed one column on the short spacing and overlapped. The board is now
+    resolved where every input is watched, page shapes are watched, and nothing draws before the pane
+    has a size, so a zoom moves the camera and no card. Tested in
+    `fichero/Tests/Unit/general/Views/Library/CanvasZoomKeepsTheCardsTests.swift` (the real view, store
+    and renderer), not yet seen in the app.
 - `library.modes.the-view-follows-the-node` — **[PARTIAL]** (#5428; built 33310028f, tested in
   `fichero/Tests/Unit/general/Views/Library/LibraryViewFollowsNodeTests.swift`, not yet seen in the
   app) Ruled 2026-10-04, Finder-like: clicking a source (an image or a PDF, the same rule) in the

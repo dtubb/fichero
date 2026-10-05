@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 #if canImport(RealityKit)
 import RealityKit
 #endif
@@ -24,7 +25,20 @@ enum CanvasCardGeometry {
     /// ponytail: keyed by sourceId only — the same id open in two libraries
     /// could collide, worst case a wrong-but-plausible card shape; key by
     /// library scope (like SpaceTextureCache) if that ever bites.
-    private static var knownAspects: [String: Float] = [:]
+    ///
+    /// OBSERVABLE (#5476): the 2D board's grid pitch is computed from these, so an aspect that
+    /// lands must re-resolve the board then. As a plain static it changed silently, and the next
+    /// unrelated view update (a pinch) re-laid the cards out: zooming looked like it moved them.
+    @Observable
+    @MainActor
+    final class Memo {
+        var aspects: [String: Float] = [:]
+    }
+    private static let memo = Memo()
+    private static var knownAspects: [String: Float] {
+        get { memo.aspects }
+        set { memo.aspects = newValue }
+    }
 
     static func knownAspect(forSourceId sourceId: String) -> Float? {
         knownAspects[sourceId]
