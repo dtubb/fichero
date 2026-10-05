@@ -63,6 +63,7 @@ python-dotenv
 aiofiles
 aiohttp>=3.14.1
 httpx
+iso639-lang  # ISO 639-3 language names: setup's language search (recipes/names.py, #5472)
 defusedxml
 cryptography>=48.0.1
 zeroconf
