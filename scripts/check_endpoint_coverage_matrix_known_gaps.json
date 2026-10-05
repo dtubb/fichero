@@ -291,5 +291,7 @@
   "POST /api/mcp/tools/check/verdicts": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
   "GET /api/recipes/project/runs": "recipe execution (#5390): engine and API first; the app's Start screen shows the plan, but its run's own view is not built yet",
   "GET /api/recipes/project/runs/{job_id}": "recipe execution (#5390): engine and API first; the app's Start screen shows the plan, but its run's own view is not built yet",
-  "GET /api/training/set": "previews a training set before it is sent (#5446): for the operator through the MCP (fichero_training_preview_set); the app shows a set's counts on the model's training card when that is built (#5439)"
+  "GET /api/training/set": "previews a training set before it is sent (#5446): for the operator through the MCP (fichero_training_preview_set); the app shows a set's counts on the model's training card when that is built (#5439)",
+  "GET /api/training/models": "trained models as nodes (#5439): engine first; app half next (#5439)",
+  "GET /api/training/model": "a trained model's Inspector facts (#5439): engine first; app half next (#5439)"
 }

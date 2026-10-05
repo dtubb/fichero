@@ -5675,6 +5675,73 @@
         }
       }
     },
+    "/api/training/models": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "The models Fichero trained or fine-tuned, as the training node lists them",
+        "description": "Newest first, each read from its card (`source.model.node-in-sidebar`): provenance (base, teacher,\ntraining set, job, when, where), the newest held-out scores per normalisation policy, size, where it\nruns, licence and whether it may be published. A downloaded or imported model is not listed: it lives\nin Settings.",
+        "operationId": "list_trained_models_api_training_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainedModelNodes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/training/model": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "One trained model's Inspector facts",
+        "description": "`source.model.node-inspector`: the node's facts plus its whole card and every evaluation on it. 404\nfor a model Fichero did not train (it has no training card).",
+        "operationId": "trained_model_inspector_api_training_model_get",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The model id: kraken-trained-<job> or fichero-trained/<name>.",
+              "title": "Model"
+            },
+            "description": "The model id: kraken-trained-<job> or fichero-trained/<name>."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainedModelInspector"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/training/reasons": {
       "post": {
         "tags": [
@@ -65557,6 +65624,44 @@
         "title": "ModelCreate",
         "description": "Add a model to a provider."
       },
+      "ModelHeldOutScores": {
+        "properties": {
+          "measured_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Measured At"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id"
+          },
+          "checked": {
+            "type": "string",
+            "nullable": true,
+            "title": "Checked"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "cer": {
+            "additionalProperties": {
+              "type": "number",
+              "nullable": true
+            },
+            "type": "object",
+            "title": "Cer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "cer"
+        ],
+        "title": "ModelHeldOutScores",
+        "description": "The newest evaluation on the card: CER over the held-out pages under each normalisation policy."
+      },
       "ModelInfo": {
         "properties": {
           "provider": {
@@ -66373,6 +66478,30 @@
         ],
         "title": "ModelResultResponse",
         "description": "Result from a single model in a comparison run."
+      },
+      "ModelRunsOn": {
+        "properties": {
+          "build": {
+            "type": "string",
+            "title": "Build"
+          },
+          "runs_on": {
+            "type": "string",
+            "nullable": true,
+            "title": "Runs On"
+          },
+          "here": {
+            "type": "boolean",
+            "title": "Here"
+          }
+        },
+        "type": "object",
+        "required": [
+          "build",
+          "here"
+        ],
+        "title": "ModelRunsOn",
+        "description": "One build of the model and what runs it; `here` when that build is on this engine's disk."
       },
       "ModelScores": {
         "properties": {
@@ -81009,6 +81138,247 @@
         ],
         "title": "TrainVisionLoraRequest",
         "description": "The vision-model card: a LoRA on a vision-language model, landed on this Mac as MLX 4-bit."
+      },
+      "TrainedModelInspector": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "kraken-reader or vision-lora"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true,
+            "title": "Summary"
+          },
+          "base": {
+            "type": "string",
+            "nullable": true,
+            "title": "Base"
+          },
+          "teacher": {
+            "type": "string",
+            "nullable": true,
+            "title": "Teacher"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id"
+          },
+          "trained_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Trained At"
+          },
+          "trained_where": {
+            "type": "string",
+            "nullable": true,
+            "title": "Trained Where",
+            "description": "The card's target: huggingface-jobs or this-mac."
+          },
+          "training_set": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Training Set"
+          },
+          "scores": {
+            "$ref": "#/components/schemas/ModelHeldOutScores",
+            "nullable": true
+          },
+          "evaluations": {
+            "type": "integer",
+            "title": "Evaluations",
+            "default": 0
+          },
+          "size_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Size Bytes"
+          },
+          "runs_on": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRunsOn"
+            },
+            "type": "array",
+            "title": "Runs On",
+            "default": []
+          },
+          "licence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Licence"
+          },
+          "licence_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Licence Note"
+          },
+          "may_publish": {
+            "type": "boolean",
+            "title": "May Publish",
+            "description": "True only when the card says not_for_release: false."
+          },
+          "release_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Release Note"
+          },
+          "card": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Card"
+          },
+          "evaluation_history": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Evaluation History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "may_publish",
+          "card",
+          "evaluation_history"
+        ],
+        "title": "TrainedModelInspector",
+        "description": "One trained model's Inspector: the node's facts, its whole card and every evaluation, oldest first."
+      },
+      "TrainedModelNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "kraken-reader or vision-lora"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true,
+            "title": "Summary"
+          },
+          "base": {
+            "type": "string",
+            "nullable": true,
+            "title": "Base"
+          },
+          "teacher": {
+            "type": "string",
+            "nullable": true,
+            "title": "Teacher"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id"
+          },
+          "trained_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Trained At"
+          },
+          "trained_where": {
+            "type": "string",
+            "nullable": true,
+            "title": "Trained Where",
+            "description": "The card's target: huggingface-jobs or this-mac."
+          },
+          "training_set": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Training Set"
+          },
+          "scores": {
+            "$ref": "#/components/schemas/ModelHeldOutScores",
+            "nullable": true
+          },
+          "evaluations": {
+            "type": "integer",
+            "title": "Evaluations",
+            "default": 0
+          },
+          "size_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Size Bytes"
+          },
+          "runs_on": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRunsOn"
+            },
+            "type": "array",
+            "title": "Runs On",
+            "default": []
+          },
+          "licence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Licence"
+          },
+          "licence_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Licence Note"
+          },
+          "may_publish": {
+            "type": "boolean",
+            "title": "May Publish",
+            "description": "True only when the card says not_for_release: false."
+          },
+          "release_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Release Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "may_publish"
+        ],
+        "title": "TrainedModelNode",
+        "description": "A model Fichero trained or fine-tuned, as the training node shows it, read from its card (#5439).\n\nNone where the card carries no such fact: `licence` for a Kraken reader (its card names none),\n`base` for a reader trained from nothing, `scores` before any evaluation."
+      },
+      "TrainedModelNodes": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/TrainedModelNode"
+            },
+            "type": "array",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "models"
+        ],
+        "title": "TrainedModelNodes"
       },
       "TrainingExportRequest": {
         "properties": {

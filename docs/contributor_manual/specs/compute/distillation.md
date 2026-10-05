@@ -370,7 +370,7 @@ Fichero is this one job: the bake-off at setup, a model scored when it lands
   appended to the model's card (a Kraken reader's install record, a trained vision model's
   `fichero-card.json`, a card of its own for a downloaded vision model) and never overwrites one;
   `GET /api/evaluation/scores` (MCP `fichero_evaluation_model_scores`) reads them back. Tested in `fichero-server/tests/unit/training/test_evaluation_job.py`.
-  Not built: the node that shows them (#5439).* the results are stored on each
+  The training node's routes read them too (`GET /api/training/models`, newest per policy; tested in `fichero-server/tests/unit/training/test_trained_model_nodes.py`). Not built: the node in the app (#5439).* the results are stored on each
   model's card and shown on its node (`source.model.node-inspector`), so models are compared side by
   side. A later evaluation adds to them and never overwrites one.
 

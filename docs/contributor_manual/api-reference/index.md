@@ -643,6 +643,16 @@ scores and verdicts.
 `POST /api/training/jobs/{job_id}/cancel` stops it (`training.cancel`): a job not started ends at
 once; a running one is cancelled on Hugging Face at its next look and ends `cancelled`.
 
+`GET /api/training/models` lists the models Fichero trained or fine-tuned on this engine, newest first,
+as the training node shows them (#5439, `source.model.node-in-sidebar`), each read from its card: `kind`
+(`kraken-reader` or `vision-lora`), `base`, `teacher`, `training_set` counts, `job_id`, `trained_at`,
+`trained_where`, the newest held-out `scores` (CER per normalisation policy; null before any
+evaluation), `size_bytes`, `runs_on` (each build and whether it is here), `licence` (the base's; null
+for a Kraken reader, whose card names none) and `may_publish` (true only when the card says
+`not_for_release: false`). A downloaded or imported model is not listed. `GET /api/training/model?model=…`
+gives one model's Inspector facts: the same, plus its whole `card` and every evaluation
+(`evaluation_history`); 404 for a model Fichero did not train.
+
 ### Evaluation (#5441)
 
 `POST /api/evaluation/runs` queues one `evaluate-models` job on the local model lane

@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.main import get_library_database, get_library_database_for_write
@@ -241,6 +241,89 @@ async def cancel_training_job(
         return registry.invoke(db, "training.cancel", {"job_id": job_id}, ctx).result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+class ModelRunsOn(BaseModel):
+    """One build of the model and what runs it; `here` when that build is on this engine's disk."""
+
+    build: str
+    runs_on: str | None = None
+    here: bool
+
+
+class ModelHeldOutScores(BaseModel):
+    """The newest evaluation on the card: CER over the held-out pages under each normalisation policy."""
+
+    measured_at: str | None = None
+    job_id: str | None = None
+    checked: str | None = None
+    pages: int
+    cer: dict[str, float | None]
+
+
+class TrainedModelNode(BaseModel):
+    """A model Fichero trained or fine-tuned, as the training node shows it, read from its card (#5439).
+
+    None where the card carries no such fact: `licence` for a Kraken reader (its card names none),
+    `base` for a reader trained from nothing, `scores` before any evaluation."""
+
+    id: str
+    name: str
+    kind: str = Field(description="kraken-reader or vision-lora")
+    summary: str | None = None
+    base: str | None = None
+    teacher: str | None = None
+    job_id: str | None = None
+    trained_at: str | None = None
+    trained_where: str | None = Field(None, description="The card's target: huggingface-jobs or this-mac.")
+    training_set: dict[str, Any] | None = None
+    scores: ModelHeldOutScores | None = None
+    evaluations: int = 0
+    size_bytes: int | None = None
+    runs_on: list[ModelRunsOn] = []
+    licence: str | None = None
+    licence_note: str | None = None
+    may_publish: bool = Field(description="True only when the card says not_for_release: false.")
+    release_note: str | None = None
+
+
+class TrainedModelNodes(BaseModel):
+    models: list[TrainedModelNode]
+
+
+class TrainedModelInspector(TrainedModelNode):
+    """One trained model's Inspector: the node's facts, its whole card and every evaluation, oldest first."""
+
+    card: dict[str, Any]
+    evaluation_history: list[dict[str, Any]]
+
+
+def _model_nodes() -> Any:
+    from fichero_server.training import model_nodes
+
+    return model_nodes
+
+
+@router.get("/models", response_model=TrainedModelNodes,
+            summary="The models Fichero trained or fine-tuned, as the training node lists them")
+async def list_trained_models() -> TrainedModelNodes:
+    """Newest first, each read from its card (`source.model.node-in-sidebar`): provenance (base, teacher,
+    training set, job, when, where), the newest held-out scores per normalisation policy, size, where it
+    runs, licence and whether it may be published. A downloaded or imported model is not listed: it lives
+    in Settings."""
+    return TrainedModelNodes(models=[TrainedModelNode(**n) for n in _model_nodes().model_nodes()])
+
+
+@router.get("/model", response_model=TrainedModelInspector, summary="One trained model's Inspector facts")
+async def trained_model_inspector(
+    model: str = Query(..., description="The model id: kraken-trained-<job> or fichero-trained/<name>."),
+) -> TrainedModelInspector:
+    """`source.model.node-inspector`: the node's facts plus its whole card and every evaluation on it. 404
+    for a model Fichero did not train (it has no training card)."""
+    node = _model_nodes().model_node(model)
+    if node is None:
+        raise HTTPException(status_code=404, detail=f"{model} is not a model Fichero trained")
+    return TrainedModelInspector(**node)
 
 
 class ReasonsJobParams(BaseModel):
