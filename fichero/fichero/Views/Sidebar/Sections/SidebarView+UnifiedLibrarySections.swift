@@ -190,6 +190,10 @@ extension SidebarView {
         let libraryItems = flattenedLibraryItems(libraryId: libraryId, buckets: buckets)
         unifiedRows(libraryItems, libraryId: libraryId)
         libraryKnowledgeRows(libraryId: libraryId)
+        // Training is a node of the project (#5439); it draws nothing until a model is trained.
+        if let library = libraryManager.getLibrary(id: libraryId) {
+            SidebarTrainingNode(store: library.trainedModelsStore, libraryId: libraryId)
+        }
     }
 
     /// EACH library's knowledge-graph collections — Entities and Claims — at

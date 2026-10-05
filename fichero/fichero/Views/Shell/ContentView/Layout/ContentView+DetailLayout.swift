@@ -568,6 +568,10 @@ extension ContentView {
                         "Select a single item to inspect it. Multi-item editing is coming."
                     )
                 )
+            } else if let model = sidebarSelectionState.inspectedTrainedModel(browserSelection: browserSelection),
+                      let project = libraryManager.getLibrary(id: model.libraryId) {
+                // A trained model in a Training node is the selection (#5439).
+                ModelNodeInspector(store: project.trainedModelsStore, modelId: model.modelId)
             } else if let projectId = sidebarSelectionState.inspectedProjectId(browserSelection: browserSelection),
                       let project = libraryManager.getLibrary(id: projectId) {
                 // A project row is the selection: the Inspector shows the project (#5422).

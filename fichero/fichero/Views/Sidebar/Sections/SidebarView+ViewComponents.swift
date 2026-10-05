@@ -228,7 +228,7 @@ extension SidebarView {
 
     /// Whether a DROPPED sidebar row should be treated as "momentarily missing"
     /// (a rebuild gap to restore) rather than a genuine removal. Pinned/static
-    /// rows (library, browser, run, KG collection) are never cache-resolved, so a
+    /// rows (library, browser, run, KG collection, trained model) are never cache-resolved, so a
     /// drop of one is always the user. Any other row is momentarily missing ONLY
     /// when its cache entry is absent AND it was not just deleted: a deleted row
     /// is gone, not rebuilding, so it must drop out of the selection instead of
@@ -241,7 +241,7 @@ extension SidebarView {
         wasRecentlyDeleted: Bool
     ) -> Bool {
         switch destination {
-        case .library, .browser, .run, .knowledgeCollection:
+        case .library, .browser, .run, .knowledgeCollection, .trainedModel:
             return false
         default:
             return cachedItemMissing && !wasRecentlyDeleted

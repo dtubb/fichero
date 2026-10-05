@@ -47,6 +47,10 @@ enum SidebarDestination: Hashable {
     /// library's rows carry their own selection identity and open THAT library's
     /// library-wide table.
     case knowledgeCollection(KnowledgeCollectionKind, libraryId: UUID)
+    /// A model Fichero trained, inside a project's Training node (#5439,
+    /// `source.model.node-in-sidebar`). Carries `libraryId` so each project's row has its own
+    /// selection identity, like the knowledge rows.
+    case trainedModel(String, libraryId: UUID)
 
     /// One prefix → constructor per case. Table-driven so adding a node kind
     /// (e.g. "comparison:", #4335) is one row, not another branch in an
@@ -75,7 +79,13 @@ enum SidebarDestination: Hashable {
         ("folder:", { .folder($0) }),
         ("library:", { id in UUID(uuidString: id).map { .library($0) } }),
         ("kg-entities:", { id in UUID(uuidString: id).map { .knowledgeCollection(.entities, libraryId: $0) } }),
-        ("kg-claims:", { id in UUID(uuidString: id).map { .knowledgeCollection(.claims, libraryId: $0) } })
+        ("kg-claims:", { id in UUID(uuidString: id).map { .knowledgeCollection(.claims, libraryId: $0) } }),
+        // "trained-model:<library uuid>:<model id>"; a model id may hold "/" (fichero-trained/<name>).
+        ("trained-model:", { payload in
+            let parts = payload.split(separator: ":", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let libraryId = UUID(uuidString: parts[0]) else { return nil }
+            return .trainedModel(parts[1], libraryId: libraryId)
+        })
     ]
 
     private static let browserCases: [String: SidebarBrowserDestination] = [
@@ -126,6 +136,7 @@ enum SidebarDestination: Hashable {
         case .library(let id): return "library:\(id.uuidString)"
         case .knowledgeCollection(.entities, let libraryId): return "kg-entities:\(libraryId.uuidString)"
         case .knowledgeCollection(.claims, let libraryId): return "kg-claims:\(libraryId.uuidString)"
+        case .trainedModel(let modelId, let libraryId): return "trained-model:\(libraryId.uuidString):\(modelId)"
         }
     }
 
