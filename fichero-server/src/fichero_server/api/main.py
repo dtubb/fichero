@@ -16,11 +16,13 @@ Environment Variables:
 """
 
 import asyncio
+import concurrent.futures
 import functools
 import hashlib
 import hmac
 import os
 import sys
+import threading
 import time
 import warnings
 from importlib.metadata import PackageNotFoundError, version as package_version
@@ -33,7 +35,7 @@ from fichero_server.api._startup import api_stamp as _api_stamp
 import logging
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -1830,21 +1832,89 @@ def _engine_owner_for(request: Request) -> str | None:
 _REQUIRED_BY_NAME = {
     "lxml": "reading and writing PAGE, ALTO and TEI",
     "cv2": "image preparation (crop, split, straighten)",
+    "iso639": "setup's language search",
 }
+
+
+def _runtime_probes() -> dict[str, tuple[Callable[[], bool], str]]:
+    """The runtimes recipe steps need, each by the availability check its own code path uses (#5493).
+
+    Health once said nothing was missing while kraken, spaCy and iso639 were all absent and every
+    recipe run failed for want of them. These are the checks the steps themselves refuse on.
+    """
+    from fichero_server.llm import kraken_runtime, local_models
+
+    return {
+        "kraken": (kraken_runtime.is_installed, "finding and reading lines (Kraken)"),
+        "spacy": (local_models._spacy_runtime_available, "people and places, and the grammar gate (spaCy)"),
+    }
 
 
 @functools.lru_cache(maxsize=1)
 def _missing_required_modules() -> list[str]:
-    """Required by-name packages this engine cannot find (checked without importing them)."""
+    """Each package or runtime this engine cannot find, with what needs it (checked without importing
+    them: health answers on the event loop, #5228)."""
     import importlib.util
 
-    return sorted(m for m in _REQUIRED_BY_NAME if importlib.util.find_spec(m) is None)
+    missing = [f"{m} (needed for {what})" for m, what in _REQUIRED_BY_NAME.items() if importlib.util.find_spec(m) is None]
+    missing += [f"{name} (needed for {what})" for name, (probe, what) in _runtime_probes().items() if not probe()]
+    return sorted(missing)
+
+
+#: The bundled spaCy pipelines' check, run once off the event loop: spaCy's own installed-model
+#: listing imports spaCy (~2 s), which health must not wait on (#5228). Until it finishes, health
+#: lists only the checks above; it never blocks for it.
+_spacy_pipelines_check: concurrent.futures.Future[list[str]] | None = None
+_spacy_pipelines_lock = threading.Lock()
+
+
+def _check_spacy_pipelines() -> list[str]:
+    """The bundled pipelines (the ones the grammar gate and people/places fall back to) that are
+    neither in the model store nor installed, by the loader's own check."""
+    from fichero_server.knowledge.spacy_svo import MODELS
+    from fichero_server.llm.local_models import spacy_pipeline_available
+
+    return sorted(
+        f"{name} (needed for people and places in {lang!r} sources)"
+        for lang, name in MODELS.items()
+        if not spacy_pipeline_available(name)
+    )
+
+
+def _missing_spacy_pipelines() -> list[str]:
+    global _spacy_pipelines_check
+    with _spacy_pipelines_lock:
+        if _spacy_pipelines_check is None:
+            check: concurrent.futures.Future[list[str]] = concurrent.futures.Future()
+            _spacy_pipelines_check = check
+
+            def _run() -> None:
+                try:
+                    check.set_result(_check_spacy_pipelines())
+                except BaseException as exc:  # the future carries it; health shows it below
+                    check.set_exception(exc)
+
+            threading.Thread(target=_run, name="health-spacy-pipelines", daemon=True).start()
+        check = _spacy_pipelines_check
+    if not check.done():
+        return []
+    if check.exception() is not None:
+        return [f"spaCy pipelines (could not be checked: {check.exception()})"]
+    return check.result()
+
+
+def _reset_dependency_report() -> None:
+    """Forget every cached answer so the next health call checks again (tests)."""
+    global _spacy_pipelines_check
+    _missing_required_modules.cache_clear()
+    with _spacy_pipelines_lock:
+        _spacy_pipelines_check = None
 
 
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:
     """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
     through here, so it also names any missing required package (#5384)."""
-    response.missing_dependencies = _missing_required_modules()
+    response.missing_dependencies = sorted(_missing_required_modules() + _missing_spacy_pipelines())
     if not nonce:
         return response
     secret = globals().get("_api_token")
