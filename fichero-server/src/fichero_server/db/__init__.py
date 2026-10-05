@@ -841,16 +841,29 @@ def _kg_leg_passage(
     return page_content[:500], 0
 
 
+# Every match on a page rides `transcript_excerpts` — the Reader lights each
+# one (#5466), so a cap of 3 left the 4th+ occurrence dark (#5473). The row's
+# snippet is still the FIRST excerpt (`_search_result_preview`) and ranking
+# never reads this list.
+# ponytail: 500 is a ceiling for pathological pages (a 10,000-hit page would
+# otherwise ship 10,000 excerpts per row), not a ranking; raise it if a real
+# page needs more lit.
+PAGE_HIT_CEILING = 500
+
+
 def _build_transcript_excerpts(
     document_id: str,
     content: str,
     query: str,
     *,
     context_chars: int = 80,
-    max_excerpts: int = 3,
+    max_excerpts: int = PAGE_HIT_CEILING,
     content_offset: int = 0,
 ) -> list[SearchExcerpt]:
     """Build anchored snippets from the already-indexed search text.
+
+    One excerpt per match on the page, up to ``PAGE_HIT_CEILING`` (#5473):
+    the list is the page's highlight set, not a ranking.
 
     This deliberately consumes the content returned by the search layer
     (LanceDB rows / merged result content), not a fresh document lookup.

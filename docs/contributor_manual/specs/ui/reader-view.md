@@ -374,7 +374,7 @@ Also waiting on the same not-yet-existing spec, from #248:
 | #4405 | reader-view | `reader.page.word-level-source-and-find` | GAP |
 | #4375 | reader-view | `reader.page.inline-transcription-editing` | GAP |
 | #4355 | reader-view | `reader.page.highlight-layer-precedence` | GAP |
-| #5466 | reader-view | `reader.highlight.search-hits-all-lit` | OK |
+| #5466, #5473 | reader-view | `reader.highlight.search-hits-all-lit` | OK |
 | #3805 | reader-view | `reader.page.transcript-wraps-not-clips` | BROKEN |
 | #3721 | reader-view | `reader.page.sepia-paper-themes` | GAP |
 | #2515 | panes-workspaces | `panes.toolbar.reader-overflow-collapses-before-overlapping` | GAP |
@@ -440,12 +440,15 @@ segment hierarchy" (`source.editor.hierarchy.reader-shows-regions`, #5426).
 - `reader.highlight.entity-mentions` — **[GAP]** (#1659) an entity focused in the Reader lights every
   place its name occurs on the page, from its anchored mentions
   (`layers.entities.shown-on-text-and-image`), not one claim's excerpt.
-- `reader.highlight.search-hits-all-lit` — **[OK]** (#5466) every search hit on a Reader page is
+- `reader.highlight.search-hits-all-lit` — **[OK]** (#5466, #5473) every search hit on a Reader page is
   lit at once, with the current one stronger: a library search's anchored hits on the page and
   the find bar's matches alike, through one rule (`__ficheroLightHits` in `ReaderFindInPage.swift`,
   one colour pair). Next/Previous in the find bar move the current match and leave the others
   lit; ending the search or dismissing the find bar unlights them all; an empty find does not
   unlight the search's hits. Pinned in a real `WKWebView` by `ReaderAllHitsTests`.
+  The engine's search reports every match on the page as an anchored excerpt (#5473), up to a
+  ceiling of 500 for pathological pages (`PAGE_HIT_CEILING` in `db/__init__.py`); the row's snippet
+  is still the first. Pinned through `POST /api/search` by `test_routes_search_page_hits.py`.
 
 ## Future (ideas, not scheduled)
 - (#973) Book-native page numbers and chapter markers for book-shaped sources; backend detection feature, no current spec owner
