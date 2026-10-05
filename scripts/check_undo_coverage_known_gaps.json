@@ -429,5 +429,6 @@
   "POST /api/check/runs": "not undoable by design (check.run, audited, undoable=False): the checker's calls were made; each verdict is a dated record, and a corrected reading is undone like any reading (representation.retract)",
   "POST /api/check/runs/{job_id}/cancel": "not undoable by design (check.cancel, audited, undoable=False): start a new run to check the remaining proposals",
   "POST /api/check/verdicts": "not undoable by design (check.verdict, audited, undoable=False): a verdict is a dated record beside the proposal; a later verdict is recorded beside it, never over it",
-  "POST /api/mcp/tools/check/verdicts": "not undoable by design (check.verdict, audited, undoable=False): an agent's verdict is a dated record at model trust; a person's later verdict is recorded beside it"
+  "POST /api/mcp/tools/check/verdicts": "not undoable by design (check.verdict, audited, undoable=False): an agent's verdict is a dated record at model trust; a person's later verdict is recorded beside it",
+  "POST /api/recipes/project/layers": "project.add_layer is audited and undoable in the engine (test_add_a_layer_later: undo removes the layer and its proposals); the app's Edit > Undo does not reach it yet, and Remove in the Inspector withdraws it (#5470)"
 }
