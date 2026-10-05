@@ -581,11 +581,19 @@ extension LibraryManager {
             await library.trainedModelsStore.loadModels()
             LaunchProfile.milestone("library trained models loaded", detail: libraryName)
         }()
+        // The knowledge rows' counts (#5413): a row shows only when its count is above 0.
+        async let knowledgeCountsLoaded: Void = await {
+            await library.knowledgeRowCountsStore.load()
+            LaunchProfile.milestone("library knowledge counts loaded", detail: libraryName)
+        }()
         async let savedSearchesLoaded: Void = await {
             try? await library.savedSearchService.loadSavedSearches()
             LaunchProfile.milestone("library saved searches loaded", detail: libraryName)
         }()
-        _ = await (workflowsLoaded, conversationsLoaded, comparisonsLoaded, savedSearchesLoaded, trainedModelsLoaded)
+        _ = await (
+            workflowsLoaded, conversationsLoaded, comparisonsLoaded, savedSearchesLoaded, trainedModelsLoaded,
+            knowledgeCountsLoaded
+        )
         libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
     }
 }

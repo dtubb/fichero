@@ -178,6 +178,10 @@ class LibraryManager {
         /// The engine's list (no card records a project), read through this library's client.
         @ObservationIgnored lazy var trainedModelsStore = TrainedModelsStore(client: ficheroClient)
 
+        /// How many items each of this project's knowledge rows holds (#5413): the sidebar draws
+        /// a row only when its count is above 0. Registered with `changeStream` below.
+        @ObservationIgnored lazy var knowledgeRowCountsStore = KnowledgeRowCountsStore(client: ficheroClient)
+
         /// Per-library activity store (#2448). Wraps `activityService`, owns the
         /// run-browser list, and signals `ActivityBrowserView` to refresh on
         /// `workflow.*` SSE events (best-effort until the backend emits dedicated
@@ -306,6 +310,7 @@ class LibraryManager {
             stream.register(self.citationStore)
             stream.register(self.referenceStore)
             stream.register(self.interpretationStore)
+            stream.register(self.knowledgeRowCountsStore)
             stream.register(self.canvasLayoutStore)
             stream.register(self.canvasItemStore)
             // Remote hosts: the dedicated /changes/stream can drop over the

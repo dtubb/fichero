@@ -26,6 +26,9 @@ struct SidebarBottomToolbar: View {
     /// drives `filteredLibraryHeaders`; rows keep stable identity so the list
     /// updates in place rather than re-rendering wholesale on filter change.
     var sidebarFilterText: Binding<String>
+    /// Every open project's knowledge-row counts (#5413): the show/hide control is drawn only
+    /// when at least one of them has a non-empty row.
+    var knowledgeRowStores: [KnowledgeRowCountsStore] = []
 
     private var metrics: MiniToolbarMetrics {
         #if os(macOS)
@@ -139,6 +142,12 @@ struct SidebarBottomToolbar: View {
             .disabled(!hasSelection)
             .help("Remove selected item")
             .accessibilityLabel("Remove selected item")
+
+            // Show/hide every project's non-empty knowledge rows (#5413); absent while no
+            // project has one, since there would be nothing for it to do.
+            if SidebarKnowledgeRows.toggleIsShown(knowledgeRowStores) {
+                SidebarKnowledgeRowsToggle(font: iconFont, side: metrics.touchTargetSide)
+            }
     }
 
     /// Secondary verbs — inline when they fit, else the '…' overflow (macOS narrow)

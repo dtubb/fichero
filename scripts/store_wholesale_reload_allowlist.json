@@ -293,5 +293,11 @@
     "method": "choose",
     "class": "by-design",
     "reason": "by-design 2026-09-28: choosing a DIFFERENT reading order changes the list's identity (scope: another order's entries) -- there is no prior item to splice against; choosing the order already shown is a no-op (ReadingOrderStoreTests.choosingTheShownOrderIsANoOp)"
+  },
+  {
+    "file": "fichero/fichero/Models/KnowledgeRowCountsStore.swift",
+    "method": "resync",
+    "class": "by-design",
+    "reason": "by-design 2026-10-05: an explicit RESYNC after a reconnect re-reads every knowledge count, since events were missed while the stream was down (#5413); same case as SearchStore.resync"
   }
 ]
