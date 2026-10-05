@@ -1204,10 +1204,15 @@ class Database(DatabaseEmbeddingMixin):
         behind a typed method) -- used by the citable-reference route
         (source-model slice 4, #4922) so it never touches `db.conn`
         directly.
+
+        Under the connection's lock, like every other read (#2508): a training
+        job reads it from its own thread while requests use the same
+        connection, and an unlocked read there broke the connection (#5483).
         """
         from fichero_server.db.migrations.schema import read_library_uuid
 
-        return read_library_uuid(self.conn)
+        with self._transaction_gate, self._lock:
+            return read_library_uuid(self.conn)
 
     def next_forwarding_sequence(self) -> int:
         """The next value of `segment_forwarding_seq`, a native DuckDB

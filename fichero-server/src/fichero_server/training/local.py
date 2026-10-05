@@ -41,6 +41,7 @@ from typing import Any, Callable
 from fichero_server.execution import jobs
 from fichero_server.training import job as remote_job
 from fichero_server.training.job import TrainKrakenHereRequest
+from fichero_server.training.model_nodes import project_of
 
 KIND = "train-on-this-mac"
 MODEL = "kraken:train"
@@ -256,6 +257,7 @@ def run(db: Any, subject: str) -> str:
         "target": "this-mac", "measured": dict(gentle.measured),
         "not_for_release": request.not_for_release,
         "release_note": request.release_note or (remote_job.NOT_FOR_RELEASE_NOTE if request.not_for_release else None),
+        "project": project_of(db),  # the reader shows only in this project's training node (#5483)
     }
     reader_id = land_trained_reader(out, job_id=job_id, model_name=request.name, card=card)
     detail["reader_id"] = reader_id

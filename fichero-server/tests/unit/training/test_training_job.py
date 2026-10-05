@@ -15,6 +15,7 @@ from fichero_server.llm import kraken_runtime as kr
 from fichero_server.training import job as training_job
 from fichero_server.training.hf_jobs import FarStatus
 from fichero_server.training.job import PagesMayNotLeave, TrainKrakenRequest
+from fichero_server.training.model_nodes import belongs_to, project_of
 from tests.unit.training.test_kraken_training_set import TEACHER, _page
 
 NOTEBOOK_FLAVOR = "t4-small"
@@ -113,6 +114,7 @@ def test_a_training_job_goes_out_runs_and_comes_home_as_a_reader(db, notebook):
     assert status["yes"]["by"] == "historian"
     card = kr.trained_reader_card(reader)
     assert card["teacher"] == TEACHER and card["not_for_release"] is True and card["far_id"] == "hf-job-1"
+    assert belongs_to(card, project_of(db)), "the card names the project it was trained in (#5483)"
 
 
 def test_a_job_resumed_after_a_restart_watches_the_same_job_and_sends_nothing_again(db, notebook):
@@ -270,6 +272,7 @@ def test_the_vision_card_trains_on_line_pairs_and_lands_through_the_local_lane(d
     card = store.trained_card(model_id)
     assert card["base"] == "Qwen/Qwen3-VL-8B-Instruct" and card["base_licence"] == "Apache-2.0"
     assert card["teacher"] == TEACHER and card["not_for_release"] is True
+    assert belongs_to(card, project_of(db)), "the student's card names the project it was trained in (#5483)"
     hf = card["builds"]["hf"]
     assert (hf["bucket"], hf["merged"], hf["adapter"]) == (
         "historian/fichero-training", f"{started['job_id']}/out/merged", f"{started['job_id']}/out/adapter")

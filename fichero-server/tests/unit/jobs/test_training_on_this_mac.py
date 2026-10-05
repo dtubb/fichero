@@ -159,6 +159,8 @@ def test_compute_tune_measured_on_16gb__the_card_has_the_runs_figures(db, client
     reader = json.loads(jobs.read_job(db, job_id)["detail"])["reader_id"]
     card = json.loads(_marker_path(reader).read_text())["trained"]
     assert card["target"] == "this-mac" and card["model_file"] == "sergio.safetensors"
+    from fichero_server.training.model_nodes import belongs_to, project_of
+    assert belongs_to(card, project_of(db)), "the card names the project it was trained in (#5483)"
     measured = card["measured"]
     assert measured["device"] == "cpu" and measured["threads"] >= 1 and measured["epochs_done"] == 2
     assert measured["peak_resident_mb"] > 0 and measured["seconds"] >= 0

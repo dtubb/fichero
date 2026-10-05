@@ -7582,13 +7582,13 @@ def fichero_training_trained_model_inspector(
     *,
     model: Annotated[str, Field(description='The model id: kraken-trained-<job> or fichero-trained/<name>.')],
 ) -> Any:
-    "One trained model's Inspector facts\n\n`source.model.node-inspector`: the node's facts plus its whole card and every evaluation on it. 404\nfor a model Fichero did not train (it has no training card).\n\nRoute: GET /api/training/model (toolset `training`; reads)."
+    "One trained model's Inspector facts\n\n`source.model.node-inspector`: the node's facts plus its whole card and every evaluation on it. 404\nfor a model Fichero did not train in this library's project (no training card, or another project's).\n\nRoute: GET /api/training/model (toolset `training`; reads)."
     return _rt.call("GET", "/api/training/model", params={"model": model})
 
 
 def fichero_training_list_trained_models(
 ) -> Any:
-    'The models Fichero trained or fine-tuned, as the training node lists them\n\nNewest first, each read from its card (`source.model.node-in-sidebar`): provenance (base, teacher,\ntraining set, job, when, where), the newest held-out scores per normalisation policy, size, where it\nruns, licence and whether it may be published. A downloaded or imported model is not listed: it lives\nin Settings.\n\nRoute: GET /api/training/models (toolset `training`; reads).'
+    "The models Fichero trained or fine-tuned, as the training node lists them\n\nThe models trained in this library's project only (#5483), newest first, each read from its card\n(`source.model.node-in-sidebar`): provenance (base, teacher, training set, job, when, where), the\nnewest held-out scores per normalisation policy, size (the weights' bytes on this Mac, null when they\nare not here), where it runs, licence and whether it may be published. A downloaded or imported model\nis not listed: it lives in Settings; so does a reader whose card predates the project being recorded.\n\nRoute: GET /api/training/models (toolset `training`; reads)."
     return _rt.call("GET", "/api/training/models")
 
 
