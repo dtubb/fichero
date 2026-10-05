@@ -336,23 +336,25 @@ def _model_nodes() -> Any:
 
 @router.get("/models", response_model=TrainedModelNodes,
             summary="The models Fichero trained or fine-tuned, as the training node lists them")
-async def list_trained_models() -> TrainedModelNodes:
-    """Newest first, each read from its card (`source.model.node-in-sidebar`): provenance (base, teacher,
-    training set, job, when, where), the newest held-out scores per normalisation policy, size, where it
-    runs, licence and whether it may be published. A downloaded or imported model is not listed: it lives
-    in Settings."""
-    return TrainedModelNodes(models=[TrainedModelNode(**n) for n in _model_nodes().model_nodes()])
+async def list_trained_models(db: Database = Depends(get_library_database)) -> TrainedModelNodes:
+    """The models trained in this library's project only (#5483), newest first, each read from its card
+    (`source.model.node-in-sidebar`): provenance (base, teacher, training set, job, when, where), the
+    newest held-out scores per normalisation policy, size (the weights' bytes on this Mac, null when they
+    are not here), where it runs, licence and whether it may be published. A downloaded or imported model
+    is not listed: it lives in Settings; so does a reader whose card predates the project being recorded."""
+    return TrainedModelNodes(models=[TrainedModelNode(**n) for n in _model_nodes().model_nodes(db)])
 
 
 @router.get("/model", response_model=TrainedModelInspector, summary="One trained model's Inspector facts")
 async def trained_model_inspector(
     model: str = Query(..., description="The model id: kraken-trained-<job> or fichero-trained/<name>."),
+    db: Database = Depends(get_library_database),
 ) -> TrainedModelInspector:
     """`source.model.node-inspector`: the node's facts plus its whole card and every evaluation on it. 404
-    for a model Fichero did not train (it has no training card)."""
-    node = _model_nodes().model_node(model)
+    for a model Fichero did not train in this library's project (no training card, or another project's)."""
+    node = _model_nodes().model_node(db, model)
     if node is None:
-        raise HTTPException(status_code=404, detail=f"{model} is not a model Fichero trained")
+        raise HTTPException(status_code=404, detail=f"{model} is not a model trained in this project")
     return TrainedModelInspector(**node)
 
 

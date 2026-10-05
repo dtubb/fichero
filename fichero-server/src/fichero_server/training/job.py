@@ -30,6 +30,7 @@ from typing import Any, Callable
 from pydantic import Field
 
 from fichero_server.execution import jobs
+from fichero_server.training.model_nodes import project_of
 from fichero_server.models.compute_requests import (  # noqa: F401  (re-exported)
     TrainKrakenHereRequest,
     TrainKrakenRequest,
@@ -266,6 +267,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         "target": TARGET, "far_id": far_id, "flavor": flavor,
         "not_for_release": request.not_for_release,
         "release_note": request.release_note or (NOT_FOR_RELEASE_NOTE if request.not_for_release else None),
+        "project": project_of(db),  # the model shows only in this project's training node (#5483)
     }
     if vision:
         _save(db, job_id, detail, phase="landing", reason="Converting the model for MLX on this Mac")

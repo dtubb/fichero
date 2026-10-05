@@ -5700,7 +5700,7 @@
           "training"
         ],
         "summary": "The models Fichero trained or fine-tuned, as the training node lists them",
-        "description": "Newest first, each read from its card (`source.model.node-in-sidebar`): provenance (base, teacher,\ntraining set, job, when, where), the newest held-out scores per normalisation policy, size, where it\nruns, licence and whether it may be published. A downloaded or imported model is not listed: it lives\nin Settings.",
+        "description": "The models trained in this library's project only (#5483), newest first, each read from its card\n(`source.model.node-in-sidebar`): provenance (base, teacher, training set, job, when, where), the\nnewest held-out scores per normalisation policy, size (the weights' bytes on this Mac, null when they\nare not here), where it runs, licence and whether it may be published. A downloaded or imported model\nis not listed: it lives in Settings; so does a reader whose card predates the project being recorded.",
         "operationId": "list_trained_models_api_training_models_get",
         "responses": {
           "200": {
@@ -5722,7 +5722,7 @@
           "training"
         ],
         "summary": "One trained model's Inspector facts",
-        "description": "`source.model.node-inspector`: the node's facts plus its whole card and every evaluation on it. 404\nfor a model Fichero did not train (it has no training card).",
+        "description": "`source.model.node-inspector`: the node's facts plus its whole card and every evaluation on it. 404\nfor a model Fichero did not train in this library's project (no training card, or another project's).",
         "operationId": "trained_model_inspector_api_training_model_get",
         "parameters": [
           {
