@@ -33,7 +33,7 @@ from fichero_server.api._startup import api_stamp as _api_stamp
 import logging
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -1830,15 +1830,55 @@ def _engine_owner_for(request: Request) -> str | None:
 _REQUIRED_BY_NAME = {
     "lxml": "reading and writing PAGE, ALTO and TEI",
     "cv2": "image preparation (crop, split, straighten)",
+    "iso639": "setup's language search",
 }
+
+
+def _runtime_probes() -> dict[str, tuple[Callable[[], bool], str]]:
+    """The runtimes recipe steps need, each by the availability check its own code path uses (#5493).
+
+    Health once said nothing was missing while kraken, spaCy and iso639 were all absent and every
+    recipe run failed for want of them. These are the checks the steps themselves refuse on.
+    """
+    from fichero_server.llm import kraken_runtime, local_models
+
+    return {
+        "kraken": (kraken_runtime.is_installed, "finding and reading lines (Kraken)"),
+        "spacy": (local_models._spacy_runtime_available, "people and places, and the grammar gate (spaCy)"),
+    }
 
 
 @functools.lru_cache(maxsize=1)
 def _missing_required_modules() -> list[str]:
-    """Required by-name packages this engine cannot find (checked without importing them)."""
+    """Each package or runtime this engine cannot find, with what needs it (checked without importing
+    them: health answers on the event loop, #5228)."""
     import importlib.util
 
-    return sorted(m for m in _REQUIRED_BY_NAME if importlib.util.find_spec(m) is None)
+    missing = [f"{m} (needed for {what})" for m, what in _REQUIRED_BY_NAME.items() if importlib.util.find_spec(m) is None]
+    missing += [f"{name} (needed for {what})" for name, (probe, what) in _runtime_probes().items() if not probe()]
+    return sorted(missing + _missing_spacy_pipelines())
+
+
+def _missing_spacy_pipelines() -> list[str]:
+    """The bundled pipelines (the ones the grammar gate and people/places fall back to) that are
+    neither in the model store nor installed."""
+    import importlib.util
+
+    from fichero_server.knowledge.spacy_svo import MODELS
+    from fichero_server.llm.local_models import spacy_pipeline_path
+
+    # find_spec, not the steps' spacy_pipeline_available: that lists installed models by importing
+    # spaCy (~2 s), which health must not do in every engine, the shipped one included (#5493, #5228).
+    return [
+        f"{name} (needed for people and places in {lang!r} sources)"
+        for lang, name in MODELS.items()
+        if spacy_pipeline_path(name) is None and importlib.util.find_spec(name) is None
+    ]
+
+
+def _reset_dependency_report() -> None:
+    """Forget the cached answer so the next health call checks again (tests)."""
+    _missing_required_modules.cache_clear()
 
 
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:

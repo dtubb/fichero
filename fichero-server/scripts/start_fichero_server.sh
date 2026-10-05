@@ -52,6 +52,19 @@ for arg in "$@"; do
   esac
 done
 
+# #5493: never start an engine that will fail its jobs. A stale per-worktree
+# fichero-server/.venv (picked before the canonical ~/code/fichero/.venv) lacked
+# kraken, spaCy + its models and iso639, so recipe runs failed while the engine
+# looked healthy. One python call checks every distribution requirements.txt
+# names, plus the dev-only runtime the canonical dev venv also carries (kraken;
+# see requirements.txt's DEV NOTE), and refuses with the fixes. CI only:
+# FICHERO_SKIP_VENV_CHECK=1.
+if [ "${FICHERO_SKIP_VENV_CHECK:-}" != "1" ]; then
+  if ! "$PYTHON_BIN" "$SCRIPT_DIR/dev_venv_preflight.py" "$API_ROOT/requirements.txt" kraken; then
+    exit 1
+  fi
+fi
+
 # Default dev UDS socket = the app container's tmp/fichero.sock, i.e. the path
 # the Dev Local scheme's FICHERO_FORCE_UDS_PATH dials (CD 2026-09-18: the old
 # /tmp/fichero.sock default meant "backend running but app won't connect",

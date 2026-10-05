@@ -17,17 +17,15 @@ def test_health_names_a_missing_required_package(client, monkeypatch):
 
     real = importlib.util.find_spec
     monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a: None if name == "lxml" else real(name, *a))
-    main._missing_required_modules.cache_clear()
+    main._reset_dependency_report()
     try:
         body = client.get("/api/health").json()
     finally:
-        main._missing_required_modules.cache_clear()
-    assert body["missing_dependencies"] == ["lxml"]
-
-
-def test_health_lists_nothing_when_all_are_installed(client):
-    main._missing_required_modules.cache_clear()
-    assert client.get("/api/health").json()["missing_dependencies"] == []
+        main._reset_dependency_report()
+    # Named with what needs it (#5493); the all-present case is test_health_names_missing_runtimes.
+    assert [d for d in body["missing_dependencies"] if d.startswith("lxml")] == [
+        "lxml (needed for reading and writing PAGE, ALTO and TEI)"
+    ]
 
 
 def test_a_missing_module_is_a_named_503():
