@@ -65,13 +65,56 @@ _STATIC_MEMBER = re.compile(
     r"^\s*(?P<prefix>[\w\s@(){}:.,\"]*?)\bstatic\s+(?:func|let|var)\s+(?P<name>\w+)",
     re.MULTILINE,
 )
-# A Swift Testing suite is a type containing @Test; @MainActor on the type (or
-# on the extension/suite annotation) makes it immune.
-_SUITE_DECL = re.compile(
-    r"((?:@[\w(). \"]+\s*)*)(?:public\s+|internal\s+|final\s+)*"
-    r"(?:struct|class|enum|extension)\s+(\w+)",
-    re.MULTILINE,
-)
+# A Swift Testing suite is a type containing @Test; @MainActor anywhere in the
+# type's attribute list (or on the extension) makes it immune. The attribute
+# list is read BACKWARDS from the keyword by `_attributes_before`, not by a
+# regex: `@Suite(.serialized, .tags(.reader))` has commas and nested
+# parentheses, and the old regex stopped at the comma and lost every attribute
+# before it (#5474).
+_SUITE_DECL = re.compile(r"\b(?:struct|class|enum|extension)\s+(\w+)")
+_DECL_MODIFIERS = {"public", "internal", "private", "fileprivate", "open", "final"}
+_NOT_A_TYPE_NAME = {"func", "var", "let", "subscript", "init"}  # `class func` etc.
+
+
+def _attributes_before(text: str, end: int) -> str:
+    """The attributes and modifiers immediately before ``text[end]``.
+
+    Walks back over whitespace, `@Name`, `@Name(...)` (balanced parentheses,
+    over any number of lines) and access/`final` modifiers. Comments are
+    already stripped by the caller, so comments between attributes are just
+    whitespace here.
+    """
+    start = end
+    while True:
+        j = start
+        while j > 0 and text[j - 1].isspace():
+            j -= 1
+        name_end = j
+        if j > 0 and text[j - 1] == ")":
+            depth = 0
+            k = j - 1
+            while k >= 0:
+                if text[k] == ")":
+                    depth += 1
+                elif text[k] == "(":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                k -= 1
+            if k < 0:
+                break
+            name_end = k
+        n = name_end
+        while n > 0 and (text[n - 1].isalnum() or text[n - 1] in "_."):
+            n -= 1
+        word = text[n:name_end]
+        if word and n > 0 and text[n - 1] == "@":
+            start = n - 1
+        elif word in _DECL_MODIFIERS and name_end == j:
+            start = n
+        else:
+            break
+    return text[start:end]
 
 
 def strip_comments(text: str) -> str:
@@ -147,12 +190,15 @@ def exposed_test_callers(tests_dir: Path = TESTS_DIR) -> dict[str, set[str]]:
             continue
         text = strip_comments(raw)
         for match in _SUITE_DECL.finditer(text):
-            attrs, suite = match.group(1) or "", match.group(2)
+            suite = match.group(1)
+            if suite in _NOT_A_TYPE_NAME:
+                continue
+            attrs = _attributes_before(text, match.start())
             brace = text.find("{", match.end())
             if brace == -1:
                 continue
             body = _body_of(text, brace)
-            if "@Test" not in body or "@MainActor" in attrs:
+            if "@Test" not in body or re.search(r"@MainActor\b", attrs):
                 continue
             for ref in re.finditer(r"\b([A-Z]\w+)\.(\w+)", body):
                 callers.setdefault(f"{ref.group(1)}.{ref.group(2)}", set()).add(suite)

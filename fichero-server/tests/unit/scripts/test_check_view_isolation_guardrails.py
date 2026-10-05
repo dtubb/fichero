@@ -136,6 +136,76 @@ def test_transitive_same_type_statics_are_reported(tmp_path):
     assert "pattern" in found["LibraryView.helper"]
 
 
+# #5474: the suite's attribute list was read by a regex that stopped at the
+# comma inside `@Suite(.serialized, .tags(.reader))`, so a suite that IS
+# @MainActor was reported as exposed. Every placement of @MainActor in the
+# attribute list must clear the finding, and a suite whose list lacks it must
+# still be caught however the list is written.
+_SUITE_BODY = """struct LibraryContentStateTests {
+    @Test("it works")
+    func itWorks() { #expect(LibraryView.helper(1)) }
+}
+"""
+
+
+def test_mainactor_after_suite_with_comma_arguments_is_not_flagged(tmp_path):
+    """The #5474 shape: @MainActor follows a @Suite whose arguments hold a comma."""
+    found = _isolation_scan(
+        tmp_path,
+        _VIEW_WITH_STATIC,
+        "@Suite(.serialized, .tags(.reader)) @MainActor " + _SUITE_BODY,
+    )
+
+    assert found == {}
+
+
+def test_mainactor_before_suite_with_comma_arguments_is_not_flagged(tmp_path):
+    """@MainActor first: the comma used to cut the list off BEFORE it entirely."""
+    found = _isolation_scan(
+        tmp_path,
+        _VIEW_WITH_STATIC,
+        "@MainActor\n@Suite(.serialized, .tags(.reader))\n" + _SUITE_BODY,
+    )
+
+    assert found == {}
+
+
+def test_mainactor_in_multiline_attribute_list_with_comments_is_not_flagged(tmp_path):
+    """Attributes over several lines, arguments split across lines, comments between."""
+    found = _isolation_scan(
+        tmp_path,
+        _VIEW_WITH_STATIC,
+        "@MainActor // runs on main\n"
+        "@Suite(\n    \"Library state\",\n    .serialized, /* one at a time */\n    .tags(.reader, .library)\n)\n"
+        "// the suite\n"
+        "final " + _SUITE_BODY.replace("struct ", "class ", 1),
+    )
+
+    assert found == {}
+
+
+def test_suite_with_comma_arguments_but_no_mainactor_is_still_flagged(tmp_path):
+    """The negative: reading the whole list must not invent an @MainActor."""
+    found = _isolation_scan(
+        tmp_path,
+        _VIEW_WITH_STATIC,
+        "@available(macOS 26, *)\n@Suite(.serialized, .tags(.reader))\n" + _SUITE_BODY,
+    )
+
+    assert "LibraryContentStateTests" in found["LibraryView.helper"]
+
+
+def test_mainactor_on_an_earlier_declaration_does_not_leak_to_the_suite(tmp_path):
+    """The list stops at the previous declaration; its @MainActor is not this suite's."""
+    found = _isolation_scan(
+        tmp_path,
+        _VIEW_WITH_STATIC,
+        "@MainActor struct Helper {}\n@Suite(.serialized, .tags(.reader))\n" + _SUITE_BODY,
+    )
+
+    assert "LibraryContentStateTests" in found["LibraryView.helper"]
+
+
 # ---------------------------------------------------------------------------
 # Stacked presentation modifiers
 # ---------------------------------------------------------------------------
