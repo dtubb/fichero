@@ -88,7 +88,7 @@ struct ProjectInspector: View {
         recipeStore = nil
         stats = nil
         statsError = nil
-        let store = RecipeSetupStore(client: library.ficheroClient)
+        let store = RecipeSetupStore(client: library.ficheroClient, topics: library.topicStore)
         await store.loadSaved()
         await store.loadJobs()
         guard !Task.isCancelled else { return }

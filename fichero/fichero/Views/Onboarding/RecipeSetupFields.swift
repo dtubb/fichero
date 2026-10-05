@@ -163,8 +163,10 @@ struct RecipeAboutFields: View {
         VStack(alignment: .leading, spacing: 10) {
             CodeSearchField(title: "Languages", prompt: "Name, BCP 47 tag or glottocode, e.g. es",
                             search: store.searchLanguages, codes: $store.languages)
+            if let topic = store.topics.topic("languages") { TopicExplanation(topic: topic) }
             CodeSearchField(title: "Scripts", prompt: "Name or ISO 15924 code, e.g. Latn",
                             search: store.searchScripts, codes: $store.scripts)
+            if let topic = store.topics.topic("scripts") { TopicExplanation(topic: topic) }
             ForEach(store.scripts, id: \.self) { code in
                 if let facts = store.derivedScripts[code] {
                     DerivedScriptRow(facts: facts)
@@ -175,11 +177,12 @@ struct RecipeAboutFields: View {
             }
         }
         .task(id: store.scripts) { await store.loadDerived() }
+        .task { await store.topics.load() }
     }
 }
 
 /// Screen 4, "How it will be done": the recipe the engine's rules propose from
-/// the answers, each step explained in the registry's words, the one cloud
+/// the answers, each step explained in the topic registry's words, the one cloud
 /// question, and every other tool, offered after the recipe's, never hidden.
 struct RecipeProposalFields: View {
     @Bindable var store: RecipeSetupStore
@@ -221,7 +224,9 @@ struct OfferedJobsList: View {
                     ForEach(others, id: \.id) { job in
                         VStack(alignment: .leading, spacing: 1) {
                             Text(job.name).font(.callout)
-                            Text(job.description).font(.caption).foregroundStyle(.secondary)
+                            if let topic = store.explanation(ofJob: job.id) {
+                                Text(topic.short).font(.caption).foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }

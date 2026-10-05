@@ -26,7 +26,7 @@ private final class SetupFlowURLProtocol: URLProtocol {
 
     override static func canInit(with request: URLRequest) -> Bool {
         let path = request.url?.path ?? ""
-        return path.hasPrefix("/api/recipes") || path.hasPrefix("/api/ingest")
+        return path.hasPrefix("/api/recipes") || path.hasPrefix("/api/ingest") || path.hasPrefix("/api/topics")
     }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
@@ -61,7 +61,7 @@ struct RecipeSetupFlowTests {
     }
 
     private static func job(_ id: String, _ layer: String) -> String {
-        #"{"id":"\#(id)","name":"\#(id)","description":"what \#(id) does","layer":"\#(layer)","#
+        #"{"id":"\#(id)","name":"\#(id)","description":"what \#(id) does","topic":"\#(id)","layer":"\#(layer)","#
             + #""takes":[],"gives":[],"compare":"","settings":[],"since":"1"}"#
     }
 

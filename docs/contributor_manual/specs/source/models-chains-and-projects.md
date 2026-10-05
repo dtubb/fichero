@@ -1601,8 +1601,12 @@ Setup
 - `source.onboard.teaches-the-method` — **[PARTIAL]** (#4951, #5471) **Engine built 2026-10-04:** each
   topic of section 7a has a title, one sentence, a paragraph and the example to show, served by
   `GET /api/topics` and `GET /api/topics/{id}` from `fichero-server/src/fichero_server/recipes/seed/topics.yaml`;
-  pinned by `fichero-server/tests/unit/recipes/test_topic_registry.py`. *Owed (app): setup does not
-  read the topics yet, and the example is described, not yet drawn from the person's own pages.* across its steps setup explains each topic
+  pinned by `fichero-server/tests/unit/recipes/test_topic_registry.py`. **App built 2026-10-05:**
+  setup explains each recipe step, languages and scripts with the topic's sentence and its paragraph
+  and example on disclosure (`TopicStore`, `TopicExplanation`); pinned by
+  `fichero/Tests/Unit/general/Models/TopicStoreTests.swift`. *Owed: the other topics of section 7a
+  are not yet placed on a setup screen, and the example is described, not yet drawn from the
+  person's own pages.* across its steps setup explains each topic
   of section 7a (languages, scripts, fonts, glyphs and Unicode, a faithful way to write the script,
   finding sources, models and memory, Kraken, layout, tables, workflows and recipes, entities,
   statements, maps, calendars, normalisation, output formats, fine-tuning, remote compute) with an
@@ -1612,8 +1616,11 @@ Setup
   job's words; a job's name and description are read from its entry (the text moved out of
   `recipes/jobs.py`), `GET /api/recipes/jobs` names each job's `topic`, and a test fails if a
   sentence is written in a second engine file (`fichero-server/tests/unit/recipes/test_topic_registry.py`).
-  *Owed (app): the Inspector and Activity do not read `GET /api/topics` yet; no user manual page
-  links back yet.* each topic's and each job's explanation
+  **App built 2026-10-05:** setup and the Inspector's Recipe section read each step's words from
+  one per-library `TopicStore` (`GET /api/topics`, `GET /api/topics/{topic_id}`); the job's
+  `description` is no longer shown, and a job whose topic is missing shows its name alone;
+  pinned by `fichero/Tests/Unit/general/Models/TopicStoreTests.swift`. *Owed: Activity, an
+  exported recipe's README and the user manual do not read the registry yet.* each topic's and each job's explanation
   is stored once, with its job or topic in the registry, and the same text is shown in setup, the
   Inspector, an exported recipe's README and the user manual.
 - `source.onboard.new-project-offers-setup` — **[PARTIAL]** (#5430) **Built 2026-10-04:** creating a
