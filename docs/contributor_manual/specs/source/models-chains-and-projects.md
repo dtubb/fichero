@@ -657,6 +657,21 @@ link here and do not restate it. Each screen's behaviours are the `source.onboar
   keeps the material organised. A file a person moves by hand inside the folder stays where they
   put it, and Fichero's records follow the move (the folder and the project stay in sync).
 
+**Proposed: setup in four steps (maintainer's direction 2026-10-05 evening, #5492; awaiting his
+ruling).** Setup is still too many screens (nine, plus one per ticked job). Four steps, and a
+question appears only under the choice that needs it:
+1. **Your project**: its name, and where it lives (Inside Fichero, or Choose a location…).
+2. **Your material**: how it comes in (Link, Copy, Move, Index, Keep arranged) and Add a Folder…;
+   what it is (handwriting, print, typescript; languages and scripts as tokens; direction filled in
+   from the scripts, changeable).
+3. **What you want to do**: the purposes as checkboxes; ticking one opens its one or two questions
+   in place under it (People, places and things: which kinds; Map places: which gazetteer), with
+   one sentence saying what it does. Nothing for an unticked purpose is shown.
+4. **Ready**: the plan as one list, what runs by itself (one choice), optional rows for Check on
+   your pages and Keep an export…, and Start.
+The per-job screens go; their explanations become the sentence under each checkbox. Anything
+optional can also be done later from the Inspector.
+
 **What is built today, read on disk 2026-10-05.** First run's setup store is the app-wide one
 (`AppState` makes `RecipeSetupStore(client: ficheroClient)`), whose client sends no project path,
 so `GET`/`PUT /api/recipes/project` answer 400 and Start never enables (#5477). A project made from
