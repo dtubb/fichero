@@ -16,13 +16,11 @@ Environment Variables:
 """
 
 import asyncio
-import concurrent.futures
 import functools
 import hashlib
 import hmac
 import os
 import sys
-import threading
 import time
 import warnings
 from importlib.metadata import PackageNotFoundError, version as package_version
@@ -1858,63 +1856,35 @@ def _missing_required_modules() -> list[str]:
 
     missing = [f"{m} (needed for {what})" for m, what in _REQUIRED_BY_NAME.items() if importlib.util.find_spec(m) is None]
     missing += [f"{name} (needed for {what})" for name, (probe, what) in _runtime_probes().items() if not probe()]
-    return sorted(missing)
-
-
-#: The bundled spaCy pipelines' check, run once off the event loop: spaCy's own installed-model
-#: listing imports spaCy (~2 s), which health must not wait on (#5228). Until it finishes, health
-#: lists only the checks above; it never blocks for it.
-_spacy_pipelines_check: concurrent.futures.Future[list[str]] | None = None
-_spacy_pipelines_lock = threading.Lock()
-
-
-def _check_spacy_pipelines() -> list[str]:
-    """The bundled pipelines (the ones the grammar gate and people/places fall back to) that are
-    neither in the model store nor installed, by the loader's own check."""
-    from fichero_server.knowledge.spacy_svo import MODELS
-    from fichero_server.llm.local_models import spacy_pipeline_available
-
-    return sorted(
-        f"{name} (needed for people and places in {lang!r} sources)"
-        for lang, name in MODELS.items()
-        if not spacy_pipeline_available(name)
-    )
+    return sorted(missing + _missing_spacy_pipelines())
 
 
 def _missing_spacy_pipelines() -> list[str]:
-    global _spacy_pipelines_check
-    with _spacy_pipelines_lock:
-        if _spacy_pipelines_check is None:
-            check: concurrent.futures.Future[list[str]] = concurrent.futures.Future()
-            _spacy_pipelines_check = check
+    """The bundled pipelines (the ones the grammar gate and people/places fall back to) that are
+    neither in the model store nor installed."""
+    import importlib.util
 
-            def _run() -> None:
-                try:
-                    check.set_result(_check_spacy_pipelines())
-                except BaseException as exc:  # the future carries it; health shows it below
-                    check.set_exception(exc)
+    from fichero_server.knowledge.spacy_svo import MODELS
+    from fichero_server.llm.local_models import spacy_pipeline_path
 
-            threading.Thread(target=_run, name="health-spacy-pipelines", daemon=True).start()
-        check = _spacy_pipelines_check
-    if not check.done():
-        return []
-    if check.exception() is not None:
-        return [f"spaCy pipelines (could not be checked: {check.exception()})"]
-    return check.result()
+    # find_spec, not the steps' spacy_pipeline_available: that lists installed models by importing
+    # spaCy (~2 s), which health must not do in every engine, the shipped one included (#5493, #5228).
+    return [
+        f"{name} (needed for people and places in {lang!r} sources)"
+        for lang, name in MODELS.items()
+        if spacy_pipeline_path(name) is None and importlib.util.find_spec(name) is None
+    ]
 
 
 def _reset_dependency_report() -> None:
-    """Forget every cached answer so the next health call checks again (tests)."""
-    global _spacy_pipelines_check
+    """Forget the cached answer so the next health call checks again (tests)."""
     _missing_required_modules.cache_clear()
-    with _spacy_pipelines_lock:
-        _spacy_pipelines_check = None
 
 
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:
     """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
     through here, so it also names any missing required package (#5384)."""
-    response.missing_dependencies = sorted(_missing_required_modules() + _missing_spacy_pipelines())
+    response.missing_dependencies = _missing_required_modules()
     if not nonce:
         return response
     secret = globals().get("_api_token")
