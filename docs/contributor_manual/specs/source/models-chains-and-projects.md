@@ -634,6 +634,19 @@ provisional table of section 7 and the order in `source.onboard.screens-in-order
 link here and do not restate it. Each screen's behaviours are the `source.onboard.*` lines under
 "Setup" below, each citing its issue.
 
+**Ruled by the maintainer 2026-10-05 (answers to this section's questions).**
+- **Every purpose and every job is a checkbox, and ticking one adds its own screen.** Each screen
+  explains that job in plain words and asks its questions: transcription, search, entities (and
+  their kinds), statements (SVO) and the knowledge graph, maps, Wikidata, training models,
+  fine-tuning models, and the rest the jobs registry offers. Unticked jobs add no screen. This
+  replaces the narrower "job details" screen proposed above. Statements, Translate and normalise,
+  Quotations, Catalogue and Tables are among the checkboxes.
+- **Where it lives:** the proposed location is `~/Fichero/<project name>`, with Choose… to put it
+  anywhere.
+- **Keep arranged** arranges the folder by the project's own structure (its folders), so Fichero
+  keeps the material organised. A file a person moves by hand inside the folder stays where they
+  put it, and Fichero's records follow the move (the folder and the project stay in sync).
+
 **What is built today, read on disk 2026-10-05.** First run's setup store is the app-wide one
 (`AppState` makes `RecipeSetupStore(client: ficheroClient)`), whose client sends no project path,
 so `GET`/`PUT /api/recipes/project` answer 400 and Start never enables (#5477). A project made from
@@ -673,7 +686,7 @@ nothing runs before Start. Set Up… on an existing project starts at screen 2 (
 lives somewhere).
 
 1. **Where it lives** (#5482). One line: the project's name (default "My Project") and its folder,
-   proposed as `~/Documents/Fichero/` (see Open questions), with **Choose…**, which opens a save
+   proposed as `~/Fichero/<project name>` (ruled 2026-10-05), with **Choose…**, which opens a save
    panel. Continue makes the `.fichero` package there through the one create path
    (`LibraryManager.createProject(at:)`, which grants the folder and has the engine open it with
    `POST /api/library`), and from then on setup reads and writes through **that project's**
