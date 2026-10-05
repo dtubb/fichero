@@ -178,7 +178,7 @@ class LibraryManager {
         /// run-browser list, and signals `ActivityBrowserView` to refresh on
         /// `workflow.*` SSE events (best-effort until the backend emits dedicated
         /// `activity.*` events).
-        @ObservationIgnored lazy var activityStore: ActivityStore = ActivityStore(service: activityService)
+        @ObservationIgnored lazy var activityStore: ActivityStore = ActivityStore(service: activityService, library: self)
 
         /// Per-library chain store (#3191). Wraps `chainService` so chain views
         /// observe store state instead of instantiating transports directly.
@@ -268,7 +268,13 @@ class LibraryManager {
             let stream = LibraryChangeStream(
                 baseURLProvider: { self.apiClient.baseURL },
                 libraryPath: self.url.path,
-                transport: FicheroClientChangeStreamTransport(client: self.ficheroClient)
+                transport: FicheroClientChangeStreamTransport(client: self.ficheroClient),
+                // A restarted engine has forgotten this open library (#5468): register it again,
+                // through the same call an open makes, before the stream reconnects.
+                beforeReconnect: { [weak self] in
+                    guard let self else { return }
+                    await KnownLibraryRegistryStore.shared.noteReconnected(url: self.url, displayName: self.displayName)
+                }
             )
             stream.register(self.documentStore)
             stream.register(self.entityStore)

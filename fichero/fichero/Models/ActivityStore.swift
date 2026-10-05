@@ -57,13 +57,33 @@ final class ActivityStore: ChangeEventConsumer {
     // call `rebuildRuns`, passing @Environment deps in. `runs` is patched
     // in place (`patchRun`) — no method here reassigns the whole array.
     private(set) var runs: [ActivityRun] = []
-    /// The footer's lines (`activity.window.honest-state`, #5431): one per
-    /// library whose last load failed, naming the cause. Keyed by library so
-    /// the next successful load clears exactly its own line.
-    private var runLoadFailureByLibrary: [UUID: String] = [:]
-    var runLoadFailures: [String] {
-        runLoadFailureByLibrary.sorted { $0.key.uuidString < $1.key.uuidString }.map(\.value)
+    /// Which read a footer line came from: the run list, or the jobs poll (#5469).
+    private enum LoadSource: Int { case runs, jobs }
+    private struct LoadFailureKey: Hashable {
+        let library: UUID
+        let source: LoadSource
     }
+    /// The footer's lines (`activity.window.honest-state`, #5431): one per
+    /// library and read whose last load failed, naming the cause. Keyed so the
+    /// next successful load of that read clears exactly its own line.
+    private var loadFailures: [LoadFailureKey: String] = [:]
+    var runLoadFailures: [String] {
+        let ordered = loadFailures
+            .sorted { ($0.key.library.uuidString, $0.key.source.rawValue) < ($1.key.library.uuidString, $1.key.source.rawValue) }
+            .map(\.value)
+        // The run list and the jobs poll refused for the same reason say it once.
+        var seen: Set<String> = []
+        return ordered.filter { seen.insert($0).inserted }
+    }
+
+    /// Set ONE footer line, or clear it with nil; untouched when unchanged.
+    private func setLoadFailure(_ message: String?, library: UUID, source: LoadSource) {
+        let key = LoadFailureKey(library: library, source: source)
+        if loadFailures[key] != message { loadFailures[key] = message }
+    }
+
+    /// The library this store belongs to, named in a jobs-poll footer line (#5469).
+    @ObservationIgnored private weak var library: LibraryManager.LibraryReference?
     private(set) var isRebuildingRuns = false
     /// True when the last `GET /workflow-execution/runs` page was full —
     /// probably a next page to page in. `false` on a short page, or before load.
@@ -111,8 +131,9 @@ final class ActivityStore: ChangeEventConsumer {
     /// so 2s is live enough for a progress bar without adding real load.
     private let jobsPollInterval: Duration = .seconds(2)
 
-    init(service: ActivityService) {
+    init(service: ActivityService, library: LibraryManager.LibraryReference? = nil) {
         self.activityService = service
+        self.library = library
         self.streamService = ActivityStreamService(activityService: service)
     }
 
@@ -156,8 +177,25 @@ final class ActivityStore: ChangeEventConsumer {
             if cpuCount != snapshot.cpuCount { cpuCount = snapshot.cpuCount }
             if backgroundPaused != snapshot.paused { backgroundPaused = snapshot.paused }
             if machine != snapshot.machine { machine = snapshot.machine }
+            if let library { setLoadFailure(nil, library: library.id, source: .jobs) }
         } catch {
-            log.debug("ActivityStore: jobs poll failed \(error.localizedDescription, privacy: .public)")
+            // A refusal is a standing answer, not a blip: it reaches the footer
+            // with its cause, through the run list's own message (#5469).
+            // Anything else (a restarting engine) stays quiet; the next tick recovers.
+            guard let library, Self.isRefusal(error) else {
+                log.debug("ActivityStore: jobs poll failed \(error.localizedDescription, privacy: .public)")
+                return
+            }
+            let message = Self.runLoadFailureMessage(libraryName: library.displayName, error: error)
+            log.error("ActivityStore: jobs poll refused: \(message, privacy: .public)")
+            setLoadFailure(message, library: library.id, source: .jobs)
+        }
+    }
+
+    private static func isRefusal(_ error: Error) -> Bool {
+        switch AccessError.classify((error as? ClientError)?.underlyingError ?? error) {
+        case .unauthenticated, .staleBootstrapToken, .deviceAccessExpired, .forbidden: return true
+        default: return false
         }
     }
 
@@ -219,11 +257,11 @@ final class ActivityStore: ChangeEventConsumer {
             }
             historicalRunsFetched = page.items.count
             runsHasMore = page.items.count >= runsPageSize
-            if runLoadFailureByLibrary[library.id] != nil { runLoadFailureByLibrary[library.id] = nil }
+            setLoadFailure(nil, library: library.id, source: .runs)
         } catch {
             let message = Self.runLoadFailureMessage(libraryName: library.displayName, error: error)
             log.error("ActivityStore: run list load failed: \(message, privacy: .public)")
-            if runLoadFailureByLibrary[library.id] != message { runLoadFailureByLibrary[library.id] = message }
+            setLoadFailure(message, library: library.id, source: .runs)
         }
     }
 
@@ -276,13 +314,20 @@ final class ActivityStore: ChangeEventConsumer {
         }
     }
 
-    /// The footer line for a failed run-list load: the library AND the cause
-    /// (#5431). A refusal (401/403, e.g. an engine respawn's token change) and
-    /// an engine that cannot be reached are different fixes, so they read
-    /// differently; anything else carries its own description.
+    /// The footer line for a failed run-list or jobs load: the library AND the
+    /// cause (#5431). A refusal (401/403, e.g. an engine respawn's token change)
+    /// and an engine that cannot be reached are different fixes, so they read
+    /// differently; anything else carries its own description. A 403 names the
+    /// cause the engine's typed body gives (#5469): the project's location
+    /// (`library_outside_allowed_locations`, the roots check) is not the app's
+    /// credentials, and any other coded refusal reads as the engine wrote it.
     static func runLoadFailureMessage(libraryName: String, error: Error) -> String {
         let cause: String
         switch AccessError.classify((error as? ClientError)?.underlyingError ?? error) {
+        case .forbidden(let reason, _) where reason == AccessError.outsideAllowedLocations:
+            cause = "the engine isn't allowed to open the project from where it's saved"
+        case .forbidden(_?, let message?):
+            cause = message
         case .unauthenticated, .staleBootstrapToken, .deviceAccessExpired, .forbidden:
             cause = "the engine refused the app's credentials"
         case .engineUnreachable:
