@@ -306,3 +306,103 @@ def test_the_comparison_is_kept_and_readable_later(client, db, tmp_path, folder,
     _, again = _run(client, db)  # run again later, on the same pages
     assert len(client.get("/api/recipes/project/bakeoffs").json()["items"]) == 2
     assert again["winner"] == PPOCR
+
+
+# --- the gaps the app found (2026-10-05): names, Use This kept, readiness up front, no ids in refusals -------
+
+
+def test_a_row_names_its_reader_by_the_cards_own_name(client, db, tmp_path, folder, readers):
+    """Section 7b: "never a raw model id"; the table names each reader as a recipe step names its model.
+    WHY: a person choosing a reader must read the reader's name from its card (the words the reading step
+    shows), not an id, and not a name the app makes up from the reader's kind and rule place."""
+    _set_up(client)
+    for i in (1, 2, 3):
+        _corrected(db, tmp_path, f"SM_NPQ_C01_00{i}", folder)
+    started, done = _run(client, db)
+    cards = {c.id: c for c in all_seed_cards()}
+    for table in (started, done, client.get("/api/recipes/project/bakeoffs").json()["items"][0]):
+        for row in table["rows"]:
+            assert row["name"] and row["name"] == bakeoff.reader_name(cards[row["card"]])
+            assert row["card"] not in row["name"]
+    names = {r["card"]: r["name"] for r in done["rows"]}
+    assert names[MCCATMUS].startswith("McCATMuS") and names[MEDIEVAL].startswith("CATMuS Medieval")
+    # One source: the field the recipe's reading step shows for its model (the card's note).
+    recipe = client.get("/api/recipes/project").json()["recipe"]
+    (step,) = [s for s in recipe["steps"] if s["job"] == "read-a-line"]
+    assert names[step["card"]["id"]] == step["card"]["note"].rstrip(".")
+
+
+def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, readers):
+    """source.try.use-this-scope: Use This "makes the winner the step's choice ... stored as an override on
+    the recipe, like any other".
+    WHY: setup's How it will be done screen proposes the recipe again each time it is shown; if that ignored
+    the override, the reader the person chose would quietly revert to the rules' choice and Start would read
+    with a reader they turned down. A folder's choice stays an override and leaves the project's reader."""
+    answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
+               "pages": 1000}
+    _set_up(client)
+    for i in (1, 2, 3):
+        _corrected(db, tmp_path, f"SM_NPQ_C01_00{i}", folder)
+    started, _ = _run(client, db)
+    url = f"/api/recipes/project/bakeoffs/{started['id']}/use"
+    assert client.post(url, json={"card": MEDIEVAL, "scope": "project"}).status_code == 200  # not the rules' first
+    assert client.post(url, json={"card": MCCATMUS, "scope": "folder", "folder_id": folder.id}).status_code == 200
+
+    again = client.post("/api/recipes/assemble", json=answers)
+    assert again.status_code == 200, again.text
+    proposed = again.json()
+    (step,) = [s for s in proposed["steps"] if s["job"] == "read-a-line"]
+    assert step["card"]["id"] == MEDIEVAL and step["model"] == {"zenodo": "10.5281/zenodo.12743230"}
+    assert "bake-off" in step["reasons"][0] and step["card"]["cer_measured_here"] is not None
+    assert [(o["scope"], o["card"]) for o in proposed["overrides"]] == [("project", MEDIEVAL), ("folder", MCCATMUS)]
+    # Saved again as proposed, the choice and both overrides survive.
+    saved = client.put("/api/recipes/project", json={"answers": answers, "recipe": proposed})
+    assert saved.status_code == 200, saved.text
+    kept = saved.json()["recipe"]
+    assert next(s for s in kept["steps"] if s["job"] == "read-a-line")["card"]["id"] == MEDIEVAL
+    assert [(o["scope"], o["card"]) for o in kept["overrides"]] == [("project", MEDIEVAL), ("folder", MCCATMUS)]
+
+
+def test_readiness_is_counted_as_a_start_is_and_said_before_pressing(client, db, tmp_path, folder):
+    """source.onboard.bakeoff-minimum: "below that it says how many more are needed and is offered again when
+    there are enough".
+    WHY: setup must say what to correct before the person presses anything, and hide the button until it
+    would run; the list's readiness and the start's refusal must be one count, or the screen would offer a
+    comparison the engine then refuses (or hide one it would run)."""
+    _set_up(client)
+    empty = client.get("/api/recipes/project/bakeoffs").json()["readiness"]
+    assert (empty["ready"], empty["lines"], empty["pages"], empty["more_lines"], empty["more_pages"]) == (
+        False, 0, 0, 100, 2)
+
+    _corrected(db, tmp_path, "SM_NPQ_C01_001", folder)
+    short = client.get("/api/recipes/project/bakeoffs").json()["readiness"]
+    refused = client.post("/api/recipes/project/bakeoffs", json={})
+    assert refused.status_code == 422
+    assert short["sentence"] == refused.json()["detail"]
+    assert (short["lines"], short["pages"], short["more_lines"], short["more_pages"]) == (
+        LINES_PER_PAGE, 1, 100 - LINES_PER_PAGE, 1)
+    assert (short["min_lines"], short["min_pages"]) == (bakeoff.MIN_LINES, bakeoff.MIN_PAGES)
+
+    for i in (2, 3):
+        _corrected(db, tmp_path, f"SM_NPQ_C01_00{i}", folder)
+    enough = client.get("/api/recipes/project/bakeoffs").json()["readiness"]
+    assert enough["ready"] and enough["sentence"] is None
+    assert (enough["lines"], enough["pages"], enough["more_lines"], enough["more_pages"]) == (
+        3 * LINES_PER_PAGE, 3, 0, 0)
+
+
+def test_no_card_id_in_a_refusal(client, db, tmp_path, folder):
+    """Section 7b: "a step's problem is shown once, in words a historian reads ... never a raw model id".
+    WHY: when no reader can be scored on this Mac (none downloaded), the refusal is all the person reads;
+    an id like kraken:zenodo/10.5281/... tells them nothing, the reader's name does."""
+    _set_up(client)
+    for i in (1, 2, 3):
+        _corrected(db, tmp_path, f"SM_NPQ_C01_00{i}", folder)
+    refused = client.post("/api/recipes/project/bakeoffs", json={})  # no reader downloaded on this (test) Mac
+    assert refused.status_code == 422
+    said = refused.json()["detail"]
+    cards = {c.id: c for c in all_seed_cards()}
+    assert not [cid for cid in cards if cid in said] and "zenodo" not in said
+    for card in (PPOCR, MEDIEVAL, MCCATMUS):
+        assert bakeoff.reader_name(cards[card]) in said
+    assert "not on this Mac" in said and _evaluation_jobs(db) == 0

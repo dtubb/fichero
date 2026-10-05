@@ -5832,7 +5832,7 @@ def fichero_recipes_assemble(
     purposes: Annotated[Optional[list[Any]], Field(description="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)")] = None,
     scripts: Annotated[list[Any], Field(description="ISO 15924 script codes (or a script's English name)")],
 ) -> Any:
-    'Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nProposes; writes nothing. Refused with 422, in words, for a language, script, purpose, material,\njob or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; changes data, as the agent account when one exists).'
+    "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "jobs": jobs, "languages": languages, "layers": layers, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "scripts": scripts}))
 
 
@@ -5884,7 +5884,7 @@ def fichero_recipes_save_project_setup(
 
 def fichero_recipes_list_bakeoffs(
 ) -> Any:
-    'List Bakeoffs\n\nEvery bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`).\n\nRoute: GET /api/recipes/project/bakeoffs (toolset `recipes`; reads).'
+    'List Bakeoffs\n\nEvery bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`),\nand whether the project has enough corrected lines to run one now (`readiness`, counted as a start is).\n\nRoute: GET /api/recipes/project/bakeoffs (toolset `recipes`; reads).'
     return _rt.call("GET", "/api/recipes/project/bakeoffs")
 
 

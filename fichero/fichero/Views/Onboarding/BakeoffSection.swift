@@ -41,8 +41,8 @@ struct BakeoffSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Compare readers on your corrected pages").font(.callout.weight(.semibold))
-            if let refusal = store.refusal {
-                Text(refusal)
+            if let sentence = store.notReadySentence {
+                Text(sentence)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
@@ -83,8 +83,10 @@ struct BakeoffSection: View {
             }
         }
         .padding(.leading, 12)
+        // Read on every showing: the newest comparison, and whether there are enough corrected
+        // lines now (corrections made since the last showing count).
         .task {
-            if store.comparison == nil { await store.loadLatest() }
+            await store.loadLatest()
         }
         // Read the comparison again as its job moves on in Activity; while it runs and Activity
         // does not list it, read it now and then.
@@ -116,7 +118,7 @@ struct BakeoffSection: View {
     private func table(_ comparison: BakeoffStore.Comparison) -> some View {
         Table(of: BakeoffStore.Row.self) {
             TableColumn("Reader") { row in
-                Text(BakeoffStore.name(of: row, recipe: setup.recipe))
+                Text(BakeoffStore.name(of: row))
             }
             .width(min: 140, ideal: 200)
             TableColumn("Error rate") { row in Text(BakeoffStore.errorRate(row)).monospacedDigit() }
@@ -147,7 +149,7 @@ struct BakeoffSection: View {
     }
 
     private func use(_ row: BakeoffStore.Row) {
-        let name = BakeoffStore.name(of: row, recipe: setup.recipe)
+        let name = BakeoffStore.name(of: row)
         let scopeName: String
         switch scope {
         case .project: scopeName = "this project"
@@ -190,11 +192,11 @@ extension BakeoffStore.Folder {
 // MARK: - Previews
 
 enum BakeoffPreviewFixtures {
-    static func row(rank: Int, card: String, reader: BakeoffStore.Row.ReaderPayload?, ruleRank: Int?,
+    static func row(rank: Int, card: String, name: String, reader: BakeoffStore.Row.ReaderPayload?, ruleRank: Int?,
                     local: Bool = true, cer: Double?, pagesPerHour: Double?, cost: Double? = 0,
                     why: String? = nil) -> BakeoffStore.Row {
         BakeoffStore.Row(
-            rank: rank, card: card,
+            rank: rank, card: card, name: name,
             role: BakeoffStore.Row.RolePayload(rawValue: ruleRank == nil ? "baseline for print" : "rule rank")!,
             ruleRank: ruleRank, reader: reader, model: nil, runsOn: local ? "this-mac" : "cloud", local: local,
             cer: cer, policy: cer == nil ? nil : "diplomatic", scores: .init(additionalProperties: [:]),
@@ -210,9 +212,12 @@ enum BakeoffPreviewFixtures {
         pages: [.init(documentId: "p1", name: "f. 1r", lines: 61), .init(documentId: "p2", name: "f. 1v", lines: 58)],
         leftOut: [], lines: 119,
         rows: [
-            row(rank: 1, card: "kraken-catmus", reader: .kraken, ruleRank: 2, cer: 0.042, pagesPerHour: 410),
-            row(rank: 2, card: "kraken-mccatmus", reader: .kraken, ruleRank: 1, cer: 0.061, pagesPerHour: 380),
-            row(rank: 3, card: "gpt-vision", reader: .vision, ruleRank: 3, local: false, cer: nil, pagesPerHour: nil,
+            row(rank: 1, card: "kraken-catmus", name: "CATMuS Medieval, medieval manuscripts (French, Latin, Spanish)",
+                reader: .kraken, ruleRank: 2, cer: 0.042, pagesPerHour: 410),
+            row(rank: 2, card: "kraken-mccatmus", name: "McCATMuS, general Latin-script recognition, 16th-21st century",
+                reader: .kraken, ruleRank: 1, cer: 0.061, pagesPerHour: 380),
+            row(rank: 3, card: "gpt-vision", name: "GPT vision", reader: .vision, ruleRank: 3, local: false, cer: nil,
+                pagesPerHour: nil,
                 cost: 18.4, why: "a remote model target is not built in the evaluation job yet: priced, not scored")
         ],
         winner: "kraken-catmus"

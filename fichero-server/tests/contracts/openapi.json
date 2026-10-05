@@ -12687,7 +12687,7 @@
           "recipes"
         ],
         "summary": "Assemble Recipe",
-        "description": "The recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nProposes; writes nothing. Refused with 422, in words, for a language, script, purpose, material,\njob or direction Fichero does not know.",
+        "description": "The recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.",
         "operationId": "assemble_recipe_api_recipes_assemble_post",
         "requestBody": {
           "content": {
@@ -13132,7 +13132,7 @@
           "recipes"
         ],
         "summary": "List Bakeoffs",
-        "description": "Every bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`).",
+        "description": "Every bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`),\nand whether the project has enough corrected lines to run one now (`readiness`, counted as a start is).",
         "operationId": "list_bakeoffs_api_recipes_project_bakeoffs_get",
         "responses": {
           "200": {
@@ -46526,6 +46526,16 @@
             "type": "array",
             "title": "Problems",
             "description": "what the recipe check finds (empty when it can run)"
+          },
+          "overrides": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Overrides",
+            "description": "the open project's saved overrides (Use This, for the project or a folder), kept so a recipe proposed again and saved keeps them; a project-scope one has already set its step's reader"
           }
         },
         "type": "object",
@@ -47052,11 +47062,15 @@
             },
             "type": "array",
             "title": "Items"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/BakeoffReadiness"
           }
         },
         "type": "object",
         "required": [
-          "items"
+          "items",
+          "readiness"
         ],
         "title": "BakeoffList"
       },
@@ -47111,6 +47125,60 @@
           "lines"
         ],
         "title": "BakeoffPageScore"
+      },
+      "BakeoffReadiness": {
+        "properties": {
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines",
+            "description": "corrected lines on the sample pages (each page's newest pass a person made)"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "pages with such lines"
+          },
+          "min_lines": {
+            "type": "integer",
+            "title": "Min Lines"
+          },
+          "min_pages": {
+            "type": "integer",
+            "title": "Min Pages"
+          },
+          "more_lines": {
+            "type": "integer",
+            "title": "More Lines",
+            "description": "how many more corrected lines are needed; 0 when there are enough"
+          },
+          "more_pages": {
+            "type": "integer",
+            "title": "More Pages",
+            "description": "how many more pages with corrected lines are needed; 0 when there are enough"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "when not ready, what to correct, in words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ready",
+          "lines",
+          "pages",
+          "min_lines",
+          "min_pages",
+          "more_lines",
+          "more_pages"
+        ],
+        "title": "BakeoffReadiness",
+        "description": "Whether the project holds enough corrected lines for a bake-off now: the same count and constants as\nthe refusal of a start (`bakeoff.readiness`), so setup can say it before anything is pressed."
       },
       "BakeoffResult": {
         "properties": {
@@ -47197,7 +47265,13 @@
           "card": {
             "type": "string",
             "title": "Card",
-            "description": "its model card id"
+            "description": "its model card id: for Use This, never shown"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "the reader by its card's own name (the card's note, as a recipe step names its model): what the table shows, never the card id",
+            "default": ""
           },
           "role": {
             "type": "string",

@@ -39,6 +39,9 @@ final class BakeoffStore {
     /// The engine's sentence when it would not run one (too few corrected lines, nothing it can
     /// score here). Shown once, plainly; while it stands there is no button to run.
     private(set) var refusal: String?
+    /// Whether the project has enough corrected lines now, as the engine counts them for a start
+    /// (`readiness` on `GET …/bakeoffs`); nil until read.
+    private(set) var readiness: Components.Schemas.BakeoffReadiness?
     private(set) var isStarting = false
     /// The card whose Use This is being sent.
     private(set) var usingCard: String?
@@ -56,17 +59,28 @@ final class BakeoffStore {
         return state == "waiting" || state == "running"
     }
 
-    /// A run can be asked for: the engine has not refused, and none is under way.
-    var canRun: Bool { refusal == nil && !isStarting && !isRunning }
+    /// A run can be asked for: the engine says there are enough corrected lines, has not
+    /// refused, and none is under way. Until the engine has said so, there is no button.
+    var canRun: Bool { refusal == nil && readiness?.ready == true && !isStarting && !isRunning }
+
+    /// What stands in place of the button, once, in the engine's words: its refusal of a start,
+    /// or, before anything is pressed, how many more corrected lines it needs.
+    var notReadySentence: String? {
+        if let refusal { return refusal }
+        guard let readiness, !readiness.ready else { return nil }
+        return readiness.sentence
+    }
 
     // MARK: Reading
 
     /// The newest comparison kept in the project (`GET /api/recipes/project/bakeoffs`, newest
-    /// first), so setup and the Inspector reopen on it.
+    /// first), so setup and the Inspector reopen on it, and whether there are enough corrected
+    /// lines to run one now.
     func loadLatest() async {
         do {
-            let items = try await client.api.listBakeoffsApiRecipesProjectBakeoffsGet().ok.body.json.items
-            comparison = items.first
+            let list = try await client.api.listBakeoffsApiRecipesProjectBakeoffsGet().ok.body.json
+            readiness = list.readiness
+            comparison = list.items.first
         } catch {
             if error.isCancellationError { return }
             errorMessage = "Could not read this project's comparisons: \(error.localizedDescription)"
@@ -189,33 +203,16 @@ extension Components.Schemas.BakeoffRow: @retroactive Identifiable {
 // MARK: What a row says (the table draws exactly these, so they are checked without drawing)
 
 extension BakeoffStore {
-    /// A candidate by name, never its card id: the card's own name where the recipe's reading
-    /// step carries it, else the kind of reader with its place by the rules (the bake-off's row
-    /// does not carry the card's name yet).
-    static func name(of row: Row, recipe: Components.Schemas.AssembledRecipe?) -> String {
-        if let card = recipe?.steps.first(where: { $0.job == step })?.card,
-           card.id == row.card, let note = card.note, !note.isEmpty {
-            return note
-        }
-        let kind = switch row.reader {
-        case .kraken: "Kraken reader"
-        case .vision: row.local ? "Vision model" : "Cloud vision model"
+    /// A candidate by its card's own name, as the engine's row carries it (the name a recipe
+    /// step shows for its model), never its card id. Only a card no longer shipped has no name;
+    /// it is named by its kind of reader.
+    static func name(of row: Row) -> String {
+        if let name = row.name, !name.isEmpty { return name }
+        return switch row.reader {
+        case .kraken: "A Kraken reader"
+        case .vision: row.local ? "A vision model" : "A cloud vision model"
         case .tesseract: "Tesseract"
-        case nil: "Reader"
-        }
-        if let place = row.ruleRank {
-            return "\(kind), the rules' \(place.formatted(.number))\(ordinalSuffix(place)) choice"
-        }
-        return "\(kind), the baseline for print"
-    }
-
-    private static func ordinalSuffix(_ place: Int) -> String {
-        if (11...13).contains(place % 100) { return "th" }
-        switch place % 10 {
-        case 1: return "st"
-        case 2: return "nd"
-        case 3: return "rd"
-        default: return "th"
+        case nil: "A reader"
         }
     }
 
