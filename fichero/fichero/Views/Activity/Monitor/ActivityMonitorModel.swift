@@ -1,210 +1,363 @@
-import SwiftUI
+import Foundation
 
-/// One row in the Activity monitor's hierarchical outline table (#2546 / B2).
+/// One row of the Activity window's table (#2546 / B2, rebuilt for #5415):
+/// a run, a step, a page, or a job of its own (an embedding queue, a waiting
+/// kind of work).
 ///
-/// The monitor is a three-level tree built from the shared, threadId-keyed
-/// `WorkflowExecutionStore`:
+/// The tree is the engine's (`GET /api/activity/jobs/{id}`, #5353): a run's
+/// steps and their pages, with time, cost and errors rolled up. A run the
+/// engine has no tree for still has its row, from the runs table alone.
 ///
-///   run  →  nodes  →  files the running node is working on
-///
-/// All three levels share this single row type so a `Table` can render them
-/// with one set of columns (each column switches on `kind`). Display values are
-/// precomputed by `ActivityMonitorRow.rows(from:)` so the column closures stay
-/// tiny — important because hierarchical `Table` bodies type-check slowly.
-struct ActivityMonitorRow: Identifiable {
-    enum Kind {
-        case run
-        case node
-        case file
-    }
+/// Every level shares this one row type so a `Table` renders them with one
+/// set of columns. Display values are precomputed here so the column closures
+/// stay tiny: hierarchical `Table` bodies type-check slowly.
+struct ActivityMonitorRow: Identifiable, Equatable {
+    enum Kind { case run, step, page, job }
 
-    /// Stable, tree-unique id. Composite (`run:` / `node:` / `file:` prefixed)
-    /// so selection never collides across levels.
-    let id: String
+    /// The state, coarsely, in the order the State column sorts it.
+    enum Phase: Int {
+        case running, waiting, paused, failed, cancelled, done
 
-    let kind: Kind
-
-    /// Owning run's `threadId` — lets the action buttons act on the run that
-    /// owns ANY selected row (node or file), not just a top-level run row.
-    let runThreadId: String
-
-    let name: String
-
-    /// SF Symbol for the status column. Ignored when `isSpinning` is true.
-    let statusSymbol: String
-    let statusColor: Color
-
-    /// Show an indeterminate spinner instead of `statusSymbol` (active work).
-    let isSpinning: Bool
-
-    /// 0...1 for the progress-bar column, or nil to leave it blank.
-    let progress: Double?
-
-    /// The count / detail column text ("5/20", "3 steps", error counts …).
-    let detail: String
-
-    /// Child rows. `nil` = leaf (no disclosure triangle).
-    var children: [ActivityMonitorRow]?
-}
-
-/// Resolved status appearance for one monitor row.
-private struct StatusGlyph {
-    let symbol: String
-    let color: Color
-    let spinning: Bool
-}
-
-// MARK: - Tree construction
-
-extension ActivityMonitorRow {
-
-    /// Build the monitor's root rows (one per run) from live executions.
-    ///
-    /// Runs are sorted newest-first. Only human-visible workflow nodes are shown
-    /// (LangGraph plumbing is filtered via `activityHumanNodeName`). A run's
-    /// Per-file `documentProgress` is attached to its node via `stepStatuses`.
-    static func rows(from executions: [WorkflowExecution]) -> [ActivityMonitorRow] {
-        executions
-            .sorted { $0.startTime > $1.startTime }
-            .map { runRow(for: $0) }
-    }
-
-    private static func runRow(for execution: WorkflowExecution) -> ActivityMonitorRow {
-        let visibleNodes = execution.nodeStates.values
-            .filter { activityHumanNodeName($0.nodeId) != nil }
-            .sorted { $0.nodeId < $1.nodeId }
-
-        let nodeRows = visibleNodes.map { nodeRow(for: $0, in: execution) }
-
-        let glyph = runStatusGlyph(execution.status)
-
-        let detail: String
-        if execution.totalFiles > 0 {
-            detail = "\(execution.processedFiles)/\(execution.totalFiles) files"
-        } else if !visibleNodes.isEmpty {
-            let done = visibleNodes.filter { $0.status == .completed }.count
-            detail = "\(done)/\(visibleNodes.count) steps"
-        } else {
-            detail = ""
-        }
-
-        return ActivityMonitorRow(
-            id: "run:\(execution.threadId)",
-            kind: .run,
-            runThreadId: execution.threadId,
-            name: activityCleanWorkflowName(execution.name),
-            statusSymbol: glyph.symbol,
-            statusColor: glyph.color,
-            isSpinning: glyph.spinning,
-            progress: execution.overallProgress,
-            detail: detail,
-            children: nodeRows.isEmpty ? nil : nodeRows
-        )
-    }
-
-    private static func nodeRow(
-        for state: NodeExecutionState,
-        in execution: WorkflowExecution
-    ) -> ActivityMonitorRow {
-        let glyph = nodeStatusGlyph(state.status)
-
-        let isActiveParallel = (state.status == .running || state.status == .parallelRunning)
-            && state.fileTotal > 0
-
-        // Progress: prefer the file fraction for parallel nodes, else the node's
-        // own 0...1 progress (completed nodes read as full).
-        let progress: Double?
-        if state.fileTotal > 0 {
-            progress = Double(state.successCount + state.errorCount) / Double(state.fileTotal)
-        } else if state.status == .completed {
-            progress = 1.0
-        } else if state.progress > 0 {
-            progress = state.progress
-        } else {
-            progress = nil
-        }
-
-        var detail = ""
-        if state.fileTotal > 0 {
-            detail = "\(state.successCount)/\(state.fileTotal)"
-            if state.errorCount > 0 {
-                detail += "  \(state.errorCount) failed"
+        init(engineState: String) {
+            switch engineState.lowercased() {
+            case "running", "stalled": self = .running
+            case "waiting", "accepted", "queued": self = .waiting
+            case "paused": self = .paused
+            case "failed", "error": self = .failed
+            case "cancelled", "canceled", "stopped": self = .cancelled
+            default: self = .done
             }
         }
 
-        let fileRows = isActiveParallel
-            ? execution.orderedDocumentProgress
-                .filter { $0.stepStatuses[state.nodeId] != nil }
-                .map { fileRow(for: $0, runThreadId: execution.threadId) }
-            : []
+        init(_ status: ActivityRunStatus) {
+            switch status {
+            case .running: self = .running
+            case .paused: self = .paused
+            case .completed: self = .done
+            case .failed: self = .failed
+            case .cancelled: self = .cancelled
+            }
+        }
 
+        init(_ state: ActivityJob.State) {
+            switch state {
+            case .running, .stalled: self = .running
+            case .waiting, .other: self = .waiting
+            case .paused: self = .paused
+            case .failed: self = .failed
+            case .completed: self = .done
+            }
+        }
+
+        var word: String {
+            switch self {
+            case .running: "Running"
+            case .waiting: "Waiting"
+            case .paused: "Paused"
+            case .failed: "Failed"
+            case .cancelled: "Stopped"
+            case .done: "Done"
+            }
+        }
+
+        var isLive: Bool { self == .running || self == .waiting || self == .paused }
+    }
+
+    /// What a row's Pause, Resume and Stop buttons offer.
+    enum Control: String, Identifiable {
+        case pause, resume, stop
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .pause: "Pause"
+            case .resume: "Resume"
+            case .stop: "Stop"
+            }
+        }
+        var systemImage: String {
+            switch self {
+            case .pause: "pause.fill"
+            case .resume: "play.fill"
+            case .stop: "stop.fill"
+            }
+        }
+    }
+
+    /// Unique across levels and projects.
+    let id: String
+    let kind: Kind
+    let libraryId: UUID?
+    /// The owning run's row id (`ActivityRun.id`): what Delete and the detail
+    /// window act on from any row of its tree.
+    let runRowID: String?
+    /// The owning run's thread id: the key of its tree in `ActivityStore`.
+    let runThreadId: String?
+    /// The job Pause and Stop act on (`/api/activity/jobs/{id}/…`); `nil` for
+    /// a row with no job behind it, which shows no controls.
+    let jobId: String?
+    let name: String
+    /// The project, shown before a run's name when rows are not grouped.
+    let projectName: String?
+    let phase: Phase
+    /// Why it failed, or what it is waiting for, in the engine's words.
+    let reason: String?
+    /// What a running row is working on now.
+    let workingOn: String?
+    let done: Int
+    let total: Int
+    let started: Date?
+    /// How long it took, start to finish (or until the last read, while it runs).
+    let seconds: Double?
+    let costUsd: Double?
+    let tokens: Int
+    let errors: Int
+    let model: String?
+    /// Live from this window's own executions: its time ticks as a timer.
+    let isLive: Bool
+    /// `nil` = a leaf (no disclosure triangle).
+    var children: [ActivityMonitorRow]?
+
+    // MARK: - Columns
+
+    /// "Failed: the provider refused this letter", "Waiting: memory is tight",
+    /// "Running: Entities". The reason is the point of a failed row.
+    var stateText: String {
+        if let reason, !reason.isEmpty, phase == .failed || phase == .waiting || phase == .paused {
+            if reason.lowercased().hasPrefix(phase.word.lowercased()) || reason.hasPrefix("Paused") {
+                return reason
+            }
+            return "\(phase.word): \(reason)"
+        }
+        if phase == .running, let workingOn, !workingOn.isEmpty {
+            return "Running: \(workingOn)"
+        }
+        return phase.word
+    }
+
+    /// Seconds left at the pace so far, while it runs and some are done.
+    var remainingSeconds: Double? {
+        guard phase == .running, let seconds, done > 0, total > done else { return nil }
+        return seconds / Double(done) * Double(total - done)
+    }
+
+    /// "12 of 40", plus "about 3 min left" while it runs.
+    var progressText: String {
+        guard total > 0 else { return "" }
+        let counts = "\(done) of \(total)"
+        guard let remaining = remainingSeconds else { return counts }
+        return "\(counts), \(Self.duration(remaining)) left"
+    }
+
+    /// "$0.0023"; "Not priced" when a call under it has no price; empty when
+    /// nothing under it called a model. Never zero for unknown.
+    var costText: String {
+        if let costUsd {
+            // Dollars, as the price list states them, in any locale.
+            return "$" + costUsd.formatted(.number.precision(.significantDigits(1...3)).locale(Locale(identifier: "en_US_POSIX")))
+        }
+        return tokens > 0 ? "Not priced" : ""
+    }
+
+    var secondsText: String { seconds.map(Self.duration) ?? "" }
+
+    var errorsText: String { errors > 0 ? "\(errors)" : "" }
+
+    /// What Pause and Stop offer on this row: nothing on a finished row, or a
+    /// row with no job behind it.
+    var controls: [Control] {
+        guard jobId != nil else { return [] }
+        switch phase {
+        case .running, .waiting: return [.pause, .stop]
+        case .paused: return [.resume, .stop]
+        case .failed, .cancelled, .done: return []
+        }
+    }
+
+    // MARK: - Sort keys (non-optional, so a column can sort on them)
+
+    /// Live rows first: the default order is what is happening now, then the newest.
+    var liveKey: Int { phase.isLive ? 0 : 1 }
+    var phaseKey: Int { phase.rawValue }
+    var startedKey: Date { started ?? .distantPast }
+    var secondsKey: Double { seconds ?? -1 }
+    var costKey: Double { costUsd ?? -1 }
+    var progressKey: Double { total > 0 ? Double(done) / Double(total) : -1 }
+    var modelKey: String { model ?? "" }
+
+    static let defaultSort: [KeyPathComparator<ActivityMonitorRow>] = [
+        KeyPathComparator(\.liveKey),
+        KeyPathComparator(\.startedKey, order: .reverse)
+    ]
+
+    /// Rows in `comparators`' order, each level's children too.
+    static func sorted(
+        _ rows: [ActivityMonitorRow],
+        using comparators: [KeyPathComparator<ActivityMonitorRow>]
+    ) -> [ActivityMonitorRow] {
+        rows.sorted(using: comparators).map { row in
+            var row = row
+            row.children = row.children.map { sorted($0, using: comparators) }
+            return row
+        }
+    }
+
+    static func duration(_ seconds: Double) -> String {
+        Duration.seconds(seconds.rounded()).formatted(
+            .units(allowed: [.hours, .minutes, .seconds], width: .abbreviated, maximumUnitCount: 2)
+        )
+    }
+}
+
+// MARK: - Building rows
+
+extension ActivityMonitorRow {
+    /// A run's row, with its tree under it when the engine has one.
+    static func run(_ run: ActivityRun, tree: ActivityJobNode?) -> ActivityMonitorRow {
+        let library = run.libraryId?.uuidString ?? ""
+        let steps = tree?.children.map { node($0, run: run, library: library) } ?? []
+        let phase = Phase(run.status)
         return ActivityMonitorRow(
-            id: "node:\(execution.threadId):\(state.nodeId)",
-            kind: .node,
-            runThreadId: execution.threadId,
-            name: state.displayName ?? activityHumanNodeName(state.nodeId) ?? state.nodeId,
-            statusSymbol: glyph.symbol,
-            statusColor: glyph.color,
-            isSpinning: glyph.spinning,
-            progress: progress,
-            detail: detail,
-            children: fileRows.isEmpty ? nil : fileRows
+            id: run.id,
+            kind: .run,
+            libraryId: run.libraryId,
+            runRowID: run.id,
+            runThreadId: run.threadId ?? run.runId,
+            jobId: tree?.id,
+            name: run.workflowName,
+            projectName: run.libraryName,
+            phase: phase,
+            reason: run.failureReason ?? tree?.reason,
+            workingOn: run.currentStep.flatMap { $0.isEmpty ? nil : $0 } ?? tree.flatMap(Self.runningLabel),
+            done: tree?.done ?? (run.isLive ? Int((Double(run.fileCount) * (run.progress ?? 0)).rounded()) : 0),
+            total: tree?.total ?? (run.isLive ? run.fileCount : 0),
+            started: run.timestamp,
+            seconds: tree?.seconds,
+            costUsd: tree?.costUsd,
+            tokens: tree?.tokens ?? 0,
+            errors: tree?.failed ?? run.errorCount,
+            model: tree.flatMap(Self.models),
+            isLive: run.isLive && phase == .running,
+            children: steps.isEmpty ? nil : steps
         )
     }
 
-    private static func fileRow(
-        for doc: DocumentProgress,
-        runThreadId: String
-    ) -> ActivityMonitorRow {
-        let steps = Array(doc.stepStatuses.values)
-        let hasFailed = steps.contains { if case .failed = $0 { return true }; return false }
-        let hasRunning = steps.contains { if case .running = $0 { return true }; return false }
-        let doneCount = steps.filter { if case .completed = $0 { return true }; return false }.count
-
-        let glyph: StatusGlyph
-        if hasFailed {
-            glyph = StatusGlyph(symbol: "xmark.circle.fill", color: .red, spinning: false)
-        } else if hasRunning {
-            glyph = StatusGlyph(symbol: "circle", color: .secondary, spinning: true)
-        } else if doneCount == steps.count && !steps.isEmpty {
-            glyph = StatusGlyph(symbol: "checkmark.circle.fill", color: .green, spinning: false)
-        } else {
-            glyph = StatusGlyph(symbol: "circle", color: .secondary, spinning: false)
-        }
-
-        return ActivityMonitorRow(
-            id: "file:\(runThreadId):\(doc.id)",
-            kind: .file,
-            runThreadId: runThreadId,
-            name: activityCleanFilename(doc.documentName),
-            statusSymbol: glyph.symbol,
-            statusColor: glyph.color,
-            isSpinning: glyph.spinning,
-            progress: nil,
-            detail: steps.isEmpty ? "" : "\(doneCount)/\(steps.count) steps",
+    /// A job of its own from `GET /api/activity/jobs` that is not a workflow
+    /// run (those are run rows): an embedding queue, a kind of queued work.
+    static func job(_ job: ActivityJob, libraryId: UUID?, projectName: String?) -> ActivityMonitorRow {
+        ActivityMonitorRow(
+            id: "\(libraryId?.uuidString ?? "")|job:\(job.id)",
+            kind: .job,
+            libraryId: libraryId,
+            runRowID: nil,
+            runThreadId: nil,
+            jobId: nil,
+            name: job.name,
+            projectName: projectName,
+            phase: Phase(job.state),
+            reason: job.reason,
+            workingOn: nil,
+            done: job.current,
+            total: job.total,
+            started: nil,
+            seconds: nil,
+            costUsd: nil,
+            tokens: 0,
+            errors: job.state.isFailed ? 1 : 0,
+            model: nil,
+            isLive: false,
             children: nil
         )
     }
 
-    // MARK: - Status glyphs
-
-    private static func runStatusGlyph(_ status: WorkflowStatus) -> StatusGlyph {
-        switch status {
-        case .running:   return StatusGlyph(symbol: "circle", color: .blue, spinning: true)
-        case .paused:    return StatusGlyph(symbol: "pause.circle.fill", color: .orange, spinning: false)
-        case .completed: return StatusGlyph(symbol: "checkmark.circle.fill", color: .green, spinning: false)
-        case .failed:    return StatusGlyph(symbol: "xmark.circle.fill", color: .red, spinning: false)
-        case .cancelled: return StatusGlyph(symbol: "stop.circle.fill", color: .orange, spinning: false)
-        case .idle:      return StatusGlyph(symbol: "circle", color: .secondary, spinning: false)
-        }
+    private static func node(_ node: ActivityJobNode, run: ActivityRun, library: String) -> ActivityMonitorRow {
+        let children = node.children.map { self.node($0, run: run, library: library) }
+        let isStep = node.kind == "workflow-step" || node.kind == "workflow" || node.kind == "batch"
+        return ActivityMonitorRow(
+            id: "\(library)|\(node.id)",
+            kind: isStep ? .step : .page,
+            libraryId: run.libraryId,
+            runRowID: run.id,
+            runThreadId: run.threadId ?? run.runId,
+            jobId: node.id,
+            name: label(node),
+            projectName: nil,
+            phase: Phase(engineState: node.state),
+            reason: node.reason,
+            workingOn: runningLabel(node),
+            done: node.done,
+            total: node.total,
+            started: nil,
+            seconds: node.seconds,
+            costUsd: node.costUsd,
+            tokens: node.tokens,
+            errors: node.failed,
+            model: models(node),
+            isLive: false,
+            children: children.isEmpty ? nil : children
+        )
     }
 
-    private static func nodeStatusGlyph(_ status: NodeExecutionStatus) -> StatusGlyph {
-        switch status {
-        case .running, .parallelRunning: return StatusGlyph(symbol: "circle", color: .blue, spinning: true)
-        case .completed:                 return StatusGlyph(symbol: "checkmark.circle.fill", color: .green, spinning: false)
-        case .failed:                    return StatusGlyph(symbol: "xmark.circle.fill", color: .red, spinning: false)
-        case .idle:                      return StatusGlyph(symbol: "circle", color: .secondary, spinning: false)
+    /// A step's subject is "<run id>:<step>"; a page's is what it read.
+    private static func label(_ node: ActivityJobNode) -> String {
+        var subject = node.subject
+        if let parent = node.parentId, subject.hasPrefix(parent + ":") {
+            subject.removeFirst(parent.count + 1)
+        } else if let colon = subject.lastIndex(of: ":"), node.kind == "workflow-step" {
+            subject = String(subject[subject.index(after: colon)...])
         }
+        return subject.isEmpty ? node.name : subject
+    }
+
+    /// The deepest running node's label: what a running row is working on now.
+    private static func runningLabel(_ node: ActivityJobNode) -> String? {
+        for child in node.children where Phase(engineState: child.state) == .running {
+            return runningLabel(child).map { "\(label(child)), \($0)" } ?? label(child)
+        }
+        return nil
+    }
+
+    /// The model, or the models, under a node.
+    private static func models(_ node: ActivityJobNode) -> String? {
+        var found = Set<String>()
+        func collect(_ node: ActivityJobNode) {
+            if let model = node.model, !model.isEmpty { found.insert(model) }
+            node.children.forEach(collect)
+        }
+        collect(node)
+        return found.isEmpty ? nil : found.sorted().joined(separator: ", ")
+    }
+
+    /// One group of the window when rows are grouped by project: a project's
+    /// rows, or the Mac's own work (the global library), its own group.
+    struct Group: Identifiable {
+        let id: String
+        let title: String
+        let isMac: Bool
+        var rows: [ActivityMonitorRow]
+    }
+
+    /// Job kinds that are runs: shown as their run's row, never twice.
+    static let runKinds: Set<String> = ["workflow", "workflow-step", "batch"]
+
+    /// One library's group: its runs (each with its tree when loaded) and its
+    /// jobs of their own. A job under a run, or a run's own job, is not a row
+    /// of its own: it is in its run's tree. The global library is the Mac's.
+    static func group(
+        libraryId: UUID,
+        libraryName: String,
+        isMac: Bool,
+        runRows: [ActivityMonitorRow],
+        jobs: [ActivityJob]
+    ) -> Group {
+        let runIds = Set(runRows.compactMap(\.runThreadId))
+        let jobRows = jobs
+            .filter { $0.parentId == nil && !runIds.contains($0.id) && !runKinds.contains($0.taskType) }
+            .map { job($0, libraryId: libraryId, projectName: libraryName) }
+        return Group(
+            id: libraryId.uuidString,
+            title: isMac ? "This Mac" : libraryName,
+            isMac: isMac,
+            rows: runRows + jobRows
+        )
     }
 }

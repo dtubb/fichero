@@ -1,37 +1,35 @@
 import SwiftUI
 
-/// Root of the poppable "Activity" window (#2546 / B2) — ONE list of every
-/// run, across every open library.
+/// Root of the poppable "Activity" window (#2546 / B2): ONE table of every
+/// run and job, across every open library (`activity.window.table`, #5415).
 ///
-/// Rebuilt 2026-08-28 (Daniel: Activity should read like Mail). It used to
-/// render a section per library, each an independent `ActivityBrowserView`
-/// with its own store, its own poll and its own error pill, reserving 160pt
-/// whether or not it held a single run; five open libraries produced five
-/// mostly-empty scrolling lists and five "Couldn't load activity" banners.
+/// A row is a run, with a disclosure triangle into its steps and their pages
+/// (`activity.window.expand`), read from the engine's run tree
+/// (`GET /api/activity/jobs/{id}`, #5353). The columns are the measures that
+/// matter (`activity.window.measures`): state with its reason, progress, start,
+/// time, cost, errors and model, each sortable. Pause, Resume and Stop sit on
+/// the row (`activity.pause.per-job`).
 ///
-/// Mail's unified inbox is the shape: the account — here the library — is a
-/// column ON the row rather than a container around it. Runs are merged and
-/// sorted live-first, so the window answers "what is happening right now"
-/// without the reader scanning five lists to find out.
+/// It replaced a flat list with nothing under a run. The library is on the
+/// row unless rows are grouped by project (`activity.window.grouped-by-project`).
+///
+/// Updates arrive one row at a time: a run's tree is fetched when its row is
+/// first drawn and again when the change stream names its run
+/// (`ActivityStore.applyActivityEvent`); nothing reloads the table.
 struct ActivityMonitorWindow: View {
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(\.openWindow) private var openWindow
     @State private var selectionState = ActivityWindowSelectionState.shared
-    /// Multi-select (#4960 p3: "multi-select in the window") — deliberately
-    /// separate from `selectionState`, which names the ONE run the detail
-    /// window follows. A bulk selection of five failed runs has no single
-    /// "the" detail to show; double-clicking a row still drives the detail
-    /// window through `openDetails(for:)` below, unaffected by how many rows
-    /// are selected for Delete.
-    @State private var selectedIDs: Set<String> = []
-    /// The outcome of the last Delete/Clear Failed — surfaced plainly rather
-    /// than silently, per #4960: a still-running run in the selection is
-    /// SKIPPED, never force-deleted, and the reader is told which.
-    @State private var deleteNotice: String?
+    /// Multi-select (#4960 p3), separate from `selectionState`, which names
+    /// the ONE run the detail window follows.
+    @State private var selectedIDs: Set<ActivityMonitorRow.ID> = []
+    @State private var sortOrder = ActivityMonitorRow.defaultSort
+    /// The outcome of the last Delete, Clear Failed, Pause or Stop: said
+    /// plainly rather than silently (#4960).
+    @State private var notice: String?
+    @AppStorage("activity.groupByProject") private var groupByProject = false
 
-    /// EVERY open library, global included (Daniel #19: "show ALL
-    /// libraries") — the window used to show only the selection-state
-    /// library, so runs in any other open library were invisible here.
+    /// EVERY open library, global included (Daniel #19: "show ALL libraries").
     private var libraries: [LibraryManager.LibraryReference] {
         var references = libraryManager.openLibraries
         if let global = libraryManager.globalLibrary,
@@ -49,110 +47,146 @@ struct ActivityMonitorWindow: View {
                     systemImage: "tray",
                     description: Text("Open a library to monitor its workflow activity.")
                 )
-            } else if mergedRuns.isEmpty {
+            } else if groups.allSatisfy(\.rows.isEmpty) {
                 ContentUnavailableView(
                     "No Runs Yet",
                     systemImage: "clock.arrow.circlepath",
                     description: Text("Workflow runs from every open library appear here.")
                 )
             } else {
-                // ONE list across every open library (Daniel, 2026-08-28:
-                // Activity should read like Mail). This replaced a section per
-                // library, each an independent ActivityBrowserView reserving
-                // 160pt whether or not it held a run: five open libraries meant
-                // five scrolling lists, five polls and five error pills over
-                // mostly empty space. The library is a COLUMN on the row, not a
-                // container around it — which is exactly how Mail's unified
-                // inbox names the account.
-                List(selection: $selectedIDs) {
-                    ForEach(mergedRuns) { run in
-                        UnifiedActivityRow(run: run) { openDetails(for: run) }
-                            .tag(run.id)
-                            // Infinite scroll (#4960: dropping the old 7-day/
-                            // 100-event ceiling means there is no fixed-size
-                            // list any more): the last row appearing is the
-                            // signal to page in the next one, per library —
-                            // cheaper than a scroll-position observer, and
-                            // the idiomatic SwiftUI List pattern for this.
-                            .onAppear {
-                                guard run.id == mergedRuns.last?.id, let library = library(for: run.libraryId)
-                                else { return }
-                                Task { await library.activityStore.loadMoreRuns(library: library) }
-                            }
-                    }
-                }
-                .listStyle(.inset)
-                .contextMenu(forSelectionType: String.self) { ids in
-                    contextMenuItems(for: ids)
-                } primaryAction: { ids in
-                    guard ids.count == 1, let id = ids.first,
-                          let run = mergedRuns.first(where: { $0.id == id }) else { return }
-                    openDetails(for: run)
-                }
-                // macOS-only SwiftUI modifier (#3018/#1928): unguarded, this breaks the iOS build.
-                // Delete is still reachable on iOS via the context menu's "Delete" item above.
-                #if os(macOS)
-                .onDeleteCommand { Task { await deleteSelected() } }
-                #endif
+                table
             }
         }
         .navigationTitle("Activity")
-        .frame(minWidth: 420, minHeight: 520)
+        .frame(minWidth: 720, minHeight: 520)
+        .accessibilityIdentifier("activity.window")
         .toolbar {
             ToolbarItem {
+                Toggle(isOn: $groupByProject) {
+                    Label("Group by Project", systemImage: "square.stack.3d.up")
+                }
+                .help("Group the rows by project, with this Mac's own work as a group of its own")
+            }
+            ToolbarItem {
                 Button("Clear Failed", role: .destructive) { Task { await clearFailed() } }
-                    .disabled(!mergedRuns.contains { $0.status == .failed })
+                    .disabled(!libraries.contains { $0.activityStore.runs.contains { $0.status == .failed } })
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            // Per-library load failures + the delete/Clear-Failed outcome
-            // (#4960 §2: the review's verified "window ignores load
-            // failures" defect — it read `runLoadFailures` from nowhere. A
-            // query failure here now means the window CAN say "No Runs Yet"
-            // over a library it simply couldn't read, exactly what the
-            // browser already avoids via the same property).
-            VStack(spacing: 0) {
-                ForEach(libraries.flatMap(\.activityStore.runLoadFailures), id: \.self) { message in
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                        Text(message)
-                            .font(.caption)
-                        Spacer(minLength: 8)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.regularMaterial)
-                }
-                if let deleteNotice {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                        Text(deleteNotice)
-                            .font(.caption)
-                        Spacer(minLength: 8)
-                        Button("Dismiss") { self.deleteNotice = nil }
-                            .font(.caption)
-                            .buttonStyle(.borderless)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.regularMaterial)
-                }
-            }
-        }
-        // The per-library sections this replaced each hosted an
-        // ActivityBrowserView, and THAT view was what populated its store —
-        // so merging the list without taking over the load left every store
-        // empty and the window said "No Runs Yet" over a library full of runs
-        // (Daniel, 2026-08-28). The window owns the refresh now.
+        .safeAreaInset(edge: .bottom) { footer }
+        // The window owns the run-list load (Daniel, 2026-08-28).
         .task(id: refreshKey) { await refreshAll() }
     }
 
+    private var table: some View {
+        Table(of: ActivityMonitorRow.self, selection: $selectedIDs, sortOrder: $sortOrder) {
+            TableColumn("Name", value: \.name) { row in
+                ActivityNameCell(row: row, showsProject: !groupByProject)
+                    .task(id: row.id) { await rowAppeared(row) }
+            }
+            .width(min: 180, ideal: 260)
+            TableColumn("State", value: \.phaseKey) { row in ActivityStateCell(row: row) }
+                .width(min: 120, ideal: 220)
+            TableColumn("Progress", value: \.progressKey) { row in
+                Text(row.progressText).monospacedDigit()
+            }
+            .width(min: 70, ideal: 150)
+            TableColumn("Started", value: \.startedKey) { row in
+                Text(row.started == nil ? "" : ActivityTimeText.absolute(row.started))
+            }
+            .width(min: 70, ideal: 110)
+            TableColumn("Time", value: \.secondsKey) { row in ActivityElapsedCell(row: row) }
+                .width(min: 50, ideal: 70)
+            TableColumn("Cost", value: \.costKey) { row in Text(row.costText).monospacedDigit() }
+                .width(min: 50, ideal: 70)
+            TableColumn("Errors", value: \.errors) { row in
+                Text(row.errorsText).monospacedDigit().foregroundStyle(.red)
+            }
+            .width(min: 40, ideal: 50)
+            TableColumn("Model", value: \.modelKey) { row in Text(row.model ?? "").lineLimit(1) }
+                .width(min: 60, ideal: 120)
+            TableColumn("") { row in
+                ActivityRowControls(row: row) { control in Task { await act(control, on: row) } }
+            }
+            .width(min: 60, ideal: 70)
+        } rows: {
+            if groupByProject {
+                ForEach(sortedGroups) { group in
+                    Section {
+                        OutlineGroup(group.rows, children: \.children) { row in TableRow(row) }
+                    } header: {
+                        Text(group.title)
+                            .accessibilityIdentifier(group.isMac ? "activity.group.mac" : "activity.group.\(group.id)")
+                    }
+                }
+            } else {
+                OutlineGroup(sortedRows, children: \.children) { row in TableRow(row) }
+            }
+        }
+        .accessibilityIdentifier("activity.table")
+        .contextMenu(forSelectionType: ActivityMonitorRow.ID.self) { ids in
+            Button("Delete", role: .destructive) {
+                Task { await deleteRuns(withIDs: ids) }
+            }
+        } primaryAction: { ids in
+            guard ids.count == 1, let id = ids.first, let run = run(owning: id) else { return }
+            openDetails(for: run)
+        }
+        #if os(macOS)
+        .onDeleteCommand { Task { await deleteRuns(withIDs: selectedIDs) } }
+        #endif
+    }
+
     @ViewBuilder
-    private func contextMenuItems(for ids: Set<String>) -> some View {
-        Button("Delete", role: .destructive) {
-            Task { await deleteRuns(withIDs: ids) }
+    private var footer: some View {
+        // Per-library load failures + the last action's outcome (#4960 §2, #5431).
+        VStack(spacing: 0) {
+            ForEach(libraries.flatMap(\.activityStore.runLoadFailures), id: \.self) { message in
+                ActivityFooterLine(message: message, onDismiss: nil)
+            }
+            if let notice {
+                ActivityFooterLine(message: notice) { self.notice = nil }
+            }
+        }
+    }
+
+    // MARK: - Rows
+
+    /// One group per open library, the global one titled as this Mac's own
+    /// work: its runs (each with its tree when loaded) and its jobs of their own.
+    private var groups: [ActivityMonitorRow.Group] {
+        libraries.map { library in
+            let store = library.activityStore
+            return ActivityMonitorRow.group(
+                libraryId: library.id,
+                libraryName: library.displayName,
+                isMac: library.id == libraryManager.globalLibrary?.id,
+                runRows: store.runs.map { .run($0, tree: store.runTrees[$0.threadId ?? $0.runId]) },
+                jobs: store.backgroundJobs
+            )
+        }
+    }
+
+    private var sortedRows: [ActivityMonitorRow] {
+        ActivityMonitorRow.sorted(groups.flatMap(\.rows), using: sortOrder)
+    }
+
+    private var sortedGroups: [ActivityMonitorRow.Group] {
+        groups.filter { !$0.rows.isEmpty }.map { group in
+            var group = group
+            group.rows = ActivityMonitorRow.sorted(group.rows, using: sortOrder)
+            return group
+        }
+    }
+
+    /// A run row drawn for the first time reads its tree; the last run row of
+    /// a library pages in that library's next runs (#4960 infinite scroll).
+    private func rowAppeared(_ row: ActivityMonitorRow) async {
+        guard row.kind == .run, let library = library(for: row.libraryId) else { return }
+        if let threadId = row.runThreadId {
+            await library.activityStore.loadRunTree(threadId: threadId)
+        }
+        if row.runRowID == library.activityStore.runs.last?.id {
+            await library.activityStore.loadMoreRuns(library: library)
         }
     }
 
@@ -161,57 +195,68 @@ struct ActivityMonitorWindow: View {
         return libraries.first { $0.id == id }
     }
 
-    /// Delete every SELECTED row — `.onDeleteCommand` (the Delete key) and
-    /// the context menu's Delete both land here.
-    private func deleteSelected() async {
-        await deleteRuns(withIDs: selectedIDs)
+    /// The run a row belongs to: itself, or the run whose tree holds it.
+    private func run(owning rowID: ActivityMonitorRow.ID) -> ActivityRun? {
+        for library in libraries {
+            if let run = library.activityStore.runs.first(where: { $0.id == rowID }) { return run }
+        }
+        guard let row = Self.find(rowID, in: sortedRows), let runID = row.runRowID else { return nil }
+        return libraries.lazy.compactMap { $0.activityStore.runs.first { $0.id == runID } }.first
     }
 
-    /// The ONE delete operation (#4960), routed per row's OWN library since
-    /// the merged list spans every open library and each library owns its
-    /// own `ActivityStore`/`ActivityService`. A still-running run in the
-    /// selection is SKIPPED by the engine, never force-deleted — reported
-    /// plainly in `deleteNotice`, never silently dropped.
-    private func deleteRuns(withIDs ids: Set<String>) async {
-        let selected = mergedRuns.filter { ids.contains($0.id) }
+    private static func find(_ id: ActivityMonitorRow.ID, in rows: [ActivityMonitorRow]) -> ActivityMonitorRow? {
+        for row in rows {
+            if row.id == id { return row }
+            if let found = find(id, in: row.children ?? []) { return found }
+        }
+        return nil
+    }
+
+    // MARK: - Actions
+
+    /// Pause, Resume or Stop one row's job through the audited job actions;
+    /// the engine's answer is set on that row in place.
+    private func act(_ control: ActivityMonitorRow.Control, on row: ActivityMonitorRow) async {
+        guard let jobId = row.jobId, let store = library(for: row.libraryId)?.activityStore else { return }
+        let failure: String?
+        switch control {
+        case .pause: failure = await store.setJobPaused(jobId: jobId, paused: true, runThreadId: row.runThreadId)
+        case .resume: failure = await store.setJobPaused(jobId: jobId, paused: false, runThreadId: row.runThreadId)
+        case .stop: failure = await store.cancelJob(jobId: jobId, runThreadId: row.runThreadId)
+        }
+        notice = failure.map { "Couldn't \(control.label.lowercased()) \(row.name): \($0)" }
+    }
+
+    /// The ONE delete operation (#4960), routed per row's OWN library. Only
+    /// run rows delete; a still-running run is SKIPPED by the engine, and the
+    /// reader is told.
+    private func deleteRuns(withIDs ids: Set<ActivityMonitorRow.ID>) async {
         var skippedCount = 0
-        for (libraryId, runsInLibrary) in Dictionary(grouping: selected, by: { $0.libraryId }) {
-            guard let library = library(for: libraryId) else { continue }
-            let outcome = await library.activityStore.deleteRuns(threadIds: runsInLibrary.map(\.runId))
+        for library in libraries {
+            let threadIds = library.activityStore.runs.filter { ids.contains($0.id) }.map(\.runId)
+            guard !threadIds.isEmpty else { continue }
+            let outcome = await library.activityStore.deleteRuns(threadIds: threadIds)
             skippedCount += outcome.skippedIds.count
         }
         selectedIDs.removeAll()
-        deleteNotice = skippedCount > 0 ? runsStillRunningMessage(skippedCount) : nil
+        notice = skippedCount > 0 ? "\(skippedCount) run\(skippedCount == 1 ? "" : "s") still running — not deleted." : nil
     }
 
-    /// "Clear Failed" (#4960): the SAME delete operation, a status filter
-    /// instead of explicit ids, across every open library.
+    /// "Clear Failed" (#4960): the SAME delete operation with a status filter.
     private func clearFailed() async {
         var skippedCount = 0
         for library in libraries {
             let outcome = await library.activityStore.deleteRuns(statuses: ["failed"])
             skippedCount += outcome.skippedIds.count
         }
-        deleteNotice = skippedCount > 0
+        notice = skippedCount > 0
             ? "\(skippedCount) run\(skippedCount == 1 ? "" : "s") could not be cleared."
             : nil
     }
 
-    /// Plain grammar, not markdown inflection (`^[...](inflect: true)` only
-    /// works through `Text`'s literal/`LocalizedStringResource` initializer,
-    /// not a `String` built at runtime and handed to `Text(_ string:)`).
-    private func runsStillRunningMessage(_ count: Int) -> String {
-        "\(count) run\(count == 1 ? "" : "s") still running — not deleted."
-    }
-
-    /// Changes whenever the set of open libraries changes, any library's
-    /// live executions do, or its `ActivityStore.refreshToken` is bumped —
-    /// reading those here is also what subscribes this view to the
-    /// @Observable stores, so a run starting or finishing re-runs the task
-    /// above. The token is bumped by activity events and by the change
-    /// stream's reconnect resync, which is what retries a load that failed
-    /// while the engine was restarting (#5431); without it one refused load
-    /// stayed on the footer for good.
+    /// Changes whenever the set of open libraries, any library's live
+    /// executions or its `refreshToken` change; the token is bumped by
+    /// activity bursts and by the change stream's reconnect resync (#5431).
     private var refreshKey: String {
         libraries
             .map {
@@ -221,16 +266,14 @@ struct ActivityMonitorWindow: View {
     }
 
     /// Select the run and open its step trace. Selection is set FIRST because
-    /// the detail window resolves what to show from the shared selection state
-    /// (and the `libraryId` it carries), not from a parameter.
+    /// the detail window resolves what to show from the shared selection state.
     private func openDetails(for run: ActivityRun) {
         selectionState.select(run.toSelectedRun())
         openWindow(id: ActivityWindowSelectionState.detailWindowID)
     }
 
-    /// Rebuild every open library's run list. Each store owns its own merge of
-    /// live executions and history; this only feeds each one the dependencies
-    /// it cannot reach from inside itself.
+    /// Patch every open library's run list from its live executions and the
+    /// runs table; each store owns its own merge.
     private func refreshAll() async {
         for library in libraries {
             await library.activityStore.rebuildRuns(
@@ -239,22 +282,119 @@ struct ActivityMonitorWindow: View {
             )
         }
     }
-
-    /// Every open library's runs in one sequence: live runs first (the thing
-    /// you opened the window to watch), then most recent. Sorting here rather
-    /// than per-section is what lets the window answer "what is happening right
-    /// now" without the reader scanning five lists.
-    private var mergedRuns: [ActivityRun] {
-        libraries
-            .flatMap(\.activityStore.runs)
-            .sorted { lhs, rhs in
-                if lhs.isLive != rhs.isLive { return lhs.isLive }
-                return (lhs.timestamp ?? .distantPast) > (rhs.timestamp ?? .distantPast)
-            }
-    }
-
 }
 
-// ActivityWindowMenuButton was deleted with #4524: the `Window("Activity")`
-// scene's automatic Windows-menu item (see FicheroApp scene declarations) is
-// the one entry point, so a hand-rolled CommandGroup button was a duplicate.
+// MARK: - Cells (small, so the hierarchical Table type-checks quickly)
+
+/// The row's name; a run's project before it when rows are not grouped.
+private struct ActivityNameCell: View {
+    let row: ActivityMonitorRow
+    let showsProject: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if showsProject, let project = row.projectName, !project.isEmpty {
+                Text(project).foregroundStyle(.secondary)
+                Text("·").foregroundStyle(.tertiary)
+            }
+            Text(row.name).lineLimit(1)
+        }
+        .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id)")
+    }
+}
+
+/// The state with its reason: a failed row says why, a waiting row what for.
+private struct ActivityStateCell: View {
+    let row: ActivityMonitorRow
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .foregroundStyle(color)
+                .accessibilityHidden(true)
+            Text(row.stateText)
+                .lineLimit(1)
+                .foregroundStyle(row.phase == .failed ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
+        }
+        .help(row.stateText)
+    }
+
+    private var symbol: String {
+        switch row.phase {
+        case .running: "play.circle.fill"
+        case .waiting: "clock"
+        case .paused: "pause.circle.fill"
+        case .failed: "xmark.circle.fill"
+        case .cancelled: "stop.circle.fill"
+        case .done: "checkmark.circle.fill"
+        }
+    }
+
+    private var color: Color {
+        switch row.phase {
+        case .running: .blue
+        case .waiting: .secondary
+        case .paused, .cancelled: .orange
+        case .failed: .red
+        case .done: .green
+        }
+    }
+}
+
+/// How long it took; a run this window is watching ticks as a timer.
+private struct ActivityElapsedCell: View {
+    let row: ActivityMonitorRow
+
+    var body: some View {
+        if row.isLive, let started = row.started {
+            Text(started, style: .timer).monospacedDigit()
+        } else {
+            Text(row.secondsText).monospacedDigit()
+        }
+    }
+}
+
+/// Pause or Resume, and Stop, on a row that is still working.
+private struct ActivityRowControls: View {
+    let row: ActivityMonitorRow
+    let perform: (ActivityMonitorRow.Control) -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(row.controls) { control in
+                Button {
+                    perform(control)
+                } label: {
+                    Label(control.label, systemImage: control.systemImage)
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.borderless)
+                .help("\(control.label) \(row.name)")
+                .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).\(control == .stop ? "cancel" : control.rawValue)")
+            }
+        }
+    }
+}
+
+private struct ActivityFooterLine: View {
+    let message: String
+    let onDismiss: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.caption)
+            Spacer(minLength: 8)
+            if let onDismiss {
+                Button("Dismiss", action: onDismiss)
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.regularMaterial)
+    }
+}

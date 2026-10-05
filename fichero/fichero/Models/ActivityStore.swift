@@ -88,7 +88,23 @@ final class ActivityStore: ChangeEventConsumer {
     private(set) var backgroundJobs: [ActivityJob] = []
     private(set) var processCpuPercent: Double?
     private(set) var cpuCount: Int = 0
+    /// Pause Background Work is on (`activity.pause.global`), from the same read.
+    private(set) var backgroundPaused = false
     private var jobsPollTask: Task<Void, Never>?
+
+    // MARK: - Run trees (#5415: the Activity table's run → step → page rows)
+    //
+    // `GET /api/activity/jobs/{threadId}` per run, keyed by thread id. A tree
+    // is fetched when its row is first shown and again when the change stream
+    // names its run: ONE key patched, never the whole dictionary replaced.
+    private(set) var runTrees: [String: ActivityJobNode] = [:]
+    /// Runs the engine has no tree for (recorded before the jobs table): not
+    /// asked again, their row shows the run alone.
+    private var runsWithoutTree: Set<String> = []
+    private var treeFetchesInFlight: Set<String> = []
+    /// One pending tree read per run, restarted by each frame of a burst.
+    @ObservationIgnored private var pendingTreeReads: [String: Task<Void, Never>] = [:]
+    private let treeReadDelay: Duration = .milliseconds(300)
     /// How often the jobs endpoint is polled. Loopback + a point-in-time read,
     /// so 2s is live enough for a progress bar without adding real load.
     private let jobsPollInterval: Duration = .seconds(2)
@@ -138,6 +154,7 @@ final class ActivityStore: ChangeEventConsumer {
                 processCpuPercent = snapshot.processCpuPercent
             }
             if cpuCount != snapshot.cpuCount { cpuCount = snapshot.cpuCount }
+            if backgroundPaused != snapshot.paused { backgroundPaused = snapshot.paused }
         } catch {
             log.debug("ActivityStore: jobs poll failed \(error.localizedDescription, privacy: .public)")
         }
@@ -324,7 +341,8 @@ final class ActivityStore: ChangeEventConsumer {
             fileCount: summary.documentCount ?? 0,
             isLive: false,
             libraryId: library.id,
-            libraryName: library.displayName
+            libraryName: library.displayName,
+            failureReason: (summary.error?.isEmpty == false) ? summary.error : nil
         )
     }
 
@@ -387,6 +405,11 @@ final class ActivityStore: ChangeEventConsumer {
             }
             return
         }
+        // The Activity table's row for this run (#5415): re-read ITS tree only,
+        // once the burst settles — one row updated in place, no list reload.
+        if let threadId = activity.threadId, runTrees[threadId] != nil {
+            scheduleTreeRead(threadId: threadId)
+        }
         // Debounced (perf audit 2026-08-19): a running workflow emits several
         // activity frames per second, and every refreshToken bump used to fan
         // out to a full run-list refetch in the sidebar, the activity pane
@@ -427,5 +450,74 @@ final class ActivityStore: ChangeEventConsumer {
                 "ActivityStore: backend.work \(status.phase.rawValue, privacy: .public) \(status.taskName, privacy: .public)"
             )
         }
+    }
+}
+
+// MARK: - Run trees (#5415): the Activity table's run → step → page rows
+
+extension ActivityStore {
+    /// Fetch one run's tree once, when its row is first shown. Later reads
+    /// come from the change stream (`applyActivityEvent`), never a poll.
+    func loadRunTree(threadId: String) async {
+        guard runTrees[threadId] == nil, !runsWithoutTree.contains(threadId) else { return }
+        await fetchRunTree(threadId: threadId)
+    }
+
+    /// Read one run's tree and patch that ONE key. A failed read keeps what
+    /// the row showed; a run the engine has no tree for is remembered.
+    private func fetchRunTree(threadId: String) async {
+        guard !treeFetchesInFlight.contains(threadId) else { return }
+        treeFetchesInFlight.insert(threadId)
+        defer { treeFetchesInFlight.remove(threadId) }
+        do {
+            if let tree = try await activityService.getJobTree(id: threadId) {
+                if runTrees[threadId] != tree { runTrees[threadId] = tree }
+            } else {
+                runsWithoutTree.insert(threadId)
+            }
+        } catch {
+            log.debug("ActivityStore: tree for \(threadId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Pause or resume one row's job (`activity.pause.per-job`) and set the
+    /// state the engine answers on that ONE node in place. `runThreadId` is
+    /// the run whose tree holds it. Returns what went wrong, in words, or nil.
+    func setJobPaused(jobId: String, paused: Bool, runThreadId: String?) async -> String? {
+        do {
+            let state = try await activityService.setJobPaused(id: jobId, paused: paused)
+            patchJobState(state, jobId: jobId, runThreadId: runThreadId)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Stop one row's job and what is under it (the audited `job.cancel`).
+    func cancelJob(jobId: String, runThreadId: String?) async -> String? {
+        do {
+            let state = try await activityService.cancelJob(id: jobId)
+            patchJobState(state, jobId: jobId, runThreadId: runThreadId)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    private func scheduleTreeRead(threadId: String) {
+        pendingTreeReads[threadId]?.cancel()
+        pendingTreeReads[threadId] = Task { [weak self] in
+            guard let delay = self?.treeReadDelay else { return }
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            self.pendingTreeReads[threadId] = nil
+            await self.fetchRunTree(threadId: threadId)
+        }
+    }
+
+    private func patchJobState(_ state: String, jobId: String, runThreadId: String?) {
+        guard let runThreadId, let tree = runTrees[runThreadId],
+              let changed = tree.settingState(state, of: jobId) else { return }
+        runTrees[runThreadId] = changed
     }
 }

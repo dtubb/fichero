@@ -140,52 +140,12 @@ struct ActivityStatusToolbarItem: View {
                 BackendWorkPill(status: backendWork)
             }
 
-            // Live background jobs (embedding, derivative/HTR queues, Kraken
-            // Detect Regions, …) from `/api/activity/jobs` — the SAME rows the
-            // full Activity viewer shows, from the SAME source, so the two
-            // surfaces can't disagree. Failed jobs render red here too.
-            ForEach(activityStore.backgroundJobs) { job in
-                ActivityJobRow(job: job)
-                    // A failed WORKFLOW job (Kraken Detect Regions, HTR, …)
-                    // is a run in the SAME `workflow_runs` record the window
-                    // reads (#4960: this popover's job list already comes
-                    // from `list_workflow_runs`, see `ActivityService
-                    // .getBackgroundJobs`) — `job.id` is that run's thread
-                    // id, so the SAME delete operation removes it here, not
-                    // a second one. A non-workflow job (embedding, import…)
-                    // has no run record to delete, so it gets no menu.
-                    .contextMenu {
-                        if job.taskType == "workflow", job.state.isFailed {
-                            Button("Delete", role: .destructive) {
-                                Task { await activityStore.deleteRuns(threadIds: [job.id]) }
-                            }
-                        }
-                    }
-            }
-
-            ForEach(activeWorkflows, id: \.threadId) { execution in
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(execution.name)
-                            .font(.callout)
-                            .lineLimit(1)
-                        if let step = execution.currentNodeName {
-                            Text(step)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-            }
-
-            if activeCount == 0 && !hasError && activityStore.backgroundJobs.isEmpty {
-                Text("Nothing running.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
+            // A summary, not a list (`activity.popover.summary`, #5415): the
+            // rows themselves are the Activity window's.
+            ActivityPopoverSummaryView(
+                summary: summary,
+                nothingElseRunning: !isImporting && activityStore.backendWork == nil
+            )
 
             // Process CPU% from the same jobs read — what's consuming compute,
             // in the surface where the user is already looking at the work.
@@ -203,6 +163,17 @@ struct ActivityStatusToolbarItem: View {
         }
         .padding(14)
         .frame(minWidth: 260, alignment: .leading)
+        .accessibilityIdentifier("activity.popover")
+    }
+
+    private var summary: ActivityPopoverSummary {
+        ActivityPopoverSummary(
+            jobs: activityStore.backgroundJobs,
+            paused: activityStore.backgroundPaused,
+            liveRuns: activeWorkflows.map {
+                .init(id: $0.threadId, name: $0.name, step: $0.currentNodeName)
+            }
+        )
     }
 
     private var accessibilityLabel: String {

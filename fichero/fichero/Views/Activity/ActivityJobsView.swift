@@ -53,6 +53,9 @@ struct ActivityJobRow: View {
         case .paused:
             Image(systemName: "pause.circle.fill")
                 .foregroundStyle(.orange)
+        case .waiting:
+            Image(systemName: "clock")
+                .foregroundStyle(.secondary)
         case .running, .stalled, .other:
             ProgressView()
                 .controlSize(.small)
@@ -74,6 +77,9 @@ struct ActivityJobRow: View {
             return job.showsProgress ? "Stalled — \(job.current) of \(job.total)" : "Stalled"
         case .paused:
             return "Paused"
+        case .waiting:
+            // What it waits for ("Paused by you", "Waiting: memory is tight").
+            return job.reason ?? "Waiting"
         case .completed:
             return "Completed"
         case .running, .other:
@@ -87,6 +93,7 @@ struct ActivityJobRow: View {
         case .failed: return "\(job.name), failed"
         case .completed: return "\(job.name), completed"
         case .paused: return "\(job.name), paused"
+        case .waiting: return "\(job.name), waiting"
         case .running, .stalled, .other:
             return job.showsProgress
                 ? "\(job.name), \(job.displayPercent) percent"

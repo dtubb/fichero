@@ -22,6 +22,9 @@ struct ActivityRun: Identifiable {
     let isLive: Bool  // True if from WorkflowExecutionObserver
     var libraryId: UUID?
     var libraryName: String?
+    /// Why a failed run failed, as the runs table recorded it; the Activity
+    /// table's state column shows it (`activity.window.row-shows-lane-state-reason`).
+    var failureReason: String?
 
     /// Convert to SelectedActivityRun for viewMode
     func toSelectedRun() -> SelectedActivityRun {
