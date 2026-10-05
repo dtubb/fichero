@@ -241,6 +241,7 @@ extension ContentView {
     }
 
     func navigateSiblingPrevious() {
+        siblingStep.flush(show: showSiblingStep)
         guard let current = seededCurrentDocument() else { return }
         if isPlainFolder(current) {
             navigateIntoFolder(current, forward: false)
@@ -259,6 +260,7 @@ extension ContentView {
 
     /// Move to the next sibling. Symmetric to navigateSiblingPrevious.
     func navigateSiblingNext() {
+        siblingStep.flush(show: showSiblingStep)
         guard let current = seededCurrentDocument() else { return }
         if isPlainFolder(current) {
             navigateIntoFolder(current, forward: true)
@@ -275,79 +277,29 @@ extension ContentView {
         commitSiblingStep(to: target, at: idx + 1, in: docs)
     }
 
-    /// Commit a sibling step with the image READY (Daniel, 2026-08-21: "the
-    /// animation has to happen first, before the library or reader updates —
-    /// ideally all at the same time"). The display fetch gets a short head
-    /// start (a cache/prefetch hit resolves in a frame or two) so the page
-    /// transition and the selection change land together; an uncached page
-    /// commits after the cap anyway — navigation must never feel stuck.
+    /// Commit a sibling step (#5462, `SiblingStep`): the neighbour shows at once when its image
+    /// is in memory, else once it is warm (≤ 140 ms) so the page transition and the selection change
+    /// land together (Daniel, 2026-08-21: "the animation has to happen first, before the library or
+    /// reader updates — ideally all at the same time"); then the neighbours either side are warmed
+    /// with the image they will SHOW, so the next swipe is in memory too.
     private func commitSiblingStep(to target: Document, at index: Int, in docs: [Document]) {
-        Task { @MainActor in
-            // Warm the image the target will actually DISPLAY (the preferred
-            // rendition, not the base original — see warmPreferredDisplay) so
-            // the swap lands on background-removed straight away instead of
-            // showing the original and swapping a beat later (Daniel).
-            let warm = Task { await warmPreferredDisplay(for: target.id) }
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask { _ = await warm.value }
-                group.addTask { try? await Task.sleep(for: .milliseconds(140)) }
-                await group.next()
-                group.cancelAll()
-            }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                detailDocument = target
-                browserSelection = [target.id]
-            }
-            prefetchAdjacentSiblingDisplays(around: index, in: docs)
-        }
-    }
-
-    /// Warm the bytes the target page will actually SHOW: the preferred
-    /// rendition (background_removed → enhanced → …, honouring the reader's
-    /// sticky role) when one exists, else the base display image.
-    ///
-    /// Mirrors `StorageDisplayImageCanvas.loadImageOnce` exactly, so the swap
-    /// finds the SAME bytes already cached — and because `RenditionService`
-    /// coalesces concurrent fetches, the canvas's own load reuses this warm
-    /// instead of racing it. Fail-safe: with no rendition service in scope (or
-    /// no non-base preferred rendition) it falls back to the base-display warm,
-    /// i.e. the previous behaviour. Best-effort throughout — a failed warm just
-    /// means the canvas fetches normally; the 140 ms cap still commits the step.
-    private func warmPreferredDisplay(for documentId: String) async {
-        #if os(macOS)
-        if let renditionService {
-            _ = await renditionService.load(documentId: documentId)
-            let displayable = renditionService.displayable(documentId: documentId)
-            let sticky = UserDefaults.standard.string(
-                forKey: ZoomableImagePreview.stickyRenditionRoleKey
-            )
-            let preferred = preferredRenditionIndex(in: displayable, stickyRole: sticky)
-            // Index 0 is the engine's primary, which the base display serves
-            // (cheaper, cached); only a non-base preferred flip target is worth
-            // the rendition fetch — same rule as loadImageOnce.
-            if preferred != 0, displayable.indices.contains(preferred) {
-                _ = try? await renditionService.contentData(
-                    documentId: documentId, renditionId: displayable[preferred].id
-                )
-                return
-            }
-        }
-        #endif
-        _ = try? await storageService.getDisplayPlatformImage(documentId)
-    }
-
-    /// ★ EVERY FRAME PERFECT: warm the display cache both directions around
-    /// a sibling step, nearest first, so the NEXT swipe finds its image
-    /// cached and swaps in place — the reader's #18 page-turn prefetch,
-    /// extended to sibling navigation (Daniel, 2026-08-10: flips showed the
-    /// old page, then reloaded). Best-effort; the pool skips cached ids.
-    private func prefetchAdjacentSiblingDisplays(around index: Int, in docs: [Document]) {
-        let neighborIds = [index + 1, index - 1, index + 2, index - 2]
+        let neighbours = [index + 1, index - 1, index + 2, index - 2]
             .filter { docs.indices.contains($0) }
             .map { docs[$0].id }
-        guard !neighborIds.isEmpty else { return }
-        let storage = storageService
-        Task { await storage.prefetchDisplayImages(neighborIds) }
+        siblingStep.commit(
+            to: target, neighbours: neighbours,
+            storage: storageService, renditions: renditionService,
+            show: showSiblingStep
+        )
+    }
+
+    /// The one write a sibling step makes: the shown item and the Library selection together, so the
+    /// selection verbs act on is the item on screen (visible-surface ruling).
+    private func showSiblingStep(_ target: Document) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            detailDocument = target
+            browserSelection = [target.id]
+        }
     }
 }
 

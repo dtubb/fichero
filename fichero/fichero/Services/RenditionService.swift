@@ -193,6 +193,9 @@ final class RenditionService {
     /// page must not refetch either.
     private var contentCache: [String: Data] = [:]
 
+    /// This rendition's bytes are in memory: showing it needs no fetch (#5462, `SiblingStep.isWarm`).
+    func hasContent(renditionId: String) -> Bool { contentCache[renditionId] != nil }
+
     /// Forgets everything cached for one document — the rendition LIST and the
     /// bytes of each of its renditions.
     ///

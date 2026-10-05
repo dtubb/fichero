@@ -400,6 +400,8 @@ struct ContentView: View {
     /// white-flash budget. The library selection still moves per turn; the
     /// SIDEBAR row highlight settles ~150ms after the last turn.
     @State var sidebarHighlightDebounce: Task<Void, Never>?
+    /// The Preview swipe's step in progress: its hold and neighbour warm (#5462).
+    @State var siblingStep = SiblingStep()
     @State var columnVisibility: NavigationSplitViewVisibility = ContentView.defaultColumnVisibility
     /// Which column the split view roots at when it COLLAPSES to a stack on
     /// compact width (#2329/#2334). `.detail` lands a phone on the document

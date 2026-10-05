@@ -237,6 +237,29 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   owned by `source/segment-editor.md`, "Box colour and the segment hierarchy" (ruled 2026-10-04:
   the region's hue, shaded along the working pass's reading order; #5426, #5463).
 
+### E. Stepping to the neighbour
+
+- `preview.swipe.shows-the-neighbour-at-once` — **[PARTIAL]** (#5462; owner: the app) A two-finger
+  swipe (or ←/→, or the head's arrows) in Preview to the next or previous item shows that item at
+  once when its image is in memory: the step commits in the swipe's own turn, with no engine
+  round-trip before it (measured through the real stores: 0 requests, under 1 ms to commit; target:
+  the image on screen within 100 ms of a swipe to a warmed neighbour). The Library selection moves
+  in the same write, so the selection verbs act on is the item on screen; the Inspector's loads
+  follow on their own and never hold the step. A neighbour whose image is not in memory holds the
+  step for at most 140 ms, then lands and loads in place; a second swipe during that hold shows the
+  held item at once and steps on from it. Every step warms the items either side with the image the
+  canvas will SHOW (the preferred rendition: background removed, enhanced or edited), so the next
+  swipe finds it in memory. **Measured 2026-10-05:** the swipe warmed its neighbours with the base
+  display image, which the canvas does not show on a page with a preferred rendition, so every swipe
+  paid three engine round-trips in a row (rendition list, edit chain, rendition bytes) before
+  anything changed; and the 140 ms cap waited for the whole warm (a task group waits for every
+  child), so a slow engine held every swipe (with a 0.4 s engine, a step had not landed after 2.3 s).
+  A swipe during that wait stepped from the item still shown and went nowhere. Pinned through the
+  real `StorageService` and `RenditionService` with a recorded engine by
+  `fichero/Tests/Unit/general/Views/Preview/SiblingStepTests.swift` (work counts and order, not
+  timings: timing assertions on a shared build machine are flaky). Timed on screen by the
+  `preview swipe → image` signpost (`InteractionProfile`). PARTIAL until timed on screen.
+
 ## PASS 2 — the fold (9 waiting issues, every body read fresh)
 
 None redirect elsewhere and none need maintainer triage — all nine are genuinely this spec's
