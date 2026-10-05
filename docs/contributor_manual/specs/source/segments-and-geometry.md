@@ -736,14 +736,23 @@ Passes, orders, links
   segments route alone, so the canvas and the text could name different passes (a corrected result
   beside real passes; a page with only an unconverted result; a filtered segments read). Where its
   working pass is an unconverted result the text is empty and names it, the stored page text stands,
-  and export refuses. Pinned by `fichero-server/tests/unit/api/test_one_working_pass.py`. The app's
-  own ladder (`OCRGeometrySelection`) is #5467's app half. **The engine serves the drawn pass too
-  (#5467, built 2026-10-05):** `resolve_working_pass` is the head of `rank_passes`, the one ranking,
-  and `resolve_drawn_pass` walks that same ranking to the first pass with shapes (a segment with a
-  sized box and no `shape: unstated`); each `PassRead` carries `drawn` (exactly one when any pass has
-  shapes) and `rank` (its place, 0 for the working pass), so the app draws `drawn` and needs no
-  fallback ladder of its own. Pinned by
-  `fichero-server/tests/unit/api/test_the_engine_serves_the_drawn_pass.py`. Residue, not
+  and export refuses. Pinned by `fichero-server/tests/unit/api/test_one_working_pass.py`. **The engine serves
+  the drawn pass too (#5467, built 2026-10-05):** `resolve_working_pass` is the head of `rank_passes`, the
+  one ranking, and `resolve_drawn_pass` walks that same ranking to the first pass with shapes (a segment
+  with a sized box and no `shape: unstated`); each `PassRead` carries `drawn` (exactly one when any pass
+  has shapes) and `rank` (its place, 0 for the working pass). Pinned by
+  `fichero-server/tests/unit/api/test_the_engine_serves_the_drawn_pass.py`. **App half built 2026-10-05
+  (#5467):** the app ranks no pass. It reads the engine's working mark (`SegmentStore.workingPass`), the
+  Segments list takes the one pass-filtered read (`SegmentStore.workingSegments`), and Preview draws by
+  the engine's `drawn` and `rank` (`SegmentDisplay.drawingOrder`). The app's copy of the ladder
+  (`OCRGeometrySelection`) and the artifact path's own ranking are deleted. The Inspector's focused
+  artifact still goes first on Preview (ruled 2026-08-27; whether the list and the text should follow it
+  is an open question in `segment-editor.md`). On the diary page with
+  two passes, Preview, the Segments list and a line the Reader names are the same pass, and a newer pass
+  the engine did not mark does not take Preview. Pinned by
+  `fichero/Tests/Unit/general/Models/ImportedPageDrawsItsBoxesTests.swift`
+  (`testPreviewTheSegmentsListAndTheReaderNameTheSamePassOnAPageWithTwoPasses`,
+  `testANewerPassDoesNotTakeThePreviewButAFocusedArtifactDoes`). Residue, not
   ruled here: a pass read from a PDF's own text layer still ranks above the newest. **The ENGINE half is proven by the citation above. The claim that "the Reader, search
   and export use one pass" is NOT.** Downgraded from [OK] 2026-09-26: the citation proves the
   ranking function and says nothing about which surfaces consult it, and the Reader is known NOT to

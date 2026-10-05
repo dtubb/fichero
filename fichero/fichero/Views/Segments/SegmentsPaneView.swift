@@ -24,9 +24,16 @@ struct SegmentsPaneView: View {
     /// How many matches on this page wait for review; the head offers them when there are any (#5165).
     @State private var proposedMatches = 0
 
+    /// The page's segments the pane lists: the working pass's only (`SegmentStore.workingSegments`, #5467).
     private var segments: [Segment] {
         guard let document, let segmentService else { return [] }
-        return SegmentStore.shared(for: segmentService).segments(documentId: document.id)
+        return SegmentStore.shared(for: segmentService).workingSegments(documentId: document.id)
+    }
+
+    /// The page's working pass as the engine names it: the list follows it live (#5465).
+    private var workingPassId: String? {
+        guard let document, let segmentService else { return nil }
+        return SegmentStore.shared(for: segmentService).workingPass(documentId: document.id)?.id
     }
 
     var body: some View {
@@ -50,7 +57,7 @@ struct SegmentsPaneView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: "\(document?.id ?? "")/\(parentId ?? "")") { await showLevel() }
+        .task(id: "\(document?.id ?? "")/\(parentId ?? "")/\(workingPassId ?? "")") { await showLevel() }
         .task(id: document?.id) {
             parentId = nil
             guard let document, let segmentService else { return }
@@ -108,7 +115,9 @@ struct SegmentsPaneView: View {
     private func showLevel() async {
         guard let document else { return }
         if orders == nil, let readingOrderService { orders = ReadingOrderStore(transport: readingOrderService) }
-        if orders?.documentId != document.id { try? await orders?.load(documentId: document.id) }
+        // The page's passes first (a no-op once read), so the orders are read once, under its working pass.
+        if let segmentService { await SegmentStore.shared(for: segmentService).load(documentId: document.id) }
+        try? await orders?.loadFollowing(documentId: document.id, workingPassId: workingPassId)
         await orders?.show(childrenOf: parentId)
     }
 

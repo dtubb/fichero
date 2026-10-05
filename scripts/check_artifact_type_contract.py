@@ -110,6 +110,12 @@ _ORPHAN_BASELINE: frozenset[str] = frozenset(
         # in this list means "read generically", never "it is fine that nothing
         # uses it".
         "entity_merge_proposals",
+        # The page-geometry types (#5467): read through the segments seam, never by a
+        # type query. `GET /api/segments/document/{id}` serves each unconverted result's
+        # boxes as a provisional pass, ranked by the engine (`rank`, `drawn`), and the app
+        # draws what the engine marks. The artifact-path probe that queried them by name
+        # (`OCRGeometrySelection.loadSelected`) was a second ladder and is deleted.
+        "aligned_transcript", "regions", "text_geometry", "transcription",
         "analysis", "book_index_topics", "caption", "catalogue", "classification",
         "clean_text", "colors", "comparison", "description", "diagram", "entities",
         "extraction", "extraction_error", "faces", "geo", "handwriting",
@@ -118,10 +124,9 @@ _ORPHAN_BASELINE: frozenset[str] = frozenset(
         "script_classification", "sentiment", "similarity", "style", "summary",
         "summary_collection", "summary_file", "summary_folder", "table", "tags",
         "timeline", "transcription_review", "translation_review", "video_description",
-        # NOTE: "text_geometry" is deliberately ABSENT. It is #4418's live defect —
-        # ingest.py writes it for the preview overlay, and OCRGeometryOverlay.swift
-        # queries "transcription" instead, so the feature is dead. Add it here only
-        # once the overlay reads it, or once someone decides it is generic.
+        # "text_geometry" was deliberately absent while #4418 was live (the overlay
+        # queried "transcription" by name and never drew it). Since #5467 it is drawn
+        # through the segments seam with the other geometry types above.
     }
 )
 

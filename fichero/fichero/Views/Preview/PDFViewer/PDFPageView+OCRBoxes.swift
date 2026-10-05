@@ -134,63 +134,34 @@ extension PDFPageView.Coordinator {
 // whose body is deliberately kept small so no sub-expression trips the Swift
 // type-checker timeout (the LibraryWindow.body failure mode).
 extension PDFPageWithToolbar {
-    /// Fetch this page's recognised text regions (#4418).
+    /// This page's boxes, from the ONE seam the image preview reads (#4954, #5467): `SegmentDisplay.selected`
+    /// names the pass to draw -- the engine's working pass, or the next with shapes. Only the drawing differs
+    /// between the two surfaces (AppKit's `PDFView` has no coordinate space a SwiftUI overlay can lay out
+    /// in); which pass is drawn must not. The artifact ladder that used to run when the seam had nothing is
+    /// gone: the seam serves every unconverted result as a pass.
     ///
-    /// The artifact choice is `OCRGeometrySelection.load` — the SAME decision
-    /// the image preview makes. Only the drawing differs between the two
-    /// surfaces, because AppKit's `PDFView` has no coordinate space a SwiftUI
-    /// overlay can lay out in; which artifact wins must not differ.
-    /// WHEN THE PAGE HAS NO GEOMETRY, NOTHING IS DRAWN — decided, not inherited.
+    /// WHEN THE PAGE HAS NO GEOMETRY, NOTHING IS DRAWN — decided, not inherited. The loader asks the PAGE
+    /// document and never falls back to the parent PDF's: a whole-document result carries ONE page's boxes,
+    /// and drawing them here would put them on whichever page happens to be open. The parent's geometry is
+    /// still reachable only through `boxesForDisplayedPage`, which drops every box naming another page.
     ///
-    /// The loader asks the PAGE document, and if that page has no
-    /// geometry-bearing artifact the overlay stays empty. It does NOT fall
-    /// back to the parent PDF's own artifacts, and that is the point of the
-    /// change rather than an omission in it: a whole-document artifact carries
-    /// ONE page's boxes, and drawing them here would put them on whichever
-    /// page happens to be open — the exact defect this replaced, reintroduced
-    /// as a fallback.
-    ///
-    /// Empty is also the honest answer. A page with no geometry artifact has
-    /// not been processed; an artifact carrying zero boxes is the importer
-    /// saying "this page is a scan, geometry is unavailable" (#4418). Neither
-    /// is "here are some boxes from elsewhere in the book".
-    ///
-    /// The parent's geometry is still reachable — a pane the host cannot track
-    /// falls back to the rendered document — but only through
-    /// `boxesForDisplayedPage`, which drops every box naming another page.
+    /// The drawn pass's selection scope is kept beside the boxes (`pdfGeometryScope`), so a click and a
+    /// reshape act on the boxes on screen rather than asking again which pass is shown.
     func loadOCRGeometry() async {
         ocrGeometry = nil
-        guard ocrBoxesEnabled else { return }
-
-        // THE SEAM FIRST (#4954, `source.app.overlays-draw-from-the-seam`): the same
-        // shared function the image overlay now reads, so the two paths cannot diverge.
-        // `boxesForDisplayedPage` still drops every box naming another page, so a PDF
-        // pane shows its own page's boxes exactly as before — the seam changes where the
-        // boxes come from, never which page they belong to.
-        if let segmentService {
-            let store = SegmentStore.shared(for: segmentService)
-            await store.load(documentId: effectiveGeometryDocumentId)
-            if let selected = SegmentDisplay.selected(
-                for: effectiveGeometryDocumentId, store: store
-            ) {
-                ocrGeometry = selected.geometry
-                return
-            }
-        }
-
-        guard let artifactService else { return }
-        do {
-            ocrGeometry = try await OCRGeometrySelection.load(
-                documentId: effectiveGeometryDocumentId,
-                using: artifactService
-            )
-        } catch {
+        pdfGeometryScope = nil
+        guard ocrBoxesEnabled, let segmentService else { return }
+        let store = SegmentStore.shared(for: segmentService)
+        await store.load(documentId: effectiveGeometryDocumentId)
+        if let error = store.loadError(documentId: effectiveGeometryDocumentId) {
             // Render nothing and say so in the log rather than silently — no
             // boxes must not be indistinguishable from a failed fetch (#4418).
-            ocrBoxesLogger.error(
-                "OCR geometry load failed for \(effectiveGeometryDocumentId): \(String(describing: error))"
-            )
+            ocrBoxesLogger.error("Segments load failed for \(effectiveGeometryDocumentId): \(error)")
+            return
         }
+        guard let selected = SegmentDisplay.selected(for: effectiveGeometryDocumentId, store: store) else { return }
+        ocrGeometry = selected.geometry
+        pdfGeometryScope = SegmentDisplay.selectionScope(artifactId: selected.artifactId, passId: selected.passId)
     }
 }
 #endif

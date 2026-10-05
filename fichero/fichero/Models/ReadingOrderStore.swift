@@ -46,6 +46,28 @@ final class ReadingOrderStore {
         self.transport = transport
     }
 
+    /// The page's working pass when its orders were read (`SegmentStore.workingPass`), so the list can
+    /// tell when the engine names another one.
+    private(set) var workingPassId: String?
+
+    /// Read this page's orders again only if the page or its WORKING PASS changed since they were read
+    /// (#5465): when a run's result becomes a pass and the engine makes it the working one, the list
+    /// re-reads THIS page's orders -- whose `as-written` the engine lists first for the working pass
+    /// (#5450) -- in place; no other page, no other store. The list's identity changed (another pass's
+    /// order), so there is no row to splice. Unchanged, nothing is read.
+    func loadFollowing(documentId: String, workingPassId: String?) async throws {
+        guard documentId != self.documentId || workingPassId != self.workingPassId else { return }
+        // Marked before the read, so the pane and its list asking together read once; a failed read is
+        // not marked, so the next ask tries again.
+        self.workingPassId = workingPassId
+        do {
+            try await load(documentId: documentId)
+        } catch {
+            self.workingPassId = nil
+            throw error
+        }
+    }
+
     /// Load a document's orders and show `preferred` (the file's own order, by default) or the first.
     func load(documentId: String, preferred name: String = "as-written") async throws {
         self.documentId = documentId

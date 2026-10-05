@@ -340,13 +340,17 @@ ranked among themselves by the 2026-08-25 type tiers). **An import has no rank o
 date like a machine's, and its maker is named where the file says it (the Mosquera DOCX draft was
 Qwen-VL's). Until 2026-10-04 an "imported" tier sat above machine passes, so a geometry-free TEI import
 of a draft blanked Preview on 358 of 374 Mosquera pages. **A pass without shapes is passed over for
-drawing** (`ui.preview.draws-a-pass-with-shapes`): `rankedPasses` moves a pass whose segments are all
-`shape: unstated` (or have no box) behind every pass with shapes -- behind, not out, so a text-only
+drawing** (`ui.preview.draws-a-pass-with-shapes`): a pass whose segments are all
+`shape: unstated` (or have no box) goes behind every pass with shapes -- behind, not out, so a text-only
 page still selects its own lines (built 2026-10-04, #5443;
-`fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`).
+`fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`). Since #5467 the engine does this
+ranking and serves its answer on each pass: `drawn` (the pass the image draws) and `rank`.
 A pass with no artifact behind it is ranked, never dropped: an imported page's only pass has none,
-and dropping it is why an imported page showed its text and no boxes. The inspector's focused
-artifact still goes first when it has boxes (2026-08-27). Code: `OCRGeometrySelection.rankedPasses`.
+and dropping it is why an imported page showed its text and no boxes. **The inspector's focused
+artifact still goes first when it has boxes (2026-08-27).** Code: `SegmentDisplay.drawingOrder`, the one
+function that orders passes for drawing (#5467): the focused artifact's pass when it has a shape, then the
+engine's `drawn` pass, then the rest by the engine's `rank`. The app ranks nothing itself
+(`fichero/Tests/Unit/general/Models/DrawingOrderTests.swift`).
 
 **Ruling, the Inspector rethought from the archive model (2026-09-27)**, on the four questions of
 `build-notes-inspector.md`:
@@ -479,12 +483,14 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
   an edit sent to the wrong result.
 - `source.app.curated-pass-stays-on-top` — **[OK]** (→ #4954) a pass that a person made, or that
   carries any segment a person made, is shown ahead of every machine pass, as today; a newer
-  machine run never covers a person's region. `OCRGeometrySelection.rankedPasses` ranks a pass
+  machine run never covers a person's region. `SegmentDisplay.drawingOrder` (until #5467,
+  `OCRGeometrySelection.rankedPasses`) ranks a pass
   human when `provenanceKind == .human` **or** any of its segments is hand-curated, with a `-1`
   override over the two type tiers and newest-first within a rank — through the same
   `rankCandidates` the artifact path uses, which is what makes it literally "as today" rather
   than a second ranking. Pinned by
-  `OCRGeometrySelectionTests.rankedPassesAuthorityBeatsRecency`.
+  `DrawingOrderTests.drawingOrderAuthorityBeatsRecency` (moved from `OCRGeometrySelectionTests`; the
+  artifact path's `rankCandidates` it shared is deleted, #5467).
 - `source.app.overlays-draw-from-the-seam` — **[PARTIAL]** (→ #4954; an imported page's boxes → #5146) the boxes drawn over an image and
   over a PDF page both come from that store through one shared function, with the same
   drawing code as today and no new overlay; a page looks the same before and after the switch.
@@ -520,10 +526,19 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
   falls through to the ladder, as the artifact path does. Pinned by
   `SegmentDisplayTests.focusedArtifactOutranksTheLadder`,
   `.focusOnAnotherPagesArtifactChangesNothing` and `.focusedButUnusablePassFallsThrough`.
+  **The focus override stands (ruled 2026-08-27).** Since #5467 it lives in `SegmentDisplay.drawingOrder`,
+  ahead of the engine's `drawn` pass, still a reorder and never a filter: a focused artifact with no
+  shape, or another page's, falls through. The artifact-path fallback is deleted, and both loaders read
+  the seam alone, which serves every unconverted result as a pass. Re-pinned by
+  `SegmentDisplayTests.focusedArtifactOutranksTheDrawnPass`, `.focusOnAnotherPagesArtifactChangesNothing`
+  and `.focusedButUnusablePassFallsThrough`, and through the real store by
+  `ImportedPageDrawsItsBoxesTests.testANewerPassDoesNotTakeThePreviewButAFocusedArtifactDoes`. With an
+  artifact focused, Preview can show a different pass from the Segments list and the text (an open
+  question, below).
   `SegmentDisplay.selected(for:store:)` returns the geometry **and** the winning pass's artifact
   id from one answer, because the curation verbs address the artifact whose boxes are on screen
   and a separate lookup could name a pass that did not win
-  (`SegmentDisplayTests.winningPassNamesItsArtifact`).
+  (`SegmentDisplayTests.drawnPassNamesItsArtifact`).
 - `source.app.segment-events-patch-in-place` — **[PARTIAL]** (#4954) when the engine says which
   segments changed, the store replaces those items and no others; when it says only that a
   document's results changed, the store re-reads that one document.
@@ -955,6 +970,15 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   page's: every segment in one hand, every instance of a sign, marks of one character.
 - `source.segments-pane.same-actions` — **[GAP]** (#4942) every change the Segments pane makes is an existing
   audited action (the same the Source view's editor and the Order list make); it defines none of its own.
+- `source.segments-pane.follows-the-working-pass` — **[PARTIAL]** (#5465, #5467) the Segments pane lists the
+  segments of the page's working pass only, the pass the engine names, and follows it. When a run's result
+  becomes the working pass while the page is open, the list re-reads that page's orders, without reopening
+  the page and without touching any other page. Built 2026-10-05: `SegmentStore.workingSegments` is the one
+  pass-filtered read, and `ReadingOrderStore.loadFollowing` re-reads when the working pass changes. Pinned
+  through the real pane in the library window's tree by `fichero/Tests/Unit/general/Models/ImportedPageDrawsItsBoxesTests.swift`
+  (`testPreviewTheSegmentsListAndTheReaderNameTheSamePassOnAPageWithTwoPasses`,
+  `testAPassChangeEventMovesThatPagesSegmentsListToTheNewWorkingPassInPlace`). PARTIAL until seen on
+  screen: a Detect Segments run finishing on an open page.
 - `source.editor.library-lists-segments` — **[GAP]** (#4941) the Library can list segments as rows, so
   project-wide questions about segments are ordinary Library searches.
   **Genuinely absent on BOTH sides, and the engine side blocks the app side** (read on disk
@@ -1734,7 +1758,7 @@ still owed.
 | `source.app.one-segment-store` | `SegmentStoreTests.swift` (7) | not needed | A second store is a source-level fact, not a screen one; the unit test that one document's entry is replaced and no other is what a second store breaks first. |
 | `source.app.index-is-the-engines` | `SegmentDisplayTests.swift` (8) | **needed** | Only a screen shows that a placeholder box is invisible AND that clicking the box after it still edits the right line. The unit tests pin the addresses; a person has to confirm the hit-testing quirk at the page's top-left corner. |
 | `source.app.edits-name-the-chosen-pass` | none yet | **needed** | Unbuilt. The test is "change the shown pass, edit, and the edit lands on the pass you were looking at". |
-| `source.app.curated-pass-stays-on-top` | `OCRGeometrySelectionTests.swift` (rankedPasses section) | **needed** | The unit test pins the ranking; the screen leg is "run a machine pass over a page you have corrected and your boxes stay". |
+| `source.app.curated-pass-stays-on-top` | `DrawingOrderTests.swift` | **needed** | The unit test pins the ranking; the screen leg is "run a machine pass over a page you have corrected and your boxes stay". |
 | `source.app.overlays-draw-from-the-seam` | `SegmentDisplayTests.swift` | **needed, and it is the whole acceptance** | The claim is "a page looks the same before and after", which no unit test can make. Image and PDF, on each platform. |
 | `source.app.segment-events-patch-in-place` | `SegmentStoreTests.swift` (8 new) | **needed** | The unit tests pin the decision; the screen leg is "edit a line in one window and watch the other window's box change without the page flickering" — a wholesale reload is visible as a flash and nothing else catches it. |
 
@@ -1772,6 +1796,11 @@ segment hierarchy" above).
 A smaller choice inside A: region hues assigned in region reading order (recommended: the same page
 always looks the same, and neighbours differ) or kept by a stable hash of the region's id (a region
 keeps its hue when another region is added, but colours look arbitrary).
+
+**Open (for the maintainer, 2026-10-05): a focused artifact and the other surfaces** (#5467). When you
+click an artifact in the Inspector, should the Segments list and the text follow that pass too, or only
+Preview? Today only Preview follows it (the 2026-08-27 ruling); the Segments list and the Reader keep
+the page's working pass, so the page can show one pass's boxes beside another pass's list.
 
 ## Rulings
 

@@ -10,34 +10,25 @@ import OSLog
 enum SegmentDisplay {
     private static let log = Logger(subsystem: "app.fichero.fichero", category: "SegmentDisplay")
 
-    /// The `@MainActor` half: reads the store (which is main-actor-isolated
-    /// — `SegmentStore` is `@Observable` on the main actor) and hands plain
-    /// values to the `nonisolated` pure function below. Splitting it this
-    /// way, rather than marking this whole thing `nonisolated`, is the fix
-    /// for the stage-1 build failure: a `nonisolated` function cannot call
-    /// `store.passes(documentId:)`/`store.segments(documentId:)` from a
-    /// synchronous context — they are main-actor-isolated methods.
-    /// The winning pass's boxes AND the artifact they came from — the seam's answer to
-    /// the same question `OCRGeometrySelection.SelectedGeometry` answers on the artifact
-    /// path. The id is load-bearing, not decoration: the curation verbs address the
-    /// artifact whose boxes are on screen (2026-08-29), so a loader that took the
-    /// geometry from one pass and the id from another would point them at the wrong
-    /// rows.
+    /// The pass the Preview draws on a page, its boxes, and the artifact it came from: what the image
+    /// overlay, the PDF page, a reveal, a selection and the edit verbs all read (#5467). The id is
+    /// load-bearing: the curation verbs address the artifact whose boxes are on screen (2026-08-29),
+    /// so a loader that took the geometry from one pass and the id from another would point them at
+    /// the wrong rows. The inspector's focused artifact, when it is this page's, is handed to
+    /// `drawingOrder` -- the one place it counts.
     @MainActor
     static func selected(
         for documentId: String, store: SegmentStore
     ) -> Selected? {
-        let passes = store.passes(documentId: documentId)
-        let segments = store.segments(documentId: documentId)
         let focus = FocusedArtifact.shared
-        let focused = focus.documentId == documentId ? focus.id : nil
-        guard let winner = winningPass(
-            passes: passes, segments: segments, preferringArtifactId: focused
-        ) else { return nil }
-        return Selected(geometry: winner.geometry, artifactId: winner.pass.sourceArtifactId, passId: winner.pass.id)
+        return drawn(
+            passes: store.passes(documentId: documentId),
+            segments: store.segments(documentId: documentId),
+            focusedArtifactId: focus.documentId == documentId ? focus.id : nil
+        )
     }
 
-    /// What the canvas draws and what it came from: the boxes, the artifact of the winning pass (nil
+    /// What the canvas draws and what it came from: the boxes, the artifact of the drawn pass (nil
     /// for an imported pass), and the pass itself.
     struct Selected {
         let geometry: OCRGeometry
@@ -54,96 +45,68 @@ enum SegmentDisplay {
         artifactId ?? passId.map { "pass:\($0)" }
     }
 
-    @MainActor
-    static func geometry(for documentId: String, store: SegmentStore) -> OCRGeometry? {
-        // The inspector's selection outranks the ladder (Daniel, 2026-08-27: "when I
-        // click on different regions in artifacts, should bounding boxes update?").
-        // `loadSelected` applies that rule on the artifact path; this applies the SAME
-        // rule over the passes already in hand, so switching a view to the seam cannot
-        // silently drop it. Stage 1's docstring named this as "the acknowledged gap
-        // when this function is actually wired in" — this is that wiring.
-        let focus = FocusedArtifact.shared
-        let focused = focus.documentId == documentId ? focus.id : nil
-        return geometry(
-            passes: store.passes(documentId: documentId),
-            segments: store.segments(documentId: documentId),
-            preferringArtifactId: focused
-        )
-    }
-
-    /// Picks the winning pass (via `OCRGeometrySelection.rankedPasses`,
-    /// skipping any pass whose segments list is empty — the same "probe and
-    /// stop at the first that carries boxes" rule `loadSelected` applies
-    /// today, just over data already in hand: one engine call already
-    /// returned everything, so no per-pass fetch is needed), then maps that
-    /// pass's segments to `OCRGeometry`. A pass whose segments are refused
-    /// by `geometry(from:...)` (its `boxIndex` values are not exactly
-    /// `0..<count`) is skipped, same as an empty pass — never the crash,
-    /// never a guess.
-    ///
-    /// Pure and `nonisolated`: takes plain values, no store, no actor — the
-    /// half a test can call directly.
-    ///
-    /// `preferringArtifactId` is the inspector's selection, and it outranks the
-    /// ladder exactly as it does on the artifact path: a pass whose
-    /// `sourceArtifactId` is that artifact goes first, and everything else keeps
-    /// its ranked order behind it. Passing `nil` is the plain ladder.
-    ///
-    /// It is a REORDER, not a filter: a focused artifact whose pass carries no
-    /// usable boxes falls through to the ladder rather than drawing nothing,
-    /// which is what `loadSelected` does today when the focused artifact is
-    /// empty ("anything else — no selection, another document's artifact, a
-    /// boxless artifact — falls back to the authority ladder").
-    ///
-    /// Stage 1 left this out and said so: "no per-window 'inspector selection
-    /// outranks the ladder' override (`FocusedArtifact`) yet … the acknowledged
-    /// gap when this function is actually wired in". Wiring it without this
-    /// would have dropped a ruled behaviour silently, which is the one thing
-    /// switching a view to the seam must not do.
-    nonisolated static func geometry(
-        passes: [SegmentPassValue],
-        segments: [Segment],
-        preferringArtifactId: String? = nil
-    ) -> OCRGeometry? {
-        winningPass(
-            passes: passes, segments: segments, preferringArtifactId: preferringArtifactId
-        )?.geometry
-    }
-
-    /// The pass that wins AND its mapped boxes, so a caller needing the artifact id does
-    /// not have to guess which pass answered. `geometry(passes:segments:)` is this with
-    /// the pass dropped.
-    nonisolated static func winningPass(
-        passes: [SegmentPassValue],
-        segments: [Segment],
-        preferringArtifactId: String? = nil
-    ) -> (pass: SegmentPassValue, geometry: OCRGeometry)? {
-        var ranked = OCRGeometrySelection.rankedPasses(passes, segments: segments)
-        if let preferringArtifactId {
-            let focusedFirst = ranked.filter { $0.sourceArtifactId == preferringArtifactId }
-            if !focusedFirst.isEmpty {
-                ranked = focusedFirst + ranked.filter { $0.sourceArtifactId != preferringArtifactId }
-            }
-        }
+    /// The pure half of `selected(for:store:)`: the first pass in `drawingOrder` whose segments map to
+    /// boxes. A pass whose `boxIndex` values are not exactly `0..<count` is refused by
+    /// `geometry(from:...)` and passed over, never guessed at.
+    nonisolated static func drawn(
+        passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil
+    ) -> Selected? {
         let segmentsByPass = Dictionary(grouping: segments, by: \.passId)
-        for pass in ranked {
-            guard let passSegments = segmentsByPass[pass.id], !passSegments.isEmpty else { continue }
-            guard let geometry = geometry(
-                from: passSegments,
-                // `pass.name` is the ARTIFACT TYPE (e.g. "transcription"),
-                // not a provider name — same as today's artifact path
-                // (`OCRGeometry.init(generated:)` reads the artifact's own
-                // `provider`). `PassRead.provider` is landing from the
-                // engine but is not yet populated end-to-end; team-lead:
-                // hold this until the regenerated client carries live
-                // values, then switch to `pass.provider`.
-                provider: pass.name,
-                model: pass.model,
-                renditionId: passSegments.first?.anchor.renditionId
-            ) else { continue }
-            return (pass, geometry)
+        for pass in drawingOrder(passes, segments: segments, focusedArtifactId: focusedArtifactId) {
+            guard let passSegments = segmentsByPass[pass.id], !passSegments.isEmpty,
+                  let geometry = geometry(
+                      from: passSegments,
+                      // `pass.name` is the ARTIFACT TYPE (e.g. "transcription"), not a provider name,
+                      // as the artifact path always read it.
+                      provider: pass.name,
+                      model: pass.model,
+                      renditionId: passSegments.first?.anchor.renditionId
+                  ) else { continue }
+            return Selected(geometry: geometry, artifactId: pass.sourceArtifactId, passId: pass.id)
         }
         return nil
+    }
+
+    /// The ONE order the Preview tries a page's passes in (#5467). The app ranks nothing itself:
+    ///
+    /// 1. **the inspector's focused artifact**, when this page has a pass from it with a shape to draw
+    ///    (ruled 2026-08-27: clicking a result in the Inspector shows its boxes). A REORDER, never a
+    ///    filter: a focused pass with nothing usable falls through to the rest.
+    /// 2. **the engine's drawn pass** (`PassRead.drawn`, `resolve_drawn_pass`): the working pass when it
+    ///    has shapes, else the next pass in the engine's ranking that has them
+    ///    (`ui.preview.draws-a-pass-with-shapes`, ruled 2026-10-04).
+    /// 3. every other pass by the engine's `rank` (0 is the working pass), so a page with no shapes at
+    ///    all still selects its working pass's lines. A pass the ranking does not hold comes last, in
+    ///    the order served.
+    ///
+    /// A georeferencing pass holds control points, not the page's text (#5122): never drawn.
+    nonisolated static func drawingOrder(
+        _ passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil
+    ) -> [SegmentPassValue] {
+        let text = passes.filter { !$0.isGeoreferencing }
+        let shapedPassIds = Set(segments.filter(hasShape).map(\.passId))
+        let focused = focusedArtifactId.map { id in
+            text.filter { $0.sourceArtifactId == id && shapedPassIds.contains($0.id) }
+        } ?? []
+        let rest = text.enumerated().sorted { lhs, rhs in
+            if lhs.element.drawn != rhs.element.drawn { return lhs.element.drawn }
+            switch (lhs.element.rank, rhs.element.rank) {
+            case let (left?, right?) where left != right: return left < right
+            case (.some, nil): return true
+            case (nil, .some): return false
+            default: return lhs.offset < rhs.offset
+            }
+        }.map(\.element)
+        let focusedIds = Set(focused.map(\.id))
+        return focused + rest.filter { !focusedIds.contains($0.id) }
+    }
+
+    /// Whether a segment has a place on the image to draw: not one whose file stated no place (the
+    /// engine's `shape: unstated`, stored on a whole-page rect only because a segment must be
+    /// somewhere), and not one with neither a box nor a drawn shape.
+    nonisolated static func hasShape(_ segment: Segment) -> Bool {
+        guard !segment.shapeIsUnstated else { return false }
+        return segment.anchor.rect != nil || !SegmentShapes.drawn(for: segment).isEmpty
     }
 
     /// The pure mapping half, pulled out so a test can feed it a fixed

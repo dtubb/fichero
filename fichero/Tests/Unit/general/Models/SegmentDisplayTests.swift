@@ -9,7 +9,7 @@ import Testing
 /// `geometry(for:store:)` (the `@MainActor` store-reading wrapper) is not
 /// tested here — it needs a `SegmentStore`, and this slice never mounts a
 /// view or wires a store to a real overlay; the `nonisolated`, pure halves
-/// (`geometry(passes:segments:)` and `geometry(from:...)`) are what stage 1
+/// (`drawn(passes:segments:)` and `geometry(from:...)`) are what stage 1
 /// can prove, and are exactly what stage 2 will call once wired.
 struct SegmentDisplayTests {
 
@@ -144,10 +144,10 @@ struct SegmentDisplayTests {
     }
 
     /// A pass refused for a bad `boxIndex` set is skipped, exactly like an
-    /// empty pass — `geometry(passes:segments:)` falls through to the next
+    /// empty pass — `drawn(passes:segments:)` falls through to the next
     /// candidate rather than returning nil outright when a better pass
     /// exists.
-    @Test("geometry(passes:segments:) skips a pass refused for duplicate boxIndex and falls through to the next")
+    @Test("drawn(passes:segments:) skips a pass refused for duplicate boxIndex and falls through to the next")
     func passSelectionSkipsARefusedPass() {
         let passes = [
             SegmentPassValue(
@@ -168,7 +168,7 @@ struct SegmentDisplayTests {
             segment(id: "bad-1", passId: "bad", boxIndex: 0, rect: [0, 0, 1, 1], text: "dup-b"),
             segment(id: "good-0", passId: "good", boxIndex: 0, rect: [0, 0, 1, 1], text: "fine")
         ]
-        let geometry = SegmentDisplay.geometry(passes: passes, segments: segments)
+        let geometry = SegmentDisplay.drawn(passes: passes, segments: segments)?.geometry
         #expect(geometry?.boxes.map(\.text) == ["fine"])
     }
 
@@ -285,14 +285,11 @@ struct SegmentDisplayTests {
         #expect(geometry.boxes[2].text == "mundo", "the box AFTER the placeholder keeps its index")
     }
 
-    // MARK: - The inspector's selection outranks the ladder (wired 2026-09-27)
+    // MARK: - The inspector's selection outranks the engine's drawn pass (ruled 2026-08-27)
     //
-    // `loadSelected` applies this on the artifact path: "when I click on different
-    // regions in artifacts, should bounding boxes update?" (Daniel, 2026-08-27).
-    // Stage 1 left it out of the seam and SAID SO — "the acknowledged gap when this
-    // function is actually wired in". Wiring a view to a seam that lacked it would
-    // have dropped a ruled behaviour silently, which is the one thing the switch must
-    // not do, so it goes in with the wiring.
+    // "When I click on different regions in artifacts, should bounding boxes update?" -- yes. Since #5467
+    // the rule lives in `SegmentDisplay.drawingOrder`, the one function that orders passes for drawing,
+    // ahead of the engine's `drawn` pass.
 
     private func pass(
         id: String, artifactId: String, type: String = "transcription",
@@ -306,89 +303,69 @@ struct SegmentDisplayTests {
         )
     }
 
-    @Test("the focused artifact's pass is drawn even when the ladder ranks another first")
-    func focusedArtifactOutranksTheLadder() {
-        // `text_geometry` sits alone at rank 0, so the ladder prefers it. The
-        // inspector's selection must still win, or clicking an artifact stops
-        // changing the boxes.
-        let passes = [
-            pass(id: "ladder", artifactId: "art-ladder", type: "text_geometry", createdAt: 200),
-            pass(id: "clicked", artifactId: "art-clicked", type: "transcription", createdAt: 0)
-        ]
+    /// WHY (2026-08-27): clicking a result in the Inspector must change the boxes, even when the engine
+    /// draws another pass; otherwise the click does nothing on the page.
+    @Test("the focused artifact's pass is drawn even when the engine draws another")
+    func focusedArtifactOutranksTheDrawnPass() {
+        var engines = pass(id: "drawn", artifactId: "art-drawn", type: "text_geometry", createdAt: 200)
+        engines.drawn = true
+        engines.rank = 0
+        let passes = [engines, pass(id: "clicked", artifactId: "art-clicked", createdAt: 0)]
         let segments = [
-            segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder"),
+            segment(id: "l-0", passId: "drawn", boxIndex: 0, rect: [0, 0, 1, 1], text: "drawn"),
             segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "clicked")
         ]
-
-        let withoutFocus = SegmentDisplay.geometry(passes: passes, segments: segments)
-        let withFocus = SegmentDisplay.geometry(
-            passes: passes, segments: segments, preferringArtifactId: "art-clicked"
-        )
-
-        #expect(withoutFocus?.boxes.map(\.text) == ["ladder"])
-        #expect(withFocus?.boxes.map(\.text) == ["clicked"])
+        #expect(SegmentDisplay.drawn(passes: passes, segments: segments)?.geometry.boxes.map(\.text) == ["drawn"])
+        let focused = SegmentDisplay.drawn(passes: passes, segments: segments, focusedArtifactId: "art-clicked")
+        #expect(focused?.geometry.boxes.map(\.text) == ["clicked"])
+        #expect(focused?.artifactId == "art-clicked", "the curation verbs address the focused artifact's rows")
     }
 
-    @Test("a focused artifact this page has no pass for leaves the ladder alone")
+    /// WHY: the focus is a REORDER, never a filter -- an artifact focused on another page must not blank
+    /// this one.
+    @Test("a focused artifact this page has no pass for leaves the engine's order alone")
     func focusOnAnotherPagesArtifactChangesNothing() {
-        let passes = [pass(id: "ladder", artifactId: "art-ladder")]
-        let segments = [
-            segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder")
-        ]
-
-        let geometry = SegmentDisplay.geometry(
-            passes: passes, segments: segments, preferringArtifactId: "art-from-another-page"
-        )
-
-        #expect(geometry?.boxes.map(\.text) == ["ladder"], "a reorder, never a filter")
+        let passes = [pass(id: "drawn", artifactId: "art-drawn")]
+        let segments = [segment(id: "l-0", passId: "drawn", boxIndex: 0, rect: [0, 0, 1, 1], text: "drawn")]
+        let geometry = SegmentDisplay.drawn(
+            passes: passes, segments: segments, focusedArtifactId: "art-from-another-page"
+        )?.geometry
+        #expect(geometry?.boxes.map(\.text) == ["drawn"], "a reorder, never a filter")
     }
 
-    @Test("a focused artifact whose pass carries no usable boxes falls through to the ladder")
+    /// WHY: drawing nothing because the clicked artifact's boxes cannot be drawn would be a regression
+    /// dressed as obedience; it falls through to the engine's pass.
+    @Test("a focused artifact whose pass carries no usable boxes falls through")
     func focusedButUnusablePassFallsThrough() {
-        // The same rule the artifact path states: "anything else — no selection,
-        // another document's artifact, a boxless artifact — falls back to the
-        // authority ladder". Drawing nothing because the clicked artifact is empty
-        // would be a regression dressed as obedience.
-        let passes = [
-            pass(id: "clicked", artifactId: "art-clicked"),
-            pass(id: "ladder", artifactId: "art-ladder", type: "text_geometry")
-        ]
+        let passes = [pass(id: "clicked", artifactId: "art-clicked"), pass(id: "drawn", artifactId: "art-drawn")]
         let segments = [
             // `clicked` has a duplicate boxIndex, so its whole pass is refused.
             segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "dup-a"),
             segment(id: "c-1", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "dup-b"),
-            segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder")
+            segment(id: "l-0", passId: "drawn", boxIndex: 0, rect: [0, 0, 1, 1], text: "drawn")
         ]
-
-        let geometry = SegmentDisplay.geometry(
-            passes: passes, segments: segments, preferringArtifactId: "art-clicked"
-        )
-
-        #expect(geometry?.boxes.map(\.text) == ["ladder"])
+        let geometry = SegmentDisplay.drawn(passes: passes, segments: segments, focusedArtifactId: "art-clicked")?.geometry
+        #expect(geometry?.boxes.map(\.text) == ["drawn"])
     }
 
-    @Test("the winning pass carries the artifact id the curation verbs must address")
-    func winningPassNamesItsArtifact() {
+    @Test("the drawn pass carries the artifact id the curation verbs must address")
+    func drawnPassNamesItsArtifact() {
         // The loaders take geometry AND artifact id from this one answer. Reading the
-        // id separately could name a pass that did not win, pointing the curation
+        // id separately could name a pass that was not drawn, pointing the curation
         // verbs at rows whose boxes are not on screen (2026-08-29).
         let passes = [
             pass(id: "ladder", artifactId: "art-ladder", type: "text_geometry", createdAt: 200),
-            pass(id: "clicked", artifactId: "art-clicked", createdAt: 0)
+            pass(id: "other", artifactId: "art-other", createdAt: 0)
         ]
         let segments = [
             segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder"),
-            segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "clicked")
+            segment(id: "c-0", passId: "other", boxIndex: 0, rect: [0, 0, 1, 1], text: "other")
         ]
 
-        let ladder = SegmentDisplay.winningPass(passes: passes, segments: segments)
-        #expect(ladder?.pass.sourceArtifactId == "art-ladder")
-        #expect(ladder?.geometry.boxes.map(\.text) == ["ladder"])
-
-        let focused = SegmentDisplay.winningPass(
-            passes: passes, segments: segments, preferringArtifactId: "art-clicked"
-        )
-        #expect(focused?.pass.sourceArtifactId == "art-clicked")
+        let drawn = SegmentDisplay.drawn(passes: passes, segments: segments)
+        #expect(drawn?.artifactId == "art-ladder")
+        #expect(drawn?.passId == "ladder")
+        #expect(drawn?.geometry.boxes.map(\.text) == ["ladder"])
     }
 
     /// #5122 (found by bugs2, a35449e3b): a page with an imported transcription AND an imported
@@ -415,10 +392,10 @@ struct SegmentDisplayTests {
             segment(id: "line-0", passId: "page-xml", boxIndex: 0, rect: [0.1, 0.2, 0.8, 0.05], text: "a line")
         ]
 
-        let drawn = SegmentDisplay.winningPass(passes: [georef, transcription], segments: segments)
-        #expect(drawn?.pass.id == "page-xml")
+        let drawn = SegmentDisplay.drawn(passes: [georef, transcription], segments: segments)
+        #expect(drawn?.passId == "page-xml")
         #expect(drawn?.geometry.boxes.map(\.text) == ["a line"])
         // Only a georeference: nothing is drawn as the page's text boxes, rather than control points.
-        #expect(SegmentDisplay.winningPass(passes: [georef], segments: segments) == nil)
+        #expect(SegmentDisplay.drawn(passes: [georef], segments: segments) == nil)
     }
 }
