@@ -168,6 +168,12 @@ struct CanvasSceneView: View {
 
     var body: some View {
         GeometryReader { geo in
+            // The board is resolved HERE, in the body, not inside RealityView's closures (#5476).
+            // Reading the saved rows, the items and the page aspects here is what makes SwiftUI
+            // redraw when one of them changes. Read only inside `update`, they changed silently,
+            // and the next unrelated update (a pinch) applied them all at once: the cards jumped
+            // on zoom. Zoom itself changes no input here, so it moves the camera and nothing else.
+            let board = resolvedState(in: geo.size)
             RealityView { content in
                 // BEFORE the first reconcile (first-load fix, 2026-08-22, same
                 // as CanvasSpaceView): configureController runs in `.task`,
@@ -176,12 +182,17 @@ struct CanvasSceneView: View {
                 renderer.storageService = storageService
                 content.add(renderer.camera)
                 content.add(renderer.root)
-                renderer.reconcile(to: resolvedState(in: geo.size))
+                // Not before the pane has a size (#5476): a zero viewport lays the default grid
+                // out ten columns wide, so the first frame showed a layout the next update replaced.
+                guard geo.size.width > 0, geo.size.height > 0 else { return }
+                renderer.viewportSize = geo.size
+                renderer.reconcile(to: board)
             } update: { _ in
+                guard geo.size.width > 0, geo.size.height > 0 else { return }
                 renderer.viewportSize = geo.size
                 renderer.storageService = storageService
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
-                renderer.reconcile(to: resolvedState(in: geo.size))
+                renderer.reconcile(to: board)
             }
             // Plain drag on a card MOVES the card (#4290). It is disabled only
             // while Space is held, which is the deliberate "move the view"
