@@ -43,7 +43,9 @@ extension FirstRunWindow {
                 subtitle: "How your sources come in, and roughly how much there is. You can add it later.",
                 systemImage: step.icon
             ) {
-                recipeCard { RecipeMaterialSourceFields(store: store, importer: project?.importService) }
+                recipeCard { RecipeMaterialSourceFields(
+                    store: store, importer: project?.importService, syncFolders: project?.syncFolderStore
+                ) }
             }
         case .about:
             stepPage(

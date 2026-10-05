@@ -190,6 +190,10 @@ class LibraryManager {
         /// all use it.
         @ObservationIgnored lazy var recipeSetupStore = RecipeSetupStore(client: ficheroClient, topics: topicStore)
 
+        /// This project's synced folders (#5480, #4952): setup's Index ties a folder here, and a
+        /// folder's Inspector shows its state, intake and Untie from here.
+        @ObservationIgnored lazy var syncFolderStore = SyncFolderStore(client: ficheroClient)
+
         /// The models Fichero trained or fine-tuned, for this project's Training node (#5439).
         /// The engine's list (no card records a project), read through this library's client.
         @ObservationIgnored lazy var trainedModelsStore = TrainedModelsStore(client: ficheroClient)

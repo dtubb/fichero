@@ -87,6 +87,8 @@ struct SourceInfoView: View {
             VStack(alignment: .leading, spacing: 16) {
                 // How the page's passes were made (#5149): "Imported from X · PAGE XML · 22 lines".
                 InspectorMakingSection(documentId: document.id)
+                // A folder the project is tied to shows it is synced, its intake and Untie (#5480).
+                FolderSyncInspectorSection(document: document)
                 DocumentInspectorInfoTab(document: document)
                 if !document.metadata.isEmpty || document.path != nil {
                     DocumentInspectorMetadataTab(document: document)

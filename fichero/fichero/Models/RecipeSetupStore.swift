@@ -73,6 +73,8 @@ final class RecipeSetupStore {
     private(set) var jobOrder: [String] = []
     /// What setup's Add a Folder… brought in, said back to the person.
     private(set) var materialAdded: String?
+    /// The folder Add a Folder… tied as a synced folder (Index), shown on the screen with its intake.
+    private(set) var tiedFolderPath: String?
     private(set) var isAssembling = false
     var errorMessage: String?
     /// What the engine worked out for each chosen script: direction, whether it may be vertical,
@@ -534,12 +536,23 @@ extension RecipeSetupStore {
 
     /// Import a folder into the project the way setup chose (link, copy, move
     /// or index), through the project's own import path. Importing is not
-    /// Start: no recipe step runs on it.
-    func addFolder(_ url: URL, importer: ImportService) async {
+    /// Start: no recipe step runs on it. With Index, the folder is then tied
+    /// through `/api/sync-folders` (`source.onboard.index-ties-the-folder`), so
+    /// Index is whole and not only a recorded mode; `tiedFolderPath` names it
+    /// for the screen to show.
+    func addFolder(_ url: URL, importer: ImportService, syncFolders: SyncFolderStore? = nil) async {
         materialAdded = nil
+        tiedFolderPath = nil
         do {
             let ids = try await importer.importFolder(url, mode: ingestMode)
             materialAdded = "\(url.lastPathComponent): \(ids.count) added (\(ingestMode.displayName.lowercased()))."
+            if ingestMode == .index, let syncFolders {
+                if await syncFolders.tie(path: url.path) != nil {
+                    tiedFolderPath = url.path
+                } else {
+                    errorMessage = syncFolders.errorMessage
+                }
+            }
         } catch {
             if error.isCancellationError { return }
             errorMessage = "Could not add \(url.lastPathComponent): \(error.localizedDescription)"
