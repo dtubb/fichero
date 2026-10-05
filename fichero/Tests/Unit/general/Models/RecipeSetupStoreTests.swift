@@ -20,7 +20,8 @@ private final class RecipesMockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var calls = 0
     nonisolated(unsafe) static var status = 200
     override static func canInit(with request: URLRequest) -> Bool {
-        request.url?.path.contains("/api/recipes") == true
+        let path = request.url?.path ?? ""
+        return path.contains("/api/recipes") || path.hasPrefix("/api/topics")
     }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
@@ -157,20 +158,23 @@ struct RecipeSetupStoreTests {
         #expect(store.derivedScripts["Jpan"]?.mayBeVertical == true)
     }
 
-    /// WHY: a step explains itself with the job registry's own words
-    /// (source.onboard.topics-written-once). If the store did not key the
-    /// registry by job id, setup would show bare ids instead of the explanation
-    /// the Inspector and the manual share.
-    @Test("a step's explanation comes from the job registry")
-    func stepExplanationComesFromRegistry() async throws {
+    /// WHY: a step is named by the job registry, keyed by the step's job id
+    /// (its explanation is the topic registry's: TopicStoreTests). If the store
+    /// did not key the registry by id, setup would show bare ids; if it invented
+    /// an entry for an unregistered job, it would name a tool that does not exist.
+    @Test("a step's name comes from the job registry")
+    func stepNameComesFromRegistry() async throws {
         defer { RecipesMockURLProtocol.requestHandler = nil }
         let store = makeStore { request in
             if request.url?.path == "/api/recipes/jobs" {
                 return Self.reply(request, 200, """
                 {"count":1,"items":[{"id":"find-lines","name":"Find lines",
-                 "description":"Finds each line of writing on the page.","layer":"lines",
+                 "description":"Finds each line of writing on the page.","topic":"find-lines","layer":"lines",
                  "takes":["image"],"gives":["lines"],"compare":"line boxes","settings":[],"since":"0.1"}]}
                 """)
+            }
+            if request.url?.path == "/api/topics" {
+                return Self.reply(request, 200, #"{"items":[],"count":0}"#)
             }
             return Self.reply(request, 200, Self.recipeJSON)
         }
@@ -181,7 +185,7 @@ struct RecipeSetupStoreTests {
         await store.assemble()
 
         let steps = try #require(store.recipe?.steps)
-        #expect(store.job(for: steps[0])?.description == "Finds each line of writing on the page.")
+        #expect(store.job(for: steps[0])?.name == "Find lines")
         #expect(store.job(for: steps[1]) == nil, "an unregistered job is shown as unknown, never invented")
     }
 

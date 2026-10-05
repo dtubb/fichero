@@ -1,8 +1,8 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// An assembled recipe, step by step: what each step does (the job registry's
-/// own words), why the rules chose it, what is missing, and an Advanced
+/// An assembled recipe, step by step: what each step does (the topic registry's
+/// own words, `TopicStore`), why the rules chose it, what is missing, and an Advanced
 /// disclosure with the model and settings (`source.onboard.proposes-chain`,
 /// `source.onboard.self-documenting`, `source.onboard.says-no-model`,
 /// `source.recipe.advanced-per-step`). Shared by setup and the Inspector so both
@@ -19,7 +19,8 @@ struct RecipeStepsView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(recipe.steps, id: \.id) { step in
-                RecipeStepRow(step: step, job: store.job(for: step))
+                RecipeStepRow(step: step, title: store.title(of: step), job: store.job(for: step),
+                              explanation: store.explanation(ofJob: step.job))
             }
             ForEach(recipe.gaps, id: \.self) { gap in
                 Label(gap, systemImage: "exclamationmark.triangle")
@@ -37,21 +38,20 @@ struct RecipeStepsView: View {
 
 private struct RecipeStepRow: View {
     let step: Components.Schemas.RecipeStep
+    let title: String
     let job: Components.Schemas.JobInfo?
+    let explanation: Components.Schemas.TopicInfo?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(job?.name ?? step.job).font(.headline)
+                Text(title).font(.headline)
                 if let layer = step.layer ?? job?.layer {
                     Text(layer).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            if let description = job?.description {
-                Text(description).font(.callout)
-            } else {
-                Text("The job registry has no description for “\(step.job)”.")
-                    .font(.callout).foregroundStyle(.secondary)
+            if let explanation {
+                TopicExplanation(topic: explanation)
             }
             if let card = step.card {
                 Label(Self.cardSummary(card), systemImage: step.usesCloud == true ? "cloud" : "desktopcomputer")
@@ -123,6 +123,31 @@ private struct RecipeStepRow: View {
     }
 }
 
+/// One topic's explanation as the registry wrote it (`source.onboard.topics-written-once`):
+/// its one sentence, and its paragraph and example on disclosure. Setup and the Inspector
+/// show a topic only through this, so the words are the registry's, never the app's.
+struct TopicExplanation: View {
+    let topic: Components.Schemas.TopicInfo
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(topic.short).font(.callout)
+            DisclosureGroup("More") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(topic.long)
+                    if let example = topic.example {
+                        Label(example, systemImage: "doc.text.magnifyingglass")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption)
+                .textSelection(.enabled)
+            }
+            .font(.caption)
+        }
+    }
+}
+
 /// The Inspector's recipe section: the recipe setup proposed, and Set Up…,
 /// which opens first run's own recipe steps (`FirstRunStep.setUpSteps`), one
 /// code path (`source.onboard.set-up-later`, `source.onboard.edited-in-the-inspector`).
@@ -148,6 +173,8 @@ struct InspectorRecipeSection: View {
                 FirstRunWindow(setUp: true)
                     .environment(appState)
             }
+            // Each step's name and explanation (the job and topic registries).
+            .task { await appState.recipeSetupStore.loadJobs() }
         }
     }
 }

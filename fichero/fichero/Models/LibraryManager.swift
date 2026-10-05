@@ -170,6 +170,10 @@ class LibraryManager {
         /// report when they have been (#5222 part 3). One per library, shared by its windows.
         @ObservationIgnored lazy var conversionStatusStore = ConversionStatusStore(client: ficheroClient)
 
+        /// Each topic's and recipe job's explanation, from the engine's one registry
+        /// (`GET /api/topics`, #5471). Setup and the Inspector read their words here.
+        @ObservationIgnored lazy var topicStore = TopicStore(client: ficheroClient)
+
         /// Per-library activity store (#2448). Wraps `activityService`, owns the
         /// run-browser list, and signals `ActivityBrowserView` to refresh on
         /// `workflow.*` SSE events (best-effort until the backend emits dedicated

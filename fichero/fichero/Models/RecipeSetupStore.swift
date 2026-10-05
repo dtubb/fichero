@@ -8,9 +8,9 @@ import OpenAPIRuntime
 /// `source.onboard.purpose-first`, `source.onboard.deterministic-recipe`,
 /// `source.onboard.self-documenting`). The app never decides a step or a model:
 /// it sends the answers to `POST /api/recipes/assemble` and shows what the rules
-/// gave back, and it explains each step with the job registry's own words
-/// (`GET /api/recipes/jobs`), so setup, the Inspector and the manual say the same
-/// thing. Proposes only; nothing runs and nothing is written.
+/// gave back, and it explains each step with the topic registry's own words
+/// (`TopicStore`, `GET /api/topics`), so setup, the Inspector and the manual say the
+/// same thing. Proposes only; nothing runs and nothing is written.
 @MainActor
 @Observable
 final class RecipeSetupStore {
@@ -50,10 +50,15 @@ final class RecipeSetupStore {
     /// its bundled font (`source.onboard.derives-not-asks`). Keyed by ISO 15924 code.
     private(set) var derivedScripts: [String: Components.Schemas.ScriptFacts] = [:]
 
+    /// Each step's explanation (`source.onboard.topics-written-once`): the library's
+    /// own `TopicStore` where there is one.
+    let topics: TopicStore
+
     private let client: FicheroClient
 
-    init(client: FicheroClient) {
+    init(client: FicheroClient, topics: TopicStore? = nil) {
         self.client = client
+        self.topics = topics ?? TopicStore(client: client)
     }
 
     /// The scripts and languages are the two facts the rules cannot do without
@@ -245,8 +250,9 @@ final class RecipeSetupStore {
         }
     }
 
-    /// The job registry, once: each step's plain explanation comes from here.
+    /// The job registry, once, with the topics that explain each job.
     func loadJobs() async {
+        await topics.load()
         guard jobs.isEmpty else { return }
         do {
             if case .ok(let success) = try await client.api.listJobsApiRecipesJobsGet() {
@@ -296,10 +302,22 @@ final class RecipeSetupStore {
         }
     }
 
-    /// The job's registered name and description, or nil when the registry does
-    /// not know it (shown as such, never invented here).
+    /// The job's registered name, or nil when the registry does not know it
+    /// (shown as such, never invented here).
     func job(for step: Components.Schemas.RecipeStep) -> Components.Schemas.JobInfo? {
         jobs[step.job]
+    }
+
+    /// What explains a job: its topic in the registry, or nil when the job names
+    /// none the registry has (the job's name is shown alone).
+    func explanation(ofJob id: String) -> Components.Schemas.TopicInfo? {
+        topics.topic(jobs[id]?.topic)
+    }
+
+    /// A step's heading: its topic's title, else the job's registered name, else
+    /// the bare job id. Never empty, never invented.
+    func title(of step: Components.Schemas.RecipeStep) -> String {
+        explanation(ofJob: step.job)?.title ?? jobs[step.job]?.name ?? step.job
     }
 
     // MARK: Offered first, never hidden (source.onboard.offers-never-hides)
