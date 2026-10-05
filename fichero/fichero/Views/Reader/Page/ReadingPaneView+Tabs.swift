@@ -27,6 +27,8 @@ extension ReadingPaneView {
             switch readerTab {
             case .page:
                 pageTabContent
+            case .lines:
+                linesTabContent
             case .knowledge:
                 knowledgeTabContent
             case .notes:
@@ -146,6 +148,17 @@ extension ReadingPaneView {
             }
         } else {
             surfaceView(tab: .transcript)
+        }
+    }
+
+    /// Lines tab (#5414): the shown page's lines, each picture above its editable reading, zoomed by
+    /// the Reader's own zoom. The page is the one the Reader is on: the selected page, else the document.
+    @ViewBuilder
+    private var linesTabContent: some View {
+        if let pageId = effectivePageId ?? effectiveDocument?.id {
+            ReaderLinesView(documentId: pageId, zoom: webZoom)
+        } else {
+            readerEmptyState
         }
     }
 

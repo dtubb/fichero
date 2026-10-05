@@ -21,7 +21,7 @@ struct ReaderLensInventoryTests {
         // tabs; the other seven are knowledge sub-modes, and each must name one.
         for lens in ReaderLens.allCases {
             switch lens {
-            case .page, .notes:
+            case .page, .lines, .notes:
                 #expect(lens.representation == nil)
             default:
                 #expect(lens.representation != nil, "\(lens.title) names no surface")
@@ -38,7 +38,7 @@ struct ReaderLensInventoryTests {
         // drop one back to menu-only. Transcript is NOT here (2026-08-23):
         // Page IS the multi-page transcript, and the separate row landed on
         // Entities via the knowledge surface's stale-value clamp.
-        for expected in ["Content", "Statements", "Entities", "Claims", "Timeline", "Notes"] {
+        for expected in ["Content", "Lines", "Statements", "Entities", "Claims", "Timeline", "Notes"] {
             #expect(titles.contains(expected), "\(expected) fell out of the lens list")
         }
         #expect(!titles.contains("Transcript"), "the duplicate Transcript lens came back")
@@ -84,6 +84,7 @@ struct ReaderLensInventoryTests {
     func unknownRepresentationFallsBack() {
         #expect(ReaderLens.lens(for: .page, representation: .map) == .page)
         #expect(ReaderLens.lens(for: .notes, representation: .graph) == .notes)
+        #expect(ReaderLens.lens(for: .lines, representation: .map) == .lines)
     }
 }
 

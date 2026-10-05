@@ -33,6 +33,8 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     /// same WebKit transcript, and the Transcript row even landed on Entities
     /// because the knowledge surface clamps `.transcript` as stale).
     case page
+    /// Line by line (#5414, `reader.lines.*`): each line's picture above its reading, editable.
+    case lines
     /// `KGSurfaceTab.digest`'s user-facing name: the SVO statements (#3765).
     case statements
     case entities
@@ -49,6 +51,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .page: "Content"
+        case .lines: "Lines"
         case .statements: "Statements"
         case .entities: "Entities"
         case .claims: "Claims"
@@ -63,6 +66,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     var icon: String {
         switch self {
         case .page: "doc.text.image"
+        case .lines: "text.below.photo"
         case .statements: "text.quote"
         case .entities: "circle.grid.2x2"
         case .claims: "quote.bubble"
@@ -78,6 +82,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     var tab: ReaderTab {
         switch self {
         case .page: .page
+        case .lines: .lines
         case .notes: .notes
         case .statements, .entities, .claims, .graph, .timeline, .map, .related: .knowledge
         }
@@ -87,7 +92,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     /// a whole tab on their own.
     var representation: KGSurfaceTab? {
         switch self {
-        case .page, .notes: nil
+        case .page, .lines, .notes: nil
         case .statements: .digest
         case .entities: .entities
         case .claims: .claims
@@ -103,6 +108,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     static func lens(for tab: ReaderTab, representation: KGSurfaceTab) -> ReaderLens {
         switch tab {
         case .page: .page
+        case .lines: .lines
         case .notes: .notes
         case .knowledge: allCases.first { $0.representation == representation } ?? .entities
         }

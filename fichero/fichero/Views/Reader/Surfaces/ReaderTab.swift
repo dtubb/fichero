@@ -18,6 +18,8 @@ import SwiftUI
 /// Library view modes — neither folds in here.
 enum ReaderTab: String, CaseIterable, Identifiable, SurfaceTab {
     case page
+    /// Line by line (#5414): each line's picture above its editable reading.
+    case lines
     case knowledge
     case notes
 
@@ -27,6 +29,7 @@ enum ReaderTab: String, CaseIterable, Identifiable, SurfaceTab {
     var title: String {
         switch self {
         case .page: return "Page"
+        case .lines: return "Lines"
         case .knowledge: return "Knowledge"
         case .notes: return "Notes"
         }
@@ -36,6 +39,7 @@ enum ReaderTab: String, CaseIterable, Identifiable, SurfaceTab {
     var icon: String {
         switch self {
         case .page: return "doc.text.image"
+        case .lines: return "text.below.photo"
         case .knowledge: return "point.3.connected.trianglepath.dotted"
         case .notes: return "note.text"
         }
@@ -45,6 +49,7 @@ enum ReaderTab: String, CaseIterable, Identifiable, SurfaceTab {
     var help: String {
         switch self {
         case .page: return "Page — read the source: image, transcript, loupe, page-turn"
+        case .lines: return "Lines — each line's picture above its reading, editable in place"
         case .knowledge: return "Knowledge — explore entities, claims, graph, timeline, map, and the digest"
         case .notes: return "Notes — your highlights, notes, and bookmarks anchored to the page"
         }
