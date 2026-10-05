@@ -2,6 +2,7 @@ import AppKit
 @testable import Fichero
 import FicheroAPIClient
 import Foundation
+import PDFKit
 import Testing
 
 /// The Reader's Lines mode and the Preview's double-click popover (#5414): `reader.lines.image-above-text`,
@@ -249,5 +250,74 @@ struct ReaderLinesTests {
         #expect(SegmentPopoverTarget.target(for: legacy) == nil)
         legacy.segmentId = nil
         #expect(SegmentPopoverTarget.target(for: legacy) == nil)
+    }
+
+    /// A PDF page to double-click on: inset crop and a quarter turn, so a mapping that forgot either
+    /// (the #4418 and rotated-page defects) would land the pick or the anchor on the wrong box.
+    private func pdfPage() throws -> PDFPage {
+        let image = NSImage(size: NSSize(width: 600, height: 800), flipped: false) { rect in
+            NSColor.white.setFill()
+            rect.fill()
+            return true
+        }
+        let page = try #require(PDFPage(image: image))
+        page.setBounds(CGRect(x: 20, y: 30, width: 500, height: 700), for: .cropBox)
+        page.rotation = 90
+        return page
+    }
+
+    /// WHY (`preview.segment.double-click-popover`, the PDF Preview): a double-click on a PDF page's box
+    /// must open the SAME popover the image Preview opens -- not a second row view -- for the segment the
+    /// box draws. The click arrives in PDFKit page points, so it must be read back into the display space
+    /// the boxes are stored in and picked by the Edit Segments click's rule; the popover then receives the
+    /// image path's target and builds the Lines row for it. With no box under it, nothing opens, leaving
+    /// PDFKit its own double-click.
+    @Test func aDoubleClickOnAPDFBoxOpensTheSamePopoverRowAsTheImagePreview() async throws {
+        let store = try await loaded().store
+        let boxes = try #require(SegmentDisplay.selected(for: documentId, store: store)).geometry.boxes
+        let lineBox = try #require(boxes.first { $0.segmentId == "seg-0003" })
+        let page = try pdfPage()
+        let centre = [lineBox.bbox[0] + lineBox.bbox[2] / 2, lineBox.bbox[1] + lineBox.bbox[3] / 2]
+        let pagePoint = try #require(PDFRegionGeometry.pagePoint(
+            normalized: centre, rotation: page.rotation, crop: page.bounds(for: .cropBox)
+        ))
+
+        let picked = try #require(PDFSegmentPopover.pick(atPagePoint: pagePoint, on: page, in: boxes))
+        #expect(picked.target.id == "seg-0003", "the line double-clicked, read back through the turn and crop")
+        #expect(picked.target == SegmentPopoverTarget.target(for: lineBox), "the image Preview's target for that box")
+
+        let row = try #require(ReaderLinePopover.row(segmentId: picked.target.id, documentId: documentId, store: store))
+        let expected = try line("seg-0003", in: store)
+        #expect(row.segment == expected, "the Lines row for the double-clicked segment")
+        #expect(row.zoom == ReaderLines.popoverZoom)
+        #expect(row.direction == store.direction(of: "seg-0003", documentId: documentId))
+
+        #expect(PDFSegmentPopover.pick(atPagePoint: pagePoint, on: page, in: []) == nil, "no box, no popover")
+    }
+
+    /// WHY: the popover must point at the box the person double-clicked, at any zoom and on a rotated,
+    /// crop-inset page. So the anchor is the page rect the #5424 reveal zooms to
+    /// (`PDFZoomController.pageRect`, the rule the boxes are drawn by), carried into the view by
+    /// PDFKit's own conversion, and flipped to SwiftUI's top-left origin when the view is not flipped.
+    @Test func thePDFPopoverAnchorMapsFromTheBoxAsTheRevealDoes() throws {
+        let page = try pdfPage()
+        let bbox = [0.1, 0.2, 0.5, 0.05]
+        let reveal = try #require(PDFZoomController.pageRect(forNormalized: bbox, on: page))
+        var converted: [CGRect] = []
+        let anchor = try #require(PDFSegmentPopover.anchor(
+            for: bbox, on: page, viewHeight: 900, viewIsFlipped: false,
+            toView: { rect in
+                converted.append(rect)
+                return rect.offsetBy(dx: 7, dy: 11)
+            }
+        ))
+        #expect(converted == [reveal], "the reveal's page rect is what is carried into the view")
+        let inView = reveal.offsetBy(dx: 7, dy: 11)
+        #expect(anchor == CGRect(x: inView.minX, y: 900 - inView.maxY, width: inView.width, height: inView.height))
+        let flipped = try #require(PDFSegmentPopover.anchor(
+            for: bbox, on: page, viewHeight: 900, viewIsFlipped: true, toView: { $0 }
+        ))
+        #expect(flipped == reveal, "a flipped view is already top-left")
+        #expect(PDFSegmentPopover.anchor(for: [0, 0], on: page, viewHeight: 900, viewIsFlipped: false, toView: { $0 }) == nil)
     }
 }

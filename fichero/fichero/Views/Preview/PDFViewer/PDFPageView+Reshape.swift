@@ -12,6 +12,8 @@ struct PDFSegmentEditing {
     var commit: ((Int, SegmentShapes.Target, [[Double]]) -> Void)?
     /// The page document these boxes belong to, for the PDF view's page name (#5193).
     var pageDocumentId: String?
+    /// Opens a double-clicked box's popover (`PDFPageView+SegmentPopover`, #5414).
+    var openPopover: ((PDFSegmentPopover) -> Void)?
 
     /// A PDF page's pick as the ONE selection (#5155's ruling): written into the page's `RegionSelection`
     /// in the shown pass's scope and box indices, exactly as an image page writes it, so the Inspector
@@ -116,11 +118,19 @@ extension PDFReshapeSession {
 }
 
 extension PDFPageView {
-    /// The click that selects a box in Edit Segments (and ⌥-click that removes a point).
+    /// The click that selects a box in Edit Segments (and ⌥-click that removes a point), and the
+    /// double-click that opens a box's popover (#5414). The single click is not made to wait for the
+    /// double: it still selects at once.
     func wireSegmentEditing(_ coordinator: Coordinator, on view: PDFView) {
         let click = NSClickGestureRecognizer(target: coordinator, action: #selector(Coordinator.handleSegmentClick(_:)))
         click.delegate = coordinator
         view.addGestureRecognizer(click)
+        let doubleClick = NSClickGestureRecognizer(
+            target: coordinator, action: #selector(Coordinator.handleSegmentDoubleClick(_:))
+        )
+        doubleClick.numberOfClicksRequired = 2
+        doubleClick.delegate = coordinator
+        view.addGestureRecognizer(doubleClick)
     }
 }
 

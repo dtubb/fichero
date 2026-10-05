@@ -22,7 +22,8 @@ extension PDFPageWithToolbar {
                 windowState?.focusRegionSelection(selection)
             },
             commit: { index, target, points in reshapePDFSegment(index: index, target, to: points) },
-            pageDocumentId: documentId
+            pageDocumentId: documentId,
+            openPopover: { popover in pdfSegmentPopover = popover }
         )
         #else
         return PDFSegmentEditing()  // ponytail: no PDF overlay on iOS yet (#4418), so nothing to edit
