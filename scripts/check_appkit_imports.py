@@ -44,6 +44,7 @@ RULE_DOC = "docs/contributor_manual/architecture/fichero/reform_masterplan_2026-
 # Keys are paths relative to SWIFT_DIR (posix). Value documents why it is a
 # sanctioned bridge OR that it is baseline debt to migrate.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Views/Library/Search/ToolbarSearchField.swift": "the one toolbar search item (#5024, #5225): SwiftUI's .searchable cannot put a menu on the field's magnifier, so the native NSSearchField hosts Ask/Keyword in its own drop-down, as Mail and Finder do",
     # 2026-08-28: Install Tools writes the `fichero` CLI and the MCP shim into
     # ~/.local/bin and must tell the user where they went — the reveal-in-Finder
     # and the "add this to PATH" affordance are NSWorkspace calls with no
