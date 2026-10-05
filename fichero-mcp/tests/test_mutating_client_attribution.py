@@ -51,42 +51,18 @@ def test_both_client_builders_tag_the_mcp_surface(isolated_mcp_env, monkeypatch)
         owner.close()
 
 
-def test_mutating_tools_route_through_mutating_client():
-    """create_note, import, and workflow_run must not use the plain reader."""
-    client = _mock_client()
-    with patch.object(server, "_mutating_client", return_value=client) as mut:
-        for tool, kwargs in [
-            (server.fichero_create_note, {"body": "b"}),
-            (server.fichero_import, {"path": "/tmp/x.pdf"}),
-            (server.fichero_workflow_run, {"workflow_id": "wf", "doc_id": "d"}),
-        ]:
-            fn = getattr(tool, "fn", tool)
-            fn(**kwargs)
-    assert mut.call_count == 3
+def test_generated_mutations_route_through_mutating_client_and_reads_do_not():
+    """WHY (openapi.mcp.mutations-act-as-the-agent, #5453): a generated tool that changes data
+    must call as the agent account when one exists, so the audit names the agent; a read must not
+    need one. Both clients are patched, and each tool must reach exactly the one it should."""
+    from fichero_mcp import openapi_tools_generated as generated
 
-
-def test_kg_write_tools_call_the_audited_mcp_routes():
-    """#4469: the audited /api/mcp/tools/knowledge/* routes — which write
-    MutationLog with the request actor — had ZERO callers in this product.
-    The KG write tools must hit exactly those routes, via _mutating_client."""
-    client = _mock_client()
-    with patch.object(server, "_mutating_client", return_value=client):
-        fn = getattr(server.fichero_kg_entity_upsert, "fn", server.fichero_kg_entity_upsert)
-        fn(canonical_name="Chocó", entity_type="place", aliases=["El Chocó"])
-        method, path = client.request.call_args[0]
-        assert (method, path) == ("POST", "/api/mcp/tools/knowledge/entities/upsert")
-        body = client.request.call_args[1]["json"]
-        assert body == {
-            "canonical_name": "Chocó",
-            "entity_type": "place",
-            "aliases": ["El Chocó"],
-        }, "extra=forbid on the server: only known, non-empty keys may ride"
-
-        fn = getattr(server.fichero_kg_claim_create, "fn", server.fichero_kg_claim_create)
-        fn(text="Istmina is on the San Juan", source_document_id="doc-1", confidence=0.9)
-        method, path = client.request.call_args[0]
-        assert (method, path) == ("POST", "/api/mcp/tools/knowledge/claims/create")
-        body = client.request.call_args[1]["json"]
-        assert body["text"] == "Istmina is on the San Juan"
-        assert body["source_document_id"] == "doc-1"
-        assert body["confidence"] == 0.9
+    reader, writer = _mock_client(), _mock_client()
+    with patch.object(server, "_client", return_value=reader), patch.object(
+        server, "_mutating_client", return_value=writer
+    ):
+        generated.fichero_hpc_test_cluster(cluster_id="c1")
+        generated.fichero_hpc_list_clusters()
+    assert writer.request.call_args[0][:2] == ("POST", "/api/hpc/clusters/c1/test")
+    assert reader.request.call_args[0][:2] == ("GET", "/api/hpc/clusters")
+    assert writer.request.call_count == 1 and reader.request.call_count == 1

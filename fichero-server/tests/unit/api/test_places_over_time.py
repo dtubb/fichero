@@ -180,6 +180,7 @@ def test_the_mcp_tool_is_the_route(db, client, monkeypatch):
     """One question, one code path: an agent asking where a place was gets the app's answer."""
     import httpx
     from fichero_cli import FicheroClient
+    from fichero_mcp import openapi_tools_generated as generated
     from fichero_mcp import server as mcp_server
 
     pole = _entity(db, "North Magnetic Pole")
@@ -195,5 +196,5 @@ def test_the_mcp_tool_is_the_route(db, client, monkeypatch):
 
     monkeypatch.setattr(mcp_server, "_client", lambda: FicheroClient(
         base_url="http://test", library_path="/tmp/Lib.fichero", token="t", transport=httpx.MockTransport(forward)))
-    by_tool = mcp_server.fichero_place_as_of(pole.id, "2019")
+    by_tool = generated.fichero_entities_place_as_of(entity_id=pole.id, as_of="2019")
     assert by_tool == by_route and [(g["lat"], g["lon"]) for g in by_tool["geometries"]] == [(86.448, 175.34585)]

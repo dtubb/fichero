@@ -154,13 +154,6 @@ def test_agent_client_does_not_fall_back_to_the_owner_bootstrap_token(
         mcp_server._agent_client()
 
 
-def test_workspace_action_requires_the_agent_session(monkeypatch):
-    monkeypatch.setattr(client_module, "_read_token", lambda **_kwargs: None)
-
-    with pytest.raises(RuntimeError):
-        mcp_server._workspace_action("reveal_location", {"document_id": "doc-1"})
-
-
 def test_unauthenticated_tool_call_raises_rather_than_returning_empty(monkeypatch):
     """A 401 must surface as an error tool result, never as "no results"."""
 

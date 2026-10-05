@@ -173,6 +173,8 @@ def _fake_tree(tmp_path: Path, exported_version: str) -> tuple[Path, Path]:
         "import pathlib\n"
         f"pathlib.Path(r'{tmp_path / 'cli-generator-ran'}').write_text('yes')\n"
     )
+    # The sync runs the MCP generator next (#5453); a stub, as for the CLI's.
+    (api_root / "scripts" / "generate_openapi_mcp.py").write_text("")
     return api_root, spec
 
 

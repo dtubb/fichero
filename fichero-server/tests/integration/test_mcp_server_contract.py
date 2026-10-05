@@ -23,126 +23,25 @@ from tests.integration._cli_live import cli_live_engine  # noqa: F401  (fixture)
 # #5187: spawns an engine and waits on it -- a gate under heavy load may retry or exclude it.
 pytestmark = pytest.mark.load_sensitive
 
-EXPECTED_TOOLS = {
+# Since #5453 the surface is generated from the OpenAPI contract: the default toolsets' generated
+# tools, the operator aliases, and these hand-written few (each kept for something one route does
+# not do). A rename or removal of any of them breaks an agent's configured tools, so the hand-written
+# set is a deliberate diff here; the generated part follows the contract and its drift guard.
+HAND_WRITTEN_TOOLS = {
     "fichero_health",
-    "fichero_import",
-    "fichero_ingest_folder",
-    "fichero_ingest_status",
-    "fichero_docs_list",
-    "fichero_docs_get",
-    "fichero_create_note",
-    "fichero_list_notes",
-    "fichero_get_note",
-    "fichero_workflow_list",
-    "fichero_workflow_run",
-    "fichero_workflow_status",
-    "fichero_train_kraken",
-    "fichero_train_vision_lora",
-    "fichero_training_status",
-    "fichero_training_cancel",
-    "fichero_train_kraken_here",
-    "fichero_jobs",
-    "fichero_pause_background_work",
-    "fichero_job_pause",
-    "fichero_job_cancel",
-    "fichero_check_run",
-    "fichero_check_status",
-    "fichero_check_cancel",
-    "fichero_check_verdicts",
-    "fichero_check_verdict",
-    "fichero_gather_reasons",
-    "fichero_reasons_status",
-    "fichero_reasons_cancel",
-    "fichero_reasons_ab",
-    "fichero_reasons_ab_status",
-    "fichero_read_at_scale",
-    "fichero_reading_status",
-    "fichero_reading_resend_failed",
-    "fichero_reading_cancel",
-    "fichero_compare_readings",
-    "fichero_artifacts",
-    "fichero_kg_entities",
-    "fichero_kg_claims",
-    "fichero_kg_search",
-    "fichero_document_inspector",
-    "fichero_search",
-    "fichero_activity",
-    "fichero_workspace_add_source",
-    "fichero_workspace_remove_source",
-    "fichero_workspace_surface_claim",
-    "fichero_workspace_add_note",
-    "fichero_reveal_location",
-    "fichero_kg_neighborhood",
-    "fichero_document_kg",
-    "fichero_artifact_get",
-    # Source-model slice 1 (2026-09-19): read-only segments seam
-    # (source.one-store, source.seam.read-either-store).
-    "fichero_segments",
-    # Source-model slice 4/5 (#4955 item C): the three real-Segment reads
-    # the HTTP API offers beyond the slice-1 list -- one segment's live row
-    # (resolved through forwarding), its version history, and its citable
-    # reference. Parity pinned by
-    # test_segment_detail_versions_reference_hard_gate_same_everywhere.
-    "fichero_segment",
-    "fichero_segment_versions",
-    "fichero_segment_reference",
-    # #5139: reading the text of the shapes above.
-    "fichero_segment_readings",
-    "fichero_segments_naming_place",
-    "fichero_place_as_of",
-    "fichero_document_text",
-    "fichero_segments_in_scope",
-    "fichero_reading_orders",
-    "fichero_reading_order_entries",
-    # #4941: the editor's verbs for an agent, each the audited action the app's editor uses
-    # (reads alone made agent-parity false).
-    "fichero_segment_update",
-    "fichero_segment_split",
-    "fichero_segment_merge",
-    "fichero_segment_delete",
-    "fichero_segment_undelete",
-    "fichero_segment_choose_reading",
-    # #4943: interchange formats everywhere -- list, import a file as a pass, export a page.
-    "fichero_formats_list",
-    "fichero_page_import",
-    "fichero_page_export",
-    # #4485: KG writes through the audited /api/mcp/tools/knowledge/* path
-    # (actor from auth state, change events emitted).
-    "fichero_kg_entity_upsert",
-    "fichero_kg_claim_create",
-    # Library selection: the server binds NO library by default (one server,
-    # all libraries), so an agent lists the registry and scopes the session.
-    "fichero_list_libraries",
     "fichero_use_library",
-    # Authoring/canvas writes through the audited action layer (#4469, #4192).
-    "fichero_workflow_create",
-    "fichero_document_move",
-    # #4914 gate follow-up: verified as one deliberate, single-commit
-    # addition (76297c956, 2026-09-06, "add provider / local-runtime /
-    # model / Kraken / HPC tools to the fichero MCP surface") -- all 19
-    # confirmed `@mcp.tool()`-registered in fichero_mcp/server.py, not
-    # accidental surface leaks. This list had gone 18 days without being
-    # updated for them (EXPECTED_TOOLS itself last touched 2026-09-01).
-    "fichero_providers",
-    "fichero_provider_catalog",
-    "fichero_local_runtimes",
-    "fichero_models_catalog",
-    "fichero_model_download",
-    "fichero_model_download_status",
-    "fichero_model_download_cancel",
-    "fichero_model_delete",
-    "fichero_runtime_status",
-    "fichero_runtime_provision",
-    "fichero_local_models",
-    "fichero_local_model_download",
-    "fichero_kraken_status",
-    "fichero_kraken_install",
-    "fichero_hpc_clusters",
-    "fichero_hpc_configure_cluster",
-    "fichero_hpc_delete_cluster",
-    "fichero_hpc_test_cluster",
-    "fichero_hpc_dry_run_submit",
+    "fichero_docs_list",
+    "fichero_workflow_list",
+    "fichero_page_import",
 }
+
+
+def _expected_tools() -> set[str]:
+    from fichero_mcp import server
+    from fichero_mcp.openapi_tools_generated import TOOLS
+
+    default = {tool.name for tool in TOOLS if tool.tag in server.DEFAULT_TOOLSETS}
+    return HAND_WRITTEN_TOOLS | set(server.OPERATOR_ALIASES) | default
 
 
 @pytest.fixture()
@@ -184,9 +83,10 @@ async def call(mcp, name: str, arguments: dict, allow_empty: bool = False):
 async def test_tool_surface_is_exactly_the_committed_list(mcp_server):
     tools = await mcp_server.list_tools()
     names = {t.name for t in tools}
-    assert names == EXPECTED_TOOLS, (
-        f"MCP tool surface drifted.\n+ new: {sorted(names - EXPECTED_TOOLS)}\n"
-        f"- gone: {sorted(EXPECTED_TOOLS - names)}"
+    expected = _expected_tools()
+    assert names == expected, (
+        f"MCP tool surface drifted.\n+ new: {sorted(names - expected)}\n"
+        f"- gone: {sorted(expected - names)}"
     )
 
 
@@ -228,7 +128,7 @@ async def test_read_tools_answer_against_seeded_library(mcp_server, cli_live_eng
     claims = await call(mcp_server, "fichero_kg_claims", {})
     assert summary["ids"]["claims"][0] in json.dumps(claims)
 
-    kg_hits = await call(mcp_server, "fichero_kg_search", {"query": "Eugenio"})
+    kg_hits = await call(mcp_server, "fichero_kg_search", {"q": "Eugenio"})
     assert kg_hits is not None
 
     neighborhood = await call(
@@ -236,10 +136,10 @@ async def test_read_tools_answer_against_seeded_library(mcp_server, cli_live_eng
     )
     assert neighborhood is not None
 
-    doc_kg = await call(mcp_server, "fichero_document_kg", {"doc_id": doc_id})
+    doc_kg = await call(mcp_server, "fichero_document_kg", {"document_id": doc_id})
     assert doc_kg is not None
 
-    inspector = await call(mcp_server, "fichero_document_inspector", {"doc_id": doc_id})
+    inspector = await call(mcp_server, "fichero_document_inspector", {"document_id": doc_id})
     assert doc_id in json.dumps(inspector)
 
     hits = await call(mcp_server, "fichero_search", {"query": "Eugenio"})
