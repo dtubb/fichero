@@ -681,8 +681,8 @@ app never calls `/api/sync-folders`, so an indexed folder's intake is never show
 - "Nothing runs automatically" is a screen of its own (#5478).
 - A fifth way in, **Keep arranged**: like Index, the folder stays where it is, but Fichero manages
   the whole folder and keeps the files in it stored logically (#5480).
-- Languages, scripts **and direction** are chosen in setup; languages and scripts each have search
-  (autocomplete) and a menu to browse; several at once, shown as tokens; a language is stored as
+- Languages, scripts **and direction** are chosen in setup; languages and scripts each have type-to-find
+  search (no browse menu, revised the same day); several at once, shown as tokens; a language is stored as
   its tag (#5479).
 - Material (handwriting, print, typescript) is checkboxes, any mix; the recipe proposes a reader
   for each kind present (#5478).
@@ -757,14 +757,13 @@ lives somewhere).
    `purpose` reads as a list of one.
 5. **What it is** (#5479, #5478). Four rows, each pre-filled where the samples or the engine can
    say, each changeable:
-   - **Languages**: a search field that autocompletes from the engine's language registry (ISO
-     639-3 joined with Glottolog; typing "spanish" offers Spanish `es`, and its dialects with whose
-     dialect each is) and a **Browse…** menu (by family, then language, from the same registry) for
-     a person who knows neither the name in English nor the code. Each chosen language is a token
-     (a lozenge with its name; its tag shown on hover); several at once; a token is removed with
-     its ×. What is saved is the **tag** (`es`, `la`, a private-use tag for a Glottolog-only
-     language), never the typed word.
-   - **Scripts**: the same, from ISO 15924 (search by name or code; Browse… by region of the world),
+   - **Languages**: type to find (ruled 2026-10-05): typing shows the matching languages from the
+     engine's language registry (ISO 639-3 joined with Glottolog; "spanish" offers Spanish `es`,
+     and its dialects with whose dialect each is) in a dropdown under the field as you type; no
+     Browse… menu or alphabetical list. Each chosen language is a token (a lozenge with its name;
+     its tag shown on hover); several at once; a token is removed with its ×. What is saved is the
+     **tag** (`es`, `la`, a private-use tag for a Glottolog-only language), never the typed word.
+   - **Scripts**: the same, from ISO 15924 (type to find by name or code, as languages),
      tokens, the code saved (`Latn`, `Arab`).
    - **Direction**: chosen, pre-filled from the scripts (the engine's derived fact, with where it
      came from): left to right, right to left, top to bottom (columns right to left), top to bottom
@@ -1848,11 +1847,10 @@ Purposes and layers
   on, with whether each may use the cloud, and is never written by hand.
 
 Setup
-- `source.onboard.widget-and-search` — **[PARTIAL]** (#4951, #5479) **Built 2026-10-05 (app), not yet seen:** What it is has a search field for languages and for scripts that autocompletes from the engine, a Browse… list by first letter, and the chosen ones as blue tokens (name shown, tag on hover, × removes); Return on a typed word takes the engine's answer ("spanish" is the `es` token) and refuses a word it does not know in words (`CodeTokenField`, `RecipeSetupStore.addTyped`); pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. *Not built: Browse… by family and by region (the engine lists neither yet).* **Built 2026-10-03:** the Your Material step searches languages and scripts through the engine (2026-10-04: `RecipeSetupStore.searchLanguages`/`searchScripts`; a dialect shows whose dialect it is, a Glottolog-only language is kept as a private-use tag). The engine searches ISO 639-3 joined with Glottolog 5.3 (CC BY 4.0, vendored; languages ISO lacks and about 13,000 dialects, each answer with its BCP 47 tag and glottocode kept apart) and every ISO 15924 script: `GET /api/recipes/languages`, `/scripts`, `fichero-server/tests/unit/api/test_setup_searches_languages_and_scripts.py` and `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. *Not built (ruled 2026-10-05, #5479): the field is free text; no browse menu; one value, not tokens.* setup is a form with search beside each
+- `source.onboard.widget-and-search` — **[PARTIAL]** (#4951, #5479) **Built 2026-10-05 (app), not yet seen:** What it is has a search field for languages and for scripts that autocompletes from the engine, and the chosen ones as blue tokens (name shown, tag on hover, × removes); Return on a typed word takes the engine's answer ("spanish" is the `es` token) and refuses a word it does not know in words (`CodeTokenField`, `RecipeSetupStore.addTyped`); pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. **Built 2026-10-05 (round 3, app):** the Browse… list is gone; matches show in the field's own dropdown (`textInputSuggestions` on the Mac, a List under the field on iPhone and iPad). **Built 2026-10-03:** the Your Material step searches languages and scripts through the engine (2026-10-04: `RecipeSetupStore.searchLanguages`/`searchScripts`; a dialect shows whose dialect it is, a Glottolog-only language is kept as a private-use tag). The engine searches ISO 639-3 joined with Glottolog 5.3 (CC BY 4.0, vendored; languages ISO lacks and about 13,000 dialects, each answer with its BCP 47 tag and glottocode kept apart) and every ISO 15924 script: `GET /api/recipes/languages`, `/scripts`, `fichero-server/tests/unit/api/test_setup_searches_languages_and_scripts.py` and `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. *Not built (ruled 2026-10-05, #5479): the field is free text; no browse menu; one value, not tokens.* setup is a form with search beside each
   field, not a conversation: languages and scripts each autocomplete from the engine's registries
-  as the person types (ISO 639-3 with Glottolog; ISO 15924), **and** each has a Browse… menu
-  (languages by family, scripts by region) for a person who knows neither the code nor the English
-  name; several can be chosen at once, each shown as a token with its name (its tag or code on
+  as the person types (ISO 639-3 with Glottolog; ISO 15924), in a dropdown under the field; no
+  Browse… menu (ruled 2026-10-05, #5479); several can be chosen at once, each shown as a token with its name (its tag or code on
   hover) and removed with its ×. *Test:* typing "spanish" offers Spanish (es); choosing it and
   Latin shows two tokens.
 - `source.onboard.language-stored-as-tag` — **[OK]** (#5479) **Built 2026-10-05 (engine):** `PUT /api/recipes/project` and `POST /api/recipes/assemble` resolve each language to its tag (`recipes/names.resolve_language`: a tag or ISO 639 code stays a tag, a name resolves when exactly one language has it, a Glottolog-only one to `und-x-<glottocode>`) and each script to its code, and refuse anything else with 422 in words; a project already holding a word reads it as its tag where it resolves and keeps it otherwise. Saving "spanish" stores `es`, and the names step then takes the card that lists `es`; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. what setup saves for a language is
