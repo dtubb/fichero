@@ -208,6 +208,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/books/page_offset.py
 $(SRCROOT)/../fichero-server/src/fichero_server/checking/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/checking/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/checking/job.py
+$(SRCROOT)/../fichero-server/src/fichero_server/checking/line_check.py
 $(SRCROOT)/../fichero-server/src/fichero_server/checking/verdicts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/citations/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/citations/renderer.py

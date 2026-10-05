@@ -2801,6 +2801,7 @@ def register_generated_openapi_commands(
     @target_app.command("a-layer-s-proposals-with-a-checker-model-as-one-job")
     def check_a_layer_s_proposals_with_a_checker_model_as_one_job_post(
         ctx: typer.Context,
+        check: Optional[str] = typer.Option(None, "--check", help="Request field: check."),
         kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
         language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
         layer: str = typer.Option(..., "--layer", help="Request field: layer."),
@@ -2815,6 +2816,7 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/check/runs"
             params = None
             payload = _build_json_payload({
+                "check": check,
                 "kind": kind,
                 "language": language,
                 "layer": layer,
@@ -2824,6 +2826,7 @@ def register_generated_openapi_commands(
                 "provider": provider,
                 "scope_ids": scope_ids,
             }, {
+                "check": {'type': 'string', 'enum': ['model', 'line-against-page'], 'title': 'Check', 'description': "model: the checker model reads each proposal. line-against-page (readings only, provider kraken, model a Kraken reader): each line's reading is scored against Kraken's rough read of that line and of its neighbours; a reading closer to a neighbour's line, or below the threshold, is rejected (#5446).", 'default': 'model', 'x-cli-required': False},
                 "kind": {'type': 'string', 'title': 'Kind', 'description': 'readings: the kind of reading checked.', 'default': 'transcription', 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
                 "layer": {'type': 'string', 'enum': ['readings', 'claims', 'entities'], 'title': 'Layer', 'description': "Which layer's proposals to check.", 'x-cli-required': True},

@@ -48302,6 +48302,16 @@
             "nullable": true,
             "title": "Pass Model",
             "description": "readings: check the lines of this model's pass, not the page's newest."
+          },
+          "check": {
+            "type": "string",
+            "enum": [
+              "model",
+              "line-against-page"
+            ],
+            "title": "Check",
+            "description": "model: the checker model reads each proposal. line-against-page (readings only, provider kraken, model a Kraken reader): each line's reading is scored against Kraken's rough read of that line and of its neighbours; a reading closer to a neighbour's line, or below the threshold, is rejected (#5446).",
+            "default": "model"
           }
         },
         "type": "object",

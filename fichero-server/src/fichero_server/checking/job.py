@@ -26,8 +26,10 @@ COUNTS = ("confirm", "correct", "reject", "unanswered")
 
 
 def _job(db: Any, job_id: str) -> dict[str, Any]:
+    from fichero_server.checking import line_check
+
     row = jobs.read_job(db, job_id)
-    if row is None or row["kind"] != KIND:
+    if row is None or row["kind"] not in (KIND, line_check.KIND):
         raise LookupError(f"no check run {job_id}")
     return row
 
@@ -40,6 +42,10 @@ def _row(db: Any, job_id: str) -> tuple[str, dict[str, Any]]:
 def start(db: Any, request: CheckRunRequest, *, started_by: str) -> dict[str, str]:
     if not request.scope_ids:
         raise ValueError("name the folders or documents whose proposals to check")
+    if request.check == "line-against-page":
+        from fichero_server.checking import line_check
+
+        return line_check.start(db, request, started_by=started_by)
     job_id = jobs.enqueue_remote(db, KIND, f"check:{uuid.uuid4()}", target=request.provider,
                                  detail=json.dumps({"request": request.model_dump()}),
                                  reason=f"Waiting to check {request.layer} with {request.model}", started_by=started_by)
@@ -154,14 +160,24 @@ def request_cancel(db: Any, job_id: str) -> str:
 
 
 def status(db: Any, job_id: str) -> dict[str, Any]:
+    from fichero_server.checking import line_check
+
     row = _job(db, job_id)
     detail = json.loads(row["detail"] or "{}")
     result = detail.get("result") or {}
+    if row["kind"] == line_check.KIND:  # the teacher-line check: its flags, by line, with the scores
+        return {"job_id": job_id, "state": row["state"], "reason": row["reason"], "request": detail.get("request"),
+                "counts": result.get("counts", dict.fromkeys(line_check.COUNTS, 0)),
+                "flagged": result.get("flagged", []), "thresholds": result.get("thresholds"),
+                "missing": result.get("missing", [])}
     return {"job_id": job_id, "state": row["state"], "reason": row["reason"], "request": detail.get("request"),
             "counts": result.get("counts", dict.fromkeys(COUNTS, 0)), "proposals": result.get("proposals"),
             "missing": result.get("missing", [])}
 
 
 def register_job_kinds() -> None:
+    from fichero_server.checking import line_check
+
+    line_check.register_job_kinds()
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="remote", name="Check")
