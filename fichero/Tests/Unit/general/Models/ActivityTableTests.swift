@@ -550,6 +550,18 @@ final class ActivityTableTests: XCTestCase {
         XCTAssertEqual(summary.heldBack, "Background work is paused. Work you start still runs.")
     }
 
+    func testActivityPopoverSummary_theThrottlesReasonIsSaidOnce() {
+        // WHY: the engine's why_wait can carry the same "Waiting: " a job's reason does; without
+        // stripping it the popover read "Heavy work is held back: Waiting: the Mac is hot".
+        let summary = ActivityPopoverSummary(
+            jobs: [],
+            paused: false,
+            machine: Components.Schemas.MachineState(memoryPressure: nil, thermalState: .serious, onBattery: false,
+                                                     inUse: false, whyWait: "Waiting: the Mac is hot")
+        )
+        XCTAssertEqual(summary.heldBack, "Heavy work is held back: the Mac is hot")
+    }
+
     func testActivityPopoverSummary_nothingHeldBackWhenNothingWaitsOnTheMac() {
         // WHY: a job waiting for Kraken waits on a lane, not on the Mac; saying
         // "held back" for it would send the person looking at memory for nothing.

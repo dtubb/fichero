@@ -85,7 +85,11 @@ struct ActivityPopoverSummary: Equatable {
     /// wait is not one.
     private static func heldBack(paused: Bool, whyWait: String?, waitingReason: String?) -> String? {
         if paused { return "Background work is paused. Work you start still runs." }
-        if let whyWait, !whyWait.isEmpty { return "Heavy work is held back: " + whyWait }
+        // The throttle's reason may arrive with its own "Waiting: " (as a job's does): said once.
+        if let whyWait, !whyWait.isEmpty {
+            return "Heavy work is held back: "
+                + (whyWait.hasPrefix(throttlePrefix) ? String(whyWait.dropFirst(throttlePrefix.count)) : whyWait)
+        }
         guard let reason = waitingReason, reason.hasPrefix(throttlePrefix) else { return nil }
         return "Heavy work is held back: " + reason.dropFirst(throttlePrefix.count)
     }
