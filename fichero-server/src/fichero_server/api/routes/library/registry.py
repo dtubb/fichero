@@ -41,7 +41,14 @@ from fichero_server.db import Database
 from fichero_server.db.manager import db_manager
 from fichero_server.models.knowledge import Annotation, KnowledgeEntity, Note
 from fichero_server.db.library_paths import nfc_path
-from fichero_server.security.path_security import forget_owner_opened_package, note_owner_opened_package
+from fichero_server.security.path_security import (
+    OwnerFolderGrantRefused,
+    forget_owner_opened_package,
+    note_owner_granted_folder,
+    note_owner_opened_package,
+    owner_folder_grant_key,
+    set_owner_grant_loader,
+)
 from fichero_server.models import (
     DocType,
     Document,
@@ -930,12 +937,55 @@ def ensure_owner_opened_packages_loaded() -> None:
         if _OWNER_OPENED_LOADED:
             return
         try:
-            count = load_owner_opened_packages(get_global_database())
+            db = get_global_database()
+            count = load_owner_opened_packages(db)
+            folders = load_owner_granted_folders(db)
         except Exception as exc:  # fail closed: nothing loaded, retried on the next miss
             logger.warning("Could not load owner-opened packages: %s", exc)
             return
         _OWNER_OPENED_LOADED = True
-        logger.info("Loaded %d owner-opened package(s) from the global registry", count)
+        logger.info(
+            "Loaded %d owner-opened package(s) and %d owner-granted folder(s) from the global registry",
+            count, folders,
+        )
+
+
+# #5484: a folder the owner picked in the app's own panel (setup › Add a Folder…, File › Import…)
+# is allowed, with everything under it, and stays allowed after a restart. Same mechanism as the
+# owner-opened packages above: written only for the owner (by POST /api/sandbox/security-scoped-
+# access on an unsandboxed engine), loaded back once per process by the loader above.
+
+
+def persist_owner_granted_folder(db: Database, key: str) -> None:
+    """Remember one folder the owner picked (``key`` is its resolved path)."""
+    try:
+        db.execute(
+            "INSERT INTO owner_granted_folders (path, granted_at) VALUES (?, ?) ON CONFLICT (path) DO NOTHING",
+            [key, utc_now()],
+        )
+    except Exception as exc:  # still allowed for this process; just not after a restart
+        logger.warning("Could not persist owner-granted folder %s: %s", key, exc)
+
+
+def load_owner_granted_folders(db: Database) -> int:
+    """Note every persisted owner-granted folder that still resolves to exactly itself.
+
+    Fail closed: a folder since deleted, moved, replaced by a symlink, or that the system-folder
+    rule now refuses is skipped.
+    """
+    noted = 0
+    for (stored_path,) in db.execute_fetchall("SELECT path FROM owner_granted_folders"):
+        try:
+            if owner_folder_grant_key(stored_path) != stored_path:
+                continue  # it now resolves elsewhere (moved, or a symlink planted in its place)
+            note_owner_granted_folder(stored_path)
+        except (OwnerFolderGrantRefused, OSError, RuntimeError, ValueError):
+            continue
+        noted += 1
+    return noted
+
+
+set_owner_grant_loader(ensure_owner_opened_packages_loaded)
 
 
 @router.get("/registry", response_model=LibraryRegistryResponse)

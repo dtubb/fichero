@@ -1062,6 +1062,7 @@ class Database(DatabaseEmbeddingMixin):
             migrate_provider_refs_table,
             migrate_known_libraries_table,
             migrate_owner_opened_packages_table,
+            migrate_owner_granted_folders_table,
             migrate_library_entity_types_table,
             migrate_library_identity_table,
             migrate_spatial_node_layout_fields,
@@ -1075,6 +1076,7 @@ class Database(DatabaseEmbeddingMixin):
         migrate_provider_refs_table(self.conn, self.migration_failures)
         migrate_known_libraries_table(self.conn, self.migration_failures)
         migrate_owner_opened_packages_table(self.conn, self.migration_failures)
+        migrate_owner_granted_folders_table(self.conn, self.migration_failures)
         migrate_library_entity_types_table(self.conn, self.migration_failures)
         migrate_library_identity_table(self.conn, self.migration_failures)
         migrate_canvas_layout_table(self.conn, self.migration_failures)

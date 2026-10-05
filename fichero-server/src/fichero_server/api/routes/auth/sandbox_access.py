@@ -18,8 +18,11 @@ library chosen mid-session (including the first library a new user ever picks)
 would stay unreadable until the app relaunched. An environment cannot be changed
 after the fact; a request can. Hence this route.
 
-The DMG build never calls it: that engine is not sandboxed and can already open the
-library. The app gates the call on FICHERO_APP_STORE.
+The app sends it sandboxed or not (#5219). On an UNSANDBOXED engine a bookmark cannot
+widen anything (audit A1), so there the route answers by caller (#5484): the engine's
+OWNER (loopback + bootstrap token) picked this folder in the app's own panel, and that
+pick is the permission -- the folder and everything under it are allowed and remembered
+across restarts. Anyone else (a paired device, a remote session) gets the A1 refusal.
 
 Authorization is the API-wide shared-secret middleware (#742). Nothing extra is
 warranted, and a bookmark is not a bearer token for arbitrary files: it only
@@ -32,10 +35,21 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero_server.security.security_scoped_access import BookmarkGrantError, grant_access, granted_paths
+from fichero_server.security.path_security import (
+    OwnerFolderGrantRefused,
+    is_allowed_ingest_path,
+    is_owner_granted_folder,
+    note_owner_granted_folder,
+)
+from fichero_server.security.security_scoped_access import (
+    BookmarkGrantError,
+    _engine_is_sandboxed,
+    grant_access,
+    granted_paths,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +99,9 @@ class SecurityScopedAccessResponse(BaseModel):
         }
     },
 )
-def create_security_scoped_access(payload: SecurityScopedAccessRequest) -> SecurityScopedAccessResponse:
+def create_security_scoped_access(
+    payload: SecurityScopedAccessRequest, request: Request
+) -> SecurityScopedAccessResponse:
     """Resolve one security-scoped bookmark on the LIVE engine process.
 
     Must be called BEFORE the app asks the engine to open the library — otherwise
@@ -96,6 +112,11 @@ def create_security_scoped_access(payload: SecurityScopedAccessRequest) -> Secur
     never a silent success — the app is about to open this library, and "granted"
     must mean granted.
     """
+    if not _engine_is_sandboxed():
+        from fichero_server.api.routes.library.registry import _caller_is_engine_owner
+
+        if _caller_is_engine_owner(request):
+            return _grant_owner_picked_folder(payload.path)
     already = payload.path in granted_paths()
     try:
         grant_access(payload.path, payload.bookmark)
@@ -104,3 +125,29 @@ def create_security_scoped_access(payload: SecurityScopedAccessRequest) -> Secur
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return SecurityScopedAccessResponse(path=payload.path, granted=True, already_held=already)
+
+
+def _grant_owner_picked_folder(path: str) -> SecurityScopedAccessResponse:
+    """The OWNER picked this folder in the app's own panel on an unsandboxed engine (#5484).
+
+    Picking it there IS the permission: the engine allows that exact folder (resolved) and
+    everything under it, and remembers it across restarts. The bookmark is not used -- an
+    unsandboxed engine cannot widen anything from a bookmark (audit A1), and the owner needs none.
+    Only the owner reaches here (loopback + bootstrap token); a paired device or remote session
+    still goes through ``grant_access`` and its A1 refusal. A system folder, a path with ``..``,
+    or one that does not exist is a 400 that says why.
+    """
+    if is_owner_granted_folder(path) or is_allowed_ingest_path(path):
+        # Picked before, or inside the fixed roots (or under a folder picked before): nothing new.
+        return SecurityScopedAccessResponse(path=path, granted=True, already_held=True)
+    try:
+        key = note_owner_granted_folder(path)
+    except OwnerFolderGrantRefused as exc:
+        logger.warning("Owner folder grant refused for %s: %s", path, exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    from fichero_server.api.routes.library.registry import get_global_database, persist_owner_granted_folder
+
+    persist_owner_granted_folder(get_global_database(), key)
+    logger.info("Owner picked a folder; the engine now reads it and everything under it: %s", key)
+    return SecurityScopedAccessResponse(path=path, granted=True, already_held=False)
