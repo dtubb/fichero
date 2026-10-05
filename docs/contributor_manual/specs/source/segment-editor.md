@@ -1779,7 +1779,13 @@ the click-around leg is still to be filled at approval):
 **Answered** (source/source-model.md Rulings 2026-09-19 item 18 + Still open 1 (approved 2026-09-27)): Segments pane approved, built with slice 13. Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 `source-model.md`. #5114 and #5115 are answered; see Rulings.
 
-**Open (for the maintainer, 2026-10-05): how the hierarchy is shown** (#5426, "Box colour and the
+**Ruled (maintainer, 2026-10-05): the hierarchy is shown nested, inheriting, lighter (A).** Every
+level shows at once, each inside its parent and lighter than it; selecting a parent lights its
+children; the Segments list indents lines under their region; the Reader marks each region's block
+with its hue (#5426). Region hues stay assigned in region reading order (the built default; the
+maintainer may revisit fixed per-region hues). The options weighed are kept below for the record.
+
+**Weighed (2026-10-05): how the hierarchy is shown** (#5426, "Box colour and the
 segment hierarchy" above).
 - **Recommended, A: nested, inheriting, lighter.** A child takes its parent's colour and is drawn
   inside it, lighter and thinner: region as a faint wash and outline, lines as thin outlines in their
@@ -1798,7 +1804,15 @@ A smaller choice inside A: region hues assigned in region reading order (recomme
 always looks the same, and neighbours differ) or kept by a stable hash of the region's id (a region
 keeps its hue when another region is added, but colours look arbitrary).
 
-**Open (for the maintainer, 2026-10-05): a focused artifact and the other surfaces** (#5467). When you
+**Ruled (maintainer, 2026-10-05, #5467): one canonical page.** A page has one canonical model;
+artifacts and outputs are brought into it and tied back to its segments (regions, lines, words,
+letters). Drawing, the Segments list and the Reader all read that one page; focusing an artifact
+shows that artifact's pass within the page model, and all three follow it together. How each kind
+of artifact comes into the page model is not yet thought through (the maintainer: the workflows are
+probably not good yet at producing page-model data); an audit and a spec section come first, before
+code.
+
+**Weighed (2026-10-05): a focused artifact and the other surfaces** (#5467). When you
 click an artifact in the Inspector, should the Segments list and the text follow that pass too, or only
 Preview? Today only Preview follows it (the 2026-08-27 ruling); the Segments list and the Reader keep
 the page's working pass, so the page can show one pass's boxes beside another pass's list.
