@@ -646,6 +646,9 @@ link here and do not restate it. Each screen's behaviours are the `source.onboar
   choice: **Inside Fichero** (the default: the app's own container, managed for the person) or
   **Choose a location…** (a folder picker, e.g. `~/Fichero`). Most people should not have to
   decide where a project lives.
+- **Languages and scripts are type-to-find only** (later the same day): typing shows matching
+  languages or scripts in a dropdown as you type; a pick becomes a token. No Browse… button or
+  alphabetical list.
 - **Keep arranged** arranges the folder by the project's own structure (its folders), so Fichero
   keeps the material organised. A file a person moves by hand inside the folder stays where they
   put it, and Fichero's records follow the move (the folder and the project stay in sync).
