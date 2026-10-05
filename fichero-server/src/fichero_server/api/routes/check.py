@@ -7,12 +7,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import (
+    get_library_database,
+    get_library_database_for_write,
+    optional_library_path,
+    readable_documents,
+)
 from fichero_server.db import Database
 from fichero_server.models.checking import CheckRunRequest, CheckVerdict, CheckVerdictParams
 
@@ -27,6 +32,14 @@ class CheckRunParams(BaseModel):
 def _action_run(db: Database, params: CheckRunRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.checking import job as check_job
 
+    if not ctx.is_bootstrap:
+        # The action layer checked the ids named; a check reads every document UNDER them (each check
+        # kind walks the same descendants). One the caller may not read refuses the run (fail closed).
+        from fichero_server.checking.cards import _descendants
+        from fichero_server.security import authz
+
+        authz.assert_can_read_every(ctx.actor, ctx.library_path, [d.id for d in _descendants(db, params.scope_ids)],
+                                    bootstrap=False)
     started = check_job.start(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": check_job.KIND}, emit_type="job.created")
@@ -108,8 +121,10 @@ async def record_verdict(
 
 @router.get("/verdicts", summary="Verdicts on a proposal, or of a run")
 async def list_verdicts(
+    request: Request,
     target_id: str | None = Query(None), run_id: str | None = Query(None), layer: str | None = Query(None),
     document_id: str | None = Query(None, description="one page's verdicts (a page view never reads the library's)"),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     db: Database = Depends(get_library_database),
 ) -> dict[str, Any]:
     filters = {
@@ -117,4 +132,13 @@ async def list_verdicts(
         if v
     }
     rows = sorted(db.query(CheckVerdict, **filters), key=lambda v: (v.created_at, v.id))
+    # ACCESS CONTROL (#5180): a run's or a layer's verdicts span pages. A verdict on a page this caller
+    # may not read is left out and counted (`withheld`, #5135); one on no page (a claim, an entity) is
+    # library-level like the knowledge graph. The owner's list is unchanged.
+    readable = set(readable_documents(request, x_fichero_library_path,
+                                      sorted({v.document_id for v in rows if v.document_id})))
+    kept = [v for v in rows if not v.document_id or v.document_id in readable]
+    if len(kept) != len(rows):
+        return {"items": [v.model_dump(mode="json") for v in kept], "count": len(kept),
+                "withheld": len(rows) - len(kept)}
     return {"items": [v.model_dump(mode="json") for v in rows], "count": len(rows)}

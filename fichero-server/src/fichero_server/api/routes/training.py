@@ -9,11 +9,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import (
+    get_library_database,
+    get_library_database_for_write,
+    optional_library_path,
+    readable_documents,
+)
 from fichero_server.api.auth import action_context
 from fichero_server.db import Database
 from fichero_server.models.compute_requests import (
@@ -53,6 +58,18 @@ def _empty_set() -> type[Exception]:
 router = APIRouter(prefix="/training")
 
 
+def _every_page_readable(db: Database, scope_ids: list[str], ctx: ActionContext) -> None:
+    """A training set or a reasons job reads every page UNDER its scope (`pages_in_scope`); the action
+    layer checked only the ids named. Refuse when one of those pages is one this caller may not read."""
+    if ctx.is_bootstrap:
+        return
+    from fichero_server.security import authz
+    from fichero_server.training.kraken_set import pages_in_scope
+
+    authz.assert_can_read_every(ctx.actor, ctx.library_path, [p.id for p in pages_in_scope(db, scope_ids)],
+                                bootstrap=False)
+
+
 class TrainingStarted(BaseModel):
     job_id: str
     flavor: str
@@ -90,6 +107,7 @@ class CancelTrainingParams(BaseModel):
 
 @action("training.start", TrainKrakenRequest, domains=["job"], undoable=False)
 def _action_start(db: Database, params: TrainKrakenRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    _every_page_readable(db, params.scope_ids, ctx)
     started = _training_job().start(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": _training_job().KIND},
@@ -98,6 +116,7 @@ def _action_start(db: Database, params: TrainKrakenRequest, ctx: ActionContext) 
 
 @action("training.start_vision_lora", TrainVisionLoraRequest, domains=["job"], undoable=False)
 def _action_start_vision_lora(db: Database, params: TrainVisionLoraRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    _every_page_readable(db, params.scope_ids, ctx)
     started = _training_job().start(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": _training_job().KIND, "card": "vision-lora"},
@@ -108,6 +127,7 @@ def _action_start_vision_lora(db: Database, params: TrainVisionLoraRequest, ctx:
 def _action_start_here(db: Database, params: TrainKrakenHereRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.training import local as local_training  # the engine starts without it (#3950)
 
+    _every_page_readable(db, params.scope_ids, ctx)
     started = local_training.start(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": local_training.KIND},
@@ -215,9 +235,11 @@ class TrainingSetPreview(BaseModel):
 @router.get("/set", response_model=TrainingSetPreview,
             summary="What a training set from these pages would hold, and the flagged lines it leaves out")
 async def preview_training_set(
+    request: Request,
     teacher: str = Query(..., description="The model whose line readings are the lessons."),
     scope_ids: list[str] = Query(..., description="Folders or pages whose teacher-read lines are the lessons."),
     held_out_ids: list[str] = Query([], description="Pages kept home as the test."),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     db: Database = Depends(get_library_database),
 ) -> TrainingSetPreview:
     """Counted exactly as a training job builds its set, nothing written or sent
@@ -225,8 +247,16 @@ async def preview_training_set(
     out by flag (an empty or `null` reading, a reading whose newest check verdict rejects it) with
     each line's segment, whether the check had run on the set's lines, the held-out pages and the
     pages missing with why."""
-    from fichero_server.training.kraken_set import build_training_set
+    from fichero_server.training.kraken_set import build_training_set, pages_in_scope
 
+    # ACCESS CONTROL (#5180): the read check sees single ids, never a list. The scope is filtered to
+    # what this caller may read, then expanded to its pages and filtered again -- a folder they may
+    # read can hold a page denied on its own -- and the held-out pages likewise, so a preview never
+    # counts or names a page the caller may not read. The owner's scope is unchanged.
+    if not getattr(request.state, "bootstrap_auth", False):
+        scope_ids = readable_documents(request, x_fichero_library_path, scope_ids)
+        scope_ids = readable_documents(request, x_fichero_library_path, [p.id for p in pages_in_scope(db, scope_ids)])
+        held_out_ids = readable_documents(request, x_fichero_library_path, held_out_ids)
     made = build_training_set(db, scope_ids=scope_ids, teacher=teacher, held_out_ids=held_out_ids, out_dir=None)
     return TrainingSetPreview(**{k: v for k, v in made.summary().items() if k in TrainingSetPreview.model_fields})
 
@@ -332,6 +362,7 @@ class ReasonsJobParams(BaseModel):
 
 @action("training.gather_reasons", GatherReasonsRequest, domains=["job"], undoable=False)
 def _action_gather_reasons(db: Database, params: GatherReasonsRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    _every_page_readable(db, params.scope_ids, ctx)
     started = _reasons_job().start(db, params, started_by=ctx.actor or "owner")
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": _reasons_job().KIND}, emit_type="job.created")

@@ -41,7 +41,13 @@ class ModelScores(BaseModel):
 
 @action("evaluation.run", EvaluationRunRequest, domains=["job"], undoable=False)
 def _action_run(db: Database, params: EvaluationRunRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    started = _evaluation().start(db, params, started_by=ctx.actor or "owner")
+    # The pages scored may come from a model's card, not the request; the action layer checked only the ids
+    # named. A held-out page this caller may not read refuses the run (fail closed); the owner is unchecked.
+    from fichero_server.security import authz
+
+    started = _evaluation().start(db, params, started_by=ctx.actor or "owner",
+                                  check_pages=lambda pages: authz.assert_can_read_every(
+                                      ctx.actor, ctx.library_path, pages, bootstrap=ctx.is_bootstrap))
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": _evaluation().KIND},
                                emit_type="job.created")

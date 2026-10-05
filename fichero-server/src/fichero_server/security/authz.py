@@ -151,6 +151,18 @@ def assert_can_write(user: Any, library: str | Path | None, target_id: str | Non
         raise AuthorizationError("write access denied", required="write")
 
 
+def assert_can_read_every(user: Any, library: str | Path | None, page_ids: Any, *, bootstrap: bool) -> None:
+    """Refuse a job whose pages include one this caller may not read: the pages a training set, a
+    check or an evaluation EXPANDS its scope to. The action layer checks the ids the request names; a
+    folder it may read can still hold a page denied on its own, which the job would read or send.
+    Fail closed: the whole job is refused, never quietly run on fewer pages. The owner (bootstrap)
+    reads everything, and with multi-user off `can_read` answers before any lookup."""
+    if bootstrap:
+        return
+    for page_id in page_ids:
+        assert_can_read(user, library, page_id)
+
+
 def can_read(user: Any, library: str | Path | None, target_id: str | None = None) -> bool:
     """Return whether ``user`` may read a library or target subtree."""
     return _allowed(user, library, target_id, write=False)
