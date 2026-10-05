@@ -131,6 +131,8 @@ struct PDFPageWithToolbar: View {
     /// The selection scope of the pass `ocrGeometry` was drawn from (`SegmentDisplay.selectionScope`),
     /// set with it by `loadOCRGeometry`; nil when nothing is drawn.
     @State var pdfGeometryScope: String?
+    /// The double-clicked box whose popover is open (#5414, `PDFPageView+SegmentPopover`).
+    @State var pdfSegmentPopover: PDFSegmentPopover?
     @State private var isDrawingRegion = false
     @State private var pendingTool: ReaderAnnotationTool = .highlight
 
@@ -492,6 +494,7 @@ struct PDFPageWithToolbar: View {
                 displayDirection: pageLayout.pdfDisplayDirection,
                 segmentEditing: pdfSegmentEditing
             )
+            .overlay(alignment: .topLeading) { pdfSegmentPopoverAnchor }
             .onAppear {
                 localPageIndex = pageIndex
                 loadAnnotations()
@@ -510,6 +513,7 @@ struct PDFPageWithToolbar: View {
             .onChange(of: effectiveDocumentId) { _, _ in
                 isDrawingRegion = false
                 pdfRegionSelection.clear()  // a selection belongs to its page
+                pdfSegmentPopover = nil
                 loadAnnotations()
             }
             .onChange(of: annotationStore.changeToken) { _, _ in
