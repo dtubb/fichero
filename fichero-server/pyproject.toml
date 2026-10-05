@@ -189,6 +189,11 @@ requires = [
     # default, and without it an imported photo becomes a record with no
     # thumbnail and no error — the wrong-but-silent shape.
     "pillow-heif>=1.1.0",
+    # ISO 639-3 language names for setup's language search (recipes/names.py, any
+    # project) and TEI language labels (#5472). Core, not Kraken's: until 2026-10-04
+    # it arrived only through the Kraken bundle step, so an engine without that
+    # step crashed on the first language search. Pure Python + JSON data.
+    "iso639-lang",
 ]
 
 [tool.briefcase.app.fichero_server.macOS]
@@ -261,7 +266,8 @@ missing_packages = [
     "shapely~=2.1.2",
     "safetensors~=0.7.0",
     "htrmopo~=0.6",
-    "iso639-lang",
+    # iso639-lang moved to the briefcase `requires` (2026-10-04, #5472): the engine's
+    # language search imports it. It still satisfies kraken, already installed.
     # lxml moved to the briefcase `requires` (2026-09-27): the engine imports it by name,
     # so it cannot depend on this step. It still satisfies kraken, already installed.
     "platformdirs",
@@ -401,6 +407,7 @@ dependencies = [
     # default, and without it an imported photo becomes a record with no
     # thumbnail and no error — the wrong-but-silent shape.
     "pillow-heif>=1.1.0",
+    "iso639-lang",  # ISO 639-3 language names: setup's language search (recipes/names.py)
 ]
 
 [project.optional-dependencies]
