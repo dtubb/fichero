@@ -200,19 +200,20 @@ class TestTheDerivedText:
         with pytest.raises(LookupError):
             document_text(db, doc.id, pass_id="no-such-pass")
 
-    def test_an_unconverted_page_has_no_pass_and_says_so(self, db, client):
+    def test_an_unconverted_page_names_its_result_and_derives_nothing(self, db, client):
         """Honest emptiness: the words are still in the artifact, and this call
-        is about the segment store. Nothing is invented, and `pass_basis` tells
-        the caller exactly why the text is empty."""
+        is about the segment store, so nothing is invented. But the page's working
+        pass IS its unconverted result -- the segments route draws it -- so the text
+        names it too (#5467: it said "no pass" while the canvas said this one)."""
         doc = _make_doc(db)
-        _artifact(db, doc)
+        artifact = _artifact(db, doc)
 
         derived = document_text(db, doc.id)
 
         assert derived.text == ""
         assert derived.spans == []
-        assert derived.pass_id is None
-        assert derived.pass_basis == PassBasis.none.value
+        assert derived.pass_id == f"legacy:{artifact.id}"
+        assert derived.pass_basis != PassBasis.none.value
 
     def test_a_named_order_gives_a_different_text_from_box_order(self, db, client):
         """Slice 10 (#4930) replaced the refusal this test used to assert. The

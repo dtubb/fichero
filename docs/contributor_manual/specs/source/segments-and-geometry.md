@@ -728,7 +728,16 @@ Passes, orders, links
   lists the working pass's own `as-written` order: the engine lists it first (#5450; before, any pass's
   order could come first, and on C01_030 the tab showed Apple Vision's lines). Pinned by
   `fichero-server/tests/unit/api/test_an_import_has_no_rank_of_its_own.py` and
-  `fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift` (the same cases). Residue, not
+  `fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift` (the same cases). **One place
+  (#5467, engine half built 2026-10-04):** the engine picks a page's working pass in ONE function,
+  `resolve_working_pass`, read through `working_pass`, by the segments route, the page's text, the
+  Order list, the text cache and export alike. An unconverted result (a run's boxes not yet made a
+  pass) counts only if a person corrected it or the page has no pass at all; that rule lived in the
+  segments route alone, so the canvas and the text could name different passes (a corrected result
+  beside real passes; a page with only an unconverted result; a filtered segments read). Where its
+  working pass is an unconverted result the text is empty and names it, the stored page text stands,
+  and export refuses. Pinned by `fichero-server/tests/unit/api/test_one_working_pass.py`. The app's
+  own ladder (`OCRGeometrySelection`) is #5467's app half. Residue, not
   ruled here: a pass read from a PDF's own text layer still ranks above the newest. **The ENGINE half is proven by the citation above. The claim that "the Reader, search
   and export use one pass" is NOT.** Downgraded from [OK] 2026-09-26: the citation proves the
   ranking function and says nothing about which surfaces consult it, and the Reader is known NOT to

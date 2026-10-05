@@ -82,6 +82,7 @@ def page_from_library(
     from fichero_server.api.routes.document.segment_readings import (
         counting_by_kind,
         document_text,
+        is_unconverted_pass,
         readings_of_segment,
         retired_readings_of,
     )
@@ -108,6 +109,13 @@ def page_from_library(
     if derived.pass_id is None:
         raise ExportRefused(
             f"document {document_id} has no pass to export: nothing has been segmented or imported"
+        )
+    if is_unconverted_pass(derived.pass_id):
+        # Its working pass is a run's result not yet made a pass (#5467): there are no rows to write,
+        # and an export of nothing would read as an empty page.
+        raise ExportRefused(
+            f"document {document_id} has no pass to export: its working pass is a run's result "
+            "not yet converted to segments"
         )
     pass_row = db.get(SegmentPass, derived.pass_id)
     order_row = db.get(ReadingOrder, order_id) if order_id else None
