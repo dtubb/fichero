@@ -106,3 +106,29 @@ class ReadAtScaleRequest(BaseModel):
     pass_name: str | None = None
     pages_may_leave: bool = Field(False, description="The person's yes for these pages (or their IIIF addresses) to go "
                                   "to Hugging Face.")
+
+
+class EvaluationCandidate(BaseModel):
+    """One model the evaluation reads the held-out pages with (#5441, `distill.eval.job`)."""
+
+    model: str = Field(description="A Kraken reader id (a catalogue reader or `kraken-trained-<job>`), or a vision "
+                       "model (an MLX catalogue model or `fichero-trained/<name>`).")
+    reader: Literal["kraken", "vision"] = Field("kraken", description="How it reads: a Kraken reader on each line's "
+                                                "own baseline and outline, or a vision model on each line's picture.")
+    provider: str = Field("omlx", description="vision: the provider; only this Mac's (`omlx`) is built. A remote "
+                          "model target is not built yet and is refused.")
+
+
+class EvaluationRunRequest(BaseModel):
+    """Score candidate models on the held-out checked pages (#5441, `distill.eval.*`)."""
+
+    checked: str = Field(description="The checked pass: its model id or its name. Its lines are the right "
+                         "readings each candidate is scored against.")
+    candidates: list[EvaluationCandidate] = Field(min_length=1, description="The models to score: the trained "
+                                                  "one(s) and any others.")
+    add_out_of_the_box: bool = Field(True, description="Also score the out-of-the-box readers the registry names "
+                                     "for each kind asked (a trained reader's base, the Kraken catalogue, the vision "
+                                     "bases' MLX builds) that are on this Mac.")
+    held_out_ids: list[str] = Field(default_factory=list, description="The pages to score on. None given: the "
+                                    "pages every trained candidate's card says were held out of its training.")
+    language: str | None = Field(None, description="The pages' language, given to a vision model.")

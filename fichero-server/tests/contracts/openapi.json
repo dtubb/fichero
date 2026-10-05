@@ -6272,6 +6272,173 @@
         }
       }
     },
+    "/api/evaluation/runs": {
+      "post": {
+        "tags": [
+          "evaluation"
+        ],
+        "summary": "Score trained and out-of-the-box models on the held-out checked pages, as one job",
+        "description": "Queue an `evaluate-models` job on the local model lane: each candidate (and, unless asked not to, the\nout-of-the-box readers of the same kind on this Mac) reads the checked pass's lines on the held-out\npages, and is scored with Fichero's one CER under every normalisation policy; the scores are appended\nto each model's card. Refused (422) in words when a trained model's card names no held-out page, a\nnamed page is not held out from a trained candidate, no page has a checked reading, a model is not\non this Mac, or the model is remote (not built yet). Through `evaluation.run`.",
+        "operationId": "start_evaluation_api_evaluation_runs_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluationRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationStarted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evaluation/runs/{job_id}": {
+      "get": {
+        "tags": [
+          "evaluation"
+        ],
+        "summary": "An evaluation's plan, progress and scores",
+        "operationId": "evaluation_status_api_evaluation_runs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Evaluation Status Api Evaluation Runs  Job Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evaluation/scores": {
+      "get": {
+        "tags": [
+          "evaluation"
+        ],
+        "summary": "A model's held-out scores, as its card keeps them",
+        "description": "Every evaluation on the model's card (`distill.eval.stored-on-the-model-node`): per policy, the CER\nover the held-out pages and per page, who checked the reference, and the models it was compared with.",
+        "operationId": "model_scores_api_evaluation_scores_get",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The model id: a Kraken reader, or a vision model.",
+              "title": "Model"
+            },
+            "description": "The model id: a Kraken reader, or a vision model."
+          },
+          {
+            "name": "reader",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "kraken",
+                "vision"
+              ],
+              "type": "string",
+              "default": "kraken",
+              "title": "Reader"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelScores"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reading-at-scale": {
       "post": {
         "tags": [
@@ -56713,6 +56880,95 @@
         "title": "ErrorDetail",
         "description": "The body this route's refusals actually send: `{\"detail\": \"<a sentence>\"}`.\n\n**Declared because it was not, and the omission ate the sentence** (#5089). Without\na `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose\n`detail` is an ARRAY of field errors \u2014 and the generated Swift client decodes the\nbody while producing the response, so a person picking the wrong file got a client\ndecoding error instead of *\"nothing recognises 'x.xml'. This build reads: \u2026\"*.\n**That sentence is the whole value of the refusal**: a scholar who chose the wrong\nfile needs to be told what this build can read.\n\nThe 409 is declared for the same reason even though it works today: it works only\nbecause nothing declared it, which is the same accident facing the other way."
       },
+      "EvaluationCandidate": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "A Kraken reader id (a catalogue reader or `kraken-trained-<job>`), or a vision model (an MLX catalogue model or `fichero-trained/<name>`)."
+          },
+          "reader": {
+            "type": "string",
+            "enum": [
+              "kraken",
+              "vision"
+            ],
+            "title": "Reader",
+            "description": "How it reads: a Kraken reader on each line's own baseline and outline, or a vision model on each line's picture.",
+            "default": "kraken"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "vision: the provider; only this Mac's (`omlx`) is built. A remote model target is not built yet and is refused.",
+            "default": "omlx"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "EvaluationCandidate",
+        "description": "One model the evaluation reads the held-out pages with (#5441, `distill.eval.job`)."
+      },
+      "EvaluationRunRequest": {
+        "properties": {
+          "checked": {
+            "type": "string",
+            "title": "Checked",
+            "description": "The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against."
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationCandidate"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Candidates",
+            "description": "The models to score: the trained one(s) and any others."
+          },
+          "add_out_of_the_box": {
+            "type": "boolean",
+            "title": "Add Out Of The Box",
+            "description": "Also score the out-of-the-box readers the registry names for each kind asked (a trained reader's base, the Kraken catalogue, the vision bases' MLX builds) that are on this Mac.",
+            "default": true
+          },
+          "held_out_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Held Out Ids",
+            "description": "The pages to score on. None given: the pages every trained candidate's card says were held out of its training."
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language",
+            "description": "The pages' language, given to a vision model."
+          }
+        },
+        "type": "object",
+        "required": [
+          "checked",
+          "candidates"
+        ],
+        "title": "EvaluationRunRequest",
+        "description": "Score candidate models on the held-out checked pages (#5441, `distill.eval.*`)."
+      },
+      "EvaluationStarted": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "EvaluationStarted"
+      },
       "EvidenceBasis": {
         "type": "string",
         "enum": [
@@ -66117,6 +66373,34 @@
         ],
         "title": "ModelResultResponse",
         "description": "Result from a single model in a comparison run."
+      },
+      "ModelScores": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "reader": {
+            "type": "string",
+            "title": "Reader"
+          },
+          "evaluations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Evaluations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "reader",
+          "evaluations"
+        ],
+        "title": "ModelScores",
+        "description": "Every evaluation written on one model's card, oldest first."
       },
       "ModelSearchResponse": {
         "properties": {

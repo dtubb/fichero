@@ -5458,6 +5458,69 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('evaluation')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for evaluation endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='evaluation')
+        existing_apps['evaluation'] = target_app
+
+    @target_app.command("score-trained-and-out-of-the-box-models-on-the-held-out-checked-pages-as-one-job")
+    def evaluation_score_trained_and_out_of_the_box_models_on_the_held_out_checked_pages_as_one_job_post(
+        ctx: typer.Context,
+        add_out_of_the_box: Optional[bool] = typer.Option(None, "--add-out-of-the-box/--no-add-out-of-the-box", help="Request field: add_out_of_the_box."),
+        candidates: str = typer.Option(..., "--candidates", help="Request field: candidates."),
+        checked: str = typer.Option(..., "--checked", help="Request field: checked."),
+        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+    ) -> None:
+        """Score trained and out-of-the-box models on the held-out checked pages, as one job (POST /api/evaluation/runs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/evaluation/runs"
+            params = None
+            payload = _build_json_payload({
+                "add_out_of_the_box": add_out_of_the_box,
+                "candidates": candidates,
+                "checked": checked,
+                "held_out_ids": held_out_ids,
+                "language": language,
+            }, {
+                "add_out_of_the_box": {'type': 'boolean', 'title': 'Add Out Of The Box', 'description': "Also score the out-of-the-box readers the registry names for each kind asked (a trained reader's base, the Kraken catalogue, the vision bases' MLX builds) that are on this Mac.", 'default': True, 'x-cli-required': False},
+                "candidates": {'items': {'$ref': '#/components/schemas/EvaluationCandidate'}, 'type': 'array', 'minItems': 1, 'title': 'Candidates', 'description': 'The models to score: the trained one(s) and any others.', 'x-cli-required': True},
+                "checked": {'type': 'string', 'title': 'Checked', 'description': 'The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against.', 'x-cli-required': True},
+                "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': "The pages to score on. None given: the pages every trained candidate's card says were held out of its training.", 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The pages' language, given to a vision model.", 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("an-s-plan-progress-and-scores")
+    def evaluation_an_s_plan_progress_and_scores_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """An evaluation's plan, progress and scores (GET /api/evaluation/runs/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/evaluation/runs/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("a-model-s-held-out-scores-as-its-card-keeps-them")
+    def evaluation_a_model_s_held_out_scores_as_its_card_keeps_them_get(
+        ctx: typer.Context,
+        model: str = typer.Option(..., "--model", help="Query parameter: model."),
+        reader: Optional[str] = typer.Option(None, "--reader", help="Query parameter: reader."),
+    ) -> None:
+        """A model's held-out scores, as its card keeps them (GET /api/evaluation/scores)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/evaluation/scores"
+            params = {
+                "model": model,
+                "reader": reader,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('export')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for export endpoints.', no_args_is_help=True)

@@ -71,7 +71,7 @@ _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.impor
                  "fichero_server.training.job", "fichero_server.workflows.task_workers",
                  "fichero_server.remote_read.job", "fichero_server.training.reasons_job",
                  "fichero_server.training.local", "fichero_server.sync_folder", "fichero_server.checking.job",
-                 "fichero_server.recipes.runner")
+                 "fichero_server.recipes.runner", "fichero_server.training.evaluation")
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
 #: never holds the local ML lane.

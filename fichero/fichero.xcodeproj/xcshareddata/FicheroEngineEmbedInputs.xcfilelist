@@ -94,6 +94,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/view.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/entity/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/entity/entities.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/entity/inspector.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/evaluation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/folders.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/core.py
@@ -542,6 +543,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/spatial_arrange.py
 $(SRCROOT)/../fichero-server/src/fichero_server/sync_folder.py
 $(SRCROOT)/../fichero-server/src/fichero_server/tool_context.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/evaluation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/hf_jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/hf_kraken_train.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/hf_vision_lora_train.py

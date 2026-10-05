@@ -2595,6 +2595,35 @@ def fichero_entities_place_as_of(
     return _rt.call("GET", f"/api/entities/{entity_id}/place", params={"as_of": as_of})
 
 
+def fichero_evaluation_start(
+    *,
+    add_out_of_the_box: Annotated[Optional[bool], Field(description="Also score the out-of-the-box readers the registry names for each kind asked (a trained reader's base, the Kraken catalogue, the vision bases' MLX builds) that are on this Mac. Default: true.")] = None,
+    candidates: Annotated[list[Any], Field(description='The models to score: the trained one(s) and any others.')],
+    checked: Annotated[str, Field(description='The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against.')],
+    held_out_ids: Annotated[Optional[list[Any]], Field(description="The pages to score on. None given: the pages every trained candidate's card says were held out of its training.")] = None,
+    language: Annotated[Optional[str], Field(description="The pages' language, given to a vision model.")] = None,
+) -> Any:
+    "Score trained and out-of-the-box models on the held-out checked pages, as one job\n\nQueue an `evaluate-models` job on the local model lane: each candidate (and, unless asked not to, the\nout-of-the-box readers of the same kind on this Mac) reads the checked pass's lines on the held-out\npages, and is scored with Fichero's one CER under every normalisation policy; the scores are appended\nto each model's card. Refused (422) in words when a trained model's card names no held-out page, a\nnamed page is not held out from a trained candidate, no page has a checked reading, a model is not\non this Mac, or the model is remote (not built yet). Through `evaluation.run`.\n\nRoute: POST /api/evaluation/runs (toolset `evaluation`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/evaluation/runs", json=_rt.body({"add_out_of_the_box": add_out_of_the_box, "candidates": candidates, "checked": checked, "held_out_ids": held_out_ids, "language": language}))
+
+
+def fichero_evaluation_status(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    "An evaluation's plan, progress and scores\n\nRoute: GET /api/evaluation/runs/{job_id} (toolset `evaluation`; reads)."
+    return _rt.call("GET", f"/api/evaluation/runs/{job_id}")
+
+
+def fichero_evaluation_model_scores(
+    *,
+    model: Annotated[str, Field(description='The model id: a Kraken reader, or a vision model.')],
+    reader: Annotated[Optional[str], Field(description='Reader')] = None,
+) -> Any:
+    "A model's held-out scores, as its card keeps them\n\nEvery evaluation on the model's card (`distill.eval.stored-on-the-model-node`): per policy, the CER\nover the held-out pages and per page, who checked the reference, and the models it was compared with.\n\nRoute: GET /api/evaluation/scores (toolset `evaluation`; reads)."
+    return _rt.call("GET", "/api/evaluation/scores", params={"model": model, "reader": reader})
+
+
 def fichero_export_eleventy_site_route(
     *,
     output_path: Annotated[str, Field(description='Destination folder for the site project.')],
@@ -8382,6 +8411,9 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_entities_inspector", "entities", "GET", "/api/entities/{entity_id}/inspector", fichero_entities_inspector),
     GeneratedTool("fichero_entities_place_as_linked_places", "entities", "GET", "/api/entities/{entity_id}/linked-places", fichero_entities_place_as_linked_places),
     GeneratedTool("fichero_entities_place_as_of", "entities", "GET", "/api/entities/{entity_id}/place", fichero_entities_place_as_of),
+    GeneratedTool("fichero_evaluation_start", "evaluation", "POST", "/api/evaluation/runs", fichero_evaluation_start),
+    GeneratedTool("fichero_evaluation_status", "evaluation", "GET", "/api/evaluation/runs/{job_id}", fichero_evaluation_status),
+    GeneratedTool("fichero_evaluation_model_scores", "evaluation", "GET", "/api/evaluation/scores", fichero_evaluation_model_scores),
     GeneratedTool("fichero_export_eleventy_site_route", "export", "POST", "/api/export/eleventy-site", fichero_export_eleventy_site_route),
     GeneratedTool("fichero_export_excel_route", "export", "POST", "/api/export/excel", fichero_export_excel_route),
     GeneratedTool("fichero_export_jsonl_route", "export", "POST", "/api/export/jsonl", fichero_export_jsonl_route),
@@ -8957,4 +8989,4 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_views_document", "views", "GET", "/view/document/{doc_id}", fichero_views_document),
     GeneratedTool("fichero_views_global_kg", "views", "GET", "/view/kg/global", fichero_views_global_kg),
 )
-TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "export", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workflow-execution", "workflows",)
+TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workflow-execution", "workflows",)
