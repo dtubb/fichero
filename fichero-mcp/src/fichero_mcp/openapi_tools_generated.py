@@ -1310,6 +1310,7 @@ def fichero_chat_patch_agent_workspace_members(
 
 def fichero_check_start_run(
     *,
+    check: Annotated[Optional[str], Field(description='model: the checker model reads each proposal. line-against-page (readings only, provider kraken, model a Kraken reader): each line\'s reading is scored against Kraken\'s rough read of that line and of its neighbours; a reading closer to a neighbour\'s line, or below the threshold, is rejected (#5446). One of: model, line-against-page. Default: "model".')] = None,
     kind: Annotated[Optional[str], Field(description='readings: the kind of reading checked. Default: "transcription".')] = None,
     language: Annotated[Optional[str], Field(description='Language.')] = None,
     layer: Annotated[str, Field(description="Which layer's proposals to check. One of: readings, claims, entities.")],
@@ -1320,7 +1321,7 @@ def fichero_check_start_run(
     scope_ids: Annotated[list[Any], Field(description='Folders, pages or documents: their lines, or their statements and entities.')],
 ) -> Any:
     "Check a layer's proposals with a checker model, as one job\n\nQueue a `check` job: the checker model is shown each proposal of `layer` in scope (a line's picture\nand its counting reading; a statement with its subject, relation, object and passage; an entity with\nits names and passages) and answers confirm, correct or reject with its reasons. Each answer is a\nverdict at the trust level `model`; a corrected reading is a new reading naming the first; a model\nnever curates a statement or verifies an entity. Through `check.run`.\n\nRoute: POST /api/check/runs (toolset `check`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/check/runs", json=_rt.body({"kind": kind, "language": language, "layer": layer, "model": model, "pass_model": pass_model, "prompt_file": prompt_file, "provider": provider, "scope_ids": scope_ids}))
+    return _rt.call("POST", "/api/check/runs", json=_rt.body({"check": check, "kind": kind, "language": language, "layer": layer, "model": model, "pass_model": pass_model, "prompt_file": prompt_file, "provider": provider, "scope_ids": scope_ids}))
 
 
 def fichero_check_run_status(

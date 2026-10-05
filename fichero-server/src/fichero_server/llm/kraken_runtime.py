@@ -741,6 +741,57 @@ def recognize_lines(
         raise KrakenSegmentationError(f"Kraken recognition failed: {exc}") from exc
 
 
+def _usable(lines: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [ln for ln in lines if len(ln.get("baseline") or []) >= 2 and len(ln.get("polygon") or []) >= 3]
+
+
+def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[str, object]]) -> list[str]:
+    from PIL import Image
+    from kraken.configs import RecognitionInferenceConfig
+    from kraken.containers import BaselineLine, Segmentation
+    from kraken.tasks import RecognitionTaskModel
+
+    usable = _usable(lines)
+
+    def pts(points: object) -> list[list[int]]:
+        return [[int(x), int(y)] for x, y in points]  # type: ignore[union-attr]
+
+    with Image.open(image_path) as image:
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        segmentation = Segmentation(
+            type="baselines", imagename=str(image_path), text_direction="horizontal-lr", script_detection=False,
+            lines=[BaselineLine(id=str(ln["id"]), baseline=pts(ln["baseline"]), boundary=pts(ln["polygon"]))
+                   for ln in usable],
+            regions={}, line_orders=[])
+        net = _resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path))
+        predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
+    read = {str(ln["id"]): str(getattr(r, "prediction", r) or "") for ln, r in zip(usable, predictions)}
+    return [read.get(str(ln["id"]), "") for ln in lines]
+
+
+def read_given_lines(
+    image_path: str | Path,
+    model_path: str,
+    lines: list[dict[str, object]],
+    *,
+    run_call: Callable[[Callable[[], _T]], _T] | None = None,
+) -> list[str]:
+    """Read lines already found (each `{"id", "baseline", "polygon"}` in page pixels) with a reader,
+    on their own baselines and outlines, without finding lines again: Kraken's rough read of each line,
+    in the order given ("" for a line with too little geometry to read). The teacher-line check reads
+    with it (`source.lines.reading-checked-against-the-page`, #5446)."""
+    if not _usable(lines):
+        return ["" for _ in lines]
+    caller = run_call or _kraken_call
+    try:
+        return caller(lambda: _read_given_raw(image_path, model_path, lines))
+    except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
+        raise
+    except Exception as exc:
+        raise KrakenSegmentationError(f"Kraken could not read the lines: {exc}") from exc
+
+
 def download_recognition_model(
     model_id: str,
     home: Path | None = None,
