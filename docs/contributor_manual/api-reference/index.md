@@ -730,6 +730,20 @@ renamed or moved is matched by the lasting id it carries; new images, with any l
 them, come in through the same import a drop of files takes (listed under `taken_in`); any other
 file is listed under `not_read_back`. The preview counts new images under `images`.
 
+A folder is kept as `index` (the default: files stay where they are) or `keep-arranged` (#5480,
+`specs/source/models-chains-and-projects.md` section 7b): `POST /api/sync-folders` takes `mode`,
+`GET` shows it. `GET /api/sync-folders/{folder_id}/arrangement` is the dry run: each file that
+would move (`document_id`, `from_path`, `to_path`, inside the folder) and `refused`, the reason in
+words when it would not be arranged; nothing moves. `PUT /api/sync-folders/{folder_id}/mode` with
+`{"mode": "keep-arranged"}` is the yes: refused (422) in words for a folder Fichero cannot write to,
+or that no project folder came from (import it with Index first). Kept arranged, the folder follows
+the project's own folders: a document moved or renamed, or a folder renamed, in the project queues
+an `arrange-folder` job, which runs the audited `sync.arrange` action listing every move; files
+move only inside the folder, never over another (a clash takes `name 2.jpg`), and none is deleted.
+Undoing that audit row (`POST /api/actions/audit/{id}/undo`) puts every file back. A file moved by
+hand inside the folder stays where it was put: its document's record, project folder and name
+follow it (`sync.follow`), marked `placed_by_hand`.
+
 ### Checking a layer's proposals
 
 `specs/source/checking.md` (`source.check.*`, #5404). `POST /api/check/runs` queues a `check` job: the
