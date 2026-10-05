@@ -374,6 +374,7 @@ Also waiting on the same not-yet-existing spec, from #248:
 | #4405 | reader-view | `reader.page.word-level-source-and-find` | GAP |
 | #4375 | reader-view | `reader.page.inline-transcription-editing` | GAP |
 | #4355 | reader-view | `reader.page.highlight-layer-precedence` | GAP |
+| #5466 | reader-view | `reader.highlight.search-hits-all-lit` | OK |
 | #3805 | reader-view | `reader.page.transcript-wraps-not-clips` | BROKEN |
 | #3721 | reader-view | `reader.page.sepia-paper-themes` | GAP |
 | #2515 | panes-workspaces | `panes.toolbar.reader-overflow-collapses-before-overlapping` | GAP |
@@ -425,7 +426,7 @@ segment hierarchy" (`source.editor.hierarchy.reader-shows-regions`, #5426).
 | A line | built | the Source view's selection is shown on the Reader's lines: `ReaderLineSelection.showLinesScript` calls the page's `showLines`, which lights each selected line's span (`selectedLineSpans`, `applyShownLines`, a CSS highlight). Pinned by `fichero-server/tests/unit/api/test_reader_selection.py` and `fichero/Tests/Unit/general/Views/ReaderLineSelectionTests.swift`. |
 | A word | missing | `selectedLineSpans` matches only line ids; a selected word's id is skipped, so a word picked in Preview lights nothing in the Reader. |
 | A region | missing | a region's id is skipped the same way; its lines are not lit. |
-| Search hits | built | a library search hit lights its anchored span (`highlightMatchInPage` → `applySearchMatchHighlight`, one hit at a time); find-in-page counts and steps through matches (`ReaderFindInPage`). Pinned by `ReaderSearchPassageLandingTests`. |
+| Search hits | built | a library search lights every hit on the page from its anchors, the current one stronger (`ReaderSearchMatchState` → `pageHitsScript` → `__ficheroLightPageHits`); find-in-page counts and steps through matches (`ReaderFindInPage`). Both draw through one rule, `__ficheroLightHits` (CSS highlights `fichero-find`/`fichero-hit`, same colours). Pinned by `ReaderAllHitsTests` and `ReaderSearchPassageLandingTests`. |
 | Statements (SVO claims) | partial | `highlightClaim` → `updateTranscriptHighlight` marks the FIRST text occurrence of the claim's `source_excerpt`, not the passage the claim is anchored to; a repeated phrase lights the wrong place. |
 | Entities | partial | `highlightEntity` lights the excerpt of the entity's first claim, not the places the name occurs on the page. |
 
@@ -439,11 +440,12 @@ segment hierarchy" (`source.editor.hierarchy.reader-shows-regions`, #5426).
 - `reader.highlight.entity-mentions` — **[GAP]** (#1659) an entity focused in the Reader lights every
   place its name occurs on the page, from its anchored mentions
   (`layers.entities.shown-on-text-and-image`), not one claim's excerpt.
-
-## Proposed (needs an issue)
-
-- Several search hits on one page lit at once: today a new hit clears the previous one
-  (`applySearchMatchHighlight` keeps one mark), so a page with three hits shows one.
+- `reader.highlight.search-hits-all-lit` — **[OK]** (#5466) every search hit on a Reader page is
+  lit at once, with the current one stronger: a library search's anchored hits on the page and
+  the find bar's matches alike, through one rule (`__ficheroLightHits` in `ReaderFindInPage.swift`,
+  one colour pair). Next/Previous in the find bar move the current match and leave the others
+  lit; ending the search or dismissing the find bar unlights them all; an empty find does not
+  unlight the search's hits. Pinned in a real `WKWebView` by `ReaderAllHitsTests`.
 
 ## Future (ideas, not scheduled)
 - (#973) Book-native page numbers and chapter markers for book-shaped sources; backend detection feature, no current spec owner

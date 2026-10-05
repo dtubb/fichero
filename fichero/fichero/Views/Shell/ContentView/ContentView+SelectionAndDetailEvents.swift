@@ -181,6 +181,15 @@ extension ContentView {
         postSearchPassageAnchor(for: newDoc)
     }
 
+    /// Pure: a search result's hits on one page, as PAGE-relative spans
+    /// (#5466). Each excerpt's anchor names its page and its matched range;
+    /// excerpts anchored to another page are not this page's hits.
+    static func searchHitSpans(of result: SearchResult, onPage pageId: String) -> [ReaderHitSpan] {
+        result.transcriptExcerpts
+            .filter { $0.anchor.documentId == pageId }
+            .map { ReaderHitSpan(start: Int($0.anchor.charStart), end: Int($0.anchor.charEnd)) }
+    }
+
     /// While search results show, selecting a hit LIGHTS the matched passage
     /// (Daniel, 2026-09-02: the row/reader/preview should show "why on each
     /// page"). The hit's excerpt anchor — which the engine now places at the
@@ -213,15 +222,14 @@ extension ContentView {
         // (page id + PAGE-relative char range), not by re-scanning the query as
         // a substring (Daniel, 2026-09-07: "highlight … by the html backend,
         // not the swiftui interface with a filter"). The coordinator reads this
-        // in syncSelection and calls window.fichero.highlightMatchInPage.
-        ReaderSearchMatchState.shared.set(
-            pageId: anchor.documentId,
-            charStart: anchor.charStart,
-            charEnd: anchor.charEnd
-        )
+        // in syncSelection and runs DocumentKGPaneRoute.pageHitsScript.
+        // EVERY hit the engine found on that page is lit, the first current
+        // (#5466) — not the first alone.
+        let spans = Self.searchHitSpans(of: result, onPage: anchor.documentId)
+        ReaderSearchMatchState.shared.set(pageId: anchor.documentId, spans: spans, current: 0)
         NavTrace.log(
             "searchAnchor.set",
-            "page=\(anchor.documentId) start=\(anchor.charStart ?? -1) end=\(anchor.charEnd ?? -1)"
+            "page=\(anchor.documentId) hits=\(spans.count) start=\(anchor.charStart ?? -1) end=\(anchor.charEnd ?? -1)"
         )
         // LATCH, then post (Daniel, 2026-09-03). This fires from the
         // `detailDocument` change, so the reader for that document is
