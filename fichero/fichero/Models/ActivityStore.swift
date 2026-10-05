@@ -91,7 +91,7 @@ final class ActivityStore: ChangeEventConsumer {
     /// Pause Background Work is on (`activity.pause.global`), from the same read.
     private(set) var backgroundPaused = false
     /// This Mac's state (memory, heat, battery, in use, why heavy work waits), same read.
-    private(set) var machine: MachineState?
+    private(set) var machine: Components.Schemas.MachineState?
     private var jobsPollTask: Task<Void, Never>?
 
     // MARK: - Run trees (#5415: the Activity table's run → step → page rows)

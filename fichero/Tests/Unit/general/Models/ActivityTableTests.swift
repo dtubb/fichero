@@ -578,8 +578,8 @@ final class ActivityTableTests: XCTestCase {
         ])
         await store.refreshBackgroundJobs()
 
-        XCTAssertEqual(store.machine, MachineState(memoryPressure: "warn", thermalState: nil, onBattery: true,
-                                                   inUse: true, whyWait: "the Mac is on battery"))
+        XCTAssertEqual(store.machine, Components.Schemas.MachineState(memoryPressure: .warn, thermalState: nil, onBattery: true,
+                                                                     inUse: true, whyWait: "the Mac is on battery"))
         let summary = ActivityPopoverSummary(jobs: store.backgroundJobs, paused: store.backgroundPaused,
                                              machine: store.machine)
         XCTAssertEqual(summary.macState, ["Memory pressure: warn", "On battery", "In use"],

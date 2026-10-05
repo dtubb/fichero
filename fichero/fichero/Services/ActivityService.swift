@@ -222,13 +222,7 @@ class ActivityService {
                 processCpuPercent: body.processCpuPercent,
                 cpuCount: body.cpuCount,
                 paused: body.paused ?? false,
-                machine: MachineState(
-                    memoryPressure: body.machine.memoryPressure?.rawValue,
-                    thermalState: body.machine.thermalState?.rawValue,
-                    onBattery: body.machine.onBattery ?? false,
-                    inUse: body.machine.inUse ?? false,
-                    whyWait: body.machine.whyWait
-                )
+                machine: body.machine
             )
         case .undocumented(let statusCode, _):
             throw ActivityServiceError.unexpectedResponse(statusCode)

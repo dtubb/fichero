@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 /// What the toolbar's Activity popover says (`activity.popover.summary`,
@@ -37,7 +38,7 @@ struct ActivityPopoverSummary: Equatable {
     /// could not take (null) is left out rather than guessed.
     var macState: [String] = []
 
-    init(jobs: [ActivityJob], paused: Bool, machine: MachineState? = nil, liveRuns: [LiveRun] = []) {
+    init(jobs: [ActivityJob], paused: Bool, machine: Components.Schemas.MachineState? = nil, liveRuns: [LiveRun] = []) {
         var seen = Set<String>()
         for run in liveRuns where seen.insert(run.id).inserted {
             running.append(Item(id: run.id, name: run.name, detail: run.step))
@@ -69,12 +70,12 @@ struct ActivityPopoverSummary: Equatable {
         if let machine { macState = Self.lines(machine) }
     }
 
-    private static func lines(_ machine: MachineState) -> [String] {
+    private static func lines(_ machine: Components.Schemas.MachineState) -> [String] {
         var lines: [String] = []
-        if let memory = machine.memoryPressure { lines.append("Memory pressure: \(memory)") }
-        if let heat = machine.thermalState { lines.append("Heat: \(heat)") }
-        lines.append(machine.onBattery ? "On battery" : "On power")
-        lines.append(machine.inUse ? "In use" : "Not in use")
+        if let memory = machine.memoryPressure { lines.append("Memory pressure: \(memory.rawValue)") }
+        if let heat = machine.thermalState { lines.append("Heat: \(heat.rawValue)") }
+        lines.append(machine.onBattery == true ? "On battery" : "On power")
+        lines.append(machine.inUse == true ? "In use" : "Not in use")
         return lines
     }
 
@@ -169,7 +170,7 @@ struct ActivityPopoverSummaryView: View {
                             reason: "Kraken not installed")
             ],
             paused: false,
-            machine: MachineState(memoryPressure: "warn", thermalState: "fair", onBattery: true,
+            machine: Components.Schemas.MachineState(memoryPressure: .warn, thermalState: .fair, onBattery: true,
                                   inUse: true, whyWait: "memory is tight")
         ),
         nothingElseRunning: true
