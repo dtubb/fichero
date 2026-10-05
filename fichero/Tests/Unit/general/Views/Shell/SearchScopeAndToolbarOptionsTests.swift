@@ -77,34 +77,19 @@ struct SearchScopeAndToolbarOptionsTests {
 
     // MARK: - Search options reach the main toolbar
 
-    /// The options menu is mounted beside the system search item. SwiftUI
-    /// gives no API for hanging a menu off `DefaultToolbarItem(kind: .search)`
-    /// itself, so a neighbouring loupe is the closest placement the framework
-    /// allows — and it must be its OWN toolbar identity, never sharing
-    /// com.apple.SwiftUI.search (#3163's crash class).
-    @Test("the main toolbar mounts the search options beside the search item")
-    func toolbarMountsSearchOptionsBesideTheSearchField() throws {
-        let container = try Self.appSource(
-            "Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"
-        )
-        #expect(container.contains("DefaultToolbarItem(kind: .search, placement: .primaryAction)"))
-        #expect(container.contains("ContentToolbarID.searchOptions"))
-        #expect(container.contains("searchOptionsToolbarButton"))
+    // Where the options sit in the toolbar (ONE item, #5024) is pinned by
+    // OneToolbarSearchItemTests.
 
-        let ids = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        #expect(ids.contains("static let searchOptions = \"fichero.searchOptions\""))
-    }
-
-    /// Both mounts are two views of ONE state. The toolbar button binds the
-    /// same values the request is built from, so the menu can never show a
-    /// setting the next search will not honour.
+    /// Both mounts are two views of ONE state. The toolbar's search menu
+    /// binds the same values the request is built from, so the menu can
+    /// never show a setting the next search will not honour.
     @Test("the toolbar options bind the same state the request is built from")
     func toolbarOptionsBindTheRequestState() throws {
         let source = try Self.appSource(
             "Views/Shell/ContentView/ContentView+ToolbarSearch.swift"
         )
         let button = try #require(
-            source.components(separatedBy: "var searchOptionsToolbarButton: some View {")
+            source.components(separatedBy: "var toolbarSearchOptions: SearchFieldOptionsMenu {")
                 .dropFirst().first
         )
         let body = String(button.prefix(900))

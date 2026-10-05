@@ -296,3 +296,6 @@ fichero/Tests/Unit/general/Views/Workflow/WorkflowReadOnlySavePolicyTests.swift
 # One-path guard (#5424, the maintainer's "one code path" rule): every surface that reveals a line
 # must call the ONE reveal action; the behaviour itself is pinned by LineRevealTests' store tests.
 fichero/Tests/Unit/general/Models/LineRevealTests.swift
+# One toolbar search item (#5024): asserts the toolbar declares exactly one search item and that the
+# second button, the old options item and the scope bar are gone; a layout invariant with no store to observe.
+fichero/Tests/Unit/general/Views/Shell/OneToolbarSearchItemTests.swift

@@ -222,12 +222,12 @@ final class ToolbarSearchRoutingTests: XCTestCase {
             layoutSource.contains(".searchScopes("),
             "#4407: .searchScopes on the split view is what drew the full-width bar."
         )
-        // The mode is a native search scope on the system field, shown only
-        // while the field is presented, bound through the persisted raw value.
+        // #5024 retired the scopes too: Ask/Keyword are checkmarked choices
+        // in the one search item's menu, bound through the persisted raw
+        // value. (The scope bar's absence everywhere is pinned by
+        // OneToolbarSearchItemTests.)
         let toolbarSearch = try Self.appSource("Views/Shell/ContentView/ContentView+ToolbarSearch.swift")
-        XCTAssertTrue(toolbarSearch.contains(
-            ".searchScopes(searchFieldModeBinding, activation: .onSearchPresentation)"
-        ))
+        XCTAssertFalse(toolbarSearch.contains(".searchScopes("))
         XCTAssertTrue(toolbarSearch.contains("$searchFieldModeRaw.asSearchFieldMode"))
         // Chat-the-search: the result set becomes the conversation's scope,
         // through the SAME router the sidebar chat entry uses.

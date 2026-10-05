@@ -66,26 +66,24 @@ extension ContentView {
                             inspectorToggleButton
                         }
                     }
-                    // The SYSTEM search item, right of the inspector toggle
-                    // (Daniel, 2026-08-23 kept its position; Daniel,
-                    // 2026-08-29 replaced the hand-rolled field: "not proper
-                    // macOS search… use the default one"). Its OWN item —
-                    // never fused to another control. The field itself is
-                    // registered by `nativeToolbarSearch` above
-                    // (ContentView+ToolbarSearch.swift); this places it.
+                    // THE search item, right of the inspector toggle
+                    // (Daniel, 2026-08-23 kept its position). ONE item
+                    // (#5024): on the Mac the native field carries its
+                    // options in its magnifier menu. iOS keeps the system
+                    // item with the options loupe beside it (UIKit has no
+                    // magnifier menu). See ContentView+ToolbarSearch.swift.
+                    #if os(macOS)
+                    ToolbarItem(id: ContentToolbarID.search, placement: .primaryAction) {
+                        toolbarSearchItem
+                    }
+                    #else
                     DefaultToolbarItem(kind: .search, placement: .primaryAction)
-                    // How the search RUNS, beside the field it configures
-                    // (Daniel, 2026-09-03: reachable from the main toolbar
-                    // loupe). Its own item, next to the system search item —
-                    // the system item is opaque, so a neighbouring loupe menu
-                    // is the closest SwiftUI allows to hanging the options off
-                    // the magnifier itself. Same bindings as the results-bar
-                    // mount; see `searchOptionsToolbarButton`.
                     ToolbarItem(
                         id: ContentToolbarID.searchOptions, placement: .primaryAction
                     ) {
                         searchOptionsToolbarButton
                     }
+                    #endif
                 }
                 .inspectorColumnWidth(
                     min: CGFloat(ContentView.inspectorMinWidth),

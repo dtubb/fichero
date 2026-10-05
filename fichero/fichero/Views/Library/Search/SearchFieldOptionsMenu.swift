@@ -18,10 +18,10 @@ import SwiftUI
 //     `.searchable` registration wants them, with no duplicated control
 //     definitions and no second source of truth for the scope.
 //
-// SwiftUI offers no API for putting a menu inside the system search field's
-// magnifier, so a nested `Menu` next to the field is the closest the
-// framework allows; the split above is what keeps that placement decision a
-// one-line change rather than a rewrite.
+// On the Mac the toolbar's own field renders this same value as its
+// magnifier menu (`nsMenu`, ToolbarSearchField.swift, #5024), so the toolbar
+// has one search item; the split above is what made that a rendering of the
+// same rows rather than a second definition.
 
 /// The rows of the search options menu. Mount inside a `Menu { }`.
 struct SearchFieldOptionsMenu: View {

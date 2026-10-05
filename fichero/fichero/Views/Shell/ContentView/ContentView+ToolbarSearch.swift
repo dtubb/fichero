@@ -1,98 +1,43 @@
 import SwiftUI
 
-// MARK: - Native toolbar search (Daniel, 2026-08-29)
+// MARK: - The one toolbar search item (#5024, #5225)
 //
-// The hand-rolled magnifier+TextField lozenge (#4604) is gone: "not proper
-// macOS search… use the default one". The SYSTEM toolbar search item carries
-// the field now — `.searchable` + `.searchToolbarBehavior(.minimize)` gives
-// the Mail-style field that collapses to a magnifier and expands on click,
-// and `DefaultToolbarItem(kind: .search)` in
-// ContentView+InspectorContainer.swift sites it as its OWN trailing toolbar
-// item, fused to nothing.
+// The toolbar has ONE search control (the maintainer's ruling, 2026-09-20).
+// On the Mac it is `ToolbarSearchField`, a native `NSSearchField` whose
+// magnifier menu holds Ask / Keyword (checkmarked), where it looks, the
+// search type and Save Search, as in Mail and Finder. The Ask/Keyword scope
+// bar under the toolbar (`.searchScopes`) and the second "Search Options"
+// loupe button beside the field are gone.
 //
-// Behaviour is otherwise the old field's, unchanged:
+// iOS keeps the system `.searchable` field (Mail-style `.minimize`) with the
+// options loupe beside it: UIKit has no magnifier menu to hang them on.
+//
+// Behaviour is otherwise the old field's:
 // - Submit fires the SAME engine-search action (`runToolbarSearch`).
-// - Ask/Keyword scoping survives as native search scopes, shown only while
-//   the field is presented (`.onSearchPresentation`) — never the #4407
-//   window-spanning scope bar, because the registration lives on the
-//   detail/inspector content, not the whole NavigationSplitView.
-// - The Hybrid/Semantic/Full-Text method stays where #4112 put it: the
-//   results bar's Options menu.
-// - Emptying the field still exits transient-search presentation via the
-//   existing `toolbarSearchText` onChange in ContentView+RootLayout.swift.
+// - Emptying the field exits transient-search presentation via the
+//   `toolbarSearchText` onChange in ContentView+RootLayout.swift.
+// - Esc clears it (`SearchEscapeDismiss`).
+// - The Hybrid/Semantic/Full-Text method is the menu's Search Type section,
+//   as it is in the results bar's Options menu (#4112).
 //
-// This is the single `.searchable` registration in the window (#3163
-// duplicate-identifier crash class) — ToolbarDuplicateRegistrationGuardTests
-// allowlists exactly this file.
+// This file holds the window's single `.searchable` registration (iOS only)
+// — the #3163 duplicate-identifier crash class;
+// ToolbarDuplicateRegistrationGuardTests allowlists exactly this file.
 
 extension ContentView {
-    /// Ask/Keyword (#4117) as a typed binding over the persisted raw mode.
+    /// Ask/Keyword (#4117) as a typed binding over the persisted raw mode —
+    /// the one state every way of choosing the search kind writes.
     var searchFieldModeBinding: Binding<SearchFieldMode> {
         // A key-path binding, the same one every render (#5228).
         $searchFieldModeRaw.asSearchFieldMode
     }
 
-    /// The native search registration, applied to the detail/inspector
-    /// content by ContentView+InspectorContainer.swift (internal — `private`
-    /// is file-scoped).
-    func nativeToolbarSearch<Content: View>(_ content: Content) -> some View {
-        let searchable = content
-            // #4971: placeholder is just "Search" (Finder's own field says
-            // "Search", not "Search this Mac") — scoping is conveyed by the
-            // Ask/Keyword scopes and the options loupe beside it, not by the
-            // placeholder text.
-            .searchable(
-                text: $toolbarSearchText,
-                placement: .toolbar,
-                prompt: "Search"
-            )
-            .searchScopes(searchFieldModeBinding, activation: .onSearchPresentation) {
-                Text("Ask").tag(SearchFieldMode.ask)
-                Text("Keyword").tag(SearchFieldMode.keyword)
-            }
-            .onSubmit(of: .search) {
-                runToolbarSearch(toolbarSearchText)
-            }
-            // Esc IS Done (Daniel, 2026-09-01). The results bar carried a
-            // "Done" button whose only job was to clear the field and leave
-            // the result presentation — the gesture every other transient
-            // state in the app already answers to. The button is gone; the
-            // gesture is here, next to the field it clears.
-            .modifier(SearchEscapeDismiss(
-                isPresenting: activeSearchQuery != nil || !toolbarSearchText.isEmpty,
-                dismiss: {
-                    toolbarSearchText = ""
-                    clearTransientSearch()
-                }
-            ))
-        #if os(iOS)
-        // Mail-style: a magnifier until tapped, then the field expands.
-        return searchable.searchToolbarBehavior(.minimize)
-        #else
-        // `.minimize` is explicitly unavailable on macOS (build-verified):
-        // there the system NSSearchToolbarItem already carries the Mail
-        // idiom — a field that collapses to the magnifier as space demands.
-        return searchable
-        #endif
-    }
-
-    /// Search options, reachable from the MAIN TOOLBAR (Daniel, 2026-09-03).
-    ///
-    /// They lived only in the results bar's loupe — a bar that exists only
-    /// AFTER a search returns, so the way to change how a search runs was
-    /// behind having already run one the wrong way. SwiftUI gives no API for
-    /// hanging a menu off the system search field's own magnifier
-    /// (`DefaultToolbarItem(kind: .search)` is opaque), so the closest the
-    /// framework allows is a loupe-with-menu sited immediately beside it —
-    /// the placement `SearchFieldOptionsMenu`'s header anticipated.
-    ///
-    /// Mounted over the SAME bindings the request is built from
-    /// (`runTransientSearch` reads `transientSearchScopeIsFolder` and
-    /// `transientSearchType`; `runToolbarSearch` reads `searchFieldMode`), so
-    /// the two mounts are two views of one state, never two settings.
-    @ViewBuilder
-    var searchOptionsToolbarButton: some View {
-        SearchFieldOptionsMenuButton(
+    /// What the search menu holds, over the SAME bindings the request is
+    /// built from (`runTransientSearch` reads `transientSearchScopeIsFolder`
+    /// and `transientSearchType`; `runToolbarSearch` reads `searchFieldMode`),
+    /// so the menu can never show a setting the next search will not honour.
+    var toolbarSearchOptions: SearchFieldOptionsMenu {
+        SearchFieldOptionsMenu(
             mode: searchFieldModeBinding,
             scopeIsFolder: $transientSearchScopeIsFolder,
             searchType: $transientSearchType,
@@ -106,16 +51,71 @@ extension ContentView {
                 guard let store = transientSearchStore else { return false }
                 return !store.results.isEmpty && store.searchFailure == nil
             }(),
-            onSave: { Task { await saveTransientSearch() } },
+            onSave: { Task { await saveTransientSearch() } }
+        )
+    }
+
+    /// The search behaviour on the detail/inspector content: Esc, and on iOS
+    /// the system `.searchable` registration (internal — `private` is
+    /// file-scoped).
+    func nativeToolbarSearch<Content: View>(_ content: Content) -> some View {
+        let dismissable = content
+            // Esc IS Done (Daniel, 2026-09-01): the gesture every other
+            // transient state answers to, next to the field it clears.
+            .modifier(SearchEscapeDismiss(
+                isPresenting: activeSearchQuery != nil || !toolbarSearchText.isEmpty,
+                dismiss: {
+                    toolbarSearchText = ""
+                    clearTransientSearch()
+                }
+            ))
+        #if os(iOS)
+        return dismissable
+            .searchable(text: $toolbarSearchText, placement: .toolbar, prompt: "Search")
+            .onSubmit(of: .search) {
+                runToolbarSearch(toolbarSearchText)
+            }
+            // Mail-style: a magnifier until tapped, then the field expands.
+            .searchToolbarBehavior(.minimize)
+        #else
+        return dismissable
+        #endif
+    }
+
+    #if os(macOS)
+    /// THE toolbar search item on the Mac: the field, with the options in
+    /// its magnifier menu.
+    var toolbarSearchItem: some View {
+        ToolbarSearchField(
+            text: $toolbarSearchText,
+            options: toolbarSearchOptions,
+            onSubmit: { runToolbarSearch($0) }
+        )
+        .frame(minWidth: 120, idealWidth: 200, maxWidth: 280)
+    }
+    #else
+    /// iOS: the options loupe beside the system search item.
+    var searchOptionsToolbarButton: some View {
+        let options = toolbarSearchOptions
+        return SearchFieldOptionsMenuButton(
+            mode: options.$mode,
+            scopeIsFolder: options.$scopeIsFolder,
+            searchType: options.$searchType,
+            libraryName: options.libraryName,
+            contextFolder: options.contextFolder,
+            reviewedEntityCount: options.reviewedEntityCount,
+            canSave: options.canSave,
+            onSave: options.onSave,
             accessibilityId: "toolbar.search.optionsMenu"
         )
     }
+    #endif
 }
 
 /// Esc clears the search — `onExitCommand` is macOS/tvOS only, so the
 /// gesture wears a modifier coat rather than scattering `#if os(macOS)`
-/// through the `.searchable` chain. On touch platforms the field's own
-/// cancel button is the same gesture.
+/// through the view chain. On touch platforms the field's own cancel button
+/// is the same gesture.
 private struct SearchEscapeDismiss: ViewModifier {
     let isPresenting: Bool
     let dismiss: () -> Void

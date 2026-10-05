@@ -22,9 +22,12 @@ enum ContentToolbarID {
     // 2026-09-01): Split/New Tab and Layouts are sections of the Workspaces
     // menu now, not toolbar items of their own.
     static let workspacesMenu = "fichero.workspacesMenu"
-    // The search-options loupe beside the system search item (Daniel,
-    // 2026-09-03). The system item owns com.apple.SwiftUI.search; this is a
-    // separate identity so the two never collide (#3163's crash class).
+    // The ONE toolbar search item on the Mac (#5024): the field, with its
+    // options in the magnifier menu.
+    static let search = "fichero.search"
+    // iOS only: the options loupe beside the system search item, which owns
+    // com.apple.SwiftUI.search; a separate identity so the two never collide
+    // (#3163's crash class).
     static let searchOptions = "fichero.searchOptions"
 }
 
