@@ -165,7 +165,12 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     job_id = jobs.job_id_for(db, KIND, subject)
     _state, detail = _row(db, job_id)
     request = ReadAtScaleRequest(**detail["request"])
-    target = target or HfJobsTarget()
+    if target is None:
+        try:
+            target = HfJobsTarget()
+        except Exception as exc:
+            _out_of_reach_if_running_there(db, job_id, detail, exc)
+            raise
     work = _work_dir(job_id)
     poll = POLL_SECONDS if poll_seconds is None else poll_seconds
     started_by = (jobs.read_job(db, job_id) or {}).get("started_by") or "owner"
@@ -208,7 +213,12 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             shards[key].update(state="submitted", far_id=far_id, tries=shards[key]["tries"] + 1)
             running += 1
         _save(db, job_id, detail, reason=_words(_counts(shards), total))
-        seen = target.statuses(job_id)  # ONE call for every shard
+        try:
+            seen = target.statuses(job_id)  # ONE call for every shard
+        except Exception as exc:
+            _out_of_reach_if_running_there(db, job_id, detail, exc)
+            raise
+        detail.pop("out_of_reach", None)
         for key, shard in shards.items():
             if shard["state"] != "submitted":
                 continue
@@ -236,6 +246,20 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         words += f"; {counts['failed']} shards failed (re-send them)"
     _save(db, job_id, detail, reason=words)
     return counts
+
+
+def _out_of_reach_if_running_there(db: Any, job_id: str, detail: dict[str, Any], exc: Exception) -> None:
+    """This engine cannot reach Hugging Face for shards that may still run there: the row stays
+    running with the reason, never failed (#5449). Anything else is for the caller to raise."""
+    from fichero_server.training.hf_jobs import cannot_reach, out_of_reach_reason
+
+    submitted = [s for s in (detail.get("shards") or {}).values() if s.get("state") == "submitted"]
+    if not (submitted and cannot_reach(exc)):
+        return
+    reason = out_of_reach_reason(f"its {len(submitted)} shards sent there")
+    detail["out_of_reach"] = {"at": datetime.now(timezone.utc).isoformat(), "why": str(exc)}
+    _save(db, job_id, detail, reason=reason)
+    raise jobs.JobOutOfReach(reason) from exc
 
 
 def resend_failed(db: Any, job_id: str) -> int:

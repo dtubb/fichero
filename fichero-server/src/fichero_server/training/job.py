@@ -104,10 +104,40 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
     return {"job_id": job_id, "flavor": flavor, "timeout": request.timeout, "price_per_hour_usd": price}
 
 
-def request_cancel(db: Any, job_id: str) -> str:
+#: Phases after which the Job on Hugging Face is known to have ended (or never to have started).
+_FAR_ENDED = ("failed", "cancelled", "fetching", "landing", "done")
+CANCELLED_THERE = "Stopped by you; the Job on Hugging Face was cancelled"
+
+
+def _may_run_there(detail: dict[str, Any]) -> bool:
+    return bool(detail.get("far_id")) and detail.get("phase") not in _FAR_ENDED
+
+
+def request_cancel(db: Any, job_id: str, *, target_factory: Callable[[], Any] | None = None) -> str:
     """Stop a training job: one not started yet ends now; a running one is cancelled on Hugging Face
-    at its next look. Returns the row's state after the request."""
+    at its next look. A row whose Job may still run there while nothing here follows it (waiting to
+    be taken up again, out of this engine's reach, or failed by an engine that could not reach it)
+    is cancelled on Hugging Face now (#5449, `compute.job.another-engine-never-fails-what-it-cannot-reach`).
+    Returns the row's state after the request."""
+    from fichero_server.training.hf_jobs import HfJobsTarget, cannot_reach
+
     state, detail = _row(db, job_id)
+    followed_here = state == "running" and not detail.get("out_of_reach")
+    if _may_run_there(detail) and state in ("waiting", "paused", "running", "failed") and not followed_here:
+        try:
+            (target_factory or HfJobsTarget)().cancel(detail["far_id"])
+        except Exception as exc:
+            if not cannot_reach(exc):
+                raise
+            # Not reached from here: the next engine that can reach it cancels it at its first look.
+            detail["cancel"] = True
+            _save(db, job_id, detail, reason="Stopping: this engine can't read the Hugging Face token, so the "
+                                              "Job is cancelled by the next Fichero that has it")
+            return state
+        detail.update(cancel=True, cancel_sent=True)
+        _save(db, job_id, detail, phase="cancelled")
+        jobs.end_cancelled(db, job_id, CANCELLED_THERE)
+        return "cancelled"
     if state == "waiting":
         jobs.cancel_waiting(db, job_id)
         return "cancelled"
@@ -141,7 +171,12 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     request = CARDS[card_name](**detail["request"])
     vision = isinstance(request, TrainVisionLoraRequest)
     flavor = detail.get("flavor") or request.flavor
-    target = target or HfJobsTarget()
+    if target is None:
+        try:
+            target = HfJobsTarget()
+        except Exception as exc:
+            _out_of_reach_if_running_there(db, job_id, detail, exc)
+            raise
     work = _work_dir(job_id)
     poll = POLL_SECONDS if poll_seconds is None else poll_seconds
 
@@ -188,12 +223,21 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     far_id = detail["far_id"]
     while True:
         _state, latest = _row(db, job_id)
-        if latest.get("cancel"):
-            target.cancel(far_id)
-            detail["cancel"] = True
-            _save(db, job_id, detail, phase="cancelled")
-            raise jobs.JobCancelled("Stopped by you; the Job on Hugging Face was cancelled")
-        far = target.status(far_id)
+        try:
+            if latest.get("cancel"):
+                if not latest.get("cancel_sent"):
+                    target.cancel(far_id)
+                detail.update(cancel=True, cancel_sent=True)
+                _save(db, job_id, detail, phase="cancelled")
+                raise jobs.JobCancelled(CANCELLED_THERE)
+            far = target.status(far_id)
+        except jobs.JobCancelled:
+            raise
+        except Exception as exc:
+            _out_of_reach_if_running_there(db, job_id, detail, exc)
+            raise
+        if detail.pop("out_of_reach", None):
+            _save(db, job_id, detail)
         if far.state in ("waiting", "running"):
             words = "Queued on" if far.state == "waiting" else "Training on"
             _save(db, job_id, detail, phase="queued" if far.state == "waiting" else "running",
@@ -236,6 +280,22 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         detail["reader_id"] = model_id
     _save(db, job_id, detail, phase="done", reason=f"Done: {model_id} is ready to read with")
     return model_id
+
+
+def _out_of_reach_if_running_there(db: Any, job_id: str, detail: dict[str, Any], exc: Exception) -> None:
+    """This engine cannot reach Hugging Face (no token it can read, or one refused) for a Job that may
+    still run there: leave the row running with the reason, never failed (#5449). Anything else is
+    for the caller to raise."""
+    from fichero_server.training.hf_jobs import cannot_reach, out_of_reach_reason
+
+    if not (_may_run_there(detail) and cannot_reach(exc)):
+        return
+    reason = out_of_reach_reason(f"its Job ({detail['far_id']})")
+    if _row(db, job_id)[1].get("cancel"):  # a stop asked for meanwhile is kept for the engine that can reach it
+        detail["cancel"] = True
+    detail["out_of_reach"] = {"at": _now(), "why": str(exc)}
+    _save(db, job_id, detail, reason=reason)
+    raise jobs.JobOutOfReach(reason) from exc
 
 
 def _land_vision(db: Any, job_id: str, out: Path, request: TrainVisionLoraRequest, card: dict[str, Any],

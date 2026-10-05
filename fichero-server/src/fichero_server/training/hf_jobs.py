@@ -42,6 +42,23 @@ class NoHuggingFaceToken(RuntimeError):
     """No Hugging Face token is set in Fichero."""
 
 
+def cannot_reach(exc: BaseException) -> bool:
+    """Whether this failure means THIS engine cannot reach Hugging Face for the person (no token it
+    can read, or one the service refuses), as against the Job itself failing (#5449). An engine that
+    adopts a library whose Job it cannot reach must not fail the row: the Job may still be running."""
+    if isinstance(exc, NoHuggingFaceToken):
+        return True
+    response = getattr(exc, "response", None)
+    return getattr(response, "status_code", None) in (401, 403)
+
+
+def out_of_reach_reason(what: str) -> str:
+    """The row's words when this engine cannot follow a Job that may still run there."""
+    return (f"Needs attention: this engine can't read the Hugging Face token, so it can't follow {what} "
+            "here. It may still be running (and costing) on Hugging Face: add the token in Settings (AI "
+            "providers, Hugging Face), or follow or stop it from a Fichero that has it.")
+
+
 def hf_token() -> str:
     """The token Fichero holds for the `huggingface` provider, or a refusal that says where to add it."""
     from fichero_server.llm import get_api_key

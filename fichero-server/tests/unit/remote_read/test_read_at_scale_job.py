@@ -212,6 +212,40 @@ def test_stopping_cancels_the_running_shards_on_hugging_face(db, archive):
     assert json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0])["cancel"]
 
 
+def test_an_engine_without_the_token_keeps_a_run_whose_shards_may_still_run(db, archive, monkeypatch):
+    """WHY (#5449, `compute.job.another-engine-never-fails-what-it-cannot-reach`): an engine that opens
+    the library without the Hugging Face token must not fail a run whose shards are running and billing
+    there; it stays running, keeps every shard's Job id, and says why."""
+    from fichero_server import llm
+    from fichero_server.db.manager import db_manager
+    from fichero_server.training import hf_jobs
+
+    job_id, subject = _start(db, archive, max_in_flight=2)
+    hub = FakeHub()
+
+    def quit_after_first_round(_seconds):
+        raise KeyboardInterrupt  # the engine that sent them goes away
+
+    with pytest.raises(KeyboardInterrupt):
+        read_job.run(db, subject, target=hub, sleep=quit_after_first_round)
+    db.execute("UPDATE jobs SET state = 'running', attempts = 1 WHERE id = ?", [job_id])
+
+    monkeypatch.setattr(llm, "get_api_key", lambda provider: None)  # never the Keychain
+    real = hf_jobs.HfJobsTarget  # the real refusal, with an API client that is never reached
+    monkeypatch.setattr(hf_jobs, "HfJobsTarget", lambda: real(api=object()))
+    monkeypatch.setattr(db_manager, "open_database", lambda key: db)
+    read_job.register_job_kinds()
+    jobs.resume(db)
+    db.execute("UPDATE jobs SET state = 'running', attempts = attempts + 1 WHERE id = ?", [job_id])
+    row = db.execute_fetchone("SELECT id, kind, subject, model, created_at FROM jobs WHERE id = ?", [job_id])
+    jobs._scheduler._run(jobs._scheduler.lanes["remote"], "key", db, row, None)
+
+    state, reason = db.execute_fetchone("SELECT state, reason FROM jobs WHERE id = ?", [job_id])
+    assert state == "running" and "can't read the Hugging Face token" in reason and "2 shards" in reason
+    detail = json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0])
+    assert sorted(s["far_id"] for s in detail["shards"].values() if s["state"] == "submitted") == ["far-0", "far-1"]
+
+
 def test_the_api_refuses_without_a_yes_and_answers_for_an_unknown_run(client):
     """WHY: the refusal must reach the app, CLI and MCP as a sentence with its own status, not a 500;
     an unknown run is a 404 on every route that names one."""
