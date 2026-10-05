@@ -7246,6 +7246,12 @@ def fichero_engine_get_stats(
     return _rt.call("GET", "/api/stats")
 
 
+def fichero_engine_get_knowledge_row_counts(
+) -> Any:
+    "Get Knowledge Row Counts\n\nHow many items each knowledge row in a project's sidebar holds (#5413).\n\nThe app shows a knowledge row (Entities, Claims, Citations, the hermeneutic rows) only when\nits count is above 0, and asks again when the change stream says one of those kinds changed\n(``entity.*``, ``claim.*``, ``citation.*``, ``reference.*``, ``interpretation.*``) -- so a row\nappears live when its first item arrives. A sibling of ``/api/stats`` rather than a field on\nit: that route reads every document row and the vector tables, too costly to ask on every\nknowledge event. Each count here is one ``SELECT COUNT(*)``.\n\nRoute: GET /api/stats/knowledge (toolset `engine`; reads)."
+    return _rt.call("GET", "/api/stats/knowledge")
+
+
 def fichero_storage_get_display_image(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -8907,6 +8913,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_sources_get", "sources", "GET", "/api/sources/{source_id}", fichero_sources_get),
     GeneratedTool("fichero_sources_update", "sources", "PUT", "/api/sources/{source_id}", fichero_sources_update),
     GeneratedTool("fichero_engine_get_stats", "engine", "GET", "/api/stats", fichero_engine_get_stats),
+    GeneratedTool("fichero_engine_get_knowledge_row_counts", "engine", "GET", "/api/stats/knowledge", fichero_engine_get_knowledge_row_counts),
     GeneratedTool("fichero_storage_get_display_image", "storage", "GET", "/api/storage/display/{doc_id}", fichero_storage_get_display_image),
     GeneratedTool("fichero_storage_regenerate_missing_thumbnails", "storage", "POST", "/api/storage/regenerate-missing", fichero_storage_regenerate_missing_thumbnails),
     GeneratedTool("fichero_storage_get_snapshots", "storage", "GET", "/api/storage/snapshots", fichero_storage_get_snapshots),

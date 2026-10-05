@@ -95,6 +95,25 @@
         }
       }
     },
+    "/api/stats/knowledge": {
+      "get": {
+        "summary": "Get Knowledge Row Counts",
+        "description": "How many items each knowledge row in a project's sidebar holds (#5413).\n\nThe app shows a knowledge row (Entities, Claims, Citations, the hermeneutic rows) only when\nits count is above 0, and asks again when the change stream says one of those kinds changed\n(``entity.*``, ``claim.*``, ``citation.*``, ``reference.*``, ``interpretation.*``) -- so a row\nappears live when its first item arrives. A sibling of ``/api/stats`` rather than a field on\nit: that route reads every document row and the vector tables, too costly to ask on every\nknowledge event. Each count here is one ``SELECT COUNT(*)``.",
+        "operationId": "get_knowledge_row_counts_api_stats_knowledge_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeRowCountsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity": {
       "get": {
         "tags": [
@@ -62350,6 +62369,50 @@
         ],
         "title": "KnowledgePredictionReview",
         "description": "Persisted, library-scoped human review of one predicted edge."
+      },
+      "KnowledgeRowCountsResponse": {
+        "properties": {
+          "entities": {
+            "type": "integer",
+            "title": "Entities"
+          },
+          "claims": {
+            "type": "integer",
+            "title": "Claims"
+          },
+          "citations": {
+            "type": "integer",
+            "title": "Citations"
+          },
+          "references": {
+            "type": "integer",
+            "title": "References"
+          },
+          "interpretations": {
+            "type": "integer",
+            "title": "Interpretations"
+          },
+          "frameworks": {
+            "type": "integer",
+            "title": "Frameworks"
+          },
+          "patterns": {
+            "type": "integer",
+            "title": "Patterns"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entities",
+          "claims",
+          "citations",
+          "references",
+          "interpretations",
+          "frameworks",
+          "patterns"
+        ],
+        "title": "KnowledgeRowCountsResponse",
+        "description": "Response from ``GET /api/stats/knowledge``: how many items each of a project's knowledge\nrows in the sidebar holds, so a row shows only when it has at least one (#5413,\n``sidebar.knowledge.rows-only-when-non-empty``)."
       },
       "KnownLibrary": {
         "properties": {

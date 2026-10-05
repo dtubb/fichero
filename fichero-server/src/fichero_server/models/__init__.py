@@ -2084,6 +2084,24 @@ class LibraryStatsResponse(BaseModel):
     embedding_stats: EmbeddingStatsResponse
 
 
+class KnowledgeRowCountsResponse(BaseModel):
+    """Response from ``GET /api/stats/knowledge``: how many items each of a project's knowledge
+    rows in the sidebar holds, so a row shows only when it has at least one (#5413,
+    ``sidebar.knowledge.rows-only-when-non-empty``)."""
+
+    #: Entities a person can see: merged-away ones (kept for undo) are not counted.
+    entities: int
+    claims: int
+    #: One document citing another.
+    citations: int
+    #: Bibliographic references.
+    references: int
+    #: The hermeneutic rows: interpretations, interpretive frameworks and recognised patterns.
+    interpretations: int
+    frameworks: int
+    patterns: int
+
+
 class AuthIdentityUser(BaseModel):
     """Authenticated account identity, when the credential resolves to a user."""
 
@@ -2899,6 +2917,7 @@ __all__ = [
     "HealthResponse",
     "EmbeddingStatsResponse",
     "LibraryStatsResponse",
+    "KnowledgeRowCountsResponse",
     "LibraryAuthzSnapshot",
     "AccessibleLibrary",
     "ReinstallDefaultWorkflowsResponse",

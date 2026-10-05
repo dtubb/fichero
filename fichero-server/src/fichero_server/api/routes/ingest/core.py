@@ -27,6 +27,7 @@ from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.security import authz
 from fichero_server.db import Database
 from fichero_server.importers.derivatives import queue_derivatives
+from fichero_server.importers.sources_folder import import_parent_id
 from fichero_server.models import Document, Status
 
 logger = logging.getLogger(__name__)
@@ -209,7 +210,7 @@ def import_file_impl(
         doc = do_ingest(
             path,
             mode=mode,
-            parent_id=request.parent_id,
+            parent_id=import_parent_id(db, request.parent_id),
             extract_text=request.extract_text,
             auto_embed=request.auto_embed,
             db=db,
@@ -593,6 +594,9 @@ def import_folder_impl(
         raise HTTPException(status_code=400, detail=f"Refusing to ingest symlinked folder: {request.path}")
     if not path.is_dir():
         raise HTTPException(status_code=400, detail=f"Not a directory: {request.path}")
+    # Every branch below (corpus, 1.0 archive, plain folder) lands where the import names, else
+    # in the project's Sources folder (#5413).
+    request = request.model_copy(update={"parent_id": import_parent_id(db, request.parent_id)})
 
     # A folder carrying manifest.jsonl is a CORPUS, not a pile of files —
     # route it through the manifest importer (Daniel 2026-08-17: "is there a
@@ -1104,8 +1108,9 @@ def import_xlsx_impl(db: Database, request: XlsxIngestRequest) -> XlsxIngestResp
             dry_run=True,
         )
 
-    # Non-dry-run: create one Document per row
+    # Non-dry-run: create one Document per row, where the import names, else in Sources (#5413)
     from fichero_server.models import Document
+    parent_id = import_parent_id(db, request.parent_id)
     errors: list[str] = []
     doc_ids: list[str] = []
 
@@ -1122,7 +1127,7 @@ def import_xlsx_impl(db: Database, request: XlsxIngestRequest) -> XlsxIngestResp
             name=str(name),
             doc_type=DocType.file,
             file_type=FileType.spreadsheet,
-            parent_id=request.parent_id,
+            parent_id=parent_id,
             metadata={**rec, "xlsx_source": path.name, "xlsx_sheet_index": request.sheet_index},
             status=Status.completed,
         )

@@ -13,6 +13,7 @@ import fitz
 
 from fichero_server.models import ActionAudit, DocType, Document
 from fichero_server.api.routes import ingest
+from fichero_server.importers.sources_folder import ensure_sources_folder
 
 
 # ---------------------------------------------------------------------------
@@ -219,6 +220,8 @@ class TestIngestFolder:
         ``document_ids``) so the sidebar populates incrementally instead of
         waiting for the whole import to finish, and the completion event
         carries the full set so the store refreshes promptly when it stops."""
+        # The import names its folder: the background handle below is a mock with no Sources
+        # folder in it, and one made there would be announced among the events counted (#5413).
         (tmp_path / "a.txt").write_text("a")
         (tmp_path / "b.txt").write_text("b")
         emitted: list[dict] = []
@@ -245,7 +248,7 @@ class TestIngestFolder:
              patch("fichero_server.importers.ingest.count_files", return_value=2), \
              patch("fichero_server.importers.ingest.IngestMode"), \
              patch("fichero_server.api.routes.ingest.db_manager.get_database", return_value=MagicMock()):
-            r = client.post("/api/ingest/folder", json={"path": str(tmp_path)})
+            r = client.post("/api/ingest/folder", json={"path": str(tmp_path), "parent_id": "box-1"})
 
         assert r.status_code == 200
         task_id = r.json()["task_id"]
@@ -267,6 +270,7 @@ class TestIngestFolder:
         self, client, db, tmp_path, monkeypatch
     ):
         """#4203: a created event must never announce an uncommitted row."""
+        ensure_sources_folder(db)  # as an opened project has it (#5413); see the test above
         (tmp_path / "a.txt").write_text("a")
         (tmp_path / "b.txt").write_text("b")
         emitted_in_transaction: list[bool] = []

@@ -50,8 +50,16 @@ def _ctx(db) -> ActionContext:
 
 
 @pytest.fixture
-def spy_emit(monkeypatch):
-    """Capture emit_change calls at the SOURCE module the registry imports."""
+def spy_emit(monkeypatch, db):
+    """Capture emit_change calls at the SOURCE module the registry imports.
+
+    The project has its Sources folder before the spy starts, as an opened project does
+    (#5413): an import naming no folder would otherwise make it and announce it, and that
+    announcement is not one of the import events these tests count.
+    """
+    from fichero_server.importers.sources_folder import ensure_sources_folder
+
+    ensure_sources_folder(db)
     calls: list[tuple] = []
     monkeypatch.setattr(
         "fichero_server.api.change_stream.emit_change",

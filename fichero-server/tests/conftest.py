@@ -60,6 +60,11 @@ os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
 # Tests assume a clean library by default — disable automatic preset seeding
 # so assertions like "GET /workflows returns []" keep working.
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
+# Likewise the Sources folder a library OPEN makes (#5413): fixtures that assert on an empty
+# root keep working. Only the open is skipped -- an import naming no folder still makes and
+# lands in Sources. The rule's own tests (test_sources_folder.py, test_library_bootstrap.py)
+# switch the open back on.
+os.environ.setdefault("FICHERO_SKIP_SOURCES_FOLDER", "1")
 
 
 def _arm_credentials_tripwire() -> None:

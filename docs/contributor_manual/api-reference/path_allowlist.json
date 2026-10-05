@@ -488,6 +488,7 @@
     "/api/sources": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/sources/{source_id}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/stats": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/stats/knowledge": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/storage/debug/{doc_id}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/storage/display/{doc_id}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/storage/regenerate-missing": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
