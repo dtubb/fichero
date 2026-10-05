@@ -245,6 +245,13 @@ class PassRead(BaseModel):
     #: basis.
     working: bool = False
     working_basis: str | None = None
+    #: Whether this is the pass the image DRAWS (#5467, `ui.preview.draws-a-pass-with-shapes`): the
+    #: working pass when it has shapes, else the next pass in the working-pass ranking that has them
+    #: (`resolve_drawn_pass`). Exactly one pass is drawn when any has shapes; none when none has.
+    drawn: bool = False
+    #: This pass's place in the working-pass ranking (`rank_passes`), 0 for the working pass; None
+    #: for a pass the ranking does not hold (a georeferencing pass, which is never the page's text).
+    rank: int | None = None
 
 
 class SegmentListResponse(BaseModel):

@@ -4915,6 +4915,24 @@ class Database(DatabaseEmbeddingMixin):
         rows = self.execute_fetchall(sql, params or None)
         return [(row[0], row[1], row[2]) for row in rows]
 
+    def pass_ids_with_shapes(self, document_id: str) -> set[str]:
+        """The ids of a page's passes holding at least one live segment with a place on the image:
+        a box with size and no `shape: unstated` (a file that gave no place, stored on a whole-page
+        box only because a segment must be somewhere). One query, no rows hydrated -- the drawn
+        pass (`resolve_drawn_pass`, #5467) asks it on every segments read."""
+        from fichero_server.models.segments import Segment
+
+        self._ensure_table(Segment)
+        return {
+            row[0]
+            for row in self.execute_fetchall(
+                f"SELECT DISTINCT pass_id FROM {self._sql_table_name(Segment)} "
+                "WHERE document_id = $document_id AND deleted_at IS NULL AND (bbox_w > 0 OR bbox_h > 0) "
+                "AND COALESCE(json_extract_string(metadata, '$.shape'), '') <> 'unstated'",
+                {"document_id": document_id},
+            )
+        }
+
     def reading_order_entry_rows(self, order_id: str) -> list[tuple[str, str, str | None, float]]:
         """Every entry of one reading order as `(entry_id, segment_id, parent_entry_id,
         position)`, unhydrated: the as-written walk needs only these four columns, for every

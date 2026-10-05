@@ -68020,6 +68020,16 @@
             "type": "string",
             "nullable": true,
             "title": "Working Basis"
+          },
+          "drawn": {
+            "type": "boolean",
+            "title": "Drawn",
+            "default": false
+          },
+          "rank": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Rank"
           }
         },
         "type": "object",

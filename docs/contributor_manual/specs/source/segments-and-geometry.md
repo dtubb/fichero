@@ -737,7 +737,13 @@ Passes, orders, links
   beside real passes; a page with only an unconverted result; a filtered segments read). Where its
   working pass is an unconverted result the text is empty and names it, the stored page text stands,
   and export refuses. Pinned by `fichero-server/tests/unit/api/test_one_working_pass.py`. The app's
-  own ladder (`OCRGeometrySelection`) is #5467's app half. Residue, not
+  own ladder (`OCRGeometrySelection`) is #5467's app half. **The engine serves the drawn pass too
+  (#5467, built 2026-10-05):** `resolve_working_pass` is the head of `rank_passes`, the one ranking,
+  and `resolve_drawn_pass` walks that same ranking to the first pass with shapes (a segment with a
+  sized box and no `shape: unstated`); each `PassRead` carries `drawn` (exactly one when any pass has
+  shapes) and `rank` (its place, 0 for the working pass), so the app draws `drawn` and needs no
+  fallback ladder of its own. Pinned by
+  `fichero-server/tests/unit/api/test_the_engine_serves_the_drawn_pass.py`. Residue, not
   ruled here: a pass read from a PDF's own text layer still ranks above the newest. **The ENGINE half is proven by the citation above. The claim that "the Reader, search
   and export use one pass" is NOT.** Downgraded from [OK] 2026-09-26: the citation proves the
   ranking function and says nothing about which surfaces consult it, and the Reader is known NOT to
