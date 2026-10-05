@@ -187,7 +187,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             shutil.rmtree(data)
         made = export_training_set(db, scope_ids=request.scope_ids, teacher=request.teacher,
                                    held_out_ids=request.held_out_ids, out_dir=data)
-        detail["training_set"] = {k: v for k, v in made.manifest().items() if k != "pages"} | {"pages": len(made.pages)}
+        detail["training_set"] = made.summary()
         if vision:
             # Every arm's set is built with the reasons there are, the answer-only one too: `in_every_arm`
             # then keeps both students to the same lines (`distill.reasoning.two-arms`).
@@ -260,7 +260,8 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     card = {
         "display_name": request.display_name or f"{request.name} (taught by {request.teacher})",
         "summary": (f"Taught by {request.teacher} on {ts['pages']} pages ({ts['lines']} lines, none checked "
-                    f"by a person); {len(request.held_out_ids)} pages held out as the test."),
+                    f"by a person); {len(request.held_out_ids)} pages held out as the test; "
+                    f"{ts.get('lines_left_out', 0)} flagged lines left out."),
         "teacher": request.teacher, "training_set": ts, "held_out": ts.get("held_out", []),
         "target": TARGET, "far_id": far_id, "flavor": flavor,
         "not_for_release": request.not_for_release,

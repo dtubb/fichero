@@ -426,7 +426,7 @@ needs them.
   trainer passed `-q early` with no ceiling and no schedule; the PP-OCRv6 base brings a cosine schedule,
   whose step count was then infinite, and ketos stopped at once (`OverflowError: cannot convert float
   infinity to integer`, Mosquera HF Job 6ac26009…, 72 s); the McCATMuS base trained.
-- `compute.tune.set-excludes-flagged-lines` — **[GAP]** (#5446) a training set leaves out every line the
+- `compute.tune.set-excludes-flagged-lines` — **[PARTIAL]** (#5446) *Built (2026-10-05): `training/kraken_set.py` leaves out a line whose reading is empty or `null` and one whose newest check verdict (a person's or Fable's) rejects it; the manifest and the job's `training_set` count them by flag with each line's segment, say whether the check had run (`check_ran`), and `GET /api/training/set` (`fichero_training_preview_set`) counts the same set without sending it; tested in `fichero-server/tests/unit/training/test_set_excludes_flagged_lines.py`. Not built: the reading check's own flags (a neighbour's reading, below the set score), `source.lines.reading-checked-against-the-page`.* a training set leaves out every line the
   reading check flagged (`source.lines.reading-checked-against-the-page`: a reading that belongs to a
   neighbour, a null or empty reading, one below the set score) and every line a person rejected, and
   records on the set and on the job's card how many it left out and why, by flag. A set built before

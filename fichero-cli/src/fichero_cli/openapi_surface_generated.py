@@ -15839,6 +15839,24 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("what-a-set-from-these-pages-would-hold-and-the-flagged-lines-it-leaves-out")
+    def training_what_a_set_from_these_pages_would_hold_and_the_flagged_lines_it_leaves_out_get(
+        ctx: typer.Context,
+        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Query parameter: held_out_ids."),
+        scope_ids: str = typer.Option(..., "--scope-ids", help="Query parameter: scope_ids."),
+        teacher: str = typer.Option(..., "--teacher", help="Query parameter: teacher."),
+    ) -> None:
+        """What a training set from these pages would hold, and the flagged lines it leaves out (GET /api/training/set)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/set"
+            params = {
+                "held_out_ids": held_out_ids,
+                "scope_ids": scope_ids,
+                "teacher": teacher,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("train-a-vision-model-with-lora-on-hugging-face-jobs-landed-here-as-mlx")
     def training_train_a_vision_model_with_lora_on_hugging_face_jobs_landed_here_as_mlx_post(
         ctx: typer.Context,

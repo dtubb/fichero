@@ -612,6 +612,16 @@ episode ledger (`training.reasons`) and are kept only where the palaeographer's 
 model read and a person checked), the Job's `last_lines` when it ends, and, once landed, the
 `reader_id` (`kraken-trained-…`) or `model_id` (`fichero-trained/…`) to read with. The job also appears in `GET /api/activity/jobs`.
 
+Every training set leaves out flagged lines (#5446, `compute.tune.set-excludes-flagged-lines`): a line
+whose reading is empty or the word `null`, and a line whose newest check verdict (`check.verdict`, a
+person's or a checker model's) rejects it. The set's manifest and the job's `training_set` count them
+(`lines_left_out`, `left_out` by flag, `left_out_lines` with each line's segment), say how many lines
+carry a verdict and whether the check had run (`check_ran`), and name the flags checked
+(`flags_checked`). `GET /api/training/set?teacher=…&scope_ids=…[&held_out_ids=…]` counts the same set
+without writing or sending anything (one code path with the job's), so an operator sees what a run would
+train on before starting it. The reading check's own flags (a reading closer to a neighbour's line, one
+below the set score) are not built yet.
+
 `POST /api/training/reasons` queues a `gather-reasons` job (#4642): a palaeographer (a reasoning vision
 model, `provider` and `model`) is asked about every line of the `checked` pass in scope, held-out pages
 left out: the letterforms, abbreviations and uncertain readings behind each reading, then the
