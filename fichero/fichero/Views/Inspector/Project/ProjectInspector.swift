@@ -55,7 +55,7 @@ struct ProjectInspector: View {
             }
             Section("Recipe") {
                 if let recipeStore, let recipe = recipeStore.recipe {
-                    RecipeStepsView(store: recipeStore, recipe: recipe)
+                    RecipeStepsView(store: recipeStore, recipe: recipe, bakeoff: .init(project: library))
                 } else if let message = recipeStore?.errorMessage {
                     Text(message).foregroundStyle(.secondary)
                 } else if recipeStore != nil {

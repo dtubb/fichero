@@ -103,6 +103,8 @@ struct RecipeProposalFields: View {
     @Bindable var store: RecipeSetupStore
     /// A step problem's fix was pressed (its `fix`: download, choose-cloud, choose-model, …).
     let onFix: (String) -> Void
+    /// Check on your pages under the reading step (#4951); nil before there is a project.
+    var bakeoff: BakeoffSection.Context?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -112,7 +114,7 @@ struct RecipeProposalFields: View {
             if store.isAssembling {
                 ProgressView()
             } else if let recipe = store.recipe {
-                RecipeStepsView(store: store, recipe: recipe, onFix: onFix)
+                RecipeStepsView(store: store, recipe: recipe, onFix: onFix, bakeoff: bakeoff)
                 RecipeCloudQuestion(store: store)
             } else if !store.canAssemble {
                 Text("Add at least one language and one script under What It Is.")

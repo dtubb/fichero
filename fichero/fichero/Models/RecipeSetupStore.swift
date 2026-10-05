@@ -191,6 +191,7 @@ final class RecipeSetupStore {
                 apply(try Self.convert(answers, to: RecipeSetupAnswers.self))
             }
             if let savedRecipe = saved.recipe {
+                rememberOverrides(from: try JSONEncoder().encode(savedRecipe))
                 recipe = try Self.convert(savedRecipe, to: Components.Schemas.AssembledRecipe.self)
             }
         } catch {
@@ -207,7 +208,7 @@ final class RecipeSetupStore {
             let body = Components.Schemas.ProjectSetup(
                 answers: try JSONDecoder().decode(Components.Schemas.ProjectSetup.AnswersPayload.self,
                                                   from: answersToSave()),
-                recipe: try recipe.map { try Self.convert($0, to: Components.Schemas.ProjectSetup.RecipePayload.self) }
+                recipe: try recipe.map { try recipePayload($0) }
             )
             switch try await client.api.saveProjectSetupApiRecipesProjectPut(headers: .init(), body: .json(body)) {
             case .ok:
@@ -262,6 +263,51 @@ final class RecipeSetupStore {
             errorMessage = error.localizedDescription
         }
         return false
+    }
+
+    // MARK: What the engine wrote on the recipe (Use This, #4951)
+
+    /// The recipe's `overrides` as the engine last saved them (Use This writes them,
+    /// `source.try.use-this-scope`). `AssembledRecipe` does not carry them, so they are kept
+    /// here and sent back with every save; a save never drops a reader the person chose.
+    @ObservationIgnored private var savedRecipeOverrides: Data?
+
+    private func rememberOverrides(from recipeJSON: Data) {
+        guard let object = try? JSONSerialization.jsonObject(with: recipeJSON) as? [String: Any],
+              let overrides = object["overrides"] else { return }
+        savedRecipeOverrides = try? JSONSerialization.data(withJSONObject: overrides)
+    }
+
+    /// The recipe as saved: the one on screen, with the engine's overrides kept.
+    private func recipePayload(_ recipe: Components.Schemas.AssembledRecipe) throws
+        -> Components.Schemas.ProjectSetup.RecipePayload {
+        var object = (try JSONSerialization.jsonObject(with: JSONEncoder().encode(recipe)) as? [String: Any]) ?? [:]
+        if object["overrides"] == nil, let kept = savedRecipeOverrides,
+           let overrides = try? JSONSerialization.jsonObject(with: kept) {
+            object["overrides"] = overrides
+        }
+        return try JSONDecoder().decode(Components.Schemas.ProjectSetup.RecipePayload.self,
+                                        from: JSONSerialization.data(withJSONObject: object))
+    }
+
+    /// The recipe the engine saved after a change it made itself (Use This): each step it
+    /// changed replaces the step with its id, in place, so only that row redraws; its overrides
+    /// are kept for the next save.
+    func adoptEngineRecipe(_ recipeJSON: Data) {
+        rememberOverrides(from: recipeJSON)
+        guard let saved = try? JSONDecoder().decode(Components.Schemas.AssembledRecipe.self, from: recipeJSON) else {
+            errorMessage = "Could not read the recipe the engine saved."
+            return
+        }
+        guard let current = recipe else {
+            recipe = saved
+            return
+        }
+        for step in saved.steps {
+            if let index = current.steps.firstIndex(where: { $0.id == step.id }), current.steps[index] != step {
+                recipe?.steps[index] = step
+            }
+        }
     }
 
     private var currentAnswers: RecipeSetupAnswers {
@@ -642,6 +688,7 @@ extension RecipeSetupStore {
         do {
             guard case .ok(let success) = try await client.api.getProjectSetupApiRecipesProjectGet(),
                   let saved = try success.body.json.recipe else { return }
+            rememberOverrides(from: try JSONEncoder().encode(saved))
             recipe = try Self.convert(saved, to: Components.Schemas.AssembledRecipe.self)
         } catch {
             if error.isCancellationError { return }
