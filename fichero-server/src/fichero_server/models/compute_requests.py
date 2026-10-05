@@ -122,8 +122,9 @@ class EvaluationCandidate(BaseModel):
 class EvaluationRunRequest(BaseModel):
     """Score candidate models on the held-out checked pages (#5441, `distill.eval.*`)."""
 
-    checked: str = Field(description="The checked pass: its model id or its name. Its lines are the right "
-                         "readings each candidate is scored against.")
+    checked: str | None = Field(None, description="The checked pass: its model id or its name. Its lines are the "
+                                "right readings each candidate is scored against. None: on each page, the newest "
+                                "pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`).")
     candidates: list[EvaluationCandidate] = Field(min_length=1, description="The models to score: the trained "
                                                   "one(s) and any others.")
     add_out_of_the_box: bool = Field(True, description="Also score the out-of-the-box readers the registry names "

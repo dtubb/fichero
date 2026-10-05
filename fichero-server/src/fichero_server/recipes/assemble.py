@@ -133,6 +133,9 @@ class Card:
     cer_published: float | None = None
     licence: str = ""
     note: str = ""
+    #: False when the card's runtime is not in this build (its seed row says `runs_here: false`): never a
+    #: candidate for the recipe, but the bake-off names it (Tesseract, `source.onboard.bakeoff-tesseract-baseline`).
+    runs_here: bool = True
 
     @property
     def local(self) -> bool:
@@ -195,8 +198,8 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
         return "no-model-for-language", "its card does not list the project's language"
     if job in REWRITING_JOBS and card.languages is None:
         return "no-model-for-language", "a model that does not list the language would rewrite it into one it knows"
-    if material == "handwriting" and card.material == frozenset({"print"}):
-        return "no-reader-for-material", "it reads print only"
+    if material == "handwriting" and card.material and "handwriting" not in card.material:
+        return "no-reader-for-material", "it is made for print or typescript, never handwriting"
     if not card.open_licence:
         return "licence-not-accepted", "its licence is not open (accept it to use it)"
     if not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed:

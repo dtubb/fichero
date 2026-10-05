@@ -2600,7 +2600,7 @@ def fichero_evaluation_start(
     *,
     add_out_of_the_box: Annotated[Optional[bool], Field(description="Also score the out-of-the-box readers the registry names for each kind asked (a trained reader's base, the Kraken catalogue, the vision bases' MLX builds) that are on this Mac. Default: true.")] = None,
     candidates: Annotated[list[Any], Field(description='The models to score: the trained one(s) and any others.')],
-    checked: Annotated[str, Field(description='The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against.')],
+    checked: Annotated[Optional[str], Field(description="The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against. None: on each page, the newest pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`).")] = None,
     held_out_ids: Annotated[Optional[list[Any]], Field(description="The pages to score on. None given: the pages every trained candidate's card says were held out of its training.")] = None,
     language: Annotated[Optional[str], Field(description="The pages' language, given to a vision model.")] = None,
 ) -> Any:
@@ -5882,6 +5882,39 @@ def fichero_recipes_save_project_setup(
     return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
 
 
+def fichero_recipes_list_bakeoffs(
+) -> Any:
+    'List Bakeoffs\n\nEvery bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`).\n\nRoute: GET /api/recipes/project/bakeoffs (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/project/bakeoffs")
+
+
+def fichero_recipes_start_bakeoff(
+    *,
+    page_ids: Annotated[Optional[list[Any]], Field(description='the sample pages; none: every page with a pass a person made.')] = None,
+) -> Any:
+    "Start Bakeoff\n\nCompare the readers on the project's corrected sample pages: the top three by rule rank (and Tesseract\nfor print, when it has the language), each scored by the evaluation job (`evaluation.run`, audited) on\nthe same pages. Refused (422) in words, with nothing run, below 100 corrected lines on two pages (saying\nhow many more), for a project not set up, or when no candidate can be scored on this Mac.\n\nRoute: POST /api/recipes/project/bakeoffs (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/bakeoffs", json=_rt.body({"page_ids": page_ids}))
+
+
+def fichero_recipes_bakeoff_result(
+    *,
+    bakeoff_id: Annotated[str, Field(description='Bakeoff Id')],
+) -> Any:
+    "Bakeoff Result\n\nA bake-off's pages, its job's state and its table, ranked by the fixed order; the scores are read from\neach model's card, so the table outlives the job row.\n\nRoute: GET /api/recipes/project/bakeoffs/{bakeoff_id} (toolset `recipes`; reads)."
+    return _rt.call("GET", f"/api/recipes/project/bakeoffs/{bakeoff_id}")
+
+
+def fichero_recipes_use_bakeoff_choice(
+    *,
+    bakeoff_id: Annotated[str, Field(description='Bakeoff Id')],
+    card: Annotated[str, Field(description="the candidate's card id.")],
+    folder_id: Annotated[Optional[str], Field(description='the folder, when the scope is a folder.')] = None,
+    scope: Annotated[Optional[str], Field(description='Scope. One of: project, folder. Default: "project".')] = None,
+) -> Any:
+    "Use Bakeoff Choice\n\nUse This: make a scored candidate the reading step's reader for the project or one folder, kept as an\noverride on the recipe (for the project, the step's model too), through `project.save_setup` (audited,\nundoable). Refused (422) for a candidate not scored in this bake-off, a folder that is not one, or a\nproject with no recipe.\n\nRoute: POST /api/recipes/project/bakeoffs/{bakeoff_id}/use (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/recipes/project/bakeoffs/{bakeoff_id}/use", json=_rt.body({"card": card, "folder_id": folder_id, "scope": scope}))
+
+
 def fichero_recipes_change_project_layers(
     *,
     languages: Annotated[Optional[list[Any]], Field(description='BCP 47 language tags to add.')] = None,
@@ -8833,6 +8866,10 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),
     GeneratedTool("fichero_recipes_save_project_setup", "recipes", "PUT", "/api/recipes/project", fichero_recipes_save_project_setup),
+    GeneratedTool("fichero_recipes_list_bakeoffs", "recipes", "GET", "/api/recipes/project/bakeoffs", fichero_recipes_list_bakeoffs),
+    GeneratedTool("fichero_recipes_start_bakeoff", "recipes", "POST", "/api/recipes/project/bakeoffs", fichero_recipes_start_bakeoff),
+    GeneratedTool("fichero_recipes_bakeoff_result", "recipes", "GET", "/api/recipes/project/bakeoffs/{bakeoff_id}", fichero_recipes_bakeoff_result),
+    GeneratedTool("fichero_recipes_use_bakeoff_choice", "recipes", "POST", "/api/recipes/project/bakeoffs/{bakeoff_id}/use", fichero_recipes_use_bakeoff_choice),
     GeneratedTool("fichero_recipes_change_project_layers", "recipes", "POST", "/api/recipes/project/layers", fichero_recipes_change_project_layers),
     GeneratedTool("fichero_recipes_runs", "recipes", "GET", "/api/recipes/project/runs", fichero_recipes_runs),
     GeneratedTool("fichero_recipes_run_status", "recipes", "GET", "/api/recipes/project/runs/{job_id}", fichero_recipes_run_status),

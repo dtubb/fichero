@@ -2225,7 +2225,22 @@ Trying another option
   combination's) choice for the project or for one folder, stored as an override on the recipe.
 - `source.try.kept-and-rerunnable` — **[GAP]** (#4950) a comparison is kept with its selection and
   options and can be run again later.
-- `source.try.bakeoff-is-the-same-tool` — **[GAP]** (#4950, #4951) setup's bake-off is Try Another
+- `source.try.bakeoff-is-the-same-tool` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-05 (engine, readers
+  only):** `recipes/bakeoff.py` runs the evaluation job (`training/evaluation.py`, `evaluation.run`) on the
+  corrected sample pages (each page's newest pass a person made), so there is one comparison code path:
+  the top three `read-a-line` readers by the rules' own rank, plus Tesseract for print or typescript when
+  its card has the language (never handwriting; named, not scored, while it is not bundled), all scored by
+  the one CER on the same pages, speed measured in the run; below 100 corrected lines on two pages it
+  says how many more and runs nothing; the table is ranked by the fixed order and kept in
+  `recipe/bakeoffs/<id>.yaml`, its scores read from the model cards; Use This writes an override on the
+  recipe for the project or a folder through `project.save_setup` (audited, undoable). Routes
+  `/api/recipes/project/bakeoffs` (start, list, result, `/use`), CLI and MCP generated. Pinned by
+  `fichero-server/tests/unit/recipes/test_bakeoff_readers.py` and
+  `fichero-server/tests/unit/training/test_evaluation_job.py`. *Not built: combinations across steps (find
+  lines then read; at most nine); other steps than reading; per-line confirmations inside a model's pass
+  as ground truth; WER (the one function gives CER only); per hand and page kind (per page only); a cloud
+  candidate scored (the evaluation job has no remote target yet: it is priced, not scored); Start honouring
+  a folder override; setup's Check on your pages screen in the app.* setup's bake-off is Try Another
   Option… run on the sample ground-truth pages over the rule-proposed combinations; there is one
   comparison code path.
 

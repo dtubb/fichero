@@ -8565,6 +8565,50 @@
         "response_model": "ProjectSetup"
       },
       {
+        "method": "GET",
+        "path": "/recipes/project/bakeoffs",
+        "operation_id": "list_bakeoffs_api_recipes_project_bakeoffs_get",
+        "summary": "List Bakeoffs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "BakeoffList"
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/project/bakeoffs",
+        "operation_id": "start_bakeoff_api_recipes_project_bakeoffs_post",
+        "summary": "Start Bakeoff",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BakeoffStartRequest",
+        "response_model": "BakeoffResult"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/project/bakeoffs/{bakeoff_id}",
+        "operation_id": "bakeoff_result_api_recipes_project_bakeoffs__bakeoff_id__get",
+        "summary": "Bakeoff Result",
+        "path_params": [
+          "bakeoff_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "BakeoffResult"
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/project/bakeoffs/{bakeoff_id}/use",
+        "operation_id": "use_bakeoff_choice_api_recipes_project_bakeoffs__bakeoff_id__use_post",
+        "summary": "Use Bakeoff Choice",
+        "path_params": [
+          "bakeoff_id"
+        ],
+        "query_params": [],
+        "request_model": "BakeoffUseRequest",
+        "response_model": "ProjectSetup"
+      },
+      {
         "method": "POST",
         "path": "/recipes/project/layers",
         "operation_id": "change_project_layers_api_recipes_project_layers_post",

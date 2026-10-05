@@ -5471,7 +5471,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         add_out_of_the_box: Optional[bool] = typer.Option(None, "--add-out-of-the-box/--no-add-out-of-the-box", help="Request field: add_out_of_the_box."),
         candidates: str = typer.Option(..., "--candidates", help="Request field: candidates."),
-        checked: str = typer.Option(..., "--checked", help="Request field: checked."),
+        checked: Optional[str] = typer.Option(None, "--checked", help="Request field: checked."),
         held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
         language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
     ) -> None:
@@ -5488,7 +5488,7 @@ def register_generated_openapi_commands(
             }, {
                 "add_out_of_the_box": {'type': 'boolean', 'title': 'Add Out Of The Box', 'description': "Also score the out-of-the-box readers the registry names for each kind asked (a trained reader's base, the Kraken catalogue, the vision bases' MLX builds) that are on this Mac.", 'default': True, 'x-cli-required': False},
                 "candidates": {'items': {'$ref': '#/components/schemas/EvaluationCandidate'}, 'type': 'array', 'minItems': 1, 'title': 'Candidates', 'description': 'The models to score: the trained one(s) and any others.', 'x-cli-required': True},
-                "checked": {'type': 'string', 'title': 'Checked', 'description': 'The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against.', 'x-cli-required': True},
+                "checked": {'type': 'string', 'nullable': True, 'title': 'Checked', 'description': "The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against. None: on each page, the newest pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`).", 'x-cli-required': False},
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': "The pages to score on. None given: the pages every trained candidate's card says were held out of its training.", 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The pages' language, given to a vision model.", 'x-cli-required': False},
             }, required=True)
@@ -12265,6 +12265,70 @@ def register_generated_openapi_commands(
                 "recipe": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Recipe', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-bakeoffs")
+    def recipes_list_bakeoffs_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Bakeoffs (GET /api/recipes/project/bakeoffs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/bakeoffs"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("start-bakeoff")
+    def recipes_start_bakeoff_post(
+        ctx: typer.Context,
+        page_ids: Optional[str] = typer.Option(None, "--page-ids", help="Request field: page_ids."),
+    ) -> None:
+        """Start Bakeoff (POST /api/recipes/project/bakeoffs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/bakeoffs"
+            params = None
+            payload = _build_json_payload({
+                "page_ids": page_ids,
+            }, {
+                "page_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Page Ids', 'description': 'the sample pages; none: every page with a pass a person made', 'x-cli-required': False},
+            }, required=False)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("bakeoff-result")
+    def recipes_bakeoff_result_get(
+        ctx: typer.Context,
+        bakeoff_id: str = typer.Argument(..., help="Path parameter: bakeoff_id."),
+    ) -> None:
+        """Bakeoff Result (GET /api/recipes/project/bakeoffs/{bakeoff_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/recipes/project/bakeoffs/{bakeoff_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("use-bakeoff-choice")
+    def recipes_use_bakeoff_choice_post(
+        ctx: typer.Context,
+        bakeoff_id: str = typer.Argument(..., help="Path parameter: bakeoff_id."),
+        card: str = typer.Option(..., "--card", help="Request field: card."),
+        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
+        scope: Optional[str] = typer.Option(None, "--scope", help="Request field: scope."),
+    ) -> None:
+        """Use Bakeoff Choice (POST /api/recipes/project/bakeoffs/{bakeoff_id}/use)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/recipes/project/bakeoffs/{bakeoff_id}/use"
+            params = None
+            payload = _build_json_payload({
+                "card": card,
+                "folder_id": folder_id,
+                "scope": scope,
+            }, {
+                "card": {'type': 'string', 'title': 'Card', 'description': "the candidate's card id", 'x-cli-required': True},
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'the folder, when the scope is a folder', 'x-cli-required': False},
+                "scope": {'type': 'string', 'enum': ['project', 'folder'], 'title': 'Scope', 'default': 'project', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("change-project-layers")
