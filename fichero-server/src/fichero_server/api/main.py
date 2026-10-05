@@ -1880,6 +1880,7 @@ async def get_stats(db: Database = Depends(get_library_database)):
 # Importing the nested module directly keeps exactly one entry per route.
 from fichero_server.api.routes import training as training_routes  # noqa: E402
 from fichero_server.api.routes import check as check_routes  # noqa: E402
+from fichero_server.api.routes import evaluation as evaluation_routes  # noqa: E402
 from fichero_server.api.routes import reading_at_scale as reading_at_scale_routes  # noqa: E402
 from fichero_server.api.routes import sync_folders as sync_folder_routes  # noqa: E402
 from fichero_server.api.routes import (  # noqa: E402
@@ -2071,6 +2072,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # /api/training — train a reader as a job (#5398): Kraken on Hugging Face Jobs, landed as a card.
     (training_routes.router, "/api", ["training"]),
     (check_routes.router, "/api", ["check"]),
+    # /api/evaluation — trained against out-of-the-box readers on held-out checked pages (#5441).
+    (evaluation_routes.router, "/api", ["evaluation"]),
     (reading_at_scale_routes.router, "/api", ["reading-at-scale"]),
     # /api/sync-folders — a project tied to a folder on the engine's disk, kept current (#4952).
     (sync_folder_routes.router, "/api", ["sync-folders"]),

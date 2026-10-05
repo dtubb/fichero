@@ -323,24 +323,53 @@ Fichero is this one job: the bake-off at setup, a model scored when it lands
 (`compute.tune.scored-against-your-own-pages`) and a student measured against people
 (`distill.measure.against-people`).
 
-- `distill.eval.job` — **[GAP]** (#5441) an evaluation job reads a project's held-out pages with each
+- `distill.eval.job` — **[PARTIAL]** (#5441) *Built (2026-10-05): `training/evaluation.py`, one
+  `evaluate-models` job on the local model lane (Activity shows it and its stop reaches it), started by
+  `POST /api/evaluation/runs` (`evaluation.run`, audited, not undoable: a score is a result) and followed
+  by `GET /api/evaluation/runs/{id}`; MCP `fichero_evaluation_start` and `fichero_evaluation_status`.
+  Each candidate reads the checked pass's own lines on each held-out page (a Kraken reader on the
+  lines' baselines and outlines; a vision model on each line's picture, one line a call). Tested in
+  `fichero-server/tests/unit/training/test_evaluation_job.py` through the routes, Kraken faked at its seam. Not built: a child row per model and per page (the
+  scores by model and page are in the job's result), a remote model target (only this Mac's models; a
+  remote provider is refused in words), the vision reading tested against a faked model, and the
+  model node's Test action (#5439).* an evaluation job reads a project's held-out pages with each
   candidate model and scores them. It is one job, with a row per model and per page, on the lanes
-  (`activity.jobs-are-a-tree`). The pieces exist: CER scoring (`character_error_rate` and
-  `score_run_against_reference` in `workflows/transcription_accuracy.py`), `POST /api/training/reasons-ab`
-  (answer-only against reasoning students) and model comparison. No job runs a candidate set over
-  held-out pages and keeps the scores.
-- `distill.eval.candidates-out-of-the-box` — **[GAP]** (#5441) the candidates are the project's trained
+  (`activity.jobs-are-a-tree`).
+- `distill.eval.candidates-out-of-the-box` — **[PARTIAL]** (#5441, #5442) *Built: the candidates named,
+  plus the registry's out-of-the-box readers of the same kind that are on this Mac: a trained Kraken
+  reader's base, the Kraken catalogue, the vision bases' MLX builds (`training/vision_bases.py`); one
+  not on this Mac is named in the plan, never downloaded. Default taken 2026-10-05 (design lead),
+  awaiting the maintainer's ruling: the out-of-the-box candidates are the registry's readers of the
+  same kind on this Mac, added unless the request says not to (`add_out_of_the_box`). Tested in `fichero-server/tests/unit/training/test_evaluation_job.py`.
+  Not built: candidates drawn from onboarding and the recipe (language, script, hand, page count); the
+  small models named here are not in the registry yet (#5442).* the candidates are the project's trained
   models and out-of-the-box small vision and OCR models (Qwen3-VL-2B and 4B, dots.ocr, PaddleOCR-VL,
   Nanonets-OCR2-3B; see `source.model.vision-base-catalogue`). They are drawn from onboarding and the
   recipe (language, script, hand, page count), preferring models under 8B, as the recipe decides.
-- `distill.eval.held-out-checked-pages` — **[GAP]** (#5441, #5404) scores come only from held-out pages
+- `distill.eval.held-out-checked-pages` — **[PARTIAL]** (#5441, #5404) *Built: the held-out pages are
+  those a training request names, left out of its set (`training/kraken_set.py`) and recorded on the
+  trained model's card; with none named, the evaluation scores on the pages every trained candidate's
+  card holds out; a page named that is not held out from a trained candidate, and a trained model whose
+  card holds no held-out page, are refused in words before anything is queued. The reference is the
+  newest pass on the page whose model or name the request gives as `checked`; each page records who
+  checked it (`person` for a pass a person wrote, else `model`), and the run counts them. Tested in `fichero-server/tests/unit/training/test_evaluation_job.py`.
+  Not built: a hold-out chosen by Fichero (the person names the pages, as the Sergio project's ten
+  Fable-checked pages were).* scores come only from held-out pages
   a person or Fable checked, with the check's trust level recorded (`distill.scale.check-trust-levels`),
   and never from a page any candidate trained on.
-- `distill.eval.cer-variants` — **[GAP]** (#5441) each model is scored with CER as the community
+- `distill.eval.cer-variants` — **[PARTIAL]** (#5441) *Built: each page and each model is scored by the
+  one CER (`character_error_rate`) under every named policy (diplomatic, layout-insensitive, lenient,
+  accent-blind), per model as total edits over total reference characters, each figure naming its
+  policy and carrying the definition. Tested in `fichero-server/tests/unit/training/test_evaluation_job.py`. Not built: per script and per hand; an
+  abbreviation-expanded variant (no table is shipped); WER.* each model is scored with CER as the community
   computes it and its variants (the normalisation policies: case, punctuation, abbreviations
   expanded), per model, per page, per script and per hand, so an archive of many scripts and hands
   is judged where it differs. Each figure names its policy.
-- `distill.eval.stored-on-the-model-node` — **[GAP]** (#5441, #5439) the results are stored on each
+- `distill.eval.stored-on-the-model-node` — **[PARTIAL]** (#5441, #5439) *Built: each evaluation is
+  appended to the model's card (a Kraken reader's install record, a trained vision model's
+  `fichero-card.json`, a card of its own for a downloaded vision model) and never overwrites one;
+  `GET /api/evaluation/scores` (MCP `fichero_evaluation_model_scores`) reads them back. Tested in `fichero-server/tests/unit/training/test_evaluation_job.py`.
+  Not built: the node that shows them (#5439).* the results are stored on each
   model's card and shown on its node (`source.model.node-inspector`), so models are compared side by
   side. A later evaluation adds to them and never overwrites one.
 

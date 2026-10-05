@@ -3857,6 +3857,51 @@
         "response_model": "PlaceAsOfResponse"
       }
     ],
+    "evaluation": [
+      {
+        "method": "POST",
+        "path": "/evaluation/runs",
+        "operation_id": "start_evaluation_api_evaluation_runs_post",
+        "summary": "Score trained and out-of-the-box models on the held-out checked pages, as one job",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EvaluationRunRequest",
+        "response_model": "EvaluationStarted"
+      },
+      {
+        "method": "GET",
+        "path": "/evaluation/runs/{job_id}",
+        "operation_id": "evaluation_status_api_evaluation_runs__job_id__get",
+        "summary": "An evaluation's plan, progress and scores",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/evaluation/scores",
+        "operation_id": "model_scores_api_evaluation_scores_get",
+        "summary": "A model's held-out scores, as its card keeps them",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "model",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "reader",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ModelScores"
+      }
+    ],
     "export": [
       {
         "method": "POST",

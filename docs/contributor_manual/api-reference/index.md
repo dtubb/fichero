@@ -643,6 +643,23 @@ scores and verdicts.
 `POST /api/training/jobs/{job_id}/cancel` stops it (`training.cancel`): a job not started ends at
 once; a running one is cancelled on Hugging Face at its next look and ends `cancelled`.
 
+### Evaluation (#5441)
+
+`POST /api/evaluation/runs` queues one `evaluate-models` job on the local model lane
+(`distill.eval.job`): each of the `candidates` (`model`, `reader`: kraken or vision, `provider`: only
+`omlx`, this Mac, for a vision model) and, unless `add_out_of_the_box` is false, the registry's
+out-of-the-box readers of the same kind on this Mac read the lines of the `checked` pass (its model id
+or name) on the held-out pages, and are scored with the one CER under every normalisation policy. The
+pages are `held_out_ids`, each of which must be held out of every trained candidate, or with none named,
+the pages every trained candidate's card holds out. Refused (422) in words before anything is queued:
+a trained model whose card holds no held-out page, a named page a trained candidate may have trained
+on, no page with a checked reading, a model not on this Mac, a remote provider. Through
+`evaluation.run` (not undoable: a score is a result). `GET /api/evaluation/runs/{job_id}` gives the plan
+(candidates, pages, pages missing and why, readers not on this Mac) and the result (per model and per
+page, the CER under each policy, who checked each page, the best). Each model's scores are appended to
+its card; `GET /api/evaluation/scores?model=&reader=` reads them back. Activity's stop ends it before
+its next page, with nothing written on the cards.
+
 ### Reading at scale (Hugging Face Jobs)
 
 `POST /api/reading-at-scale` queues a `read-at-scale` job (#5398 slice 2,
