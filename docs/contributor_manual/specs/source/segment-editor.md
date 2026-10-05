@@ -4,6 +4,7 @@
 > Manual: TBD — an "Editing the layout of a page" section: selecting, drawing, reshaping,
 > merging and splitting segments on the image; setting their order, direction and type;
 > drawing links; working with the Apple Pencil.
+> Facts for the maintainer to write it from (no user-manual page yet): `docs/contributor_manual/manual-facts/2026-10-05.md`, section 3.
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`

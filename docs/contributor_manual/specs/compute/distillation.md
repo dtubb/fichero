@@ -4,6 +4,7 @@
 > Manual: TBD — a section, "Making your own model", explaining how a project turns a big model's
 > work and its people's corrections into a small model that runs on their own Mac, how to tell
 > whether the small one is good enough, and when Fichero still asks the big one.
+> Facts for the maintainer to write it from (no user-manual page yet): `docs/contributor_manual/manual-facts/2026-10-05.md`, section 5.
 >
 > Design-led (Testing Constitution). **Status: DRAFT; revised 2026-10-03 against the maintainer's
 > rulings (`remote-compute.md`, "Ruled 2026-10-03"; the review appendix in `remote-compute.md`).** Builds on `jobs-and-fine-tuning.md`

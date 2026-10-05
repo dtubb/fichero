@@ -6,6 +6,7 @@
 > and change it in the Inspector; checking models on your own corrected pages; taking,
 > following, updating and publishing a recipe; finding a better model; how to see how any
 > reading was made.
+> Facts for the maintainer to write it from (no user-manual page yet): `docs/contributor_manual/manual-facts/2026-10-05.md`, section 1.
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`

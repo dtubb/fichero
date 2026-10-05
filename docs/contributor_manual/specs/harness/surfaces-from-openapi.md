@@ -3,6 +3,7 @@
 > Milestone: SwiftUI/Engine - OpenAPI
 > Manual: TBD — the reference manual's MCP and CLI pages must say every tool and command comes
 > from the engine's contract, and list the toolsets.
+> Facts for the maintainer to write it from (no user-manual page yet): `docs/contributor_manual/manual-facts/2026-10-05.md`, section 4.
 > Status: DRAFT
 
 ## Intent (the design)

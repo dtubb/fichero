@@ -4,6 +4,7 @@
 > Manual: TBD — "What Fichero is doing": the Activity window; why work runs by itself when you add
 > or correct something; pausing everything, or one job; what happens when you quit, sleep or crash
 > (nothing is lost, nothing is done twice); what a job cost; taking a job's work back.
+> Facts for the maintainer to write it from (no user-manual page yet): `docs/contributor_manual/manual-facts/2026-10-05.md`, section 2.
 
 > Design-led (Testing Constitution). **Status: DRAFT, 2026-10-01 — design review, awaiting the
 > maintainer.** Written read-only against the integration tree. Claims about the code are

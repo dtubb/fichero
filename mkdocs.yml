@@ -336,6 +336,7 @@ nav:
       - Testing Constitution: contributor_manual/TESTING-CONSTITUTION.md
       - Test Template: contributor_manual/TEST-TEMPLATE.md
       - Writing the Guides: contributor_manual/writing-the-guides.md
+      - Manual Facts (2026-10-05): contributor_manual/manual-facts/2026-10-05.md
       - Doc Template: contributor_manual/DOC-TEMPLATE.md
       - CLI Test Harness (legacy): contributor_manual/cli-test-harness.md
       - Feature Tiers (legacy): contributor_manual/feature-tiers.md
