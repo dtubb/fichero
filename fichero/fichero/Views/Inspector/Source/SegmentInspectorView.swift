@@ -41,6 +41,11 @@ struct SegmentInspectorView: View {
         segmentService.map { SegmentStore.shared(for: $0).segments(documentId: documentId) } ?? []
     }
 
+    /// The teacher-line check's flags (#5446): the store every line list reads.
+    private var flags: FlaggedLineStore? {
+        segmentService.map { FlaggedLineStore.shared(for: $0) }
+    }
+
     private var path: InspectorPath? {
         selectedIds.count == 1
             ? InspectorPath.to(selectedIds[0], in: segments)
@@ -66,6 +71,13 @@ struct SegmentInspectorView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if selectedIds.count > 1, level == .selection {
                         Text(countsLine).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let inspected, let flags, let line = flags.flag(segmentId: inspected, documentId: documentId) {
+                        // The teacher-line check flagged it (#5446): why, in words, and the person's Confirm.
+                        InspectorFlaggedSection(
+                            line: line, runWords: flags.runWords(line), note: flags.confirmNote,
+                            confirm: { Task { await flags.confirm(segmentId: inspected, documentId: documentId) } }
+                        )
                     }
                     if let text, !text.readings.isEmpty {
                         InspectorTextSection(
@@ -135,6 +147,7 @@ struct SegmentInspectorView: View {
             editing = nil
             editNote = nil
             await reloadText()
+            await flags?.load(documentId: documentId)
         }
         .onChange(of: selectedIds) { level = .selection }
         .alert(askingFor == .script ? "Script" : "Language", isPresented: Binding(
