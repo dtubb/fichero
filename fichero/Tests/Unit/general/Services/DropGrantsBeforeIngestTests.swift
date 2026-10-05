@@ -59,14 +59,33 @@ final class DropGrantsBeforeIngestTests: XCTestCase {
         let coded = Data(#"{"detail":{"code":"library_outside_allowed_locations","path":"/Users/me/Corpus"}}"#.utf8)
         XCTAssertEqual(ImportServiceError.refusal(fromBody: coded, path: path)?.errorDescription?.contains("Corpus"), true)
         let worded = Data(#"{"detail":"Ingest path is not in an allowed location: /Users/me/Fichero Test Corpus"}"#.utf8)
-        guard case .outsideAllowedLocations(let refused)? = ImportServiceError.refusal(fromBody: worded, path: path) else {
+        guard case .outsideAllowedLocations(let refused, _)? = ImportServiceError.refusal(fromBody: worded, path: path) else {
             return XCTFail("the engine's current 403 text must still be read as the refusal")
         }
         XCTAssertEqual(refused, path)
         XCTAssertNil(ImportServiceError.refusal(fromBody: Data(#"{"detail":"Owner access required"}"#.utf8), path: path),
                      "any other 403 is not a place to grant")
-        XCTAssertTrue(ImportServiceError.outsideAllowedLocations(path: path).errorDescription?.contains("Grant Access") == true,
+        XCTAssertTrue(ImportServiceError.outsideAllowedLocations(path: path).errorDescription?.contains("Add a Folder") == true,
                       "the message names its remedy")
+    }
+
+    /// #5484: the engine now allows any folder its owner picks in Fichero's own panel (setup's Add a
+    /// Folder…, File › Import…), and its refusal says so. The app used to say "Choose Grant Access…,
+    /// then drop it again", a two-step remedy the engine no longer needs. WHY this test: the person must
+    /// read the ENGINE's sentence, as it sends it in the flat `{detail, code, path}` 403, and never the
+    /// old "drop it again"; if the app re-worded it, the two would drift again.
+    func testTheRefusalSaysTheEnginesSentenceNeverDropItAgain() throws {
+        let sentence = "Ingest path is not in an allowed location: /Users/me/Corpus. To allow it, choose its "
+            + "folder with Add a Folder\u{2026} or File \u{203A} Import\u{2026} in Fichero."
+        let object: [String: Any] = ["detail": sentence, "code": "library_outside_allowed_locations", "path": "/Users/me/Corpus"]
+        let flat = try JSONSerialization.data(withJSONObject: object)
+        let refusal = try XCTUnwrap(ImportServiceError.refusal(fromBody: flat, path: "/elsewhere"))
+        XCTAssertEqual(refusal.errorDescription, sentence, "the engine's words, as it sent them")
+        guard case .outsideAllowedLocations(let refused, _) = refusal else { return XCTFail("read as the refusal") }
+        XCTAssertEqual(refused, "/Users/me/Corpus", "the engine's path wins over the one the app asked about")
+        let fallback = ImportServiceError.outsideAllowedLocations(path: "/Users/me/Corpus").errorDescription ?? ""
+        XCTAssertFalse(fallback.contains("drop it again"), "no second step: picking the folder is the permission")
+        XCTAssertTrue(fallback.contains("File \u{203A} Import\u{2026}"), "without the engine's words, the same remedy")
     }
 }
 #endif

@@ -77,7 +77,7 @@ struct SetupWhereItLivesFields: View {
     }
 }
 
-/// Screen 2, "What it is for" (#5478): the engine's purposes as checkboxes, any combination, each
+/// Screen 4, "What it is for" (#5478): the engine's purposes as checkboxes, any combination, each
 /// ticked purpose with its jobs in one line; then every job as a checkbox. A job a ticked purpose
 /// brings is ticked and stays ticked while the purpose is (the engine adds jobs, never removes one).
 struct RecipePurposeFields: View {
@@ -180,7 +180,7 @@ struct ProjectIntakeChoice: View {
     }
 }
 
-/// Screen 3, "Your material": how sources come in, a folder to bring in now
+/// Screen 2, "Your material": how sources come in, a folder to bring in now
 /// (or later, from the project), and how much there is.
 struct RecipeMaterialSourceFields: View {
     @Bindable var store: RecipeSetupStore
@@ -226,7 +226,7 @@ struct RecipeMaterialSourceFields: View {
     }
 }
 
-/// Screen 4, "What it is" (#5479, #5478): languages and scripts, each searched and browsed and
+/// Screen 5, "What it is" (#5479, #5478): languages and scripts, each found by typing and
 /// shown as tokens; one direction per script, pre-filled from it; the kinds of material.
 struct RecipeAboutFields: View {
     @Bindable var store: RecipeSetupStore
@@ -295,9 +295,11 @@ private struct DerivedScriptRow: View {
     }
 }
 
-/// Languages or scripts: a search field that autocompletes from the engine's registry, a Browse…
-/// list, and the chosen ones as tokens. Return on a typed word takes the engine's best answer
-/// (its tag, never the word); a word the engine does not know is refused in words.
+/// Languages or scripts, type-to-find only (#5479, ruled 2026-10-05: no Browse… and no
+/// alphabetical list): typing shows the engine registry's matches in a dropdown under the field;
+/// a pick becomes a token (its name shown, its tag or code saved); several at once; × removes.
+/// Return on a typed word takes the engine's best answer (its tag, never the word); a word the
+/// engine does not know is refused in words.
 struct CodeTokenField: View {
     let store: RecipeSetupStore
     let scripts: Bool
@@ -305,49 +307,25 @@ struct CodeTokenField: View {
     var onChange: () -> Void = {}
     @State private var query = ""
     @State private var matches: [RecipeSetupStore.CodeChoice] = []
-    @State private var browsing = false
 
     private var title: String { scripts ? "Scripts" : "Languages" }
     private var codes: [String] { scripts ? store.scripts : store.languages }
+    private var unchosen: [RecipeSetupStore.CodeChoice] { matches.filter { !codes.contains($0.code) } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             LabeledContent(title) {
-                HStack {
-                    TextField(title, text: $query, prompt: Text(scripts ? "Search, e.g. Latin" : "Search, e.g. Spanish"))
-                        .labelsHidden()
-                        .onSubmit {
-                            let typed = query
-                            Task {
-                                if await store.addTyped(typed, toScripts: scripts) {
-                                    clear()
-                                    onChange()
-                                }
-                            }
-                        }
-                    Button("Browse…") { browsing = true }
-                        .popover(isPresented: $browsing) {
-                            CodeBrowseList(store: store, scripts: scripts) { choice in
-                                store.add(choice, toScripts: scripts)
-                                onChange()
-                            }
-                        }
-                }
+                field
             }
-            ForEach(matches.filter { !codes.contains($0.code) }, id: \.self) { match in
-                Button {
-                    store.add(match, toScripts: scripts)
-                    clear()
-                    onChange()
-                } label: {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(match.name)
-                        if let detail = match.detail { Text(detail).foregroundStyle(.secondary) }
-                    }
+            #if !os(macOS)
+            // No text-field dropdown off the Mac: the same matches, as a list under the field.
+            if !unchosen.isEmpty {
+                List(unchosen, id: \.self) { match in
+                    Button { take(RecipeSetupStore.completion(for: match)) } label: { MatchLabel(match: match) }
                 }
-                .buttonStyle(.borderless)
-                .font(.caption)
+                .frame(height: 160)
             }
+            #endif
             if !codes.isEmpty {
                 FlowTokens(codes: codes, name: store.name(of:)) { code in
                     store.remove(code, fromScripts: scripts)
@@ -358,15 +336,60 @@ struct CodeTokenField: View {
         .task(id: query) {
             let needle = query.trimmingCharacters(in: .whitespaces)
             guard !needle.isEmpty else { matches = []; return }
+            // A pick puts its completion in the field; that is not a new search.
+            guard !unchosen.contains(where: { RecipeSetupStore.completion(for: $0) == needle }) else { return }
             try? await Task.sleep(for: .milliseconds(200))  // typing: ask once the person pauses
             guard !Task.isCancelled else { return }
             matches = scripts ? await store.searchScripts(needle) : await store.searchLanguages(needle)
         }
     }
 
+    private var field: some View {
+        TextField(title, text: $query, prompt: Text(scripts ? "Type to find, e.g. Latin" : "Type to find, e.g. Spanish"))
+            .labelsHidden()
+            #if os(macOS)
+            .textInputSuggestions(unchosen, id: \.self) { match in
+                MatchLabel(match: match)
+                    .textInputCompletion(RecipeSetupStore.completion(for: match))
+            }
+            #endif
+            .onChange(of: query) { _, text in take(text) }
+            .onSubmit {
+                let typed = query
+                if take(typed) { return }
+                Task {
+                    if await store.addTyped(typed, toScripts: scripts) {
+                        clear()
+                        onChange()
+                    }
+                }
+            }
+    }
+
+    /// A match picked in the dropdown becomes a token and the field clears.
+    @discardableResult
+    private func take(_ text: String) -> Bool {
+        guard store.pick(text, among: matches, toScripts: scripts) else { return false }
+        clear()
+        onChange()
+        return true
+    }
+
     private func clear() {
         query = ""
         matches = []
+    }
+}
+
+/// One match in the dropdown: its name, and where it came from (a dialect's language, a code).
+private struct MatchLabel: View {
+    let match: RecipeSetupStore.CodeChoice
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(match.name)
+            if let detail = match.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+        }
     }
 }
 
@@ -394,43 +417,6 @@ private struct FlowTokens: View {
                 .background(Color.accentColor, in: Capsule())
                 .help(code)
             }
-        }
-    }
-}
-
-/// Browse… for a person who knows neither the name's spelling nor the code: pick a letter, then
-/// a name. Families and regions wait for the engine to list them.
-private struct CodeBrowseList: View {
-    let store: RecipeSetupStore
-    let scripts: Bool
-    let choose: (RecipeSetupStore.CodeChoice) -> Void
-    @State private var letter = "A"
-    @State private var choices: [RecipeSetupStore.CodeChoice] = []
-
-    private static let letters = (65...90).compactMap { UnicodeScalar($0).map { String(Character($0)) } }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Picker("Begins with", selection: $letter) {
-                ForEach(Self.letters, id: \.self) { Text($0).tag($0) }
-            }
-            List(choices, id: \.self) { choice in
-                Button {
-                    choose(choice)
-                } label: {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(choice.name)
-                        if let detail = choice.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-            .frame(minHeight: 240)
-        }
-        .padding()
-        .frame(width: 320, height: 340)
-        .task(id: letter) {
-            choices = scripts ? await store.browseScripts(letter) : await store.browseLanguages(letter)
         }
     }
 }

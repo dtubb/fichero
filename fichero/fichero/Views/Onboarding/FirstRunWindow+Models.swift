@@ -14,12 +14,13 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
     case permissions
     case cloud
     // Setup, in the order of section 7b (ruled 2026-10-05, `source.onboard.screens-in-order`):
-    // where it lives, what it is for, your material, what it is, a screen for each ticked job
-    // (`jobs` stands for them, and is replaced by them), how it will be done, what runs by
-    // itself, then Start.
+    // where it lives, your material, kept exported, what it is for, what it is, a screen for
+    // each ticked job (`jobs` stands for them, and is replaced by them), how it will be done,
+    // what runs by itself, then Start.
     case location
-    case purpose
     case material
+    // #5485: Kept exported (screen 3) goes here, once the engine keeps exports current.
+    case purpose
     case about
     case jobs
     case recipe
@@ -76,8 +77,8 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
     }
 
     /// The steps Set Up… runs for an existing project: the project already lives somewhere, so
-    /// it starts at What it is for (section 7b). One code path with first run.
-    static let setUpSteps: [FirstRunStep] = [.purpose, .material, .about, .jobs, .recipe, .automatic, .start]
+    /// it starts at screen 2, Your material (section 7b). One code path with first run.
+    static let setUpSteps: [FirstRunStep] = [.material, .purpose, .about, .jobs, .recipe, .automatic, .start]
 
     /// File › Set Up New Project…: Where it lives, then the same steps as Set Up….
     static let newProjectSteps: [FirstRunStep] = [.location] + setUpSteps
