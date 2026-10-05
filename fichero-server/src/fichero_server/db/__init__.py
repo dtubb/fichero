@@ -1068,6 +1068,7 @@ class Database(DatabaseEmbeddingMixin):
             migrate_spatial_node_layout_fields,
             migrate_references_table,
             migrate_reference_provenance_table,
+            migrate_kept_exports_table,
         )
         migrate_document_table(self.conn, self.migration_failures)
         migrate_document_language_fields(self.conn, self.migration_failures)
@@ -1083,6 +1084,7 @@ class Database(DatabaseEmbeddingMixin):
         migrate_spatial_node_layout_fields(self.conn, self.migration_failures)
         migrate_references_table(self.conn, self.migration_failures)
         migrate_reference_provenance_table(self.conn, self.migration_failures)
+        migrate_kept_exports_table(self.conn, self.migration_failures)
         # Every open-time step TIMED (#5228, maintainer: "if it ever takes more than [a moment], figure
         # out why"). A step that walks every row of a big table at every open made opening a large
         # library take 6 s, found only by profiling. Now a slow step names itself in the log.

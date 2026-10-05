@@ -1,12 +1,16 @@
-"""Document export routes."""
+"""Document export routes, and the project's kept exports (#5485, `/export/kept`)."""
 
+from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
-from fichero_server.api.main import get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.export_service import (
     export_eleventy_site,
@@ -393,3 +397,138 @@ async def export_excel_route(
         raise HTTPException(status_code=400, detail=str(e))
 
     return ExcelExportResponse(**result.__dict__)
+
+
+# ---------------------------------------------------------------------------------------------------
+# Kept exports (#5485, spec models-chains-and-projects section 7b, screen 3): an up-to-date copy of
+# the project's work in a folder outside it, written again as the work changes (`kept_export.py`).
+# ---------------------------------------------------------------------------------------------------
+
+KeptExportFormat = Literal["word", "markdown", "plain-text", "alto", "pagexml", "tei", "hocr"]
+KeptExportPer = Literal["page", "document"]
+
+
+class KeptExportRequest(BaseModel):
+    folder: str = Field(description="A full path to a folder on the engine's disk, outside the project")
+    format: KeptExportFormat = Field(description="What each file is: Word, Markdown, plain text, ALTO XML, "
+                                                 "PAGE XML, TEI or hOCR")
+    per: KeptExportPer = Field(description="One file per page, or one per document (the page formats are "
+                                           "one per page)")
+
+
+class KeptExportParams(KeptExportRequest):
+    pass
+
+
+class KeptExportIdParams(BaseModel):
+    export_id: str
+
+
+class KeptExport(BaseModel):
+    """One kept export and what it has written."""
+
+    id: str
+    folder: str
+    format: KeptExportFormat
+    per: KeptExportPer
+    files: list[str] = Field(description="files this export wrote, relative to the folder: overwritten at "
+                                         "each write, a hand edit to one included")
+    in_the_way: list[str] = Field(description="files already in the folder that this export did not write: "
+                                              "left alone")
+    pending: int = Field(description="writes waiting (their jobs are in Activity)")
+    last_written: datetime | None = None
+
+
+class KeptExportList(BaseModel):
+    exports: list[KeptExport]
+
+
+class KeptExportRemoved(BaseModel):
+    id: str
+
+
+class KeptExportWriting(BaseModel):
+    id: str
+    job_id: str = Field(description="the write's job, in Activity")
+
+
+@action("export.keep", KeptExportParams, domains=["library"], undoable=False)
+def _action_keep(db: Database, params: KeptExportParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server import kept_export
+
+    export_id = kept_export.keep(db, params.folder, params.format, params.per)
+    return {"id": export_id}, ChangeSpec(domains=["library"], after={"id": export_id, "folder": params.folder,
+                                                                     "format": params.format, "per": params.per},
+                                         emit_type="export.kept")
+
+
+@action("export.unkeep", KeptExportIdParams, domains=["library"], undoable=False)
+def _action_unkeep(db: Database, params: KeptExportIdParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server import kept_export
+
+    kept_export.remove(db, params.export_id)
+    return {"id": params.export_id}, ChangeSpec(domains=["library"], before={"id": params.export_id},
+                                                emit_type="export.unkept")
+
+
+def _kept(db: Database, export_id: str) -> KeptExport:
+    from fichero_server import kept_export
+
+    found = next((e for e in kept_export.status(db) if e["id"] == export_id), None)
+    if found is None:
+        raise HTTPException(status_code=404, detail="There is no such kept export.")
+    return KeptExport(**found)
+
+
+@router.get("/kept", response_model=KeptExportList, summary="The project's kept exports and what they wrote")
+async def list_kept_exports(db: Database = Depends(get_library_database)) -> KeptExportList:
+    from fichero_server import kept_export
+
+    return KeptExportList(exports=[KeptExport(**e) for e in kept_export.status(db)])
+
+
+@router.post("/kept", response_model=KeptExport,
+             summary="Keep an export in a folder, written again as the work changes")
+async def keep_export(
+    request: KeptExportRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> KeptExport:
+    """One-way: Fichero writes the folder and never reads it back. Each write overwrites only the
+    files this export wrote (a hand edit to one is overwritten) and leaves every other file alone;
+    nothing is deleted. Writing is background work (paused by Pause Background Work). Refused (422),
+    in one sentence, for a folder that is not there, a system folder, a folder inside the project,
+    or a page format asked for one file per document."""
+    from fichero_server.kept_export import KeptExportRefused
+
+    try:
+        result = registry.invoke(db, "export.keep", request.model_dump(), ctx)
+    except KeptExportRefused as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _kept(db, result.result["id"])
+
+
+@router.delete("/kept/{export_id}", response_model=KeptExportRemoved,
+               summary="Stop keeping an export (the files it wrote stay in the folder)")
+async def remove_kept_export(
+    export_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> KeptExportRemoved:
+    _kept(db, export_id)
+    registry.invoke(db, "export.unkeep", {"export_id": export_id}, ctx)
+    return KeptExportRemoved(id=export_id)
+
+
+@router.post("/kept/{export_id}/write", response_model=KeptExportWriting,
+             summary="Write a kept export now, as a background job")
+async def write_kept_export(
+    export_id: str,
+    db: Database = Depends(get_library_database_for_write),
+) -> KeptExportWriting:
+    """Queues one job that writes every file of the export (shown in Activity, paused with background
+    work). Files already being written are covered by the same job."""
+    from fichero_server import kept_export
+
+    _kept(db, export_id)
+    return KeptExportWriting(id=export_id, job_id=kept_export.write_now(db, export_id))

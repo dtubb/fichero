@@ -297,6 +297,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/integrations/base.py
 $(SRCROOT)/../fichero-server/src/fichero_server/integrations/bookends.py
 $(SRCROOT)/../fichero-server/src/fichero_server/integrations/devonthink.py
 $(SRCROOT)/../fichero-server/src/fichero_server/integrations/tinderbox.py
+$(SRCROOT)/../fichero-server/src/fichero_server/kept_export.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/_common.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/authorities.py

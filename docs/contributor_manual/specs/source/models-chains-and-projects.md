@@ -723,8 +723,9 @@ lives somewhere).
    back; a file changed there by hand is overwritten at the next write and the person is told so
    once, when the export is set up. Writing goes through the one export path
    (`page_export.py` and `formats/` for page formats, `export_service.py` for Word), as a
-   background job that waits while the person works (`user-machine-always-useful`). Markdown has
-   no writer today.
+   background job that waits while the person works (`user-machine-always-useful`). **Engine
+   built 2026-10-05** (`source.onboard.kept-exported`, `/api/export/kept`, with a Markdown writer);
+   the screen is not built.
 4. **What it is for** (#5478). The engine's purposes as **checkboxes**, any combination; none
    ticked is "Not sure yet" (the tools are offered when wanted; nothing is proposed). Under each
    ticked purpose, its jobs in one line each, by their topic titles ("Find lines · Read each line ·
@@ -1976,6 +1977,10 @@ Setup
   from outside is taken in by intake after its preview and then moved into place by the same rule;
   a file the person moves by hand stays where they put it and is recorded as placed by hand.
   *Test:* arrange then undo restores every original path.
+- `source.onboard.kept-exported` — **[PARTIAL]** (#5485) **Built 2026-10-05 (engine half):** a project keeps any number of exports, each a folder, a format (`word`, `markdown`, `plain-text`, `alto`, `pagexml`, `tei`, `hocr`) and one file per `page` or `document` (a page's document is the node it sits in; the page formats are per page only, refused per document in words), kept in the library database (`kept_exports`, `kept_export_files`); `GET`/`POST /api/export/kept`, `DELETE /api/export/kept/{id}` (files stay), `POST /api/export/kept/{id}/write` (write now); keeping and removing are the audited `export.keep`/`export.unkeep`. Each write is one `write-kept-export` job on the background `database` lane; page formats through `page_export.export_page`, Word through `export_service.export_word_docx` (the record's derived text), Markdown through the new `export_service.render_markdown_text` (headings from the document and page names, reading-order text), plain text as the derived text. One-way: it overwrites only files it wrote (a hand edit included), never touches or deletes another file (one in its way is listed, `in_the_way`); a folder that is not there, a system folder (the owner folder pick's own check) or one inside the project is refused in one sentence. Rewritten after a quiet period when an audited action touches a page (the synced folder's hook) and when a recipe's workflow step finishes, for its pages; no watcher (`kept_export.py`; `fichero-server/tests/unit/jobs/test_kept_exports.py`). *Not built: the setup screen (the app half); telling the person once, at setup, that a hand edit is overwritten.* setup's
+  third screen keeps up-to-date exports in folders outside the project (section 7b, screen 3).
+  *Test:* a kept ALTO-per-page export holds one file per page, and a second write leaves a file it did
+  not write alone.
 - `source.onboard.set-up-later` — **[PARTIAL]** (#4951) **Built 2026-10-03:** Skip leaves the project unset and saves nothing; `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. "Set up later" makes a project with no settings
   that behaves as today, and Set Up… in its Inspector runs setup at any time.
 - `source.onboard.samples-first` — **[GAP]** (#4951) given material, setup picks up to ten sample

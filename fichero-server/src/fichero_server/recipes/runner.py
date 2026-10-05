@@ -192,6 +192,11 @@ def run(db: Any, subject: str) -> dict[str, Any]:
         else:
             child, state, why = _run_export(db, card, documents)
         step.update(state=state, child_id=child, why=why)
+        if card["card"] == "workflow" and state == "done":
+            # The step changed these pages' work: every kept export rewrites them (#5485).
+            from fichero_server import kept_export
+
+            kept_export.queue_rewrites(db, documents)
         if state != "done":
             failed_at = f"step {named} {state}: {why or 'no reason given'}"
     words = (f"Stopped: {failed_at}; the steps after it were not run" if failed_at else

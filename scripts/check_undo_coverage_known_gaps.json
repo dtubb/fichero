@@ -1,5 +1,8 @@
 {
-  "POST /api/sync-folders": "not undoable by design (sync.tie, audited): the files it wrote stay; untying (DELETE) stops it and leaves them, which is the inverse a person wants (#4952)",
+  "POST /api/export/kept": "not undoable by design (export.keep, audited): the files it wrote stay; removing it (DELETE) stops it and leaves them, which is the inverse a person wants (#5485)",
+  "DELETE /api/export/kept/{export_id}": "not undoable by design (export.unkeep, audited): keeping it again is a new export and rewrites its files (#5485)",
+  "POST /api/export/kept/{export_id}/write": "queues a background write of the export's own files (one-way; a job in Activity, cancellable there); nothing in the project changes (#5485)",
+  "POST /api/sync-folders":"not undoable by design (sync.tie, audited): the files it wrote stay; untying (DELETE) stops it and leaves them, which is the inverse a person wants (#4952)",
   "DELETE /api/sync-folders/{folder_id}": "not undoable by design (sync.untie, audited): tying again is a new folder and rewrites its files (#4952)",
   "PUT /api/sync-folders/{folder_id}/mode": "not undoable by design (sync.mode, audited): switching it back is the inverse; each arrangement it causes is its own undoable sync.arrange, undone from the audit (#5480)",
   "PUT /api/sync-folders/{folder_id}/intake": "not undoable by design (sync.intake, audited): switching it back is the inverse; passes that came in are undone one by one like any import (format.import) (#4952)",
