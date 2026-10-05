@@ -2,8 +2,8 @@ import SwiftUI
 
 // MARK: - Recipe steps (source.onboard.*)
 
-/// The purpose and material steps of first run, which are also the Inspector's
-/// Set Up… (`FirstRunStep.setUpSteps`). Same page chrome and navigation as the
+/// The setup screens of first run, which are also Set Up… for a project
+/// (`FirstRunStep.setUpSteps`, `source.onboard.screens-in-order`). Same page chrome and navigation as the
 /// other steps; the fields scroll because a recipe can be longer than the card.
 extension FirstRunWindow {
     @ViewBuilder
@@ -26,13 +26,29 @@ extension FirstRunWindow {
             ) {
                 recipeCard { RecipeStartFields(store: store) }
             }
-        default:
+        case .material:
             stepPage(
                 title: "Your material",
-                subtitle: "Tell Fichero what it is; the rules propose how it will be read, and why.",
+                subtitle: "How your sources come in, and roughly how much there is. You can add it later.",
                 systemImage: step.icon
             ) {
-                recipeCard { RecipeMaterialFields(store: store) }
+                recipeCard { RecipeMaterialSourceFields(store: store, importer: importService) }
+            }
+        case .about:
+            stepPage(
+                title: "What it is",
+                subtitle: "Its languages, scripts and kind. Fichero works out the rest from them.",
+                systemImage: step.icon
+            ) {
+                recipeCard { RecipeAboutFields(store: store) }
+            }
+        default:
+            stepPage(
+                title: "How it will be done",
+                subtitle: "The steps the rules propose from your answers, and why each is there.",
+                systemImage: step.icon
+            ) {
+                recipeCard { RecipeProposalFields(store: store) }
             }
         }
     }

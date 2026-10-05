@@ -18,10 +18,11 @@ final class RecipeSetupStore {
 
     // MARK: Answers (a draft until Start; nothing runs before it)
 
-    /// How sources come into the project (ruled 2026-10-03): link (the
-    /// default: originals read in place, never changed), copy (originals never
-    /// touched) or move (originals removed), the engine's ingest modes. Index,
-    /// the two-way synced folder, has no mode yet (#4952), so it is not a value.
+    /// How sources come into the project (ruled 2026-10-03,
+    /// `source.sync.four-ways-in`): link (the default: originals read in place,
+    /// never changed), copy (originals never touched), move (originals removed)
+    /// or index (the folder worked on in place and kept up to date), the
+    /// engine's folder ingest modes. Setup's Add a Folder… imports with it.
     var ingestMode: IngestMode = .link
 
     var purpose: String = "transcribe"
@@ -39,6 +40,10 @@ final class RecipeSetupStore {
     private(set) var purposes: [Components.Schemas.PurposeInfo] = []
     private(set) var recipe: Components.Schemas.AssembledRecipe?
     private(set) var jobs: [String: Components.Schemas.JobInfo] = [:]
+    /// The registry's own order, so what is offered after the recipe's steps is stable.
+    private(set) var jobOrder: [String] = []
+    /// What setup's Add a Folder… brought in, said back to the person.
+    private(set) var materialAdded: String?
     private(set) var isAssembling = false
     private(set) var errorMessage: String?
     /// What the engine worked out for each chosen script: direction, whether it may be vertical,
@@ -245,7 +250,10 @@ final class RecipeSetupStore {
         guard jobs.isEmpty else { return }
         do {
             if case .ok(let success) = try await client.api.listJobsApiRecipesJobsGet() {
-                for job in try success.body.json.items { jobs[job.id] = job }
+                for job in try success.body.json.items where jobs[job.id] == nil {
+                    jobs[job.id] = job
+                    jobOrder.append(job.id)
+                }
             }
         } catch {
             if error.isCancellationError { return }
@@ -292,6 +300,51 @@ final class RecipeSetupStore {
     /// not know it (shown as such, never invented here).
     func job(for step: Components.Schemas.RecipeStep) -> Components.Schemas.JobInfo? {
         jobs[step.job]
+    }
+
+    // MARK: Offered first, never hidden (source.onboard.offers-never-hides)
+
+    /// Every job in the registry, the purpose's recipe steps first (in the
+    /// recipe's order), then the rest in the registry's order. A purpose
+    /// changes what comes first; it never takes a job out of the list.
+    var offeredJobs: [Components.Schemas.JobInfo] {
+        let first = (recipe?.steps ?? []).map(\.job)
+        var seen = Set<String>()
+        return (first + jobOrder).compactMap { id in
+            guard seen.insert(id).inserted else { return nil }
+            return jobs[id]
+        }
+    }
+
+    // MARK: Your material (source.sync.four-ways-in)
+
+    /// Import a folder into the project the way setup chose (link, copy, move
+    /// or index), through the project's own import path. Importing is not
+    /// Start: no recipe step runs on it.
+    func addFolder(_ url: URL, importer: ImportService) async {
+        materialAdded = nil
+        do {
+            let ids = try await importer.importFolder(url, mode: ingestMode)
+            materialAdded = "\(url.lastPathComponent): \(ids.count) added (\(ingestMode.displayName.lowercased()))."
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not add \(url.lastPathComponent): \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: Added later (source.onboard.add-layer)
+
+    /// Change the project's languages after setup (from the Inspector):
+    /// re-propose the recipe from the new answers and keep both on the
+    /// project. Returns whether the engine kept them. Nothing runs.
+    @discardableResult
+    func updateLanguages(_ codes: [String]) async -> Bool {
+        // Splice, so a language already there keeps its place (no wholesale reset).
+        languages.removeAll { !codes.contains($0) }
+        for code in codes where !languages.contains(code) { languages.append(code) }
+        await assemble()
+        guard recipe != nil else { return false }
+        return await save()
     }
 }
 
