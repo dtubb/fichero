@@ -63,7 +63,7 @@ struct SyncFolderStoreTests {
     private static func folderJSON(id: String = "f1", path: String, intake: Bool = false, adopted: Bool = false,
                                    changedOutside: [String] = [], conflicts: [String] = []) -> String {
         let quoted = { (list: [String]) in "[" + list.map { "\"\($0)\"" }.joined(separator: ",") + "]" }
-        return #"{"id":"\#(id)","path":"\#(path)","formats":["pagexml"],"intake":\#(intake),"#
+        return #"{"id":"\#(id)","path":"\#(path)","formats":["pagexml"],"mode":"index","intake":\#(intake),"#
             + #""conflicts":\#(quoted(conflicts)),"adopted":\#(adopted),"last_written":null,"pending":0,"#
             + #""files":["letter.xml"],"in_the_way":[],"changed_outside":\#(quoted(changedOutside)),"#
             + #""taken_in":[],"not_read_back":[],"deleted_outside":[]}"#

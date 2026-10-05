@@ -167,7 +167,7 @@ struct FolderSyncInspectorSection: View {
 #Preview("Synced folder, files waiting") {
     let store = LibraryPreviewFixtures.library.syncFolderStore
     let folder = Components.Schemas.SyncFolderStatus(
-        id: "f1", path: "/Users/historian/Archive/Letters", formats: ["pagexml"], intake: false,
+        id: "f1", path: "/Users/historian/Archive/Letters", formats: ["pagexml"], mode: .index, intake: false,
         conflicts: [], adopted: true, pending: 0, files: ["letter-1.xml"], inTheWay: [],
         changedOutside: ["letter-1.xml"], takenIn: [], notReadBack: [], deletedOutside: []
     )
