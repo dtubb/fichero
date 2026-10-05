@@ -105,3 +105,8 @@ struct ProjectInspector: View {
         }
     }
 }
+
+#Preview("Project inspector") {
+    LibraryPreviewFixtures.environment(ProjectInspector(library: LibraryPreviewFixtures.library))
+        .frame(width: 320, height: 520)
+}

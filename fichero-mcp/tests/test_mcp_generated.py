@@ -1,4 +1,4 @@
-"""MCP tools generated from the OpenAPI contract (#5453, `specs/harness/surfaces-from-openapi.md`).
+"""MCP tools generated from the OpenAPI contract (#5453, `docs/contributor_manual/specs/harness/surfaces-from-openapi.md`).
 
 Pins behaviours A1–A6 of that spec without an engine: the generator's naming and exclusions,
 toolsets by tag, the drift guard, one route one tool, mutations through the agent client, and
@@ -149,7 +149,7 @@ def test_toolsets_list_only_the_chosen_tags_tools():
 def test_the_default_is_the_recipe_golden_path_and_all_is_every_tag():
     """WHY: with no flag the server is the recipe golden path the spec names; `all` is every tag."""
     assert mcp_server.DEFAULT_TOOLSETS == (
-        "recipes", "training", "segments", "documents", "activity", "local-models", "hpc",
+        "recipes", "training", "check", "segments", "documents", "activity", "local-models", "hpc",
     )
     assert set(mcp_server.DEFAULT_TOOLSETS) <= set(generated.TAGS), "a default toolset is not a real tag"
     assert mcp_server.parse_toolsets("all") == generated.TAGS

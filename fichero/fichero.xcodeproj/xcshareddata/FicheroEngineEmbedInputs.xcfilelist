@@ -10,6 +10,8 @@ $(SRCROOT)/../fichero-cli/src/fichero_cli/openapi_surface_generated.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/document_tools.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/full.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/kg_tools.py
+$(SRCROOT)/../fichero-mcp/src/fichero_mcp/openapi_runtime.py
+$(SRCROOT)/../fichero-mcp/src/fichero_mcp/openapi_tools_generated.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/research_tools.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/server.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/simple.py

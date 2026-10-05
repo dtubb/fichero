@@ -1,6 +1,6 @@
 """Generated MCP tools call the real engine routes, through the MCP protocol (#5453).
 
-`specs/harness/surfaces-from-openapi.md` A1, A5, A6: a tool generated from the contract makes one
+`docs/contributor_manual/specs/harness/surfaces-from-openapi.md` A1, A5, A6: a tool generated from the contract makes one
 request to its route and returns that route's answer, a write lands in the library, and a refusal
 reaches the agent as a typed error. Driven through `fichero_mcp.server.mcp` exactly as an MCP
 client drives it (tools/call), its requests answered by the in-process app over the test library

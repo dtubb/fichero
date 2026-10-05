@@ -47,7 +47,7 @@ mcp = FastMCP("fichero")
 _CONFIG: dict[str, Optional[str]] = {"base_url": None, "library_path": None}
 
 #: The recipe golden path: what an agent driving a recipe needs, and no more.
-DEFAULT_TOOLSETS = ("recipes", "training", "segments", "documents", "activity", "local-models", "hpc")
+DEFAULT_TOOLSETS = ("recipes", "training", "check", "segments", "documents", "activity", "local-models", "hpc")
 
 #: Old hand-written tool names an existing agent configuration (the fichero-operator agent's tool
 #: list) still calls, each pointing at the generated tool for the SAME route. Registered whatever

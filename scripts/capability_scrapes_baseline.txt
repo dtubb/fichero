@@ -294,3 +294,6 @@ fichero/Tests/Unit/general/Views/Inspector/EntityInspectorPinningTests.swift
 # Opening a node config writes no config, guarded by isLoadingConfig on onChange.
 # The real fix is to write config from user actions instead (#5061), not a test change.
 fichero/Tests/Unit/general/Views/Workflow/WorkflowReadOnlySavePolicyTests.swift
+# One-path guard (#5424, the maintainer's "one code path" rule): every surface that reveals a line
+# must call the ONE reveal action; the behaviour itself is pinned by LineRevealTests' store tests.
+fichero/Tests/Unit/general/Models/LineRevealTests.swift
