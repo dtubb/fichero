@@ -93,13 +93,15 @@ def _kraken_bundle_names() -> set[str]:
     `[tool.fichero.kraken_bundle]`), not the briefcase `requires` this file
     otherwise walks — so a kraken import must count as bundled only because
     THIS table says so, read fresh each time, never a hardcoded name here.
-    "kraken" and "htrmopo" are the only two literal top-level imports the
-    engine's own source writes (`kraken_runtime.py`); the rest of
+    "kraken", "htrmopo" and "lightning" are the only literal top-level imports
+    the engine's own source writes (`kraken_runtime.py`; lightning since training
+    on this Mac reaches Kraken's trainer through that seam, e9e0245a6); the rest of
     `missing_packages` are kraken's own transitive dependencies."""
     table = _kraken_bundle_config()
     missing = {_norm(Requirement(r).name) for r in table["missing_packages"]}
     assert "htrmopo" in missing, "kraken_runtime.py imports htrmopo directly for model fetch"
-    return {"kraken", "htrmopo"}
+    assert "lightning" in missing, "kraken_runtime.train_recognition imports lightning's callbacks directly"
+    return {"kraken", "htrmopo", "lightning"}
 
 
 def _bundled_import_names() -> set[str]:
