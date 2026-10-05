@@ -53,6 +53,7 @@ from fichero_server.models import (
     EmbeddingStatsResponse,
     HealthResponse,
     LibraryStatsResponse,
+    KnowledgeRowCountsResponse,
     MigrationFailureResponse,
 )
 from fichero_server.db.paths import migrate_legacy_server_state
@@ -1864,6 +1865,40 @@ async def get_stats(db: Database = Depends(get_library_database)):
         ),
         artifacts=db.count(Artifact),
         embedding_stats=EmbeddingStatsResponse(**db.embedding_stats()),
+    )
+
+
+@app.get("/api/stats/knowledge", response_model=KnowledgeRowCountsResponse)
+async def get_knowledge_row_counts(db: Database = Depends(get_library_database)):
+    """How many items each knowledge row in a project's sidebar holds (#5413).
+
+    The app shows a knowledge row (Entities, Claims, Citations, the hermeneutic rows) only when
+    its count is above 0, and asks again when the change stream says one of those kinds changed
+    (``entity.*``, ``claim.*``, ``citation.*``, ``reference.*``, ``interpretation.*``) -- so a row
+    appears live when its first item arrives. A sibling of ``/api/stats`` rather than a field on
+    it: that route reads every document row and the vector tables, too costly to ask on every
+    knowledge event. Each count here is one ``SELECT COUNT(*)``.
+    """
+    from fichero_server.models.hermeneutics import (
+        Interpretation,
+        InterpretiveFramework,
+        PatternInstance,
+    )
+    from fichero_server.models.knowledge import (
+        DocumentCitation,
+        KnowledgeClaim,
+        KnowledgeEntity,
+        Reference,
+    )
+
+    return KnowledgeRowCountsResponse(
+        entities=db.count(KnowledgeEntity, merged_into_id=None),
+        claims=db.count(KnowledgeClaim),
+        citations=db.count(DocumentCitation),
+        references=db.count(Reference),
+        interpretations=db.count(Interpretation),
+        frameworks=db.count(InterpretiveFramework),
+        patterns=db.count(PatternInstance),
     )
 
 

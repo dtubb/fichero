@@ -1917,10 +1917,13 @@ def import_uploaded_file_impl(
     # metadata recorded the server temp dir as source_path — provenance loss
     # on an archival corpus. Inside ingest, the real name lands before pages
     # are named and the temp path is never recorded as a source.
+    from fichero_server.importers.sources_folder import import_parent_id
+
     doc = ingest_file(
         path=file_path,
         mode=IngestMode.COPY,  # Copy file into library
-        parent_id=parent_id,
+        # Where the upload names, else the project's Sources folder (#5413).
+        parent_id=import_parent_id(db, parent_id),
         extract_metadata=True,  # Extract file metadata
         extract_text=True,  # Extract text for search
         # Deferred (2026-08-09): the upload request used to block on the

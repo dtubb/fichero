@@ -15200,6 +15200,17 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-knowledge-row-counts")
+    def stats_get_knowledge_row_counts_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Knowledge Row Counts (GET /api/stats/knowledge)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/stats/knowledge"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('storage')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for storage endpoints.', no_args_is_help=True)

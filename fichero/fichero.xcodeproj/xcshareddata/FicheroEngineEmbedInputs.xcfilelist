@@ -290,6 +290,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/importers/rendition_sidecar.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/sergio_import.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/slipbox_import.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/source_archive_import.py
+$(SRCROOT)/../fichero-server/src/fichero_server/importers/sources_folder.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/tinderbox_link_import.py
 $(SRCROOT)/../fichero-server/src/fichero_server/integrations/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/integrations/base.py

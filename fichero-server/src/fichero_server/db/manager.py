@@ -200,6 +200,25 @@ class DatabaseManager:
                     # surfaces show them — so the folder bought nothing.
                     # Existing libraries keep the Inbox they were seeded with,
                     # as ordinary user content.
+                    #
+                    # Sources (#5413, ruled 2026-10-04) is NOT that Inbox: it is where an
+                    # import that names no folder lands, so every project has one. Made here
+                    # once per project (a new one, or an existing one on its next open),
+                    # never re-made after a delete, and nothing already in the project moves.
+                    # Tests set FICHERO_SKIP_SOURCES_FOLDER=1 (conftest) for the same reason
+                    # as the workflow skip above; the tests of this rule switch it back on.
+                    if (
+                        not is_global_library_package(package_path)
+                        and os.environ.get("FICHERO_SKIP_SOURCES_FOLDER") != "1"
+                    ):
+                        from fichero_server.importers.sources_folder import (
+                            ensure_sources_folder_on_open,
+                        )
+
+                        try:
+                            ensure_sources_folder_on_open(db)
+                        except Exception:
+                            logger.exception("Could not give the project its Sources folder")
                 except Exception as exc:
                     db.close()
                     logger.exception("Failed to initialize library database: %s", package_str)

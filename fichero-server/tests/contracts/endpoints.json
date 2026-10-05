@@ -10351,6 +10351,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "LibraryStatsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/stats/knowledge",
+        "operation_id": "get_knowledge_row_counts_api_stats_knowledge_get",
+        "summary": "Get Knowledge Row Counts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KnowledgeRowCountsResponse"
       }
     ],
     "storage": [

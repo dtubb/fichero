@@ -1,4 +1,5 @@
 {
+  "GET /api/stats/knowledge": "app half next (#5413): the sidebar shows a knowledge row only when its count is above 0",
   "GET /api/iiif/iiif/lines/{document_id}": "served to IIIF viewers through a manifest's canvas annotations, not called by the app (#5326)",
   "POST /api/sync-folders": "synced folder (#4952): engine and CLI first; the folder's place in setup and the Inspector is the app half",
   "GET /api/sync-folders": "synced folder (#4952): engine and CLI first; source.sync.status-in-inspector is the app half",

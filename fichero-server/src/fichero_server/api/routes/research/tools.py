@@ -608,11 +608,14 @@ async def browser_save(
         with os.fdopen(fd, "wb") as f:
             f.write(raw_bytes)
 
+        from fichero_server.importers.sources_folder import import_parent_id
+
         package_path = _Path(db.path).parent
         doc = ingest_file(
             path=temp_path,
             mode=IngestMode.COPY,
-            parent_id=request.parent_folder_id,
+            # Where the save names, else the project's Sources folder (#5413).
+            parent_id=import_parent_id(db, request.parent_folder_id),
             extract_metadata=True,
             extract_text=True,
             save=True,
