@@ -66,6 +66,7 @@ struct ProjectInspector: View {
                 }
                 Button("Set Up…") { libraryManager.requestSetUp(for: library.id) }
             }
+            KeptExportsInspectorSection(store: library.keptExportStore)
             Section("Sharing") {
                 if EngineConfig.multiuserEnabled {
                     HStack {

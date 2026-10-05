@@ -18,6 +18,10 @@ final class SyncFolderStore {
     private(set) var folders: [Components.Schemas.SyncFolderStatus] = []
     /// Each folder's intake as last read: on or off, and what it would bring in, by format.
     private(set) var intakeStates: [String: Components.Schemas.IntakeState] = [:]
+    /// Keep arranged, proposed and not yet said yes to: each folder's dry run
+    /// (`GET /api/sync-folders/{id}/arrangement`), shown with Arrange until the person answers
+    /// (`source.onboard.keep-arranged`). Nothing moves while a folder is in here.
+    private(set) var proposedArrangements: [String: Components.Schemas.ArrangementPreview] = [:]
     private(set) var hasLoaded = false
     var errorMessage: String?
 
@@ -150,6 +154,7 @@ final class SyncFolderStore {
             case .ok:
                 folders.removeAll { $0.id == folderId }
                 intakeStates[folderId] = nil
+                proposedArrangements[folderId] = nil
                 return true
             case .unprocessableContent:
                 errorMessage = "The engine did not understand which folder to untie."
@@ -160,6 +165,105 @@ final class SyncFolderStore {
         } catch {
             if error.isCancellationError { return false }
             errorMessage = "Could not untie this folder: \(error.localizedDescription)"
+        }
+        return false
+    }
+
+    // MARK: Keep arranged (#5480, source.onboard.keep-arranged)
+
+    /// Propose keeping a folder arranged: read the dry run (what would move, from and to, or why
+    /// it would be refused) and hold it for the person to see. Nothing moves: the mode is not
+    /// changed here, because the engine arranges a folder as soon as it is kept arranged (a tie
+    /// with `keep-arranged` or `PUT …/mode` queues the first arrangement). Returns the preview.
+    @discardableResult
+    func proposeKeepArranged(_ folderId: String) async -> Components.Schemas.ArrangementPreview? {
+        errorMessage = nil
+        do {
+            switch try await client.api.getArrangementApiSyncFoldersFolderIdArrangementGet(
+                path: .init(folderId: folderId)
+            ) {
+            case .ok(let success):
+                let preview = try success.body.json
+                proposedArrangements[folderId] = preview
+                return preview
+            case .unprocessableContent:
+                errorMessage = "The engine did not understand which folder to arrange."
+            case .undocumented(let code, let body):
+                errorMessage = await EngineErrorDetail.message(from: body)
+                    ?? "Could not work out what keeping this folder arranged would move (HTTP \(code))"
+            }
+        } catch {
+            if error.isCancellationError { return nil }
+            errorMessage = await Self.engineWords(error)
+                ?? "Could not work out what keeping this folder arranged would move: \(error.localizedDescription)"
+        }
+        return nil
+    }
+
+    /// The mode a folder's Inspector shows: Keep arranged while it is proposed (its dry run on
+    /// screen, nothing moved yet), else the engine's.
+    func shownMode(of folder: Components.Schemas.SyncFolderStatus) -> Components.Schemas.SyncFolderStatus.ModePayload {
+        proposedArrangements[folder.id] != nil ? .keepArranged : folder.mode
+    }
+
+    /// The Inspector's Index / Keep arranged choice (`source.onboard.keep-arranged`). Choosing
+    /// Keep arranged reads the dry run and changes nothing (the yes is `confirmKeepArranged`);
+    /// choosing Index drops a proposal, or keeps an arranged folder as Index (nothing moves).
+    @discardableResult
+    func choose(_ mode: Components.Schemas.SyncFolderStatus.ModePayload, for folderId: String) async -> Bool {
+        guard let folder = folders.first(where: { $0.id == folderId }) else { return false }
+        switch mode {
+        case .keepArranged:
+            guard folder.mode != .keepArranged else { return true }
+            return await proposeKeepArranged(folderId) != nil
+        case .index:
+            if proposedArrangements[folderId] != nil {
+                cancelKeepArranged(folderId)
+                return true
+            }
+            guard folder.mode != .index else { return true }
+            return await setMode(folderId, to: .index)
+        }
+    }
+
+    /// The person said no to the proposal: it goes, and nothing moved.
+    func cancelKeepArranged(_ folderId: String) {
+        proposedArrangements[folderId] = nil
+    }
+
+    /// The yes: keep the folder arranged (`PUT /api/sync-folders/{id}/mode`), which arranges it
+    /// now (one audited, undoable action listing every move) and from then on.
+    @discardableResult
+    func confirmKeepArranged(_ folderId: String) async -> Bool {
+        let kept = await setMode(folderId, to: .keepArranged)
+        if kept { proposedArrangements[folderId] = nil }
+        return kept
+    }
+
+    /// Keep a folder as Index or Keep arranged (`PUT /api/sync-folders/{id}/mode`); the folder's
+    /// entry is replaced in place by the status the engine returns. Switching to Keep arranged
+    /// goes through `proposeKeepArranged` first; this is its yes. A refusal (a folder that cannot
+    /// be written to) is the engine's sentence.
+    @discardableResult
+    func setMode(_ folderId: String, to mode: Components.Schemas.ModeRequest.ModePayload) async -> Bool {
+        errorMessage = nil
+        do {
+            switch try await client.api.putModeApiSyncFoldersFolderIdModePut(
+                path: .init(folderId: folderId), body: .json(.init(mode: mode))
+            ) {
+            case .ok(let success):
+                splice(try success.body.json)
+                return true
+            case .unprocessableContent:
+                errorMessage = "The engine would not change how this folder is kept."
+            case .undocumented(let code, let body):
+                errorMessage = await EngineErrorDetail.message(from: body)
+                    ?? "Could not change how this folder is kept (HTTP \(code))"
+            }
+        } catch {
+            if error.isCancellationError { return false }
+            errorMessage = await Self.engineWords(error)
+                ?? "Could not change how this folder is kept: \(error.localizedDescription)"
         }
         return false
     }

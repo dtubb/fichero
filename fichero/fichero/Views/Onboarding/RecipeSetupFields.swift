@@ -135,34 +135,22 @@ struct RecipePurposeFields: View {
 }
 
 /// How sources come in (ruled 2026-10-03 and 2026-10-05, `source.onboard.five-ways-in`): Link,
-/// Copy, Move or Index, each with what it does to the originals. Link is the default; Move says
-/// plainly that the originals go. Keep arranged is shown as not yet available: the engine has no
-/// arranging yet (#5480), so it is not offered as if it worked.
+/// Copy, Move, Index or Keep arranged, each with what it does to the originals. Link is the
+/// default; Move says plainly that the originals go. Keep arranged (#5480) imports as Index and,
+/// after its dry run and the person's yes, keeps the folder arranged.
 struct ProjectIntakeChoice: View {
     @Bindable var store: RecipeSetupStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("How do your sources come in?").font(.headline)
-            Picker("How do your sources come in?", selection: $store.ingestMode) {
-                option("Link", "Fichero reads the files where they are and never changes the originals.")
-                    .tag(IngestMode.link)
-                option("Copy", "Fichero makes its own copy in the project; the originals are never touched.")
-                    .tag(IngestMode.copy)
-                option("Move", "The files move into the project, stored in the app; "
-                       + "the originals are removed from where they were.")
-                    .tag(IngestMode.move)
-                option("Index", "Fichero works on the folder in place and writes its changes back "
-                       + "into the original files, keeping that folder up to date. For folders; "
-                       + "single files are linked.")
-                    .tag(IngestMode.index)
+            Picker("How do your sources come in?", selection: $store.wayIn) {
+                ForEach(SetupWayIn.allCases) { way in
+                    option(way.title, way.sentence).tag(way)
+                }
             }
             .setupRadioGroup()
             .labelsHidden()
-            option("Keep arranged (not available yet)",
-                   "As Index, and Fichero also keeps the files in the folder arranged.")
-                .foregroundStyle(.tertiary)
-                .padding(.leading, 20)
             if store.ingestMode == .move {
                 Label("Your original files will be removed from where they are now.",
                       systemImage: "exclamationmark.triangle")

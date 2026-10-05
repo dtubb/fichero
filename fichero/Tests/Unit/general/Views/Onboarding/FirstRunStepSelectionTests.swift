@@ -10,13 +10,13 @@ final class FirstRunStepSelectionTests: XCTestCase {
 
     /// The Mac runs the full flow, in declaration order. Setup is part of first run, not a
     /// second onboarding, in section 7b's order (ruled 2026-10-05): where it lives, your
-    /// material, (kept exported, #5485, not built yet), what it is for, what it is, each ticked
+    /// material, kept exported (#5485), what it is for, what it is, each ticked
     /// job, how it will be done, what runs by itself, Start. WHY: the files come before the
     /// purposes, so a person says where the project is and what is in it before what it is for.
     func testMacStepListIsTheFullFlowWithMaterialBeforePurpose() {
         XCTAssertEqual(
             FirstRunStep.steps(isCompanionPlatform: false),
-            [.welcome, .permissions, .cloud, .location, .material, .purpose, .about, .jobs, .recipe, .automatic, .start]
+            [.welcome, .permissions, .cloud, .location, .material, .keptExported, .purpose, .about, .jobs, .recipe, .automatic, .start]
         )
     }
 
@@ -26,7 +26,7 @@ final class FirstRunStepSelectionTests: XCTestCase {
     /// would be set up by different flows.
     func testSetUpStartsAtYourMaterialAndRunsTheFirstRunSteps() {
         XCTAssertEqual(FirstRunStep.setUpSteps.first, .material)
-        XCTAssertEqual(FirstRunStep.setUpSteps, [.material, .purpose, .about, .jobs, .recipe, .automatic, .start])
+        XCTAssertEqual(FirstRunStep.setUpSteps, [.material, .keptExported, .purpose, .about, .jobs, .recipe, .automatic, .start])
         XCTAssertEqual(FirstRunStep.newProjectSteps, [.location] + FirstRunStep.setUpSteps)
         let full = FirstRunStep.steps(isCompanionPlatform: false)
         XCTAssertEqual(Array(full.suffix(FirstRunStep.newProjectSteps.count)), FirstRunStep.newProjectSteps)

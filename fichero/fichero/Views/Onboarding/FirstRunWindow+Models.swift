@@ -19,7 +19,8 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
     // what runs by itself, then Start.
     case location
     case material
-    // #5485: Kept exported (screen 3) goes here, once the engine keeps exports current.
+    // Kept exported (#5485): optional; Continue with no rows skips it.
+    case keptExported
     case purpose
     case about
     case jobs
@@ -38,6 +39,7 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
         case .purpose: return "What It Is For"
         case .cloud: return "AI"
         case .material: return "Your Material"
+        case .keptExported: return "Kept Exported"
         case .about: return "What It Is"
         case .jobs: return "Each Job"
         case .recipe: return "How It Will Be Done"
@@ -54,6 +56,7 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
         case .purpose: return "target"
         case .cloud: return "brain"
         case .material: return "tray.and.arrow.down"
+        case .keptExported: return "square.and.arrow.up.on.square"
         case .about: return "character.book.closed"
         case .jobs: return "checklist"
         case .recipe: return "list.bullet.rectangle"
@@ -78,7 +81,7 @@ enum FirstRunStep: Int, CaseIterable, Identifiable {
 
     /// The steps Set Up… runs for an existing project: the project already lives somewhere, so
     /// it starts at screen 2, Your material (section 7b). One code path with first run.
-    static let setUpSteps: [FirstRunStep] = [.material, .purpose, .about, .jobs, .recipe, .automatic, .start]
+    static let setUpSteps: [FirstRunStep] = [.material, .keptExported, .purpose, .about, .jobs, .recipe, .automatic, .start]
 
     /// File › Set Up New Project…: Where it lives, then the same steps as Set Up….
     static let newProjectSteps: [FirstRunStep] = [.location] + setUpSteps

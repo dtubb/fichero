@@ -47,6 +47,18 @@ extension FirstRunWindow {
                     store: store, importer: project?.importService, syncFolders: project?.syncFolderStore
                 ) }
             }
+        case .keptExported:
+            stepPage(
+                title: "Kept exported",
+                subtitle: "Keep an up-to-date copy of the work in a folder outside the project. Optional; Continue skips it.",
+                systemImage: step.icon
+            ) {
+                recipeCard {
+                    if let keptExports = project?.keptExportStore {
+                        KeptExportFields(store: keptExports)
+                    }
+                }
+            }
         case .about:
             stepPage(
                 title: "What it is",

@@ -194,6 +194,10 @@ class LibraryManager {
         /// folder's Inspector shows its state, intake and Untie from here.
         @ObservationIgnored lazy var syncFolderStore = SyncFolderStore(client: ficheroClient)
 
+        /// This project's kept exports (#5485): setup's Kept exported screen keeps them, and the
+        /// project's Inspector lists them with Write Now and Remove.
+        @ObservationIgnored lazy var keptExportStore = KeptExportStore(client: ficheroClient)
+
         /// The models Fichero trained or fine-tuned, for this project's Training node (#5439).
         /// The engine's list (no card records a project), read through this library's client.
         @ObservationIgnored lazy var trainedModelsStore = TrainedModelsStore(client: ficheroClient)

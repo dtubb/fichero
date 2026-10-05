@@ -91,6 +91,22 @@ struct SyncedFolderSection: View {
                 .lineLimit(2)
                 .truncationMode(.middle)
             LabeledContent("Formats", value: summary.formats).font(.callout)
+            Picker("Kept as", selection: modeChoice) {
+                Text("Index").tag(Components.Schemas.SyncFolderStatus.ModePayload.index)
+                Text("Keep arranged").tag(Components.Schemas.SyncFolderStatus.ModePayload.keepArranged)
+            }
+            .pickerStyle(.segmented)
+            .disabled(busy)
+            .font(.callout)
+            .help("Index leaves files where they are; Keep arranged also moves them inside the folder to follow the project's folders")
+            if let proposal = store.proposedArrangements[folder.id] {
+                KeepArrangedProposalView(
+                    summary: KeepArrangedProposal(preview: proposal),
+                    busy: busy,
+                    arrange: { change { await store.confirmKeepArranged(folder.id) } },
+                    cancel: { store.cancelKeepArranged(folder.id) }
+                )
+            }
             ForEach(summary.notices, id: \.self) { notice in
                 Label(notice, systemImage: "exclamationmark.circle").font(.callout).foregroundStyle(.orange)
             }
@@ -122,12 +138,84 @@ struct SyncedFolderSection: View {
         }
     }
 
+    /// Index / Keep arranged: Keep arranged shows its dry run first and moves nothing until
+    /// Arrange (`SyncFolderStore.choose`).
+    private var modeChoice: Binding<Components.Schemas.SyncFolderStatus.ModePayload> {
+        Binding(
+            get: { store.shownMode(of: folder) },
+            set: { chosen in change { await store.choose(chosen, for: folder.id) } }
+        )
+    }
+
     private func change(_ work: @escaping () async -> Bool) {
         busy = true
         Task {
             _ = await work()
             busy = false
         }
+    }
+}
+
+/// What the Keep arranged dry run says, from the engine's preview, so the words are testable
+/// without a rendered view (`source.onboard.keep-arranged`): how many files would move, a few of
+/// the new paths, or why the folder would not be arranged.
+struct KeepArrangedProposal: Equatable {
+    /// One sentence: the count that would move, or the engine's refusal.
+    let headline: String
+    /// Up to three moves, "from → to", inside the folder.
+    let samples: [String]
+    /// Arrange is offered only when the engine would arrange the folder.
+    let canArrange: Bool
+
+    static let sampleCount = 3
+
+    init(preview: Components.Schemas.ArrangementPreview) {
+        if let refused = preview.refused, !refused.isEmpty {
+            headline = refused
+            samples = []
+            canArrange = false
+            return
+        }
+        let count = preview.moves.count
+        switch count {
+        case 0: headline = "Nothing needs to move now. From now on, files follow the project's folders."
+        case 1: headline = "1 file would move, inside this folder, to follow the project's folders."
+        default: headline = "\(count) files would move, inside this folder, to follow the project's folders."
+        }
+        samples = preview.moves.prefix(Self.sampleCount).map { "\($0.fromPath) → \($0.toPath)" }
+        canArrange = true
+    }
+}
+
+/// The dry run and the yes: nothing moves until Arrange (`source.onboard.keep-arranged`).
+struct KeepArrangedProposalView: View {
+    let summary: KeepArrangedProposal
+    let busy: Bool
+    let arrange: () -> Void
+    let cancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(summary.headline).font(.callout)
+            ForEach(summary.samples, id: \.self) { sample in
+                Text(sample)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            HStack {
+                Button("Cancel", action: cancel).disabled(busy)
+                if summary.canArrange {
+                    Button("Arrange", action: arrange)
+                        .disabled(busy)
+                        .help("Move the files now, only inside this folder; none is deleted")
+                }
+            }
+            .controlSize(.small)
+        }
+        .padding(8)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
     }
 }
 
@@ -174,4 +262,18 @@ struct FolderSyncInspectorSection: View {
     return SyncedFolderSection(store: store, folder: folder)
         .padding()
         .frame(width: 320)
+}
+
+#Preview("Keep arranged, dry run") {
+    KeepArrangedProposalView(
+        summary: KeepArrangedProposal(preview: .init(mode: .index, moves: [
+            .init(documentId: "d1", fromPath: "IMG_0001.jpg", toPath: "Letters/1851/IMG_0001.jpg"),
+            .init(documentId: "d2", fromPath: "IMG_0002.jpg", toPath: "Letters/1851/IMG_0002.jpg"),
+            .init(documentId: "d3", fromPath: "scan 3.tif", toPath: "Maps/scan 3.tif"),
+            .init(documentId: "d4", fromPath: "scan 4.tif", toPath: "Maps/scan 4.tif")
+        ])),
+        busy: false, arrange: {}, cancel: {}
+    )
+    .padding()
+    .frame(width: 320)
 }
