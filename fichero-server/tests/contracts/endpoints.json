@@ -8471,6 +8471,16 @@
         "response_model": "ProjectSetup"
       },
       {
+        "method": "POST",
+        "path": "/recipes/project/layers",
+        "operation_id": "change_project_layers_api_recipes_project_layers_post",
+        "summary": "Change Project Layers",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "LayerChangeRequest",
+        "response_model": "StartPlan"
+      },
+      {
         "method": "GET",
         "path": "/recipes/project/runs",
         "operation_id": "recipe_runs_api_recipes_project_runs_get",

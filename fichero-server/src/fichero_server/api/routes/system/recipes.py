@@ -95,6 +95,8 @@ class AssembleRequest(BaseModel):
     pages: int = Field(default=0, ge=0, description="roughly how many pages")
     cloud_allowed: bool = False
     mac_memory_gb: Optional[float] = Field(default=None, description="defaults to this machine's memory")
+    layers: list[str] = Field(default_factory=list, description="layers added beyond the purpose's "
+                              "(source.onboard.add-layer)")
 
 
 class RecipeCard(BaseModel):
@@ -332,17 +334,22 @@ async def search_scripts(q: str = "", limit: int = 20) -> NamedCodeList:
     return NamedCodeList(items=items, count=len(items))
 
 
+def _assemble(answers: dict[str, Any]) -> dict[str, Any]:
+    """The rules' recipe for setup's answers (as sent to `/assemble`, or as saved on the project)."""
+    return assemble(Answers(
+        purpose=answers.get("purpose") or "not-sure", languages=frozenset(answers.get("languages") or ()),
+        scripts=frozenset(answers.get("scripts") or ()), material=answers.get("material") or "handwriting",
+        pages=answers.get("pages") or 0, cloud_allowed=bool(answers.get("cloud_allowed")),
+        mac_memory_gb=answers.get("mac_memory_gb") or _this_machine_memory_gb(),
+        layers=frozenset(answers.get("layers") or ()),
+    ), list(seed_cards()))
+
+
 @router.post("/assemble", response_model=AssembledRecipe)
 async def assemble_recipe(request: AssembleRequest) -> AssembledRecipe:
     """The recipe the rules give for these answers, each choice with its reasons and each gap named
     (`source.onboard.deterministic-recipe`). Proposes; writes nothing."""
-    answers = Answers(
-        purpose=request.purpose, languages=frozenset(request.languages),
-        scripts=frozenset(request.scripts), material=request.material, pages=request.pages,
-        cloud_allowed=request.cloud_allowed,
-        mac_memory_gb=request.mac_memory_gb or _this_machine_memory_gb(),
-    )
-    recipe = assemble(answers, list(seed_cards()))
+    recipe = _assemble(request.model_dump())
     problems = [] if recipe["gaps"] else check_recipe(recipe)
     return AssembledRecipe(
         fichero_recipe=recipe["fichero_recipe"], version=recipe["version"], suits=recipe["suits"],
@@ -500,6 +507,23 @@ class StartDownload(BaseModel):
     params: dict[str, Any]
 
 
+class ProposedStep(BaseModel):
+    step: str
+    job: Optional[str] = None
+    layer: Optional[str] = None
+    topic: Optional[str] = Field(default=None, description="the topic registry id that explains it (GET /api/topics/{id})")
+    title: str
+    explanation: str = Field(description="its topic's text: what it does and why")
+
+
+class ProposedJobs(BaseModel):
+    """What an added layer proposes for the material already in the project; nothing runs before Start."""
+
+    layers: list[str]
+    steps: list[ProposedStep]
+    proposed_at: Optional[str] = None
+
+
 class StartPlan(BaseModel):
     """What pressing Start would run, on how many pages, and every reason it cannot yet."""
 
@@ -513,19 +537,32 @@ class StartPlan(BaseModel):
         "models the steps are pinned to that are not on this Mac, each offered as a download "
         "(source.recipe.missing-model-offered)"))
     estimate: StartEstimate
+    proposed: Optional[ProposedJobs] = Field(default=None, description=(
+        "jobs proposed for the material already in the project by a layer added later; once the project has "
+        "started, the plan is these alone (source.onboard.add-layer)"))
+    addable: list[str] = Field(default_factory=list, description=(
+        "layers this project can add now: the addable ones less those it has and those its purpose brings "
+        "(source.onboard.add-layer)"))
 
 
 def _start_plan(db: Database) -> dict[str, Any]:
-    from fichero_server.recipes.project import read_start
+    from fichero_server.recipes.layers import addable_now, explain
+    from fichero_server.recipes.project import read_proposed, read_start
     from fichero_server.recipes.start import count_pages, estimate, plan_start
 
     library = _library(db)
     setup = read_project_setup(library)
+    started, proposal = read_start(library), read_proposed(library)
     # A project keeps its pages on this Mac unless setup's answer said otherwise.
     stays_local = not (setup["answers"] or {}).get("cloud_allowed", False)
-    plan = plan_start(setup["recipe"], stays_local=stays_local)
+    # Before the first yes Start runs the whole recipe, the added layer with it; after it, only what an
+    # added layer proposes for the material already there.
+    only = set(proposal["steps"]) if started and proposal else None
+    plan = plan_start(setup["recipe"], stays_local=stays_local, only=only)
     plan["estimate"] = estimate(plan["workflows"], count_pages(db))
-    plan["started"] = read_start(library)
+    plan["started"] = started
+    plan["proposed"] = explain(setup["recipe"], proposal)
+    plan["addable"] = addable_now(setup["answers"] or {})
     from fichero_server.recipes.done import annotate
 
     annotate(db, plan)
@@ -600,9 +637,75 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             "pages": plan["estimate"]["pages"],
             "job_id": runner.enqueue(db, plan, documents=None, started_by=ctx.actor or "owner", redo=params.redo),
         }
+        # Start runs what an added layer proposed (source.onboard.add-layer): the proposal is done with.
+        from fichero_server.recipes.project import write_proposed
+
+        write_proposed(library, None)
     write_start(library, record)
     return {"started": record}, ChangeSpec(domains=["project"], target_ids=[], before={"started": before},
                                            after={"started": record}, emit_type="project.started")
+
+
+# =============================================================================
+# Adding a layer (or a language) later (#5470). `source.onboard.add-layer`.
+# =============================================================================
+
+
+class LayerChangeRequest(BaseModel):
+    """Layers and languages to add to the project (or, with `remove`, to take out)."""
+
+    model_config = ConfigDict(extra="forbid")
+    layers: list[str] = Field(default_factory=list, description="layers to add, e.g. entities, graph, places, vectors")
+    languages: list[str] = Field(default_factory=list, description="BCP 47 language tags to add")
+    remove: bool = Field(default=False, description="take these out; a layer removed before Start withdraws its "
+                         "proposed jobs")
+
+
+class LayerChangeParams(LayerChangeRequest):
+    restore: Optional[dict[str, Any]] = Field(default=None, description="undo: the answers, recipe and proposal "
+                                              "to put back")
+
+
+@router.post("/project/layers", response_model=StartPlan)
+async def change_project_layers(
+    request: LayerChangeRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> StartPlan:
+    """Add a layer (or a language) to the project's recipe (audited, undoable). The layer's steps join the
+    recipe and are proposed for the material already in the project: the Start plan returned shows those
+    jobs with the estimate, each explained by its topic, and nothing runs until the person presses Start.
+    `remove` takes a layer out again and withdraws its proposed jobs. Refused with 422, in words, for a
+    project not set up, an unknown layer, or one it already has."""
+    try:
+        registry.invoke(db, "project.add_layer", request.model_dump(mode="json"), ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return StartPlan(**_start_plan(db))
+
+
+def _invert_add_layer(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("project.add_layer", {"restore": before or {}})
+
+
+@action("project.add_layer", LayerChangeParams, domains=["project"], undoable=True, invert=_invert_add_layer)
+def _action_add_layer(db: Database, params: LayerChangeParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.core.timeutil import utc_now_iso
+    from fichero_server.recipes.layers import change
+    from fichero_server.recipes.project import read_proposed, write_proposed
+
+    library = _library(db)
+    before = {**read_project_setup(library), "proposed": read_proposed(library)}
+    if params.restore is not None:
+        after = {"answers": params.restore.get("answers"), "recipe": params.restore.get("recipe"),
+                 "proposed": params.restore.get("proposed")}
+    else:
+        after = change(before, before["proposed"], layers=params.layers, languages=params.languages,
+                       remove=params.remove, assemble=_assemble, now=utc_now_iso(timespec="seconds"))
+    write_project_setup(library, after["answers"], after["recipe"])
+    write_proposed(library, after["proposed"])
+    return after, ChangeSpec(domains=["project"], target_ids=[], before=before, after=after,
+                             emit_type="project.layer_added")
 
 
 class RecipeRunStep(BaseModel):

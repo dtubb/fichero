@@ -53,6 +53,27 @@ TRAIN_OFFERED_FROM_PAGES = 5_000
 MEMORY_HEADROOM_GB = 2.0
 
 
+#: The jobs the rules assemble, in the order a recipe runs them; a layer added later turns on its
+#: jobs from this list (`source.onboard.add-layer`). Every purpose's steps are in this order.
+STEP_ORDER: tuple[str, ...] = ("find-lines", "read-a-line", "correct", "find-names-tag-words", "work-out-dates",
+                               "find-statements", "place-in-a-gazetteer", "make-a-vector")
+assert all(list(s) == sorted(s, key=STEP_ORDER.index) for s in PURPOSE_STEPS.values())
+
+
+def layer_jobs(layer: str) -> tuple[str, ...]:
+    """The jobs a layer turns on, in order: the assembled jobs whose registry entry names that layer."""
+    from fichero_server.recipes.jobs import get_job
+
+    return tuple(j for j in STEP_ORDER if (job := get_job(j)) is not None and job.layer == layer)
+
+
+def addable_layers() -> list[str]:
+    """The layers a project can add later: those the rules can assemble a step for."""
+    from fichero_server.recipes.jobs import get_job
+
+    return list(dict.fromkeys(get_job(j).layer for j in STEP_ORDER))
+
+
 @dataclass(frozen=True)
 class Card:
     """The facts on a model card that the rules read (`source.model.*`)."""
@@ -90,6 +111,8 @@ class Answers:
     pages: int = 0
     cloud_allowed: bool = False
     mac_memory_gb: float = 16.0
+    #: Layers the person added beyond the purpose's (`source.onboard.add-layer`).
+    layers: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -175,6 +198,8 @@ def _choose(job: str, cards: list[Card], a: Answers) -> Choice:
 def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
     """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps."""
     jobs = list(PURPOSE_STEPS.get(a.purpose, ()))
+    added = {j for layer in a.layers for j in layer_jobs(layer)}
+    jobs = sorted(set(jobs) | added, key=STEP_ORDER.index)
     if a.pages >= TRAIN_OFFERED_FROM_PAGES and jobs:
         jobs.append("train-a-model")
     steps, notes = [], []

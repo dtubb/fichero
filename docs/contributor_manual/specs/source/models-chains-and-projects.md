@@ -1566,15 +1566,37 @@ Purposes and layers
 - `source.onboard.tools-not-automation` — **[PARTIAL]** (#4951; built: nothing runs at import on a tools purpose; offering its tools first is the app's) on a "tools" purpose (edit, decipher,
   train, not sure), nothing runs at import that the person did not ask for, and that purpose's
   tools are offered first.
-- `source.onboard.add-layer` — **[PARTIAL]** (#4951) **Built 2026-10-04 (app):** the language half:
+- `source.onboard.add-layer` — **[PARTIAL]** (#4951, #5470) **Built 2026-10-04 (app):** the language half:
   the Inspector's Recipe section has a Languages field (search as in setup); adding or removing a
   language re-proposes the recipe from the new answers and saves both on the project, starting
   nothing (`RecipeSetupStore.updateLanguages`, `InspectorProjectLanguages`; `fichero/Tests/Unit/general/Models/RecipeSetupFlowTests.swift`). *Default taken
   2026-10-04 (design lead), awaiting the maintainer's ruling:* a language added later changes the
   recipe for material from then on; re-reading what is already there stays Start's or a run's.
-  Engine needed (stopped, owned by the engine worker): adding a layer has no route: `POST
-  /api/recipes/assemble` takes no added layers, and nothing runs one layer's steps over what is
-  already in the project as one job. a layer or a language can be added later from the
+  **Built 2026-10-05 (engine, #5470):** `POST /api/recipes/project/layers` (action
+  `project.add_layer`, audited and undoable; `recipes/layers.py`) adds a layer or a language: the
+  layer joins `answers.layers` and its steps join the recipe beside the ones it has (a model the
+  person chose stays; `POST /api/recipes/assemble` takes the same `layers`); its steps are proposed
+  for the material already there (`recipe/proposed.yaml`), and the Start plan shows them
+  (`proposed`, each step explained by its topic) with the plan's estimate (pages, where it runs,
+  cost); nothing runs until Start, which runs them as one `run-a-recipe` job over all the material
+  and clears the proposal; undo, or `remove` before Start, takes the layer and its proposed jobs
+  away; pinned by `fichero-server/tests/unit/api/test_add_a_layer_later.py`. *Default taken
+  2026-10-05 (design lead), awaiting the maintainer's ruling:* the layers a project can add are the
+  ones the rules assemble a step for (lines, reading, entities, graph, places, vectors); a layer the
+  purpose already has, or one removed that the purpose brings, is refused in words; before the first
+  yes the added layer simply runs with the whole recipe at Start; a language added through this
+  route proposes the recipe again and proposes nothing for what is already there (as the 2026-10-04
+  default). **Built 2026-10-05 (app, #5470):** the Inspector's Recipe section (and the project's
+  own Inspector) has Add a Layer… offering the layers the Start plan names as `addable` (the app
+  works out none); adding one shows the jobs proposed for the pages already there, each with its
+  topic's words, and the estimate (pages, cost); Start is setup's Start; Remove withdraws them; a
+  refusal shows the engine's sentence. Every save from setup or the Inspector keeps
+  `answers.layers` (and any other answer the engine wrote), and a recipe proposed again asks for the
+  added layers too (`RecipeSetupStore.changeLayer`, `InspectorProjectLayers`;
+  `fichero/Tests/Unit/general/Models/RecipeAddLayerTests.swift`, over responses recorded from the
+  engine's routes in `fichero/Tests/Fixtures/recipes/`). Not built: the plan's time and carbon (as
+  `estimate-before-start`).
+  a layer or a language can be added later from the
   library's Inspector; an added layer turns on the recipe's steps of that layer and runs them over
   everything already in the project, as one job.
 - `source.recipe.steps-name-layers` — **[GAP]** (#4950) every step names a layer; the resolved
