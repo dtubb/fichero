@@ -67,6 +67,8 @@ ALLOWLIST: frozenset[str] = frozenset(
         "api/change_stream.py",
         # Backup / restore handles raw connections to snapshot the .duckdb file.
         "db/storage_snapshots.py",
+        # The owner's allowances across restarts (#5464, #5484): opened packages, picked folders.
+        "db/owner_grants.py",
         # Workflow-subsystem persistence stores (each is the DB layer for its
         # own concern: checkpointing, scheduling, caching, activity, tasks,
         # and actions). Consolidating these behind db.py is future work (#1876).
@@ -78,6 +80,8 @@ ALLOWLIST: frozenset[str] = frozenset(
         # The synced folders' own store (#4952): which folders a project is tied to, and the
         # checksum of every file Fichero wrote there.
         "sync_folder.py",
+        # The kept exports' own store (#5485): which exports a project keeps, and every file each wrote.
+        "kept_export.py",
         "workflows/action_store.py",
         "workflows/cache.py",
         "workflows/checkpointer.py",

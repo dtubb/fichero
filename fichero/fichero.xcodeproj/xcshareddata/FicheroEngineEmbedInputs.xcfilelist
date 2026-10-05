@@ -234,6 +234,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/db/migrations/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/migrations/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/migrations/schema.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/node_levels.py
+$(SRCROOT)/../fichero-server/src/fichero_server/db/owner_grants.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/paths.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/storage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/storage_snapshots.py

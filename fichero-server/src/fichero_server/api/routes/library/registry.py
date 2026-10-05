@@ -28,6 +28,7 @@ import threading
 from collections import defaultdict
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
+from fichero_server.db import owner_grants
 from pathlib import Path
 from urllib.parse import unquote
 from uuid import uuid4
@@ -899,10 +900,7 @@ _OWNER_OPENED_LOAD_LOCK = threading.Lock()
 
 def _persist_owner_opened_package(db: Database, stored_path: str) -> None:
     try:
-        db.execute(
-            "INSERT INTO owner_opened_packages (path, opened_at) VALUES (?, ?) ON CONFLICT (path) DO NOTHING",
-            [stored_path, utc_now()],
-        )
+        owner_grants.add_opened_package(db, stored_path)
     except Exception as exc:  # still allowed for this process; just not after a restart
         logger.warning("Could not persist owner-opened package %s: %s", stored_path, exc)
 
@@ -915,7 +913,7 @@ def load_owner_opened_packages(db: Database) -> int:
     or the exact-path check here; a package no longer in the registry is skipped too.
     """
     noted = 0
-    for (stored_path,) in db.execute_fetchall("SELECT path FROM owner_opened_packages"):
+    for stored_path in owner_grants.opened_packages(db):
         if not db.query(KnownLibrary, path=stored_path):
             continue
         try:
@@ -959,10 +957,7 @@ def ensure_owner_opened_packages_loaded() -> None:
 def persist_owner_granted_folder(db: Database, key: str) -> None:
     """Remember one folder the owner picked (``key`` is its resolved path)."""
     try:
-        db.execute(
-            "INSERT INTO owner_granted_folders (path, granted_at) VALUES (?, ?) ON CONFLICT (path) DO NOTHING",
-            [key, utc_now()],
-        )
+        owner_grants.add_granted_folder(db, key)
     except Exception as exc:  # still allowed for this process; just not after a restart
         logger.warning("Could not persist owner-granted folder %s: %s", key, exc)
 
@@ -974,7 +969,7 @@ def load_owner_granted_folders(db: Database) -> int:
     rule now refuses is skipped.
     """
     noted = 0
-    for (stored_path,) in db.execute_fetchall("SELECT path FROM owner_granted_folders"):
+    for stored_path in owner_grants.granted_folders(db):
         try:
             if owner_folder_grant_key(stored_path) != stored_path:
                 continue  # it now resolves elsewhere (moved, or a symlink planted in its place)
@@ -1211,7 +1206,7 @@ def remove_known_library(
         if _caller_is_engine_owner(request):
             # Withdraw the persisted allowance too, so a restart does not bring it back. (Any
             # caller's removal of the registry row also withdraws it: loading needs both rows.)
-            db.execute("DELETE FROM owner_opened_packages WHERE path = ?", [stored_path])
+            owner_grants.remove_opened_package(db, stored_path)
         db_manager.close_database(stored_path)
         existing = db.query(KnownLibrary, path=stored_path)
         if not existing:

@@ -21,6 +21,7 @@ import time
 from pathlib import Path
 
 import pytest
+from _scan_files import scan_rglob
 
 import fichero_server.api.routes.ingest  # noqa: F401  (registers import.folder)
 from fichero_server.actions.registry import ActionContext, registry
@@ -53,7 +54,7 @@ def _wait_for(predicate, seconds=60.0):
 
 
 def _files(folder: Path) -> list[str]:
-    return sorted(p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file())
+    return sorted(p.relative_to(folder).as_posix() for p in scan_rglob(folder) if p.is_file())
 
 
 def _doc(db, name):
