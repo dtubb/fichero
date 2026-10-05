@@ -190,6 +190,10 @@ class LibraryManager {
         /// all use it.
         @ObservationIgnored lazy var recipeSetupStore = RecipeSetupStore(client: ficheroClient, topics: topicStore)
 
+        /// This project's bake-off (#4951, Check on your pages): started in setup or the project
+        /// Inspector, it runs as a job in Activity and is read back from here by both.
+        @ObservationIgnored lazy var bakeoffStore = BakeoffStore(client: ficheroClient)
+
         /// This project's synced folders (#5480, #4952): setup's Index ties a folder here, and a
         /// folder's Inspector shows its state, intake and Untie from here.
         @ObservationIgnored lazy var syncFolderStore = SyncFolderStore(client: ficheroClient)

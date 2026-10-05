@@ -90,7 +90,8 @@ extension FirstRunWindow {
                 systemImage: step.icon
             ) {
                 recipeCard {
-                    RecipeProposalFields(store: store, onFix: { fix in handle(fix: fix, store: store) })
+                    RecipeProposalFields(store: store, onFix: { fix in handle(fix: fix, store: store) },
+                                         bakeoff: project.map(BakeoffSection.Context.init(project:)))
                 }
             }
         }

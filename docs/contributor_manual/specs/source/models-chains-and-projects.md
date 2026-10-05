@@ -2236,11 +2236,20 @@ Trying another option
   recipe for the project or a folder through `project.save_setup` (audited, undoable). Routes
   `/api/recipes/project/bakeoffs` (start, list, result, `/use`), CLI and MCP generated. Pinned by
   `fichero-server/tests/unit/recipes/test_bakeoff_readers.py` and
-  `fichero-server/tests/unit/training/test_evaluation_job.py`. *Not built: combinations across steps (find
+  `fichero-server/tests/unit/training/test_evaluation_job.py`. **Built 2026-10-05 (app, not yet seen):**
+  Check on your pages, under the reading step on setup's How it will be done screen and in the project
+  Inspector's Recipe section (`BakeoffSection` in `RecipeStepsView`, `BakeoffStore` per project): one
+  button; the engine's refusal sentence once, with no button, below the threshold; progress from the
+  Activity store while the job runs (setup can be left); the table in the engine's order (reader, error
+  rate, this Mac or cloud, speed, cost for all pages, why not scored); Use This for this project or a
+  folder, updating the reading step in place and keeping the override through later saves. Pinned by
+  `fichero/Tests/Unit/general/Models/BakeoffStoreTests.swift`. *Not built: combinations across steps (find
   lines then read; at most nine); other steps than reading; per-line confirmations inside a model's pass
   as ground truth; WER (the one function gives CER only); per hand and page kind (per page only); a cloud
   candidate scored (the evaluation job has no remote target yet: it is priced, not scored); Start honouring
-  a folder override; setup's Check on your pages screen in the app.* setup's bake-off is Try Another
+  a folder override; the card's own name on a bake-off row (the engine's row carries only the card id, so
+  the app names a reader not in the recipe by its kind and rule place); setup proposing the recipe again
+  re-applying a Use This (assemble ignores the recipe's overrides).* setup's bake-off is Try Another
   Option… run on the sample ground-truth pages over the rule-proposed combinations; there is one
   comparison code path.
 

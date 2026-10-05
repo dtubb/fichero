@@ -13,6 +13,8 @@ struct RecipeStepsView: View {
     let recipe: Components.Schemas.AssembledRecipe
     /// A problem's fix button was pressed; nil in the Inspector, which shows the reason instead.
     var onFix: ((String) -> Void)?
+    /// Check on your pages, shown under the reading step (#4951); nil where there is no project.
+    var bakeoff: BakeoffSection.Context?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -25,6 +27,9 @@ struct RecipeStepsView: View {
                 RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil),
                               explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,
                               onFix: onFix)
+                if step.job == BakeoffStore.step, let bakeoff {
+                    BakeoffSection(context: bakeoff, setup: store)
+                }
             }
             // The recipe's own check, in the rules' words: the Inspector only.
             if onFix == nil {
