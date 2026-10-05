@@ -100,7 +100,7 @@ extension ImportService {
             if statusCode == 403, let body = payload.body,
                let data = try? await Data(collecting: body, upTo: 64 * 1024),
                let refusal = ImportServiceError.refusal(fromBody: data, path: url.path) {
-                if case .outsideAllowedLocations(let path) = refusal { DropAccessRefusal.shared.path = path }
+                if case .outsideAllowedLocations(let path, _) = refusal { DropAccessRefusal.shared.path = path }
                 throw refusal
             }
             throw ImportServiceError.unexpectedResponse(statusCode)

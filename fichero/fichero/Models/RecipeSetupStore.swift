@@ -324,13 +324,9 @@ extension RecipeSetupStore {
     /// (`source.onboard.widget-and-search`). A languoid with no BCP 47 tag is added as a private-use
     /// tag carrying its glottocode, so nothing a person picks is lost.
     func searchLanguages(_ query: String) async -> [CodeChoice] {
-        await searchLanguages(query, limit: 8)
-    }
-
-    private func searchLanguages(_ query: String, limit: Int) async -> [CodeChoice] {
         do {
             guard case .ok(let ok) = try await client.api.searchLanguagesApiRecipesLanguagesGet(
-                query: .init(q: query, limit: limit)) else { return [] }
+                query: .init(q: query, limit: 8)) else { return [] }
             return try ok.body.json.items.map { match in
                 let code = match.code ?? match.glottocode.map { "und-x-\($0)" } ?? match.name
                 let detail = [match.language.map { "dialect of \($0)" }, match.glottocode.map { "Glottolog \($0)" }]
@@ -345,13 +341,9 @@ extension RecipeSetupStore {
 
     /// Search every ISO 15924 script.
     func searchScripts(_ query: String) async -> [CodeChoice] {
-        await searchScripts(query, limit: 8)
-    }
-
-    private func searchScripts(_ query: String, limit: Int) async -> [CodeChoice] {
         do {
             guard case .ok(let ok) = try await client.api.searchScriptsApiRecipesScriptsGet(
-                query: .init(q: query, limit: limit)) else { return [] }
+                query: .init(q: query, limit: 8)) else { return [] }
             return try ok.body.json.items.map { CodeChoice(code: $0.code, name: $0.name, detail: nil) }
         } catch {
             if !error.isCancellationError { errorMessage = "Could not search scripts: \(error.localizedDescription)" }
@@ -359,14 +351,19 @@ extension RecipeSetupStore {
         }
     }
 
-    /// Browse by first letter: the registry's names that begin with it, for a person who knows
-    /// neither the name's spelling nor the code. The engine has no family listing yet.
-    func browseLanguages(_ letter: String) async -> [CodeChoice] {
-        await searchLanguages(letter, limit: 100).filter { $0.name.lowercased().hasPrefix(letter.lowercased()) }
-    }
+    /// What a match in the dropdown puts in the field when picked: its name and its tag, so two
+    /// matches with one name (a language and its dialect) stay apart, and the pick is found again
+    /// by `pick(_:among:toScripts:)`. Type-to-find only (ruled 2026-10-05): no browse list.
+    static func completion(for choice: CodeChoice) -> String { "\(choice.name) (\(choice.code))" }
 
-    func browseScripts(_ letter: String) async -> [CodeChoice] {
-        await searchScripts(letter, limit: 100).filter { $0.name.lowercased().hasPrefix(letter.lowercased()) }
+    /// The field's text after a change: when it is a match's completion (the person picked it in
+    /// the dropdown), that match becomes a token, by its tag, and true is returned so the field
+    /// clears. Anything else is still being typed.
+    @discardableResult
+    func pick(_ text: String, among matches: [CodeChoice], toScripts: Bool) -> Bool {
+        guard let choice = matches.first(where: { Self.completion(for: $0) == text }) else { return false }
+        add(choice, toScripts: toScripts)
+        return true
     }
 
     /// Add a chosen language or script as a token, by its tag or code, keeping its name.

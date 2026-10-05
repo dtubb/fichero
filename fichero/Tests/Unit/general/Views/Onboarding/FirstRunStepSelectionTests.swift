@@ -9,22 +9,24 @@ final class FirstRunStepSelectionTests: XCTestCase {
     // MARK: - Step selection
 
     /// The Mac runs the full flow, in declaration order. Setup is part of first run, not a
-    /// second onboarding, in section 7b's order (ruled 2026-10-05): where it lives, what it is
-    /// for, your material, what it is, each ticked job, how it will be done, what runs by
-    /// itself, Start.
-    func testMacStepListIsTheFullFlow() {
+    /// second onboarding, in section 7b's order (ruled 2026-10-05): where it lives, your
+    /// material, (kept exported, #5485, not built yet), what it is for, what it is, each ticked
+    /// job, how it will be done, what runs by itself, Start. WHY: the files come before the
+    /// purposes, so a person says where the project is and what is in it before what it is for.
+    func testMacStepListIsTheFullFlowWithMaterialBeforePurpose() {
         XCTAssertEqual(
             FirstRunStep.steps(isCompanionPlatform: false),
-            [.welcome, .permissions, .cloud, .location, .purpose, .material, .about, .jobs, .recipe, .automatic, .start]
+            [.welcome, .permissions, .cloud, .location, .material, .purpose, .about, .jobs, .recipe, .automatic, .start]
         )
     }
 
     /// Set Up… from a project runs the same setup steps as first run (one code path), starting
-    /// at What it is for (the project already lives somewhere); Set Up New Project… adds Where
-    /// it lives before them. If either drifted, a new project and an existing one would be set
-    /// up by different flows.
-    func testSetUpRunsTheFirstRunRecipeSteps() {
-        XCTAssertEqual(FirstRunStep.setUpSteps, [.purpose, .material, .about, .jobs, .recipe, .automatic, .start])
+    /// at screen 2, Your material (the project already lives somewhere); Set Up New Project…
+    /// adds Where it lives before them. If either drifted, a new project and an existing one
+    /// would be set up by different flows.
+    func testSetUpStartsAtYourMaterialAndRunsTheFirstRunSteps() {
+        XCTAssertEqual(FirstRunStep.setUpSteps.first, .material)
+        XCTAssertEqual(FirstRunStep.setUpSteps, [.material, .purpose, .about, .jobs, .recipe, .automatic, .start])
         XCTAssertEqual(FirstRunStep.newProjectSteps, [.location] + FirstRunStep.setUpSteps)
         let full = FirstRunStep.steps(isCompanionPlatform: false)
         XCTAssertEqual(Array(full.suffix(FirstRunStep.newProjectSteps.count)), FirstRunStep.newProjectSteps)

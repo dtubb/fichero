@@ -191,6 +191,72 @@ struct SetupRoundTwoTests {
         #expect(answers["languages"] as? [String] == ["es"])
     }
 
+    // MARK: source.onboard.widget-and-search: type-to-find only (#5479, ruled 2026-10-05)
+
+    /// WHY (ruled 2026-10-05: languages and scripts are type-to-find only, no Browse… and no
+    /// alphabetical list): typing shows the registry's matches in a dropdown under the field, and
+    /// picking one makes a token that SHOWS the name and SAVES the tag. Spanish and Spanish Sign
+    /// Language arrive together, and a language and its dialect can share a name, so a pick must
+    /// become exactly the match picked; several picks make several tokens; × takes one away; and
+    /// the save sends tags only. If a pick kept the typed text or the wrong match, the rules would
+    /// refuse every reader again (#5479).
+    @Test("a language picked from the dropdown becomes its token by tag; several; × removes one")
+    func aPickFromTheDropdownBecomesATokenByTag() async throws {
+        let store = makeStore { request in
+            let query = request.url?.query ?? ""
+            if request.url?.path == "/api/recipes/languages", query.contains("q=span") {
+                return (200, """
+                {"count":2,"items":[
+                 {"code":"es","name":"Spanish","glottocode":"stan1288","level":"language"},
+                 {"code":"ssp","name":"Spanish Sign Language","glottocode":"span1263","level":"language"}]}
+                """)
+            }
+            if request.url?.path == "/api/recipes/languages", query.contains("q=lat") {
+                return (200, #"{"count":1,"items":[{"code":"la","name":"Latin","glottocode":"lati1261","level":"language"}]}"#)
+            }
+            return (200, #"{"answers":{},"recipe":null}"#)
+        }
+
+        let spanMatches = await store.searchLanguages("span")
+        #expect(spanMatches.map(\.code) == ["es", "ssp"], "typing asks the engine's registry, which answers by tag")
+        #expect(!store.pick("span", among: spanMatches, toScripts: false), "a word still being typed is not a pick")
+        #expect(store.languages.isEmpty)
+
+        let spanish = try #require(spanMatches.first)
+        #expect(store.pick(RecipeSetupStore.completion(for: spanish), among: spanMatches, toScripts: false))
+        let latin = try #require(await store.searchLanguages("lat").first)
+        #expect(store.pick(RecipeSetupStore.completion(for: latin), among: [latin], toScripts: false))
+
+        #expect(store.languages == ["es", "la"], "several tokens, each by its tag, in the order picked")
+        #expect(store.name(of: "es") == "Spanish" && store.name(of: "la") == "Latin", "each token shows its name")
+
+        store.remove("es", fromScripts: false)
+        #expect(store.languages == ["la"], "× removes that token and only it")
+
+        #expect(await store.save())
+        let answers = try #require(RoundTwoURLProtocol.bodies["PUT /api/recipes/project"]?["answers"] as? [String: Any])
+        #expect(answers["languages"] as? [String] == ["la"], "the save sends tags, never names")
+    }
+
+    /// WHY: scripts are found the same way (ISO 15924), and what is kept is the CODE (`Latn`),
+    /// shown by its name. Two scripts can share a word in their names ("Latin" and "Latin
+    /// (Fraktur variant)"), so the pick must be the match picked, not the first one listed.
+    @Test("a script picked from the dropdown is saved by its code, the one picked")
+    func aScriptPickIsSavedByItsCode() async throws {
+        let store = makeStore { request in
+            if request.url?.path == "/api/recipes/scripts" {
+                return (200, #"{"count":2,"items":[{"code":"Latn","name":"Latin"},{"code":"Latf","name":"Latin (Fraktur variant)"}]}"#)
+            }
+            return (200, #"{"answers":{},"recipe":null}"#)
+        }
+        let matches = await store.searchScripts("latin")
+        let fraktur = try #require(matches.last)
+        #expect(store.pick(RecipeSetupStore.completion(for: fraktur), among: matches, toScripts: true))
+        #expect(store.scripts == ["Latf"])
+        #expect(store.name(of: "Latf") == "Latin (Fraktur variant)")
+        #expect(store.languages.isEmpty, "a script pick never lands among the languages")
+    }
+
     // MARK: source.onboard.says-no-model, source.onboard.never-raw-model-ids (#5481)
 
     /// The assembled recipe as the engine gives it: a correcting step with no model, its one

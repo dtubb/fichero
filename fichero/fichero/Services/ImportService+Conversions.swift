@@ -173,15 +173,19 @@ enum ImportServiceError: Error, LocalizedError {
     case serverError(String)
     case taskFailed(String)
     case timeout
-    /// The engine refused to read the path: it is outside every folder it may read (#5219).
-    case outsideAllowedLocations(path: String)
+    /// The engine refused to read the path: it is outside every folder it may read (#5219), with the
+    /// engine's own sentence when it sent one (#5484: it says how to allow the folder).
+    case outsideAllowedLocations(path: String, reason: String? = nil)
 
     var errorDescription: String? {
         switch self {
-        case .outsideAllowedLocations(let path):
+        case .outsideAllowedLocations(let path, let reason):
+            // The engine's words (#5484): picking the folder in Fichero's own panel is the permission,
+            // so they say to choose it with Add a Folder… or File › Import…, never "drop it again".
+            if let reason, !reason.isEmpty { return reason }
             let name = URL(fileURLWithPath: path).lastPathComponent
-            return "Fichero may not read \u{201C}\(name)\u{201D}: it is outside the folders this Mac's engine may read. "
-                + "Choose Grant Access\u{2026} to allow it, then drop it again."
+            return "Fichero may not read \u{201C}\(name)\u{201D}. To allow it, choose its folder with "
+                + "Add a Folder\u{2026} or File \u{203A} Import\u{2026} in Fichero."
         case .unexpectedResponse(let code):
             return "Unexpected response from import service (status: \(code))"
         case .serverError(let message):
@@ -199,13 +203,13 @@ enum ImportServiceError: Error, LocalizedError {
     static func refusal(fromBody data: Data, path: String) -> ImportServiceError? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         if let detail = object["detail"] as? [String: Any], detail["code"] as? String == outsideAllowedCode {
-            return .outsideAllowedLocations(path: detail["path"] as? String ?? path)
+            return .outsideAllowedLocations(path: detail["path"] as? String ?? path, reason: detail["detail"] as? String)
         }
         if object["code"] as? String == outsideAllowedCode {
-            return .outsideAllowedLocations(path: object["path"] as? String ?? path)
+            return .outsideAllowedLocations(path: object["path"] as? String ?? path, reason: object["detail"] as? String)
         }
         if let text = object["detail"] as? String, text.hasPrefix("Ingest path is not in an allowed location") {
-            return .outsideAllowedLocations(path: path)
+            return .outsideAllowedLocations(path: path, reason: text)
         }
         return nil
     }

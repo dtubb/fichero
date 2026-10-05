@@ -77,15 +77,16 @@ struct RecipeSetupFlowTests {
 
     // MARK: source.onboard.screens-in-order
 
-    /// WHY: setup asks the purpose first and shows Start last, its screens in the
-    /// spec's order (what you are doing, your material, what it is, how it will be
-    /// done, Start). If a screen moved, a person would be asked about scripts
-    /// before saying what they want, or reach Start before seeing the recipe; if
-    /// first run's list drifted from Set Up…'s, a new project and an existing one
-    /// would be set up by two flows.
-    @Test("setup's screens run purpose first, Start last, in the spec's order")
+    /// WHY (section 7b, ruled 2026-10-05): "where the project lives, then its files, then keeping
+    /// it exported, then the purposes and the rest". Set Up… on an existing project starts at
+    /// screen 2, Your material, because the project already lives somewhere. If a screen moved,
+    /// a person would be asked what the project is for before saying where its files come from,
+    /// or reach Start before seeing the recipe; if first run's list drifted from Set Up…'s, a new
+    /// project and an existing one would be set up by two flows. (Kept exported, screen 3, is
+    /// not built yet: #5485.)
+    @Test("Set Up… starts at Your material, then What it is for, and ends at Start")
     func screensInOrder() {
-        #expect(FirstRunStep.setUpSteps == [.purpose, .material, .about, .jobs, .recipe, .automatic, .start])
+        #expect(FirstRunStep.setUpSteps == [.material, .purpose, .about, .jobs, .recipe, .automatic, .start])
         let firstRun = FirstRunStep.steps(isCompanionPlatform: false)
         #expect(Array(firstRun.suffix(FirstRunStep.setUpSteps.count)) == FirstRunStep.setUpSteps)
         var walked = [FirstRunStep.setUpSteps[0]]
@@ -102,7 +103,7 @@ struct RecipeSetupFlowTests {
     func everyScreenBeforeStartKeepsADraft() async {
         let store = RecipeSetupStore(client: makeClient { _ in (200, #"{"answers":{},"recipe":null}"#) })
         let draftScreens = FirstRunStep.setUpSteps.filter(\.savesDraft)
-        #expect(draftScreens == [.purpose, .material, .about, .jobs, .recipe, .automatic], "every screen but Start saves")
+        #expect(draftScreens == [.material, .purpose, .about, .jobs, .recipe, .automatic], "every screen but Start saves")
         #expect(!FirstRunStep.start.savesDraft)
         for _ in draftScreens { #expect(await store.save()) }
         let calls = SetupFlowURLProtocol.seen.map { "\($0.method) \($0.path)" }
