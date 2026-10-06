@@ -274,7 +274,7 @@ def _record(db: "Database", job_id: str, *, kind: str, subject: str, parent_id: 
         "INSERT INTO jobs (id, kind, subject, state, reason, attempts, started_by, created_at, started_at, "
         "finished_at, parent_id, detail) VALUES (?, ?, ?, ?, ?, 0, 'workflow', ?, ?, ?, ?, ?) "
         "ON CONFLICT (id) DO UPDATE SET state = excluded.state, reason = excluded.reason, "
-        "finished_at = excluded.finished_at",
+        "finished_at = excluded.finished_at, started_at = COALESCE(jobs.started_at, excluded.started_at)",
         [job_id, kind, subject, state, reason, now, now if state == "running" else None, finished, parent_id,
          json.dumps({"name": name}) if name else None],
     )
@@ -364,12 +364,12 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     rows = db.execute_fetchall(
         "WITH RECURSIVE t AS (SELECT * FROM jobs WHERE id = ? UNION ALL "
         "SELECT j.* FROM jobs j JOIN t ON j.parent_id = t.id) "
-        "SELECT id, kind, subject, model, state, reason, parent_id, created_at, finished_at, started_at, detail "
-        "FROM t", [job_id])
+        "SELECT id, kind, subject, model, state, reason, parent_id, created_at, finished_at, started_at, detail, "
+        "started_by FROM t", [job_id])
     if not rows:
         return None
     names = ("id", "kind", "subject", "model", "state", "reason", "parent_id", "created_at", "finished_at",
-             "started_at", "detail")
+             "started_at", "detail", "started_by")
     nodes = {row[0]: {**dict(zip(names, row)), "children": []} for row in rows}
     for node in sorted(nodes.values(), key=lambda n: n["created_at"]):
         if node["id"] != job_id and node["parent_id"] in nodes:
@@ -389,7 +389,7 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
         is_page = node["kind"] not in RUN_KINDS
         node["document_id"] = subject if is_page and subject in names else None
         node["display_name"] = (names.get(subject) or (Path(subject).name if "/" in subject else None)
-                                if is_page else None)
+                                if is_page else _run_kind_name(node))
 
     now = utc_now()
 
@@ -410,6 +410,10 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
             node["total"] = sum(c["total"] for c in node["children"])
         node["name"] = kind_name(node["kind"])
         node["failed"] = failed  # the pages under it that failed; each says why on its own row
+        # What a running row works on now (#5561): its running child by name, and what that one works on.
+        running = next((c for c in node["children"] if c["state"] == "running"), None)
+        node["working_on"] = (", ".join(p for p in (running["display_name"] or running["name"], running["working_on"]) if p)
+                              if running is not None and node["state"] in ("running", "paused") else None)
         # How long it took: its own start to its finish (or until now, while it runs).
         start = node["started_at"] or (node["created_at"] if node["kind"] in RUN_KINDS else None)
         end = node["finished_at"] or (now if node["state"] in ("running", "paused") else None)
@@ -424,7 +428,27 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
 
     root = nodes[job_id]
     roll(root)
+    for node in nodes.values():  # absolute times, as the engine recorded them (#5561, never "now")
+        if node["started_at"] is None and node["kind"] in RUN_KINDS and node["state"] != "waiting":
+            node["started_at"] = node["created_at"]  # a run row written before it said when it started
+        for key in ("started_at", "finished_at", "created_at"):
+            node[key] = ensure_utc(node[key]).isoformat() if node[key] is not None else None
     return root
+
+
+def _run_kind_name(node: dict[str, Any]) -> str | None:
+    """A run's or a step's name as its record has it ("Transcribe", "Entities"), never its id (#5561): the
+    name written with its row, else a step's part of its subject ("<run id>:<step>")."""
+    try:
+        detail = json.loads(node["detail"]) if node["detail"] else {}
+    except (TypeError, ValueError):
+        detail = {}
+    name = detail.get("name") if isinstance(detail, dict) else None
+    if name:
+        return str(name)
+    if node["kind"] == "workflow-step" and ":" in (node["subject"] or ""):
+        return node["subject"].rsplit(":", 1)[-1] or None
+    return None
 
 
 def waiting_reason_under(db: "Database", run_id: str) -> str | None:
