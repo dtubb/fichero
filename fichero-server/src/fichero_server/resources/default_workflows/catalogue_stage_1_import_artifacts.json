@@ -1,5 +1,5 @@
 {
-  "name": "1 · Import → Artifacts",
+  "name": "Import → Artifacts",
   "description": "Step 1 of the discrete import-artifacts pipeline. Reuse already-imported page content to register only the lightweight per-page artifacts needed for review: import receipts and transcription artifacts. Safe to re-run: existing artifacts are skipped.",
   "format": "nodes",
   "is_template": true,
@@ -14,7 +14,8 @@
     "reviewable"
   ],
   "config": {
-    "preset_version": 1,
+    "preset_version": 2,
+    "order": 1,
     "stage": "import_artifacts",
     "tested": true
   },

@@ -1,5 +1,5 @@
 {
-  "name": "4 · Merge / Dedup",
+  "name": "Merge / Dedup",
   "description": "Step 4 of the discrete import-artifacts pipeline. Reapply the persisted entity-resolution rules, claim-suppression rules, and conservative trivial-claim pruning to the existing KG rows for the selected document subtree. Safe to re-run: already-merged or already-suppressed rows are left unchanged.",
   "format": "nodes",
   "is_template": true,
@@ -14,7 +14,8 @@
     "reviewable"
   ],
   "config": {
-    "preset_version": 1,
+    "preset_version": 2,
+    "order": 4,
     "stage": "merge_dedup",
     "tested": true
   },

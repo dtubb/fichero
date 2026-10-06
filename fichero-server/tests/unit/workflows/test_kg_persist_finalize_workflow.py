@@ -21,7 +21,7 @@ EMBED_DIM = 1024
 def test_kg_persist_finalize_preset_recomputes_and_is_idempotent(tmp_path: Path):
     library_path, parent_doc_id, page_doc_ids = _seed_finalize_library(tmp_path)
     db = db_manager.get_database(library_path)
-    workflow = _load_workflow("5 · KG Persist / Finalize")
+    workflow = _load_workflow("KG Persist / Finalize")
     entity_total = len(db.query(KnowledgeEntity))
     claim_total = len(db.query(KnowledgeClaim))
 

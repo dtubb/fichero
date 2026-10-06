@@ -69,7 +69,7 @@ FAMILIES: list[tuple[str, str]] = [
     ("transcribe-review", "Transcribe Paleography"),
     ("translate", "Translate"),
     ("catalogue", "Catalogue"),
-    ("catalogue-stage", "2 · Extract Entities"),
+    ("catalogue-stage", "Extract Entities"),
     ("ner", "NER per-page (local)"),
     ("image-prep", "Prepare Images for OCR"),
     ("image-edit", "Enhance Images"),

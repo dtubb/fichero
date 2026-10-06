@@ -1,7 +1,7 @@
 """Every entity says who put it in the knowledge graph (#4869, #4868), tested to the spec
 (docs/contributor_manual/specs/kg/kg-tables.md): `kg.entity.says-who-made-it`.
 
-Through the public routes: a names run (the recipe's names card, `2 · Extract Entities`, with a spaCy pin) through
+Through the public routes: a names run (the recipe's names card, `Extract Entities`, with a spaCy pin) through
 `POST /api/workflow-execution/execute`, a person's entity through `POST /api/entities`, the entity list, and the
 `entity.take_back_run` action through `POST /api/actions/invoke`. Stubbed only at the model boundary: spaCy's NER call.
 """
@@ -54,7 +54,7 @@ def _names_run(client, db, doc_ids, model="es_core_news_sm"):
     from fichero_server.workflows.default_workflows import preset_workflow_id
 
     r = client.post("/api/workflow-execution/execute", json={
-        "workflow_id": preset_workflow_id("2 · Extract Entities"), "inputs": {"selected_doc_ids": doc_ids},
+        "workflow_id": preset_workflow_id("Extract Entities"), "inputs": {"selected_doc_ids": doc_ids},
         "provider_override": "spacy", "model_override": model})
     assert r.status_code == 202, r.text
     thread = r.json()["thread_id"]

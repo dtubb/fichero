@@ -56,6 +56,81 @@ def pages_for(db: Any, card: dict[str, Any], documents: list[str] | None) -> lis
     return out
 
 
+#: What each unit of work (and each document held that is not one) is, in words: (one, many).
+_UNIT_WORDS = {"photograph": ("photograph", "photographs"), "pdf-page": ("PDF page", "PDF pages"),
+               "page": ("page of a file", "pages of files"),
+               "cut": ("page cut from a photograph", "pages cut from photographs"),
+               "file": ("file with no pages", "files with no pages"),
+               # Held, not counted: the pages are.
+               "pdf": ("PDF its pages came from", "PDFs their pages came from"),
+               "split": ("photograph cut into pages", "photographs cut into pages"),
+               "source": ("file its pages came from", "files their pages came from"),
+               "folder": ("folder", "folders")}
+_COUNTED = ("photograph", "pdf-page", "page", "cut", "file")
+_HELD_WORDS = ("pdf", "split", "source", "folder")
+
+
+def _kind(doc: Any) -> str:
+    return str(getattr(doc.doc_type, "value", doc.doc_type))
+
+
+def _file_type(doc: Any) -> str:
+    return str(getattr(doc.file_type, "value", doc.file_type) or "")
+
+
+def _words(n: int, key: str) -> str:
+    one, many = _UNIT_WORDS[key]
+    return f"{n} {one if n == 1 else many}"
+
+
+def material(db: Any) -> dict[str, Any]:
+    """The project's pages, as the plan counts them, and what they are in words (#5498): the pages a started
+    recipe runs over (`pages_for`), one figure for the estimate and the run. The sentence says what is counted
+    ("4 photographs + 1 PDF page = 5 pages"), what the project holds that is not (the PDF a page came from, a
+    photograph since cut into pages, folders), and photographs that share a file name, so a count that grows
+    with copies taken in twice says so rather than jumping without a word."""
+    from collections import Counter
+
+    from fichero_server.models import Document
+
+    ids = pages_for(db, {}, None)
+    docs = {d.id: d for d in db.query(Document)
+            if not d.deleted_at and getattr(d, "node_kind", None) != "workflow"}
+    counted: Counter[str] = Counter()
+    for doc_id in ids:
+        doc = docs.get(doc_id)
+        if doc is None:
+            continue
+        kind = _kind(doc)
+        if kind == "page":
+            parent = docs.get(doc.parent_id) if doc.parent_id else None
+            counted["pdf-page" if parent is not None and _file_type(parent) == "pdf" else "page"] += 1
+        elif kind == "chunk":
+            counted["cut"] += 1
+        else:
+            counted["photograph" if _file_type(doc) == "image" else "file"] += 1
+    parts = [_words(counted[k], k) for k in _COUNTED if counted[k]]
+    sentence = f"{' + '.join(parts) or 'nothing'} = {len(ids)} {'page' if len(ids) == 1 else 'pages'}"
+    # What the project holds that is not a page to read, so "N documents" elsewhere is not a second count.
+    taken = set(ids)
+    rest: Counter[str] = Counter()
+    for doc in docs.values():
+        kind = _kind(doc)
+        if doc.id in taken or kind not in ("file", "folder", "group"):
+            continue
+        rest["folder" if kind != "file" else "pdf" if _file_type(doc) == "pdf"
+             else "split" if _file_type(doc) == "image" else "source"] += 1
+    if rest:
+        held = ", ".join(_words(rest[k], k) for k in _HELD_WORDS if rest[k])
+        sentence += f"; the project holds {len(taken) + sum(rest.values())} documents: these, and {held}"
+    names = Counter(docs[i].name for i in ids
+                    if i in docs and _kind(docs[i]) == "file" and _file_type(docs[i]) == "image")
+    copies = sum(n for n in names.values() if n > 1)
+    if copies:
+        sentence += f"; {copies} photographs share a file name with another: copies taken in twice?"
+    return {"pages": len(ids), "counted": {k: counted[k] for k in _COUNTED if counted[k]}, "sentence": sentence}
+
+
 def _has_lines(db: Any, doc_id: str, model: str | None) -> bool:
     from fichero_server.models import Segment
     from fichero_server.models.segments import SegmentPass
@@ -98,8 +173,10 @@ def split_done(db: Any, card: dict[str, Any], pages: list[str]) -> tuple[list[st
     return todo, len(pages) - len(todo)
 
 
-def annotate(db: Any, plan: dict[str, Any]) -> dict[str, Any]:
-    """Each run in the Start plan with `done`, `of` and a `note`, as things stand now."""
+def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]] | None = None) -> dict[str, Any]:
+    """Each run in the Start plan with `done`, `of` and a `note`, as things stand now; a run whose steps the last
+    run did not finish (`unfinished`, `runner.unfinished_steps`) says so with `last_run` and `last_why`, and
+    that Start runs it again (#5498)."""
     for card in plan.get("runs", []):
         pages = pages_for(db, card, None)
         _todo, done = split_done(db, card, pages)
@@ -107,4 +184,9 @@ def annotate(db: Any, plan: dict[str, Any]) -> dict[str, Any]:
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
         card["note"] = (f"already done on {done} of {len(pages)} {unit}; runs on the rest" if done is not None
                         else f"cannot tell what is done; runs on every page ({len(pages)})")
+        last = next(((sid, (unfinished or {})[sid]) for sid in card["steps"] if sid in (unfinished or {})), None)
+        if last is not None:
+            sid, outcome = last
+            card["last_run"], card["last_why"] = outcome["state"], outcome["why"]
+            card["note"] = f"{outcome['state']} last time (step {sid}: {outcome['why']}); runs again: {card['note']}"
     return plan

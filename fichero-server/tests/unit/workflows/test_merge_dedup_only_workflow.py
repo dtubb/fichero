@@ -27,7 +27,7 @@ import fichero_server.workflows.tools  # noqa: F401
 def test_merge_dedup_preset_applies_rules_and_is_idempotent(tmp_path: Path):
     library_path, parent_doc_id = _seed_merge_dedup_library(tmp_path)
     db = db_manager.get_database(library_path)
-    workflow = _load_workflow("4 · Merge / Dedup")
+    workflow = _load_workflow("Merge / Dedup")
 
     first = asyncio.run(
         build_graph(workflow, skip_cache=True).ainvoke(
@@ -112,7 +112,7 @@ def test_merge_dedup_collapses_case_variant_duplicates(tmp_path: Path):
     # case/accent variants (no rule needed) WITHOUT merging distinct people.
     library_path, parent_doc_id = _seed_case_variant_library(tmp_path)
     db = db_manager.get_database(library_path)
-    workflow = _load_workflow("4 · Merge / Dedup")
+    workflow = _load_workflow("Merge / Dedup")
 
     result = asyncio.run(
         build_graph(workflow, skip_cache=True).ainvoke(

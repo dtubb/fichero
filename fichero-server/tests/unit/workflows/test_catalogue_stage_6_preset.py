@@ -1,4 +1,4 @@
-"""'6 · Catalogue' — the final act as its own re-runnable stage (#4423).
+"""'Catalogue Description' — the final act as its own re-runnable stage (#4423).
 
 Stages `1 ·` … `5 ·` shipped as individually runnable presets. The catalogue
 write — the thing the whole pipeline exists to produce — existed ONLY inside
@@ -53,13 +53,13 @@ def _preset() -> dict:
 
 class TestTheStageExistsAndIsNamedInTheSeries:
     def test_preset_ships(self):
-        assert PRESET.exists(), "6 · Catalogue is not shipped"
+        assert PRESET.exists(), "Catalogue Description is not shipped"
 
     def test_it_is_named_in_the_same_series_as_its_siblings(self):
         """The vocabulary fix: `1 ·` … `6 ·` are the stages, `Catalogue` is
         the composite. One word naming both is why asking for one gave the
         other."""
-        assert _preset()["name"] == "6 · Catalogue"
+        assert _preset()["name"] == "Catalogue Description"
 
     def test_it_runs_the_catalogue_tool_and_not_the_earlier_stages(self):
         """The entire point: it must NOT re-transcribe or re-extract, or a
@@ -82,15 +82,15 @@ class TestTheStageExistsAndIsNamedInTheSeries:
 
     def test_the_stage_series_is_now_complete(self):
         """1..6 all present, so the composite can later be expressed as a
-        chain of them rather than 12 anonymous duplicated nodes (#4415)."""
+        chain of them rather than 12 anonymous duplicated nodes (#4415). The
+        order is data (`config.order`), not a "N · " prefix in the name (#5497)."""
         directory = PRESET.parent
-        names = {
-            json.loads(p.read_text(encoding="utf-8"))["name"]
+        presets = [
+            json.loads(p.read_text(encoding="utf-8"))
             for p in directory.glob("catalogue_stage_*.json")
-        }
-        assert {name.split(" ·")[0] for name in names} == {
-            "1", "2", "3", "4", "5", "6",
-        }
+        ]
+        assert sorted(p["config"]["order"] for p in presets) == [1, 2, 3, 4, 5, 6]
+        assert not any("·" in p["name"] for p in presets)
 
 
 class TestThePresetIsValid:
@@ -166,7 +166,7 @@ class TestAbsentPrerequisitesFailLoudlyAndNameTheStage:
             "#4283 shape, on the stage most likely to hit it"
         )
         assert "Caja 3" in error, "the error must name WHAT could not be described"
-        assert "2 · Extract Entities" in error, (
+        assert "Extract Entities" in error, (
             "the error must name WHICH STAGE produces the missing input — "
             "otherwise the user is told an input is missing with no way to "
             "know how to supply it"

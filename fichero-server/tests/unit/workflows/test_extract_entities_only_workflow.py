@@ -26,8 +26,8 @@ def test_extract_entities_preset_persists_entities_and_is_idempotent(tmp_path: P
     library_path, parent_doc_id, page_doc_ids = _seed_importable_pdf_library(tmp_path)
     db = db_manager.get_database(library_path)
 
-    import_workflow = _load_workflow("1 · Import → Artifacts")
-    extract_workflow = _load_workflow("2 · Extract Entities", provider_name="mock")
+    import_workflow = _load_workflow("Import → Artifacts")
+    extract_workflow = _load_workflow("Extract Entities", provider_name="mock")
 
     first_import = asyncio.run(
         build_graph(import_workflow, skip_cache=True).ainvoke(

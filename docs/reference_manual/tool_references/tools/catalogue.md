@@ -22,7 +22,7 @@ Compose nine-section archival summary for a folder (leaf node of the Catalogue w
 | Port | Type | Required | What it is |
 | --- | --- | --- | --- |
 | Text (`text`) | `text` | no | Aggregated TRANSCRIPTION text — wire from aggregate.text (per-file transcriptions joined), NOT from the merge of cleanup outputs. The narrative LLM reads this as source material; pointing it at cleaned entity lists makes it summarise the cleanup output instead of the documents. |
-| Data (`data`) | `any` | yes | Dependency-only input. Its value is ignored; it exists to sequence catalogue after its upstream — canonical entity cleanup in the full preset, the source node in '6 · Catalogue'. |
+| Data (`data`) | `any` | yes | Dependency-only input. Its value is ignored; it exists to sequence catalogue after its upstream — canonical entity cleanup in the full preset, the source node in 'Catalogue Description'. |
 | Context (`context`) | `any` | no | Previous text/transcription |
 | Metadata (`metadata`) | `json` | no | Existing metadata |
 | Documents (`documents`) | `json` | no | Document metadata |

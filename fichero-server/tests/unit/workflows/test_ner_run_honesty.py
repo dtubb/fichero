@@ -47,7 +47,7 @@ from fichero_server.workflows.runtime import build_initial_state
 import fichero_server.workflows.tools  # noqa: F401
 import fichero_server.workflows.tools.extract_all as extract_all_module
 
-STAGE_2_PRESET = "2 · Extract Entities"
+STAGE_2_PRESET = "Extract Entities"
 
 
 class ModelUnavailable(RuntimeError):

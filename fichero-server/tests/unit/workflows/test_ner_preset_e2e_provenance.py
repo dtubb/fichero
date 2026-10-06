@@ -12,7 +12,7 @@ outcomes.
 
 Both presets are covered:
   * ``NER per-page (local)``  → files → aggregate → extract_all(persist_kg)
-  * ``2 · Extract Entities``  → files → extract_entities_only
+  * ``Extract Entities``  → files → extract_entities_only
 
 Asserted:
   * entity artifacts / KnowledgeEntity rows land in the seeded library,
@@ -244,7 +244,7 @@ def test_catalogue_stage_2_extract_entities_persists_entities_through_the_graph(
     before_entities = len(db.all(KnowledgeEntity))
 
     workflow, final_state = _run_preset(
-        "2 · Extract Entities", library_path, folder_id, "ner-stage2-run-1"
+        "Extract Entities", library_path, folder_id, "ner-stage2-run-1"
     )
 
     extract_node_id = next(

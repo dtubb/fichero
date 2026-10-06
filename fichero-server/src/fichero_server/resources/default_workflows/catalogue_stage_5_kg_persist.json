@@ -1,5 +1,5 @@
 {
-  "name": "5 · KG Persist / Finalize",
+  "name": "KG Persist / Finalize",
   "description": "Step 5 of the discrete import-artifacts pipeline. Recompute cross-source corroboration, backfill canonical KG embeddings when missing, and refresh the kg.nt graph snapshot from the existing KG rows. Safe to re-run: corroboration writes only when values change, embeddings only backfill when counts are stale, and the graph refresh only runs when the snapshot is missing or claim support changed.",
   "format": "nodes",
   "is_template": true,
@@ -14,7 +14,8 @@
     "reviewable"
   ],
   "config": {
-    "preset_version": 1,
+    "preset_version": 2,
+    "order": 5,
     "stage": "kg_persist_finalize",
     "tested": true
   },

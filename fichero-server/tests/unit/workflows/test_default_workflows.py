@@ -52,12 +52,12 @@ class TestLoadPresetFiles:
     #: Daniel's ruling (2026-09-03): 'Catalogue' IS the chain of the six
     #: numbered stage presets in /Catalogue, run in order via sub_workflow.
     _CATALOGUE_STAGE_ORDER = (
-        "1 · Import → Artifacts",
-        "2 · Extract Entities",
-        "3 · Extract SVO → Claims",
-        "4 · Merge / Dedup",
-        "5 · KG Persist / Finalize",
-        "6 · Catalogue",
+        "Import → Artifacts",
+        "Extract Entities",
+        "Extract SVO → Claims",
+        "Merge / Dedup",
+        "KG Persist / Finalize",
+        "Catalogue Description",
     )
 
     def test_catalogue_preset_wiring(self):
@@ -117,7 +117,7 @@ class TestLoadPresetFiles:
             ), f"files-source documents must flow into {node['id']!r}"
 
     def test_catalogue_chain_ends_with_stage_6_catalogue(self):
-        """The chain must end with the '6 · Catalogue' stage so the workflow
+        """The chain must end with the 'Catalogue Description' stage so the workflow
         produces the unified narrative Catalogue artifact (#720), gated on
         stage 5 having finalised the KG rows it reads."""
         presets = {p["name"]: p for p in _load_preset_files()}
@@ -125,7 +125,7 @@ class TestLoadPresetFiles:
 
         stage_nodes = [n for n in catalogue["nodes"] if n["tool"] == "sub_workflow"]
         final = stage_nodes[-1]
-        assert final["config"]["workflow_ref"] == "6 · Catalogue"
+        assert final["config"]["workflow_ref"] == "Catalogue Description"
         # Its required output is the narrative text mapped out of the child.
         outputs = {c["id"] for c in final["config"]["output_contract"]}
         assert "text" in outputs
@@ -164,12 +164,12 @@ class TestLoadPresetFiles:
 
         # The children the chain references still carry the real work.
         stage_tools = {
-            "1 · Import → Artifacts": "import_artifacts",
-            "2 · Extract Entities": "extract_entities_only",
-            "3 · Extract SVO → Claims": "extract_svo_only",
-            "4 · Merge / Dedup": "merge_dedup_only",
-            "5 · KG Persist / Finalize": "kg_persist_finalize",
-            "6 · Catalogue": "catalogue",
+            "Import → Artifacts": "import_artifacts",
+            "Extract Entities": "extract_entities_only",
+            "Extract SVO → Claims": "extract_svo_only",
+            "Merge / Dedup": "merge_dedup_only",
+            "KG Persist / Finalize": "kg_persist_finalize",
+            "Catalogue Description": "catalogue",
         }
         for stage_name, tool in stage_tools.items():
             child_tools = {n["tool"] for n in presets[stage_name]["nodes"]}
@@ -206,11 +206,11 @@ class TestLoadPresetFiles:
         stages independently (#1669)."""
         presets = {p["name"]: p for p in _load_preset_files()}
         catalogue = presets["Catalogue"]
-        stage0 = presets["1 · Import → Artifacts"]
-        stage0b = presets["2 · Extract Entities"]
-        stage0c = presets["3 · Extract SVO → Claims"]
-        stage0d = presets["4 · Merge / Dedup"]
-        stage0e = presets["5 · KG Persist / Finalize"]
+        stage0 = presets["Import → Artifacts"]
+        stage0b = presets["Extract Entities"]
+        stage0c = presets["Extract SVO → Claims"]
+        stage0d = presets["Merge / Dedup"]
+        stage0e = presets["KG Persist / Finalize"]
 
         assert catalogue.get("is_template") is True
         assert catalogue.get("is_system") is True

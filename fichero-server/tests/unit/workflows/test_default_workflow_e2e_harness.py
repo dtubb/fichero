@@ -215,10 +215,10 @@ def test_catalogue_live_graph_waits_for_all_merge_inputs_before_catalogue(
     # Chain ordering: every stage ends before the next begins, and the
     # narrative stage (6) never starts before extraction (2-3) and KG
     # finalize (5) have ended.
-    catalogue_start = event_index("on_chain_start", "6 · Catalogue")
-    assert event_index("on_chain_end", "2 · Extract Entities") < catalogue_start
-    assert event_index("on_chain_end", "3 · Extract SVO → Claims") < catalogue_start
-    assert event_index("on_chain_end", "5 · KG Persist / Finalize") < catalogue_start
+    catalogue_start = event_index("on_chain_start", "Catalogue Description")
+    assert event_index("on_chain_end", "Extract Entities") < catalogue_start
+    assert event_index("on_chain_end", "Extract SVO → Claims") < catalogue_start
+    assert event_index("on_chain_end", "KG Persist / Finalize") < catalogue_start
     assert ("on_chain_end", "Write KG") not in events
 
 
@@ -360,8 +360,8 @@ def _install_deterministic_workflow_stubs(
         fake_keywords,
     )
 
-    # The Catalogue chain's stage children (2 · Extract Entities and
-    # 3 · Extract SVO → Claims) reach the model through their own
+    # The Catalogue chain's stage children (Extract Entities and
+    # Extract SVO → Claims) reach the model through their own
     # module-level names, so they need their own deterministic stand-ins.
     async def fake_stage_structured(**kwargs):
         schema = kwargs.get("schema")

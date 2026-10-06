@@ -1,5 +1,5 @@
 {
-  "name": "3 · Extract SVO → Claims",
+  "name": "Extract SVO → Claims",
   "description": "Step 3 of the discrete import-artifacts pipeline. Reuse the transcription artifacts from step 1 plus the persisted entity rows from step 2 to extract and persist SVO KnowledgeClaim rows only. Safe to re-run: the canonical claim writer deduplicates repeated page-scoped claims.",
   "format": "nodes",
   "is_template": true,
@@ -14,7 +14,8 @@
     "reviewable"
   ],
   "config": {
-    "preset_version": 1,
+    "preset_version": 2,
+    "order": 3,
     "stage": "extract_svo"
   },
   "nodes": [

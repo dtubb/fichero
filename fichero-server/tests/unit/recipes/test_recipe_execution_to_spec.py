@@ -162,8 +162,9 @@ def test_source_recipe_start_runs_the_steps(client, db, pages, tmp_path, engine)
     steps in order, each as the job its card names (a shipped workflow run for finding lines, reading a line
     or a page, correcting, finding names and finding statements; a check run for `check`; the project's synced
     folder for `export`), together as one `run-a-recipe` job in Activity whose children are those runs; a step
-    starts only when the one before it has finished, and a step that fails stops the steps after it, saying
-    which.\""""
+    starts only when the one before it has finished. [...] a step that fails stops only the steps that need what it
+    would have given and no other earlier step gave, which say "not run" and why". Here the check and the export
+    need the readings, which only the failed reading step gives (#5498 pins the independent-step case).\""""
     _save(client, _recipe(tmp_path, *_steps(tmp_path)))
     run = _finished(client, _start(client))
     assert run["state"] == "done", run
