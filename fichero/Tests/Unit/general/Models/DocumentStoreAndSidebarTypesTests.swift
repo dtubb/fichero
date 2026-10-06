@@ -5,8 +5,8 @@ import XCTest
 
 // swiftlint:disable file_length
 // Tests for DocumentStoreTypes (request DTOs + error model) and
-// SidebarViewTypes (AppViewMode category routing + ActivityChildType
-// label/icon table + SelectedActivityRun.with helper).
+// SidebarViewTypes (AppViewMode category routing + the Activity details'
+// selection, #5561).
 // swiftlint:disable:next type_body_length
 final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
@@ -608,10 +608,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testRemotePreviewSurfacesDoNotInventLocalFileURLs() throws {
         // file_length: ImageViewerComponents/ImageWithCursorTracking split; assertions repointed to the files that hold the URL logic now.
-        let activitySource = try Self.appSource("Views/Activity/Progress/ActivityProgressView+HistoricalProgress.swift")
         let trackingSource = try Self.appSource("Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift")
 
-        XCTAssertTrue(activitySource.contains("(filePath as NSString).lastPathComponent"))
         XCTAssertTrue(trackingSource.contains("let url: URL?"))
         XCTAssertTrue(trackingSource.contains("loadImageAsync(url: url"))
     }
@@ -666,76 +664,23 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertFalse(windowSource.contains("showNotesBrowser"))
     }
 
-    // MARK: - ActivityChildType
+    // MARK: - ActivitySelection (#5561)
 
-    func testActivityChildTypeRawValuesStable() {
-        XCTAssertEqual(ActivityChildType.console.rawValue, "console")
-        XCTAssertEqual(ActivityChildType.progress.rawValue, "progress")
-        XCTAssertEqual(ActivityChildType.log.rawValue, "log")
-    }
-
-    func testActivityChildTypeAllCasesCount() {
-        // console, progress, log + the run-trace graph (#4320)
-        XCTAssertEqual(ActivityChildType.allCases.count, 4)
-    }
-
-    func testActivityChildTypeLabels() {
-        let pairs: [(ActivityChildType, String)] = [
-            (.console, "Console"), (.progress, "Progress"),
-            (.log, "Log"), (.trace, "Trace")
-        ]
-        for (kind, label) in pairs {
-            XCTAssertEqual(kind.label, label, "kind=\(kind.rawValue)")
-        }
-    }
-
-    func testActivityChildTypeIcons() {
-        // SF Symbols — drift here breaks the Report Navigator sidebar.
-        let pairs: [(ActivityChildType, String)] = [
-            (.console, "text.alignleft"),
-            (.progress, "chart.bar.fill"),
-            (.log, "doc.text")
-        ]
-        for (kind, icon) in pairs {
-            XCTAssertEqual(kind.icon, icon, "kind=\(kind.rawValue)")
-        }
-    }
-
-    // MARK: - SelectedActivityRun.with(childType:)
-
-    func testSelectedActivityRunWithReplacesChildType() {
-        let original = SelectedActivityRun(
-            id: "r-1", name: "Run", workflowId: "wf-1",
-            threadId: "t-1", timestamp: Date(timeIntervalSince1970: 0),
-            status: .running, isLive: true, childType: nil
+    /// The details' selection is a job id and its project, nothing copied from
+    /// the row (`activity.details.one-mount`): the same job in two projects is
+    /// two selections, and a run's selection is its thread id.
+    func testActivitySelectionIsAJobAndItsProject() {
+        let library = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
+        let selection = ActivitySelection(jobId: "thread-1", libraryId: library)
+        XCTAssertEqual(selection.id, "\(library.uuidString)|thread-1")
+        XCTAssertNotEqual(selection, ActivitySelection(jobId: "thread-1", libraryId: nil))
+        let run = ActivityRun(
+            id: "\(library.uuidString)|thread-1", runId: "thread-1", workflowId: nil, threadId: "thread-1",
+            workflowName: "Transcribe", timestamp: nil, status: .running, progress: nil, currentStep: nil,
+            errorCount: 0, fileCount: 0, isLive: false, libraryId: library, libraryName: "Diaries"
         )
-        let updated = original.with(childType: .progress)
-        XCTAssertEqual(updated.id, original.id)
-        XCTAssertEqual(updated.name, original.name)
-        XCTAssertEqual(updated.workflowId, original.workflowId)
-        XCTAssertEqual(updated.threadId, original.threadId)
-        XCTAssertEqual(updated.timestamp, original.timestamp)
-        XCTAssertEqual(updated.status, original.status)
-        XCTAssertEqual(updated.isLive, original.isLive)
-        XCTAssertEqual(updated.childType, .progress)
-        XCTAssertNil(original.childType)  // immutability of original
-    }
-
-    func testSelectedActivityRunWithCanClearChildType() {
-        let original = SelectedActivityRun(
-            id: "r-1", name: "Run", workflowId: nil,
-            threadId: nil, timestamp: Date(timeIntervalSince1970: 0),
-            status: .completed, isLive: false, childType: .log
-        )
-        let cleared = original.with(childType: nil)
-        XCTAssertNil(cleared.childType)
-    }
-
-    func testActivityRunStatusTypeRawValues() {
-        XCTAssertEqual(SelectedActivityRun.ActivityRunStatusType.running.rawValue, "running")
-        XCTAssertEqual(SelectedActivityRun.ActivityRunStatusType.completed.rawValue, "completed")
-        XCTAssertEqual(SelectedActivityRun.ActivityRunStatusType.failed.rawValue, "failed")
-        XCTAssertEqual(SelectedActivityRun.ActivityRunStatusType.cancelled.rawValue, "cancelled")
+        XCTAssertEqual(run.selection, selection)
+        XCTAssertEqual(ActivityRunStatus.cancelled.workflowStatus, .cancelled)
     }
 
     // MARK: - Helpers

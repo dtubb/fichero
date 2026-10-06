@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 /// What the Activity details view shows for one selected row (#5561), worded

@@ -289,16 +289,20 @@ struct ActivityDetailsLog: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .frame(minHeight: 120, idealHeight: 220, maxHeight: 320)
-                    .onAppear { proxy.scrollTo(lines.last?.id, anchor: .bottom) }
+                    .onAppear { scrollToEnd(proxy) }
                     .onChange(of: lines.count) { _, _ in
-                        guard isLive else { return }
-                        proxy.scrollTo(lines.last?.id, anchor: .bottom)
+                        // Following the end while the row runs; a finished row's log stays put.
+                        if isLive { scrollToEnd(proxy) }
                     }
                 }
             }
         }
         .accessibilityIdentifier("activity.details.log")
         .task(id: refreshKey) { await store.loadJobLog(jobId: jobId) }
+    }
+
+    private func scrollToEnd(_ proxy: ScrollViewProxy) {
+        if let last = lines.last?.id { proxy.scrollTo(last, anchor: .bottom) }
     }
 
     private func copyToPasteboard(_ text: String) {

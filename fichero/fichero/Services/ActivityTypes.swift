@@ -529,11 +529,9 @@ struct ActivityJobLogLine: Equatable, Identifiable {
         jobId = line.jobId
     }
 
-    /// The line as copied: "2026-10-06 14:05:01  error  Failed: p1.png: …".
+    /// The line as copied: "06/10/2026, 14:05:01  error  Failed: p1.png: …", in this Mac's time.
     var plainText: String {
-        let when = timestamp.map {
-            $0.formatted(.iso8601.year().month().day().time(includingFractionalSeconds: false).dateTimeSeparator(.space))
-        } ?? "now"
+        let when = timestamp.map { $0.formatted(date: .numeric, time: .standard) } ?? "now"
         return "\(when)  \(level)  \(message)"
     }
 }

@@ -746,7 +746,10 @@ final class ActivityTableTests: XCTestCase {
             libraryId: Self.libraryId, projectName: nil)
         XCTAssertEqual(training.kindSymbol, "graduationcap")
         XCTAssertEqual(download.kindSymbol, "arrow.down.circle")
-        XCTAssertFalse(training.opensDetails, "a job of its own has no run log for ⓘ to open")
+        // #5561 (`activity.details.one-mount`): "a job of its own has details like any run".
+        XCTAssertTrue(training.opensDetails, "a job of its own has details like any run")
+        XCTAssertEqual(training.selection, ActivitySelection(jobId: "t", libraryId: Self.libraryId))
+        XCTAssertTrue(training.controls.isEmpty, "a job of its own from the jobs poll has no Pause or Stop of its own")
     }
 
     func testActivityRunAccount_readTheFailedPagesAgainIsOneCallToTheEngine() async throws {
