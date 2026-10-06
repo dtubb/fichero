@@ -479,6 +479,27 @@ homeless until a map-view UI spec exists (#5128).
   A page card drawing the page's layers (boxes, names, statements, notes) is specified in
   `layers-on-the-source.md` (`layers.canvas2d.page-card-draws-layers`,
   `layers.canvas3d.page-card-draws-layers`).
+
+**Arrangements that propose (2026-10-06, #5550).** A folder's filed order is one order, and often
+not the only one: two hundred loose documents can include the three pages of one letter, kept
+apart. Both canvases offer these ways to arrange a folder beside placing items by hand, and any
+proposal is a hypothesis: shown apart, attributed to its method, and nothing moves or merges until
+a person accepts it.
+- `library.canvas.arrange-by-similarity` — **[GAP]** (#5550, #5549) cards are placed so that near
+  means alike, from a chosen vector (the page's picture, its text, its hand). The method and its
+  distortions are named, and the layout is saved like any other arrangement and undone with one ⌘Z.
+- `library.canvas.model-proposes-groups` — **[GAP]** (#5550) a vision or language model proposes
+  groups of cards (same letter, same hand, same subject), each group with its reasons. Accepting
+  one moves its cards together and leaves them separate documents.
+- `library.canvas.orders-beside-the-filed-one` — **[GAP]** (#5550, #5548) a proposed sequence is a
+  named order kept beside the filed order, never replacing it. A card can be stepped through in
+  either order, and the evidence for each adjacency (a continued sentence, a matching tear, a page
+  number, a date) is shown.
+- `library.canvas.pieces-of-one-document` — **[GAP]** (#5550, #5303) cards proposed as the pieces
+  of one document (pages of a letter, a split register) are drawn joined. Accepting the proposal is
+  `library.canvas.group-into-one-node`, so the pieces become one group node in their proposed order,
+  and Ungroup restores each one.
+
 - `library.space.wiring-completeness` — **[PARTIAL]** (#3089) `.space` IS a live selectable
   mode today, offered wherever `.canvas` is (`ContentView+StateLayout.swift:84,89`) and
   mounted via `spaceModeView`. Not verified: a View-menu "Space" entry with a ⌘5 shortcut (no
