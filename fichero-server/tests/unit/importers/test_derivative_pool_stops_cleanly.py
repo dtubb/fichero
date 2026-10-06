@@ -17,7 +17,7 @@ from fichero_server.importers import derivatives
 
 def test_the_threads_that_run_derivative_stages_never_hold_up_exit():
     derivatives.register_job_kinds()
-    jobs._scheduler.wake(None)
+    jobs._scheduler.wake("a-library")  # a lane has threads only while it has a library to look at
     lanes = {jobs.KINDS[kind].lane for kind in (derivatives.THUMBNAIL_KIND, derivatives.EMBED_KIND,
                                                  derivatives.NLP_KIND)}
     threads = [t for lane in lanes for t in jobs._scheduler.lanes[lane].threads]

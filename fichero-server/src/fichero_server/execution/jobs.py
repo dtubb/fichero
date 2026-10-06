@@ -44,6 +44,7 @@ import sys
 import threading
 import time
 import uuid
+import weakref
 from concurrent.futures import Future
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -1063,6 +1064,7 @@ class _Scheduler:
         self._attached: dict[str, tuple[Callable[[], Any], Future]] = {}
         #: Futures waiting on stored jobs, by job id (`enqueue_many`).
         self._watchers: dict[str, list[Future]] = {}
+        _SCHEDULERS.add(self)
 
     @property
     def loaded_model(self) -> str | None:
@@ -1109,7 +1111,8 @@ class _Scheduler:
                     lane.libraries.add(key)
                     lane.rewoken.add(key)
                 lane.threads = [t for t in lane.threads if t.is_alive()]
-                while len(lane.threads) < lane.slots:
+                # A lane with no library to look at has no thread (#5503): one would only poll.
+                while lane.libraries and len(lane.threads) < lane.slots:
                     # The local-ML lane's one thread keeps the name tests and logs know it by.
                     name = "fichero-jobs" if lane.name == "local-ml" else f"fichero-jobs-{lane.name}"
                     thread = threading.Thread(target=self._loop, args=(lane,), name=name, daemon=True)
@@ -1132,6 +1135,10 @@ class _Scheduler:
             if lane.look_again_at is not None:
                 timeout = min(timeout, max(0.0, lane.look_again_at - time.monotonic()))
             lane.event.wait(timeout)
+            # Retire before clearing: the lane's threads share one event, and a thread that cleared
+            # it after a stop would leave its siblings asleep with nothing left to look at (#5503).
+            if self._retire(lane):
+                return
             lane.event.clear()
             # An error in a scan ends this thread (logged by threading's excepthook); the next
             # wake (an enqueue, a library open, a pause change) starts a new one. A caller waiting
@@ -1146,6 +1153,45 @@ class _Scheduler:
                 if lane.name == "local-ml":
                     self._fail_attached(exc)
                 raise
+            if self._retire(lane):
+                return
+
+    def _retire(self, lane: _Lane) -> bool:
+        """Whether this thread ends: its lane has no library left to look at (each was closed, or
+        found with nothing waiting). Decided under the lock `wake` adds a library under, so a wake
+        either finds this thread still counted or starts a new one (#5503)."""
+        with self._lock:
+            if lane.libraries:
+                return False
+            current = threading.current_thread()
+            lane.threads = [t for t in lane.threads if t is not current]
+        lane.event.set()  # its siblings, asleep with nothing left either, end too
+        return True
+
+    def stop(self, key: str | None, deadline: float) -> list[threading.Thread]:
+        """Forget a closed library (every library when `key` is None, the engine shutting down)
+        and end the threads of each lane left with none, waiting for them until `deadline`
+        (monotonic). A thread in the middle of a job finishes it first; those still running at the
+        deadline are returned. Work handed in and still waiting is failed on shutdown: no library
+        is left to run it in."""
+        with self._lock:
+            for lane in self.lanes.values():
+                if key is None:
+                    lane.libraries.clear()
+                    lane.rewoken.clear()
+                else:
+                    lane.libraries.discard(key)
+                    lane.rewoken.discard(key)
+            ending = [t for lane in self.lanes.values() if not lane.libraries for t in lane.threads]
+        if key is None:
+            self._fail_attached(RuntimeError("The engine closed every project before this work ran"))
+        for lane in self.lanes.values():
+            lane.event.set()
+        current = threading.current_thread()
+        for thread in ending:
+            if thread is not current:
+                thread.join(max(0.0, deadline - time.monotonic()))
+        return [t for t in ending if t.is_alive()]
 
     def _claim(self, lane: _Lane) -> tuple[str, Any, tuple, Any] | None:
         """Pick the next job for this lane and mark it running, as one step among its threads."""
@@ -1211,6 +1257,9 @@ class _Scheduler:
     def _next(self, lane: _Lane, *, background: bool = True) -> tuple[str, Any, tuple] | None:
         from fichero_server.db.manager import db_manager
 
+        # A look-again time is this scan's to set: one left from an earlier scan would make an idle
+        # lane wake at once, every time, while paused (#5503).
+        lane.look_again_at = None
         # Stored kinds run unless paused or held by the throttle; handed-in work runs whenever its
         # caller is waiting. Only a scan that looked at every kind may forget an idle library.
         full_scan = background and not is_paused()
@@ -1220,6 +1269,13 @@ class _Scheduler:
             keys = list(lane.libraries)
             lane.rewoken.clear()
             attached = [job_id for job_id, entry in self._attached.items() if entry[2] == lane.name]
+        # A closed library is forgotten by every scan, paused or not: opening it again resumes its
+        # jobs. Kept, it would hold its lane's threads polling for good (#5503).
+        closed = {key for key in keys if db_manager.open_database(key) is None}
+        if closed:
+            with self._lock:
+                lane.libraries.difference_update(closed - lane.rewoken)
+            keys = [key for key in keys if key not in closed]
         if not stored and not attached:
             return None
         where = " OR ".join(filter(None, [
@@ -1249,7 +1305,6 @@ class _Scheduler:
         # The quiet spell: while the loaded heavy model has had work recently, background jobs for
         # ANOTHER heavy model are left where they are -- excluded, so the work behind them (a
         # light model's, or a page someone waits for) still runs.
-        lane.look_again_at = None
         quiet_from = lane.loaded_used_at + SWITCH_AFTER_QUIET_SECONDS
         others = [f for f in _RELEASE if f != _family(lane.loaded_model)]
         if _family(lane.loaded_model) in _RELEASE and time.monotonic() < quiet_from and others:
@@ -1278,7 +1333,7 @@ class _Scheduler:
         idle = []
         for key in keys:
             db = db_manager.open_database(key)
-            if db is None:  # closed: opening it again resumes its jobs
+            if db is None:  # closed since the look above
                 idle.append(key)
                 continue
             now = utc_now()
@@ -1382,6 +1437,30 @@ class _Scheduler:
                 future.set_exception(error)
             else:
                 future.set_result(result)
+
+
+#: Every scheduler with threads: the engine's one, and any a test made in its place, so a closed
+#: library is forgotten by all of them.
+_SCHEDULERS: "weakref.WeakSet[_Scheduler]" = weakref.WeakSet()
+
+#: How long closing a library waits for its job threads to end.
+STOP_TIMEOUT_SECONDS = 2.0
+
+
+def stop(key: str | None, timeout: float = STOP_TIMEOUT_SECONDS) -> list[threading.Thread]:
+    """A library's database is closing (`key`, from `DatabaseManager._cache_key`), or every one is
+    (None: the engine is shutting down). Its job threads stop looking at it, and a lane left with
+    no library ends its threads, waited for up to `timeout`. Called only by the database manager,
+    which owns when a library is open (#5503). Returns the threads still running a job at the
+    timeout; each ends when that job does."""
+    deadline = time.monotonic() + timeout
+    left: list[threading.Thread] = []
+    for scheduler in list(_SCHEDULERS):
+        left += scheduler.stop(key, deadline)
+    if left:
+        logger.warning("%d job thread(s) still finishing a job after %.1fs: %s", len(left), timeout,
+                       ", ".join(t.name for t in left))
+    return left
 
 
 _scheduler = _Scheduler()

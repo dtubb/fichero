@@ -419,6 +419,69 @@ def pytest_runtest_makereport(item, call):  # noqa: ARG001
         item._fichero_tmp_retain = True  # any phase failing marks the test
 
 
+#: How long a job thread a test started may take to end after its teardown (#5503).
+_JOB_THREAD_GRACE_SECONDS = 2.0
+#: How long one still inside a job may take to finish it.
+_JOB_FINISH_SECONDS = 180.0
+
+
+def _job_threads() -> set:
+    import threading
+
+    return {t for t in threading.enumerate() if t.name.startswith("fichero-jobs")}
+
+
+def _running_a_job(thread) -> bool:
+    from fichero_server.execution import jobs
+
+    return any(lane.running and thread in lane.threads
+               for scheduler in list(jobs._SCHEDULERS) for lane in scheduler.lanes.values())
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_setup(item):
+    item._fichero_job_threads_before = _job_threads()
+    return (yield)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_teardown(item, nextitem):  # noqa: ARG001
+    """No job thread outlives the test that started it (#5503).
+
+    WHY: a full suite on an 8 GB Mac hung at 600% CPU with 210 `fichero-jobs-database` threads
+    still polling -- each started by a test whose library had closed. Here, after every fixture of
+    the test is torn down, a job thread born during it gets a short grace to end; one still alive
+    fails the test's teardown, named, so the leak is fixed where it starts (close the library, or
+    stop the scheduler the test made) instead of piling up. Costs one thread listing per test."""
+    result = yield
+    import time
+
+    before = getattr(item, "_fichero_job_threads_before", set())
+    born = _job_threads() - before
+    deadline = time.monotonic() + _JOB_THREAD_GRACE_SECONDS
+    for thread in born:
+        thread.join(max(0.0, deadline - time.monotonic()))
+    # A thread still inside a job (an embedding the test's import queued) ends when that job does:
+    # closing waits for it only briefly, by design. Wait it out here, so it does not run on beside
+    # the next test, and fail only if it does not end.
+    mid_job = [t for t in born if t.is_alive() and _running_a_job(t)]
+    deadline = time.monotonic() + _JOB_FINISH_SECONDS
+    for thread in mid_job:
+        thread.join(max(0.0, deadline - time.monotonic()))
+    alive = [t for t in born if t.is_alive()]
+    if alive:
+        import traceback
+
+        frames = sys._current_frames()
+        where = "\n".join(f"{t.name}:\n{''.join(traceback.format_stack(frames[t.ident])[-4:])}"
+                          for t in alive if t.ident in frames)
+        pytest.fail(f"{item.nodeid} left {len(alive)} job thread(s) running after teardown: "
+                    f"{', '.join(sorted(t.name for t in alive))} -- close its library "
+                    f"(db_manager.close_database/close_all) or stop the scheduler it made\n{where}",
+                    pytrace=False)
+    return result
+
+
 @pytest.fixture(autouse=True)
 def _reclaim_tmp_path_after_test(request, tmp_path):
     """Reclaim tmp_path on pass, retain (bounded) on failure — every suite.
