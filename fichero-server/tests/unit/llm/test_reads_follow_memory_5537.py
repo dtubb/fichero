@@ -297,3 +297,27 @@ def test_the_start_plan_states_the_need_and_pages_at_once_on_this_mac(monkeypatc
     assert rows[1]["memory"] is None
     monkeypatch.setattr(kraken_runtime, "_physical_memory_bytes", _mac(16))
     assert "reads 4 pages at once, about 6.9 GB at most" in estimate([local], 10)["runs"][0]["memory"]
+
+
+def test_a_run_torn_down_mid_read_does_not_wedge_the_next_runs_reads():
+    """Each workflow run has its own event loop; one closed while a page held the only slot (an 8 GB
+    Mac) must not leave every later read waiting forever."""
+    from fichero_server.llm.local_inference import local_read_slot
+
+    async def hold_forever(entered: asyncio.Event):
+        async with local_read_slot(1):
+            entered.set()
+            await asyncio.Event().wait()
+
+    old = asyncio.new_event_loop()
+    entered = asyncio.Event()
+    task = old.create_task(hold_forever(entered))
+    old.run_until_complete(entered.wait())
+    old.close()  # the run's loop ends with the read still holding its slot
+
+    async def read():
+        async with local_read_slot(1):
+            return "read"
+
+    assert asyncio.run(asyncio.wait_for(read(), timeout=2)) == "read"
+    del task

@@ -270,7 +270,8 @@ def local_read_plan(spec: Any, *, physical_bytes: Any = None) -> str:
 
 
 _reads_lock = threading.Lock()
-_reads_in_flight = 0
+#: The tasks holding a read slot now, across every event loop.
+_readers: set[asyncio.Task] = set()
 #: True while this task holds a local read slot: a call inside one does not ask for a second.
 _holding_read: ContextVar[bool] = ContextVar("fichero_holding_local_read", default=False)
 #: How often a read waiting for a slot looks again.
@@ -281,24 +282,28 @@ _READ_LOOK_AGAIN_SECONDS = 0.05
 async def local_read_slot(at_once: int):
     """Hold one of `at_once` slots on the local model server for one request (#5537). One count for
     the whole engine, across every run's event loop (each workflow run has its own): the server is
-    one process per Mac, whichever run asks it. Re-entrant within a task."""
-    global _reads_in_flight
+    one process per Mac, whichever run asks it. Re-entrant within a task. A holder whose task ended
+    or whose loop closed without letting go is dropped, so a run torn down mid-read never wedges the
+    slots of the runs after it."""
     if _holding_read.get():
         yield
         return
+    me = asyncio.current_task()
     while True:
         with _reads_lock:
-            if _reads_in_flight < max(1, at_once):
-                _reads_in_flight += 1
+            _readers.difference_update(
+                [t for t in _readers if t.done() or t.get_loop().is_closed()])
+            if len(_readers) < max(1, at_once):
+                _readers.add(me)
                 break
         await asyncio.sleep(_READ_LOOK_AGAIN_SECONDS)
-    token = _holding_read.set(True)
+    _holding_read.set(True)  # entered only when False: no token, which a torn-down loop's context cannot reset
     try:
         yield
     finally:
-        _holding_read.reset(token)
+        _holding_read.set(False)
         with _reads_lock:
-            _reads_in_flight -= 1
+            _readers.discard(me)
 
 
 class LocalModelServerStoppedError(RuntimeError):
