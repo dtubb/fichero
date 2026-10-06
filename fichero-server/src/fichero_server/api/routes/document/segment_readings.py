@@ -943,6 +943,17 @@ def is_unconverted_pass(pass_id: str | None) -> bool:
     return pass_id is not None and pass_id.startswith(LEGACY_ID_PREFIX)
 
 
+def ordered_lines(db: Database, pass_id: str) -> list[Segment]:
+    """A pass's live lines in its reading order: its `as-written` order when that holds every line, else
+    the box order (`_segment_order_key`), the same rule the page's text is derived by. What a reader reads
+    in turn (`llm.working_lines`, #5487)."""
+    rows = [row for row in db.query(Segment, pass_id=pass_id) if row.deleted_at is None and row.kind == "line"]
+    sequence = _as_written_sequence(db, pass_id)
+    if sequence is not None and rows and all(row.id in sequence for row in rows):
+        return sorted(rows, key=lambda row: (sequence[row.id], row.id))
+    return sorted(rows, key=_segment_order_key)
+
+
 def _as_written_sequence(db: Database, pass_id: str) -> dict[str, int] | None:
     """Each segment's place when the pass's `as-written` order is walked depth first, each level
     by position (a block, then its lines, then their words), or None when the pass has no such
