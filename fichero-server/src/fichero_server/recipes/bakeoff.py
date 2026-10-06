@@ -26,6 +26,12 @@ This module only decides what goes in and reads what came out:
   and the cards, so it can be read back after the job row is cleared, and run again later.
 * **The table.** Ranked by the fixed order: accuracy in bands (within one point of CER of the best are
   tied), then local before remote, cheaper, faster, lower carbon, trainable, smaller, the card id.
+* **Read, measured, winner** (#5531). The evaluation's one judgement (`evaluation.judged`): a page a reader
+  returned nothing (or far too little) for is not read, with why, never 100% CER; a candidate that read
+  under `evaluation.MEASURED_SHARE` of the pages is "not measured: read N of M pages (why)" and has no
+  CER; a measured one's CER is over the pages it read, with that count. A winner is named only when at
+  least two candidates were measured; otherwise `no_winner_why` says why. Records and card entries kept
+  before this are judged the same way when read.
 * **Use This.** Sets the step's reader for the project or one folder, as an override on the recipe,
   through the audited `project.save_setup` path (`recipes/project.py` keeps the recipe).
 """
@@ -307,14 +313,22 @@ def list_records(library: Path) -> list[dict[str, Any]]:
 
 
 def _scored_row(entry: dict[str, Any]) -> dict[str, Any]:
+    """A candidate's row from its card's entry for this job, judged by the evaluation's one rule (an entry
+    kept before #5531 has no read/measured fields: it is judged from the characters its pages recorded)."""
+    from fichero_server.training.evaluation import judged
     from fichero_server.workflows.transcription_accuracy import DEFAULT_POLICY_NAME
 
     speed = entry.get("speed") or {}
-    return {"cer": entry["scores"][DEFAULT_POLICY_NAME]["cer"], "policy": DEFAULT_POLICY_NAME,
-            "scores": {name: s.get("cer") for name, s in entry["scores"].items()},
+    pages = entry.get("per_page") or []
+    j = judged(pages, len(entry.get("pages") or pages))
+    cer = j["scores"][DEFAULT_POLICY_NAME]["cer"] if j["measured"] else None
+    return {"cer": cer, "policy": DEFAULT_POLICY_NAME if cer is not None else None,
+            "scores": {name: s.get("cer") for name, s in j["scores"].items()} if j["measured"] else {},
             "per_page": [{"document_id": p["document_id"], "name": p["name"], "lines": p["lines"],
-                          "cer": p["scores"][DEFAULT_POLICY_NAME].get("cer")} for p in entry.get("per_page") or []],
-            "pages_per_hour": speed.get("pages_per_hour"), "seconds": speed.get("seconds")}
+                          "cer": p["scores"][DEFAULT_POLICY_NAME].get("cer"), "read": p["read"], "why": p["why"]}
+                         for p in j["per_page"]],
+            "measured": j["measured"], "pages_read": j["pages_read"], "pages_total": j["pages_total"],
+            "why": j["why"], "pages_per_hour": speed.get("pages_per_hour"), "seconds": speed.get("seconds")}
 
 
 def _rank(rows: list[dict[str, Any]], material: str, volume: int) -> list[dict[str, Any]]:
@@ -347,32 +361,37 @@ def _rank(rows: list[dict[str, Any]], material: str, volume: int) -> list[dict[s
 def result(db: Any, library: Path, bakeoff_id: str) -> dict[str, Any]:
     """The comparison: the record, the job's state and the ranked table, read from the cards."""
     from fichero_server.execution import jobs
-    from fichero_server.training.evaluation import model_evaluations
+    from fichero_server.training.evaluation import model_evaluations, no_winner_why
 
     record = read_record(library, bakeoff_id)
     job = jobs.read_job(db, record["job_id"])
     state = job["state"] if job else "cleared"
-    rows = []
+    rows, waiting = [], False
     for c in record["candidates"]:
         row = {k: c[k] for k in ("card", "pin", "role", "rule_rank", "reader", "model", "runs_on", "local",
                                  "cost_usd", "carbon_g_per_page", "trainable", "size_gb", "material")}
         # A record kept before rows carried a name reads it from the card now (one source: the card).
         row["name"] = c.get("name") or _name_of(c["card"])
         row.update(cer=None, policy=None, scores={}, per_page=[], pages_per_hour=None, seconds=None,
-                   why=c["not_scored"])
+                   measured=False, pages_read=None, pages_total=None, why=c["not_scored"])
         if c["not_scored"] is None:
             entry = next((e for e in model_evaluations(c["model"], c["reader"])
                           if e.get("job_id") == record["job_id"]), None)
             if entry is not None:
                 row.update(_scored_row(entry))
             else:
-                row["why"] = ("waiting for the evaluation job to score it" if state in ("waiting", "running")
+                waiting = state in ("waiting", "running")
+                row["why"] = ("waiting for the evaluation job to score it" if waiting
                               else f"the evaluation job ended ({state}) without scoring it")
         rows.append(row)
     ranked = _rank(rows, record["material"], int(record.get("volume") or 0))
-    winner = next((r["card"] for r in ranked if r["cer"] is not None), None)
+    # A winner only among the measured, and only when at least two were (#5531); none while still scoring.
+    compared = [r for r in ranked if r["measured"] and r["cer"] is not None]
+    no_winner = None if waiting else no_winner_why([r["name"] or "a reader" for r in compared])
+    winner = compared[0]["card"] if not waiting and no_winner is None else None
     return {**{k: record[k] for k in ("id", "job_id", "step", "started_at", "pages", "left_out", "lines")},
-            "state": state, "reason": job["reason"] if job else None, "rows": ranked, "winner": winner}
+            "state": state, "reason": job["reason"] if job else None, "rows": ranked, "winner": winner,
+            "no_winner_why": no_winner}
 
 
 # --- Use This --------------------------------------------------------------------------------------------
@@ -393,17 +412,18 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
     row = next((r for r in table["rows"] if r["card"] == card.id), None)
     if row is None:
         raise BakeoffRefused(f"{name} is not one of this bake-off's candidates")
-    if row["cer"] is None:
-        raise BakeoffRefused(f"{name} was not scored in this bake-off ({row['why']}), so it cannot be chosen from it")
+    if row["cer"] is None or not row.get("measured"):
+        raise BakeoffRefused(f"{name} was not measured in this bake-off ({row['why']}), so it cannot be chosen "
+                             "from it")
     if scope == "folder" and not folder_id:
         raise BakeoffRefused("name the folder to use it for")
     out = copy.deepcopy(recipe)
     step = next((s for s in out.get("steps") or [] if s.get("job") == table["step"]), None)
     if step is None:
         raise BakeoffRefused(f"this project's recipe has no {table['step']} step to set a reader for")
-    pages = len(row["per_page"])
-    because = (f"chosen in the bake-off on your pages: CER {row['cer'] * 100:.1f}% ({row['policy']}) on "
-               f"{pages} page{'s' if pages != 1 else ''}, {table['lines']} lines; rank {row['rank']}")
+    because = (f"chosen in the bake-off on your pages: CER {row['cer'] * 100:.1f}% ({row['policy']}) on the "
+               f"{row['pages_read']} of {_plural(row['pages_total'], 'page')} it read, {table['lines']} lines; "
+               f"rank {row['rank']}")
     override = {"step": step["id"], "scope": scope, "folder_id": folder_id if scope == "folder" else None,
                 "model": dict(card.pin), "card": card.id, "runs_on": card.runs_on, "from_bakeoff": table["id"],
                 "cer": row["cer"], "policy": row["policy"], "because": because, "at": now}
