@@ -372,6 +372,7 @@
   "POST /api/workflow-execution/runs/delete": "audited action workflow_run.delete, undoable=False by design for now: the run is soft-deleted and restorable by status; Put Back belongs to the undo, trash and rollback spec (#4960)",
   "POST /api/workflow-execution/threads/{thread_id}/cancel": "no undo registration in current tree",
   "POST /api/workflow-execution/threads/{thread_id}/pause": "no undo registration in current tree",
+  "POST /api/workflow-execution/threads/{thread_id}/read-again": "starts a run, like /execute and /resume; a run is stopped, not undone (#5555)",
   "POST /api/workflow-execution/threads/{thread_id}/resume": "no undo registration in current tree",
   "POST /api/workflows": "no undo registration anywhere for this endpoint. It read as covered until 2026-09-27 only because a substring of its path appeared in a comment in an undo-registering file (#5108); undo in this app is view-level UndoManager, not per-endpoint (#5109)",
   "POST /api/workflows/import": "no undo registration in current tree",
