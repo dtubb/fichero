@@ -320,7 +320,30 @@ What the memory check does for a local model's load (#5537), each pinned in
   carries the engine's and the model servers' peak memory (physical footprint, sampled each second).
   Since #5555 the run's account (`activity.run.account`) carries the peaks, the peaks so far while the
   run runs, and Activity's run row shows them
-  (`fichero-server/tests/unit/jobs/test_run_account_5555.py`). Not yet stated before Start (rule 8).
+  (`fichero-server/tests/unit/jobs/test_run_account_5555.py`). Before Start, see `compute.memory.plan-states-need`.
+- `compute.memory.reads-follow-memory` — **[OK]** (#5537) how many reads (pages, or a page's line
+  batches) the engine's local model server is asked at once is decided from the model's need and the
+  Mac's memory, in one place (`local_inference.local_reads_at_once`), and held at the call
+  (`llm.model_call_slot`) whoever asks — a page, a line reader's batches, a batch call — across every
+  run: (half the Mac's memory − the weights) ÷ the 1 GB per-read margin, at least 1, at most 4. On an
+  8 GB Mac a 3B vision model reads one page at a time; on 16 GB it reads four, an 8B two. Cloud models
+  keep their parallelism. On the 8 GB Air (2026-10-06) four pages at once, each line reader asking
+  four batches, ran the server out of memory mid-read. Pinned in
+  `fichero-server/tests/unit/llm/test_reads_follow_memory_5537.py` with injected memory. The rule is
+  set from that evidence, not a profile; the run's peak memory is how it is re-measured.
+- `compute.memory.server-death-said` — **[OK]** (#5537) when the engine's model server dies under a
+  request, the page's cause is "The local model server stopped while reading: <its last output>" (e.g.
+  Metal's "Insufficient Memory"), never "An error occurred during streaming"; the server's last output
+  is written to the engine log when the engine finds it exited (once per process; also a server whose
+  run's event loop has ended, found by its pid); and the page counts as a passing failure, read once
+  more after the server restarts (`page_retry`, #5555). Pinned with a real server process that dies
+  mid-answer.
+- `compute.memory.plan-states-need` — **[PARTIAL]** (#5537, rule 8) the start plan's estimate states,
+  for each run pinned to a model on this Mac's model server, the model's need, how many pages at once
+  it reads on this Mac and the peak that comes to ("… needs about 3.9 GB; on this Mac (8.0 GB) it reads
+  one page at a time, about 3.9 GB at most"). Not yet: a run on the workflow's own default local model
+  (no pin), Kraken's and the other runtimes' share, the run's peak across its steps, and the app
+  showing it.
 
 ### Publishing
 
