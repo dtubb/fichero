@@ -197,7 +197,7 @@ extension LibraryWindow {
     }
 }
 
-/// Set Up New Project…'s sheet on a window (#5482): setup from Where it lives, which makes the
+/// Set Up New Project…'s sheet on a window (#5482): setup from Your project, which makes the
 /// project; `onProjectReady` shows it in this window when setup ends, in place (#4062). Asked
 /// with no window to show it (#4530), the first window to see the request takes it.
 struct NewProjectSetUpSheet: ViewModifier {

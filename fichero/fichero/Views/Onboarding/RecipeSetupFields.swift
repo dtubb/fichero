@@ -2,13 +2,14 @@ import FicheroAPIClient
 import SwiftUI
 import UniformTypeIdentifiers
 
-// Setup's first four screens (section 7b), as subviews `FirstRunWindow` hosts, so first run,
-// Set Up New Project… and Set Up… are one flow (`source.onboard.where-it-lives`,
-// `source.onboard.purpose-first`, `source.onboard.widget-and-search`,
-// `source.onboard.five-questions`). A form with search, not a conversation; the answers stay
-// on the project's store; nothing runs here. No disclosure anywhere (#5481).
+// Setup's first three steps (section 7b, four steps ruled 2026-10-06, #5492), as subviews
+// `FirstRunWindow` hosts, so first run, Set Up New Project… and Set Up… are one flow
+// (`source.onboard.where-it-lives`, `source.onboard.purpose-first`,
+// `source.onboard.widget-and-search`, `source.onboard.five-questions`). A form with search, not
+// a conversation; the answers stay on the project's store; nothing runs here. No disclosure
+// anywhere (#5481).
 
-/// Screen 1, "Where it lives" (#5482): the name, and Inside Fichero (the default) or a folder
+/// Step 1, "Your project" (#5482): the name, and Inside Fichero (the default) or a folder
 /// the person chooses. A place that cannot be written is refused here in words.
 struct SetupWhereItLivesFields: View {
     @Bindable var store: NewProjectStore
@@ -77,9 +78,10 @@ struct SetupWhereItLivesFields: View {
     }
 }
 
-/// Screen 4, "What it is for" (#5478): the engine's purposes as checkboxes, any combination, each
-/// ticked purpose with its jobs in one line; then every job as a checkbox. A job a ticked purpose
-/// brings is ticked and stays ticked while the purpose is (the engine adds jobs, never removes one).
+/// Step 3, "What you want to do" (#5478, #5492): the engine's purposes as checkboxes, any
+/// combination. Ticking one opens, in place under it, one plain sentence of what it does and its
+/// own questions (`RecipeSetupStore.questions(under:)`); an unticked purpose shows nothing more.
+/// Jobs beyond the purposes' are added on Ready ("Also on hand").
 struct RecipePurposeFields: View {
     @Bindable var store: RecipeSetupStore
 
@@ -91,40 +93,29 @@ struct RecipePurposeFields: View {
                 ProgressView()
             }
             ForEach(store.purposeOptions.filter { $0.id != "not-sure" }, id: \.id) { purpose in
-                VStack(alignment: .leading, spacing: 2) {
-                    Toggle(isOn: Binding(get: { store.purposes.contains(purpose.id) },
-                                         set: { _ in store.toggle(purpose: purpose.id) })) {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(purpose.title)
-                            Text(purpose.description).font(.caption).foregroundStyle(.secondary)
+                let ticked = store.purposes.contains(purpose.id)
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle(purpose.title, isOn: Binding(get: { ticked },
+                                                        set: { _ in store.toggle(purpose: purpose.id) }))
+                        .setupCheckbox()
+                        .help(purpose.description)
+                    if ticked {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(purpose.description)
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            ForEach(store.questions(under: purpose.id), id: \.self) { job in
+                                JobQuestionFields(store: store, job: job)
+                            }
                         }
-                    }
-                    .setupCheckbox()
-                    if store.purposes.contains(purpose.id), let jobs = purpose.jobs, !jobs.isEmpty {
-                        Text(jobs.map(\.title).joined(separator: " · "))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, 20)
+                        .padding(.leading, 20)
                     }
                 }
             }
             if store.purposes.isEmpty {
                 Text("Not sure yet: nothing is proposed, and every tool is on hand when you want it.")
                     .font(.callout).foregroundStyle(.secondary)
-            }
-            if !store.jobOrder.isEmpty {
-                Divider()
-                Text("Jobs").font(.headline)
-                ForEach(store.jobOrder, id: \.self) { job in
-                    let fromPurposes = store.purposeTitles(bringing: job)
-                    Toggle(store.title(ofJob: job), isOn: Binding(
-                        get: { store.tickedJobs.contains(job) },
-                        set: { _ in store.toggle(job: job) }
-                    ))
-                    .setupCheckbox()
-                    .disabled(!fromPurposes.isEmpty)
-                    .help(fromPurposes.isEmpty ? "" : "Part of \(fromPurposes.joined(separator: ", "))")
-                }
             }
         }
         .task {
@@ -168,7 +159,7 @@ struct ProjectIntakeChoice: View {
     }
 }
 
-/// Screen 2, "Your material": how sources come in, a folder to bring in now
+/// Step 2, "Your material", its first half: how sources come in, a folder to bring in now
 /// (or later, from the project), and how much there is.
 struct RecipeMaterialSourceFields: View {
     @Bindable var store: RecipeSetupStore
@@ -214,7 +205,7 @@ struct RecipeMaterialSourceFields: View {
     }
 }
 
-/// Screen 5, "What it is" (#5479, #5478): languages and scripts, each found by typing and
+/// Step 2, "Your material", its second half, what it is (#5479, #5478): languages and scripts, each found by typing and
 /// shown as tokens; one direction per script, pre-filled from it; the kinds of material.
 struct RecipeAboutFields: View {
     @Bindable var store: RecipeSetupStore
@@ -431,13 +422,13 @@ extension View {
     }
 }
 
-#Preview("Where it lives") {
+#Preview("Your project") {
     SetupWhereItLivesFields(store: NewProjectStore(libraryManager: LibraryManager.shared))
         .padding()
         .frame(width: 520, height: 300)
 }
 
-#Preview("What it is for") {
+#Preview("What you want to do") {
     RecipePurposeFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
         .padding()
         .frame(width: 520, height: 480)

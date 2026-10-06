@@ -657,9 +657,11 @@ link here and do not restate it. Each screen's behaviours are the `source.onboar
   keeps the material organised. A file a person moves by hand inside the folder stays where they
   put it, and Fichero's records follow the move (the folder and the project stay in sync).
 
-**Proposed: setup in four steps (maintainer's direction 2026-10-05 evening, #5492; awaiting his
-ruling).** Setup is still too many screens (nine, plus one per ticked job). Four steps, and a
-question appears only under the choice that needs it:
+**Setup in four steps (maintainer's direction 2026-10-05 evening, #5492; ruled yes 2026-10-06;
+built 2026-10-06, app, not yet seen).** This supersedes the screens and their order in "The
+screens, in order" below; what each screen asked is kept, now on the step named here. Setup was
+still too many screens (nine, plus one per ticked job). Four steps, and a question appears only
+under the choice that needs it:
 1. **Your project**: its name, and where it lives (Inside Fichero, or Choose a location…).
 2. **Your material**: how it comes in (Link, Copy, Move, Index, Keep arranged) and Add a Folder…;
    what it is (handwriting, print, typescript; languages and scripts as tokens; direction filled in
@@ -671,6 +673,23 @@ question appears only under the choice that needs it:
    your pages and Keep an export…, and Start.
 The per-job screens go; their explanations become the sentence under each checkbox. Anything
 optional can also be done later from the Inspector.
+
+*Built 2026-10-06 (app, not yet seen):* `FirstRunStep` is welcome, permissions, AI, then
+`.project`, `.material`, `.purpose`, `.ready`; Set Up… runs `.material`, `.purpose`, `.ready`.
+Your material hosts the ways-in control, Add a Folder… with a tied folder's intake, the page count,
+and the language, script, direction and material fields on one card. What you want to do ticks
+purposes; a ticked one shows its description and the questions of its jobs
+(`RecipeSetupStore.questions(under:)`: which kinds of names, which gazetteer, into what form; a
+question shared by two ticked purposes is asked once, under the first). Ready
+(`RecipeReadyFields`) shows the recipe's rows with the one cloud question and Also on hand, the
+estimate, What runs by itself as one choice (`setRunsByItself`), Check on your pages
+(`BakeoffSection`) and Keep an export (`KeptExportFields`) marked optional; the plan is saved
+whenever it changes so the estimate and Start follow it; Start keeps the export rows, saves, then
+starts. Continue on Your material and What you want to do saves the draft. Deleted: the per-job
+screens (`SetupPage`, `SetupJobFields`), the Kept exported, What it is, How it will be done, What
+runs by itself and Start screens as separate steps, and the jobs checklist (a job is added on
+Ready). Pinned by `fichero/Tests/Unit/general/Models/SetupFourStepsTests.swift`. *Not built:*
+"into which language" for Translate or normalise (only how far is asked); "roughly when".
 
 **What is built today, read on disk 2026-10-05.** First run's setup store is the app-wide one
 (`AppState` makes `RecipeSetupStore(client: ficheroClient)`), whose client sends no project path,
@@ -1941,7 +1960,7 @@ Setup
   Typescript, any mix (at least one; default Handwriting), saved as a list (`answers.materials`);
   the rules propose a reader for each kind ticked, and a card's `material` must cover the kind its
   step reads. *Test:* materials [handwriting, print] assemble two reading choices, one per kind.
-- `source.onboard.screens-in-order` — **[PARTIAL]** (#4951, #5477, #5478, #5481, #5482) **Built 2026-10-05 (app), not yet seen:** first run (after Welcome, Permissions and AI) and File › Set Up New Project… run Where it lives → What it is for → Your material → What it is → one screen per ticked job → How it will be done → What runs by itself → Start; Set Up… starts at What it is for (`FirstRunStep.newProjectSteps`, `setUpSteps`, `SetupPage.pages`); every screen after Where it lives saves a draft on Continue and stays put if the engine refuses it; pinned by `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`, `RecipeSetupFlowTests.swift`, `SetupRoundTwoTests.swift`. *Not built: screen 5 of section 7 (check on your pages).* *Superseded 2026-10-05 by section 7b's order (below).* **Built 2026-10-04 (app):** first run
+- `source.onboard.screens-in-order` — **[PARTIAL]** (#4951, #5477, #5478, #5481, #5482, #5492) **Built 2026-10-06 (app), not yet seen:** setup is four steps (section 7b, ruled 2026-10-06): first run (after Welcome, Permissions and AI) and File › Set Up New Project… run Your project → Your material → What you want to do → Ready; Set Up… starts at Your material (`FirstRunStep.newProjectSteps`, `setUpSteps`); a ticked purpose opens its questions in place and an unticked one shows nothing (`RecipeSetupStore.questions(under:)`); Ready carries the plan, What runs by itself, and the optional rows Check on your pages and Keep an export, then Start (`RecipeReadyFields`); Continue on Your material and What you want to do saves a draft and stays put if the engine refuses it; Start saves, then starts; pinned by `fichero/Tests/Unit/general/Models/SetupFourStepsTests.swift`, `FirstRunStepSelectionTests.swift`, `RecipeSetupFlowTests.swift`, `SetupRoundTwoTests.swift`. *Not yet seen by the maintainer.* *Superseded 2026-10-06 by the four steps:* **Built 2026-10-05 (app):** first run (after Welcome, Permissions and AI) and File › Set Up New Project… run Where it lives → What it is for → Your material → What it is → one screen per ticked job → How it will be done → What runs by itself → Start; Set Up… starts at What it is for (`FirstRunStep.newProjectSteps`, `setUpSteps`, `SetupPage.pages`); every screen after Where it lives saves a draft on Continue and stays put if the engine refuses it; pinned by `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`, `RecipeSetupFlowTests.swift`, `SetupRoundTwoTests.swift`. *Not built: screen 5 of section 7 (check on your pages).* *Superseded 2026-10-05 by section 7b's order (below).* **Built 2026-10-04 (app):** first run
   and Set Up… run one list (`FirstRunStep.setUpSteps`): What are you doing? → Your material (how
   sources come in, Add a Folder…, roughly how many pages) → What it is (languages, scripts, the
   facts worked out for them, the kind of material) → How it will be done (the proposed recipe, the
@@ -1951,12 +1970,13 @@ Setup
   maintainer's ruling:* section 7's order, with screen 5 (Check on your pages) left out until the
   evaluation job exists (#5441; engine), and the draft saved on Continue rather than on every
   keystroke. Not built: screen 5; the order is still to be aligned with the maintainer's step
-  document. setup's screens run in one fixed order (ruled 2026-10-05, section 7b): Where it lives
-  → What it is for → Your material → What it is → the details a ticked job needs (only those) → How
-  it will be done → What runs by itself → Start; Set Up… on an existing project starts at What it
-  is for; it can be closed at any screen with the answers kept as a draft in the project, and
-  nothing runs before Start. *Test:* first run with purposes [transcribe] walks exactly those
-  screens, without a detail screen.
+  document. setup runs in four steps, in one fixed order (ruled 2026-10-06, section 7b, #5492):
+  Your project → Your material → What you want to do (a ticked purpose's questions open in place
+  under it; an unticked one shows nothing) → Ready (the plan, what runs by itself, the optional
+  rows Check on your pages and Keep an export, Start); Set Up… on an existing project starts at
+  Your material; it can be closed at any step with the answers kept as a draft in the project,
+  and nothing runs before Start. *Test:* setup is exactly those four steps; ticking People,
+  places and things shows which kinds of names and nothing for an unticked purpose.
 - `source.onboard.teaches-the-method` — **[GAP]** (#4951, #5471, #5481) **Engine built 2026-10-04:** each
   topic of section 7a has a title, one sentence, a paragraph and the example to show, served by
   `GET /api/topics` and `GET /api/topics/{id}` from `fichero-server/src/fichero_server/recipes/seed/topics.yaml`;

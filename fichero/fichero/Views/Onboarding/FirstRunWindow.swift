@@ -3,11 +3,12 @@ import AppKit
 #endif
 import SwiftUI
 
-/// First run, File › Set Up New Project… and Set Up… are one flow (section 7b,
-/// `source.onboard.screens-in-order`). First run and a new project begin at Where it lives,
-/// which makes the project; Set Up… begins at What it is for on the project it was asked for.
-/// Every setup screen after Where it lives reads and saves through THAT project's own store
-/// (`LibraryReference.recipeSetupStore`), so the engine always knows which project (#5477).
+/// First run, File › Set Up New Project… and Set Up… are one flow in four steps (section 7b,
+/// ruled 2026-10-06, #5492; `source.onboard.screens-in-order`). First run and a new project
+/// begin at Your project, which makes the project; Set Up… begins at Your material on the
+/// project it was asked for. Every step after Your project reads and saves through THAT
+/// project's own store (`LibraryReference.recipeSetupStore`), so the engine always knows which
+/// project (#5477).
 struct FirstRunWindow: View {
     enum Mode {
         case firstRun
@@ -20,12 +21,12 @@ struct FirstRunWindow: View {
     private let featureManager = FeatureManager.shared
     @State private var libraryManager = LibraryManager.shared
 
-    @State private var page: SetupPage
+    @State private var step: FirstRunStep
     @State private var documentsPermission = false
     /// "Choose a Provider" on the AI step no longer ends the flow (the recipe
     /// steps follow it); the Add Provider sheet opens when the flow finishes.
     @State private var wantsProviderSetup = false
-    /// The project setup works on: given for Set Up…, made by Where it lives otherwise.
+    /// The project setup works on: given for Set Up…, made by Your project otherwise.
     @State var project: LibraryManager.LibraryReference?
     @State var newProject = NewProjectStore(libraryManager: LibraryManager.shared)
     @State private var isSaving = false
@@ -47,16 +48,11 @@ struct FirstRunWindow: View {
         self.mode = mode
         self.onProjectReady = onProjectReady
         _project = State(initialValue: project)
-        _page = State(initialValue: .step(steps.first ?? .welcome))
+        _step = State(initialValue: steps.first ?? .welcome)
     }
 
-    /// The store of the project being set up; nil until Where it lives has made one.
+    /// The store of the project being set up; nil until Your project has made one.
     var store: RecipeSetupStore? { project?.recipeSetupStore }
-
-    /// The pages in order, a ticked job's screen in the place of `.jobs`.
-    var pages: [SetupPage] {
-        SetupPage.pages(steps: steps, tickedJobs: store?.tickedJobs ?? [])
-    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -71,7 +67,7 @@ struct FirstRunWindow: View {
         .frame(width: 820, height: 600)
         #endif
         // Reopen where the person left off: the project's saved answers and
-        // recipe (GET /api/recipes/project), and the purposes' jobs for the job screens.
+        // recipe (GET /api/recipes/project), and the purposes and jobs for their questions.
         .task(id: project?.id) {
             guard let store else { return }
             await store.loadSaved()
@@ -80,54 +76,41 @@ struct FirstRunWindow: View {
         }
     }
 
-    /// Advance within the pages; the LAST one finishes (#2807).
+    /// Advance within the steps; the LAST one finishes (#2807).
     private func advance() {
-        // Where it lives makes the project; the screens after it save into it.
-        if page == .step(.location) {
+        // Your project makes the project; the steps after it save into it.
+        if step == .project {
             Task {
                 guard let made = await newProject.create() else { return }
                 project = made
-                page = next(after: page)
+                step = step.next(in: steps)
             }
             return
         }
-        // Start records the first yes; the window closes only when the engine kept it.
-        if page == .step(.start), let store {
-            Task { if await store.start() { finish() } }
+        // Ready's Start keeps the exports, saves, and records the first yes; the window closes
+        // only when the engine kept it.
+        if step == .ready, let store {
+            Task {
+                isSaving = true
+                defer { isSaving = false }
+                if await RecipeReadyFields.start(store: store, keptExports: project?.keptExportStore) { finish() }
+            }
             return
         }
-        if page == pages.last {
+        if step == steps.last {
             finish()
             return
         }
-        // Leaving a setup screen keeps the answers so far as a draft on the project,
-        // so setup can be closed at any screen; saving is not Start.
-        guard page.savesDraft, let store else { page = next(after: page); return }
+        // Continue keeps the answers so far as a draft on the project, so setup can be closed
+        // at any step; saving is not Start.
+        guard step.savesDraft, let store else { step = step.next(in: steps); return }
         Task {
             isSaving = true
-            // Kept exported keeps its rows on Continue; a refused row stays, with the engine's words.
-            if page == .step(.keptExported), let keptExports = project?.keptExportStore,
-               !(await keptExports.keepDrafts()) {
-                isSaving = false
-                return
-            }
             let saved = await store.save()
             isSaving = false
-            // A refused save stays on its screen with the engine's words.
-            if saved { page = next(after: page) }
+            // A refused save stays on its step with the engine's words.
+            if saved { step = step.next(in: steps) }
         }
-    }
-
-    private func next(after current: SetupPage) -> SetupPage {
-        let all = pages
-        guard let index = all.firstIndex(of: current), index + 1 < all.count else { return all.last ?? current }
-        return all[index + 1]
-    }
-
-    private func previous(before current: SetupPage) -> SetupPage {
-        let all = pages
-        guard let index = all.firstIndex(of: current), index > 0 else { return all.first ?? current }
-        return all[index - 1]
     }
 
     private var sidebar: some View {
@@ -136,11 +119,11 @@ struct FirstRunWindow: View {
                 .font(.title2.weight(.semibold))
                 .padding(.bottom, 12)
 
-            List(pages, selection: Binding(get: { page }, set: { if let chosen = $0 { page = chosen } })) { item in
-                sidebarLabel(item)
+            List(steps, selection: Binding(get: { step }, set: { if let chosen = $0 { step = chosen } })) { item in
+                Label(item.title, systemImage: item.icon)
                     .tag(item)
-                    // Nothing after Where it lives can be reached before there is a project.
-                    .disabled(store == nil && item != .step(.location) && !isBeforeLocation(item))
+                    // Nothing after Your project can be reached before there is a project.
+                    .disabled(store == nil && item != .project && !isBeforeProject(item))
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
@@ -150,20 +133,8 @@ struct FirstRunWindow: View {
         .background(Color(platformColor: .controlBackgroundColor))
     }
 
-    @ViewBuilder
-    private func sidebarLabel(_ item: SetupPage) -> some View {
-        switch item {
-        case .step(let step):
-            Label(step.title, systemImage: step.icon)
-        case .job(let job):
-            Label(store?.title(ofJob: job) ?? job, systemImage: "checkmark.square")
-                .padding(.leading, 14)
-        }
-    }
-
-    private func isBeforeLocation(_ item: SetupPage) -> Bool {
-        guard case .step(let step) = item else { return false }
-        return [.welcome, .permissions, .cloud].contains(step)
+    private func isBeforeProject(_ item: FirstRunStep) -> Bool {
+        [.welcome, .permissions, .cloud].contains(item)
     }
 }
 
@@ -171,8 +142,8 @@ struct FirstRunWindow: View {
 extension FirstRunWindow {
     @ViewBuilder
     private var content: some View {
-        switch page {
-        case .step(.welcome):
+        switch step {
+        case .welcome:
             stepPage(
                 title: "Welcome to Fichero",
                 subtitle: "A research workspace for scanned sources, PDFs, notes, and knowledge graphs.",
@@ -182,7 +153,7 @@ extension FirstRunWindow {
                     FirstRunCardConfig(
                         icon: "books.vertical",
                         title: "Set up your first project",
-                        body: "A few questions: where the project lives, what it is for, and your material. "
+                        body: "Four steps: your project, your material, what you want to do, and the plan. "
                             + "Fichero proposes how the work will be done, and nothing runs until you press Start.",
                         primaryTitle: "Get Started",
                         primaryIcon: "arrow.right",
@@ -200,7 +171,7 @@ extension FirstRunWindow {
                     }
                 )
             }
-        case .step(.permissions):
+        case .permissions:
             stepPage(
                 title: "Permissions",
                 subtitle: "Grant access only to the locations Fichero should work with.",
@@ -234,7 +205,7 @@ extension FirstRunWindow {
                     }
                 )
             }
-        case .step(.cloud):
+        case .cloud:
             stepPage(
                 title: "AI is optional",
                 subtitle: "Fichero is local-first. Add a provider only when you want AI.",
@@ -272,12 +243,8 @@ extension FirstRunWindow {
                     }
                 )
             }
-        case .step(.location):
-            recipeStepPage(.location)
-        case .step(let step):
+        case .project, .material, .purpose, .ready:
             recipeStepPage(step)
-        case .job(let job):
-            jobPage(job)
         }
     }
 
@@ -311,12 +278,12 @@ extension FirstRunWindow {
                     .foregroundStyle(.secondary)
                 Spacer()
                 if isSaving || newProject.isCreating { ProgressView().controlSize(.small) }
-                Button("Back") { page = previous(before: page) }
-                    .disabled(page == pages.first)
-                Button(page == .step(.start) ? "Start" : page == pages.last ? "Finish" : "Continue") {
+                Button("Back") { step = step.previous(in: steps) }
+                    .disabled(step == steps.first)
+                Button(step == .ready ? "Start" : step == steps.last ? "Finish" : "Continue") {
                     advance()
                 }
-                .disabled(page == .step(.start) && !(store?.canStart ?? false))
+                .disabled(step == .ready && !(store?.canStart ?? false))
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
             }

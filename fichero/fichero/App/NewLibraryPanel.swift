@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 
 #if os(macOS)
 
-/// The synced-location check setup's Where it lives runs on a folder the person chooses
+/// The synced-location check setup's Your project step runs on a folder the person chooses
 /// (#5482). The save panel that lived here went with the ruling of 2026-10-05: a project is made
 /// by setup, Inside Fichero or in a chosen folder (`NewProjectStore`).
 enum NewLibraryPanel {

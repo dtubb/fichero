@@ -3,7 +3,7 @@
 //  FicheroTests
 //
 //  Setup, round 2 (`source/models-chains-and-projects.md` section 7b, ruled 2026-10-05;
-//  #5478 #5479 #5481): purposes and jobs as checkboxes, each ticked job its own screen; a typed
+//  #5478 #5479 #5481): purposes as checkboxes, any combination, their jobs each once; a typed
 //  language becomes its tag; a step's problem said once with its fix, never a model id; no
 //  disclosure in setup. Through the real `RecipeSetupStore` over the generated client, with the
 //  engine's responses as it answers them (recorded from `fichero-server/tests/unit/api/
@@ -90,63 +90,45 @@ struct SetupRoundTwoTests {
         return store
     }
 
-    private static func jobPages(_ store: RecipeSetupStore) -> [String] {
-        SetupPage.pages(steps: FirstRunStep.setUpSteps, tickedJobs: store.tickedJobs).compactMap {
-            if case .job(let job) = $0 { job } else { nil }
-        }
-    }
+    // MARK: source.onboard.purpose-first (#5478)
 
-    // MARK: source.onboard.purpose-first, source.onboard.job-detail-screens (#5478)
-
-    /// WHY (ruled 2026-10-05): purposes are checkboxes, any combination, and every ticked job
-    /// adds its own screen. Ticking Transcribe and Map places must tick the union of their jobs,
-    /// each once, in the registry's order, and add one screen per job between What it is and
-    /// How it will be done. If the union doubled a job or lost one, setup would ask twice or
-    /// never explain a job the recipe runs.
-    @Test("two purposes tick their jobs, each once, and add their screens in step order")
-    func twoPurposesTickTheirJobsAndAddScreens() async {
+    /// WHY (ruled 2026-10-05): purposes are checkboxes, any combination. Ticking Transcribe and
+    /// Map places must tick the union of their jobs, each once, in the registry's order. If the
+    /// union doubled a job or lost one, the plan would run a job twice or never run one asked for.
+    @Test("two purposes tick their jobs, each once, in the registry's order")
+    func twoPurposesTickTheirJobs() async {
         let store = await registryStore()
         store.purposes = ["transcribe"]
         store.toggle(purpose: "map-places")
 
-        let expected = ["find-lines", "read-a-line", "correct", "find-names-tag-words", "place-in-a-gazetteer"]
-        #expect(store.tickedJobs == expected)
-        #expect(Self.jobPages(store) == expected)
-        let pages = SetupPage.pages(steps: FirstRunStep.setUpSteps, tickedJobs: store.tickedJobs)
-        #expect(pages.firstIndex(of: .step(.about))! < pages.firstIndex(of: .job("find-lines"))!)
-        #expect(pages.lastIndex(of: .job("place-in-a-gazetteer"))! < pages.firstIndex(of: .step(.recipe))!)
-        #expect(store.purposeTitles(bringing: "find-names-tag-words") == ["Map places"],
-                "a job a purpose brings says which purpose, and stays ticked while it is")
+        #expect(store.tickedJobs == ["find-lines", "read-a-line", "correct", "find-names-tag-words", "place-in-a-gazetteer"])
     }
 
-    /// WHY: an unticked job adds no screen (ruled 2026-10-05). Unticking the purpose that
-    /// brought a job must take that job's screen away, and keep the screens of jobs another
-    /// ticked purpose still brings. A screen left behind would ask about work nobody asked for.
-    @Test("unticking a purpose removes the screens only it brought")
-    func untickingRemovesAScreen() async {
+    /// WHY: unticking the purpose that brought a job must drop that job, and keep the jobs another
+    /// ticked purpose still brings. A job left behind would run work nobody asked for.
+    @Test("unticking a purpose drops the jobs only it brought")
+    func untickingDropsItsJobs() async {
         let store = await registryStore()
         store.purposes = ["transcribe", "map-places"]
-        #expect(Self.jobPages(store).contains("place-in-a-gazetteer"))
+        #expect(store.tickedJobs.contains("place-in-a-gazetteer"))
 
         store.toggle(purpose: "map-places")
 
-        #expect(!Self.jobPages(store).contains("place-in-a-gazetteer"))
-        #expect(!Self.jobPages(store).contains("find-names-tag-words"))
-        #expect(Self.jobPages(store) == ["find-lines", "read-a-line", "correct"], "Transcribe's own screens stay")
+        #expect(store.tickedJobs == ["find-lines", "read-a-line", "correct"], "Transcribe's own jobs stay")
 
         store.toggle(purpose: "transcribe")
-        #expect(Self.jobPages(store).isEmpty, "none ticked is Not sure yet: no job screens")
+        #expect(store.tickedJobs.isEmpty, "none ticked is Not sure yet: no jobs")
     }
 
-    /// WHY: a job ticked on its own (not by a purpose) adds its screen and reaches the engine as
-    /// `jobs`, and the purposes go as a list; the saved answers carry no single `purpose`, so the
-    /// engine never reads a stale one over the list.
-    @Test("a job ticked on its own adds its screen and is sent with the purposes as lists")
+    /// WHY: a job added on its own (Also on hand, on Ready) reaches the engine as `jobs`, and the
+    /// purposes go as a list; the saved answers carry no single `purpose`, so the engine never
+    /// reads a stale one over the list.
+    @Test("a job added on its own is sent with the purposes as lists")
     func jobTickedOnItsOwn() async throws {
         let store = await registryStore()
         store.purposes = ["transcribe"]
         store.toggle(job: "find-names-tag-words")
-        #expect(Self.jobPages(store) == ["find-lines", "read-a-line", "correct", "find-names-tag-words"])
+        #expect(store.tickedJobs == ["find-lines", "read-a-line", "correct", "find-names-tag-words"])
 
         RoundTwoURLProtocol.handler = { _ in (200, #"{"answers":{},"recipe":null}"#) }
         #expect(await store.save())

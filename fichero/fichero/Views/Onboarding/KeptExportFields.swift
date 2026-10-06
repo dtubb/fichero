@@ -2,10 +2,11 @@ import FicheroAPIClient
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Screen 3, "Kept exported" (#5485, section 7b; `source.onboard.kept-exported`): optional, and
-/// Continue with no rows skips it. One row per export: the folder (Choose…), the format, and one
-/// file per page or per document (page formats are per page only), with × to remove. Rows are
-/// kept on Continue (`KeptExportStore.keepDrafts`); exports already kept are listed above them.
+/// Keep an export, an optional row on setup's Ready step (#5485, #5492;
+/// `source.onboard.kept-exported`); no rows skips it. One row per export: the folder (Choose…),
+/// the format, and one file per page or per document (page formats are per page only), with ×
+/// to remove. Rows are kept on Start (`KeptExportStore.keepDrafts`); exports already kept are
+/// listed above them.
 struct KeptExportFields: View {
     @Bindable var store: KeptExportStore
 

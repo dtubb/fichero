@@ -73,7 +73,7 @@ final class RecipeSetupStore {
     /// What runs by itself after Start (`source.onboard.what-runs-by-itself`): nil until the
     /// person or the saved answers say, then whether new material runs, and through which steps.
     var automatic: RecipeSetupAnswers.Automatic?
-    /// The answers a ticked job's own screen asks (`source.onboard.job-detail-screens`).
+    /// The questions a ticked purpose opens under it (section 7b step 3, `answers.job_answers`).
     var jobAnswers = RecipeSetupAnswers.JobAnswers()
 
     // MARK: What the engine gave back
@@ -159,12 +159,39 @@ final class RecipeSetupStore {
         return ordered + ticked.subtracting(ordered).sorted()
     }
 
-    /// The purposes that tick a job, by title, for its checkbox's help.
-    func purposeTitles(bringing job: String) -> [String] {
-        purposeOptions.filter { purposes.contains($0.id) && ($0.jobs ?? []).contains { $0.id == job } }.map(\.title)
+    /// The jobs that ask the person something the engine cannot work out (section 7b, step 3):
+    /// which kinds of names, which gazetteer, into what form. Every other job's settings have
+    /// defaults and live in the Inspector.
+    static let jobsWithQuestions: Set<String> = [
+        "find-names-tag-words", "place-in-a-gazetteer", "translate-transliterate-normalise"
+    ]
+
+    /// The jobs whose questions open in place under a ticked purpose (ruled 2026-10-06, #5492):
+    /// that purpose's jobs that ask something, in its own order, each asked once, under the first
+    /// ticked purpose (in the engine's order) that brings it. An unticked purpose asks nothing.
+    func questions(under purpose: String) -> [String] {
+        guard purposes.contains(purpose) else { return [] }
+        var asked = Set<String>()
+        for option in purposeOptions where purposes.contains(option.id) {
+            let asking = (option.jobs ?? []).map(\.id).filter { Self.jobsWithQuestions.contains($0) && !asked.contains($0) }
+            if option.id == purpose { return asking }
+            asked.formUnion(asking)
+        }
+        return []
     }
 
     // MARK: What runs by itself (source.onboard.what-runs-by-itself)
+
+    /// The one choice on Ready: Nothing runs automatically, or new material runs through the
+    /// recipe's steps (the purposes' proposal where there is one, else every step but training,
+    /// `source.recipe.train-never-automatic`).
+    func setRunsByItself(_ runs: Bool) {
+        var steps = automaticAnswer.steps
+        if runs && steps.isEmpty {
+            steps = (recipe?.steps ?? []).map(\.job).filter { $0 != "train-a-model" }
+        }
+        automatic = .init(runs: runs, steps: steps)
+    }
 
     /// The proposal before the person says: steps of a purpose that runs by itself are ticked
     /// (training never is, `source.recipe.train-never-automatic`); with none, nothing runs.
@@ -810,7 +837,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
         var steps: [String]
     }
 
-    /// The questions a ticked job's own screen asks (`answers.job_answers`).
+    /// The questions a ticked purpose opens under it on What you want to do (`answers.job_answers`).
     struct JobAnswers: Codable, Equatable {
         /// Entities (`find-names-tag-words`): the kinds to find.
         var entityKinds: [String] = ["people", "places"]

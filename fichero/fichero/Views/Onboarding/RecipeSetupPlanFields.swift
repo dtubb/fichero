@@ -1,13 +1,14 @@
 import FicheroAPIClient
 import SwiftUI
 
-// Setup's later screens (section 7b): each ticked job's own screen, How it will be done, What
-// runs by itself and Start. No disclosure anywhere (#5481): what a step needs to say is said once.
+// Setup's questions under a ticked purpose (step 3) and its last step, Ready (step 4): section 7b,
+// four steps ruled 2026-10-06 (#5492). No disclosure anywhere (#5481): what a step needs to say
+// is said once.
 
-/// A ticked job's own screen (`source.onboard.job-detail-screens`, ruled 2026-10-05): what the
-/// job does, in the registry's words (its paragraph and its example), and the questions the
-/// engine cannot work out by itself, for the jobs that have them.
-struct SetupJobFields: View {
+/// The questions one job asks, opened in place under the ticked purpose that brings it (step 3;
+/// the per-job screens of 2026-10-05 are gone, #5492): which kinds of names, which gazetteer, into
+/// what form. Answers go to `answers.job_answers`; a job with no question shows nothing.
+struct JobQuestionFields: View {
     @Bindable var store: RecipeSetupStore
     let job: String
 
@@ -17,57 +18,41 @@ struct SetupJobFields: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let topic = store.explanation(ofJob: job) {
-                Text(topic.long).fixedSize(horizontal: false, vertical: true)
-                if let example = topic.example {
-                    Label(example, systemImage: "doc.text.magnifyingglass")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            } else if let described = store.jobs[job]?.description {
-                Text(described)
-            }
-            questions
-        }
-        .textSelection(.enabled)
-    }
-
-    @ViewBuilder
-    private var questions: some View {
         switch job {
         case "find-names-tag-words":
-            Divider()
-            Text("What to find").font(.headline)
-            ForEach(Self.entityKinds, id: \.id) { kind in
-                Toggle(kind.title, isOn: Binding(
-                    get: { store.jobAnswers.entityKinds.contains(kind.id) },
-                    set: { on in
-                        if on {
-                            store.jobAnswers.entityKinds.append(kind.id)
-                        } else {
-                            store.jobAnswers.entityKinds.removeAll { $0 == kind.id }
-                        }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Which kinds of names").font(.headline)
+                HStack(spacing: 14) {
+                    ForEach(Self.entityKinds, id: \.id) { kind in
+                        Toggle(kind.title, isOn: Binding(
+                            get: { store.jobAnswers.entityKinds.contains(kind.id) },
+                            set: { on in
+                                if on {
+                                    store.jobAnswers.entityKinds.append(kind.id)
+                                } else {
+                                    store.jobAnswers.entityKinds.removeAll { $0 == kind.id }
+                                }
+                            }
+                        ))
+                        .setupCheckbox()
+                        .fixedSize()
                     }
-                ))
-                .setupCheckbox()
+                }
             }
         case "translate-transliterate-normalise":
-            Divider()
-            Picker("How far", selection: $store.jobAnswers.normaliseHowFar) {
+            Picker("Into what", selection: $store.jobAnswers.normaliseHowFar) {
                 Text("As written").tag("as-written")
                 Text("Abbreviations expanded").tag("expanded")
                 Text("Normalised spelling").tag("normalised")
             }
-            .setupRadioGroup()
+            .fixedSize()
         case "place-in-a-gazetteer":
-            Divider()
-            Picker("Gazetteer", selection: $store.jobAnswers.gazetteer) {
+            Picker("Which gazetteer", selection: $store.jobAnswers.gazetteer) {
                 Text("GeoNames").tag("geonames")
                 Text("Wikidata").tag("wikidata")
                 Text("The project's own list").tag("project")
             }
-            .setupRadioGroup()
+            .fixedSize()
         default:
             EmptyView()
         }
@@ -96,15 +81,13 @@ struct RecipeCloudQuestion: View {
     }
 }
 
-/// Screen 6, "How it will be done" (#5481): the recipe the engine's rules propose, one row per
-/// step with one sentence; a step's problem once, with its fix as a button; the one cloud
-/// question; and every other job, which the person can add.
+/// The plan as one list (#5481): the recipe the engine's rules propose, one row per step with one
+/// sentence; a step's problem once, with its fix as a button; the one cloud question; and every
+/// other job, which the person can add.
 struct RecipeProposalFields: View {
     @Bindable var store: RecipeSetupStore
     /// A step problem's fix was pressed (its `fix`: download, choose-cloud, choose-model, …).
     let onFix: (String) -> Void
-    /// Check on your pages under the reading step (#4951); nil before there is a project.
-    var bakeoff: BakeoffSection.Context?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -114,17 +97,13 @@ struct RecipeProposalFields: View {
             if store.isAssembling {
                 ProgressView()
             } else if let recipe = store.recipe {
-                RecipeStepsView(store: store, recipe: recipe, onFix: onFix, bakeoff: bakeoff)
+                RecipeStepsView(store: store, recipe: recipe, onFix: onFix)
                 RecipeCloudQuestion(store: store)
             } else if !store.canAssemble {
-                Text("Add at least one language and one script under What It Is.")
+                Text("Add at least one language and one script under Your Material.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             OfferedJobsList(store: store)
-        }
-        .task {
-            await store.loadJobs()
-            await store.assemble()
         }
     }
 }
@@ -162,80 +141,44 @@ struct OfferedJobsList: View {
     }
 }
 
-/// Screen 7, "What runs by itself" (#5478, `source.onboard.what-runs-by-itself`): Nothing runs
-/// automatically, or new material runs through the ticked steps, pre-ticked by the purposes.
+/// What runs by itself, as one choice (#5478, #5492, `source.onboard.what-runs-by-itself`):
+/// Nothing runs automatically, or new material runs through the plan's steps.
 struct RecipeAutomaticFields: View {
     @Bindable var store: RecipeSetupStore
 
     var body: some View {
-        let answer = store.automaticAnswer
-        VStack(alignment: .leading, spacing: 10) {
-            Picker("After Start", selection: Binding(
-                get: { answer.runs },
-                set: { store.automatic = .init(runs: $0, steps: answer.steps) }
-            )) {
-                Text("Nothing runs automatically").tag(false)
-                Text("New material runs through the ticked steps").tag(true)
-            }
-            .setupRadioGroup()
-            .labelsHidden()
-            ForEach(store.recipe?.steps ?? [], id: \.id) { step in
-                Toggle(store.title(of: step), isOn: Binding(
-                    get: { answer.steps.contains(step.job) },
-                    set: { on in
-                        let steps = on ? answer.steps + [step.job] : answer.steps.filter { $0 != step.job }
-                        store.automatic = .init(runs: answer.runs, steps: steps)
-                    }
-                ))
-                .setupCheckbox()
-                .disabled(!answer.runs)
-                .padding(.leading, 20)
-            }
-            Text("Start runs the recipe once over the material already in the project. After Start, each "
-                 + "import runs only the ticked steps over the pages it brought; with Nothing runs "
-                 + "automatically, an import runs nothing. An unticked step runs only when you run it.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        Picker("After Start", selection: Binding(
+            get: { store.automaticAnswer.runs },
+            set: { store.setRunsByItself($0) }
+        )) {
+            Text("Nothing runs automatically").tag(false)
+            Text("New material runs through these steps").tag(true)
         }
-        .task { await store.loadPurposes() }
+        .setupRadioGroup()
+        .help("Start runs the plan once over the material already in the project; this says what an import does after it.")
     }
 }
 
-/// The Start step: what the recipe will run, on how many pages, what it costs, and any step
-/// the engine refuses, by name (`source.project.automatic-after-first-yes`,
-/// `source.onboard.estimate-before-start`). The engine plans; this only shows the plan.
+/// What Start would cost and any step the engine refuses, by name
+/// (`source.project.automatic-after-first-yes`, `source.onboard.estimate-before-start`). The
+/// engine plans; this only shows the plan's estimate (its steps are the list above it).
 struct RecipeStartFields: View {
     let store: RecipeSetupStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             if let plan = store.startPlan {
-                Text("\(plan.estimate.pages) pages · \(Self.cost(plan.estimate.totalCostUsd))")
+                Text("For the pages already here: \(plan.estimate.pages) pages · \(Self.cost(plan.estimate.totalCostUsd))")
                     .font(.headline)
-                ForEach(Array(plan.workflows.enumerated()), id: \.offset) { _, run in
-                    Label("\(run.workflow) — \(run.steps.joined(separator: ", "))",
-                          systemImage: run.runsOn.hasPrefix("cloud") ? "cloud" : "desktopcomputer")
-                        .font(.body)
-                }
-                if !plan.offered.isEmpty {
-                    Text("Offered later: \(plan.offered.joined(separator: ", "))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
                 ForEach(plan.refusals, id: \.self) { refusal in
                     Label(refusal, systemImage: "exclamationmark.triangle")
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(.orange)
                 }
-            } else if store.errorMessage == nil {
-                ProgressView("Planning what Start would run…")
-            }
-            if let message = store.errorMessage {
-                Text(message).font(.caption).foregroundStyle(.red)
+            } else if store.recipe != nil, store.errorMessage == nil {
+                ProgressView("Planning what Start would run…").controlSize(.small)
             }
         }
-        .task { await store.loadStartPlan() }
     }
 
     /// Unpriced is not free: a missing total is shown as unknown, never $0.
@@ -245,28 +188,109 @@ struct RecipeStartFields: View {
     }
 }
 
-#Preview("A job's screen") {
-    SetupJobFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)), job: "find-names-tag-words")
-        .padding()
-        .frame(width: 520, height: 360)
+/// Step 4, "Ready" (#5492): the plan as one list, what runs by itself (one choice), the optional
+/// rows Check on your pages and Keep an export, then Start (the window's button). The plan is
+/// proposed on arrival and kept as a draft whenever it changes, so Start's estimate is the
+/// engine's plan for exactly what is shown.
+struct RecipeReadyFields: View {
+    /// The rows of Ready, in order; the optional ones can be left and done later from the Inspector.
+    enum Row: CaseIterable {
+        case plan, runsByItself, checkOnYourPages, keepAnExport
+
+        var title: String {
+            switch self {
+            case .plan: "The plan"
+            case .runsByItself: "What runs by itself"
+            case .checkOnYourPages: "Check on your pages"
+            case .keepAnExport: "Keep an export"
+            }
+        }
+
+        var isOptional: Bool { self == .checkOnYourPages || self == .keepAnExport }
+    }
+
+    @Bindable var store: RecipeSetupStore
+    let onFix: (String) -> Void
+    /// The project's comparison of readers (Check on your pages); nil without a project.
+    var bakeoff: BakeoffSection.Context?
+    /// The project's kept exports (Keep an export); nil without a project.
+    var keptExports: KeptExportStore?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(Row.allCases, id: \.self) { row in
+                if row != .plan { Divider() }
+                Text(row.isOptional ? "\(row.title) (optional)" : row.title).font(.headline)
+                content(row)
+            }
+        }
+        .task {
+            await store.loadJobs()
+            await store.loadPurposes()
+            await store.assemble()
+        }
+        // The plan changed (proposed, a job added, the cloud answered): keep it, then ask what
+        // Start would run, so the estimate and the Start button follow what is shown.
+        .task(id: store.recipe) {
+            guard store.recipe != nil, await store.save() else { return }
+            await store.loadStartPlan()
+        }
+    }
+
+    @ViewBuilder
+    private func content(_ row: Row) -> some View {
+        switch row {
+        case .plan:
+            RecipeProposalFields(store: store, onFix: onFix)
+            RecipeStartFields(store: store)
+        case .runsByItself:
+            RecipeAutomaticFields(store: store)
+        case .checkOnYourPages:
+            if let bakeoff {
+                BakeoffSection(context: bakeoff, setup: store)
+            } else {
+                Text("Compare readers on your corrected pages, once the project has some.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        case .keepAnExport:
+            if let keptExports {
+                KeptExportFields(store: keptExports)
+            } else {
+                Text("Keep an up-to-date copy of the work in a folder outside the project.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// Start (the first yes): the export rows are kept, the answers and plan saved, then the engine
+    /// records the start. Each refusal stops there, with the engine's words on screen, and nothing
+    /// starts. Returns whether the engine started.
+    static func start(store: RecipeSetupStore, keptExports: KeptExportStore?) async -> Bool {
+        if let keptExports, !(await keptExports.keepDrafts()) { return false }
+        guard await store.save() else { return false }
+        return await store.start()
+    }
 }
 
-#Preview("How it will be done") {
+#Preview("Questions under a purpose") {
+    VStack(alignment: .leading, spacing: 12) {
+        JobQuestionFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)), job: "find-names-tag-words")
+        JobQuestionFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)), job: "place-in-a-gazetteer")
+    }
+    .padding()
+    .frame(width: 620, height: 160)
+}
+
+#Preview("Ready") {
     let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
     store.languages = ["es"]
     store.scripts = ["Latn"]
-    return ScrollView { RecipeProposalFields(store: store, onFix: { _ in }).padding() }
-        .frame(width: 520, height: 420)
+    return ScrollView { RecipeReadyFields(store: store, onFix: { _ in }).padding() }
+        .frame(width: 560, height: 520)
 }
 
 #Preview("What runs by itself") {
     RecipeAutomaticFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
         .padding()
-        .frame(width: 520, height: 300)
-}
-
-#Preview("Start") {
-    RecipeStartFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
-        .padding()
-        .frame(width: 520, height: 300)
+        .frame(width: 520, height: 120)
 }

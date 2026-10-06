@@ -2,7 +2,7 @@ import FicheroAPIClient
 import Foundation
 import Observation
 
-/// Setup's first screen, Where it lives (section 7b screen 1, #5482; ruled 2026-10-05): the
+/// Setup's first step, Your project (section 7b step 1, #5482; ruled 2026-10-05): the
 /// project's name and one of two places, **Inside Fichero** (the default: the app's own data
 /// folder, managed for the person) or a folder the person chooses. Continue makes the project
 /// there through the one create path (`LibraryManager.createProject(at:)`) and has the engine
