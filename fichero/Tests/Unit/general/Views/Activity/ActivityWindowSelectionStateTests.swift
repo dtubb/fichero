@@ -10,39 +10,24 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
 
     func testSelectReplacesSharedSelection() {
         let state = ActivityWindowSelectionState()
-        let run = SelectedActivityRun(
-            id: "run-1",
-            name: "Workflow",
-            workflowId: "wf-1",
-            threadId: "thread-1",
-            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
-            status: .running,
-            isLive: true,
+        let selection = ActivitySelection(
+            jobId: "thread-1",
             libraryId: UUID(uuidString: "11111111-1111-1111-1111-111111111111")
         )
 
-        state.select(run)
+        state.select(selection)
 
-        XCTAssertEqual(state.selectedRun?.id, "run-1")
-        XCTAssertEqual(state.selectedRun?.threadId, "thread-1")
-        XCTAssertEqual(state.libraryId, run.libraryId)
+        XCTAssertEqual(state.selection, selection)
+        XCTAssertEqual(state.libraryId, selection.libraryId)
     }
 
     func testSelectCanClearSelection() {
         let state = ActivityWindowSelectionState()
-        state.select(SelectedActivityRun(
-            id: "run-1",
-            name: "Workflow",
-            workflowId: "wf-1",
-            threadId: "thread-1",
-            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
-            status: .running,
-            isLive: true
-        ))
+        state.select(ActivitySelection(jobId: "thread-1", libraryId: nil))
 
         state.select(nil)
 
-        XCTAssertNil(state.selectedRun)
+        XCTAssertNil(state.selection)
     }
 
     func testActivityWindowIDsStayStable() {
@@ -114,10 +99,10 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(appSource.contains(
             "Window(\"Activity Detail\", id: ActivityWindowSelectionState.detailWindowID)"
         ))
-        // The table (#5415) replaced the unified list: the route into a run's
-        // step trace is a double-click on any row of its tree (the table's
-        // primary action) → the detail Window.
-        XCTAssertTrue(monitorSource.contains("let run = run(owning: id) else { return }\n            openDetails(for: run)"))
+        // The table (#5415) replaced the unified list: double-click on any row
+        // (the table's primary action) opens THAT row's details (#5561) → the
+        // detail Window, as its ⓘ does.
+        XCTAssertTrue(monitorSource.contains("let row = Self.find(id, in: sortedRows) else { return }\n            showDetails(for: row)"))
         XCTAssertTrue(monitorSource.contains(
             "openWindow(id: ActivityWindowSelectionState.detailWindowID)"
         ))
@@ -128,10 +113,10 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
                 || (detailSource.contains(".libraryServiceEnvironment(library)")
                     && serviceChain.contains(".environment(library.documentStore)"))
         )
-        XCTAssertTrue(detailSource.contains("selectionState.selectedRun?.libraryId"))
+        XCTAssertTrue(detailSource.contains("selectionState.selection?.libraryId"))
         XCTAssertTrue(helpersSource.contains("@Environment(WorkflowExecutionStore.self)"))
         XCTAssertFalse(helpersSource.contains("@Environment(WorkflowExecutionObserver.self) private var executionObserver"))
-        XCTAssertFalse(monitorSource.contains("ActivityDetailView(selectedRun: selectedRun)"))
+        XCTAssertTrue(detailSource.contains("ActivityDetailsView(selection: selection)"))
         XCTAssertTrue(helpersSource.contains("openWindow(id: ActivityWindowSelectionState.detailWindowID)"))
         XCTAssertTrue(helpersSource.contains(".onTapGesture(count: 2)"))
     }

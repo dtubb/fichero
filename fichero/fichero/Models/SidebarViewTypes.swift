@@ -19,7 +19,7 @@ enum AppViewMode: Equatable {
     case automation                      // Schedules and file triggers
     case schedule(ScheduleInfo?)         // Schedule detail/creation view
     case trigger(TriggerInfo?)           // Trigger detail/creation view
-    case activity(SelectedActivityRun?)  // All workflow runs - optional selected run for detail view
+    case activity(ActivitySelection?)   // Activity - the selected row, shown in the details view (#5561)
 
     var category: ItemCategory {
         switch self {
@@ -54,69 +54,18 @@ enum AppViewMode: Equatable {
     }
 }
 
-// MARK: - Activity Run Selection
+// MARK: - Activity selection (#5561)
 
-/// Child type for activity run selection (Xcode Report Navigator style)
-enum ActivityChildType: String, Equatable, CaseIterable {
-    case console
-    case progress
-    case trace    // Run trace graph — what actually happened (#4320)
-    case log      // Execution log
-
-    var label: String {
-        switch self {
-        case .console: return "Console"
-        case .progress: return "Progress"
-        case .trace: return "Trace"
-        case .log: return "Log"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .console: return "text.alignleft"
-        case .progress: return "chart.bar.fill"
-        case .trace: return "point.3.connected.trianglepath.dotted"
-        case .log: return "doc.text"
-        }
-    }
-}
-
-/// Selected activity run for the detail view
-/// Lightweight reference - full details loaded on demand
-struct SelectedActivityRun: Equatable, Identifiable, Hashable {
-    let id: String
-    let name: String
-    let workflowId: String?
-    let threadId: String?
-    let timestamp: Date?  // nil = unknown, never substituted with now (#5432)
-    let status: ActivityRunStatusType
-    let isLive: Bool  // True if currently running (use observer for updates)
+/// The Activity details' selection: one row's job id and the project it is in
+/// (`activity.details.one-mount`). The details view reads that row's node of
+/// the job tree from the project's `ActivityStore` (the record the table
+/// reads), so nothing about the row is copied here: a snapshot frozen at the
+/// click is what made the old details view stale (#5561).
+struct ActivitySelection: Hashable, Identifiable {
+    /// The row's job: a run's thread id, a step's `<run>:<step>`, a page's job
+    /// id, or a job of its own.
+    let jobId: String
     var libraryId: UUID?
-    var libraryName: String?
-    var childType: ActivityChildType?  // Which child is selected (nil = overview)
 
-    enum ActivityRunStatusType: String, Equatable {
-        case running
-        case paused
-        case completed
-        case failed
-        case cancelled
-    }
-
-    /// Create a copy with a different child type
-    func with(childType: ActivityChildType?) -> SelectedActivityRun {
-        SelectedActivityRun(
-            id: id,
-            name: name,
-            workflowId: workflowId,
-            threadId: threadId,
-            timestamp: timestamp,
-            status: status,
-            isLive: isLive,
-            libraryId: libraryId,
-            libraryName: libraryName,
-            childType: childType
-        )
-    }
+    var id: String { "\(libraryId?.uuidString ?? "")|\(jobId)" }
 }

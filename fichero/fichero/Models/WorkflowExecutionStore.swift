@@ -59,8 +59,7 @@ final class WorkflowExecutionStore {
     private var streamServices: [String: WorkflowStreamService] = [:]
 
     // Transport seams — the SAME generated client + activity wrapper the rest of
-    // the library uses. `ficheroClient` mints the per-thread stream services;
-    // `activityService` seeds finished/mid-flight runs via `getWorkflowRun`.
+    // the library uses. `ficheroClient` mints the per-thread stream services.
     private let ficheroClient: FicheroClient
     private let activityService: ActivityService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "WorkflowExecutionStore")
@@ -174,26 +173,9 @@ final class WorkflowExecutionStore {
         streamServices.removeValue(forKey: threadId)
     }
 
-    // MARK: - Seed (finished / mid-flight runs)
-
-    /// Seed the store from the persisted run for a thread that already finished
-    /// (or was mid-flight) when Activity opened. This is what powers the Progress
-    /// tab for runs the live stream never carried. No-op if an entry already
-    /// exists (a live subscription takes precedence — we never clobber live
-    /// state with a snapshot).
-    func seedFromPersistedRun(threadId: String) async {
-        guard executions[threadId] == nil else { return }
-        do {
-            let run = try await activityService.getWorkflowRun(threadId: threadId)
-            executions[threadId] = WorkflowExecution(persistedRun: run)
-            log.info("Seeded persisted run for thread: \(threadId, privacy: .public)")
-        } catch {
-            if error.isCancellationError { return }   // superseded — not a failure
-            log.error(
-                "Failed to seed persisted run for \(threadId, privacy: .public): \(error.localizedDescription, privacy: .public)"
-            )
-        }
-    }
+    // `seedFromPersistedRun` DELETED (#5561): it seeded the old Progress tab
+    // with an execution that had no content, which then blanked the Console
+    // and the Overview. The Activity details read the run's job tree instead.
 
     // MARK: - Run controls (#4321)
 
@@ -522,35 +504,8 @@ enum WorkflowCompletionNotifier {
 // MARK: - Seeding a WorkflowExecution from a persisted run
 
 extension WorkflowExecution {
-    /// Build a coarse execution snapshot from a persisted `WorkflowRunResponse`.
-    ///
-    /// The backend does not (yet) persist a per-node / per-document progress
-    /// timeline, so `nodeStates` / `documentProgress` stay empty — this carries
-    /// status, the execution log, and the error so the Activity Progress tab can
-    /// render a finished run instead of "Progress data not available".
-    init(persistedRun run: WorkflowRunResponse) {
-        let status = WorkflowExecution.workflowStatus(fromRaw: run.status)
-        let logLines = run.executionLog?
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init) ?? []
-        self.init(
-            id: run.workflowId,
-            name: run.workflowName,
-            threadId: run.threadId,
-            startTime: WorkflowExecution.parseISODate(run.startedAt) ?? Date(),
-            status: status,
-            nodeStates: [:],
-            documentProgress: [:],
-            currentFilePath: nil,
-            currentNodeId: nil,
-            currentNodeName: nil,
-            isRunning: status == .running,
-            workflowError: run.error,
-            totalFiles: 0,
-            processedFiles: 0,
-            logLines: logLines
-        )
-    }
+    // `init(persistedRun:)` DELETED (#5561) with the Progress tab it fed: it
+    // started an execution "now" when the run's time did not parse (#5432).
 
     /// Map the backend's run-status string onto the app `WorkflowStatus`.
     /// Cancelled (and its stop/delete variants) is its own terminal state

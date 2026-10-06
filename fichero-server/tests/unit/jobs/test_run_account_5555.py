@@ -112,7 +112,9 @@ def test_activity_window_page_by_file_name__a_page_row_is_named_by_its_file(clie
     page_rows = [p for step in tree["children"] for p in step["children"]]
     assert sorted(p["display_name"] for p in page_rows) == ["p0.png", "p1.png", "p2.png"]
     assert {p["document_id"] for p in page_rows} == {d.id for d in pages}
-    assert tree["display_name"] is None and all(step["display_name"] is None for step in tree["children"])
+    # A run and its steps are named by their records (#5561, `activity.details.heading-names-not-ids`), not ids.
+    assert tree["display_name"] == workflow.name
+    assert all(step["display_name"] and run not in step["display_name"] for step in tree["children"])
 
 
 def test_compute_run_retry_once__a_page_failing_while_the_model_loads_is_read_again(

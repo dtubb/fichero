@@ -127,6 +127,9 @@ final class ActivityStore: ChangeEventConsumer {
     /// One pending tree read per run, restarted by each frame of a burst.
     @ObservationIgnored private var pendingTreeReads: [String: Task<Void, Never>] = [:]
     private let treeReadDelay: Duration = .milliseconds(300)
+    /// The log of a row and the rows under it (#5561), newest last, keyed by
+    /// the row's job id: one key patched, and only when it changed.
+    private(set) var jobLogs: [String: [ActivityJobLogLine]] = [:]
     /// How often the jobs endpoint is polled. Loopback + a point-in-time read,
     /// so 2s is live enough for a progress bar without adding real load.
     private let jobsPollInterval: Duration = .seconds(2)
@@ -172,7 +175,16 @@ final class ActivityStore: ChangeEventConsumer {
     func refreshBackgroundJobs() async {
         do {
             let snapshot = try await activityService.getBackgroundJobs()
-            if backgroundJobs != snapshot.jobs { backgroundJobs = snapshot.jobs }
+            if backgroundJobs != snapshot.jobs {
+                // A job of its own whose details are open (its tree is loaded,
+                // #5561) is re-read when its row changes: the same one-key
+                // update a run's tree gets from the change stream.
+                let before = Dictionary(backgroundJobs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+                for job in snapshot.jobs where runTrees[job.id] != nil && before[job.id] != job {
+                    scheduleTreeRead(threadId: job.id)
+                }
+                backgroundJobs = snapshot.jobs
+            }
             if processCpuPercent != snapshot.processCpuPercent { processCpuPercent = snapshot.processCpuPercent }
             if cpuCount != snapshot.cpuCount { cpuCount = snapshot.cpuCount }
             if backgroundPaused != snapshot.paused { backgroundPaused = snapshot.paused }
@@ -571,6 +583,52 @@ extension ActivityStore {
             guard !Task.isCancelled, let self else { return }
             self.pendingTreeReads[threadId] = nil
             await self.fetchRunTree(threadId: threadId)
+        }
+    }
+
+    // MARK: - The details of one row (#5561)
+
+    /// The project's name, for the details' heading.
+    var projectName: String? { library?.displayName }
+
+    /// A row's node, read from the record the table reads (`activity.details.one-record`):
+    /// its node in a loaded tree, else a job of its own from the jobs poll.
+    /// `nil` until its tree is loaded (`loadDetails`).
+    func node(jobId: String) -> ActivityJobNode? {
+        if let root = runTrees[jobId] { return root }
+        for root in runTrees.values {
+            if let found = root.node(withId: jobId) { return found }
+        }
+        return backgroundJobs.first { $0.id == jobId }.map(ActivityJobNode.init(job:))
+    }
+
+    /// The key of the tree that holds `jobId`: its run's thread id, or the
+    /// job's own id for a job of its own.
+    func treeKey(containing jobId: String) -> String? {
+        if runTrees[jobId] != nil { return jobId }
+        return runTrees.first { $0.value.node(withId: jobId) != nil }?.key
+    }
+
+    /// Read the tree a row's details need, once: a step's run (its id is
+    /// `<run>:<step>`), else the job's own. Later reads are the table's own
+    /// (the change stream, the jobs poll): the details open no stream or poll.
+    func loadDetails(jobId: String) async {
+        guard treeKey(containing: jobId) == nil else { return }
+        if let colon = jobId.lastIndex(of: ":") {
+            await loadRunTree(threadId: String(jobId[..<colon]))
+            if treeKey(containing: jobId) != nil { return }
+        }
+        await loadRunTree(threadId: jobId)
+    }
+
+    /// Read one row's log; the details call it when the row's node changes.
+    /// A failed read keeps the lines already shown.
+    func loadJobLog(jobId: String) async {
+        do {
+            let lines = try await activityService.getJobLog(id: jobId) ?? []
+            if jobLogs[jobId] != lines { jobLogs[jobId] = lines }
+        } catch {
+            log.debug("ActivityStore: log for \(jobId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
         }
     }
 

@@ -371,10 +371,7 @@ struct PaneContentPlanTests {
             PaneContentPlan.ReaderSubject.from(.trigger(trigger)) == .trigger(triggerId: "trig-1")
         )
 
-        let run = SelectedActivityRun(
-            id: "run-1", name: "Run", workflowId: "wf-1", threadId: "thread-1",
-            timestamp: Date(), status: .completed, isLive: false, childType: nil
-        )
+        let run = ActivitySelection(jobId: "thread-1", libraryId: nil)
         #expect(PaneContentPlan.ReaderSubject.from(.activity(run)) == .activityRun(run))
     }
 

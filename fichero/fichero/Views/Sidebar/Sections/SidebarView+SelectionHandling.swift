@@ -135,21 +135,14 @@ extension SidebarView {
             sidebarMode = .workflows
             viewMode = .workflow(workflow)
         case .activityRun(let activity):
-            let selectedRun = SelectedActivityRun(
-                id: activity.threadId ?? activity.id,
-                name: activityExtractWorkflowName(from: activity),
-                workflowId: activity.workflowId,
-                threadId: activity.threadId ?? activity.batchId.map { "batch:\($0)" },
-                timestamp: activity.parsedTimestamp ?? Date(),
-                status: activityMapActivityType(activity.type).toStatusType(),
-                isLive: false,
-                libraryId: item.libraryId,
-                libraryName: item.libraryId.flatMap { libraryManager.getLibrary(id: $0)?.displayName },
-                childType: nil
+            // The run's job (a batch's own job id is the batch's) and its project (#5561).
+            let selection = ActivitySelection(
+                jobId: activity.threadId ?? activity.batchId ?? activity.id,
+                libraryId: item.libraryId
             )
-            sidebarViewLogger.info("Switching to activity view with run: \(selectedRun.id)")
+            sidebarViewLogger.info("Switching to activity view with job: \(selection.jobId)")
             sidebarMode = .activity
-            viewMode = .activity(selectedRun)
+            viewMode = .activity(selection)
         case .comparison(let summary):
             // #4335: a comparison history row opens the comparison detail
             // surface — same mode `browser(.comparison)` uses for the empty

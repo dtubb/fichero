@@ -194,6 +194,15 @@ class JobTree(BaseModel):
     state: str
     reason: Optional[str] = None
     parent_id: Optional[str] = None
+    # The details view's record (#5561): when it started and ended, as the engine recorded them (ISO 8601,
+    # UTC); null when it has not started or not ended. Never filled with "now".
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    # Who or what started it ("automatic", "schedule:...", "read-again:<run>"; "workflow" for a run's own
+    # rows), as the job row has it.
+    started_by: Optional[str] = None
+    # What a running row works on now, by name: its running child, and what that one works on.
+    working_on: Optional[str] = None
     done: int = Field(description="pages (or other leaf jobs) under this one that are done")
     total: int = Field(description="pages (or other leaf jobs) under this one in all")
     failed: int = Field(0, description="pages (or other leaf jobs) under this one that failed; each says why")
@@ -482,6 +491,106 @@ async def get_job_tree(job_id: str, db: Database = Depends(get_library_database)
             if account.waiting_reason and found["state"] in ("running", "waiting"):
                 found["reason"] = account.waiting_reason
     return JobTree.model_validate(found)
+
+
+class JobLogLine(BaseModel):
+    """One line the engine wrote for a job or a job under it (#5561)."""
+
+    timestamp: Optional[str] = Field(None, description="ISO 8601, UTC; null for what a row waits for now")
+    level: str = Field(description="info, warning or error")
+    message: str
+    job_id: str = Field(description="the row the line is about: the job asked for or one under it")
+
+
+class JobLog(BaseModel):
+    """The log of one job and the jobs under it, newest last (`activity.details.log-filtered-newest-last`)."""
+
+    job_id: str
+    lines: list[JobLogLine] = Field(default_factory=list)
+
+
+#: The most lines a job's log returns: the newest are kept.
+_JOB_LOG_LIMIT = 1000
+
+
+def _job_rows_log(node: dict[str, Any]) -> list[JobLogLine]:
+    """The lines a job's own row says, and the rows under it: it started, how it ended, what it waits for."""
+    name = node.get("display_name") or node.get("name") or node["id"]
+    lines = []
+    if node.get("started_at"):
+        lines.append(JobLogLine(timestamp=node["started_at"], level="info", message=f"Started {name}",
+                                job_id=node["id"]))
+    state, reason = node.get("state") or "", node.get("reason")
+    ended = {"done": ("info", f"Done: {name}"),
+             "failed": ("error", f"Failed: {name}: {reason or 'no reason recorded'}"),
+             "cancelled": ("warning", f"Stopped: {name}" + (f": {reason}" if reason else ""))}.get(state)
+    if ended is not None:
+        lines.append(JobLogLine(timestamp=node.get("finished_at"), level=ended[0], message=ended[1],
+                                job_id=node["id"]))
+    elif reason:
+        lines.append(JobLogLine(timestamp=None, level="info", message=f"{state.capitalize()}: {name}: {reason}",
+                                job_id=node["id"]))
+    for child in node.get("children", []):
+        lines.extend(_job_rows_log(child))
+    return lines
+
+
+def _walk(node: dict[str, Any]):
+    yield node
+    for child in node.get("children", []):
+        yield from _walk(child)
+
+
+def _event_threads(node: dict[str, Any], wanted: dict[str, Optional[set[str]]]) -> None:
+    """The runs whose events belong to this job: a run's whole thread, a step's own node of its run."""
+    if node["kind"] == "workflow":
+        wanted[node["id"]] = None
+    elif node["kind"] == "workflow-step" and ":" in node["id"]:
+        thread, step = node["id"].rsplit(":", 1)
+        if thread not in wanted:
+            wanted[thread] = set()
+        if wanted[thread] is not None:
+            wanted[thread].add(step)
+    for child in node.get("children", []):
+        _event_threads(child, wanted)
+
+
+@router.get("/jobs/{job_id}/log", response_model=JobLog)
+async def get_job_log(job_id: str, db: Database = Depends(get_library_database)) -> JobLog:
+    """The log of one row of Activity and the rows under it, newest last (#5561): what the engine wrote for
+    a run (its activity events), for a step (the events of its node), and what each job's own row says (it
+    started, it failed and why, it waits and for what). Nothing about another row."""
+    from fichero_server.execution import jobs as job_queue
+
+    found = job_queue.tree(db, job_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail=f"no job {job_id!r} in this project")
+    lines = _job_rows_log(found)
+    wanted: dict[str, Optional[set[str]]] = {}
+    _event_threads(found, wanted)
+    rows = {node["id"] for node in _walk(found)}
+    tracker = get_activity_tracker(str(db.path))
+    for thread, steps in wanted.items():
+        for event in await tracker.query(ActivityFilter(thread_id=thread, limit=_JOB_LOG_LIMIT)):
+            if steps is not None and event.node_id not in steps:
+                continue
+            when = event.timestamp
+            when = when.replace(tzinfo=timezone.utc) if when.tzinfo is None else when.astimezone(timezone.utc)
+            error = f": {event.error}" if event.error and event.error not in event.message else ""
+            level = event.level.value if isinstance(event.level, ActivityLevel) else str(event.level)
+            lines.append(JobLogLine(
+                timestamp=when.isoformat(), level=level, message=event.message + error,
+                # A node with no row of its own (the builder's routing) is the run's line.
+                job_id=row if (row := job_queue.step_id(thread, event.node_id or "")) in rows else thread))
+
+    def order(line: JobLogLine) -> tuple[int, datetime]:
+        # A line with no time (what a row waits for now) is the newest.
+        if line.timestamp is None:
+            return (1, datetime.min)
+        return (0, _parse_iso_to_naive_utc(line.timestamp))
+
+    lines.sort(key=order)
+    return JobLog(job_id=job_id, lines=lines[-_JOB_LOG_LIMIT:])
 
 
 @router.put("/jobs/paused", response_model=BackgroundPauseResponse)

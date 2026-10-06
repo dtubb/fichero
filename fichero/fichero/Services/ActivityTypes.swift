@@ -312,13 +312,23 @@ struct ActivityJobNode: Identifiable, Equatable {
     let kind: String
     let name: String
     let subject: String
-    /// What a person calls it: a page's file name (#5560, the engine's
-    /// `display_name`, #5561); `nil` for runs and steps.
+    /// What a person calls it (#5560, #5561, the engine's `display_name`): a
+    /// page's file name, a run's or a step's name as its record has it.
     let displayName: String?
+    /// The page's document, to open it (#5561); `nil` for runs and steps.
+    let documentId: String?
     let model: String?
     var state: String
     let reason: String?
     let parentId: String?
+    /// When it started and ended, as the engine recorded them (#5561); `nil`
+    /// when not started, not ended, or unreadable. Never "now".
+    let startedAt: Date?
+    let finishedAt: Date?
+    /// Who or what started it, in the engine's words ("automatic", "schedule:…").
+    let startedBy: String?
+    /// What a running row works on now, by name (#5561).
+    let workingOn: String?
     let done: Int
     let total: Int
     let failed: Int
@@ -336,10 +346,15 @@ struct ActivityJobNode: Identifiable, Equatable {
         name = tree.name
         subject = tree.subject
         displayName = tree.displayName
+        documentId = tree.documentId
         model = tree.model
         state = tree.state
         reason = tree.reason
         parentId = tree.parentId
+        startedAt = tree.startedAt.flatMap(parseEngineDate)
+        finishedAt = tree.finishedAt.flatMap(parseEngineDate)
+        startedBy = tree.startedBy
+        workingOn = tree.workingOn
         done = tree.done
         total = tree.total
         failed = tree.failed ?? 0
@@ -348,6 +363,54 @@ struct ActivityJobNode: Identifiable, Equatable {
         costUsd = tree.costUsd
         account = tree.account.map(ActivityRunAccount.init)
         children = (tree.children ?? []).map(ActivityJobNode.init)
+    }
+
+    /// A job of its own that the job table has no row for (the embedding and
+    /// derivative queue, #5561): its node from the jobs poll, so it has details
+    /// like any run. It has no children and nothing to price.
+    init(job: ActivityJob) {
+        id = job.id
+        kind = job.taskType
+        name = job.name
+        subject = job.id
+        displayName = job.name
+        documentId = nil
+        model = nil
+        switch job.state {
+        case .running, .stalled: state = "running"
+        case .paused: state = "paused"
+        case .waiting, .other: state = "waiting"
+        case .failed: state = "failed"
+        case .completed: state = "done"
+        }
+        reason = job.reason
+        parentId = job.parentId
+        startedAt = nil
+        finishedAt = nil
+        startedBy = nil
+        workingOn = nil
+        done = job.current
+        total = job.total
+        failed = job.state.isFailed ? 1 : 0
+        seconds = nil
+        tokens = 0
+        costUsd = nil
+        account = nil
+        children = []
+    }
+
+    /// This node, or the one with `id` anywhere under it.
+    func node(withId id: String) -> ActivityJobNode? {
+        if self.id == id { return self }
+        for child in children {
+            if let found = child.node(withId: id) { return found }
+        }
+        return nil
+    }
+
+    /// The pages (leaf jobs) under it, itself when it is one.
+    var leaves: [ActivityJobNode] {
+        children.isEmpty ? [self] : children.flatMap(\.leaves)
     }
 
     /// This node with `id`'s state set to `state`, wherever it is under it;
@@ -442,6 +505,34 @@ struct ActivityRunAccount: Equatable {
         self.enginePeakMemoryBytes = enginePeakMemoryBytes
         self.modelServerPeakMemoryBytes = modelServerPeakMemoryBytes
         self.offerLabel = offerLabel
+    }
+}
+
+/// One line of a row's log (#5561, `GET /api/activity/jobs/{id}/log`): what
+/// the engine wrote for that row or a row under it, oldest first so the
+/// newest is last (`activity.details.log-filtered-newest-last`).
+struct ActivityJobLogLine: Equatable, Identifiable {
+    /// Its place in the log: lines have no id of their own.
+    let id: Int
+    /// `nil` for what a row waits for now (the engine's newest line).
+    let timestamp: Date?
+    let level: String
+    let message: String
+    /// The row it is about: the one asked for, or one under it.
+    let jobId: String
+
+    init(index: Int, _ line: Components.Schemas.JobLogLine) {
+        id = index
+        timestamp = line.timestamp.flatMap(parseEngineDate)
+        level = line.level
+        message = line.message
+        jobId = line.jobId
+    }
+
+    /// The line as copied: "06/10/2026, 14:05:01  error  Failed: p1.png: …", in this Mac's time.
+    var plainText: String {
+        let when = timestamp.map { $0.formatted(date: .numeric, time: .standard) } ?? "now"
+        return "\(when)  \(level)  \(message)"
     }
 }
 

@@ -616,6 +616,18 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-job-log")
+    def activity_get_job_log_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Get Job Log (GET /api/activity/jobs/{job_id}/log)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/jobs/{job_id}/log"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("set-job-paused")
     def activity_set_job_paused_put(
         ctx: typer.Context,

@@ -54,7 +54,17 @@ struct ActivityMonitorWindow: View {
                     description: Text("Workflow runs from every open library appear here.")
                 )
             } else {
-                table
+                VStack(spacing: 0) {
+                    table
+                    // The detail below the table (#5561): the selected row's details,
+                    // the same view the ⓘ button and double-click open.
+                    if let selected = selectedDetails {
+                        Divider()
+                        ActivityDetailsView(selection: selected.selection)
+                            .libraryServiceEnvironment(selected.library)
+                            .frame(minHeight: 220, idealHeight: 320)
+                    }
+                }
             }
         }
         .navigationTitle("Activity")
@@ -133,8 +143,8 @@ struct ActivityMonitorWindow: View {
                 Task { await deleteRuns(withIDs: ids) }
             }
         } primaryAction: { ids in
-            guard ids.count == 1, let id = ids.first, let run = run(owning: id) else { return }
-            openDetails(for: run)
+            guard ids.count == 1, let id = ids.first, let row = Self.find(id, in: sortedRows) else { return }
+            showDetails(for: row)
         }
         #if os(macOS)
         .onDeleteCommand { Task { await deleteRuns(withIDs: selectedIDs) } }
@@ -200,13 +210,12 @@ struct ActivityMonitorWindow: View {
         return libraries.first { $0.id == id }
     }
 
-    /// The run a row belongs to: itself, or the run whose tree holds it.
-    private func run(owning rowID: ActivityMonitorRow.ID) -> ActivityRun? {
-        for library in libraries {
-            if let run = library.activityStore.runs.first(where: { $0.id == rowID }) { return run }
-        }
-        guard let row = Self.find(rowID, in: sortedRows), let runID = row.runRowID else { return nil }
-        return libraries.lazy.compactMap { $0.activityStore.runs.first { $0.id == runID } }.first
+    /// The one selected row's details and its project, for the detail below the table.
+    private var selectedDetails: (selection: ActivitySelection, library: LibraryManager.LibraryReference)? {
+        guard selectedIDs.count == 1, let id = selectedIDs.first,
+              let row = Self.find(id, in: sortedRows), let selection = row.selection,
+              let library = library(for: row.libraryId) else { return nil }
+        return (selection, library)
     }
 
     private static func find(_ id: ActivityMonitorRow.ID, in rows: [ActivityMonitorRow]) -> ActivityMonitorRow? {
@@ -232,10 +241,13 @@ struct ActivityMonitorWindow: View {
         notice = failure.map { "Couldn't \(control.label.lowercased()) \(row.name): \($0)" }
     }
 
-    /// ⓘ on a row (#5560): opens the same log and details double-click opens.
+    /// ⓘ on a row (#5560) and double-click: that row's own details (#5561), a
+    /// step's or a page's too, not its run's. Selection is set FIRST because the
+    /// details window reads what to show from the shared selection state.
     private func showDetails(for row: ActivityMonitorRow) {
-        guard let run = run(owning: row.id) else { return }
-        openDetails(for: run)
+        guard let selection = row.selection else { return }
+        selectionState.select(selection)
+        openWindow(id: ActivityWindowSelectionState.detailWindowID)
     }
 
     /// The run's offer at its end (#5555): one new run over the pages it did not do.
@@ -281,13 +293,6 @@ struct ActivityMonitorWindow: View {
                 "\($0.id):\($0.workflowExecutionStore.executions.count):\($0.activityStore.refreshToken)"
             }
             .joined(separator: "|")
-    }
-
-    /// Select the run and open its step trace. Selection is set FIRST because
-    /// the detail window resolves what to show from the shared selection state.
-    private func openDetails(for run: ActivityRun) {
-        selectionState.select(run.toSelectedRun())
-        openWindow(id: ActivityWindowSelectionState.detailWindowID)
     }
 
     /// Patch every open library's run list from its live executions and the

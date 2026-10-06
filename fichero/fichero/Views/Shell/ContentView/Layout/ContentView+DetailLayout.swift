@@ -133,7 +133,7 @@ extension ContentView {
         // the navigator (`Nav`'s router no longer takes it over for any of
         // these). None of these views holds a shared window-level binding
         // (`ScheduleDetailView`/`TriggerDetailView`/`ChainEditorView` take a
-        // plain value param, `BatchRunView`/`ActivityDetailView` read their
+        // plain value param, `BatchRunView`/`ActivityDetailsView` read their
         // own environment stores) — no split-race, so no `isSecondarySplitPane`
         // gate is needed here, unlike `.workflow` above.
         } else if Self.isNodeDetailOrRunHistoryMode(viewMode) {
@@ -282,7 +282,7 @@ extension ContentView {
                     // `ActivityDetailWindow.swift` already trust — replaces
                     // the deleted `ActivityWindowLauncherView`'s separate
                     // window.
-                    ActivityDetailView(selectedRun: selectedRun)
+                    ActivityDetailsView(selection: selectedRun)
                 } else {
                     PaneEmptyStateView(reason: "Select a run in the sidebar to see its details.")
                 }

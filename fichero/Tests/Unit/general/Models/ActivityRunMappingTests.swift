@@ -3,10 +3,10 @@
 //  FicheroTests
 //
 //  Sidebar test coverage sprint (#583). Covers the previously-untested
-//  Activity-run mapping logic: ActivityRunStatus icon/color/toStatusType,
-//  ActivityRun.toSelectedRun field mapping, SelectedActivityRun.with, and
-//  ActivityChildType label/icon. These are the pure value-mappers that feed
-//  the Activity sidebar → viewMode navigation; the rest of the sidebar
+//  Activity-run mapping logic: ActivityRunStatus icon/color/workflowStatus
+//  and ActivityRun.selection (#5561: a job id and its project). These are the
+//  pure value-mappers that feed the Activity sidebar → viewMode navigation;
+//  the rest of the sidebar
 //  surface is already exercised by DragDropTests / SidebarItemTests /
 //  DocumentStoreAndSidebarTypesTests.
 //
@@ -20,12 +20,13 @@ import Testing
 
 struct ActivityRunStatusMappingTests {
 
-    @Test("toStatusType maps every case to its matching ActivityRunStatusType")
-    func toStatusTypeMapsAllCases() {
-        #expect(ActivityRunStatus.running.toStatusType() == .running)
-        #expect(ActivityRunStatus.completed.toStatusType() == .completed)
-        #expect(ActivityRunStatus.failed.toStatusType() == .failed)
-        #expect(ActivityRunStatus.cancelled.toStatusType() == .cancelled)
+    @Test("workflowStatus maps every case to the app-wide run vocabulary")
+    func workflowStatusMapsAllCases() {
+        #expect(ActivityRunStatus.running.workflowStatus == .running)
+        #expect(ActivityRunStatus.paused.workflowStatus == .paused)
+        #expect(ActivityRunStatus.completed.workflowStatus == .completed)
+        #expect(ActivityRunStatus.failed.workflowStatus == .failed)
+        #expect(ActivityRunStatus.cancelled.workflowStatus == .cancelled)
     }
 
     @Test("workflow_started maps to running")
@@ -98,14 +99,11 @@ struct ActivityRunStatusMappingTests {
     }
 }
 
-// MARK: - ActivityRun.toSelectedRun
+// MARK: - ActivityRun.selection (#5561)
 
-struct ActivityRunToSelectedRunTests {
+struct ActivityRunSelectionTests {
 
-    private func makeRun(
-        status: ActivityRunStatus = .running,
-        isLive: Bool = true
-    ) -> ActivityRun {
+    private func makeRun() -> ActivityRun {
         ActivityRun(
             id: "lib-scoped:run-1",
             runId: "thread-42",
@@ -113,100 +111,22 @@ struct ActivityRunToSelectedRunTests {
             threadId: "thread-42",
             workflowName: "Transcribe",
             timestamp: Date(timeIntervalSince1970: 1_000),
-            status: status,
+            status: .running,
             progress: 0.5,
             currentStep: "ocr",
             errorCount: 0,
             fileCount: 3,
-            isLive: isLive,
+            isLive: true,
             libraryId: UUID(uuidString: "11111111-1111-1111-1111-111111111111"),
             libraryName: "Letters"
         )
     }
 
-    @Test("toSelectedRun uses the logical runId as id, not the sidebar id")
-    func usesRunIdNotSidebarId() {
-        let selected = makeRun().toSelectedRun()
-        #expect(selected.id == "thread-42")
-        #expect(selected.id != "lib-scoped:run-1")
-    }
-
-    @Test("toSelectedRun preserves name / workflowId / threadId / timestamp / isLive")
-    func preservesScalarFields() {
-        let selected = makeRun(isLive: false).toSelectedRun()
-        #expect(selected.name == "Transcribe")
-        #expect(selected.workflowId == "wf-7")
-        #expect(selected.threadId == "thread-42")
-        #expect(selected.timestamp == Date(timeIntervalSince1970: 1_000))
-        #expect(selected.isLive == false)
-        #expect(selected.libraryId == UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
-        #expect(selected.libraryName == "Letters")
-    }
-
-    @Test("toSelectedRun converts status via toStatusType")
-    func convertsStatus() {
-        #expect(makeRun(status: .failed).toSelectedRun().status == .failed)
-        #expect(makeRun(status: .cancelled).toSelectedRun().status == .cancelled)
-    }
-
-    @Test("toSelectedRun starts with no selected child (overview)")
-    func childTypeStartsNil() {
-        #expect(makeRun().toSelectedRun().childType == nil)
-    }
-}
-
-// MARK: - SelectedActivityRun.with
-
-struct SelectedActivityRunWithTests {
-
-    @Test("with(childType:) sets the child and preserves every other field")
-    func withSetsChildPreservesRest() {
-        let base = SelectedActivityRun(
-            id: "thread-42",
-            name: "Transcribe",
-            workflowId: "wf-7",
-            threadId: "thread-42",
-            timestamp: Date(timeIntervalSince1970: 1_000),
-            status: .completed,
-            isLive: false,
-            libraryId: UUID(uuidString: "11111111-1111-1111-1111-111111111111"),
-            libraryName: "Letters",
-            childType: nil
-        )
-        let withLog = base.with(childType: .log)
-        #expect(withLog.childType == .log)
-        #expect(withLog.id == base.id)
-        #expect(withLog.name == base.name)
-        #expect(withLog.workflowId == base.workflowId)
-        #expect(withLog.threadId == base.threadId)
-        #expect(withLog.timestamp == base.timestamp)
-        #expect(withLog.status == base.status)
-        #expect(withLog.isLive == base.isLive)
-        #expect(withLog.libraryId == base.libraryId)
-        #expect(withLog.libraryName == base.libraryName)
-    }
-}
-
-// MARK: - ActivityChildType
-
-struct ActivityChildTypeMappingTests {
-
-    @Test("label is the expected human-readable string for every case")
-    func labels() {
-        #expect(ActivityChildType.console.label == "Console")
-        #expect(ActivityChildType.progress.label == "Progress")
-        #expect(ActivityChildType.trace.label == "Trace")
-        #expect(ActivityChildType.log.label == "Log")
-    }
-
-    @Test("icon is a non-empty SF Symbol for every case")
-    func icons() {
-        #expect(ActivityChildType.console.icon == "text.alignleft")
-        #expect(ActivityChildType.progress.icon == "chart.bar.fill")
-        #expect(ActivityChildType.trace.icon == "point.3.connected.trianglepath.dotted")
-        #expect(ActivityChildType.log.icon == "doc.text")
-        for child in ActivityChildType.allCases {
-            #expect(!child.icon.isEmpty)
-        }
+    @Test("a run's selection is its job (the thread id) and its project, nothing copied")
+    func selectionIsTheJobAndItsProject() {
+        let selection = makeRun().selection
+        #expect(selection.jobId == "thread-42")
+        #expect(selection.jobId != "lib-scoped:run-1")
+        #expect(selection.libraryId == UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
     }
 }

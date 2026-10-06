@@ -267,6 +267,14 @@ def fichero_activity_cancel_job(
     return _rt.call("POST", f"/api/activity/jobs/{job_id}/cancel")
 
 
+def fichero_activity_get_job_log(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    "Get Job Log\n\nThe log of one row of Activity and the rows under it, newest last (#5561): what the engine wrote for\na run (its activity events), for a step (the events of its node), and what each job's own row says (it\nstarted, it failed and why, it waits and for what). Nothing about another row.\n\nRoute: GET /api/activity/jobs/{job_id}/log (toolset `activity`; reads)."
+    return _rt.call("GET", f"/api/activity/jobs/{job_id}/log")
+
+
 def fichero_activity_set_job_paused(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
@@ -8312,6 +8320,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_set_background_paused", "activity", "PUT", "/api/activity/jobs/paused", fichero_activity_set_background_paused),
     GeneratedTool("fichero_activity_get_job_tree", "activity", "GET", "/api/activity/jobs/{job_id}", fichero_activity_get_job_tree),
     GeneratedTool("fichero_activity_cancel_job", "activity", "POST", "/api/activity/jobs/{job_id}/cancel", fichero_activity_cancel_job),
+    GeneratedTool("fichero_activity_get_job_log", "activity", "GET", "/api/activity/jobs/{job_id}/log", fichero_activity_get_job_log),
     GeneratedTool("fichero_activity_set_job_paused", "activity", "PUT", "/api/activity/jobs/{job_id}/paused", fichero_activity_set_job_paused),
     GeneratedTool("fichero_activity_get_metrics_summary", "activity", "GET", "/api/activity/metrics/summary", fichero_activity_get_metrics_summary),
     GeneratedTool("fichero_activity_get_recent_activities", "activity", "GET", "/api/activity/recent", fichero_activity_get_recent_activities),
