@@ -160,10 +160,13 @@ def test_source_recipe_done_is_not_redone(client, db, pages, tmp_path, lines):  
     _save(client, _recipe(tmp_path, LINES, READ_WITH_GEMINI, check))
 
     lines.found = []
+    before = lines.read_calls
     r = client.post("/api/recipes/project/start", json={"redo": ["read"]})
     assert r.status_code == 200, r.text
     _finished(client, r.json()["started"]["job_id"])
-    assert sorted(lines.found) == ["p0.png", "p1.png", "p2.png"], "redo runs the step on every page"
+    assert lines.read_calls - before == 3, "redo runs the step on every page"
+    # One line pass per page, read many times (#5487): the redo reads the lines each page has, never finds new ones.
+    assert lines.found == []
 
 
 READ_PAGE = {"id": "read", "job": "read-a-page", "model": GEMINI, "runs_on": "cloud:openrouter"}
