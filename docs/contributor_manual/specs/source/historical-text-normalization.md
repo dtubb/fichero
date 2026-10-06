@@ -234,6 +234,47 @@ rather than defaulting to the pessimistic prior.
   overruled; the disagreement is flagged instead. Pinned:
   `test_diary_dates_5518.py::test_an_overruled_year_is_kept_and_shown_as_supplied`,
   `test_diary_dates_5518.py::test_marshall_redating_rules`.
+- `histnorm.dates.year-follows-page-order` — **[OK]** (#5557) in a volume spanning several
+  years, a heading with no year takes the year of the dated page before it in the volume's
+  reading order (sort order, sequence, then name, level by level, so a split spread's halves
+  follow the spread), and the next year when the month goes back by more than half a year
+  (December to January); the 1915-18 volume rolls into 1916, 1917 and 1918 at its three wraps,
+  and "July 19th" filed after "Sept. 10" stays in its year. The date stays inside the volume
+  name's full date range (the 1943-45 volume, which begins 17 October 1943, never gives "Feb
+  27" the year 1943), also for a page dated with no page before it. A written weekday chooses
+  between that year and the next; when the page's other headings fit page order as well, or
+  the weekday fits no year, page order holds and the disagreement is flagged
+  (`weekday_conflict.page_order_year`). The tool sorts the page references it is given and
+  reads each page when its turn comes, so the run still passes references, not text. A written
+  year is never moved, and a cover's span, a year line or a date outside the volume is never
+  passed on. Pinned: `test_diary_dates_5557.py::test_a_yearless_heading_takes_its_year_from_page_order`,
+  `test_diary_dates_5557.py::test_the_tool_dates_a_multi_year_volume_in_page_order`,
+  `test_diary_dates_5557.py::test_the_tool_keeps_a_volume_inside_its_range`,
+  `test_diary_dates_5557.py::test_a_weekday_its_own_page_contradicts_does_not_move_the_year`,
+  `test_diary_dates_5557.py::test_a_split_spread_s_halves_follow_their_spread`.
+- `histnorm.dates.heading-shapes-1919` — **[OK]** (#5557) a margin label alone on its line
+  gives way to a full heading (weekday and year) one or two days off it ("Feb. 9" over
+  "SATURDAY, FEBRUARY 8 1918" dates 8 February); the year before the month after a weekday
+  ("MONDAY. 1918 MARCH 31") is read; OCR damage ("FEBRUARY 21918", "OCTOBE 3") is read only
+  when the weekday written before it fits exactly one reading. Pinned:
+  `test_diary_dates_5557.py::test_1919_headings`,
+  `test_diary_dates_5557.py::test_ocr_damage_is_read_only_when_the_weekday_confirms`,
+  `test_diary_dates_5557.py::test_a_margin_label_beside_its_own_full_heading_keeps_its_day`.
+- `histnorm.dates.mentions-and-account-pages-undated` — **[OK]** (#5557) the cash columns under
+  a bare or cut month ("Novembe / Cash Account Received Paid"), the printed MEMORANDA head in OCR
+  debris, and a recapitulation are not entries; a full date with no weekday more than a year from
+  the volume's (a 1926 passport memo in the 1929 diary), a year line likewise ("1924." in 1927),
+  and a two-digit year naming none of the volume's years ("11/16/23" in 1943-45, refused and
+  recorded) do not date the page. The year before a volume is not a mention (the 1919 rule's
+  business). Pinned: `test_diary_dates_5557.py::test_non_entry_pages_stay_undated`,
+  `test_diary_dates_5557.py::test_a_date_of_another_year_does_not_date_the_page`,
+  `test_diary_dates_5557.py::test_a_two_digit_year_outside_the_volume_is_refused`.
+- `histnorm.dates.cover-ranges` — **[OK]** (#5557) two dates with written years joined by a dash
+  or "to" ("Jan 1, 1932 - Dec 31, 1932", "JANUARY 1, 1920 TO DECEMBER 31, 1920") are one range
+  (precision `range`, shown as written), not the first day; when the volume's name gives no
+  range, a cover's span is the range its later pages are kept inside. Pinned:
+  `test_diary_dates_5557.py::test_a_cover_range_is_the_volume_span_not_its_first_day`,
+  `test_diary_dates_5557.py::test_a_cover_range_is_the_volume_span_when_the_name_gives_none`.
 - `histnorm.dates.search-and-sort` — **[PARTIAL]** (implemented and tested,
   `test_dataset_query.py`; → #3309, #3322 still open pending close) `date_jdn_from`/
   `date_jdn_to` filters and JDN-based sort exist in `db/__init__.py` and `dataset_query.py`;
