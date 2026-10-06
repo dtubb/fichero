@@ -14,14 +14,18 @@ with the score), so the training set's own rule leaves it out until a person con
 (`compute.tune.set-excludes-flagged-lines`), exactly like the line check (`line_check`).
 
 What is written, all through audited, undoable actions under the job's run (so every row is a machine's,
-`workflow`, never a person's): a new pass (`segment.pass_create`) naming the page reading as its source
-(its provider and model are the page reading's: the model that read the text), a copy of each Kraken line
-(and its region) in it (`segment.create`), and each line's reading (`representation.create`, derived
-from the page reading's artifact). The Kraken pass is left as it was. A page already tied to that page
-reading is not tied again.
+`workflow`, never a person's): each line's stretch as a reading ON THE PAGE'S OWN LINES
+(`representation.create`, derived from the page reading's artifact, whose provider and model say who read
+the text). One line pass per page, read many times (#5487, ruled 2026-10-05, #5467): the lines are those
+of the page's working pass (`llm.working_lines`); a page with none has them found by Kraken first, its
+regions kept as the lines' parents, through the same save and conversion as Find Lines. No second pass is
+made. A page already tied to that page reading is not tied again; a line given no stretch is left untied
+and counted. Which reading of a line counts is the counting rule's (`resolve_counting`): the tied stretch
+is the line's newest machine reading, so an older machine reading of it stays as history.
 
-The page's reading is its newest model transcription (an artifact of type `transcription`). Not built:
-a person's or a checked page reading ranked first (`source.job.tie-text-to-lines`).
+The page's reading is ranked (`page_reading`): a person's, then a checked model reading, then the newest
+model transcription; never a flagged read, and never a reading that is the lines' own text (a reader's
+words already on the lines, or Kraken's own read), which would make a rough read its own reference.
 
 One row in Activity (kind `tie-text-to-lines`, the recipe job's own name), on the local model lane.
 """
@@ -33,7 +37,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fichero_server.checking.line_check import agreement, page_lines
+from fichero_server.checking.line_check import agreement
 from fichero_server.execution import jobs
 from fichero_server.models.checking import CheckRunRequest
 
@@ -41,11 +45,10 @@ KIND = "tie-text-to-lines"
 #: The match threshold. Default taken 2026-10-05 (design lead): the line check's own-score floor
 #: (`line_check.LOW`), awaiting the maintainer's ruling.
 THRESHOLD = 0.30
-TIED_NAME = "Page reading tied to Kraken's lines"
 DOUBTFUL = "doubtful: page text and line disagree"
 #: How far, beyond their difference in length, the page text and the lines' reads may drift apart.
 BAND = 200
-COUNTS = ("tied", "doubtful", "no_text", "pages_tied", "already_tied", "no_page_reading", "no_lines")
+COUNTS = ("tied", "doubtful", "untied", "pages_tied", "already_tied", "no_page_reading", "no_lines", "lines_found")
 
 
 def _fold(ch: str) -> str:
@@ -158,69 +161,67 @@ def start(db: Any, request: CheckRunRequest, *, started_by: str) -> dict[str, st
     return {"job_id": job_id}
 
 
+def _read_from_lines(artifact: Any) -> bool:
+    """True for a reading that is its lines' own text joined: a reader's words already written onto the
+    page's lines (`working_lines.READ_ONTO_PASS`, #5487), or Kraken's own read of the lines it found. Tied
+    back to the lines, a rough read would be made the reference for itself (#5444, 2026-10-06)."""
+    from fichero_server.llm.working_lines import READ_ONTO_PASS
+
+    if (artifact.data or {}).get(READ_ONTO_PASS):
+        return True
+    geometry = artifact.ocr_geometry  # raw-geometry-ok: which reader made the result, not its boxes
+    return geometry is not None and str(geometry.source or "").startswith("kraken")
+
+
 def page_reading(db: Any, document_id: str) -> Any | None:
-    """The page's best reading: its newest model transcription with text that the read checker did
-    not flag (#5522: a looping or cut-off read is never the reading tied to the lines)."""
+    """The page's best reading (`source.job.tie-text-to-lines`): a person's reading first, then a checked
+    model reading (marked reviewed, or confirmed by a person's verdict), then the newest model reading;
+    newest first within each. Never a reading the read checker flagged (#5522: a looping or cut-off read is
+    never the reading tied to the lines), and never one read from the lines themselves (`_read_from_lines`)."""
     from fichero_server.llm.read_guard import read_flag_of
     from fichero_server.models import Artifact
+    from fichero_server.models.checking import CheckVerdict
 
     found = [a for a in db.query(Artifact, document_id=document_id, artifact_type="transcription")
-             if (a.content or "").strip() and read_flag_of(a) is None]
-    return max(found, key=lambda a: (a.created_at, a.id), default=None)
+             if (a.content or "").strip() and read_flag_of(a) is None and not _read_from_lines(a)]
+
+    def checked(a: Any) -> bool:
+        return bool(a.reviewed) or any(v.verdict == "confirm" for v in
+                                       db.query(CheckVerdict, target_id=a.id, trust="person"))
+
+    return max(found, key=lambda a: (a.provider == "human", checked(a), a.created_at, a.id), default=None)
 
 
-def _lines_pass(db: Any, document_id: str, pass_model: str | None) -> tuple[Any, dict[str, Any]] | None:
-    """The newest live pass with lines (Kraken's), never a pass this job made, and its lines by PAGE id."""
-    from fichero_server.formats.harness import xml_id
-    from fichero_server.models import Segment
-    from fichero_server.models.segments import SegmentPass
+def _already_tied(db: Any, lines: list[Any], artifact_id: str) -> bool:
+    from fichero_server.api.routes.document.segment_readings import readings_of_segment
 
-    best = None
-    for p in db.query(SegmentPass, document_id=document_id):
-        if p.deleted_at or p.name == TIED_NAME or (pass_model is not None and p.model != pass_model):
-            continue
-        rows = {xml_id(s.id): s for s in db.query(Segment, pass_id=p.id) if s.kind == "line" and not s.deleted_at}
-        if rows and (best is None or p.created_at > best[0].created_at):
-            best = (p, rows)
-    return best
+    return any(r.derived_from_artifact_id == artifact_id for row in lines for r in readings_of_segment(db, row.id))
 
 
-def _already_tied(db: Any, document_id: str, artifact_id: str) -> bool:
-    from fichero_server.models.segments import SegmentPass
+def _find_lines(db: Any, doc: Any, photo: Path, job_id: str) -> None:
+    """The page has no lines: Kraken finds them (its regions kept as the lines' parents) and they become the
+    page's pass at once, through the same save and conversion as a Find Lines run (#5487)."""
+    from fichero_server.llm import kraken_runtime
+    from fichero_server.maintenance.project_conversion import convert_new_results
+    from fichero_server.models import Artifact
 
-    return any(p.name == TIED_NAME and p.source_artifact_id == artifact_id and not p.deleted_at
-               for p in db.query(SegmentPass, document_id=document_id))
-
-
-def _copy(db: Any, ctx: Any, registry: Any, pass_id: str, row: Any, parent_id: str | None) -> str:
-    made = registry.invoke(db, "segment.create", {
-        "document_id": row.document_id, "pass_id": pass_id, "kind": row.kind, "kind_raw": row.kind_raw,
-        "anchor": row.anchor.model_dump(mode="json"), "baseline": row.baseline,
-        "parent_segment_id": parent_id}, ctx).result
-    segment_id = made["segment_ids"][0]
-    # The copy keeps the Kraken pass's order: it is placed last at its level, in the order the lines are
-    # copied, not where its box sorts on the page (the copy carries no file position of its own).
-    from fichero_server.api.routes.document.reading_orders import as_written_order
-    from fichero_server.models.reading_orders import ReadingOrderEntry
-
-    order = as_written_order(db, pass_id)
-    if order is not None:
-        parent_entry = next((e.id for e in db.query(ReadingOrderEntry, order_id=order.id)
-                             if parent_id and e.segment_id == parent_id), None)
-        registry.invoke(db, "reading_order.place", {"order_id": order.id, "segment_id": segment_id,
-                                                    "at_end": True, "parent_entry_id": parent_entry}, ctx)
-    return segment_id
+    geometry = kraken_runtime.segment_to_geometry(photo)
+    if not geometry.boxes:
+        return
+    db.save(Artifact(document_id=doc.id, source_document_id=doc.id, artifact_type="regions", content="",
+                     ocr_geometry=geometry, provider=geometry.provider, model=geometry.model, run_id=job_id))
+    convert_new_results(db, doc.id, run_id=job_id)
 
 
 def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dict[str, Any]:
     import fichero_server.api.routes.check  # noqa: F401  (registers check.verdict)
     import fichero_server.api.routes.document.content_representations  # noqa: F401  (representation.create)
-    import fichero_server.api.routes.document.segments  # noqa: F401  (segment.pass_create, segment.create)
+    from PIL import Image
+
     from fichero_server.actions.registry import ActionContext, registry
     from fichero_server.checking.cards import _descendants
     from fichero_server.llm import kraken_runtime
-    from fichero_server.models import Segment
-    from fichero_server.page_export import ExportRefused, export_page
+    from fichero_server.llm.working_lines import in_pixels, working_lines
 
     model_path, _catalog = kraken_runtime.resolve_recognition_model(request.model)
     ctx = ActionContext(actor=started_by, run_id=job_id, library_path=str(Path(db.path).parent))
@@ -238,43 +239,31 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         if reading is None:
             counts["no_page_reading"] += 1
             continue
-        if _already_tied(db, doc.id, reading.id):
+        photo = Path(doc.path) if doc.path else None
+        found = working_lines(db, doc.id, model=request.pass_model)
+        if found is not None and _already_tied(db, found.lines, reading.id):
             counts["already_tied"] += 1
             continue
-        found = _lines_pass(db, doc.id, request.pass_model)
-        if found is None:
-            counts["no_lines"] += 1
-            continue
-        source, segments = found
-        photo = Path(doc.path) if doc.path else None
         if photo is None or not photo.is_file():
             missing.append({"document_id": doc.id, "why": "its photograph is not on this Mac"})
             continue
-        try:
-            lines = [ln for ln in page_lines(export_page(db, doc.id, "pagexml", pass_id=source.id).data.decode("utf-8"))
-                     if ln["id"] in segments]
-        except ExportRefused as exc:
-            missing.append({"document_id": doc.id, "why": str(exc)})
+        if found is None and request.pass_model is None:
+            _find_lines(db, doc, photo, job_id)
+            found = working_lines(db, doc.id)
+            counts["lines_found"] += found is not None
+        if found is None:
+            counts["no_lines"] += 1
             continue
+        with Image.open(photo) as image:
+            width, height = float(image.width), float(image.height)
+        lines = [in_pixels(row, width, height) for row in found.lines]
         reads = kraken_runtime.read_given_lines(photo, model_path, lines)
-        tied = tie_lines(reading.content, reads)
-        made_pass = registry.invoke(db, "segment.pass_create", {
-            "document_id": doc.id, "name": TIED_NAME, "run_id": job_id, "source_artifact_id": reading.id}, ctx).result
-        copied: dict[str, str] = {}
-        for line, scored in zip(lines, tied):
-            row = segments[line["id"]]
-            parent_id = None
-            if row.parent_segment_id:
-                parent_id = copied.get(row.parent_segment_id)
-                parent = db.get(Segment, row.parent_segment_id) if parent_id is None else None
-                if parent is not None and not parent.deleted_at and parent.kind != "line":
-                    parent_id = copied[parent.id] = _copy(db, ctx, registry, made_pass["id"], parent, None)
-            segment_id = _copy(db, ctx, registry, made_pass["id"], row, parent_id)
+        for row, scored in zip(found.lines, tie_lines(reading.content, reads)):
             if not scored["text"]:
-                counts["no_text"] += 1
+                counts["untied"] += 1
                 continue
             made = registry.invoke(db, "representation.create", {
-                "document_id": doc.id, "segment_id": segment_id, "kind": request.kind, "content": scored["text"],
+                "document_id": doc.id, "segment_id": row.id, "kind": request.kind, "content": scored["text"],
                 "derived_from_artifact_id": reading.id}, ctx).result
             if scored["tied"]:
                 counts["tied"] += 1
@@ -283,9 +272,9 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
                        f"below {THRESHOLD:.2f} (rough read: {scored['rough_read']!r})")
             registry.invoke(db, "check.verdict", {
                 "layer": "readings", "target_id": made["id"], "verdict": "reject", "reasons": reasons,
-                "checker_model": request.model, "segment_id": segment_id}, ctx)
+                "checker_model": request.model, "segment_id": row.id}, ctx)
             counts["doubtful"] += 1
-            flagged.append({"document_id": doc.id, "segment_id": segment_id, "reading_id": made["id"],
+            flagged.append({"document_id": doc.id, "segment_id": row.id, "reading_id": made["id"],
                             "flag": DOUBTFUL, "score": scored["score"]})
         counts["pages_tied"] += 1
     return {"counts": counts, "flagged": flagged, "missing": missing, "stopped": stopped,
@@ -293,8 +282,8 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
 
 
 def words(counts: dict[str, int]) -> str:
-    return (f"{counts['tied']} lines tied, {counts['doubtful']} doubtful, on {counts['pages_tied']} pages; "
-            f"{counts['already_tied']} already tied")
+    return (f"{counts['tied']} lines tied, {counts['doubtful']} doubtful, {counts['untied']} untied, on "
+            f"{counts['pages_tied']} pages; {counts['already_tied']} already tied")
 
 
 def run(db: Any, subject: str) -> dict[str, Any]:

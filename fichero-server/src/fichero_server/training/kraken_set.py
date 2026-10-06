@@ -119,12 +119,23 @@ def pages_in_scope(db: Any, scope_ids: list[str]) -> list[Any]:
 
 
 def teacher_pass(db: Any, document_id: str, teacher: str) -> Any | None:
-    """The newest live pass on the page whose readings the teacher made, or None."""
+    """The newest live pass on the page whose readings the teacher made, or None: a pass the teacher made,
+    or the page's own lines carrying the teacher's readings (one line pass per page, read many times, #5487:
+    a reader, or the page text tied to the lines, #5444, writes readings onto the lines the page has, derived
+    from the reader's page artifact, instead of a pass of its own)."""
+    from fichero_server.models import Artifact, ContentRepresentation, Segment
     from fichero_server.models.segments import SegmentPass
 
-    passes = [p for p in db.query(SegmentPass, document_id=document_id)
-              if p.model == teacher and not p.deleted_at]
-    return max(passes, key=lambda p: p.created_at) if passes else None
+    passes = {p.id: p for p in db.query(SegmentPass, document_id=document_id) if not p.deleted_at}
+    chosen = {pid for pid, p in passes.items() if p.model == teacher}
+    by_teacher = {a.id for a in db.query(Artifact, document_id=document_id) if a.model == teacher}
+    if by_teacher:
+        for reading in db.query(ContentRepresentation, document_id=document_id):
+            if reading.segment_id and reading.retracted_at is None and reading.derived_from_artifact_id in by_teacher:
+                segment = db.get(Segment, reading.segment_id)
+                if segment is not None and segment.pass_id in passes:
+                    chosen.add(segment.pass_id)
+    return max((passes[pid] for pid in chosen), key=lambda p: p.created_at, default=None)
 
 
 def read_lines(page_xml: str) -> int:
