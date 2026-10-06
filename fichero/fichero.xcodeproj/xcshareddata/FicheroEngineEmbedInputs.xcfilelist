@@ -354,6 +354,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/read_guard.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/script_coverage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/usage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/whisper_runtime.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/working_lines.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/base.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/docling_loader.py
