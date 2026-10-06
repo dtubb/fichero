@@ -320,6 +320,7 @@ class DatabaseManager:
         """Close the shared connection for a package."""
         package_str = self._cache_key(package_path)
         _stop_conversion(package_str)
+        _stop_jobs(package_str)
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]
@@ -346,6 +347,7 @@ class DatabaseManager:
         package_str = self._cache_key(package_path)
         if close:
             _stop_conversion(package_str)
+            _stop_jobs(package_str)
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]
@@ -506,6 +508,7 @@ class DatabaseManager:
     def close_all(self):
         """Close every package's shared connection."""
         _stop_conversion(None)
+        _stop_jobs(None)
         with self._lock:
             for cache_key, db in list(self._databases.items()):
                 db.close()
@@ -520,6 +523,15 @@ def _stop_conversion(package_path: str | None) -> None:
     from fichero_server.maintenance import conversion_on_open
 
     conversion_on_open.stop(package_path)
+
+
+def _stop_jobs(package_path: str | None) -> None:
+    """Stop a library's job threads BEFORE its connection closes (#5503), outside the manager lock
+    (a job may be opening a library): they forget it, and a lane left with no library ends. Opening
+    it again resumes its jobs (`jobs.resume`). None: every library, the engine shutting down."""
+    from fichero_server.execution import jobs
+
+    jobs.stop(package_path)
 
 
 # Global singleton

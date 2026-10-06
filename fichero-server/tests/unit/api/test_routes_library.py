@@ -249,14 +249,18 @@ def test_import_can_target_a_user_made_inbox_from_root_lookup(tmp_path: Path) ->
         and item["doc_type"] == "folder"
     )
 
-    import_response = client.post(
-        f"/api/documents/import?parent_id={inbox['id']}",
-        headers=headers,
-        files={"file": ("hello.txt", b"hello from inbox", "text/plain")},
-    )
-    assert import_response.status_code == 200, import_response.text
-    body = import_response.json()
-    assert body["parent_id"] == inbox["id"]
+    try:
+        import_response = client.post(
+            f"/api/documents/import?parent_id={inbox['id']}",
+            headers=headers,
+            files={"file": ("hello.txt", b"hello from inbox", "text/plain")},
+        )
+        assert import_response.status_code == 200, import_response.text
+        body = import_response.json()
+        assert body["parent_id"] == inbox["id"]
+    finally:
+        # The import queues the file's derivative jobs: closing the library ends their threads (#5503).
+        db_manager.close_database(target)
 
 
 def test_open_library_accepts_percent_encoded_non_ascii_header(
