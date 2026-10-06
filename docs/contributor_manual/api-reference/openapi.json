@@ -75949,6 +75949,16 @@
             },
             "type": "array",
             "title": "Unpriced Models"
+          },
+          "engine_peak_memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Engine Peak Memory Bytes"
+          },
+          "model_server_peak_memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Model Server Peak Memory Bytes"
           }
         },
         "type": "object",

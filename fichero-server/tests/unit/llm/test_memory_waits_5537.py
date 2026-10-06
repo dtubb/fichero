@@ -67,7 +67,7 @@ def test_the_raw_mach_reading_stands_in_when_macos_percentage_cannot_be_read():
 
 def test_on_the_air_a_3b_load_proceeds():
     """The regression itself: raw free 2.2 GB, 64% free by pressure -> the 3B loads."""
-    _check(_air())(THREE_B)
+    assert _check(_air())(THREE_B) is None, "no refusal: the load goes ahead"
 
 
 def test_on_the_air_the_trained_3b_proceeds(tmp_path):
@@ -75,7 +75,7 @@ def test_on_the_air_the_trained_3b_proceeds(tmp_path):
     from tests.unit.llm.test_mlx_memory_guard import _landed_store
 
     student = _landed_store(tmp_path, weights_bytes=3_073_721_056).spec("fichero-trained/student")
-    _check(_air())(student)
+    assert _check(_air())(student) is None
 
 
 # --- 2. the need is the weights plus a margin; too big for this Mac is refused up front ----------
@@ -100,7 +100,7 @@ def test_an_8b_on_an_8_gb_mac_is_refused_up_front_with_a_model_that_fits():
 
 
 def test_the_8b_fits_a_16_gb_mac():
-    _check(lambda: 12 * GB, ram_gb=16)(EIGHT_B)
+    assert _check(lambda: 12 * GB, ram_gb=16)(EIGHT_B) is None
 
 
 def test_short_memory_is_a_wait_not_a_failure():
