@@ -247,6 +247,50 @@ async def test_a_page_waits_then_the_server_starts_when_memory_returns(mac, monk
 
 
 @pytest.mark.asyncio
+async def test_memory_short_at_the_servers_own_check_sends_the_page_back_to_waiting(mac, monkeypatch):  # noqa: F811
+    """The Air, 2026-10-06: the page's wait passed, Kraken loaded to find the lines, and the
+    server's own last check found 3.8 GB of the 3.9 it needs. The first page failed 'Waiting: memory
+    is tight' and the others 'not ready'. A short reading there sends the page back to waiting."""
+    mac.install("Qwen2.5-VL-3B")
+    _short_mac(monkeypatch, 6)
+    monkeypatch.setattr(local_inference, "MEMORY_LOOK_AGAIN_SECONDS", 0)
+    starts = []
+    real_start = local_inference.LocalInferenceServiceManager.start
+
+    async def start(self, timeout_seconds=None):
+        starts.append(1)
+        if len(starts) == 1:  # the server's own check, moments after the wait passed
+            self.state = local_inference.LocalServiceState.starting
+            raise local_inference.LocalModelMemoryShortError(
+                "Waiting: memory is tight: Qwen2.5-VL 3B needs about 3.9 GB of free memory, and this "
+                "Mac has about 3.8 GB free right now")
+        return await real_start(self, timeout_seconds)
+
+    monkeypatch.setattr(local_inference.LocalInferenceServiceManager, "start", start)
+    await llm._ensure_managed_local_provider_ready(
+        LLMConfig(provider="omlx", model="Qwen2.5-VL-3B"), capability="vision")
+    assert len(starts) == 2, "the page waited and asked the server again instead of failing"
+    assert routes._MANAGERS[routes.DEFAULT_OMLX_PROFILE_ID].process.is_running()
+
+
+@pytest.mark.asyncio
+async def test_memory_short_at_the_servers_check_past_the_limit_fails_with_the_reason(mac, monkeypatch):  # noqa: F811
+    mac.install("Qwen2.5-VL-3B")
+    _short_mac(monkeypatch, 6)
+    monkeypatch.setattr(local_inference, "MEMORY_LOOK_AGAIN_SECONDS", 0)
+    monkeypatch.setattr(local_inference, "MEMORY_WAIT_LIMIT_SECONDS", 0)
+
+    async def start(self, timeout_seconds=None):
+        raise local_inference.LocalModelMemoryShortError("Waiting: memory is tight: 3.9 GB needed")
+
+    monkeypatch.setattr(local_inference.LocalInferenceServiceManager, "start", start)
+    with pytest.raises(llm.LocalModelUnavailableError, match="Waited 0 minutes"):
+        await llm._ensure_managed_local_provider_ready(
+            LLMConfig(provider="omlx", model="Qwen2.5-VL-3B"), capability="vision")
+    assert routes._MANAGERS[routes.DEFAULT_OMLX_PROFILE_ID].state == local_inference.LocalServiceState.stopped
+
+
+@pytest.mark.asyncio
 async def test_a_model_already_loaded_is_not_checked_again(mac, monkeypatch):  # noqa: F811
     """It already holds its memory: re-asking would count it twice and refuse a model that is running."""
     mac.install("Qwen2.5-VL-3B")

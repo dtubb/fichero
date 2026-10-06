@@ -4175,7 +4175,7 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig, capability: st
                 if not (manager.state in (LocalServiceState.healthy, LocalServiceState.degraded)
                         and manager.process.is_running()):
                     await _wait_for_memory_to_load(model_id, custom_command=custom_command)
-                status = await manager.start()
+                status = await _start_when_memory_allows(manager, model_id, custom_command=custom_command)
         except LocalInferenceRuntimeMissingError as exc:
             raise LocalModelRuntimeMissingError(str(exc)) from exc
         except LocalInferenceHardwareError as exc:
@@ -4188,6 +4188,31 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig, capability: st
         if profile.startup_policy == LocalProviderStartupPolicy.manual:
             detail = f"Managed local model is manual-start only and not healthy: {detail}"
         raise LocalModelUnavailableError(detail)
+
+
+async def _start_when_memory_allows(manager: Any, model_id: str, *, custom_command: bool) -> Any:
+    """Start the server; if its own last check finds memory short moments after the page's wait
+    passed (the Air, 2026-10-06: Kraken loaded in between, 3.8 GB free of the 3.9 needed), the page
+    goes back to waiting instead of failing (#5537). The raise left the manager 'starting', which the
+    other pages then read as 'not ready'; it is put back to stopped. Bounded by the wait's limit."""
+    import time
+
+    from fichero_server.llm.local_inference import (
+        MEMORY_LOOK_AGAIN_SECONDS, MEMORY_WAIT_LIMIT_SECONDS, LocalModelMemoryShortError,
+        LocalServiceState)
+
+    deadline = time.monotonic() + MEMORY_WAIT_LIMIT_SECONDS
+    while True:
+        try:
+            return await manager.start()
+        except LocalModelMemoryShortError as exc:
+            manager.state = LocalServiceState.stopped
+            if time.monotonic() >= deadline:
+                raise LocalModelUnavailableError(
+                    f"{exc}. Waited {MEMORY_WAIT_LIMIT_SECONDS / 60:.0f} minutes for memory; close "
+                    "other apps, then run the page again.") from exc
+            await asyncio.sleep(MEMORY_LOOK_AGAIN_SECONDS)
+            await _wait_for_memory_to_load(model_id, custom_command=custom_command)
 
 
 async def _wait_for_memory_to_load(model_id: str, *, custom_command: bool) -> None:
