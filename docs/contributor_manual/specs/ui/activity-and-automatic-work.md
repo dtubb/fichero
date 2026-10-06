@@ -276,8 +276,9 @@ The Activity window (`ActivityMonitorWindow.swift`) becomes a SwiftUI `Table` wi
 - **Toolbar:** *Pause Background Work* / *Resume*; per-selection Pause, Resume, Cancel, Retry
   Failed, Show What It Made (opens the take-back list, `safety/run-take-back.md`), Delete from
   history.
-- **Selecting a row** shows its detail below the table (the run trace, the log, the model and
-  prompt, cost by step), reusing `ActivityDetailView`/`RunTraceView`.
+- **Selecting a row** shows its detail: one view for a run, a step, a page or a job, read from the
+  row's own job record, with its log under it ("The details view (#5561)" below). The five tabs
+  of today's `ActivityDetailView` go.
 - The **toolbar status island** stays as the summary ("Reading 212 of 400 · 3 waiting"), reading
   the same store. Its **popover is a summary, not a list** (ruled 2026-10-04): what is running, what
   is waiting and the main reason, the last three errors, and the Mac's state (memory pressure,
@@ -685,6 +686,169 @@ workflow by hand: a hand run is a job like any other.
   waiting job's reason (`ActivityStore.machine`; `ActivityTableTests`
   `testActivityPopoverSummary_saysThisMacsStateAndHidesAReadingTheEngineCouldNotTake`). Not yet
   seen in the app. Still a gap (#5415): nothing reads the GPU.
+
+### The details view (#5561)
+
+**What is there today (verified 2026-10-06, read-only).** Double-clicking a row in the Activity
+table, or pressing its ⓘ button (#5560), opens the Activity Details window
+(`Views/Activity/Window/ActivityDetailWindow.swift`), which mounts `ActivityDetailView`
+(`Views/Activity/Detail/ActivityDetailView.swift`); the same view is mounted in the Preview pane
+of the `.activity` sidebar mode (`ContentView+DetailLayout.swift:285`) and in the compact flow
+(`ContentView+Navigation.swift:374`). It is a stats bar and **five sections**: Overview, Console,
+Progress, Trace and Log (`ActivityChildType`, `Models/SidebarViewTypes.swift:60-83`). They read
+**three different records** of the same run and show the same facts several times over:
+
+| Section | Reads | Repeats |
+|---|---|---|
+| Stats bar (`ActivityDetailView.swift:136-262`) | the live `WorkflowExecution` if any, else the persisted run (`GET /workflow-execution/threads/{id}/run`), else the row snapshot | status, started, finished, progress bar, "x of y files", current file, error count, controls |
+| Overview (`Overview/ActivityOverviewView.swift`, `+Cards.swift`) | the live execution; the activity events (`GET /api/activity?thread_id=`) | status card (status, started, finished again), progress bar and counts again, current file again, a files × steps grid, a timing card, every activity event as a list |
+| Console (`ActivityConsoleView.swift`) | the live execution's node states, else the activity events | node states with success counts and errors (the Progress tab's rows again); the current file a third time; the events the Overview already listed |
+| Progress (`Progress/ActivityProgressView*.swift`) | the live execution, else seeds one from the persisted run | progress bar and counts a third time; node rows again; "Recent Files". Its historical branch is dead: `progressTimeline` is declared and never assigned (`ActivityProgressView.swift:19`, `+DataLoading.swift:19-30`), so it always falls to "Progress data not available" |
+| Trace (`Trace/RunTraceView.swift`) | its own fetch of the persisted run plus the episode ledger | the steps' states, time and cost a second way (per-node `progress_timeline`, not the jobs tree) |
+| Log (`ActivityLogView.swift`) | its own fetch of the persisted run; or the live `logLines` | status header with cost and time a fourth time; the log, as one string (copyable) or as streamed lines (not copyable) |
+
+None of the five reads the one record the table reads: the run's job tree
+(`GET /api/activity/jobs/{id}`, `ActivityMonitorModel.swift:215-242`). So the table and the window
+can disagree: the table's Errors column is the tree's `failed` count, the window's badge is the
+live node states' error count or the number of error-level events (`ActivityDetailView.swift:36-42`).
+
+**Why it is unreliable.**
+
+- *It freezes at open.* The window follows a `SelectedActivityRun` whose `status` and `isLive` are
+  `let`s copied from the row when it was double-clicked (`SidebarViewTypes.swift:92-94`,
+  `ActivityMonitorWindow.swift:271`). `isLive` means "an execution this window started"
+  (`ActivityStore.swift:341-361`), so a run started from another window, the CLI or a schedule is
+  treated as history: its events are fetched once (`ActivityDetailView.swift:347-389`) and never
+  again, because the task is keyed on an id that does not change (`:86`). A live run is the
+  opposite: the fetch is skipped (`:348-351`), so Overview and Console are empty until it is
+  reopened. The Log tab decides live or done from the same frozen flag (`ActivityLogView.swift:68, 85`).
+- *Three transports, none of them the table's.* The table is updated by the jobs poll and the
+  change stream (`ActivityStore.swift:132, 456-458`). The window neither polls nor listens to
+  either; it opens a per-thread SSE subscription of its own, only when the snapshot said running
+  or paused (`ActivityDetailView.swift:334-345`), and otherwise shows what it fetched once.
+- *The start time can be now.* Subscribing seeds an execution with `startTime: Date()`
+  (`WorkflowExecutionStore.swift:101-115`), and seeding from the persisted run falls back to
+  `Date()` when the time does not parse (`:540`); the stats bar prefers the live execution's start
+  (`ActivityDetailView.swift:52-60`). This is the "just now" defect of
+  `activity.window.absolute-times` (#5432), still alive in the window.
+- *Which tab you open first changes what the others show.* The Progress tab seeds the shared
+  store (`WorkflowExecutionStore.seedFromPersistedRun`, `:184-196`) with empty node states and
+  document progress; the Console and Overview then take the live branch on an execution with no
+  content (`ActivityConsoleView.swift:18-21`, `ActivityProgressView.swift:26-29`), which is the
+  blank console already patched once.
+- *Three cost figures.* The Log header shows the run's `run_usage` with the estimate
+  (`ActivityLogView.swift:207-243`), the Trace popover shows per-node timeline cost
+  (`RunTraceModel.swift:257-260`), the table shows the jobs tree's `cost_usd`
+  (`execution/jobs.py:405-408`); they are summed from different records.
+- *Ids where names belong.* Console and Progress rows fall back to `nodeId`
+  (`ActivityConsoleView.swift:88`, `+LiveProgress.swift:72`); a page's name is whatever the job's
+  `subject` holds (`ActivityMonitorModel.swift:300-309`), not the document's title, which the
+  historical Progress view had to look up itself (`+HistoricalProgress.swift:197-212`).
+- *It is only ever a run.* Double-clicking a step or a page row opens the run that owns it
+  (`ActivityMonitorWindow.swift:130-133, 198-205`); a job of its own (an embedding queue) has no
+  details at all (`runRowID` nil). The one shared selection (`ActivityWindowSelectionState.shared`,
+  `ActivityViewHelpers.swift:3-21`) resolves its library from the run, else the current library,
+  else the global one (`ActivityDetailWindow.swift:12-22`), so a run whose library id is missing is
+  read through another library's services.
+- *What the engine knows and no view shows:* the run's peak memory, the engine's and the model
+  servers' (`RunUsageResponse.engine_peak_memory_bytes`, `model_server_peak_memory_bytes`,
+  `api/routes/workflow_execution/threads.py:122-127`, measured since #5537); a waiting row's reason
+  with the Mac's numbers (`MachineState`, `activity.py:149-160`); the failed pages under a row with
+  each one's reason (`JobTree.failed`, `activity.py:192`).
+
+**The design: one view, one record.** The details of a selected row, whatever its kind (a run, a
+step, a page, a job of its own), is one scrolling view with no tabs, read from the row's own node
+of the job tree (`GET /api/activity/jobs/{id}`) and one filtered read of its log. Top to bottom:
+
+1. **Heading.** What it is, in words: "Transcribe · 40 pages", "Read a page · f. 103r of
+   Diary 1918", "Find lines · page 12 of letter_0417.pdf", "Embedding queue". The project, the
+   model it used (or the models under it), who or what started it (`activity.window.started-by`).
+   Names, never ids or upload temp names.
+2. **State, and why.** One line, the same words as the table's State column: "Running: Entities,
+   page 212 of 400"; "Waiting: memory is tight (pressure warn, 1.2 GB free)"; "Paused by you";
+   "Failed: the provider refused this page (429)"; "Stopped by you"; "Done". A failed row names
+   the cause the engine recorded; a waiting row names the throttle's reason and the Mac's reading
+   it rests on.
+3. **Progress.** Pages done · failed · left, a bar, and time left at the pace so far; for a row
+   with no pages (a single page, a job of its own with no total) the counts are omitted, not
+   "0 of 0". Under it, the **failed pages** by name, each with its reason, and the action
+   *Read the N pages that failed again* (#5555), which retries only those.
+4. **Log.** Every line the engine wrote for this row and the rows under it, filtered to this row
+   only, newest last, auto-following while it runs, selectable and copyable as plain text. The
+   log is the only part of the view that scrolls on its own.
+5. **Resources.** Started at and finished at (absolute, `activity.window.absolute-times`),
+   elapsed; tokens and cost as the table shows them (null stays blank, never "$0"); the peak
+   memory of the engine and of the model servers during the run, from the run's usage record; a
+   figure the engine did not measure is left out.
+6. **Actions.** Pause or Resume, Stop (the row's own job routes, `activity.pause.per-job`);
+   *Read the N pages that failed again*; *Open the page* on a page row, *Show the pages* on a step
+   or run row (the Library selects them); *Show the trace* on a run row, which opens the existing
+   `RunTraceSheet` as a sheet; *Show what it made* (`activity.window.what-it-made`). An action
+   that does not apply is absent, not disabled.
+
+The view follows the selected row: picking another row changes it; the table's in-place update of
+that row (tree re-read on the change stream) is the view's update; it opens no stream and no poll
+of its own. It is reached by the ⓘ button and by double-click (#5560), and the same view is the
+detail below the table, in the Preview pane and on the compact stack.
+
+**What is deleted.** `ActivityChildType` and the section bar; `ActivityOverviewView` and
+`+Cards`; `ActivityConsoleView`; `ActivityProgressView` and its three files, including the dead
+timeline branch; `ActivityLogView`'s two-headed live/persisted log; the stats bar's second copy of
+status, time, progress and errors; `ActivityViewHelpers.selectedRunStatus` and the
+`SelectedActivityRun` snapshot (the selection becomes a job id and its library);
+`WorkflowExecutionStore.seedFromPersistedRun` and the detail's subscribe-on-select; the
+"Compare Runs…" button (it moves into the trace sheet). `RunTraceView` stays, as a sheet, because
+the artifact Inspector opens it too (`RunTraceSheet`, #4319).
+
+**What the engine must carry for it** (today missing from `JobTree`, `activity.py:179-198`,
+`execution/jobs.py:360-413`): `started_at` and `finished_at` on every node (only `seconds` is
+rolled up now); `working_on`; the page's document id and display name beside `subject`; the
+run's peak memory on the run node (it lives only in `run_usage`); `started_by`; a log read by job
+id (the run log is one `execution_log` string per run, and activity events are keyed by thread
+and node, not by job); a retry action for failed pages.
+
+- `activity.details.one-view` — **[GAP]** (#5561) the details of a selected row, whether a run,
+  a step, a page or a job of its own, is one scrolling view with no tabs or sections to choose
+  between; the Overview, Console, Progress, Trace and Log sections are gone.
+- `activity.details.one-record` — **[GAP]** (#5561) everything the view shows is read from the
+  row's own node of `GET /api/activity/jobs/{id}` and one filtered log read, never from a live
+  `WorkflowExecution`, a persisted `WorkflowRunResponse` and the activity events side by side; the
+  Errors, Progress, Cost and Model figures it shows equal the table row's.
+- `activity.details.heading-names-not-ids` — **[GAP]** (#5561) the heading says what the row is,
+  on which file or page by its display name, with which model and started by whom; no thread id,
+  node id or upload temp name appears anywhere on the view.
+- `activity.details.state-says-why` — **[GAP]** (#5561) the state line uses the table's State
+  column words and adds the reason: a failed row its recorded cause, a waiting row the throttle's
+  reason with the Mac reading it rests on, a running row what it is working on now.
+- `activity.details.progress-counts` — **[GAP]** (#5561, #5555) a row with pages shows pages
+  done, failed and left with the time left at the pace so far; a row with no pages shows no counts
+  rather than "0 of 0".
+- `activity.details.failed-pages-by-name` — **[GAP]** (#5561, #5555) the failed pages under the
+  row are listed by display name, each with its own reason, and *Read the N pages that failed
+  again* enqueues only those pages and nothing else.
+- `activity.details.log-filtered-newest-last` — **[GAP]** (#5561) the log shows only the lines the
+  engine wrote for this row and the rows under it, newest last, following the end while the row
+  runs, and copies as plain text with one command.
+- `activity.details.resources` — **[GAP]** (#5561, #5555, #5537) the view shows started at and
+  finished at as absolute times, elapsed, tokens and cost as the table does, and the engine's and
+  model servers' peak memory during the run; a figure the engine did not measure is omitted, never
+  shown as zero or as now.
+- `activity.details.actions-are-the-rows` — **[GAP]** (#5561) Pause, Resume and Stop on the view
+  are the same job routes the row's buttons call, and an action that does not apply to this row's
+  kind or state is absent.
+- `activity.details.open-in-the-app` — **[GAP]** (#5561, #5560) a page row offers *Open the page*
+  and a step or run row *Show the pages*, which select those documents in the Library window.
+- `activity.details.follows-the-row` — **[GAP]** (#5561) the view follows the selected row: it
+  changes when another row is selected, updates when the table's tree re-read updates that row,
+  and opens no stream, poll or fetch of its own beyond the log read.
+- `activity.details.one-mount` — **[GAP]** (#5561, #5560) the ⓘ button, double-click, the detail
+  below the table, the Preview pane of the `.activity` mode and the compact stack all mount this
+  one view for the row's job id and library, and a job of its own has details like any run.
+- `activity.details.engine-carries-what-it-shows` — **[GAP]** (#5561) every node of
+  `GET /api/activity/jobs/{id}` carries `started_at`, `finished_at`, `working_on`, `started_by`,
+  the page's document id and display name, and the run node its peak memory; the engine serves a
+  log filtered by job id and a retry action for a row's failed pages; the view adds nothing the
+  engine does not record.
 
 ### C. Pause and start
 
@@ -1160,6 +1324,9 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
   `activity.toolbar.pauseAll` · `activity.toolbar.resumeAll` · `activity.filter.<name>`
   `activity.row.<jobId>.pause` · `.resume` · `.cancel` · `.retry` · `.whatItMade`
   `activity.group.<projectId>` · `activity.group.mac` · `activity.popover` · `activity.popover.macState`
+  `activity.row.<jobId>.details` · `activity.details` · `activity.details.heading` · `activity.details.state`
+  `activity.details.progress` · `activity.details.failedPages` · `activity.details.log` · `activity.details.log.copy`
+  `activity.details.resources` · `activity.details.retryFailed` · `activity.details.openPage` · `activity.details.showPages`
 
 ## Open questions (with recommendations)
 
@@ -1210,8 +1377,10 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
     written for. *Recommend:* a step's row offers "Show what it made", which opens the take-back list
     (`activity.window.what-it-made`); comparing two runs' outputs is the panes' diff lens, opened
     from there, not a second path.
-12. **What does clicking a row open?** (from `ui/activity.md`, #1264, #1559) *Recommend:* its detail
-    below the table (§2); a page's row also offers "Open the page".
+12. **Answered** (this spec, 2026-10-06, #5561): one details view for any row, read from the row's
+    job record, with the log under it; a page's row offers *Open the page*. **What does clicking a
+    row open?** (from `ui/activity.md`, #1264, #1559) *Recommended before:* its detail below the
+    table (§2); a page's row also offers "Open the page".
 
 ## Requests to other specs (for the manager to route)
 
