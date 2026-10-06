@@ -161,6 +161,59 @@ def start(db: Any, request: CheckRunRequest, *, started_by: str) -> dict[str, st
     return {"job_id": job_id}
 
 
+#: Who queues the tie when a page reading lands (#5558): nobody pressed anything.
+AUTOMATIC = "automatic"
+
+
+def rough_reader(db: Any) -> str | None:
+    """The Kraken reader an automatic tie reads the lines with: the project recipe's own (its tie step's
+    reader, else its line reader's, when that is a Kraken reader on this Mac), else the first reader of
+    Kraken's catalogue on this Mac; None when this Mac has none (the tie cannot read the lines)."""
+    from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS, is_recognition_model_installed
+    from fichero_server.recipes.cards import kraken_reader_for
+    from fichero_server.recipes.project import read_project_setup
+
+    try:
+        recipe = read_project_setup(Path(db.path).parent).get("recipe") or {}
+    except (OSError, ValueError):
+        recipe = {}
+    steps = sorted((s for s in recipe.get("steps") or [] if s.get("job") in (KIND, "read-a-line")),
+                   key=lambda s: s.get("job") != KIND)
+    named = [kraken_reader_for(s.get("model") or {}) for s in steps]
+    for reader in [*named, *KRAKEN_RECOGNITION_MODELS]:
+        if reader and is_recognition_model_installed(reader):
+            return reader
+    return None
+
+
+def after_page_reading(db: Any, artifact: Any) -> str | None:
+    """Queue the tie for a page reading just saved (#5558, source-model.md "Every output comes into the
+    page"): no recipe step needs to name it. Only for a reading of the whole page (a transcription with no
+    lines of its own, not flagged, not the lines' own text) on a page that HAS lines: a page without lines
+    gets them from its reading step, and a result with boxes becomes its own pass. Background work: one
+    waiting job per page on the local model lane (many readings of a page make one tie), never run inline.
+    Returns the job id, or None when nothing is queued."""
+    from fichero_server.llm.read_guard import read_flag_of
+    from fichero_server.llm.working_lines import working_lines
+
+    if artifact.artifact_type != "transcription" or not (artifact.content or "").strip():
+        return None
+    if artifact.ocr_geometry is not None and artifact.ocr_geometry.boxes:  # raw-geometry-ok: has it lines?
+        return None
+    if read_flag_of(artifact) is not None or _read_from_lines(artifact):
+        return None
+    if working_lines(db, artifact.document_id) is None:
+        return None
+    reader = rough_reader(db)
+    if reader is None:
+        return None
+    register_job_kinds()
+    request = CheckRunRequest(layer="readings", scope_ids=[artifact.document_id], provider="kraken", model=reader,
+                              check=KIND)
+    return jobs.enqueue(db, KIND, f"{KIND}:after-reading:{artifact.document_id}", started_by=AUTOMATIC,
+                        detail=json.dumps({"request": request.model_dump()}))
+
+
 def _read_from_lines(artifact: Any) -> bool:
     """True for a reading that is its lines' own text joined: a reader's words already written onto the
     page's lines (`working_lines.READ_ONTO_PASS`, #5487), or Kraken's own read of the lines it found. Tied

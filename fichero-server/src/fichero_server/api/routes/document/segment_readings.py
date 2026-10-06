@@ -400,10 +400,11 @@ def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription
     retired_memo: dict[tuple[str, str], set[str]] = {}   # a line's words worked out once (#5190)
     pass_of = {row.id: row.pass_id for row in rows}
     marked = ground_truth_pass_ids(db, pass_of.values())
+    measures = ReadingMeasures(db)
     for segment_id, items in by_segment.items():
         counted = counting_by_kind(
             db, segment_id, items, rule=rule, choices=choices.get(segment_id, []), retired_memo=retired_memo,
-            on_ground_truth=pass_of.get(segment_id) in marked,
+            on_ground_truth=pass_of.get(segment_id) in marked, measures=measures,
         ).get(kind)
         if counted is not None and counted.representation_id is not None:
             texts[segment_id] = next(i.content for i in items if i.id == counted.representation_id)
@@ -459,10 +460,82 @@ def _readings_for_live_rows(
     return by_segment
 
 
-def _candidate(item: ReadingRead, on_ground_truth: bool = False) -> ReadingCandidate:
+class ReadingMeasures:
+    """What ranks one machine reading over another (#5558), looked up once per caller and memoised: whether
+    a person checked it, and its reader's measured CER on this project. A caller counting a whole page
+    hands one in, so the verdicts are read once and each reader's card once, not once per line.
+
+    * **Checked.** The reading's own newest verdict (`check.verdict`) is a person's confirm; or it was made
+      from a page reading (`derived_from_artifact_id`, the tie) a person confirmed (their newest verdict on
+      it) or marked reviewed, and its own newest verdict is not a reject (a doubtful tied stretch stays
+      doubtful).
+    * **Measured.** The reader is the page result it was read in (`derived_from_artifact_id`: its provider
+      and model), its CER the newest evaluation on that model's card scored on this project's pages
+      (`evaluation.measured_here`: the bake-off). A cloud reader is not measured yet (the evaluation has no
+      remote target), so it is never ranked by score.
+    """
+
+    def __init__(self, db: Database) -> None:
+        self.db = db
+        self._verdicts: dict[str, Any] | None = None
+        self._artifacts: dict[str, tuple[bool, float | None]] = {}
+        self._scores: dict[tuple[str, str], float | None] = {}
+
+    def _newest_verdicts(self) -> dict[str, Any]:
+        """The newest reading verdict per target, and the newest a PERSON gave (keyed `person:<id>`)."""
+        if self._verdicts is None:
+            from fichero_server.models.checking import CheckVerdict
+
+            newest: dict[str, Any] = {}
+            for v in sorted(self.db.query(CheckVerdict, layer="readings"), key=lambda v: (v.created_at, v.id)):
+                newest[v.target_id] = v
+                if v.trust == "person":
+                    newest[f"person:{v.target_id}"] = v
+            self._verdicts = newest
+        return self._verdicts
+
+    def _score(self, model: str, reader: str) -> float | None:
+        if (model, reader) not in self._scores:
+            from fichero_server.training.evaluation import measured_here
+
+            self._scores[(model, reader)] = measured_here(self.db, model, reader)
+        return self._scores[(model, reader)]
+
+    def _of_artifact(self, artifact_id: str) -> tuple[bool, float | None]:
+        if artifact_id not in self._artifacts:
+            artifact = self.db.get(Artifact, artifact_id)
+            if artifact is None:
+                self._artifacts[artifact_id] = (False, None)
+            else:
+                said = self._newest_verdicts().get(f"person:{artifact_id}")
+                checked = bool(artifact.reviewed) or (said is not None and said.verdict == "confirm")
+                reader = "kraken" if artifact.provider == "kraken" else "vision"
+                score = self._score(artifact.model, reader) if artifact.model and artifact.provider != "human" else None
+                self._artifacts[artifact_id] = (checked, score)
+        return self._artifacts[artifact_id]
+
+    def of(self, item: ReadingRead) -> dict[str, Any]:
+        """`checked` and `reader_cer` for one machine reading; nothing for a person's (they outrank both)."""
+        if item.provenance_kind is ProvenanceKind.human or item.provisional:
+            return {}
+        verdicts = self._newest_verdicts()
+        own = verdicts.get(item.id)
+        own_person = verdicts.get(f"person:{item.id}")
+        checked, score = self._of_artifact(item.derived_from_artifact_id) if item.derived_from_artifact_id else (False, None)
+        if own_person is not None and own_person.verdict == "confirm":
+            checked = True
+        elif own is not None and own.verdict == "reject":
+            checked = False
+        return {"checked": checked, "reader_cer": score}
+
+
+def _candidate(
+    item: ReadingRead, on_ground_truth: bool = False, measures: ReadingMeasures | None = None,
+) -> ReadingCandidate:
     """`on_ground_truth`: the reading's segment is on a pass a person marked ground truth (#5513), so the
     FILE's reading there is vouched for by a person. Only the file's: a machine's reading added to such a
-    pass later is still a machine's."""
+    pass later is still a machine's. `measures`: what ranks machine readings (#5558); without it they
+    rank by date alone."""
     return ReadingCandidate(
         representation_id=item.id,
         kind=item.kind,
@@ -472,6 +545,7 @@ def _candidate(item: ReadingRead, on_ground_truth: bool = False) -> ReadingCandi
         provisional=item.provisional,
         corrects_representation_id=item.corrects_representation_id,
         vouched_by_a_person=on_ground_truth and item.provenance_kind is ProvenanceKind.external_import,
+        **(measures.of(item) if measures is not None else {}),
     )
 
 
@@ -579,6 +653,7 @@ def counting_by_kind(
     retired_memo: dict[tuple[str, str], set[str]] | None = None,
     lines_read_by_a_person_skip_their_words: bool = False,
     on_ground_truth: bool | None = None,
+    measures: ReadingMeasures | None = None,
 ) -> dict[str, CountingAnswer]:
     """The counting answer for each kind present, worked out fresh.
 
@@ -601,6 +676,10 @@ def counting_by_kind(
     # derivation passes `lines_read_by_a_person_skip_their_words`: it never reads the words under
     # a line a person read, so it cannot meet a retired word, and a dense page skips the lookup.
     memo = retired_memo if retired_memo is not None else {}
+    # Which machine reading counts is ranked by checking and measured score (#5558). A caller counting a
+    # whole page hands one `measures` in; otherwise this segment's are looked up here.
+    if measures is None:
+        measures = ReadingMeasures(db)
     answers: dict[str, CountingAnswer] = {}
     for kind in sorted({item.kind for item in items}):
         retired = (
@@ -611,8 +690,8 @@ def counting_by_kind(
             rule,
             [row for row in choices if row.kind == kind],
             [
-                _candidate(item, on_ground_truth).model_copy(update={"retracted": True})
-                if item.id in retired else _candidate(item, on_ground_truth)
+                _candidate(item, on_ground_truth, measures).model_copy(update={"retracted": True})
+                if item.id in retired else _candidate(item, on_ground_truth, measures)
                 for item in items if item.kind == kind
             ],
         )
@@ -1480,6 +1559,7 @@ def document_text(
     for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in rows]):
         choices_by_segment.setdefault(choice.segment_id, []).append(choice)
     marked = ground_truth_pass_ids(db, (row.pass_id for row in rows))
+    measures = ReadingMeasures(db)
     for row in rows:
         items = [item for item in page_readings[row.id] if item.kind == kind]
         if not items or row.id in read_through_children or _under_a_line_read_by_a_person(row.id):
@@ -1487,6 +1567,7 @@ def document_text(
         counted = counting_by_kind(
             db, row.id, items, rule=record_rule, choices=choices_by_segment.get(row.id, []),
             lines_read_by_a_person_skip_their_words=True, on_ground_truth=row.pass_id in marked,
+            measures=measures,
         ).get(kind)
         if counted is None or counted.representation_id is None:
             # The line HAS readings and none of them counts (a strict project

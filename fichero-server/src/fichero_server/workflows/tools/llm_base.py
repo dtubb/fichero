@@ -842,6 +842,16 @@ def _save_artifact_sync(
         from fichero_server.maintenance.project_conversion import convert_new_results
 
         convert_new_results(db, resolved_doc_id, run_id=task_id)
+    else:
+        # A page read whole is tied to the page's lines at once (#5558, "Every output comes into the
+        # page"): queued as background work on the local model lane, never run here. Never raises: the
+        # reading is saved whatever becomes of its tie.
+        try:
+            from fichero_server.checking.tie_text import after_page_reading
+
+            after_page_reading(db, artifact)
+        except Exception as tie_exc:
+            logger.warning("Could not queue the tie of %s to its page's lines: %s", artifact_id, tie_exc)
 
     return artifact_id
 

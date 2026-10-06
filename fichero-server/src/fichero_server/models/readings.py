@@ -344,6 +344,13 @@ class ReadingCandidate(BaseModel):
     #: The file's reading on a pass a person marked ground truth (#5513): the file made it, a person
     #: vouches for it, so it counts as a person's and is not labelled machine.
     vouched_by_a_person: bool = False
+    #: A machine reading a person confirmed (their newest `check.verdict` on it), or one tied from a page
+    #: reading a person confirmed or marked reviewed (#5558). It outranks every unchecked machine reading.
+    checked: bool = False
+    #: The measured CER of this reading's reader ON THIS PROJECT (the evaluation entries on its model's
+    #: card whose pages are this project's: the bake-off, #5558), or None when it was never measured here.
+    #: Never invented: an unmeasured reader is never ranked by score.
+    reader_cer: float | None = None
 
     @property
     def by_a_person(self) -> bool:
@@ -400,6 +407,11 @@ def resolve_counting(
        With only machines' readings the newest is returned, labelled, with
        basis ``newest-machine-unchosen`` -- shown, not the record.
 
+    Whenever a machine's reading is the answer (rules 2 and 3), WHICH machine
+    reading is `_best_machines_first`'s (#5558): a checked one, then the one
+    whose reader measured better on this project, then the newest; the date
+    only breaks ties.
+
     READING OF THE SPEC, stated because two sentences of the build notes pull
     against each other: "the newest reading is returned with basis
     newest-machine-unchosen (or newest-human)" and, for
@@ -448,7 +460,7 @@ def _uncorrected_answer(project_rule: ProjectRecordRule, usable: list[ReadingCan
     """`resolve_counting`'s rules 2 and 3, over readings no person has corrected."""
 
     people = _newest_first([row for row in usable if row.by_a_person])
-    machines = _newest_first([row for row in usable if not row.by_a_person])
+    machines = _best_machines_first([row for row in usable if not row.by_a_person])
 
     if project_rule is ProjectRecordRule.relaxed:
         if people:
@@ -474,6 +486,34 @@ def _uncorrected_answer(project_rule: ProjectRecordRule, usable: list[ReadingCan
         basis=CountingBasis.newest_machine_unchosen,
         labelled_machine=True,
     )
+
+
+#: Readers within this much CER of each other are tied on accuracy: the bake-off's own band
+#: (`recipes.bakeoff.BAND`, one point), so the counting rule never ranks what the bake-off calls a tie.
+MEASURED_BAND = 0.01
+
+
+def _best_machines_first(rows: list[ReadingCandidate]) -> list[ReadingCandidate]:
+    """Machine readings, the one that counts first (#5558): an older reading never counts while a better
+    one exists.
+
+    1. A CHECKED reading (a person confirmed it, or it was tied from a page reading a person confirmed or
+       marked reviewed) outranks every unchecked one.
+    2. Among the rest, a reading whose reader was MEASURED worse on this project than another reading's
+       reader (by more than `MEASURED_BAND` of CER) is set aside. Only measured readers are compared: a
+       reader never measured here is never ranked by a score it does not have.
+    3. The newest of what is left; the date only breaks ties. With no scores at all this is the newest,
+       exactly as before.
+    """
+    checked = [row for row in rows if row.checked]
+    pool = checked or rows
+    scores = [row.reader_cer for row in pool if row.reader_cer is not None]
+    if scores:
+        best = min(scores)
+        pool = [row for row in pool if row.reader_cer is None or row.reader_cer <= best + MEASURED_BAND + 1e-12]
+    first = _newest_first(pool)
+    chosen = {row.representation_id for row in first}
+    return first + _newest_first([row for row in rows if row.representation_id not in chosen])
 
 
 def _newest_choices(choices: list[ReadingChoice]) -> list[ReadingChoice]:
