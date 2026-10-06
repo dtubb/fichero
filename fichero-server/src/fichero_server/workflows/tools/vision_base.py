@@ -4476,13 +4476,66 @@ async def process_vision(
                 # `_render_pdf_page_to_temp_png`.
                 logger.info(f"Kraken segmenter: {Path(file_path).name}")
 
+                async def _read_onto_working_lines(
+                    image_path: str, found: Any, subject: str
+                ) -> OCRGeometryResult:
+                    """Read the lines the page already has (#5487): its working pass's
+                    lines, on their own outlines and baselines, never found again. The
+                    result names that pass (`READ_ONTO_PASS`) and each box its segment, so
+                    the save writes readings onto those lines instead of a second pass."""
+                    from PIL import Image as _Image
+
+                    from fichero_server.execution.jobs import run_on_lane
+                    from fichero_server.llm import working_lines as _wl
+
+                    with _Image.open(image_path) as _im:
+                        _w, _h = float(_im.width), float(_im.height)
+                    if not kraken_recognition_model:
+                        from fichero_server.llm.line_reader import read_lines
+
+                        return await read_lines(
+                            image_path,
+                            _wl.as_geometry(found, _w, _h, provider=effective_config.provider,
+                                            model=effective_config.model),
+                            effective_config, language=language,
+                        )
+                    from fichero_server.llm import kraken_runtime as _kr
+
+                    _model_path, _model_id = _kr.resolve_recognition_model(kraken_recognition_model)
+                    _stamp = _model_id or _model_path
+                    geometry = _wl.as_geometry(found, _w, _h, provider="kraken", model=_stamp)
+                    _px = [_wl.in_pixels(row, _w, _h) for row in found.lines]
+                    _texts = await run_on_lane(
+                        library_path, "read-a-line", subject, model=f"kraken:{_stamp}", run_id=task_id,
+                        fn=lambda: _kr.read_given_lines(image_path, _model_path, _px),
+                    )
+                    _boxes, _joined, _cursor = [], [], 0
+                    for _box, _text in zip(geometry.boxes, _texts):
+                        if not _text:
+                            continue
+                        _boxes.append(_box.model_copy(update={
+                            "text": _text, "char_start": _cursor, "char_end": _cursor + len(_text),
+                            "source": "kraken-htr"}))
+                        _joined.append(_text)
+                        _cursor += len(_text) + 1
+                    return geometry.model_copy(update={
+                        "text": "\n".join(_joined), "boxes": _boxes, "source": "kraken-htr"})
+
+                def _working_lines_of(doc_id: str) -> Any:
+                    from fichero_server.db import db_manager as _dbm
+                    from fichero_server.llm.working_lines import working_lines
+
+                    return working_lines(_dbm.get_database(library_path), doc_id)
+
                 async def _kraken_process_image(
-                    image_path: str, *, page_index: int | None
+                    image_path: str, *, page_index: int | None, onto_page: bool = True
                 ) -> OCRGeometryResult:
                     """Segment/recognize one already-resolved image path.
                     `page_index` is set only when `image_path` is a rendered
                     PDF page — stamped onto the result (and each box) as
-                    provenance naming which render produced it (#4892)."""
+                    provenance naming which render produced it (#4892).
+                    `onto_page`: the image is the page `doc_id_for_file`, so a reader
+                    reads that page's own lines when it has them (#5487)."""
                     # Each page is a job on the local-model lane (#5358): visible in
                     # Activity, grouped by model so a folder keeps one reader loaded,
                     # never beside another heavy model. Only the Kraken call is the
@@ -4491,7 +4544,18 @@ async def process_vision(
                     from fichero_server.execution.jobs import run_on_lane
 
                     _page_subject = doc_id_for_file or Path(image_path).name
-                    if kraken_recognition_model:
+                    # One line pass per page, read many times (#5487, ruled 2026-10-05): a
+                    # reader reads the lines of the page's working pass and its words become
+                    # readings on them. Lines are found only when the page has none.
+                    _found_lines = None
+                    if (
+                        (kraken_recognition_model or lines_read_by == "model")
+                        and onto_page and save_to_db and library_path and doc_id_for_file
+                    ):
+                        _found_lines = await asyncio.to_thread(_working_lines_of, doc_id_for_file)
+                    if _found_lines is not None:
+                        result = await _read_onto_working_lines(image_path, _found_lines, _page_subject)
+                    elif kraken_recognition_model:
                         # A recognition model is configured: Kraken READS
                         # each line and the transcript is tied to its
                         # baseline (#4671 follow-up).
@@ -4591,7 +4655,7 @@ async def process_vision(
                             _kp_img.save(_kp_tmp_path, format="PNG")
                             try:
                                 _kp_geometry = await _kraken_process_image(
-                                    _kp_tmp_path, page_index=_kp_idx
+                                    _kp_tmp_path, page_index=_kp_idx, onto_page=False
                                 )
                             finally:
                                 Path(_kp_tmp_path).unlink(missing_ok=True)
@@ -5253,6 +5317,33 @@ async def process_vision(
                     _p, _m = _reader_label(vision_mode, effective_config, kraken_recognition_model, lines_read_by)
                     save_config = LLMConfig(provider=_p, model=_m)
 
+                # Read onto the page's own lines (#5487): the words become readings on the
+                # working pass's lines, written once the artifact (the reader's page text,
+                # naming who read it) is saved; the artifact keeps no second copy of the
+                # lines, so no second line pass is made.
+                from fichero_server.llm.working_lines import READ_ONTO_PASS
+
+                _onto_pass = (
+                    page_geometry.metadata.get(READ_ONTO_PASS)
+                    if vision_mode == "kraken" and page_geometry is not None else None
+                )
+                if _onto_pass:
+                    effective_artifact_data = {**(effective_artifact_data or {}), READ_ONTO_PASS: _onto_pass}
+
+                def _write_onto_lines(saved_artifact_id: str) -> None:
+                    from fichero_server.db import db_manager as _dbm
+                    from fichero_server.llm.working_lines import write_readings
+
+                    # A line whose read the checker flagged (#5522) gets no reading: it
+                    # would otherwise count over a better one.
+                    write_readings(
+                        _dbm.get_database(library_path), document_id=doc_id_for_file,
+                        readings=[(b.metadata["segment_id"], b.text) for b in page_geometry.boxes
+                                  if b.metadata.get("segment_id") and READ_FLAG_KEY not in b.metadata],
+                        artifact_id=saved_artifact_id, run_id=task_id or f"read-a-line:{saved_artifact_id}",
+                        library_path=library_path,
+                    )
+
                 # #2249/#2395: when per_page_texts is populated (whole-PDF path) and
                 # the current doc is the parent (path_to_doc has its path, so
                 # page children haven't been expanded yet by sources.py), route
@@ -5377,11 +5468,13 @@ async def process_vision(
                             llm_config=save_config,
                             task_id=task_id,
                             tool_config=_save_tool_config,
-                            ocr_geometry=page_geometry
-                            or (
-                                per_page_geometries[0]
-                                if per_page_geometries
-                                else None
+                            ocr_geometry=None if _onto_pass else (
+                                page_geometry
+                                or (
+                                    per_page_geometries[0]
+                                    if per_page_geometries
+                                    else None
+                                )
                             ),
                             data=effective_artifact_data,
                             metadata_field=metadata_field,
@@ -5392,6 +5485,8 @@ async def process_vision(
                         if artifact_id:
                             result["artifact_id"] = artifact_id
                             artifact_ids.append(artifact_id)
+                            if _onto_pass:
+                                await asyncio.to_thread(_write_onto_lines, artifact_id)
                         else:
                             logger.warning(f"save_artifact returned None for {file_path}")
                     elif isinstance(page_artifact_ids, list):
@@ -5405,7 +5500,7 @@ async def process_vision(
                         llm_config=save_config,
                         task_id=task_id,
                         tool_config=_save_tool_config,
-                        ocr_geometry=page_geometry,
+                        ocr_geometry=None if _onto_pass else page_geometry,
                         data=effective_artifact_data,
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
@@ -5415,6 +5510,8 @@ async def process_vision(
                     if artifact_id:
                         result["artifact_id"] = artifact_id
                         artifact_ids.append(artifact_id)
+                        if _onto_pass:
+                            await asyncio.to_thread(_write_onto_lines, artifact_id)
                     else:
                         logger.warning(f"save_artifact returned None for {file_path}")
 
