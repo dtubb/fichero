@@ -323,6 +323,17 @@ non-image batch ids return `404`.
     `bash fichero-server/scripts/start_fichero_server.sh` and open
     `https://127.0.0.1:8765/docs` (Swagger UI) or `/redoc`.
 
+### Kept exports, bake-offs, ground truth, reading pages again (2026-10-06)
+
+- `GET /api/export/kept` — the project's kept exports and what each wrote.
+- `POST /api/export/kept` — keep an export in a folder, written again as the work changes. One-way: Fichero writes the folder and never reads it back; each write overwrites only the files this export wrote and deletes nothing. Writing is background work.
+- `DELETE /api/export/kept/{export_id}` — stop keeping an export; the files it wrote stay.
+- `POST /api/export/kept/{export_id}/write` — write a kept export now, as one background job shown in Activity.
+- `GET /api/recipes/project/bakeoffs/{bakeoff_id}` — a bake-off's pages, its job's state and its ranked table; scores are read from each model's card.
+- `POST /api/recipes/project/bakeoffs/{bakeoff_id}/use` — make a scored candidate the reading step's reader for the project or one folder (audited, undoable).
+- `PUT /api/segments/passes/{pass_id}/ground-truth` — mark a pass as ground truth, or unmark it (#5513).
+- `POST /api/workflow-execution/threads/{thread_id}/read-again` — one new run of the same workflow and model over the pages a run did not do: the pages that failed, or after an interruption the pages not done (#5555).
+
 ## Sandbox (Mac App Store)
 
 ### `POST /api/sandbox/security-scoped-access`
