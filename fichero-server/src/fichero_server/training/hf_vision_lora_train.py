@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11,<3.13"
-# dependencies = ["torch>=2.5", "transformers>=4.57,<5", "peft>=0.15", "accelerate>=1.3", "pillow>=11"]
+# dependencies = ["torch>=2.5", "torchvision", "transformers>=4.57,<5", "peft>=0.15", "accelerate>=1.3", "pillow>=11"]
 # ///
 """Fine-tune a vision model with LoRA INSIDE a Hugging Face Job (#5398, `compute.tune.lora`). Shipped
 with Fichero; sent as the Job's script by `training.hf_jobs`, never edited per run.
