@@ -68,7 +68,7 @@ class TestRun:
 
 class TestTranscribeIntegration:
     """Bboxes-first inside transcribe: detection runs BEFORE the vision call,
-    is on by default, off by config, and never costs a transcription."""
+    is off unless the step asks (#5523), and never costs a transcription."""
 
     @pytest.fixture
     def call_order(self, monkeypatch):
@@ -102,11 +102,20 @@ class TestTranscribeIntegration:
         )
 
     @pytest.mark.asyncio
-    async def test_detection_runs_before_transcription_by_default(
+    async def test_detection_runs_before_transcription_when_asked(
         self, call_order
     ):
-        await self._run_transcribe({"files": ["/a.jpg"], "documents": []})
+        await self._run_transcribe(
+            {"files": ["/a.jpg"], "documents": [], "regions_first": True}
+        )
         assert call_order == ["detect", "transcribe"]
+
+    @pytest.mark.asyncio
+    async def test_no_detection_unless_asked(self, call_order):
+        """#5523: it is an extra Apple Vision reading of the page; a run
+        makes only the readings it was asked for."""
+        await self._run_transcribe({"files": ["/a.jpg"], "documents": []})
+        assert call_order == ["transcribe"]
 
     @pytest.mark.asyncio
     async def test_regions_first_false_skips_detection(self, call_order):
@@ -125,7 +134,9 @@ class TestTranscribeIntegration:
         monkeypatch.setattr(
             detect_regions_module, "detect_regions", exploding_detect
         )
-        await self._run_transcribe({"files": ["/a.jpg"], "documents": []})
+        await self._run_transcribe(
+            {"files": ["/a.jpg"], "documents": [], "regions_first": True}
+        )
         assert call_order == ["transcribe"]
 
 

@@ -7,8 +7,7 @@
   "folder_path": "/Transcribe",
   "tags": [
     "preset",
-    "ocr",
-    "cloud"
+    "ocr"
   ],
   "nodes": [
     {
@@ -23,7 +22,7 @@
     {
       "id": "transcribe",
       "tool": "transcribe",
-      "label": "Transcribe (cloud)",
+      "label": "Transcribe",
       "position_x": 240,
       "position_y": 160,
       "inputs": {},
@@ -51,6 +50,6 @@
     }
   ],
   "config": {
-    "preset_version": 4
+    "preset_version": 5
   }
 }

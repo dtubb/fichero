@@ -2671,6 +2671,20 @@ async def vision(
             cache_read_tokens=usage["cache_read_tokens"],
         )
     result = _strip_outer_code_fences(response.content)
+    if isinstance(result, str):
+        # The model's own "I ran out of room" rides the answer (#5522), so the read checker can
+        # tell a page the model stopped short on from one it finished. Some servers (a local MLX
+        # one) report no reason; an answer that used exactly its ceiling is the same signal.
+        from fichero_server.llm.read_guard import ModelText
+
+        _meta = getattr(response, "response_metadata", None)
+        finish = _structured_finish_reason(response) or (
+            str(_meta.get("stop_reason") or "") if isinstance(_meta, dict) else ""
+        )
+        _ceiling = config.max_tokens if isinstance(config.max_tokens, int) else 0
+        if not finish and usage and _ceiling > 0 and usage["output_tokens"] >= _ceiling:
+            finish = "length"
+        result = ModelText(result, finish or None)
 
     # NEVER cache an empty answer: it is a failure shape (reasoning burn,
     # safety refusal, truncation), and caching it poisons every later retry

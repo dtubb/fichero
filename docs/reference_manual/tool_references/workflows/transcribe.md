@@ -10,7 +10,7 @@ Use this when: you want to transcribe any file using the vision model in your pr
 | --- | --- |
 | Folder | /Transcribe |
 | Steps | 2 |
-| Tags | preset, ocr, cloud |
+| Tags | preset, ocr |
 
 ## Steps, in run order
 
@@ -18,7 +18,7 @@ Use this when: you want to transcribe any file using the vision model in your pr
 
 Tool: [Files](../tools/files.md) — Pass through input files from workflow context
 
-### 2. Transcribe (cloud)
+### 2. Transcribe
 
 Tool: [Transcribe](../tools/transcribe.md) — Extract text from images (OCR)
 

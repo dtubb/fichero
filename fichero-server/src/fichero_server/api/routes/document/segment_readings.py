@@ -43,6 +43,7 @@ from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
+from fichero_server.llm.read_guard import read_flag_of
 from fichero_server.llm.language_policy import (
     DIRECTION_ALTERNATING,
     DIRECTION_FOLLOWS_BASELINE,
@@ -847,11 +848,14 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
             Segment, pass_id=pass_row.id, provenance_kind=ProvenanceKind.human.value, deleted_at=None,
         )
         from_text_layer = False
+        flagged = False
         if pass_row.source_artifact_id:
             artifact = db.get(Artifact, pass_row.source_artifact_id)
             # The result's own type, or the type kept on the pass when the result was deleted (#5066).
             source_type = artifact.artifact_type if artifact is not None else pass_row.source_artifact_type
             from_text_layer = source_type == TEXT_LAYER_ARTIFACT_TYPE
+            # A read the checker flagged (#5522) is never the working pass until a person chooses it.
+            flagged = artifact is not None and read_flag_of(artifact) is not None
         candidates.append(
             PassCandidate(
                 pass_id=pass_row.id,
@@ -859,7 +863,7 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
                 # A result a person corrected in the older format counts as a person's (#5222).
                 has_human_segment=human_live > 0 or pass_row.source_artifact_id in corrected,
                 from_text_layer=from_text_layer,
-                waits_to_be_chosen=pass_row.actor == OUTSIDE_FICHERO,  # #4952
+                waits_to_be_chosen=pass_row.actor == OUTSIDE_FICHERO or flagged,  # #4952, #5522
                 created_at=pass_row.created_at,
             )
         )
@@ -891,6 +895,8 @@ def _unconverted_candidates(db: Database, document_id: str) -> list[PassCandidat
             provenance_kind=derive_pass_provenance_kind(provider=a.provider, model=a.model),
             has_human_segment=a.id in corrected or any(_box_is_hand_drawn(b) for b in a.ocr_geometry.boxes),  # raw-geometry-ok: unconverted only
             from_text_layer=a.artifact_type == TEXT_LAYER_ARTIFACT_TYPE,
+            # A flagged read (#5522) waits for a person to choose it, like an outside edit.
+            waits_to_be_chosen=read_flag_of(a) is not None,
             unconverted=True,
             created_at=a.created_at or datetime.min.replace(tzinfo=timezone.utc),
         )
@@ -1180,7 +1186,9 @@ DERIVATION_VERSION = 12
 #: Re-pinned without a bump for #5467: the working pass is read through `working_pass`; a page
 #: whose working pass is a real pass derives the same text, and one whose working pass is an
 #: unconverted result derives nothing the cache stores (`page_text_cache._derives_text`).
-DERIVATION_SOURCE_SHA256 = "cab1074762c34d357541bf60101d45b6e48e3bf9943c34d96b51e680e7d104f1"
+#: Re-pinned without a bump for #5522: a pass whose result the read checker flagged waits to be
+#: chosen. No result carried a flag before #5522, so no cached page's text changes.
+DERIVATION_SOURCE_SHA256 = "8496a792507741c53dd50204c987260c8c4d47aed8c0ebd272552347560f8bfa"
 
 
 def derivation_source_digest() -> str:

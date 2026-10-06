@@ -60,7 +60,7 @@ Extract text from images (OCR)
 | `provider_name` | string | — | LLM provider. One of: openai, anthropic, google, ollama, lmstudio, groq, together, deepseek, mistral, openrouter, dashscope, xai, perplexity, fireworks, deepl. |
 | `quality_gate` | boolean | yes | Stop the run if output is unreadable. |
 | `reference_values` | object | — | Known values to match. (Not shown in the editor.) |
-| `regions_first` | boolean | yes | Detect text regions on-device (Apple Vision) BEFORE transcribing, saving per-page bounding boxes as a regions artifact — works for every provider, unlike return_boxes. |
+| `regions_first` | boolean | no | Also detect text regions on-device (Apple Vision) BEFORE transcribing, saving per-page bounding boxes as a regions artifact (an extra Apple Vision reading of the page). Off unless you ask for it. |
 | `return_boxes` | boolean | no | Ask the model for word/line bounding boxes (Gemini only; other providers transcribe without geometry and say so). |
 | `save_to_db` | boolean | yes | Save to library. |
 | `save_to_file` | boolean | no | Export to file. |

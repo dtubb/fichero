@@ -159,11 +159,13 @@ def start(db: Any, request: CheckRunRequest, *, started_by: str) -> dict[str, st
 
 
 def page_reading(db: Any, document_id: str) -> Any | None:
-    """The page's best reading: its newest model transcription with text."""
+    """The page's best reading: its newest model transcription with text that the read checker did
+    not flag (#5522: a looping or cut-off read is never the reading tied to the lines)."""
+    from fichero_server.llm.read_guard import read_flag_of
     from fichero_server.models import Artifact
 
     found = [a for a in db.query(Artifact, document_id=document_id, artifact_type="transcription")
-             if (a.content or "").strip()]
+             if (a.content or "").strip() and read_flag_of(a) is None]
     return max(found, key=lambda a: (a.created_at, a.id), default=None)
 
 
