@@ -23,6 +23,7 @@ from typing import Any
 
 import ftfy
 
+from fichero_server.core.naturalsort import natural_key
 from fichero_server.core.timeutil import utc_now
 from fichero_server.db import db_manager
 from fichero_server.histdate import (
@@ -33,7 +34,9 @@ from fichero_server.histdate import (
     day_first_for_languages,
     find_page_date,
     is_explicitly_undated,
+    jdn_to_gregorian,
     parse_historical_date,
+    range_from_name,
     years_from_name,
 )
 from fichero_server.llm import LLMConfig
@@ -95,6 +98,56 @@ def volume_years_for(db: Any, doc: Document) -> list[int]:
     return []
 
 
+def _volume_and_place(db: Any, doc: Document, parents: dict[str, Any]) -> tuple[Any, tuple]:
+    """(the page's volume or None, the page's place in the volume's reading order).
+
+    The volume is the nearest ancestor (up to four levels) whose name gives
+    years, as ``volume_years_for``. The place is each level's (sort order,
+    sequence, natural name) from the volume down to the page, the order the
+    library shows its pages in, so a split spread's halves follow the spread.
+    ``parents`` caches the ancestors: a project's pages share a few volumes.
+    WHY (#5557): the tool gets references in whatever order the source walked
+    them, and a yearless heading's year follows the page before it.
+    """
+    chain = [doc]
+    parent_id = getattr(doc, "parent_id", None)
+    for _ in range(4):
+        if not parent_id or any(getattr(d, "id", None) == parent_id for d in chain):
+            break
+        if parent_id not in parents:
+            parents[parent_id] = db.get(Document, parent_id)
+        parent = parents[parent_id]
+        if not isinstance(parent, Document):
+            break
+        if years_from_name(parent.name):
+            place = tuple((d.sort_order or 0, d.sequence or 0, natural_key(d.name))
+                          for d in reversed(chain))
+            return parent, place
+        chain.append(parent)
+        parent_id = parent.parent_id
+    return None, ()
+
+
+#: The precisions a page's date may pass on to the next page's yearless heading.
+_CARRIED_PRECISIONS = ("day", "month")
+
+
+def _carried(meta: dict[str, Any] | None, jdn: int | None, years: list[int],
+             span: tuple[int, int] | None) -> int | None:
+    """The JDN this page hands the next one in its volume, or None.
+
+    Only a day or month inside the volume (its range when the name gives one,
+    else its years): a cover's span, a year line or a stray date of another
+    year must not set the year of the pages after it (#5557).
+    """
+    if jdn is None or (meta or {}).get("precision") not in _CARRIED_PRECISIONS:
+        return None
+    if span is not None:
+        return jdn if span[0] <= jdn <= span[1] else None
+    year = jdn_to_gregorian(jdn)[0]
+    return jdn if not years or year in years else None
+
+
 def _summary_row(record: dict[str, Any]) -> dict[str, Any]:
     """One page's line in the tool's output: what it was dated, not every reason why.
 
@@ -135,6 +188,8 @@ def resolve_page_date(
     volume_years: list[int] | None = None,
     day_first: bool | None = None,
     project_languages: list[str] | None = None,
+    previous: int | None = None,
+    volume_range: tuple[int, int] | None = None,
 ) -> tuple[HistoricalDate | None, str, PageDate]:
     """(parsed date | None, status, what the heading said). Pure — no DB access.
 
@@ -159,6 +214,8 @@ def resolve_page_date(
         assume_julian=assume_julian,
         volume_years=volume_years,
         day_first=day_first,
+        previous=previous,
+        volume_range=volume_range,
     )
     parsed = finding.date
     if parsed is None:
@@ -266,7 +323,17 @@ async def date_extract_tool(
 
     pinned = conflicts = 0
 
-    for raw in raw_documents:
+    # Page order within each volume (#5557): a yearless heading's year follows
+    # the dated page before it. The source hands over references in the order it
+    # walked them, so the pages are put in their volume's reading order first,
+    # one volume after another in the order the volumes first appear; a page in
+    # no volume keeps its place. Only ids and order keys are kept here, never a
+    # page's text: each page is read again when its turn comes.
+    parents: dict[str, Any] = {}
+    volumes: dict[str, Any] = {}
+    first_seen: dict[str, int] = {}
+    queue: list[tuple[tuple, str, str | None]] = []
+    for position, raw in enumerate(raw_documents):
         doc_id = raw.get("id") if isinstance(raw, dict) else getattr(raw, "id", None)
         if not doc_id:
             continue
@@ -274,15 +341,47 @@ async def date_extract_tool(
         if doc is None:
             logger.warning("date_extract: document %s not found — skipping", doc_id)
             continue
+        volume, place = _volume_and_place(db, doc, parents)
+        if volume is None:
+            queue.append(((position, ()), doc_id, None))
+            continue
+        volumes[volume.id] = volume
+        first_seen.setdefault(volume.id, position)
+        queue.append(((first_seen[volume.id], place), doc_id, volume.id))
+    queue.sort(key=lambda item: item[0])
+    volume_years = {vid: years_from_name(v.name) for vid, v in volumes.items()}
+    volume_spans = {vid: range_from_name(v.name) for vid, v in volumes.items()}
+    carry: dict[str, int] = {}
+
+    for _key, doc_id, volume_id in queue:
+        doc = db.get(Document, doc_id)
+        if doc is None:
+            continue
+        years = volume_years.get(volume_id, []) if volume_id else []
+        span = volume_spans.get(volume_id) if volume_id else None
 
         parsed, status, finding = resolve_page_date(
             doc,
             year_start_march=year_start_march,
             assume_julian=assume_julian,
-            volume_years=volume_years_for(db, doc),
+            volume_years=years,
             day_first=day_first,
             project_languages=project_languages,
+            previous=carry.get(volume_id) if volume_id else None,
+            volume_range=span,
         )
+        if volume_id:
+            if parsed is not None and (parsed.meta or {}).get("precision") == "range" and span is None:
+                # A cover's "Jan 1, 1932 - Dec 31, 1932" is the volume's span
+                # when its name gives none (#5557).
+                volume_spans[volume_id] = (parsed.jdn, parsed.jdn_end)
+            if (doc.date_meta or {}).get("source") == "user":
+                handed_on = _carried(doc.date_meta, doc.date_jdn, years, volume_spans[volume_id])
+            else:
+                handed_on = _carried(parsed and parsed.meta, parsed and parsed.jdn, years,
+                                     volume_spans[volume_id])
+            if handed_on is not None:
+                carry[volume_id] = handed_on
 
         # A user assertion is a persistent curation rule, stored on the row
         # it governs (`date_meta.source == "user"`) — one mechanism, not a

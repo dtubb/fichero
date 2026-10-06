@@ -106,7 +106,7 @@ def islamic_to_jdn(year: int, month: int, day: int) -> int:
 # two-things-nothing-forces-to-agree class. Ties on start JDN break
 # precise-first; undated docs fall back to created_at CONVERTED TO A JDN so
 # one integer tuple orders the whole list; docs with neither sort first.
-_PRECISION_RANK = {"day": 0, "month": 1, "year": 2, "circa": 3}
+_PRECISION_RANK = {"day": 0, "month": 1, "year": 2, "range": 2, "circa": 3}
 
 
 def document_date_sort_key(doc: Any) -> tuple[int, int, str]:
@@ -460,9 +460,19 @@ _NON_ENTRY_RE = re.compile(
     r"(memoranda|memorandum|cash\s+account|cash|accounts?|bills\s+payable|"
     r"bills\s+receivable|addresses|almanac|postal\s+information|holidays|"
     r"telephone\s+numbers|legal\s+holidays|moon'?s\s+phases|phases\s+of\s+the\s+moon|calendar|"
-    r"values\s+of\s+foreign\s+coins)\b[^a-z]*(?:[a-z]+[^a-z]*)?$",
+    r"values\s+of\s+foreign\s+coins|recapitulation)\b[^a-z]*(?:[a-z]+[^a-z]*)?$",
     re.IGNORECASE,
 )
+#: The printed column heads of a week page's cash column, alone on a line
+#: ("Novembe / Cash Account Received Paid", #5557). Under a month AND year
+#: ("May 1914") the page is a week of entries dated by that month; under a
+#: bare or OCR-cut month name nothing dates it, and the days below it are the
+#: cash column's, so it stays undated as a cash page.
+_CASH_COLUMNS_RE = re.compile(r"^\W*cash\s+account\s+received\s+paid\W*$", re.IGNORECASE)
+#: The printed MEMORANDA head with OCR debris around it ("Act with MEMORANDA
+#: very", #5557): the capitals are the printed head; "memoranda" in a
+#: sentence is a word, not a title.
+_PRINTED_MEMORANDA_RE = re.compile(r"^(?:\S+\s+){0,3}MEMORANDA\b\W*(?:\S+\W*)?$")
 _WORD = r"[a-zà-ÿ]+"
 _LEAD_WEEKDAY_RE = re.compile(rf"(?P<wd>{_WORD})\.?\s*[,.]?\s*", re.IGNORECASE)
 _JUNK_RE = re.compile(r"\S{1,4}\s+")
@@ -483,6 +493,18 @@ _DAY_MONTH_RE = re.compile(
     re.IGNORECASE,
 )
 _NUMERIC_RE = re.compile(r"(?P<a>\d{1,2})/(?P<b>\d{1,2})/(?P<y>\d{4}|\d{2})(?!\d)")
+#: The year before the month, after a weekday: "MONDAY. 1918 MARCH 31" (#5557).
+_YEAR_MONTH_DAY_RE = re.compile(
+    rf"(?P<year>\d{{4}})\s*[,.]?\s+(?P<mon>{_WORD})\.?\s*,?\s*{_DAY}\.?", re.IGNORECASE
+)
+#: A day run into its year by OCR: "FEBRUARY 21918" (#5557), read only when the
+#: weekday written before it confirms exactly one reading.
+_MONTH_DIGITS_RE = re.compile(rf"(?P<mon>{_WORD})\.?\s*,?\s+(?P<digits>\d{{5,6}})(?!\d)", re.IGNORECASE)
+#: Between the two ends of a written range: "Jan 1, 1932 - Dec 31, 1932" (#5557).
+_RANGE_SEP_RE = re.compile(r"\s*(?:[-–—]+|to)\s*", re.IGNORECASE)
+#: Full English month names, for a name the OCR cut short ("OCTOBE 3", #5557).
+_FULL_MONTHS = ("january", "february", "march", "april", "may", "june", "july",
+                "august", "september", "october", "november", "december")
 _MONTH_YEAR_RE = re.compile(rf"(?P<mon>{_WORD})\.?\s*,?\s+(?P<year>\d{{4}})(?!\d)", re.IGNORECASE)
 _YEARS_LINE_RE = re.compile(r"(?P<y1>\d{4})(?:\s*[-–—]\s*(?P<y2>\d{2}|\d{4}))?\W*$")
 _TRAIL_WEEKDAY_RE = re.compile(rf"[\s,.\-–—]*(?P<wd>{_WORD})", re.IGNORECASE)
@@ -559,6 +581,25 @@ def years_from_name(name: str | None) -> list[int]:
     return list(range(lo, hi + 1)) if hi - lo <= 50 else []
 
 
+def range_from_name(name: str | None) -> tuple[int, int] | None:
+    """The first and last day a volume name gives, as JDNs: "NCM_Diary_19431017-19450922".
+
+    WHY the full dates and not only the years (#5557): the 1943-45 volume
+    begins on 17 October 1943, and its yearless "Feb 27", "Mar 12" were dated
+    1943, eight months before the volume begins. None when the name does not
+    give two real YYYYMMDD dates in order.
+    """
+    m = re.search(r"(?<!\d)(\d{4})(\d{2})(\d{2})\s*[-–_]\s*(\d{4})(\d{2})(\d{2})(?!\d)", name or "")
+    if not m:
+        return None
+    y1, m1, d1, y2, m2, d2 = (int(g) for g in m.groups())
+    for y, mo, d in ((y1, m1, d1), (y2, m2, d2)):
+        if not (YEAR_MIN <= y <= YEAR_MAX and 1 <= d <= days_in_month(y, mo)):
+            return None
+    start, end = gregorian_to_jdn(y1, m1, d1), gregorian_to_jdn(y2, m2, d2)
+    return (start, end) if start <= end else None
+
+
 def _weekday_of(word: str | None) -> int | None:
     return _WEEKDAYS.get((word or "").lower().rstrip("."))
 
@@ -591,7 +632,7 @@ def _heading_date(line: str) -> dict[str, Any] | None:
         _with_weekday(label.end())
         starts.append((label.end(), label.end(), None))
     for text_start, pos, weekday in starts:
-        found = _date_at(line, pos)
+        found = _date_at(line, pos, weekday)
         if found is None:
             continue
         if found.get("weekday") is None:
@@ -614,7 +655,7 @@ def _closing_heading(line: str) -> dict[str, Any] | None:
         if m.start() == 0 or _weekday_of(m.group(0)) is None:
             continue
         wm = _LEAD_WEEKDAY_RE.match(line, m.start())
-        found = _date_at(line, wm.end()) if wm else None
+        found = _date_at(line, wm.end(), _weekday_of(m.group(0))) if wm else None
         if found is None or found["kind"] != "day" or not found.get("year"):
             continue
         rest = line[found["end"]:]
@@ -648,8 +689,47 @@ def _is_margin_label(h: dict[str, Any]) -> bool:
             and not h.get("year") and not h.get("yy"))
 
 
-def _date_at(line: str, pos: int) -> dict[str, Any] | None:
-    """The date that starts exactly at ``pos``, or None (an amount, a ledger row, prose)."""
+def _cut_month(word: str) -> int | None:
+    """The month an OCR-cut name stands for ("OCTOBE", "Novembe"), or None.
+
+    Five letters or more, the start of exactly one full English month name and
+    not a name already read. Only used after a written weekday, which must then
+    fit the date (#5557).
+    """
+    low = word.lower()
+    if len(low) < 5 or low in _MONTHS:
+        return None
+    hits = [i + 1 for i, name in enumerate(_FULL_MONTHS) if name.startswith(low)]
+    return hits[0] if len(hits) == 1 else None
+
+
+def _ocr_day_year(month: int, digits: str, weekday: int) -> tuple[int, str] | None:
+    """(day, year) for a day run into its year ("21918" → 21, 1918), or None.
+
+    The readings: one digit of day and four of year ("2" "1918"); two of day
+    sharing a digit with the year ("21" "1918", the OCR dropped the space and a
+    "1"); two of day, four of year ("21" "1918" from "211918"). Only a reading
+    whose date falls on the written weekday counts, and only when exactly one
+    does (#5557).
+    """
+    readings = ([(digits[0], digits[1:]), (digits[:2], digits[1:])] if len(digits) == 5
+                else [(digits[:2], digits[2:])])
+    fits = []
+    for d, y in readings:
+        day, year = int(d), int(y)
+        if (YEAR_MIN <= year <= YEAR_MAX and 1 <= day <= days_in_month(year, month)
+                and gregorian_to_jdn(year, month, day) % 7 == weekday):
+            fits.append((day, y))
+    return fits[0] if len(set(fits)) == 1 else None
+
+
+def _date_at(line: str, pos: int, weekday: int | None = None) -> dict[str, Any] | None:
+    """The date that starts exactly at ``pos``, or None (an amount, a ledger row, prose).
+
+    ``weekday`` is the weekday written just before ``pos``: only then are the
+    year-first form ("MONDAY. 1918 MARCH 31") and the OCR repairs ("FEBRUARY
+    21918", "OCTOBE 3") read, each checked against it (#5557).
+    """
     for pattern in _EXOTIC_PATTERNS:
         m = pattern.match(line, pos)
         if m:
@@ -662,15 +742,37 @@ def _date_at(line: str, pos: int) -> dict[str, Any] | None:
     if m:
         found = {"kind": "numeric", "a": int(m.group("a")), "b": int(m.group("b")),
                  "y": m.group("y"), "end": m.end()}
+    elif weekday is not None and (m := _YEAR_MONTH_DAY_RE.match(line, pos)) \
+            and _MONTHS.get(m.group("mon").lower()):
+        found = {"kind": "day", "month": _MONTHS[m.group("mon").lower()],
+                 "day": int(m.group("day")), "year": m.group("year"), "yy": None,
+                 "end": m.end(), "year_first": True}
     else:
         for pattern in (_MONTH_DAY_RE, _DAY_MONTH_RE):
             m = pattern.match(line, pos)
-            if m and _MONTHS.get(m.group("mon").lower()):
+            if not m:
+                continue
+            month = _MONTHS.get(m.group("mon").lower())
+            cut = None
+            if month is None and weekday is not None and pattern is _MONTH_DAY_RE:
+                month = cut = _cut_month(m.group("mon"))
+            if month:
                 groups = m.groupdict()
-                found = {"kind": "day", "month": _MONTHS[m.group("mon").lower()],
+                found = {"kind": "day", "month": month,
                          "day": int(m.group("day")), "year": groups.get("year"),
                          "yy": groups.get("yy"), "end": m.end()}
+                if cut:
+                    # Kept only if the weekday then fits (find_page_date checks).
+                    found["month_cut"] = m.group("mon")
                 break
+        if found is None and weekday is not None:
+            m = _MONTH_DIGITS_RE.match(line, pos)
+            month = _MONTHS.get(m.group("mon").lower()) if m else None
+            repaired = _ocr_day_year(month, m.group("digits"), weekday) if month else None
+            if repaired:
+                found = {"kind": "day", "month": month, "day": repaired[0],
+                         "year": repaired[1], "yy": None, "end": m.end(),
+                         "ocr_digits": m.group("digits")}
         if found is None:
             m = _MONTH_YEAR_RE.match(line, pos)
             if m and _MONTHS.get(m.group("mon").lower()):
@@ -679,6 +781,13 @@ def _date_at(line: str, pos: int) -> dict[str, Any] | None:
     if found is None:
         return None
     rest = line[found["end"]:]
+    # "Jan 1, 1932 - Dec 31, 1932" on a cover is the volume's span, not 1 January
+    # (#5557): two dates with written years joined by a dash or "to".
+    if found["kind"] in ("day", "month") and found.get("year"):
+        sep = _RANGE_SEP_RE.match(rest)
+        upto = _date_at(line, found["end"] + sep.end()) if sep and sep.end() else None
+        if upto is not None and upto["kind"] in ("day", "month") and upto.get("year"):
+            return {"kind": "range", "start": found, "end_date": upto, "end": upto["end"]}
     # A number running on is a ledger row or an amount, not a heading:
     # "15 July 17 Dineen", "October 2.00", "2 May 150 sacks" (with no year).
     # The one exception is a page number after a WRITTEN year, alone to the end
@@ -708,6 +817,77 @@ def _invalid(text: str, reason: str) -> PageDate:
     return PageDate(heading=text, invalid=[{"text": text, "reason": reason}])
 
 
+#: How far back a yearless date may sit before the page before it and still be
+#: the same year: a late entry, a page filed out of place ("July 19th" after
+#: "Sept. 10" in the 1915-18 diary is 1916, not 1917). Further back, December
+#: to January, is a new year. Measured on the 1915-18 and 1943-45 volumes (#5557).
+PAGE_ORDER_BACKSTEP_DAYS = 183
+
+
+def _year_from_page_order(
+    month: int,
+    day: int,
+    weekday: int | None,
+    *,
+    previous: int,
+    candidates: list[int],
+    in_range: list[int],
+    page_weekdays: list[tuple[int, int, int]] | tuple,
+    to_jdn: Any,
+    flags: dict[str, Any],
+) -> tuple[int, str]:
+    """(year, year_source) for a yearless heading in a volume of several years (#5557).
+
+    WHY page order: the 1915-18 volume's months wrap December to January three
+    times, and its yearless headings all took 1915. The year is the one the
+    previous dated page carries, the next one when the month goes backwards
+    by more than ``PAGE_ORDER_BACKSTEP_DAYS`` (within that, the same year unless
+    the weekday chooses the next), kept inside the volume's range.
+
+    A written weekday still decides between that year and the next (a year the
+    diarist skipped). It does not pull the page further: when the page's other
+    headings fit the page-order year as well as this one fits the other, page
+    order holds (1915-18's "Friday March 17" sits between 17 Feb and 17 Apr 1915,
+    and its next heading, "Tuesday March 23rd", is 1915's). A weekday that fits
+    none of them is flagged, never hidden.
+    """
+    prev_year, prev_month, prev_day = jdn_to_gregorian(previous)
+    back = (prev_month * 31 + prev_day) - (month * 31 + day)
+    if back <= 0:
+        allowed = [prev_year]
+    elif back <= PAGE_ORDER_BACKSTEP_DAYS:
+        allowed = [prev_year, prev_year + 1]
+    else:
+        allowed = [prev_year + 1]
+    allowed = [y for y in allowed if y in in_range]
+    if not allowed:
+        # Past either end of the volume: the nearest year that keeps it inside.
+        allowed = [min(in_range, key=lambda y: (abs(y - prev_year - (1 if back > 0 else 0)), y))]
+    expected = allowed[0]
+
+    def _fits(y: int, m: int, d: int, w: int) -> bool:
+        return 1 <= d <= days_in_month(y, m) and to_jdn(y, m, d) % 7 == w
+
+    if weekday is None:
+        return expected, "page_order"
+    eligible = [y for y in dict.fromkeys([*allowed, expected + 1]) if y in candidates]
+    fits = [y for y in eligible if _fits(y, month, day, weekday)]
+    if expected in fits:
+        return expected, "page_order"
+    if fits:
+        other = fits[0]
+        votes_other = 1 + sum(_fits(other, m, d, w) for m, d, w in page_weekdays)
+        votes_expected = sum(_fits(expected, m, d, w) for m, d, w in page_weekdays)
+        if votes_other > votes_expected:
+            return other, "weekday"
+    flags["weekday_conflict"] = {
+        "written": _WEEKDAY_NAMES[weekday],
+        "years_that_fit": [y for y in candidates if _fits(y, month, day, weekday)],
+        "page_order_year": expected,
+    }
+    return expected, "page_order"
+
+
 def _resolve_heading(
     line: str,
     h: dict[str, Any],
@@ -717,8 +897,18 @@ def _resolve_heading(
     day_first: bool | None,
     year_start_march: bool,
     assume_julian: bool,
+    previous: int | None = None,
+    volume_range: tuple[int, int] | None = None,
+    page_weekdays: list[tuple[int, int, int]] | tuple = (),
 ) -> PageDate:
-    """Turn a read heading into a dated page, or a recorded refusal."""
+    """Turn a read heading into a dated page, or a recorded refusal.
+
+    ``previous`` is the JDN of the page before this one in the volume's reading
+    order that has a date, ``volume_range`` the volume's first and last days
+    when its name gives them, ``page_weekdays`` the (month, day, weekday) of the
+    page's other yearless headings: all three only settle a yearless heading's
+    year in a volume of several years (#5557).
+    """
     text = h["text"]
     calendar = "julian" if assume_julian else "gregorian"
     to_jdn = julian_to_jdn if assume_julian else gregorian_to_jdn
@@ -756,6 +946,27 @@ def _resolve_heading(
         _, end = _year_range_jdn(y2, calendar)
         date = _make(text, start, end, calendar=calendar, precision="year", confidence=0.8)
         date.meta["heading"] = line
+        return PageDate(date=date, heading=line)
+
+    if h["kind"] == "range":
+        # A written span, "Jan 1, 1932 - Dec 31, 1932" (a cover, #5557): from the
+        # first day of its start to the last day of its end, never the 1st alone.
+        ends = []
+        for part, last in ((h["start"], False), (h["end_date"], True)):
+            year = int(part["year"])
+            if (problem := _check_year(year)) is not None:
+                return _invalid(line, problem)
+            if part["kind"] == "month":
+                ends.append(_month_range_jdn(year, part["month"], calendar)[1 if last else 0])
+                continue
+            if not 1 <= part["day"] <= days_in_month(year, part["month"], julian_calendar=assume_julian):
+                return _invalid(line, f"{_MONTH_NAMES[part['month'] - 1]} has no day {part['day']}")
+            ends.append(to_jdn(year, part["month"], part["day"]))
+        if ends[1] < ends[0]:
+            return _invalid(line, "the range ends before it starts")
+        date = _make(text, ends[0], ends[1], calendar=calendar, precision="range",
+                     confidence=0.8, display=text)
+        date.meta.update(heading=line, year_source="written", year_inferred=False)
         return PageDate(date=date, heading=line)
 
     if h["kind"] == "month":
@@ -819,6 +1030,12 @@ def _resolve_heading(
         year = min((c * 100 + int(yy) for c in (anchor // 100 - 1, anchor // 100, anchor // 100 + 1)),
                    key=lambda y: abs(y - anchor))
         flags["year_expanded_from"] = yy
+        if year not in volume_years:
+            # "11/16/23" in the 1943-45 volume (#5557): a two-digit year is read
+            # by its volume, so one that names none of the volume's years is a
+            # slip or another matter's date, not 1923. Refused and recorded.
+            return _invalid(line, f"the two-digit year {yy} is none of the volume's years "
+                                  f"{volume_years[0]}-{volume_years[-1]}")
     elif page_year is not None:
         year, year_source = page_year, "page"
     elif volume_years:
@@ -838,8 +1055,23 @@ def _resolve_heading(
         # Every candidate year's date must exist (29 Feb only in leap years).
         candidates = [y for y in candidates
                       if day <= days_in_month(y, month, julian_calendar=assume_julian)]
-        if weekday is not None:
-            fits = [y for y in candidates if to_jdn(y, month, day) % 7 == weekday]
+
+        def _in_range(y: int) -> bool:
+            return volume_range is None or volume_range[0] <= to_jdn(y, month, day) <= volume_range[1]
+
+        # The volume's full date range, not only its years (#5557): a volume that
+        # begins 17 October 1943 never gives "Feb 27" the year 1943. When no year
+        # puts the date inside the range, every year stays a candidate.
+        in_range = [y for y in candidates if _in_range(y)] or candidates
+        if in_range and in_range[0] != year:
+            year = in_range[0]
+        if previous is not None and len(volume_years) > 1 and in_range:
+            year, year_source = _year_from_page_order(
+                month, day, weekday, previous=previous, candidates=candidates,
+                in_range=in_range, page_weekdays=page_weekdays, to_jdn=to_jdn, flags=flags)
+        elif weekday is not None:
+            fits = ([y for y in in_range if to_jdn(y, month, day) % 7 == weekday]
+                    or [y for y in candidates if to_jdn(y, month, day) % 7 == weekday])
             if fits:
                 year, year_source = fits[0], "weekday" if len(candidates) > 1 else "volume"
                 if len(fits) > 1:
@@ -847,8 +1079,10 @@ def _resolve_heading(
             else:
                 flags["weekday_conflict"] = {"written": _WEEKDAY_NAMES[weekday],
                                              "years_that_fit": []}
-        elif len(candidates) > 1:
-            flags["year_ambiguous"] = candidates
+        elif len(in_range) > 1:
+            flags["year_ambiguous"] = in_range
+        if not _in_range(year):
+            flags["outside_volume_range"] = True
     elif weekday is not None and to_jdn(year, month, day) % 7 != weekday:
         fits = [y for y in volume_years
                 if day <= days_in_month(y, month, julian_calendar=assume_julian)
@@ -871,7 +1105,7 @@ def _resolve_heading(
         _volume_flag(year)
 
     jdn = to_jdn(year, month, day)
-    inferred = year_source in ("volume", "weekday", "page", "weekday_and_volume")
+    inferred = year_source in ("volume", "weekday", "page", "weekday_and_volume", "page_order")
     display = f"{text} [{year}]" if inferred else None
     date = _make(text, jdn, jdn, calendar=calendar, precision="day",
                  confidence=0.7 if inferred else 0.9, display=display)
@@ -891,25 +1125,47 @@ def find_page_date(
     year_start_march: bool = False,
     assume_julian: bool = False,
     max_lines: int = HEADING_LINES,
+    previous: int | None = None,
+    volume_range: tuple[int, int] | None = None,
 ) -> PageDate:
     """The date a page's own heading gives it, with what was refused and why.
 
     ``volume_years`` are the years the page's volume or folder covers (see
     ``years_from_name``): a yearless heading takes one, marked inferred.
+    ``previous`` (the JDN of the dated page before this one in the volume's
+    reading order) and ``volume_range`` (the volume's first and last days)
+    settle that year in a volume of several years (``_year_from_page_order``).
     """
     all_lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
     lines = all_lines[:max_lines]
     if not lines or is_explicitly_undated(lines[0]):
         return PageDate()
-    for line in lines[:3]:
+    for index, line in enumerate(lines[:3]):
         marker = _NON_ENTRY_RE.match(line)
         if marker:
             return PageDate(non_entry=re.sub(r"\s+", " ", marker.group(1)).upper())
+        if _PRINTED_MEMORANDA_RE.match(line):
+            return PageDate(non_entry="MEMORANDA")
+        if _CASH_COLUMNS_RE.match(line) and not any(
+                (above_h := _heading_date(above)) is not None and above_h.get("year")
+                for above in lines[:index]):
+            return PageDate(non_entry="CASH ACCOUNT")
     years = sorted(set(volume_years or []))
     page_year: int | None = None
     fallback: tuple[str, dict[str, Any]] | None = None
     common = {"day_first": day_first, "year_start_march": year_start_march,
-              "assume_julian": assume_julian}
+              "assume_julian": assume_julian, "previous": previous, "volume_range": volume_range}
+
+    def _other_weekdays(after: int) -> list[tuple[int, int, int]]:
+        """The page's other yearless weekday headings below ``after``: (month, day, weekday)."""
+        out = []
+        for below in lines[after + 1:]:
+            other = _heading_date(below)
+            if (other is not None and other["kind"] == "day" and other.get("weekday") is not None
+                    and not other.get("year") and not other.get("yy")):
+                out.append((other["month"], other["day"], other["weekday"]))
+        return out
+
     for index, line in enumerate(lines):
         h = _heading_date(line)
         if h is None:
@@ -928,18 +1184,34 @@ def find_page_date(
             # weekday fits neither the year nor the volume, so the line is
             # garbled and the next heading dates the page.
             continue
+        if h.get("month_cut") and not _weekday_fits(h, years, assume_julian):
+            # "FRIDAY, OCTOBE 3" (#5557): a month name cut short is read only when
+            # the weekday written before it confirms the date.
+            continue
+        if _mentions_another_year(h, years):
+            # "August 5, 1926. - NCM - Pauline Williams. Cancelled." in the 1929
+            # diary (#5557): a full date with no weekday, in a year more than one
+            # away from the volume's, is a memo's date, not the page's.
+            continue
         if _is_margin_label(h):
             # "Mar. 23" in the margin, then "Saturday, March 23, 1918" (#5518):
             # the full heading of the same day wins; the label carries no year
             # or weekday, so a volume year would otherwise be guessed for it.
-            for below in lines[index + 1:index + 3]:
+            # A full heading (weekday and year) a day or two away wins too:
+            # "Feb. 9" over "SATURDAY, FEBRUARY 8 1918" labels the page's next
+            # entry, not its first (#5557).
+            for offset, below in enumerate(lines[index + 1:index + 3], start=index + 1):
                 full = _heading_date(below)
-                if (full is not None and full["kind"] == "day"
-                        and (full["month"], full["day"]) == (h["month"], h["day"])
-                        and not _is_margin_label(full)):
-                    line, h = below, full
+                if full is None or full["kind"] != "day" or _is_margin_label(full):
+                    continue
+                apart = abs((full["month"] * 31 + full["day"]) - (h["month"] * 31 + h["day"]))
+                label_alone = len(line) <= len(h["text"]) + 2
+                if apart == 0 or (apart <= 2 and label_alone and full.get("weekday") is not None
+                                  and full.get("year")):
+                    line, h, index = below, full, offset
                     break
-        return _resolve_heading(line, h, volume_years=years, page_year=page_year, **common)
+        return _resolve_heading(line, h, volume_years=years, page_year=page_year,
+                                page_weekdays=_other_weekdays(index), **common)
     # No heading near the top: a diary written as running prose dates its
     # entries further down ("Sunday February 14th - Ran aground", line 25 of a
     # 1915 page, #5518). Only a line that LEADS with a weekday and a date counts
@@ -947,12 +1219,34 @@ def find_page_date(
     for line in all_lines[max_lines:]:
         h = _heading_date(line)
         if (h is not None and h["kind"] == "day" and h.get("weekday") is not None
-                and not h.get("closing")):
+                and not h.get("closing") and not h.get("month_cut")):
             return _resolve_heading(line, h, volume_years=years, page_year=page_year, **common)
     if fallback is not None:
+        first = int(fallback[1]["y1"])
+        if years and not years[0] - 1 <= first <= years[-1] + 1:
+            # "Arrived here March 10, / 1924." in the 1927 diary, "reappointed
+            # Gerente Dec. 1937." in the 1939 one (#5557): a year line more than
+            # a year from the volume's is a mention; with no heading on the page
+            # it dates nothing. (The 1919 volume's printed "STANDARD DIARY 1918"
+            # is the year before, as its "1918" headings are, and keeps it.)
+            return PageDate()
         return _resolve_heading(fallback[0], fallback[1], volume_years=years,
                                 page_year=None, **common)
     return PageDate()
+
+
+def _mentions_another_year(h: dict[str, Any], years: list[int]) -> bool:
+    """A written date with no weekday, its year more than one from the volume's (#5557).
+
+    The 1919 volume's "1918"s stay headings (the year before the volume, the
+    1919 rule); a memo's "August 5, 1926" in the 1929 diary does not.
+    """
+    if not years or h["kind"] not in ("day", "month") or h.get("weekday") is not None:
+        return False
+    if not h.get("year"):
+        return False
+    year = int(h["year"])
+    return year < years[0] - 1 or year > years[-1] + 1
 
 
 def extract_date_from_text(
