@@ -225,7 +225,7 @@ extension LibraryManager {
         return library
     }
 
-    /// Create a project at the location setup's Where it lives chose (`NewProjectStore`): the ONE
+    /// Create a project at the location setup's Your project step chose (`NewProjectStore`): the ONE
     /// create path behind first run and File › Set Up New Project…, in a window and with no window
     /// (#4530, #5482). The project is inserted once into `openLibraries` (the sidebar's rows),
     /// saved, remembered for the next launch (`saveLibrary`) and marked for the sidebar to select.

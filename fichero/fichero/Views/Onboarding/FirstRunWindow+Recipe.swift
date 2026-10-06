@@ -1,18 +1,18 @@
 import SwiftUI
 
-// MARK: - Setup's screens (section 7b, source.onboard.*)
+// MARK: - Setup's four steps (section 7b, ruled 2026-10-06, #5492; source.onboard.*)
 
-/// The setup screens of first run, Set Up New Project… and Set Up… (one flow,
+/// The four setup steps of first run, Set Up New Project… and Set Up… (one flow,
 /// `source.onboard.screens-in-order`). Same page chrome and navigation as the other steps; the
-/// fields scroll because a recipe can be longer than the card. Every screen after Where it
-/// lives works on the project's own store.
+/// fields scroll because a step can be longer than the card. Every step after Your project
+/// works on the project's own store. One sentence per step; no disclosure (#5481).
 extension FirstRunWindow {
     @ViewBuilder
     func recipeStepPage(_ step: FirstRunStep) -> some View {
-        if step == .location {
+        if step == .project {
             stepPage(
-                title: "Where it lives",
-                subtitle: "Name the project and choose where it is kept. You can move it later.",
+                title: "Your project",
+                subtitle: "Name it and say where it lives; most projects live inside Fichero.",
                 systemImage: step.icon
             ) {
                 recipeCard { SetupWhereItLivesFields(store: newProject) }
@@ -20,7 +20,7 @@ extension FirstRunWindow {
         } else if let store {
             setupPage(step, store: store)
         } else {
-            stepPage(title: step.title, subtitle: "Choose where the project lives first.", systemImage: step.icon) {
+            stepPage(title: step.title, subtitle: "Make the project first.", systemImage: step.icon) {
                 EmptyView()
             }
         }
@@ -29,84 +29,44 @@ extension FirstRunWindow {
     @ViewBuilder
     private func setupPage(_ step: FirstRunStep, store: RecipeSetupStore) -> some View {
         switch step {
+        case .material:
+            stepPage(
+                title: "Your material",
+                subtitle: "How your sources come in and what they are; Fichero works out the rest.",
+                systemImage: step.icon
+            ) {
+                recipeCard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        RecipeMaterialSourceFields(
+                            store: store, importer: project?.importService, syncFolders: project?.syncFolderStore
+                        )
+                        Divider()
+                        RecipeAboutFields(store: store)
+                    }
+                }
+            }
         case .purpose:
             stepPage(
-                title: "What it is for",
-                subtitle: "Tick everything this project is for. Each purpose is a set of jobs; tick any job on its own too.",
+                title: "What you want to do",
+                subtitle: "Tick everything this project is for; each one asks only what it needs.",
                 systemImage: step.icon
             ) {
                 recipeCard { RecipePurposeFields(store: store) }
             }
-        case .material:
-            stepPage(
-                title: "Your material",
-                subtitle: "How your sources come in, and roughly how much there is. You can add it later.",
-                systemImage: step.icon
-            ) {
-                recipeCard { RecipeMaterialSourceFields(
-                    store: store, importer: project?.importService, syncFolders: project?.syncFolderStore
-                ) }
-            }
-        case .keptExported:
-            stepPage(
-                title: "Kept exported",
-                subtitle: "Keep an up-to-date copy of the work in a folder outside the project. Optional; Continue skips it.",
-                systemImage: step.icon
-            ) {
-                recipeCard {
-                    if let keptExports = project?.keptExportStore {
-                        KeptExportFields(store: keptExports)
-                    }
-                }
-            }
-        case .about:
-            stepPage(
-                title: "What it is",
-                subtitle: "Its languages, scripts, direction and kind. Fichero works out the rest from them.",
-                systemImage: step.icon
-            ) {
-                recipeCard { RecipeAboutFields(store: store) }
-            }
-        case .automatic:
-            stepPage(
-                title: "What runs by itself",
-                subtitle: "What happens to new material after you press Start.",
-                systemImage: step.icon
-            ) {
-                recipeCard { RecipeAutomaticFields(store: store) }
-            }
-        case .start:
-            stepPage(
-                title: "Start",
-                subtitle: "What will run, on how many pages, and what it costs. Nothing runs before you press Start.",
-                systemImage: step.icon
-            ) {
-                recipeCard { RecipeStartFields(store: store) }
-            }
         default:
             stepPage(
-                title: "How it will be done",
-                subtitle: "The steps the rules propose from your answers.",
+                title: "Ready",
+                subtitle: "The plan from your answers; nothing runs before you press Start.",
                 systemImage: step.icon
             ) {
                 recipeCard {
-                    RecipeProposalFields(store: store, onFix: { fix in handle(fix: fix, store: store) },
-                                         bakeoff: project.map(BakeoffSection.Context.init(project:)))
+                    RecipeReadyFields(
+                        store: store,
+                        onFix: { fix in handle(fix: fix, store: store) },
+                        bakeoff: project.map(BakeoffSection.Context.init(project:)),
+                        keptExports: project?.keptExportStore
+                    )
                 }
-            }
-        }
-    }
-
-    /// A ticked job's own screen: what the job does, in the registry's words, and its questions.
-    @ViewBuilder
-    func jobPage(_ job: String) -> some View {
-        if let store {
-            stepPage(
-                title: store.title(ofJob: job),
-                subtitle: store.explanation(ofJob: job)?.short ?? "",
-                systemImage: "checkmark.square"
-            ) {
-                recipeCard { SetupJobFields(store: store, job: job) }
             }
         }
     }

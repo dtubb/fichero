@@ -6,8 +6,8 @@ import SwiftUI
 /// will not run it (too few corrected lines), its sentence once and no button, and nothing else
 /// waits on it. While it runs it is a job in Activity, its progress read from the Activity store,
 /// and the person may leave. The result is the engine's table in the engine's order, each reader
-/// by name (never a card id), with Use This for this project or one folder. Setup's How it will
-/// be done screen and the project Inspector both show it, through `RecipeStepsView`.
+/// by name (never a card id), with Use This for this project or one folder. Setup's Ready step
+/// shows it as an optional row (Check on your pages); the Inspector under the reading step.
 struct BakeoffSection: View {
     /// What the section needs beyond the recipe: the project's bake-off, its Activity, and the
     /// folders Use This can be scoped to.

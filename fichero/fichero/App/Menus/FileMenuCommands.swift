@@ -300,7 +300,7 @@ struct FileMenuCommands: View {
 private extension FileMenuCommands {
 
     /// Set Up New Project… with NO key window (#4530, #5482): open a window and have it present
-    /// setup from Where it lives, the same setup the in-window path opens.
+    /// setup from Your project, the same setup the in-window path opens.
     private func createLibraryAtAppScope() {
         libraryManager.newProjectSetUpRequested = true
         openWindow(id: "main")

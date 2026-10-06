@@ -77,7 +77,7 @@ class LibraryManager {
     var setUpRequestedLibraryId: UUID?
 
     /// File › Set Up New Project… was chosen with no window to show it (#4530): the window that
-    /// opens next presents setup from Where it lives, and clears this.
+    /// opens next presents setup from Your project, and clears this.
     var newProjectSetUpRequested = false
 
     /// Inside Fichero: where a project lives when the person does not choose a place (section 7b
