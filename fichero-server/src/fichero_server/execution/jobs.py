@@ -999,8 +999,9 @@ def _family(model: str | None) -> str | None:
 
 
 def _keep_local_model_server() -> None:
-    # ponytail: not stopped on a switch. Its server takes 30-300 s to start again and frees its
-    # own memory when idle; stop it here once measured resident sizes say this Mac needs it.
+    # Not stopped on a switch: its server takes 30-300 s to start again. It does NOT free its own
+    # memory (an idle `mlx_vlm.server` held 5.7 GB, #5529): the engine stops it after
+    # `api.routes.ai.local_inference.IDLE_STOP_SECONDS` without a request, and when the engine ends.
     return None
 
 
@@ -1379,6 +1380,25 @@ class _Scheduler:
         candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, c[2][3] != lane.loaded_model, c[2][4]))
         return candidates[0][:3]
 
+    def _work(self, db: "Database", job_id: str, kind: "Kind", subject: str, handed_in: Any) -> Any:
+        """Run one job's work. Memory too short to load its model is never a failure (#5524): a
+        stored job goes back to waiting with the reason (`JobDeferred`; the throttle's same memory
+        check holds it until it fits, and it resumes from its own checkpoint), and handed-in work,
+        whose caller waits on this thread, waits here and tries again, unless its run is stopped."""
+        from fichero_server.execution.throttle import MemoryShortError
+
+        while True:
+            try:
+                return handed_in[0]() if handed_in is not None else kind.run(db, subject)
+            except MemoryShortError as exc:
+                if handed_in is None:
+                    raise JobDeferred(str(exc)) from exc
+                stopped = _run_stopped(handed_in[3], db)
+                if stopped:
+                    raise JobCancelled(stopped) from exc
+                db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [str(exc), job_id])
+                time.sleep(THROTTLE_LOOK_AGAIN_SECONDS)
+
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
         from fichero_server.db.manager import db_manager
 
@@ -1402,7 +1422,7 @@ class _Scheduler:
         state, reason, result, error = "done", None, None, None
         _current.job_id = job_id
         try:
-            result = handed_in[0]() if handed_in is not None else kind.run(db, subject)
+            result = self._work(db, job_id, kind, subject, handed_in)
         except JobCancelled as exc:
             state, reason, error = "cancelled", str(exc) or "Stopped by you", exc
         except JobDeferred as exc:

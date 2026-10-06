@@ -394,6 +394,20 @@ def _cancelled(db: Any, job_id: str) -> bool:
     return bool(json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}").get("cancel"))
 
 
+def _measured_so_far(db: Any, job_id: str) -> dict[str, Any]:
+    """The pages each candidate has already been scored on in this job, by `model|reader`."""
+    return json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}").get("measured_so_far") or {}
+
+
+def _keep_measured(db: Any, job_id: str, key: str, per_page: list[dict[str, Any]], seconds: float) -> None:
+    """Keep a candidate's scored pages on the job as they are measured (#5524): a job that stops for
+    memory goes back to waiting and, run again, carries on from here instead of reading them again
+    (a Syriac bake-off that stopped after 6 of 12 pages kept nothing)."""
+    detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
+    detail.setdefault("measured_so_far", {})[key] = {"per_page": per_page, "seconds": seconds}
+    jobs.save_detail(db, job_id, json.dumps(detail))
+
+
 def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[str, Any],
              *, progress: Any = None) -> dict[str, Any]:
     from fichero_server.workflows.transcription_accuracy import CER_DEFINITION, DEFAULT_POLICY_NAME
@@ -402,10 +416,15 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
     pages = [p for p in (reference_page(db, pid, request.checked)[0] for pid in planned["pages"]) if p]
     trust = {t: sum(p["trust"] == t for p in pages) for t in sorted({p["trust"] for p in pages})}
     models = []
+    so_far = _measured_so_far(db, job_id)
     for i, c in enumerate(candidates, 1):
-        per_page = []
-        seconds = 0.0
+        key = f"{c.model}|{c.reader}"
+        per_page = list((so_far.get(key) or {}).get("per_page") or [])
+        seconds = float((so_far.get(key) or {}).get("seconds") or 0.0)
+        done = {p["document_id"] for p in per_page}
         for page in pages:
+            if page["document_id"] in done:
+                continue
             if _cancelled(db, job_id):
                 return {"stopped": True, "models": models}
             if progress:
@@ -417,6 +436,7 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
             seconds += time.monotonic() - began
             per_page.append({"document_id": page["document_id"], "name": page["name"], "trust": page["trust"],
                              "lines": len(reference), "scores": score_page(reference, reads)})
+            _keep_measured(db, job_id, key, per_page, seconds)
         models.append({"model": c.model, "reader": c.reader,
                        "role": "trained" if trained_card(c) is not None else "out of the box",
                        "scores": totals(per_page), "per_page": per_page, "speed": speed(seconds, len(pages))})

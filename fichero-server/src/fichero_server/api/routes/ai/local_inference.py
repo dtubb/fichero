@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import shlex
+import threading
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path
@@ -216,6 +218,34 @@ def _manager_for_profile(profile_id: str) -> LocalInferenceServiceManager:
     return _new_manager(profile)
 
 
+#: A model server the engine started is stopped after this long with no request (#5529): it holds its
+#: model's weights (an idle `mlx_vlm.server` held ~5.7 GB) and does not let them go by itself.
+#: Starting one again takes 30-300 s, so the gap is long enough that a run's steps, each asking for
+#: the model in turn, keep it; every request asks again first (`manager_serving`), which re-arms it.
+IDLE_STOP_SECONDS = 600.0
+_IDLE_TIMERS: dict[str, threading.Timer] = {}
+
+
+def _stop_when_idle(manager: LocalInferenceServiceManager) -> None:
+    """(Re)arm the idle stop of an engine-started server; called each time a request is to use it."""
+    if not manager.profile.managed_by_app:
+        return  # a server the person runs themselves is theirs to stop
+    old = _IDLE_TIMERS.pop(manager.profile.id, None)
+    if old is not None:
+        old.cancel()
+    timer = threading.Timer(IDLE_STOP_SECONDS, _stop_if_still_idle, args=(manager,))
+    timer.daemon = True
+    _IDLE_TIMERS[manager.profile.id] = timer
+    timer.start()
+
+
+def _stop_if_still_idle(manager: LocalInferenceServiceManager) -> None:
+    if _MANAGERS.get(manager.profile.id) is manager and manager.process.is_running():
+        # On this timer's own loop: the process stop falls back to signals when its handle belongs
+        # to the loop that started it (`ManagedLocalInferenceProcess.stop`).
+        asyncio.run(manager.stop())
+
+
 async def manager_serving(model_id: str) -> LocalInferenceServiceManager:
     """The manager whose server serves `model_id`, switching models if another is loaded (#5520).
 
@@ -226,13 +256,21 @@ async def manager_serving(model_id: str) -> LocalInferenceServiceManager:
     profile = _configured_omlx_profile(model_id)
     existing = _MANAGERS.get(profile.id)
     if existing is not None and existing.profile == profile:
+        _stop_when_idle(existing)
         return existing
     if existing is not None:
         await existing.stop()
-    return _new_manager(profile)
+    manager = _new_manager(profile)
+    _stop_when_idle(manager)
+    return manager
 
 
 async def shutdown_managed_local_inference_services() -> None:
+    """Stop every server the engine started, as the engine ends (a server the engine never got to
+    stop, killed or crashed, ends itself: `local_inference.DIES_WITH_ITS_ENGINE`)."""
+    for timer in list(_IDLE_TIMERS.values()):
+        timer.cancel()
+    _IDLE_TIMERS.clear()
     for manager in list(_MANAGERS.values()):
         if manager.profile.managed_by_app:
             await manager.stop()

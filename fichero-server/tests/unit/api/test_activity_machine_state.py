@@ -22,6 +22,7 @@ def mac(monkeypatch):
     state = {"pressure": 1, "thermal": 0, "battery": False, "idle": 600.0}
     monkeypatch.setenv("FICHERO_JOB_THROTTLE", "1")
     monkeypatch.setattr(throttle, "memory_pressure_level", lambda: state["pressure"])
+    monkeypatch.setattr(throttle, "memory_available_bytes", lambda: 8 * 1024**3)  # room: only pressure varies
     monkeypatch.setattr(throttle, "thermal_state_level", lambda: state["thermal"])
     monkeypatch.setattr(throttle, "battery_or_low_power", lambda: state["battery"])
     monkeypatch.setattr(throttle, "seconds_since_input", lambda: state["idle"])
@@ -82,7 +83,7 @@ def test_activity_popover_summary__the_first_reason_wins_as_in_the_throttle(clie
     that makes the Mac beachball); the popover must give the same one."""
     mac.update({"pressure": 4, "battery": True})
     machine = _machine(client)
-    assert machine["why_wait"] == throttle.MEMORY_REASON
+    assert machine["why_wait"].startswith(throttle.MEMORY_REASON)  # then the numbers it compared (#5524)
     assert machine["on_battery"] is True
 
 

@@ -6,7 +6,7 @@ Two choices, kept in the app settings and overridable by environment for test ru
   machine, the Mac stays usable while a page is read), ``fast`` (no throttle, every core: for a
   person who wants the run done, or a test), ``background`` (background QoS and fewer threads: for
   work nobody is waiting on).
-* ``device``: ``auto`` (Apple's GPU when torch has it, else the CPU), ``cpu`` or ``gpu``.
+* ``device``: ``auto`` (the CPU for Kraken: `torch_accelerator` says why), ``cpu`` or ``gpu``.
 
 ``FICHERO_COMPUTE_PRIORITY`` / ``FICHERO_COMPUTE_DEVICE`` win over the setting, so a test run can go
 as fast as possible without changing the person's choice. Read by Kraken now; the one job model
@@ -84,8 +84,15 @@ def apply_to_this_thread(priority: str) -> int:
 
 
 def torch_accelerator(device: str) -> str:
-    """Kraken/Lightning's accelerator name for the chosen device."""
-    if device == "cpu":
+    """Kraken/Lightning's accelerator name for the chosen device: Apple's GPU only when the person
+    chose `gpu`; `auto` is the CPU (#5529).
+
+    Measured 2026-10-06 (M1, 16 GB, CATMuS reading 30-line pages): on the GPU torch compiles an
+    MPS graph for every new line shape and keeps every one for the life of the process, so the
+    engine's footprint grew ~160 MB per page of new lines, without end (a dev engine held 8,418
+    compiled graphs and 6 GB of their bookkeeping after a few bake-offs; 18 GB in 25 minutes of
+    one). On the CPU it stays flat, and the same reader was faster: 2.5 s a page against 6.5 s."""
+    if device != "gpu":
         return "cpu"
     try:
         import torch

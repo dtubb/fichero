@@ -70,11 +70,13 @@ import importlib.util
 import json
 import logging
 import os
+import sys
 import threading
 from pathlib import Path
 from typing import Callable, TypeVar
 
 from fichero_server.db.paths import model_store_root
+from fichero_server.execution.throttle import MemoryShortError
 from fichero_server.media.ocr_geometry import (
     OCRGeometryBox,
     OCRGeometryLevel,
@@ -292,8 +294,9 @@ class KrakenSegmentationError(RuntimeError):
     """Raised when the segmenter ran and did not return usable geometry."""
 
 
-class KrakenMemoryUnavailableError(RuntimeError):
-    """Raised when the machine cannot safely run Kraken right now (#4987).
+class KrakenMemoryUnavailableError(MemoryShortError):
+    """Raised when the machine cannot safely run Kraken right now (#4987). A `MemoryShortError`: the
+    job lane waits on it and runs the page again when memory allows, it never fails a job (#5524).
 
     "Know before running": Kraken shares this process with the rest of the
     engine (#4959), so its peak memory IS the engine's peak memory, and it
@@ -324,7 +327,6 @@ _MEMORY_NEED_ENV_VAR = "FICHERO_KRAKEN_MEMORY_NEED_MB"
 # pressure_level` and the matching ctypes read, 2026-09-20).
 _PRESSURE_NORMAL = 1
 _PRESSURE_CRITICAL = 4
-_PRESSURE_LABELS = {2: "warn", 4: "critical"}
 
 # Mach `host_statistics64` — the public struct layout from Apple's
 # <mach/vm_statistics.h>, reproduced here only because ctypes needs a field
@@ -467,40 +469,25 @@ def assert_memory_available_for_kraken(
     """Refuse BEFORE any kraken/torch import if this machine cannot safely
     run one Kraken call right now (#4987).
 
-    Checked on EVERY call, not once at startup: the measurement showed
-    Kraken's elevated memory floor is NOT released between calls within a
-    session, so a machine that had room for the first page may not have
-    room for the fifth.
+    Checked on EVERY call, not once at startup: the moment a queued page is
+    about to run is what counts, not when it was queued.
+
+    The decision is `throttle.memory_short`, the SAME function and number the
+    job lane's throttle uses before it hands out a job (#5524): the two checks
+    used to differ (pressure at warn there, 2.5 GB free here), so the throttle
+    released a job this guard then failed at 2.3 GB free.
 
     ``available_bytes``/``pressure_level`` are injectable so a test never
     depends on the real machine's memory or pressure — pass a lambda
     returning a fixed number instead of the real macOS reader.
     """
-    get_available = available_bytes or _available_memory_bytes
-    get_pressure = pressure_level or _memory_pressure_level
+    from fichero_server.execution.throttle import memory_short
 
-    need = _kraken_memory_need_bytes()
-    free = get_available()
-    if free is not None and free < need:
+    reason = memory_short(available_bytes=available_bytes or _available_memory_bytes,
+                          pressure_level=pressure_level or _memory_pressure_level)
+    if reason is not None:
         raise KrakenMemoryUnavailableError(
-            f"Kraken needs about {need / 1024**3:.1f} GB of free memory to run "
-            f"safely, and this Mac has about {free / 1024**3:.1f} GB free right "
-            "now. Close other apps, or wait for other work to finish, then try "
-            "again."
-        )
-
-    # 2026-09-28 (maintainer): refusing at WARN was too aggressive -- a busy 16 GB
-    # Mac sits at warn much of the day, and Kraken's ~2.5 GB is not the real risk
-    # (the large MLX models are). The available-memory floor above is the measured
-    # safety margin; pressure refuses only at CRITICAL, when macOS itself is out.
-    level = get_pressure()
-    if level is not None and level >= _PRESSURE_CRITICAL:
-        label = _PRESSURE_LABELS.get(level, f"level {level}")
-        raise KrakenMemoryUnavailableError(
-            f"This Mac's memory pressure is {label}, so starting "
-            f"Kraken now (it needs about {need / 1024**3:.1f} GB) risks the "
-            "whole app crashing. Close other apps, or wait, then try again."
-        )
+            f"{reason}. Close other apps, or wait for other work to finish; a queued job waits on its own.")
 
 
 def is_installed() -> bool:
@@ -600,6 +587,7 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
         worker = threading.Thread(target=_throttled, name="kraken-inference", daemon=True)
         worker.start()
         worker.join()
+        _release_when_idle()
     ok, value = outcome[0]  # type: ignore[misc]
     if not ok:
         raise value  # type: ignore[misc]
@@ -657,12 +645,48 @@ def _resident(kind: str, key: str, load: Callable[[], object]) -> object:
 
 
 def release_resident_models() -> None:
-    """Free Kraken's resident models (before another heavy model loads)."""
+    """Free Kraken's resident models (before another heavy model loads, and when idle). Collected at
+    once: a reader's line-extraction pool (two spawned processes) is only terminated when the reader
+    itself is collected (Kraken's own `weakref.finalize`)."""
+    import gc
+
     _RESIDENT.clear()
+    gc.collect()
+    torch = sys.modules.get("torch")
+    if torch is not None and torch.backends.mps.is_available():
+        torch.mps.empty_cache()  # a reader that ran on the GPU (`device: gpu`) gives its buffers back
+
+
+#: Kraken's readers are let go after this long without a page (#5529): a bake-off or a check ends and
+#: nothing else asks for Kraken, so its reader, the line finder and the reader's two line-extraction
+#: processes stayed in the engine until the next model switch on the lane -- which a job with no
+#: model (`evaluate-models`, `check-lines`) never causes. Long enough that a run's pages, which come
+#: one after another, keep the reader they share (loading one takes seconds).
+IDLE_RELEASE_SECONDS = 120.0
+_idle_timer: threading.Timer | None = None
+
+
+def _release_when_idle() -> None:
+    """(Re)arm the one idle timer; called under `_INFERENCE_LOCK` after every call."""
+    global _idle_timer
+    if _idle_timer is not None:
+        _idle_timer.cancel()
+    _idle_timer = threading.Timer(IDLE_RELEASE_SECONDS, _release_if_idle)
+    _idle_timer.daemon = True
+    _idle_timer.start()
+
+
+def _release_if_idle() -> None:
+    if not _INFERENCE_LOCK.acquire(blocking=False):
+        return  # a page is running: it re-arms the timer when it ends
+    try:
+        release_resident_models()
+    finally:
+        _INFERENCE_LOCK.release()
 
 
 def _reader_config(config_cls: Callable[..., object]) -> object:
-    """The reader's device, as the person chose (auto: Apple's GPU when torch has it). Kraken's
+    """The reader's device, as the person chose (`torch_accelerator`: auto is the CPU, #5529). Kraken's
     "auto" was slower than either per page (measured 2026-10-03 on a Sergio notebook half-page:
     auto 28 s, CPU 13 s, MPS 11 s, with the model already loaded)."""
     from fichero_server.core.compute_preferences import compute_preferences, torch_accelerator
