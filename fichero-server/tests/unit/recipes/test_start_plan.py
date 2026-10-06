@@ -8,6 +8,9 @@ nothing would say so. Pages must never leave the Mac in a project that keeps the
 """
 from __future__ import annotations
 
+import pytest
+
+from fichero_server.recipes import start
 from fichero_server.recipes.start import _preset, estimate, plan_start
 from fichero_server.workflows.default_workflows import preset_workflow_id
 
@@ -20,6 +23,13 @@ CORRECT = {"id": "correct", "job": "correct",
            "runs_on": "this-mac"}
 CLOUD_CORRECT = {"id": "correct", "job": "correct", "model": {"cloud": "openai", "model": "gpt-5"},
                  "runs_on": "cloud:openai"}
+
+
+@pytest.fixture(autouse=True)
+def the_steps_local_models_are_on_this_mac(monkeypatch):
+    """These tests pin how steps map to workflows; whether this Mac can serve a step's local model,
+    and the refusal when it cannot, is test_local_model_choice.py's (#5520)."""
+    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs: [])
 
 
 def _recipe(*steps):

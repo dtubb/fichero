@@ -29,7 +29,6 @@ from fichero_server.llm.mlx_runtime import get_mlx_runtime
 router = APIRouter(prefix="/local-inference")
 
 DEFAULT_OMLX_PROFILE_ID = "app-omlx"
-DEFAULT_OMLX_MODEL_ID = "mlx-community/Qwen3-VL-8B"
 DEFAULT_OMLX_BASE_URL = "http://localhost:8000/v1"
 
 _MANAGERS: dict[str, LocalInferenceServiceManager] = {}
@@ -113,15 +112,21 @@ class LocalInferenceModelDeleteResponse(BaseModel):
     freed_bytes: int
 
 
-def _configured_omlx_profile() -> LocalProviderProfile:
-    """Build the default app-managed oMLX profile from env/defaults."""
+def _configured_omlx_profile(model_id: str | None = None) -> LocalProviderProfile:
+    """The app-managed oMLX profile serving `model_id`, or the default local model when None.
+
+    The default is Settings › AI's local model, else the vision model chosen for this Mac
+    (`local_model_choice.default_local_model`); `FICHERO_OMLX_MODEL` overrides it for development
+    only (#5520: it used to be the ONLY way to change the model)."""
+    from fichero_server.llm.local_model_choice import default_local_model
+
     capabilities = get_local_inference_capabilities()
     base_url = (
         os.environ.get("FICHERO_OMLX_BASE_URL")
         or os.environ.get("FICHERO_OMLX_API_BASE")
         or DEFAULT_OMLX_BASE_URL
     )
-    model_id = os.environ.get("FICHERO_OMLX_MODEL") or DEFAULT_OMLX_MODEL_ID
+    model_id = model_id or default_local_model().model_id
     healthcheck_path = os.environ.get("FICHERO_OMLX_HEALTHCHECK_PATH") or "/health"
     command = shlex.split(os.environ["FICHERO_OMLX_COMMAND"]) if os.environ.get("FICHERO_OMLX_COMMAND") else []
     return LocalProviderProfile(
@@ -189,22 +194,42 @@ def installed_local_model_entries(provider_type: str) -> list[LocalModelCatalogE
         return []
 
 
-def _manager_for_profile(profile_id: str) -> LocalInferenceServiceManager:
-    profile = _profile_by_id(profile_id)
-    existing = _MANAGERS.get(profile_id)
-    if existing is not None and existing.profile == profile:
-        return existing
+def _new_manager(profile: LocalProviderProfile) -> LocalInferenceServiceManager:
     process = (
         ManagedLocalInferenceProcess(profile)
         if profile.managed_by_app
         else ExternalLocalInferenceProcess()
     )
-    manager = LocalInferenceServiceManager(
-        profile,
-        process,
-    )
-    _MANAGERS[profile_id] = manager
+    manager = LocalInferenceServiceManager(profile, process)
+    _MANAGERS[profile.id] = manager
     return manager
+
+
+def _manager_for_profile(profile_id: str) -> LocalInferenceServiceManager:
+    """The one manager for this profile's port. A manager whose server is up is kept, whatever
+    model it serves (its status says which): replacing it would orphan the process on the port.
+    A stopped one is rebuilt when the default model has changed since."""
+    profile = _profile_by_id(profile_id)
+    existing = _MANAGERS.get(profile_id)
+    if existing is not None and (existing.profile == profile or existing.process.is_running()):
+        return existing
+    return _new_manager(profile)
+
+
+async def manager_serving(model_id: str) -> LocalInferenceServiceManager:
+    """The manager whose server serves `model_id`, switching models if another is loaded (#5520).
+
+    One server, one port, one model in memory: a step that asks for a different installed model
+    stops (unloads) the one running and gets a manager for the one it asked for, which starts on
+    demand. The caller has already checked this Mac can serve it (`local_model_problem`), so a
+    refusal never costs the running server."""
+    profile = _configured_omlx_profile(model_id)
+    existing = _MANAGERS.get(profile.id)
+    if existing is not None and existing.profile == profile:
+        return existing
+    if existing is not None:
+        await existing.stop()
+    return _new_manager(profile)
 
 
 async def shutdown_managed_local_inference_services() -> None:

@@ -174,6 +174,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     downloads = missing_models(runs)
     refusals += [f"steps {', '.join(d['steps'])} need the {d['runtime']} model {d['model']} ({d['size_mb']} MB), "
                  f"which is not on this Mac: download it first" for d in downloads]
+    refusals += local_models_this_mac_cannot_serve(runs)
     if not runs and not refusals:
         refusals.append("nothing in this recipe can run yet: every step is skipped (see why)")
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
@@ -195,6 +196,29 @@ def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
                                       "action": "model.download", "params": {"runtime": "spacy", "model": name}})
         entry["steps"] += run["steps"]
     return list(out.values())
+
+
+#: Jobs whose local model reads the page image; the others send it text alone.
+_TEXT_ONLY_JOBS = frozenset({"find-names-tag-words", "find-statements"})
+
+
+def local_models_this_mac_cannot_serve(runs: list[dict[str, Any]]) -> list[str]:
+    """A refusal for each run whose own local model (`omlx`) this Mac's local model server cannot
+    serve -- not in the catalogue, not installed, or its card says this Mac's memory cannot run it
+    -- with the reason and the fix, BEFORE Start (#5496, #5520). The step's model is the one the
+    run asks the server for, which switches to it; it is never served another in its place."""
+    from fichero_server.llm.local_model_choice import local_model_problem
+
+    out = []
+    for run in runs:
+        provider = run.get("provider_override") or run.get("provider")
+        model = run.get("model_override") or run.get("model")
+        if provider != "omlx" or not model:
+            continue
+        problem = local_model_problem(model, "text" if run["job"] in _TEXT_ONLY_JOBS else "vision")
+        if problem is not None:
+            out.append(f"steps {', '.join(run['steps'])} cannot run on this Mac: {problem}")
+    return out
 
 
 def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:

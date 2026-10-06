@@ -2634,7 +2634,7 @@ async def vision(
             return _LLM_RESULT_CACHE[_cache_key]
 
     # Get LangChain model
-    await _ensure_managed_local_provider_ready(config)
+    await _ensure_managed_local_provider_ready(config, capability="vision")
     model = get_langchain_model(config)
 
     # Build multimodal message content (LangChain format)
@@ -2765,7 +2765,7 @@ async def vision_batch(
             for index, result in enumerate(results)
         ]
 
-    await _ensure_managed_local_provider_ready(config)
+    await _ensure_managed_local_provider_ready(config, capability="vision")
     model = get_langchain_model(config)
     messages_batch = []
     for images in image_lists:
@@ -4101,31 +4101,32 @@ _KEYLESS_OPENAI_COMPATIBLE: set[str] = {"ollama", "lmstudio", "omlx"}
 _MANAGED_OMLX_RESTART_CAP = 2
 
 
-def _refuse_a_model_the_local_server_does_not_serve(requested: str | None, served: str | None) -> None:
-    """The managed local server loads ONE model, its profile's. A step that names a different managed
-    model was silently served by that one instead (a 3B request ran, and failed, as an 8B; #5388).
-    Refuse by name. A name that is not a managed model is left to the server to answer."""
-    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+def _local_model_for_request(config: LLMConfig, *, custom_command: bool, capability: str = "text") -> str:
+    """The model the managed local server must serve for this request, refused BEFORE any switch
+    when this Mac cannot serve it (#5520, #5496).
 
-    def canonical(name: str | None) -> str | None:
-        for model_id, spec in MANAGED_MLX_MODELS.items():
-            if name in (model_id, getattr(spec, "repo_id", None)):
-                return model_id
-        return None
+    The request's own model wins: a step that names Qwen2.5-VL 3B is served the 3B, never the
+    server's default (#5388 refused it; now the server switches). A request that names none gets
+    Settings' local model. A model the catalogue does not know, one not installed, or one whose own
+    card says it cannot run on this Mac's memory is refused with the reason and the fix. A
+    developer's custom server command (`FICHERO_OMLX_COMMAND`) takes any name as given."""
+    from fichero_server.llm.local_model_choice import local_model_problem, model_to_serve
 
-    want, have = canonical(requested), canonical(served) or served
-    if want and want != have:
-        name = MANAGED_MLX_MODELS[want].display_name
-        raise LocalModelUnavailableError(
-            f"This step asks for {name}, but Fichero's local model server is set to {have}. "
-            f"Choose {have} for the step, or switch the local model to {name} in Settings > AI."
-        )
+    model_id = model_to_serve(config.model)
+    if custom_command:
+        return model_id
+    problem = local_model_problem(model_id, capability)
+    if problem is not None:
+        if problem.kind == "cannot-run":
+            raise LocalModelHardwareError(str(problem))
+        raise LocalModelUnavailableError(str(problem))
+    return model_id
 
 
-async def _ensure_managed_local_provider_ready(config: LLMConfig) -> None:
+async def _ensure_managed_local_provider_ready(config: LLMConfig, capability: str = "text") -> None:
     if config.provider.lower() != "omlx":
         return
-    from fichero_server.api.routes.ai.local_inference import _configured_omlx_profile, _manager_for_profile
+    from fichero_server.api.routes.ai.local_inference import _configured_omlx_profile, manager_serving
     from fichero_server.llm.local_inference import (
         LocalModelHardwareError as LocalInferenceHardwareError,
         LocalInferenceRuntimeMissingError,
@@ -4139,8 +4140,9 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig) -> None:
     if not profile.managed_by_app or str(profile.base_url).rstrip("/") != effective_base_url:
         return
 
-    _refuse_a_model_the_local_server_does_not_serve(config.model, profile.model_id)
-    manager = _manager_for_profile(profile.id)
+    manager = await manager_serving(
+        _local_model_for_request(config, custom_command=bool(profile.command), capability=capability))
+    profile = manager.profile
     try:
         if profile.startup_policy == LocalProviderStartupPolicy.manual:
             status = await manager.health() if manager.state != LocalServiceState.stopped else manager.status()
@@ -4335,14 +4337,18 @@ def _build_langchain_model(config: LLMConfig) -> Any:
     # fails 401 "Repository Not Found" -- over a model already installed and
     # already loaded in the very process being asked. Send the identifier the
     # server was started with, so the request names the weights in memory.
+    # The same name the server was switched to (`_local_model_for_request`): a recipe pins the
+    # Hub repository, the CLI the catalogue id, and a request that names no model means the
+    # server's default -- all three resolve to the one snapshot path loaded (#5520).
     if provider == "omlx":
         try:
+            from fichero_server.llm.local_model_choice import model_to_serve
             from fichero_server.llm.mlx_model_store import get_mlx_model_store
 
-            model_name = get_mlx_model_store().resolve_model_path(model_name)
+            model_name = get_mlx_model_store().resolve_model_path(model_to_serve(model_name))
         except (KeyError, FileNotFoundError):
-            # Not a managed model (a user-configured repo id, or one not
-            # installed): pass the name through and let the server answer.
+            # Not a managed model (a developer's custom server, or an unmanaged base_url):
+            # pass the name through and let that server answer.
             pass
     api_key = _resolve_api_key(config)
 

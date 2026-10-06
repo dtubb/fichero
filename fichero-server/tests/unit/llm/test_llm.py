@@ -381,11 +381,11 @@ def test_build_langchain_model_uses_placeholder_key_for_keyless_local_providers(
         types.SimpleNamespace(ChatOpenAI=FakeChatOpenAI),
     )
 
-    cfg = LLMConfig(provider=provider, model="local-model")
+    cfg = LLMConfig(provider=provider, model="served-model")
     model = llm._build_langchain_model(cfg)
 
     assert isinstance(model, FakeChatOpenAI)
-    assert captured["model"] == "local-model"
+    assert captured["model"] == "served-model"
     assert captured["api_key"] == provider
     assert captured["base_url"] == expected_base_url
     assert captured["http_async_client"] == "shared-httpx-client"
@@ -756,8 +756,9 @@ async def test_omlx_chat_starts_managed_profile_before_langchain_call(monkeypatc
     )
     manager = _omlx_manager()
     model = _ManagedOmlxModel()
-    monkeypatch.setattr(routes, "_configured_omlx_profile", lambda: profile)
-    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: manager)
+    monkeypatch.setattr(routes, "_configured_omlx_profile", lambda *_model_id: profile)
+    manager.profile = profile
+    _serve(monkeypatch, routes, manager)
     monkeypatch.setattr(llm, "get_langchain_model", lambda _cfg: model)
 
     result = await llm.chat("hello", cfg)
@@ -773,7 +774,7 @@ async def test_omlx_start_failure_raises_unavailable_and_skips_langchain(monkeyp
 
     cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
     manager = _omlx_manager(healthy=False, last_error="stderr excerpt")
-    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: manager)
+    _serve(monkeypatch, routes, manager)
     monkeypatch.setattr(llm, "get_langchain_model", lambda _cfg: (_ for _ in ()).throw(AssertionError("langchain should not run")))
 
     with pytest.raises(llm.LocalModelUnavailableError, match="stderr excerpt"):
@@ -795,7 +796,7 @@ async def test_omlx_runtime_missing_raises_typed_error(monkeypatch):
         async def start(self):
             raise LocalInferenceRuntimeMissingError("provision runtime")
 
-    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: _Manager())
+    _serve(monkeypatch, routes, _Manager())
 
     with pytest.raises(llm.LocalModelRuntimeMissingError, match="provision runtime"):
         await llm.chat("hello", cfg)
@@ -816,7 +817,7 @@ async def test_omlx_hardware_gate_raises_typed_error(monkeypatch):
         async def start(self):
             raise LocalInferenceHardwareError("Qwen3-VL 8B needs 16 GB unified memory; this Mac has 8 GB")
 
-    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: _Manager())
+    _serve(monkeypatch, routes, _Manager())
 
     with pytest.raises(llm.LocalModelHardwareError, match="16 GB unified memory"):
         await llm.chat("hello", cfg)
@@ -851,8 +852,9 @@ async def test_omlx_manual_policy_never_auto_starts(monkeypatch):
         update={"startup_policy": LocalProviderStartupPolicy.manual}
     )
     manager = _omlx_manager(healthy=False, last_error="not healthy")
-    monkeypatch.setattr(routes, "_configured_omlx_profile", lambda: profile)
-    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: manager)
+    monkeypatch.setattr(routes, "_configured_omlx_profile", lambda *_model_id: profile)
+    manager.profile = profile
+    _serve(monkeypatch, routes, manager)
 
     with pytest.raises(llm.LocalModelUnavailableError, match="manual-start only"):
         await llm.chat("hello", cfg)
@@ -870,7 +872,7 @@ async def test_unmanaged_omlx_base_url_bypasses_manager(monkeypatch):
         api_base="http://127.0.0.1:9999/v1",
     )
     model = _ManagedOmlxModel()
-    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: (_ for _ in ()).throw(AssertionError("manager should not run")))
+    monkeypatch.setattr(routes, "manager_serving", lambda _model_id: (_ for _ in ()).throw(AssertionError("manager should not run")))
     monkeypatch.setattr(llm, "get_langchain_model", lambda _cfg: model)
 
     result = await llm.chat("hello", cfg)
@@ -890,7 +892,7 @@ async def test_omlx_restart_cap_stays_failed(monkeypatch):
         state=LocalServiceState.failed,
         restart_count=llm._MANAGED_OMLX_RESTART_CAP,
     )
-    monkeypatch.setattr(routes, "_manager_for_profile", lambda _profile_id: manager)
+    _serve(monkeypatch, routes, manager)
 
     with pytest.raises(llm.LocalModelUnavailableError, match="still crashed"):
         await llm.chat("hello", cfg)
@@ -980,6 +982,19 @@ class _ManagedOmlxModel:
     async def ainvoke(self, _messages):
         self.calls += 1
         return SimpleNamespace(content="local-ok", usage_metadata={})
+
+
+def _serve(monkeypatch, routes, manager):
+    """The local server serves `manager` for whatever the request names. Which model it switches to,
+    and what it refuses, is pinned by test_local_model_choice.py (#5520); here, only what follows."""
+    if not hasattr(manager, "profile"):
+        manager.profile = SimpleNamespace(startup_policy=LocalProviderStartupPolicy.on_demand)
+
+    async def serving(_model_id):
+        return manager
+
+    monkeypatch.setattr(routes, "manager_serving", serving)
+    monkeypatch.setattr(llm, "_local_model_for_request", lambda config, **_kw: config.model)
 
 
 def _omlx_manager(*, healthy: bool = True, last_error: str | None = None, state=LocalServiceState.stopped, restart_count: int = 0):

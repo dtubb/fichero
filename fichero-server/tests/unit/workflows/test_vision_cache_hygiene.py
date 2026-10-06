@@ -45,7 +45,7 @@ def test_empty_answer_is_never_cached(monkeypatch):
 
     monkeypatch.setattr(llm_module, "get_langchain_model", lambda config: FakeModel())
 
-    async def no_op(config):
+    async def no_op(config, capability="text"):
         return None
 
     monkeypatch.setattr(llm_module, "_ensure_managed_local_provider_ready", no_op)

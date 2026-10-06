@@ -56,6 +56,11 @@ logger = logging.getLogger(__name__)
 # run every default workflow. $medium historically pointed at
 # openrouter/openai/gpt-4o-mini, which crashed keyless installs mid-run; a
 # user who wants a cloud $medium sets it in Settings ▸ AI Defaults.
+#
+# This is the baseline for a build that carries every Apple runtime. What is
+# actually seeded is `local_model_choice.machine_ai_defaults()`: this table less
+# any provider this build lacks (#5520 — an engine without the fm-bridge has no
+# Apple Intelligence, and every text tier pointing at it failed).
 # =============================================================================
 FACTORY_AI_DEFAULTS: dict[str, str] = {
     "default_text_provider": "apple",
@@ -785,6 +790,7 @@ class AppDatabase:
             "default_temperature",
             "default_max_tokens",
             "default_prompt_prefix",
+            "default_local_model",
         ]
         placeholders = ",".join(["?"] * len(keys))
         with self._lock:
@@ -851,15 +857,22 @@ class AppDatabase:
             "default_vision_large_provider", "default_vision_large_model",
             "default_primary_language",
             "default_temperature", "default_max_tokens", "default_prompt_prefix",
+            "default_local_model", "default_chosen_because",
         ]
         for key in keys_to_delete:
             self.delete_setting(key)
 
-        # Re-seed with the factory baseline (FACTORY_AI_DEFAULTS — the single
-        # tier-default table, #4325, also used by the first-launch bootstrap
-        # in api/main.py and the repair endpoint in routes/system/settings.py).
-        for key, value in FACTORY_AI_DEFAULTS.items():
+        # Re-seed with the factory baseline for THIS Mac and build (#5520):
+        # FACTORY_AI_DEFAULTS (the single tier-default table, #4325) less any
+        # provider this build lacks, chosen by the one function the first-launch
+        # bootstrap and the repair endpoint also use. The local model is left
+        # unset: it then follows what this Mac runs and has installed.
+        from fichero_server.llm.local_model_choice import machine_ai_defaults, record_chosen_because
+
+        values, because = machine_ai_defaults()
+        for key, value in values.items():
             self.set_setting(key, value)
+        record_chosen_because(self, because)
 
     # =========================================================================
     # Model Profiles

@@ -9,6 +9,9 @@ import pytest
 from fichero_server.api.routes.ai import local_inference as routes
 from fichero_server.llm.local_inference import LocalInferenceServiceManager, ManagedLocalInferenceProcess
 
+#: A catalogue model these route tests name; which model is the default is test_local_model_choice.py's.
+MODEL_ID = "mlx-community/Qwen3-VL-8B"
+
 
 class FakeProcess:
     def __init__(self) -> None:
@@ -74,7 +77,7 @@ def test_local_inference_catalog_exposes_configured_model(client) -> None:
             return [
                 {
                     "provider_type": "omlx",
-                    "model_id": routes.DEFAULT_OMLX_MODEL_ID,
+                    "model_id": MODEL_ID,
                     "display_name": "Qwen3-VL 8B",
                     "capabilities": ["text", "vision"],
                     "installed": True,
@@ -98,7 +101,7 @@ def test_local_inference_catalog_exposes_configured_model(client) -> None:
     # The catalog now aggregates every local runtime (Shape A), so the MLX
     # entry is one of several rather than the whole list — find it by id.
     entry = next(
-        e for e in data["items"] if e["model_id"] == routes.DEFAULT_OMLX_MODEL_ID
+        e for e in data["items"] if e["model_id"] == MODEL_ID
     )
     assert entry["provider_type"] == "omlx"
     assert entry["capabilities"] == ["text", "vision"]
@@ -117,7 +120,7 @@ def test_local_inference_catalog_surfaces_hardware_unsupported_reason(
             return [
                 {
                     "provider_type": "omlx",
-                    "model_id": routes.DEFAULT_OMLX_MODEL_ID,
+                    "model_id": MODEL_ID,
                     "display_name": "Qwen3-VL 8B",
                     "capabilities": ["text", "vision"],
                     "installed": False,
@@ -219,7 +222,7 @@ def test_status_start_health_stop_lifecycle_uses_manager_contract(client) -> Non
             {
                 "reachable": True,
                 "model_loaded": True,
-                "configured_model_id": routes.DEFAULT_OMLX_MODEL_ID,
+                "configured_model_id": MODEL_ID,
                 "warm": True,
             }
         ]
@@ -319,7 +322,7 @@ def test_model_download_and_delete_routes(client, monkeypatch: pytest.MonkeyPatc
         def to_dict(self) -> dict[str, Any]:
             return {
                 "job_id": "job-1",
-                "model_id": routes.DEFAULT_OMLX_MODEL_ID,
+                "model_id": MODEL_ID,
                 "state": "running",
                 "current": 1,
                 "total": 3,
@@ -349,18 +352,18 @@ def test_model_download_and_delete_routes(client, monkeypatch: pytest.MonkeyPatc
     store = StubStore()
     monkeypatch.setattr(routes, "get_mlx_model_store", lambda: store)
 
-    started = client.post(f"/api/local-inference/models/{routes.DEFAULT_OMLX_MODEL_ID}/download")
+    started = client.post(f"/api/local-inference/models/{MODEL_ID}/download")
     assert started.status_code == 200
     assert started.json()["job_id"] == "job-1"
 
     status = client.get("/api/local-inference/models/downloads/job-1")
     assert status.status_code == 200
-    assert status.json()["model_id"] == routes.DEFAULT_OMLX_MODEL_ID
+    assert status.json()["model_id"] == MODEL_ID
 
     cancelled = client.post("/api/local-inference/models/downloads/job-1/cancel")
     assert cancelled.status_code == 200
 
-    deleted = client.delete(f"/api/local-inference/models/{routes.DEFAULT_OMLX_MODEL_ID}")
+    deleted = client.delete(f"/api/local-inference/models/{MODEL_ID}")
     assert deleted.status_code == 200
     assert deleted.json()["freed_bytes"] == 123
 
@@ -374,7 +377,7 @@ def test_model_download_refuses_unsupported_hardware(client, monkeypatch: pytest
 
     monkeypatch.setattr(routes, "get_mlx_model_store", lambda: StubStore())
 
-    response = client.post(f"/api/local-inference/models/{routes.DEFAULT_OMLX_MODEL_ID}/download")
+    response = client.post(f"/api/local-inference/models/{MODEL_ID}/download")
 
     assert response.status_code == 409
     assert "16 GB unified memory" in response.text

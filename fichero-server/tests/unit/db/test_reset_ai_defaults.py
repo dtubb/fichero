@@ -25,6 +25,15 @@ from fichero_server.models import Provider, Model
 from fichero_server.llm.providers import ProviderType
 
 
+@pytest.fixture(autouse=True)
+def a_build_with_apple_intelligence(monkeypatch):
+    """These tests pin the factory baseline, which holds for a build carrying Apple Intelligence.
+    A build without it gets this Mac's local model instead: test_local_model_choice.py (#5520)."""
+    from fichero_server.llm import local_model_choice
+
+    monkeypatch.setattr(local_model_choice, "apple_intelligence_in_this_build", lambda: True)
+
+
 @pytest.fixture
 def app_db(tmp_path: Path) -> AppDatabase:
     return AppDatabase(tmp_path / "reset_test.duckdb")

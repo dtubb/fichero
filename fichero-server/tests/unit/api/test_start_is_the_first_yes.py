@@ -24,10 +24,14 @@ CLOUD_STEP = {"id": "correct", "job": "correct", "model": {"cloud": "openai", "m
 
 @pytest.fixture(autouse=True)
 def hold_the_run(monkeypatch):
-    """Start now queues the recipe's run (#5390); these tests pin the yes itself, so the run waits."""
+    """Start now queues the recipe's run (#5390); these tests pin the yes itself, so the run waits.
+    The recipe's local models count as installed on this Mac: which models a Mac can serve, and the
+    refusal when it cannot, is test_local_model_choice.py's (#5520)."""
     from fichero_server.execution import jobs
+    from fichero_server.recipes import start
 
     monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs: [])
 
 
 def _save(client, recipe, cloud_allowed=False):

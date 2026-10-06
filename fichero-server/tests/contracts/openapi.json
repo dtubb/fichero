@@ -43318,6 +43318,18 @@
             "type": "string",
             "title": "Prompt Prefix",
             "default": ""
+          },
+          "local_model": {
+            "type": "string",
+            "title": "Local Model",
+            "default": ""
+          },
+          "chosen_because": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Chosen Because"
           }
         },
         "type": "object",
@@ -43455,6 +43467,11 @@
             "type": "string",
             "nullable": true,
             "title": "Prompt Prefix"
+          },
+          "local_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Local Model"
           }
         },
         "type": "object",
