@@ -25,6 +25,8 @@ WORKFLOW_FOR_JOB = {
     "correct": "Paleographer Review",
     "find-names-tag-words": "2 · Extract Entities",
     "find-statements": "3 · Extract SVO → Claims",
+    # The same rule extractor as the Extract Date tool, one code path (#5514).
+    "work-out-dates": "Work Out Dates",
 }
 #: Kraken finds the lines and the step's vision model (a cloud or MLX pin) reads each one (the line reader).
 READ_LINES_WITH_A_MODEL = "Read Lines (Kraken lines, vision model)"
@@ -34,7 +36,7 @@ _OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "f
 #: synced folder (`source.sync.*`).
 OTHER_CARDS = {"check": "check", "export": "export", "publish": "publish"}
 #: Jobs that need no model.
-_NO_MODEL_JOBS = frozenset({"export", "publish"})
+_NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates"})
 #: Per-page token assumptions: the same ones the workflow cost estimate prices with (runner.py).
 _TOKENS_IN, _TOKENS_OUT = 1200, 300
 
@@ -141,6 +143,14 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         if job == "split-pages":
             if pin.get("builtin") != "page-splitter":
                 skip(sid, f"{label}: {name} cuts pages with the built-in page splitter only, not {pin}")
+                continue
+        elif job == "work-out-dates":
+            # The rule extractor reads one calendar per run; a recipe asking for a
+            # Julian/Gregorian switch is skipped and says so, never run as Gregorian.
+            calendars = set(settings.get("calendars") or [])
+            if calendars - {"gregorian"}:
+                skip(sid, f"{label}: {name} reads Gregorian dates only; it cannot use "
+                          f"{sorted(calendars)} or switch calendars yet")
                 continue
         elif job == "find-lines":
             if pin.get("kraken") != "blla":

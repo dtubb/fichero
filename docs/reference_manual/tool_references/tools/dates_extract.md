@@ -68,7 +68,7 @@ This is what the tool asks a model, with every option left at its default. Chang
 ```text
 You are extracting a single section from a document.
 
-Task: List every date in the text. 'date' = original wording. 'date_normalized' = YYYY-MM-DD (range YYYY-MM-DD/YYYY-MM-DD; month-only YYYY-MM; year-only YYYY). The predicate describes what the document records for that date, split into 'verb' + 'object'. The date is the implicit subject: claim text composes as 'f'{date}: {verb} {object}.' Always include prepositions in multi-word verbs. Examples: verb='records', object='the filing of a mining petition by the heirs'; or verb='was filed', object='a petition to enter into partnerships'; or verb='marks', object='the transfer of ownership to the Crown'.
+Task: List every date in the text. 'date' = original wording. 'date_normalized' = the date as digits, year-month-day (e.g. 1923-08-17; a range 1923-08-17/1923-08-19; month-only 1923-08; year-only 1923). If the year cannot be known, leave 'date_normalized' empty: never write YYYY, XXXX or a placeholder (#5514). The predicate describes what the document records for that date, split into 'verb' + 'object'. The date is the implicit subject: claim text composes as 'f'{date}: {verb} {object}.' Always include prepositions in multi-word verbs. Examples: verb='records', object='the filing of a mining petition by the heirs'; or verb='was filed', object='a petition to enter into partnerships'; or verb='marks', object='the transfer of ownership to the Crown'.
 
 Rules:
 - Include ALL occurrences.
@@ -81,5 +81,5 @@ Rules:
 - For 'grounds' / 'warrant', only populate when claim_type is   analysis / argument / interpretation / theory — these are   the Toulmin-model components. 'grounds' = the evidence the   source presents; 'warrant' = the rule connecting grounds to   the claim. Leave empty for plain facts.
 - Return ONLY valid JSON matching this schema (no prose outside JSON):
 
-{"dates": [{"date": "as written", "date_normalized": "YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD", "verb": "...", "object": "..."}]}
+{"dates": [{"date": "as written", "date_normalized": "e.g. 1923-08-17, 1923-08-17/1923-08-19, 1923-08 or 1923; empty if the year is unknown", "verb": "...", "object": "..."}]}
 ```

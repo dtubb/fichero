@@ -2300,6 +2300,15 @@ def apply_import_date(doc: Document, raw_date: Any, *, source: str) -> bool:
     overwrite an existing date; unparseable input stays honest (metadata
     only, no guessed columns). ``source`` records where the date came from
     (``iffy_sidecar``, ``manifest``). Returns True when a date was applied.
+
+    The supplied date is checked against the page's OWN heading, read by
+    the same extractor as the Extract Date tool (#5514). WHY: the Marshall
+    manifest dated one page in ten wrongly ("FEBRUARY 1918" became 19
+    February; a cash page took a money amount) and import trusted it
+    silently, keeping only the ISO string. Now the heading as written is
+    kept beside the date (``date_meta.heading_as_written``), and when the
+    two disagree the date is kept as supplied but ``date_meta.heading_conflict``
+    says how they differ, for the person to see and settle.
     """
     if not raw_date or doc.date_original or doc.date_jdn is not None:
         return False
@@ -2313,7 +2322,47 @@ def apply_import_date(doc: Document, raw_date: Any, *, source: str) -> bool:
     doc.date_jdn = parsed.jdn
     doc.date_jdn_end = parsed.jdn_end
     doc.date_meta = parsed.as_meta()
+    if doc.page_content:
+        doc.date_meta.update(_heading_check(doc.page_content, parsed, str(raw_date)))
     return True
+
+
+def _heading_check(page_text: str, supplied: Any, raw_date: str) -> dict[str, Any]:
+    """What the page's heading says about a supplied date: the heading as written, and any conflict."""
+    from fichero_server.histdate import find_page_date, jdn_to_gregorian
+
+    first_year = jdn_to_gregorian(supplied.jdn)[0]
+    last_year = jdn_to_gregorian(supplied.jdn_end)[0]
+    # The supplied year stands in for the volume year, so a yearless heading
+    # ("Friday March 17") is compared by its month, day and weekday.
+    finding = find_page_date(page_text, volume_years=list(range(first_year, last_year + 1)))
+    out: dict[str, Any] = {"date_as_supplied": raw_date}
+    reasons: list[str] = []
+    heading_date = finding.date
+    if finding.heading:
+        out["heading_as_written"] = finding.heading
+    if finding.non_entry:
+        reasons.append(f"the page is headed {finding.non_entry}, not a dated entry")
+    for refused in finding.invalid:
+        reasons.append(f"the heading's date is impossible: {refused['reason']}")
+    if heading_date is not None:
+        meta = heading_date.meta
+        if heading_date.jdn > supplied.jdn_end or supplied.jdn > heading_date.jdn_end:
+            reasons.append(f"the heading says {meta['display']}")
+        elif meta.get("precision") != "day" and supplied.meta.get("precision") == "day":
+            reasons.append("the heading gives no day")
+        if meta.get("weekday_conflict"):
+            reasons.append(
+                f"the heading's weekday ({meta['weekday_conflict']['written']}) does not fit the date"
+            )
+    if reasons:
+        out["heading_conflict"] = {
+            "heading": finding.heading,
+            "heading_date": heading_date.meta["converted_gregorian_iso"] if heading_date else None,
+            "supplied": raw_date,
+            "reasons": reasons,
+        }
+    return out
 
 
 # =============================================================================
