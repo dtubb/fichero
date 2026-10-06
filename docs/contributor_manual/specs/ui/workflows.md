@@ -370,6 +370,18 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   be pinned to a specific configured model (`modelChoices:
   [WorkflowBarModelChoice]`, `WorkflowBar.swift:26-27`). Pinned:
   `WorkflowBarModelPinTests`.
+- `workflows.bar.step-popover-run-glance` — **[PARTIAL]** (built, pinned, the
+  pinning suite not yet run; #5564) a chain chip's popover is a glance, not a
+  list: while any step of the chain runs it shows ONLY the step running now —
+  its name, the step inside it, the page by file name, its state and why (the
+  engine's reason, e.g. its wait for memory); when nothing runs and the step
+  has run, ONLY the chain's recent errors with their reasons, newest first, at
+  most three (or that it finished with none). Everything else is one click
+  away: "Details" opens the run's Activity details by the same selection and
+  window the Activity table's ⓘ uses. A step that has not run keeps its "what
+  it does" view. Read from the chain and `ActivityStore.runTrees`, no new
+  request beyond loading a tree not yet held (`WorkflowStepRunGlance`,
+  `WorkflowStepInspectPopover.swift`). Pinned: `WorkflowStepRunGlanceTests`.
 
 ### E. Default/locked workflows and folders
 

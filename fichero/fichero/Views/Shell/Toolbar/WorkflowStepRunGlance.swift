@@ -1,7 +1,7 @@
 import Foundation
 
 /// What a chain step's popover says about the run (#5564,
-/// `workflowbar.step-popover.run-glance`): only the step running now, or,
+/// `workflows.bar.step-popover-run-glance`): only the step running now, or,
 /// when nothing runs, the recent errors with their reasons. Everything else
 /// (every step, every page, the log) is one click away in Activity details.
 ///

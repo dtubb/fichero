@@ -9,7 +9,7 @@
 //  reasons, newest first; everything else is behind "Details".
 //
 //  Spec: docs/contributor_manual/specs/ui/workflows.md,
-//  `workflowbar.step-popover.run-glance`. Written from that line.
+//  `workflows.bar.step-popover-run-glance`. Written from that line.
 //
 //  The trees are the engine's own JSON shape (`GET /api/activity/jobs/{run}`,
 //  as recorded in ActivityTableTests), decoded by the generated client, so the

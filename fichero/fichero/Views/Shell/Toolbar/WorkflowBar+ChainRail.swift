@@ -269,9 +269,7 @@ extension WorkflowBar {
             ) {
                 WorkflowStepInspectPopover(
                     step: step,
-                    // #5564: the glance reads the step running now, or the
-                    // chain's recent errors, from the whole chain.
-                    chain: staged,
+                    chain: staged,  // #5564: the run glance reads the whole chain
                     onOpen: onOpenStep.map { open in { inspectingStepId = nil; open(step) } }
                 )
             }

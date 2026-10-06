@@ -3,7 +3,7 @@ import SwiftUI
 /// The popover for a step staged in the chain rail.
 ///
 /// During and after a run it is a glance, not a list (#5564,
-/// `workflowbar.step-popover.run-glance`): while the chain runs, ONLY the
+/// `workflows.bar.step-popover-run-glance`): while the chain runs, ONLY the
 /// step running now — its name, the page it is on by file name, its state
 /// and why (e.g. waiting for memory); when nothing runs, ONLY the chain's
 /// recent errors with their reasons, newest first. Everything else is one
