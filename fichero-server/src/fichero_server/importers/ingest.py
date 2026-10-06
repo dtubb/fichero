@@ -2342,7 +2342,7 @@ def _heading_check(page_text: str, supplied: Any, raw_date: str,
     # ("Friday March 17") is compared by its month, day and weekday. A numeric
     # heading's order comes from the page's language, as in the Extract Date tool.
     finding = find_page_date(page_text, volume_years=list(range(first_year, last_year + 1)),
-                             day_first=day_first)
+                             day_first=day_first, other_years_are_mentions=False)
     out: dict[str, Any] = {"date_as_supplied": raw_date}
     reasons: list[str] = []
     heading_date = finding.date

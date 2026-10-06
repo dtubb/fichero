@@ -409,3 +409,16 @@ def test_a_cover_range_is_the_volume_span_when_the_name_gives_none():
     _run([volume, cover, page], ["p", "c"])
     assert cover.date_meta["precision"] == "range"
     assert page.date_meta["converted_gregorian_iso"] == "1932-02-03"
+
+
+def test_an_imported_date_is_still_checked_against_a_heading_of_another_year():
+    """At import the supplied date stands in for the volume, and a heading years away from it
+    is the conflict to report, not a mention to skip (the import check opts out of the rule)."""
+    from fichero_server.importers.ingest import apply_import_date
+
+    doc = Document(id="p", name="IMG_065_part_2.jpg",
+                   page_content="August 5, 1926. - NCM - Pauline Williams. Cancelled.")
+    assert apply_import_date(doc, "1929-08-05", source="manifest")
+    conflict = doc.date_meta["heading_conflict"]
+    assert conflict["heading_date"] == "1926-08-05"
+    assert any("heading says" in r for r in conflict["reasons"])

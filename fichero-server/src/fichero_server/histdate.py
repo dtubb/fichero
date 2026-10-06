@@ -1138,6 +1138,7 @@ def find_page_date(
     max_lines: int = HEADING_LINES,
     previous: int | None = None,
     volume_range: tuple[int, int] | None = None,
+    other_years_are_mentions: bool = True,
 ) -> PageDate:
     """The date a page's own heading gives it, with what was refused and why.
 
@@ -1146,6 +1147,10 @@ def find_page_date(
     ``previous`` (the JDN of the dated page before this one in the volume's
     reading order) and ``volume_range`` (the volume's first and last days)
     settle that year in a volume of several years (``_year_from_page_order``).
+    ``other_years_are_mentions`` (on for dating a page, off for checking a
+    supplied date against its heading, where a heading of another year IS the
+    conflict to report): a written date or year line more than a year from the
+    volume's is a mention, not the page's date (#5557).
     """
     all_lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
     lines = all_lines[:max_lines]
@@ -1199,7 +1204,7 @@ def find_page_date(
             # "FRIDAY, OCTOBE 3" (#5557): a month name cut short is read only when
             # the weekday written before it confirms the date.
             continue
-        if _mentions_another_year(h, years):
+        if other_years_are_mentions and _mentions_another_year(h, years):
             # "August 5, 1926. - NCM - Pauline Williams. Cancelled." in the 1929
             # diary (#5557): a full date with no weekday, in a year more than one
             # away from the volume's, is a memo's date, not the page's.
@@ -1234,7 +1239,7 @@ def find_page_date(
             return _resolve_heading(line, h, volume_years=years, page_year=page_year, **common)
     if fallback is not None:
         first = int(fallback[1]["y1"])
-        if years and not years[0] - 1 <= first <= years[-1] + 1:
+        if other_years_are_mentions and years and not years[0] - 1 <= first <= years[-1] + 1:
             # "Arrived here March 10, / 1924." in the 1927 diary, "reappointed
             # Gerente Dec. 1937." in the 1939 one (#5557): a year line more than
             # a year from the volume's is a mention; with no heading on the page
