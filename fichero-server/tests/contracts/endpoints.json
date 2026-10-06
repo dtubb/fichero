@@ -403,6 +403,18 @@
         "response_model": "JobStateResponse"
       },
       {
+        "method": "GET",
+        "path": "/activity/jobs/{job_id}/log",
+        "operation_id": "get_job_log_api_activity_jobs__job_id__log_get",
+        "summary": "Get Job Log",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "JobLog"
+      },
+      {
         "method": "PUT",
         "path": "/activity/jobs/{job_id}/paused",
         "operation_id": "set_job_paused_api_activity_jobs__job_id__paused_put",

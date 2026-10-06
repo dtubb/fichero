@@ -376,6 +376,50 @@
         }
       }
     },
+    "/api/activity/jobs/{job_id}/log": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Job Log",
+        "description": "The log of one row of Activity and the rows under it, newest last (#5561): what the engine wrote for\na run (its activity events), for a step (the events of its node), and what each job's own row says (it\nstarted, it failed and why, it waits and for what). Nothing about another row.",
+        "operationId": "get_job_log_api_activity_jobs__job_id__log_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobLog"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/paused": {
       "put": {
         "tags": [
@@ -62016,6 +62060,59 @@
         ],
         "title": "JobListResponse"
       },
+      "JobLog": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/JobLogLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "JobLog",
+        "description": "The log of one job and the jobs under it, newest last (`activity.details.log-filtered-newest-last`)."
+      },
+      "JobLogLine": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "nullable": true,
+            "title": "Timestamp",
+            "description": "ISO 8601, UTC; null for what a row waits for now"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level",
+            "description": "info, warning or error"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "the row the line is about: the job asked for or one under it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "message",
+          "job_id"
+        ],
+        "title": "JobLogLine",
+        "description": "One line the engine wrote for a job or a job under it (#5561)."
+      },
       "JobPauseRequest": {
         "properties": {
           "paused": {
@@ -62095,6 +62192,26 @@
             "type": "string",
             "nullable": true,
             "title": "Parent Id"
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started At"
+          },
+          "finished_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Finished At"
+          },
+          "started_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started By"
+          },
+          "working_on": {
+            "type": "string",
+            "nullable": true,
+            "title": "Working On"
           },
           "done": {
             "type": "integer",
