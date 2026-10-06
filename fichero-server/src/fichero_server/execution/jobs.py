@@ -214,6 +214,15 @@ def note_usage(entry: dict[str, Any]) -> None:
     db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
 
 
+def note_call_reason(reason: str | None) -> None:
+    """Why this task's model call is not running yet (waiting for memory to load its model, #5537),
+    said on the row of the slot it holds, so the run and Activity show it. Nothing outside a slot."""
+    held = _call_row.get()
+    if held is not None and _holding.get():
+        db, job_id = held
+        db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason, job_id])
+
+
 # A workflow run and its steps, as rows (#5353, spec "Workflow runs inside the one job model"). The
 # runner runs them; these rows are their record in the one job table (written where the run's own
 # record is written: `activity_store.save/update_workflow_run`, the tracker's node events). The

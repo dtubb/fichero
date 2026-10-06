@@ -58,7 +58,8 @@ def memory_pressure_level() -> int | None:
 
 
 def memory_available_bytes() -> int | None:
-    """Memory this Mac can hand out now (free + inactive + speculative pages), or None when unreadable."""
+    """Memory this Mac can hand out now, as macOS counts it (`memory_pressure`'s free percentage of
+    physical memory, #5537; `kraken_runtime._available_memory_bytes`), or None when unreadable."""
     from fichero_server.llm.kraken_runtime import _available_memory_bytes
 
     return _available_memory_bytes()
@@ -75,6 +76,8 @@ def memory_short(
     *,
     available_bytes: Callable[[], int | None] | None = None,
     pressure_level: Callable[[], int | None] | None = None,
+    need_bytes: int | None = None,
+    what: str = "Kraken and the other local models",
 ) -> str | None:
     """THE memory check (#5524): why heavy local work must wait for memory now, in words with the two
     numbers compared, or None to go ahead. The lane's throttle asks it before it hands out a job and
@@ -85,11 +88,15 @@ def memory_short(
     The rule is the guard's measured one (#4987, ruled 2026-09-28): at least `heavy_work_need_bytes`
     available, and pressure below CRITICAL. Pressure at WARN alone does not hold work: a busy 16 GB Mac
     sits at warn much of the day, and a check run waited hours on it (#5524). An unreadable reading is no
-    reason to wait. The readers are injectable so a test never depends on the real machine."""
-    need = heavy_work_need_bytes()
+    reason to wait. The readers are injectable so a test never depends on the real machine.
+
+    `need_bytes`/`what`: a model with its own need (a local MLX model's load, #5537) asks the same
+    question with its own number and name."""
+    need = heavy_work_need_bytes() if need_bytes is None else need_bytes
     free = (available_bytes or memory_available_bytes)()
     if free is not None and free < need:
-        return (f"{MEMORY_REASON}: Kraken and the other local models need about {need / 1024**3:.1f} GB "
+        verb = "need" if what.endswith("models") else "needs"
+        return (f"{MEMORY_REASON}: {what} {verb} about {need / 1024**3:.1f} GB "
                 f"of free memory, and this Mac has about {free / 1024**3:.1f} GB free right now")
     level = (pressure_level or memory_pressure_level)()
     if level is not None and level >= _PRESSURE_CRITICAL:

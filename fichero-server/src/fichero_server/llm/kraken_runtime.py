@@ -73,7 +73,7 @@ import os
 import sys
 import threading
 from pathlib import Path
-from typing import Callable, TypeVar
+from typing import Any, Callable, TypeVar
 
 from fichero_server.db.paths import model_store_root
 from fichero_server.execution.throttle import MemoryShortError
@@ -379,8 +379,58 @@ def _kraken_memory_need_bytes() -> int:
     return _DEFAULT_KRAKEN_MEMORY_NEED_BYTES
 
 
-def _available_memory_bytes() -> int | None:
-    """Best-effort free memory on macOS — no new dependency.
+def _available_memory_bytes(
+    *,
+    free_percent: Callable[[], int | None] | None = None,
+    physical_bytes: Callable[[], int | None] | None = None,
+    reclaimable_bytes: Callable[[], int | None] | None = None,
+) -> int | None:
+    """THE reading of what this Mac can hand out without crashing (#5537): what macOS itself counts
+    as free, the number `memory_pressure` prints as "System-wide memory free percentage", times the
+    Mac's physical memory. That percentage is the sysctl `kern.memorystatus_level`, which the kernel
+    keeps from its pageable pages -- the Mach `host_statistics64` fields `free_count + active_count +
+    inactive_count + speculative_count`, i.e. everything that is neither wired nor already
+    compressed: file-backed pages it can drop, purgeable pages it can empty, and app pages the
+    compressor can squeeze (checked live 2026-10-06, M1 Pro 16 GB: level 39%, those four fields
+    37.5%). The older reading, free + inactive + speculative only (`_mach_reclaimable_bytes`),
+    left the compressor out: on the 8 GB Air it said 2.2 GB free while `memory_pressure` said 64%,
+    and every 3B vision load was refused. The larger of the two is used (the Mach reading stands in
+    when the sysctl cannot be read). The real crash guard is pressure (`_memory_pressure_level`):
+    CRITICAL refuses whatever this says. Readers are injectable for tests; ``None`` when nothing
+    can be read."""
+    percent = (free_percent or _memory_free_percent)()
+    total = (physical_bytes or _physical_memory_bytes)()
+    raw = (reclaimable_bytes or _mach_reclaimable_bytes)()
+    readings = [r for r in (total * percent // 100 if percent is not None and total else None, raw)
+                if r is not None]
+    return max(readings) if readings else None
+
+
+def _sysctl_int(name: bytes, ctype: Any = ctypes.c_int) -> int | None:
+    """One integer sysctl, read in-process (no subprocess); None when it cannot be read."""
+    try:
+        libc = ctypes.CDLL("libc.dylib")
+        value = ctype(0)
+        size = ctypes.c_size_t(ctypes.sizeof(value))
+        if libc.sysctlbyname(name, ctypes.byref(value), ctypes.byref(size), None, 0) != 0:
+            return None
+    except Exception:  # noqa: BLE001 — a missing sysctl must degrade, not crash
+        return None
+    return int(value.value)
+
+
+def _memory_free_percent() -> int | None:
+    """`kern.memorystatus_level`: macOS's own free percentage (what `memory_pressure` prints)."""
+    return _sysctl_int(b"kern.memorystatus_level")
+
+
+def _physical_memory_bytes() -> int | None:
+    """`hw.memsize`: this Mac's physical memory."""
+    return _sysctl_int(b"hw.memsize", ctypes.c_uint64)
+
+
+def _mach_reclaimable_bytes() -> int | None:
+    """Free + inactive + speculative pages: memory macOS can hand out without compressing anything.
 
     #4987 follow-up: `psutil` is NOT in the shipped bundle's dependency
     closure. Checked directly (`pip show psutil` against the dev venv,
