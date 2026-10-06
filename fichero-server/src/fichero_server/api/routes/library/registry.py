@@ -1027,35 +1027,6 @@ class ReleaseRefused(Exception):
     """A project cannot be released now; the message says why, in words (#5563)."""
 
 
-#: Job rows that are a workflow run or a batch of runs, not a page job. A run holds the project from
-#: its own thread and has no stop at a page boundary, so a release refuses while one is live.
-_RUN_KINDS = ("workflow", "batch")
-
-
-def _live_work(project: Database) -> tuple[list[str], int, int]:
-    """(the live runs' names, jobs running, jobs waiting) in an OPEN project, read off its jobs table."""
-    from fichero_server.execution import jobs
-
-    jobs._ensure(project)
-    runs = project.execute_fetchall(
-        f"SELECT id, detail FROM jobs WHERE state IN ('waiting', 'running') "
-        f"AND kind IN ({', '.join('?' for _ in _RUN_KINDS)}) AND parent_id IS NULL ORDER BY created_at",
-        list(_RUN_KINDS),
-    )
-    names: list[str] = []
-    for run_id, detail in runs:
-        try:
-            names.append((json.loads(detail) or {}).get("name") or run_id)
-        except (TypeError, ValueError):
-            names.append(run_id)
-    counts = dict(project.execute_fetchall(
-        f"SELECT state, count(*) FROM jobs WHERE state IN ('waiting', 'running') "
-        f"AND kind NOT IN ('workflow-step', {', '.join('?' for _ in _RUN_KINDS)}) GROUP BY state",
-        list(_RUN_KINDS),
-    ))
-    return names, int(counts.get("running", 0)), int(counts.get("waiting", 0))
-
-
 @action("library.release", ReleaseLibraryParams, domains=["library"], atomic=False)
 def _action_release_library(
     db: Database,
@@ -1086,7 +1057,9 @@ def _action_release_library(
         result = {"status": "not_open", "path": stored_path, "registered": registered,
                   "jobs_stopped": 0, "jobs_waiting": 0, "conversion_stopped": False}
     else:
-        runs, running, waiting = _live_work(project)
+        from fichero_server.execution import jobs
+
+        runs, running, waiting = jobs.live_work(project)
         if runs:
             raise ReleaseRefused(
                 f"{len(runs)} workflow run(s) are going in this project ({', '.join(runs[:3])}); "
