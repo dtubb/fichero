@@ -40,6 +40,12 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from fichero_server.db import db_manager
+from fichero_server.histdate import (
+    check_claim_date,
+    claim_date_jdn,
+    jdn_to_gregorian_iso,
+    parse_historical_date,
+)
 from fichero_server.knowledge._common import parse_kwarg_repr
 from fichero_server.llm import (
     LLMConfig,
@@ -245,13 +251,17 @@ _SECTIONS: list[dict[str, Any]] = [
         "schema_key": "dates",
         "item_shape": (
             '{"date": "as written", '
-            '"date_normalized": "YYYY-MM-DD or YYYY-MM-DD/YYYY-MM-DD", '
+            '"date_normalized": "e.g. 1923-08-17, 1923-08-17/1923-08-19, '
+            '1923-08 or 1923; empty if the year is unknown", '
             '"verb": "...", "object": "..."}'
         ),
         "instruction": (
             "List every date in the text. 'date' = original wording. "
-            "'date_normalized' = YYYY-MM-DD (range YYYY-MM-DD/YYYY-MM-DD; "
-            "month-only YYYY-MM; year-only YYYY). The predicate describes "
+            "'date_normalized' = the date as digits, year-month-day "
+            "(e.g. 1923-08-17; a range 1923-08-17/1923-08-19; month-only "
+            "1923-08; year-only 1923). If the year cannot be known, leave "
+            "'date_normalized' empty: never write YYYY, XXXX or a "
+            "placeholder (#5514). The predicate describes "
             "what the document records for that date, split into 'verb' "
             "+ 'object'. The date is the implicit subject: claim text "
             "composes as 'f'{date}: {verb} {object}.' Always include prepositions "
@@ -699,7 +709,10 @@ class _SectionDate(BaseModel):
     # composed as `"{normalized}: {verb} {object}."` by the KG writer.
     date: str = Field(description="as written in the document")
     date_normalized: str = Field(
-        description="YYYY-MM-DD (range YYYY-MM-DD/YYYY-MM-DD; month-only YYYY-MM; year-only YYYY)"
+        description=(
+            "year-month-day digits, e.g. 1923-08-17 (range 1923-08-17/1923-08-19; "
+            "month-only 1923-08; year-only 1923); empty when the year is unknown"
+        )
     )
     verb: str = _SVO_VERB_FIELD
     object: str = _SVO_OBJECT_FIELD
@@ -2027,6 +2040,78 @@ def _write_citation_usage_rows(
     )
 
 
+#: A claim dated further than this from its page's own date is flagged (#5514).
+_FAR_FROM_PAGE_DAYS = 366
+
+
+def _checked_claim_date(value: Any, field_name: str, meta: dict[str, Any]) -> str | None:
+    """The model's date for ``field_name`` if it is a real date; else None, with the refusal in ``meta``.
+
+    WHY: 157 Marshall claims stored the prompt's own placeholder ("YYYY-08-17",
+    "YYYY-11-36", "<UNKNOWN>") as their date (#5514 K8), and nothing between
+    the model and the timeline checked it. The claim is kept; only the date
+    is dropped, and ``meta["date_flags"]`` says what was dropped and why.
+    """
+    checked, problem = check_claim_date(value)
+    if problem is not None:
+        meta.setdefault("date_flags", []).append(
+            {"field": field_name, "value": str(value), "reason": problem}
+        )
+    return checked
+
+
+def _flag_far_from_page(meta: dict[str, Any], t_start: str | None, page_jdn: int | None) -> None:
+    """Flag a claim dated more than a year from the page it was read from.
+
+    A flag, not a refusal: a diary page can quote a letter of the year before
+    or a bond maturing in 1952. But a year's gap on a dated page is the shape
+    of a wrong year (a model guessing the century), so the person sees it.
+    """
+    if page_jdn is None or not t_start:
+        return
+    claim_jdn = claim_date_jdn(t_start)
+    if claim_jdn is not None and abs(claim_jdn - page_jdn) > _FAR_FROM_PAGE_DAYS:
+        meta.setdefault("date_flags", []).append({
+            "field": "time_start",
+            "value": t_start,
+            "reason": "more than a year from the page's own date",
+            "page_date": jdn_to_gregorian_iso(page_jdn),
+        })
+
+
+def _page_date_jdn(doc: Any) -> int | None:
+    """The page's own date as a JDN: its date columns, else its import ``date`` metadata."""
+    if doc is None:
+        return None
+    if getattr(doc, "date_jdn", None) is not None:
+        return int(doc.date_jdn)
+    raw = (getattr(doc, "metadata", None) or {}).get("date")
+    parsed = parse_historical_date(str(raw)) if raw else None
+    return parsed.jdn if parsed is not None else None
+
+
+def page_date_note(doc: Any, volume_years: list[int]) -> str:
+    """The sentence the date prompt gets about the page's own date (#5514 K9).
+
+    WHY: the model was given only the page text, so a heading with no year
+    left it to echo "YYYY". Told the page's date and its volume's years, it
+    can write the year, and is told to leave a date it cannot place empty.
+    """
+    parts = []
+    page_jdn = _page_date_jdn(doc)
+    if page_jdn is not None:
+        parts.append(f"This page is dated {jdn_to_gregorian_iso(page_jdn)}.")
+    if volume_years:
+        span = (str(volume_years[0]) if len(volume_years) == 1
+                else f"{volume_years[0]}-{volume_years[-1]}")
+        parts.append(f"It belongs to a volume covering {span}.")
+    if not parts:
+        return ""
+    return (" ".join(parts) + " A date on the page that names no year belongs to that "
+            "date's year. If you cannot tell a date's year, leave date_normalized empty; "
+            "never write placeholders such as YYYY or XXXX.")
+
+
 def _temporal_scope(
     normalized: str,
     t_start: str | None,
@@ -2255,6 +2340,7 @@ def _write_kg_rows(
     from fichero_server.models import Document as DocumentModel
     container_doc = db.get(DocumentModel, container_id)
     doc_date: str | None = (container_doc.metadata or {}).get("date") if container_doc else None
+    page_jdn = _page_date_jdn(container_doc)
     author_label: str | None = None
     if container_doc and container_doc.source_metadata:
         authors = container_doc.source_metadata.get("authors") or []
@@ -2766,8 +2852,8 @@ def _write_kg_rows(
 
         # Temporal scope (#904) — empty strings become None so the
         # KnowledgeClaim field stays NULL when the LLM doesn't date it.
-        t_start = (item.get("time_start") or "").strip() or None
-        t_end = (item.get("time_end") or "").strip() or None
+        t_start = _checked_claim_date(item.get("time_start"), "time_start", meta)
+        t_end = _checked_claim_date(item.get("time_end"), "time_end", meta)
         t_precision = (item.get("time_precision") or "").strip() or None
         # Toulmin (#907) — populated by the LLM only for analytic
         # claim_types; fact claims emit empty strings which we drop.
@@ -2790,10 +2876,11 @@ def _write_kg_rows(
                 or item.get("fecha_normalizada")
                 or ""
             )
-            normalized = str(normalized).strip()
+            normalized = _checked_claim_date(normalized, "date_normalized", meta) or ""
             t_start, t_end, t_precision = _temporal_scope(
                 normalized, t_start, t_end, t_precision
             )
+            _flag_far_from_page(meta, t_start, page_jdn)
             stem = normalized or date_text
             # Avoid double-period when predicate already ends in
             # terminal punctuation (#1113 polish).
@@ -2871,14 +2958,17 @@ def _write_kg_rows(
         # it, so "Extract Events" produced entities nothing could plot. Same
         # helper as the date-claim branch below, so an event and a date claim
         # cannot disagree about what "1560-04-10" means.
-        item_date = str(
-            item.get("date_normalized") or item.get("fecha_normalizada") or ""
-        ).strip()
+        item_date = _checked_claim_date(
+            item.get("date_normalized") or item.get("fecha_normalizada"),
+            "date_normalized",
+            meta,
+        ) or ""
         if item_date and entity_type is not None:
             t_start, t_end, t_precision = _temporal_scope(
                 item_date, t_start, t_end, t_precision
             )
             meta.setdefault("date_normalized", item_date)
+        _flag_far_from_page(meta, t_start, page_jdn)
 
         # Entity-bearing section.
         if not canonical:

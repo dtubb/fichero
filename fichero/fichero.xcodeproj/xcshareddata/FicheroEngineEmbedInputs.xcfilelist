@@ -503,6 +503,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/tran
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_deepl.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_review.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_reviewed_transcription.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/work_out_dates.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/Junicode-Regular.otf
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/NotoSansCherokee-Regular.otf
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/NotoSansCoptic-Regular.otf

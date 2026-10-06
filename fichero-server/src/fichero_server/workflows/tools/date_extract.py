@@ -29,11 +29,15 @@ from fichero_server.histdate import (
     STATUS_NONE_FOUND,
     STATUS_UNDATED_EXPLICIT,
     HistoricalDate,
-    extract_date_from_text,
+    PageDate,
+    day_first_for_languages,
+    find_page_date,
     is_explicitly_undated,
     parse_historical_date,
+    years_from_name,
 )
 from fichero_server.llm import LLMConfig
+from fichero_server.llm.language_policy import read_document_language
 from fichero_server.models import Artifact, Document
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools._workflow_change_emit import (
@@ -67,25 +71,99 @@ def _first_line(text: str | None) -> str:
     return ""
 
 
+def volume_years_for(db: Any, doc: Document) -> list[int]:
+    """The years the page's volume covers, read from the nearest ancestor whose name has them.
+
+    WHY the ancestors and not the page: a diary page is "IMG_0123"; its volume
+    is the folder "NCM_Diary_19150108-19180628". A heading with no year takes
+    its year from here (marked inferred), and the weekday chooses among a
+    multi-year volume's years (#5514). Up to four levels; [] when none says.
+    """
+    seen: set[str] = set()
+    parent_id = getattr(doc, "parent_id", None)
+    for _ in range(4):
+        if not parent_id or parent_id in seen:
+            break
+        seen.add(parent_id)
+        parent = db.get(Document, parent_id)
+        if not isinstance(parent, Document):
+            break
+        years = years_from_name(parent.name)
+        if years:
+            return years
+        parent_id = parent.parent_id
+    return []
+
+
+def _project_languages(library_path: Any) -> list[str]:
+    """The languages the project's setup names (``.../setup.yaml``), [] when it has none."""
+    from pathlib import Path
+
+    from fichero_server.recipes.project import read_project_setup
+
+    answers = read_project_setup(Path(str(library_path)))["answers"]
+    if not isinstance(answers, dict):
+        return []
+    return [str(t) for t in answers.get("languages") or []]
+
+
+def resolve_page_date(
+    doc: Document,
+    *,
+    year_start_march: bool = False,
+    assume_julian: bool = False,
+    volume_years: list[int] | None = None,
+    day_first: bool | None = None,
+    project_languages: list[str] | None = None,
+) -> tuple[HistoricalDate | None, str, PageDate]:
+    """(parsed date | None, status, what the heading said). Pure — no DB access.
+
+    The third value carries what a bare date cannot: a heading REFUSED (an
+    impossible day, a year out of range), a non-entry page's marker, and a
+    numeric heading no language settles (both readings), so the tool can
+    record them instead of reporting a plain "none found".
+
+    ``day_first`` is an explicit override. Unset, the order of an ambiguous
+    numeric date comes from the document's language, else the project's
+    setup languages (``histdate.day_first_for_languages``), else none.
+    """
+    if is_explicitly_undated(_first_line(doc.page_content)):
+        return None, STATUS_UNDATED_EXPLICIT, PageDate()
+    if day_first is None:
+        day_first = day_first_for_languages(
+            read_document_language(doc).language, project_languages
+        )
+    finding = find_page_date(
+        doc.page_content and ftfy.fix_text(doc.page_content) or "",
+        year_start_march=year_start_march,
+        assume_julian=assume_julian,
+        volume_years=volume_years,
+        day_first=day_first,
+    )
+    parsed = finding.date
+    if parsed is None:
+        parsed = _from_source_metadata(doc)
+    if parsed is None:
+        return None, STATUS_NONE_FOUND, finding
+    return parsed, "dated", finding
+
+
 def resolve_document_date(
     doc: Document,
     *,
     year_start_march: bool = False,
     assume_julian: bool = False,
+    volume_years: list[int] | None = None,
+    day_first: bool | None = None,
+    project_languages: list[str] | None = None,
 ) -> tuple[HistoricalDate | None, str]:
     """(parsed date | None, status). Pure — no DB access."""
-    if is_explicitly_undated(_first_line(doc.page_content)):
-        return None, STATUS_UNDATED_EXPLICIT
-    parsed = extract_date_from_text(
-        doc.page_content and ftfy.fix_text(doc.page_content) or "",
-        year_start_march=year_start_march,
-        assume_julian=assume_julian,
+    parsed, status, _finding = resolve_page_date(
+        doc, year_start_march=year_start_march, assume_julian=assume_julian,
+        volume_years=volume_years, day_first=day_first,
+        project_languages=project_languages,
     )
-    if parsed is None:
-        parsed = _from_source_metadata(doc)
-    if parsed is None:
-        return None, STATUS_NONE_FOUND
-    return parsed, "dated"
+    return parsed, status
 
 
 @register_tool(
@@ -149,6 +227,10 @@ async def date_extract_tool(
     config = (inputs.get("config") or {}) if isinstance(inputs.get("config"), dict) else {}
     year_start_march = bool(config.get("year_start_march", False))
     assume_julian = bool(config.get("assume_julian", False))
+    # An explicit day/month order for ambiguous numeric dates; unset, each page's
+    # language (else the project's setup languages) decides (histdate rules).
+    day_first = None if config.get("day_first") is None else bool(config["day_first"])
+    project_languages = _project_languages(library_path)
 
     db = db_manager.get_database(library_path)
     results: list[dict[str, Any]] = []
@@ -173,8 +255,13 @@ async def date_extract_tool(
             logger.warning("date_extract: document %s not found — skipping", doc_id)
             continue
 
-        parsed, status = resolve_document_date(
-            doc, year_start_march=year_start_march, assume_julian=assume_julian
+        parsed, status, finding = resolve_page_date(
+            doc,
+            year_start_march=year_start_march,
+            assume_julian=assume_julian,
+            volume_years=volume_years_for(db, doc),
+            day_first=day_first,
+            project_languages=project_languages,
         )
 
         # A user assertion is a persistent curation rule, stored on the row
@@ -268,6 +355,14 @@ async def date_extract_tool(
                 "source": "extracted",
                 "extracted_at": utc_now().isoformat(),
             }
+            # A refused heading ("Feb 31") or a non-entry page is a finding the
+            # person can see, not the same as finding nothing (#5514).
+            if finding.invalid:
+                doc.date_meta["invalid"] = finding.invalid
+            if finding.non_entry:
+                doc.date_meta["non_entry"] = finding.non_entry
+            if finding.ambiguous:
+                doc.date_meta["ambiguous"] = finding.ambiguous
             if status == STATUS_UNDATED_EXPLICIT:
                 undated += 1
             else:

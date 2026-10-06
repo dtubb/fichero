@@ -64,7 +64,9 @@ from fichero_server.workflows.tools.extractors import (
     _SECTIONS,
     _build_section_prompt,
     _write_kg_rows,
+    page_date_note,
 )
+from fichero_server.workflows.tools.date_extract import volume_years_for
 from fichero_server.workflows.tools.import_artifacts import _coerce_documents
 from fichero_server.workflows.tools.progress import emit_progress_event
 from fichero_server.workflows.tools.sources import files_tool
@@ -308,15 +310,19 @@ async def extract_svo_only(
             and "dates" in requested_sections
             and (record["text"] or "").strip()
         ):
+            # The page's own date and its volume's years (#5514 K9): without
+            # them a yearless heading left the model echoing "YYYY".
+            date_note = page_date_note(document, volume_years_for(db, document))
+            dates_system = _build_section_prompt(dates_section, instruction_key)
+            if date_note:
+                dates_system = f"{dates_system}\n\n{date_note}"
             try:
                 async with extraction_sem:
                     dates_result = await chat_structured_with_fallback(
                         prompt=record["text"],
                         schema=_SECTION_SCHEMAS["dates"],
                         config=llm_config,
-                        system=_build_section_prompt(
-                            dates_section, instruction_key
-                        ),
+                        system=dates_system,
                         include_schema_in_prompt=False,
                         permissive_guardrails=True,
                     )

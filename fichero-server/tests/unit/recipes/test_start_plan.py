@@ -86,12 +86,31 @@ def test_a_job_no_card_runs_is_skipped_by_name():
     named; the others still run. Names with a spaCy pin now run as the entity workflow with spaCy."""
     names = {"id": "names", "job": "find-names-tag-words",
              "model": {"spacy": "es_core_news_sm", "version": "bundled"}}
-    dates = {"id": "dates", "job": "work-out-dates", "model": {"builtin": "dates"}}
-    plan = plan_start(_recipe(LINES, READ, names, dates), stays_local=True)
-    assert any(s["step"] == "dates" and "work-out-dates" in s["why"] for s in plan["skipped"])
+    links = {"id": "links", "job": "link-to-authorities", "model": {"builtin": "links"}}
+    plan = plan_start(_recipe(LINES, READ, names, links), stays_local=True)
+    assert any(s["step"] == "links" and "link-to-authorities" in s["why"] for s in plan["skipped"])
     assert plan["workflows"][-1]["workflow"] == "2 · Extract Entities"
     assert (plan["workflows"][-1]["provider_override"], plan["workflows"][-1]["model_override"]) == (
         "spacy", "es_core_news_sm")
+
+
+def test_work_out_dates_runs_the_extract_date_workflow_with_no_model():
+    """#5514: `work-out-dates` was declared and never run. It runs the shipped Work Out Dates
+    workflow, the same rule extractor as the Extract Date tool (one code path), and needs no model.
+    A recipe asking for a Julian/Gregorian switch is skipped and says why, never read as Gregorian."""
+    names = {"id": "names", "job": "find-names-tag-words",
+             "model": {"spacy": "es_core_news_sm", "version": "bundled"}}
+    dates = {"id": "dates", "job": "work-out-dates"}
+    plan = plan_start(_recipe(LINES, READ, names, dates), stays_local=True)
+    run = plan["workflows"][-1]
+    assert run["workflow"] == "Work Out Dates" and run["steps"] == ["dates"]
+    assert run["workflow_id"] == preset_workflow_id("Work Out Dates")
+    preset = _preset("Work Out Dates")
+    assert preset is not None and [n["tool"] for n in preset["nodes"]] == ["files", "date_extract"]
+
+    switching = {**dates, "settings": {"calendars": ["julian", "gregorian"], "switch": "1582-10-15"}}
+    plan = plan_start(_recipe(LINES, READ, names, switching), stays_local=True)
+    assert any(s["step"] == "dates" and "Gregorian dates only" in s["why"] for s in plan["skipped"])
 
 
 def test_a_project_that_keeps_pages_local_refuses_every_cloud_step():

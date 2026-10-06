@@ -1,0 +1,45 @@
+{
+ "name": "Work Out Dates",
+ "description": "Date each page from its own heading: the line near the top that leads with a date, read as written (abbreviations, ordinals, numeric dates read month/day, a year with or without a comma). A heading with no year takes its volume's year, chosen by the weekday when the volume spans several years, and is marked inferred. Impossible dates are refused and recorded, memoranda and cash pages stay undated, and a date you set yourself is never overwritten. No model is used.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Extract",
+ "tags": [
+  "preset",
+  "dates",
+  "timeline"
+ ],
+ "config": {
+  "preset_version": 1
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "date_extract",
+   "tool": "date_extract",
+   "label": "Extract Date",
+   "position_x": 300,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  }
+ ],
+ "edges": [
+  {
+   "id": "edge-files-dates-documents",
+   "source": "files-source",
+   "target": "date_extract",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

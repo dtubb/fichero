@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 57 shipped workflows and 128 tools.
+This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 58 shipped workflows and 128 tools.
 
 - [Every workflow](workflows/index.md) — the presets, step by step.
 - [Every tool](tools/index.md) — the single steps a workflow is built from.
@@ -74,6 +74,7 @@ Workflows are grouped into folders that follow the route work takes: prepare the
 - [Modernización (Spanish)](workflows/modernizacion-spanish.md) — Use this when: you want the document's text in modern Spanish orthography — same words, modern spelling, expanded abbreviations — beside the diplomatic transcription. Writes an analysis artifact; the original transcription is untouched.
 - [Regesto (Archival Abstract)](workflows/regesto-archival-abstract.md) — Use this when: you want the archivist's calendar entry for a historical document — date, place, document type, parties, action, and index terms — from the image plus any existing transcription. Writes an analysis artifact; never touches the document's text.
 - [Translate to English (Historical)](workflows/translate-to-english-historical.md) — Use this when: you want an English translation of a historical document (Spanish, Latin, or other), faithful to its legal and notarial register, with names preserved and uncertainties carried through. Writes an analysis artifact.
+- [Work Out Dates](workflows/work-out-dates.md) — Date each page from its own heading: the line near the top that leads with a date, read as written (abbreviations, ordinals, numeric dates read month/day, a year with or without a comma). A heading with no year takes its volume's year, chosen by the weekday when the volume spans several years, and is marked inferred. Impossible dates are refused and recorded, memoranda and cash pages stay undated, and a date you set yourself is never overwritten. No model is used.
 
 ## Catalogue
 

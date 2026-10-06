@@ -188,6 +188,7 @@ nav:
               - Translate + Double-Check: reference_manual/tool_references/workflows/translate-double-check.md
               - Translate the Reviewed Transcription: reference_manual/tool_references/workflows/translate-the-reviewed-transcription.md
               - Translate to English (Historical): reference_manual/tool_references/workflows/translate-to-english-historical.md
+              - Work Out Dates: reference_manual/tool_references/workflows/work-out-dates.md
           - Tools:
               - Every Tool: reference_manual/tool_references/tools/index.md
               - AI Convert: reference_manual/tool_references/tools/convert.md
