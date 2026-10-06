@@ -58,7 +58,8 @@ def memory_pressure_level() -> int | None:
 
 
 def memory_available_bytes() -> int | None:
-    """Memory this Mac can hand out now (free + inactive + speculative pages), or None when unreadable."""
+    """Memory this Mac can hand out now, as macOS counts it (`memory_pressure`'s free percentage of
+    physical memory, #5537; `kraken_runtime._available_memory_bytes`), or None when unreadable."""
     from fichero_server.llm.kraken_runtime import _available_memory_bytes
 
     return _available_memory_bytes()
@@ -75,6 +76,8 @@ def memory_short(
     *,
     available_bytes: Callable[[], int | None] | None = None,
     pressure_level: Callable[[], int | None] | None = None,
+    need_bytes: int | None = None,
+    what: str = "Kraken and the other local models",
 ) -> str | None:
     """THE memory check (#5524): why heavy local work must wait for memory now, in words with the two
     numbers compared, or None to go ahead. The lane's throttle asks it before it hands out a job and
@@ -85,17 +88,109 @@ def memory_short(
     The rule is the guard's measured one (#4987, ruled 2026-09-28): at least `heavy_work_need_bytes`
     available, and pressure below CRITICAL. Pressure at WARN alone does not hold work: a busy 16 GB Mac
     sits at warn much of the day, and a check run waited hours on it (#5524). An unreadable reading is no
-    reason to wait. The readers are injectable so a test never depends on the real machine."""
-    need = heavy_work_need_bytes()
+    reason to wait. The readers are injectable so a test never depends on the real machine.
+
+    `need_bytes`/`what`: a model with its own need (a local MLX model's load, #5537) asks the same
+    question with its own number and name."""
+    need = heavy_work_need_bytes() if need_bytes is None else need_bytes
     free = (available_bytes or memory_available_bytes)()
     if free is not None and free < need:
-        return (f"{MEMORY_REASON}: Kraken and the other local models need about {need / 1024**3:.1f} GB "
+        verb = "need" if what.endswith("models") else "needs"
+        return (f"{MEMORY_REASON}: {what} {verb} about {need / 1024**3:.1f} GB "
                 f"of free memory, and this Mac has about {free / 1024**3:.1f} GB free right now")
     level = (pressure_level or memory_pressure_level)()
     if level is not None and level >= _PRESSURE_CRITICAL:
         return (f"{MEMORY_REASON}: this Mac's memory pressure is critical, so starting a model that "
                 f"needs about {need / 1024**3:.1f} GB now risks the whole app crashing")
     return None
+
+
+def footprint_bytes(pid: int) -> int | None:
+    """A process's physical footprint now (what Activity Monitor calls its Memory), or None when it
+    cannot be read. `proc_pid_rusage(pid, RUSAGE_INFO_V0)`'s `ri_phys_footprint`, in-process via
+    ctypes; works for this engine and the model servers it started (same user)."""
+    import ctypes
+    import ctypes.util
+
+    class _RusageInfoV0(ctypes.Structure):  # <sys/resource.h> rusage_info_v0
+        _fields_ = [("ri_uuid", ctypes.c_uint8 * 16)] + [(name, ctypes.c_uint64) for name in (
+            "ri_user_time", "ri_system_time", "ri_pkg_idle_wkups", "ri_interrupt_wkups",
+            "ri_pageins", "ri_wired_size", "ri_resident_size", "ri_phys_footprint",
+            "ri_proc_start_abstime", "ri_proc_exit_abstime")]
+
+    try:
+        libsystem = ctypes.CDLL(ctypes.util.find_library("System"))
+        info = _RusageInfoV0()
+        if libsystem.proc_pid_rusage(int(pid), 0, ctypes.byref(info)) != 0:
+            return None
+    except Exception:  # noqa: BLE001 -- not macOS, or the process is gone
+        return None
+    return int(info.ri_phys_footprint)
+
+
+class PeakMemory:
+    """The peak memory of the engine and of the model servers it started, over one run (#5537): the
+    run's account says what the run took, which is how the need of a model is re-measured
+    (`llm.local_inference._MLX_LOAD_MARGIN_BYTES`). A daemon thread samples both every
+    `interval` seconds while the run runs.
+    ponytail: sampled, so a spike shorter than the interval can be missed; one second is well under
+    a page's read. The readers are injectable so a test never reads the real machine."""
+
+    def __init__(self, *, engine: Callable[[], int | None] | None = None,
+                 servers: Callable[[], int | None] | None = None, interval: float = 1.0) -> None:
+        self._engine = engine or (lambda: footprint_bytes(os.getpid()))
+        self._servers = servers or _model_servers_footprint
+        self._interval = interval
+        self.engine_peak: int | None = None
+        self.server_peak: int | None = None
+        self._stop = None
+        self._thread = None
+
+    def sample(self) -> None:
+        for attr, read in (("engine_peak", self._engine), ("server_peak", self._servers)):
+            try:
+                value = read()
+            except Exception:  # noqa: BLE001 -- a reading must never fail the run
+                value = None
+            if value is not None and value > (getattr(self, attr) or 0):
+                setattr(self, attr, value)
+
+    def start(self) -> "PeakMemory":
+        import threading
+
+        self._stop = threading.Event()
+
+        def loop() -> None:
+            while True:
+                self.sample()
+                if self._stop.wait(self._interval):
+                    return
+
+        self._thread = threading.Thread(target=loop, name="run-peak-memory", daemon=True)
+        self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        if self._stop is not None:
+            self._stop.set()
+        self.sample()
+
+    def record(self) -> dict[str, int]:
+        """The peaks for the run's account (`run_usage`), only those read."""
+        out = {}
+        if self.engine_peak is not None:
+            out["engine_peak_memory_bytes"] = self.engine_peak
+        if self.server_peak is not None:
+            out["model_server_peak_memory_bytes"] = self.server_peak
+        return out
+
+
+def _model_servers_footprint() -> int | None:
+    """What the model servers this engine started hold together now, or None when none runs."""
+    from fichero_server.api.routes.ai.local_inference import model_server_pids
+
+    readings = [r for r in (footprint_bytes(pid) for pid in model_server_pids()) if r is not None]
+    return sum(readings) if readings else None
 
 
 class MemoryShortError(RuntimeError):

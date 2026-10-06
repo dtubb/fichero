@@ -290,6 +290,36 @@ Built (#5529, 54c493940): rules 4, 5, 6, and 3 for Kraken. Not built (#5537): th
 owners and idle/close unloading for MLX, spaCy, embeddings, Whisper and YOLO (1, 3), the leak test per
 runtime (7), and Activity's memory view.
 
+What the memory check does for a local model's load (#5537), each pinned in
+`fichero-server/tests/unit/llm/test_memory_waits_5537.py` with injected readings:
+
+- `compute.memory.measured-free` — **[OK]** (#5537) "free" is what macOS can hand out: its own
+  free percentage (`kern.memorystatus_level`, the number `memory_pressure` prints; the kernel keeps it
+  from the Mach free, active, inactive and speculative pages — everything not wired or compressed)
+  times physical memory, never only the free + inactive + speculative pages, which leave out what
+  the compressor frees. On the 8 GB Air at 2.2 GB raw free and 64% free by pressure, a 3B vision
+  model loads. The job throttle and every guard read this one number (rule 4).
+- `compute.memory.need-is-weights` — **[OK]** (#5537) a local model's need is its resident weights
+  (its 4-bit download, or a trained model's own weight files) plus a 1 GB margin for reading a page
+  — 3.9 GB for the 3B; `FICHERO_MLX_MEMORY_NEED_MB` overrides it on one machine. The margin is set
+  from evidence (the 3B read pages on the 8 GB Air), not yet from a profile; the run's peak memory
+  (below) is how it is re-measured.
+- `compute.memory.too-big-refused-up-front` — **[OK]** (#5537) a model whose need is above three
+  quarters of the Mac's memory (6 GB on 8 GB: the 7B and 8B 4-bit vision models) is refused before
+  the job starts, with a vision model that would fit (rule 2); it never waits.
+- `compute.memory.short-waits` — **[OK]** (#5537) a model that fits the Mac but not the memory free
+  right now waits: first the engine lets go of its own idle models (Kraken's readers unless a page is
+  reading with them, idle embedding models; a switch stops the other model's server), then the page
+  waits, its row saying "Waiting: memory is tight: <model> needs about X GB …, this Mac has about Y
+  GB free", and looks again every 5 s; it fails only after 5 minutes, with that reason. Pressure
+  CRITICAL refuses the load the same way. Stop and Pause on the run end the wait.
+- `compute.memory.decided-before-start` — **[OK]** (#5537) the wait and the refusal are decided
+  before the model server starts, so a refusal costs no start (it was ~50 s a page). A model already
+  loaded is not checked again.
+- `compute.memory.run-peak` — **[PARTIAL]** (#5537) a run's account (`run_usage`, in the run's status)
+  carries the engine's and the model servers' peak memory (physical footprint, sampled each second).
+  Not yet shown in Activity's run row, nor stated before Start (rule 8).
+
 ### Publishing
 
 Publishing is the exporter's work and the model-card spec's; this set asks for it and states

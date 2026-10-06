@@ -23,6 +23,7 @@ from urllib.parse import urljoin, urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StrictBool, field_validator, model_validator
 
+from fichero_server.execution.throttle import MemoryShortError
 from fichero_server.llm.providers import ProviderType, get_provider_info
 
 logger = logging.getLogger(__name__)
@@ -45,34 +46,53 @@ class LocalModelHardwareError(RuntimeError):
 
 
 class LocalModelMemoryUnavailableError(LocalModelHardwareError):
-    """This Mac has the model's hardware but not, right now, the free memory to load it (#5221).
-
-    A LOAD, not a machine: an 8B vision model loads its whole weights into unified memory at
-    start, and doing that with too little free takes the whole app down with it -- the real crash
-    risk, where Kraken's ~2.5 GB is not. Said in words a person can act on: what it needs, what is
-    free, and a smaller model that fits."""
+    """This Mac cannot load the model: it is too big for this Mac's memory at all, or memory stayed
+    short past `MEMORY_WAIT_LIMIT_SECONDS` (#5221, #5537). A failure, said in words a person can act
+    on: what it needs, what this Mac has, and a model that would fit. A model that merely does not
+    fit RIGHT NOW is a `LocalModelMemoryShortError` instead: its page waits."""
 
 
-#: A load's need, from the catalog's download size -- the 4-bit weights ARE the resident size --
-#: plus the working memory a first request allocates on top (KV cache, activations, the vision
-#: tower's image tensors).
-#: ponytail: an estimate, not a measurement like Kraken's 2.5 GB (#4987): weights x 1.2 + 1.5 GB.
-#: Measure one load per size class (3B, 8B) and replace these if the guard refuses loads that fit
-#: or passes loads that crash. `FICHERO_MLX_MEMORY_NEED_MB` overrides it on one machine.
-_MLX_LOAD_FACTOR = 1.2
-_MLX_LOAD_MARGIN_BYTES = int(1.5 * 1024**3)
+class LocalModelMemoryShortError(MemoryShortError):
+    """Not now: the model fits this Mac but not the memory free at this moment (#5537). A
+    `MemoryShortError`, so the page WAITS for memory (`wait_for_memory_to_load`), it does not fail."""
+
+
+#: A load's need: the model's weights -- 4-bit weights ARE the resident size, and the catalog's
+#: download size (a trained model's own weight files, `mlx_model_store.spec`) is that size -- plus a
+#: margin for what reading a page allocates on top (KV cache, activations, the vision tower's image
+#: tensors). #5537: the old estimate, weights x 1.2 + 1.5 GB, asked 4.9-5.0 GB for the 3B, and with
+#: macOS's own free count at 64% of the 8 GB Air (5.1 GB) it refused the trained 3B that had read 6
+#: pages on that Mac before the guard. Weights + 1 GB asks 3.9 GB for the 3B.
+#: ponytail: the 1 GB margin is set from that evidence (the 3B 4-bit read pages on 8 GB), not from a
+#: profile of the server. Re-measure: read pages with the model on an 8 GB Mac and take the model
+#: server's peak resident memory, which a run's account now reports (`run_usage.
+#: model_server_peak_memory_bytes`), minus its weights; `FICHERO_MLX_MEMORY_NEED_MB` overrides the
+#: whole need on one machine.
+_MLX_LOAD_MARGIN_BYTES = 1 * 1024**3
 _MLX_MEMORY_NEED_ENV_VAR = "FICHERO_MLX_MEMORY_NEED_MB"
+#: The ceiling: a model whose need is above this share of the Mac's physical memory is too big for
+#: it and is refused up front (never waited for: no amount of waiting frees the OS and the app). On
+#: an 8 GB Mac that is 6 GB, so models up to ~5 GB of weights: the 3B (2.9 GB) loads, the 7B/8B
+#: 4-bit (5.3-5.4 GB) do not. ponytail: a share, not a measurement of what macOS and the app keep.
+_MLX_CEILING_SHARE = 0.75
+
+#: How long a model load waits for memory before its page fails with the reason (#5537). Well under
+#: the lane's hold limit (`execution.jobs.HOLD_LIMIT_SECONDS`, 900 s), which ends a slot held longer:
+#: the wait, the server's start (30-300 s) and the page's read all happen inside that one slot.
+MEMORY_WAIT_LIMIT_SECONDS = 300.0
+#: How often a load waiting for memory looks again.
+MEMORY_LOOK_AGAIN_SECONDS = 5.0
 
 
 def mlx_memory_need_bytes(spec: Any) -> int:
-    """How much free memory loading this catalog model needs."""
+    """How much free memory loading this catalog model and reading a page with it needs."""
     override = os.environ.get(_MLX_MEMORY_NEED_ENV_VAR)
     if override:
         try:
             return int(float(override) * 1024 * 1024)
         except ValueError:
             logger.warning("%s=%r is not a number; using the estimate", _MLX_MEMORY_NEED_ENV_VAR, override)
-    return int(spec.download_size_bytes * _MLX_LOAD_FACTOR) + _MLX_LOAD_MARGIN_BYTES
+    return int(spec.download_size_bytes) + _MLX_LOAD_MARGIN_BYTES
 
 
 def assert_memory_available_for_model(
@@ -81,33 +101,104 @@ def assert_memory_available_for_model(
     catalog: Any = None,
     available_bytes: Any = None,
     pressure_level: Any = None,
+    physical_bytes: Any = None,
 ) -> None:
-    """Refuse BEFORE the model's process starts if loading it now could crash the app (#5221).
+    """Decide BEFORE the model's process starts whether loading it now is safe (#5221, #5537).
 
-    Two signals, the same ones Kraken's guard reads (`kraken_runtime`): free memory against the
-    load's need, and macOS memory pressure, refused only at CRITICAL (a busy Mac sits at warn much
-    of the day; ruled 2026-09-28). `available_bytes`/`pressure_level` are injectable so a test
-    never depends on the real machine."""
+    Too big for this Mac at all (its need above `_MLX_CEILING_SHARE` of physical memory): refused
+    for good, `LocalModelMemoryUnavailableError`, with a model that would fit. Otherwise THE memory
+    check, `throttle.memory_short`, with this model's need: short of memory, or pressure CRITICAL,
+    raises `LocalModelMemoryShortError` -- the load waits. The readers are injectable so a test never
+    depends on the real machine."""
+    from fichero_server.execution.throttle import memory_short
     from fichero_server.llm import kraken_runtime
 
-    get_available = available_bytes or kraken_runtime._available_memory_bytes
-    get_pressure = pressure_level or kraken_runtime._memory_pressure_level
     need = mlx_memory_need_bytes(spec)
-    free = get_available()
-    level = get_pressure()
-    critical = level is not None and level >= kraken_runtime._PRESSURE_CRITICAL
-    if not critical and (free is None or free >= need):
-        return
+    total = (physical_bytes or kraken_runtime._physical_memory_bytes)()
     gb = lambda n: f"{n / 1024**3:.1f} GB"  # noqa: E731
-    if critical:
-        said = (f"{spec.display_name} needs about {gb(need)} to load, and this Mac's memory pressure "
-                "is critical right now, so loading it risks the whole app crashing.")
-    else:
-        said = f"{spec.display_name} needs about {gb(need)} free to load; this Mac has {gb(free)} free right now."
-    fits = _smaller_models_that_fit(spec, free, catalog)
-    advice = " Close other apps or wait, then try again"
-    advice += f", or use a smaller model: {', '.join(fits)}." if fits and not critical else "."
-    raise LocalModelMemoryUnavailableError(said + advice)
+    if total and need > total * _MLX_CEILING_SHARE:
+        ceiling = int(total * _MLX_CEILING_SHARE)
+        fits = _smaller_models_that_fit(spec, ceiling, catalog)
+        raise LocalModelMemoryUnavailableError(
+            f"{spec.display_name} needs about {gb(need)} to load and read a page, more than this Mac's "
+            f"{gb(total)} of memory can give a model (about {gb(ceiling)})."
+            + (f" Use a smaller model: {', '.join(fits)}." if fits else ""))
+    reason = memory_short(
+        available_bytes=available_bytes or kraken_runtime._available_memory_bytes,
+        pressure_level=pressure_level or kraken_runtime._memory_pressure_level,
+        need_bytes=need, what=spec.display_name)
+    if reason is not None:
+        raise LocalModelMemoryShortError(reason)
+
+
+def release_idle_engine_models() -> list[str]:
+    """Let go of the models this engine holds and nothing is using right now (#5537, rule 3 of
+    'Models in memory'): Kraken's resident readers (unless a page is reading with them) and every
+    embedding model no embed or search holds. The model servers are not touched here: a switch to
+    another model stops the old server first (`manager_serving`). Returns what was released."""
+    import sys
+
+    released: list[str] = []
+    kraken = sys.modules.get("fichero_server.llm.kraken_runtime")
+    if kraken is not None and kraken._INFERENCE_LOCK.acquire(blocking=False):
+        try:
+            if kraken._RESIDENT:
+                kraken.release_resident_models()
+                released.append("Kraken")
+        finally:
+            kraken._INFERENCE_LOCK.release()
+    embeddings = sys.modules.get("fichero_server.db.embeddings")
+    if embeddings is not None:
+        released += embeddings.release_idle_embedders(idle_seconds=0)
+    return released
+
+
+async def wait_for_memory_to_load(
+    spec: Any,
+    *,
+    check: Any = None,
+    release: Any = None,
+    note: Any = None,
+    stopped: Any = None,
+    limit_seconds: float | None = None,
+    look_again_seconds: float | None = None,
+) -> None:
+    """Return when `spec` can load now; until then the page WAITS, never fails at once (#5537).
+
+    Each time memory is short it first lets go of the engine's own idle models (`release`), then
+    looks again; still short, the reason ("Waiting: memory is tight: <model> needs about X GB …,
+    this Mac has about Y GB free") goes on the page's row (`note`) and it sleeps and looks again.
+    After `limit_seconds` it fails with that reason (`LocalModelMemoryUnavailableError`). A model
+    too big for this Mac fails at once. `stopped()` (the run's Stop or Pause) ends the wait by
+    raising what it returns. Everything is injectable for tests."""
+    check = check or assert_memory_available_for_model
+    release = release or release_idle_engine_models
+    limit = MEMORY_WAIT_LIMIT_SECONDS if limit_seconds is None else limit_seconds
+    look_again = MEMORY_LOOK_AGAIN_SECONDS if look_again_seconds is None else look_again_seconds
+    deadline = time.monotonic() + limit
+    while True:
+        try:
+            check(spec)
+            return
+        except MemoryShortError as exc:
+            freed = release()
+            if freed:
+                logger.info("Released %s to load %s", ", ".join(freed), spec.display_name)
+                try:
+                    check(spec)
+                    return
+                except MemoryShortError as again:
+                    exc = again
+            reason = str(exc)
+        if time.monotonic() >= deadline:
+            raise LocalModelMemoryUnavailableError(
+                f"{reason}. Waited {limit / 60:.0f} minutes for memory; close other apps, then run "
+                "the page again.")
+        if note is not None:
+            note(reason)
+        if stopped is not None and (signal := stopped()) is not None:
+            raise signal
+        await asyncio.sleep(look_again)
 
 
 def _smaller_models_that_fit(spec: Any, free: int | None, catalog: Any = None) -> list[str]:
@@ -663,7 +754,8 @@ class ManagedLocalInferenceProcess:
 
     def _refuse_if_memory_is_short(self) -> None:
         """#5221: a catalog model is refused BEFORE its process loads it when this Mac cannot hold
-        it right now. A user-configured model (not in the catalog) has no known size: not checked."""
+        it right now. The last word: a page's call has already waited for memory
+        (`wait_for_memory_to_load`, #5537) before it asks the server to start. A user-configured model (not in the catalog) has no known size: not checked."""
         from fichero_server.llm.mlx_model_store import get_mlx_model_store
 
         if os.environ.get("FICHERO_SKIP_MLX_MEMORY_GUARD") == "1":
@@ -674,7 +766,7 @@ class ManagedLocalInferenceProcess:
             return
         try:
             assert_memory_available_for_model(spec)
-        except LocalModelMemoryUnavailableError as exc:
+        except (LocalModelMemoryUnavailableError, LocalModelMemoryShortError) as exc:
             self.last_error = str(exc)
             raise
 

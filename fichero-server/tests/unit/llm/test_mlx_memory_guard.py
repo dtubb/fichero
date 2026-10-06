@@ -15,6 +15,7 @@ import pytest
 
 from fichero_server.llm.local_inference import (
     LocalModelHardwareError,
+    LocalModelMemoryShortError,
     LocalModelMemoryUnavailableError,
     ManagedLocalInferenceProcess,
     assert_memory_available_for_model,
@@ -29,9 +30,10 @@ SMALL = MANAGED_MLX_MODELS["Qwen2.5-VL-3B"]
 NORMAL, WARN, CRITICAL = 1, 2, 4
 
 
-def assert_fits(spec, free_gb, level=NORMAL):
+def assert_fits(spec, free_gb, level=NORMAL, ram_gb=16):
     assert_memory_available_for_model(
         spec, available_bytes=lambda: int(free_gb * GB), pressure_level=lambda: level,
+        physical_bytes=lambda: ram_gb * GB,
     )
 
 
@@ -44,24 +46,30 @@ def test_a_model_that_fits_loads():
     assert_fits(BIG, free_gb=12)
 
 
-def test_short_memory_is_refused_with_what_it_needs_what_is_free_and_a_smaller_model():
-    with pytest.raises(LocalModelMemoryUnavailableError) as refusal:
+def test_short_memory_is_refused_now_with_what_it_needs_and_what_is_free():
+    """#5537: refused NOW, which is a wait (`LocalModelMemoryShortError`), not a failure."""
+    with pytest.raises(LocalModelMemoryShortError) as refusal:
         assert_fits(BIG, free_gb=6)
     said = str(refusal.value)
     need = mlx_memory_need_bytes(BIG) / GB
     assert f"needs about {need:.1f} GB" in said and "6.0 GB free" in said
-    assert SMALL.display_name in said                                # a vision model that fits
+
+
+def test_a_model_too_big_for_this_mac_is_refused_with_a_smaller_model():
+    with pytest.raises(LocalModelMemoryUnavailableError) as refusal:
+        assert_fits(BIG, free_gb=8, ram_gb=8)
+    assert SMALL.display_name in str(refusal.value)                  # a vision model that fits
     assert isinstance(refusal.value, LocalModelHardwareError)        # the route's 409, as before
 
 
 def test_no_smaller_model_is_suggested_when_none_fits():
     with pytest.raises(LocalModelMemoryUnavailableError) as refusal:
-        assert_fits(BIG, free_gb=1)
+        assert_fits(BIG, free_gb=1, ram_gb=4)
     assert "smaller model" not in str(refusal.value)
 
 
 def test_critical_pressure_refuses_even_with_room():
-    with pytest.raises(LocalModelMemoryUnavailableError, match="critical"):
+    with pytest.raises(LocalModelMemoryShortError, match="critical"):
         assert_fits(SMALL, free_gb=40, level=CRITICAL)
 
 
@@ -78,6 +86,7 @@ async def test_the_process_is_refused_before_it_is_spawned(monkeypatch):
     monkeypatch.delenv("FICHERO_SKIP_MLX_MEMORY_GUARD", raising=False)
     monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: 2 * GB)
     monkeypatch.setattr(kraken_runtime, "_memory_pressure_level", lambda: NORMAL)
+    monkeypatch.setattr(kraken_runtime, "_physical_memory_bytes", lambda: 16 * GB)
     process = ManagedLocalInferenceProcess(profile(model_id=BIG.model_id))
     monkeypatch.setattr(process, "_model_spec", lambda: "/models/qwen3-vl-8b")
 
@@ -85,7 +94,7 @@ async def test_the_process_is_refused_before_it_is_spawned(monkeypatch):
         raise AssertionError("the model process was spawned")
 
     monkeypatch.setattr(local_inference.asyncio, "create_subprocess_exec", spawned)
-    with pytest.raises(LocalModelMemoryUnavailableError):
+    with pytest.raises(LocalModelMemoryShortError):
         await process.start()
     assert process.last_error and "needs about" in process.last_error
 
@@ -99,9 +108,9 @@ def test_a_vision_model_refused_is_offered_only_models_that_read_images():
     """WHY: the stock 3B, refused while reading a page, was told 'use a smaller model: Qwen3 4B
     Instruct, Llama 3.2 3B Instruct' -- text-only models that cannot read the page at all."""
     assert TEXT_ONLY, "the catalogue has text-only models that fit, or this test proves nothing"
-    for spec, free_gb in ((BIG, 6), (SMALL, 4.5)):
+    for spec, ram_gb in ((BIG, 8), (SMALL, 5)):   # too big for these Macs: alternatives are named
         with pytest.raises(LocalModelMemoryUnavailableError) as refusal:
-            assert_fits(spec, free_gb=free_gb)
+            assert_fits(spec, free_gb=ram_gb, ram_gb=ram_gb)
         said = str(refusal.value)
         for other in TEXT_ONLY:
             assert other.display_name not in said, f"offered {other.display_name}, which reads no images: {said}"
@@ -136,14 +145,15 @@ def test_a_landed_model_needs_what_its_weights_and_its_base_need(tmp_path):
 
 @pytest.mark.asyncio
 async def test_a_landed_model_is_refused_before_it_is_spawned_like_its_base(monkeypatch, tmp_path):
-    """The stock 3B was refused at 4.5 GB free; the student of the same size must be too."""
+    """Where the stock 3B is refused (2 GB free), the student of the same size must be too."""
     from fichero_server.llm import kraken_runtime, local_inference, mlx_model_store
 
     store = _landed_store(tmp_path, weights_bytes=3_073_721_056)
     monkeypatch.setattr(mlx_model_store, "get_mlx_model_store", lambda: store)
     monkeypatch.delenv("FICHERO_SKIP_MLX_MEMORY_GUARD", raising=False)
-    monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: int(4.5 * GB))
+    monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: 2 * GB)
     monkeypatch.setattr(kraken_runtime, "_memory_pressure_level", lambda: NORMAL)
+    monkeypatch.setattr(kraken_runtime, "_physical_memory_bytes", lambda: 8 * GB)
     process = ManagedLocalInferenceProcess(profile(model_id="fichero-trained/student"))
     monkeypatch.setattr(process, "_model_spec", lambda: "/models/student")
 
@@ -151,7 +161,7 @@ async def test_a_landed_model_is_refused_before_it_is_spawned_like_its_base(monk
         raise AssertionError("the model process was spawned")
 
     monkeypatch.setattr(local_inference.asyncio, "create_subprocess_exec", spawned)
-    with pytest.raises(LocalModelMemoryUnavailableError) as refusal:
+    with pytest.raises(LocalModelMemoryShortError) as refusal:
         await process.start()
     assert "Student line reader needs about" in str(refusal.value)
     for other in TEXT_ONLY:

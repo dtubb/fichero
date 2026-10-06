@@ -271,6 +271,17 @@ async def manager_serving(model_id: str) -> LocalInferenceServiceManager:
     return manager
 
 
+def model_server_pids() -> list[int]:
+    """The process ids of the model servers this engine started that are running now (#5537: the
+    run's peak memory counts them)."""
+    pids = []
+    for manager in list(_MANAGERS.values()):
+        process = getattr(manager.process, "_process", None)
+        if manager.profile.managed_by_app and process is not None and process.returncode is None:
+            pids.append(process.pid)
+    return pids
+
+
 async def shutdown_managed_local_inference_services() -> None:
     """Stop every server the engine started, as the engine ends (a server the engine never got to
     stop, killed or crashed, ends itself: `local_inference.DIES_WITH_ITS_ENGINE`)."""

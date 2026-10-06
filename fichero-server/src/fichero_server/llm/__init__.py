@@ -4154,7 +4154,8 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig, capability: st
     if not profile.managed_by_app or str(profile.base_url).rstrip("/") != effective_base_url:
         return
 
-    model_id = _local_model_for_request(config, custom_command=bool(profile.command), capability=capability)
+    custom_command = bool(profile.command)
+    model_id = _local_model_for_request(config, custom_command=custom_command, capability=capability)
     # One readiness check at a time on this loop (#5534): a line reader asks four lines at once, and
     # four concurrent switches each stopped the server another had just started and spawned their
     # own on the same port (pids 4097, 4098, 4100 in one second); the losers answered 'local model
@@ -4171,6 +4172,9 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig, capability: st
                 else:
                     status = await manager.restart_after_crash()
             else:
+                if not (manager.state in (LocalServiceState.healthy, LocalServiceState.degraded)
+                        and manager.process.is_running()):
+                    await _wait_for_memory_to_load(model_id, custom_command=custom_command)
                 status = await manager.start()
         except LocalInferenceRuntimeMissingError as exc:
             raise LocalModelRuntimeMissingError(str(exc)) from exc
@@ -4184,6 +4188,38 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig, capability: st
         if profile.startup_policy == LocalProviderStartupPolicy.manual:
             detail = f"Managed local model is manual-start only and not healthy: {detail}"
         raise LocalModelUnavailableError(detail)
+
+
+async def _wait_for_memory_to_load(model_id: str, *, custom_command: bool) -> None:
+    """Before the model server starts (#5537): wait until this Mac can load `model_id`, letting go of
+    the engine's idle models first; the page's row says why it waits, and the run's Stop or Pause
+    ends the wait. Decided here, before any process starts, so a refusal costs no server start. A
+    model the catalogue does not size (a developer's custom server) is not checked."""
+    if custom_command or os.environ.get("FICHERO_SKIP_MLX_MEMORY_GUARD") == "1":
+        return
+    from fichero_server.execution import jobs
+    from fichero_server.llm.local_inference import wait_for_memory_to_load
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+    from fichero_server.workflows.node_context import get_current_node
+
+    try:
+        spec = get_mlx_model_store().spec(model_id)
+    except KeyError:
+        return
+    node = get_current_node()
+    run_id = (node.run_id or None) if node else None
+
+    def stopped() -> BaseException | None:
+        from fichero_server.execution.cancellation import (
+            WorkflowCancelled, WorkflowPaused, cancellation_requested, pause_requested)
+
+        if run_id and cancellation_requested(run_id):
+            return WorkflowCancelled(run_id)
+        if run_id and pause_requested(run_id):
+            return WorkflowPaused(run_id)
+        return None
+
+    await wait_for_memory_to_load(spec, note=jobs.note_call_reason, stopped=stopped)
 
 
 _LOCAL_READY_LOCKS: weakref.WeakKeyDictionary[Any, asyncio.Lock] = weakref.WeakKeyDictionary()
