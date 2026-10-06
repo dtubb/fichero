@@ -143,6 +143,19 @@ def _has_lines(db: Any, doc_id: str, model: str | None) -> bool:
     return False
 
 
+def _has_line_readings(db: Any, doc_id: str, model: str | None) -> bool:
+    """The model read the page's lines: a pass of its own with lines (before #5487), or a reading it wrote
+    onto the page's lines (one line pass per page, read many times: the reading names the model's page
+    artifact it came from)."""
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    if _has_lines(db, doc_id, model):
+        return True
+    by_model = {a.id for a in db.query(Artifact, document_id=doc_id) if model is None or a.model == model}
+    return bool(by_model) and any(r.segment_id and r.derived_from_artifact_id in by_model
+                                  for r in db.query(ContentRepresentation, document_id=doc_id))
+
+
 def _has_page_reading(db: Any, doc_id: str, model: str | None) -> bool:
     """A transcription the model saved (a read that came back empty saves none)."""
     from fichero_server.models import Artifact
@@ -159,7 +172,7 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
     if job == "find-lines":
         return _has_lines(db, doc_id, None)
     if job == "read-a-line":
-        return _has_lines(db, doc_id, card.get("model_override"))
+        return _has_line_readings(db, doc_id, card.get("model_override"))
     if job == "read-a-page":
         return _has_page_reading(db, doc_id, card.get("model_override"))
     return None

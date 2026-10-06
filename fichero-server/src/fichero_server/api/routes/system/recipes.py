@@ -591,6 +591,9 @@ class StartRun(BaseModel):
     provider_override: Optional[str] = None
     model_override: Optional[str] = None
     layer: Optional[str] = None
+    check: Optional[str] = Field(default=None, description=(
+        "a check card's kind of check (CheckRunRequest.check): 'tie-text-to-lines' ties the page reading to "
+        "the page's lines with a Kraken reader (#5444); none: the checker model reads each proposal"))
     provider: Optional[str] = None
     model: Optional[str] = None
     prompt: Optional[str] = None

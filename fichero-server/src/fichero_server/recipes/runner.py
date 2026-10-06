@@ -129,7 +129,8 @@ def _run_check(db: Any, card: dict[str, Any], documents: list[str], parent: str,
 
     check_job.register_job_kinds()
     child = check_job.start(db, CheckRunRequest(layer=card["layer"], scope_ids=documents, provider=card["provider"],
-                                                model=card["model"], prompt_file=card.get("prompt")),
+                                                model=card["model"], prompt_file=card.get("prompt"),
+                                                check=card.get("check", "model")),
                             started_by=started_by)["job_id"]
     jobs.set_parent(db, child, parent)
     while True:

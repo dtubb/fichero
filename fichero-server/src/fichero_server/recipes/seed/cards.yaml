@@ -18,7 +18,7 @@ cards:
     note: Kraken's built-in line finder; ships inside the app.
   - id: kraken:zenodo/10.5281/zenodo.13788177@unpinned
     pin: {zenodo: 10.5281/zenodo.13788177}
-    jobs: [read-a-line]
+    jobs: [read-a-line, tie-text-to-lines]
     scripts: [Latn]
     languages: any
     material: [handwriting, print, typescript]
@@ -29,7 +29,7 @@ cards:
     note: McCATMuS, general Latin-script recognition, 16th-21st century.
   - id: kraken:zenodo/10.5281/zenodo.12743230@unpinned
     pin: {zenodo: 10.5281/zenodo.12743230}
-    jobs: [read-a-line]
+    jobs: [read-a-line, tie-text-to-lines]
     scripts: [Latn]
     languages: any
     material: [handwriting]
@@ -40,7 +40,7 @@ cards:
     note: CATMuS Medieval, medieval manuscripts (French, Latin, Spanish).
   - id: kraken:zenodo/10.5281/zenodo.21788410@unpinned
     pin: {zenodo: 10.5281/zenodo.21788410}
-    jobs: [read-a-line]
+    jobs: [read-a-line, tie-text-to-lines]
     scripts: [Latn, Arab, Armn, Cyrl, Ethi, Geor, Grek, Hebr, Mlym, Syrc]
     languages: any
     material: [handwriting, print]

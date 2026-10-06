@@ -208,3 +208,41 @@ def test_source_chain_checked_before_run__a_page_reading_meets_the_names_step(cl
     _save(client, _recipe(tmp_path, other))
     read_card = client.get("/api/recipes/project/start").json()["runs"][0]
     assert (read_card["done"], read_card["of"]) == (0, 2), "a page read by another model is not read by this one"
+
+
+TIE = {"id": "tie", "job": "tie-text-to-lines", "model": {"zenodo": "10.5281/zenodo.13788177"}}
+
+
+def test_source_job_tie_text_to_lines__a_recipe_card_runs_it(client, db, pages, tmp_path, monkeypatch,  # noqa: F811
+                                                              lines):  # noqa: F811
+    """source.job.tie-text-to-lines (#5444: "the job has no card"): a recipe step that ties the page reading to
+    its lines runs, after Start, as the tie job with the step's Kraken reader, on this Mac; each line of the
+    page's own pass gets its stretch of the page reading as a reading.
+    WHY: Kraken's lines and a cloud model's page text are only a training set once a recipe ties them."""
+    import fichero_server.llm as llm
+    from fichero_server.api.routes.document.segment_readings import counting_texts, ordered_lines
+    from fichero_server.execution import jobs
+    from fichero_server.llm import kraken_runtime
+    from fichero_server.models.segments import SegmentPass
+
+    async def read_a_page(images, prompt, config, **kw):
+        return "Yten dixo el testigo\nque lo vio"
+
+    monkeypatch.setattr(llm, "vision", read_a_page)
+    monkeypatch.setattr(kraken_runtime, "read_given_lines",
+                        lambda image_path, model_path, found, **kw: ["yten dixo el testigo", "que lo vio"])
+    _save(client, _recipe(tmp_path, LINES, READ_PAGE, TIE))
+    plan = client.get("/api/recipes/project/start").json()
+    assert plan["refusals"] == [], plan["refusals"]
+    tie = next(r for r in plan["runs"] if r["steps"] == ["tie"])
+    assert (tie["card"], tie["check"], tie["provider"], tie["model"]) == (
+        "check", "tie-text-to-lines", "kraken", "kraken-mccatmus")
+    run = _finished(client, _start(client))
+    assert run["state"] == "done", run
+    step = next(s for s in run["steps"] if s["steps"] == ["tie"])
+    assert jobs.read_job(db, step["child_id"])["kind"] == "tie-text-to-lines"
+    for page in pages:
+        (pass_row,) = [p for p in db.query(SegmentPass, document_id=page.id) if not p.deleted_at]
+        rows = ordered_lines(db, pass_row.id)
+        texts = counting_texts(db, rows)
+        assert [texts.get(r.id) for r in rows] == ["Yten dixo el testigo", "que lo vio"]

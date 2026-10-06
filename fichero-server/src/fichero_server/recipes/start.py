@@ -34,9 +34,10 @@ WORKFLOW_FOR_JOB = {
 READ_LINES_WITH_A_MODEL = "read_lines_kraken_vision"
 #: Jobs whose workflow takes the step's model as a run-level provider/model override.
 _OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements"})
-#: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`) and the project's
-#: synced folder (`source.sync.*`).
-OTHER_CARDS = {"check": "check", "export": "export", "publish": "publish"}
+#: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`), the page text tied to
+#: its lines (a check run of kind `tie-text-to-lines`, #5444: free, on this Mac, with a Kraken reader) and the
+#: project's synced folder (`source.sync.*`).
+OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export", "publish": "publish"}
 #: Jobs that need no model.
 _NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates"})
 #: Per-page token assumptions: the same ones the workflow cost estimate prices with (runner.py).
@@ -127,7 +128,15 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         runs_on = step.get("runs_on") or "this-mac"
         if job in OTHER_CARDS:
             entry: dict[str, Any] = {"steps": [sid], "job": job, "card": OTHER_CARDS[job], "runs_on": runs_on}
-            if job == "check":
+            if job == "tie-text-to-lines":
+                reader = _kraken_reader_for(pin)
+                if reader is None:
+                    skip(sid, f"{label}: the page text is tied to its lines by a Kraken reader's rough read, "
+                              f"and {pin} is not one this Mac can fetch")
+                    continue
+                entry.update(check="tie-text-to-lines", layer="readings", provider=KRAKEN_READER_PROVIDER,
+                             model=reader, prompt=None)
+            elif job == "check":
                 override = _override(pin)
                 if override is None:
                     skip(sid, f"{label}: the check job cannot run the model {pin}")

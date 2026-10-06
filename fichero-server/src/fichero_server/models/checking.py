@@ -52,8 +52,8 @@ class CheckRunRequest(BaseModel):
         "provider kraken, model a Kraken reader): each line's reading is scored against Kraken's rough read of "
         "that line and of its neighbours; a reading closer to a neighbour's line, or below the threshold, is "
         "rejected (#5446). tie-text-to-lines (readings only, provider kraken, model a Kraken reader): the "
-        "page's reading is aligned in order to the Kraken lines' rough reads and each line given its stretch in a "
-        "new pass; a line whose stretch agrees with its rough read below the threshold is rejected as doubtful "
+        "page's best reading is aligned in order to the rough reads of the page's own lines (found by Kraken first "
+        "when it has none) and each line given its stretch as a reading, never a second pass (#5487); a line whose stretch agrees with its rough read below the threshold is rejected as doubtful "
         "(#5444).")
 
 
