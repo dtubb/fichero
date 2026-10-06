@@ -469,6 +469,30 @@ class ExternalLocalInferenceProcess:
         return self._running
 
 
+#: What the model server runs first (#5529): a thread that ends it as soon as the engine that started
+#: it is gone, then the server itself (`-m module args` or `script args`, as given). Without it a server
+#: outlived an engine that was killed or crashed (its shutdown never ran): an `mlx_vlm.server` was found
+#: reparented to launchd, holding ~5.7 GB, with nothing to ask it anything. Its first argument is the
+#: engine's pid, given rather than read: an engine that dies while the server is still starting would
+#: otherwise leave it watching launchd. Stdlib only: it runs in the model runtime's own Python.
+DIES_WITH_ITS_ENGINE = """
+import os, runpy, sys, threading, time
+engine = int(sys.argv[1])
+def watch():
+    while os.getppid() == engine:
+        time.sleep(1.0)
+    os._exit(0)
+threading.Thread(target=watch, name="dies-with-its-engine", daemon=True).start()
+args = sys.argv[2:]
+if args[:1] == ["-m"]:
+    sys.argv = [args[1]] + args[2:]
+    runpy.run_module(args[1], run_name="__main__", alter_sys=True)
+else:
+    sys.argv = args
+    runpy.run_path(args[0], run_name="__main__")
+"""
+
+
 class ManagedLocalInferenceProcess:
     """Spawn and supervise a loopback-only local inference subprocess."""
 
@@ -497,6 +521,9 @@ class ManagedLocalInferenceProcess:
         python_executable = self._python_executable()
         argv = [
             python_executable,
+            "-c",
+            DIES_WITH_ITS_ENGINE,
+            str(os.getpid()),
             *self._command(),
             "--model",
             model_spec,
@@ -546,7 +573,9 @@ class ManagedLocalInferenceProcess:
                     await process.wait()
             await self._join_stream_tasks()
             self._update_last_error()
-        except RuntimeError:
+        except (RuntimeError, ProcessLookupError):
+            # ProcessLookupError: the loop that started it has closed its transport (the idle stop
+            # runs on a timer's own loop, #5529); the pid still names our child.
             # The asyncio subprocess handle is BOUND to the event loop that
             # spawned it — and the on-demand start path spawns it from a
             # workflow run's loop, while the stop endpoint runs on the API

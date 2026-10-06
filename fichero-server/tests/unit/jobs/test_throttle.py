@@ -130,15 +130,22 @@ class TestTheProbesReadTheMac:
     """`activity.throttle.power-heat-memory`'s signals as read from the Mac. No surface: the signals are
     the operating system's; these pin each probe's reading of them."""
 
-    def test_memory_pressure_from_the_kernels_level(self, monkeypatch):
-        """WHY: macOS's own pressure level (2 warn, 4 critical) is the signal that predicts a
-        beachball; free memory alone does not (macOS keeps little memory free on purpose)."""
+    def test_memory_from_what_is_free_and_the_kernels_critical_level(self, monkeypatch):
+        """WHY (#5524): the throttle reads memory exactly as Kraken's guard does (`memory_short`): at
+        least 2.5 GB available (free + inactive + speculative pages, what macOS can hand out) and
+        pressure below CRITICAL. Holding at WARN parked a check for hours on a busy 16 GB Mac that had
+        room, and a throttle that read only pressure released jobs the guard then failed."""
         import fichero_server.llm.kraken_runtime as kraken_runtime
 
-        for level, expected in ((1, None), (2, "Waiting: memory is tight"), (4, "Waiting: memory is tight"),
-                                (None, None)):
+        gb = 1024**3
+        for free, level, tight in ((8 * gb, 1, False), (8 * gb, 2, False), (8 * gb, 4, True),
+                                   (int(2.3 * gb), 1, True), (None, None, False), (None, 2, False)):
+            monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda free=free: free)
             monkeypatch.setattr(kraken_runtime, "_memory_pressure_level", lambda level=level: level)
-            assert throttle.memory_is_tight() == expected
+            reason = throttle.memory_is_tight()
+            assert (reason is not None) == tight, (free, level, reason)
+            if tight:
+                assert reason.startswith(throttle.MEMORY_REASON), reason
 
     def test_in_use_from_seconds_since_the_last_input(self, monkeypatch):
         import Quartz
@@ -165,6 +172,7 @@ class TestTheProbesReadTheMac:
         import fichero_server.llm.kraken_runtime as kraken_runtime
 
         monkeypatch.setattr(kraken_runtime, "_memory_pressure_level", lambda: None)
+        monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: None)
         assert throttle.memory_is_tight() is None
         monkeypatch.setenv("FICHERO_JOB_THROTTLE", "0")
         monkeypatch.setattr(throttle, "PROBES", [(lambda: "Waiting: anything", True)])

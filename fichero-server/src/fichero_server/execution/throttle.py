@@ -28,7 +28,8 @@ IDLE_BEFORE_HEAVY_SECONDS = 30.0
 BATTERY_READING_SECONDS = 30.0
 #: macOS memory pressure levels (`kern.memorystatus_vm_pressure_level`): 1 normal, 2 warn, 4 critical.
 _PRESSURE_WARN = 2
-#: The one reason that means "let memory go", not just "wait": a long job stops on it.
+#: How every memory reason begins: the one reason that means "let memory go", not just "wait" (a long
+#: job stops on it). The full reason (`memory_short`) goes on to give the two numbers it compared.
 MEMORY_REASON = "Waiting: memory is tight"
 #: `NSProcessInfoThermalState`: 0 nominal, 1 fair, 2 serious, 3 critical.
 _THERMAL_SERIOUS = 2
@@ -56,6 +57,53 @@ def memory_pressure_level() -> int | None:
     return _memory_pressure_level()
 
 
+def memory_available_bytes() -> int | None:
+    """Memory this Mac can hand out now (free + inactive + speculative pages), or None when unreadable."""
+    from fichero_server.llm.kraken_runtime import _available_memory_bytes
+
+    return _available_memory_bytes()
+
+
+def heavy_work_need_bytes() -> int:
+    """What heavy local work needs free to start: Kraken's measured floor (#4987), the one number."""
+    from fichero_server.llm.kraken_runtime import _kraken_memory_need_bytes
+
+    return _kraken_memory_need_bytes()
+
+
+def memory_short(
+    *,
+    available_bytes: Callable[[], int | None] | None = None,
+    pressure_level: Callable[[], int | None] | None = None,
+) -> str | None:
+    """THE memory check (#5524): why heavy local work must wait for memory now, in words with the two
+    numbers compared, or None to go ahead. The lane's throttle asks it before it hands out a job and
+    Kraken's guard asks it again just before a page loads (`kraken_runtime.assert_memory_available_for_
+    kraken`): one rule, one number, so the throttle can no longer release a job the guard then fails
+    (they compared different things: pressure at warn here, 2.5 GB free there).
+
+    The rule is the guard's measured one (#4987, ruled 2026-09-28): at least `heavy_work_need_bytes`
+    available, and pressure below CRITICAL. Pressure at WARN alone does not hold work: a busy 16 GB Mac
+    sits at warn much of the day, and a check run waited hours on it (#5524). An unreadable reading is no
+    reason to wait. The readers are injectable so a test never depends on the real machine."""
+    need = heavy_work_need_bytes()
+    free = (available_bytes or memory_available_bytes)()
+    if free is not None and free < need:
+        return (f"{MEMORY_REASON}: Kraken and the other local models need about {need / 1024**3:.1f} GB "
+                f"of free memory, and this Mac has about {free / 1024**3:.1f} GB free right now")
+    level = (pressure_level or memory_pressure_level)()
+    if level is not None and level >= _PRESSURE_CRITICAL:
+        return (f"{MEMORY_REASON}: this Mac's memory pressure is critical, so starting a model that "
+                f"needs about {need / 1024**3:.1f} GB now risks the whole app crashing")
+    return None
+
+
+class MemoryShortError(RuntimeError):
+    """Raised where heavy work finds `memory_short` true at the moment it would load (Kraken's guard).
+    Not a failure: the job lane puts a stored job back to waiting with this reason and runs it again
+    when memory allows, and waits in place with handed-in work (`execution.jobs`, #5524)."""
+
+
 def thermal_state_level() -> int | None:
     """`NSProcessInfoThermalState` (0 nominal .. 3 critical), or None when unreadable."""
     try:
@@ -78,8 +126,7 @@ def seconds_since_input() -> float | None:
 
 
 def memory_is_tight() -> str | None:
-    level = memory_pressure_level()
-    return MEMORY_REASON if level is not None and level >= _PRESSURE_WARN else None
+    return memory_short()
 
 
 def mac_is_hot() -> str | None:

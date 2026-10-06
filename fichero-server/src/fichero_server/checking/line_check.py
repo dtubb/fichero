@@ -144,35 +144,36 @@ def _check(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> d
     model_path, _catalog = kraken_runtime.resolve_recognition_model(request.model)
     ctx = ActionContext(actor=started_by, run_id=job_id, library_path=str(Path(db.path).parent))
     person = _newest_by_reading(db)
-    counts = dict.fromkeys(COUNTS, 0)
-    flagged: list[dict[str, Any]] = []
-    missing: list[dict[str, str]] = []
+    # What an earlier attempt of this job already checked (#5524): a check that stopped for memory goes
+    # back to waiting and, run again, carries on after the last page it finished, so no line gets a
+    # second verdict and the counts are the whole run's.
+    so_far = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}").get("checked_so_far") or {}
+    counts = {**dict.fromkeys(COUNTS, 0), **(so_far.get("counts") or {})}
+    flagged: list[dict[str, Any]] = list(so_far.get("flagged") or [])
+    missing: list[dict[str, str]] = list(so_far.get("missing") or [])
+    done: list[str] = list(so_far.get("docs") or [])
     stopped = False
-    for doc in _descendants(db, request.scope_ids):
-        if getattr(doc.doc_type, "value", doc.doc_type) not in ("file", "page"):
-            continue
-        if json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}").get("cancel"):
-            stopped = True
-            break
+
+    def check_page(doc: Any) -> None:
         passes = [p for p in db.query(SegmentPass, document_id=doc.id) if not p.deleted_at
                   and (request.pass_model is None or p.model == request.pass_model)]
         segments_by_pass = {p.id: {xml_id(s.id): s for s in db.query(Segment, pass_id=p.id)
                                    if s.kind == "line" and not s.deleted_at} for p in passes}
         passes = [p for p in passes if segments_by_pass[p.id]]
         if not passes:
-            continue
+            return
         chosen = max(passes, key=lambda p: p.created_at)
         segments = segments_by_pass[chosen.id]
         photo = Path(doc.path) if doc.path else None
         if photo is None or not photo.is_file():
             missing.append({"document_id": doc.id, "why": "its photograph is not on this Mac"})
-            continue
+            return
         try:
             lines = [ln for ln in page_lines(export_page(db, doc.id, "pagexml", pass_id=chosen.id).data.decode("utf-8"))
                      if ln["id"] in segments]
         except ExportRefused as exc:
             missing.append({"document_id": doc.id, "why": str(exc)})
-            continue
+            return
         reads = kraken_runtime.read_given_lines(photo, model_path, lines)
         for line, scored in zip(lines, flag_lines(lines, reads)):
             segment = segments[line["id"]]
@@ -204,6 +205,18 @@ def _check(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> d
             flagged.append({"document_id": doc.id, "segment_id": segment.id, "reading_id": reading.id,
                             "flag": scored["flag"], "own": scored["own"], "neighbour": scored["neighbour"],
                             "offset": scored["offset"]})
+
+    for doc in _descendants(db, request.scope_ids):
+        if getattr(doc.doc_type, "value", doc.doc_type) not in ("file", "page") or doc.id in done:
+            continue
+        if json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}").get("cancel"):
+            stopped = True
+            break
+        check_page(doc)  # a memory stop raises out of here before the page counts as checked
+        done.append(doc.id)
+        detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
+        detail["checked_so_far"] = {"docs": done, "counts": counts, "flagged": flagged, "missing": missing}
+        jobs.save_detail(db, job_id, json.dumps(detail))
     return {"counts": counts, "flagged": flagged, "missing": missing, "stopped": stopped,
             "thresholds": {"neighbours": NEIGHBOURS, "shift_margin": SHIFT_MARGIN, "shift_floor": SHIFT_FLOOR,
                            "low": LOW, "policy": POLICY}}

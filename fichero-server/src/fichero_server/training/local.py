@@ -125,7 +125,7 @@ class Gentle:
         if jobs._scheduler.someone_is_waiting():
             return "defer", "Stepped aside for work someone is waiting for"
         reason = why_wait(person_waiting=False)
-        if reason == MEMORY_REASON:
+        if reason and reason.startswith(MEMORY_REASON):  # the reason goes on to give its numbers (#5524)
             return "defer", reason
         return ("hold", reason) if reason else None
 
