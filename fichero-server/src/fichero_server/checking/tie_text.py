@@ -20,8 +20,13 @@ the text). One line pass per page, read many times (#5487, ruled 2026-10-05, #54
 of the page's working pass (`llm.working_lines`); a page with none has them found by Kraken first, its
 regions kept as the lines' parents, through the same save and conversion as Find Lines. No second pass is
 made. A page already tied to that page reading is not tied again; a line given no stretch is left untied
-and counted. Which reading of a line counts is the counting rule's (`resolve_counting`): the tied stretch
-is the line's newest machine reading, so an older machine reading of it stays as history.
+and counted. Which reading of a line counts is the counting rule's (`resolve_counting`, #5558): a checked
+machine reading (a tied stretch whose page reading a person confirmed or marked reviewed is one), then the
+better reader measured on this project, then the newest; so a rough re-read after the tie does not
+displace a better tied stretch, and an older machine reading stays as history.
+
+The tie runs by itself after a page reading is saved (`after_page_reading`, #5558): one waiting job per
+page with lines, on the local model lane; no recipe step needs to name it.
 
 The page's reading is ranked (`page_reading`): a person's, then a checked model reading, then the newest
 model transcription; never a flagged read, and never a reading that is the lines' own text (a reader's

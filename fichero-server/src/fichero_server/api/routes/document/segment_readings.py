@@ -678,21 +678,26 @@ def counting_by_kind(
     memo = retired_memo if retired_memo is not None else {}
     # Which machine reading counts is ranked by checking and measured score (#5558). A caller counting a
     # whole page hands one `measures` in; otherwise this segment's are looked up here.
-    if measures is None:
-        measures = ReadingMeasures(db)
+    # They are looked up only where they can change the answer: two or more machine readings of a kind.
     answers: dict[str, CountingAnswer] = {}
     for kind in sorted({item.kind for item in items}):
         retired = (
             set() if lines_read_by_a_person_skip_their_words
             else retired_readings_of(db, segment_id, kind, rule, memo)
         )
+        of_kind = [item for item in items if item.kind == kind]
+        ranked = None
+        if sum(item.provenance_kind is not ProvenanceKind.human and not item.provisional for item in of_kind) > 1:
+            if measures is None:
+                measures = ReadingMeasures(db)
+            ranked = measures
         answers[kind] = resolve_counting(
             rule,
             [row for row in choices if row.kind == kind],
             [
-                _candidate(item, on_ground_truth, measures).model_copy(update={"retracted": True})
-                if item.id in retired else _candidate(item, on_ground_truth, measures)
-                for item in items if item.kind == kind
+                _candidate(item, on_ground_truth, ranked).model_copy(update={"retracted": True})
+                if item.id in retired else _candidate(item, on_ground_truth, ranked)
+                for item in of_kind
             ],
         )
     return answers
