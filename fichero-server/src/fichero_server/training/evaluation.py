@@ -10,7 +10,8 @@ project's held-out pages with each candidate and scores each against the checked
   on would make its score meaningless. A trained model whose card holds no held-out page is refused in
   words. Out-of-the-box models trained on none of the project's pages.
 * **The reference.** On each page, the newest live pass whose model or name is `checked` (the checked
-  pass); with no `checked` named, the newest live pass a person made (the bake-off's ground truth). Its lines, empty and `null` readings left out (`kraken_set.line_flag`), are the right readings;
+  pass); with no `checked` named, the newest live pass a person made or marked ground truth (the bake-off's
+  ground truth, #5513), else the lines a person corrected inside another pass (#5499). Its lines, empty and `null` readings left out (`kraken_set.line_flag`), are the right readings;
   each page records who checked it (`person` when a person wrote the pass, else `model`,
   `distill.scale.check-trust-levels`).
 * **The reading.** Each candidate reads the checked pass's own lines: a Kraken reader on each line's
@@ -189,23 +190,50 @@ def by_whom(checked: str | None) -> str:
     return f"checked by {checked}" if checked is not None else "made by a person"
 
 
+def person_read_lines(db: Any, page_id: str, kind: str = "transcription") -> dict[str, set[str]]:
+    """The segments of a page whose COUNTING reading a person made, by pass (#5499): a person's corrections
+    inside a model's pass. Worked out by the one counting rule (`counting_by_kind`), so a correction a
+    person withdrew, or one a later machine reading does not outrank, is counted exactly as the page reads."""
+    from fichero_server.api.routes.document.segment_readings import counting_by_kind, readings_of_segment
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.segments import Segment
+
+    by_pass: dict[str, set[str]] = {}
+    corrected = {r.segment_id for r in db.query(ContentRepresentation, document_id=page_id, provenance_kind="human")
+                 if r.segment_id and r.kind == kind}
+    for segment_id in sorted(corrected):
+        row = db.get(Segment, segment_id)
+        if row is None or row.deleted_at is not None:
+            continue
+        counted = counting_by_kind(db, segment_id, readings_of_segment(db, segment_id)).get(kind)
+        if counted is not None and counted.representation_id and not counted.labelled_machine:
+            by_pass.setdefault(row.pass_id, set()).add(segment_id)
+    return by_pass
+
+
 def checked_pass(db: Any, page_id: str, checked: str | None) -> Any | None:
-    """The newest live pass on the page whose model or name is `checked`; with None, the newest a person made."""
-    from fichero_server.models.segments import SegmentPass
+    """The newest live pass on the page whose model or name is `checked`. With None, the newest a person
+    made or marked ground truth (`made_by_a_person`, #5513); with none such, the newest holding lines a
+    person corrected (#5499), whose corrected lines alone are the reference (`reference_page`)."""
+    from fichero_server.models.segments import SegmentPass, made_by_a_person
 
-    def is_reference(p: Any) -> bool:
-        if checked is None:
-            return getattr(p.provenance_kind, "value", p.provenance_kind) == "human"
-        return checked in (p.model, p.name)
-
-    passes = [p for p in db.query(SegmentPass, document_id=page_id) if not p.deleted_at and is_reference(p)]
+    live = [p for p in db.query(SegmentPass, document_id=page_id) if not p.deleted_at]
+    if checked is not None:
+        passes = [p for p in live if checked in (p.model, p.name)]
+    else:
+        passes = [p for p in live if made_by_a_person(p)]
+        if not passes:
+            corrected = person_read_lines(db, page_id)
+            passes = [p for p in live if p.id in corrected]
     return max(passes, key=lambda p: p.created_at) if passes else None
 
 
 def trust_of(chosen: Any) -> str:
-    """Who checked the reference: `person` when a person wrote the pass, `model` when a model did."""
-    kind = getattr(chosen.provenance_kind, "value", chosen.provenance_kind)
-    if kind == "human":
+    """Who checked the reference: `person` when a person wrote the pass or marked it ground truth,
+    `model` when a model did."""
+    from fichero_server.models.segments import made_by_a_person
+
+    if made_by_a_person(chosen):
         return "person"
     return "model" if chosen.model else "not recorded"
 
@@ -230,10 +258,18 @@ def reference_page(db: Any, page_id: str, checked: str | None) -> tuple[dict[str
     except ExportRefused as exc:
         return None, str(exc)
     lines = [ln for ln in page_lines(xml) if line_flag(ln["text"], False) is None]
+    trust = trust_of(chosen)
+    if checked is None and trust != "person":
+        # A model's pass with a person's corrections in it (#5499): only the lines a person corrected are
+        # right readings; the rest are the model's, and scoring against them would score the model.
+        from fichero_server.formats.harness import xml_id
+
+        corrected = {xml_id(sid) for sid in person_read_lines(db, page_id).get(chosen.id, set())}
+        lines, trust = [ln for ln in lines if ln["id"] in corrected], "person"
     if not lines:
         return None, f"the pass {by_whom(checked)} has no read lines"
     return {"document_id": page_id, "name": doc.name, "photo": doc.path, "pass_id": chosen.id,
-            "trust": trust_of(chosen), "lines": lines}, None
+            "trust": trust, "lines": lines}, None
 
 
 # --- reading and scoring -----------------------------------------------------------------------------

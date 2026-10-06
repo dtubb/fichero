@@ -4699,6 +4699,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
         format: Optional[str] = typer.Option(None, "--format", help="Query parameter: format."),
+        ground_truth: Optional[bool] = typer.Option(None, "--ground-truth/--no-ground-truth", help="Query parameter: ground_truth."),
         name: Optional[str] = typer.Option(None, "--name", help="Query parameter: name."),
         field: Optional[list[str]] = typer.Option(None, "--field", help="Repeatable multipart field as key=value."),
         upload: Optional[list[str]] = typer.Option(None, "--upload", help="Repeatable multipart upload as field=/path/to/file."),
@@ -4708,6 +4709,7 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/documents/{doc_id}/import"
             params = {
                 "format": format,
+                "ground_truth": ground_truth,
                 "name": name,
             }
             files = _build_multipart_payload(field, upload)
@@ -7284,6 +7286,7 @@ def register_generated_openapi_commands(
         auto_embed: Optional[bool] = typer.Option(None, "--auto-embed/--no-auto-embed", help="Request field: auto_embed."),
         copy_mode: Optional[bool] = typer.Option(None, "--copy-mode/--no-copy-mode", help="Request field: copy_mode."),
         extract_text: Optional[bool] = typer.Option(None, "--extract-text/--no-extract-text", help="Request field: extract_text."),
+        ground_truth: Optional[bool] = typer.Option(None, "--ground-truth/--no-ground-truth", help="Request field: ground_truth."),
         mode: Optional[str] = typer.Option(None, "--mode", help="Request field: mode."),
         parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
         path: str = typer.Option(..., "--path", help="Request field: path."),
@@ -7297,6 +7300,7 @@ def register_generated_openapi_commands(
                 "auto_embed": auto_embed,
                 "copy_mode": copy_mode,
                 "extract_text": extract_text,
+                "ground_truth": ground_truth,
                 "mode": mode,
                 "parent_id": parent_id,
                 "path": path,
@@ -7305,6 +7309,7 @@ def register_generated_openapi_commands(
                 "auto_embed": {'type': 'boolean', 'title': 'Auto Embed', 'default': False, 'x-cli-required': False},
                 "copy_mode": {'type': 'boolean', 'title': 'Copy Mode', 'default': False, 'x-cli-required': False},
                 "extract_text": {'type': 'boolean', 'title': 'Extract Text', 'default': True, 'x-cli-required': False},
+                "ground_truth": {'type': 'boolean', 'title': 'Ground Truth', 'default': False, 'x-cli-required': False},
                 "mode": {'type': 'string', 'enum': ['link', 'copy', 'move', 'index'], 'nullable': True, 'title': 'Mode', 'x-cli-required': False},
                 "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
                 "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
@@ -14536,6 +14541,24 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/segments/passes/{pass_id}"
             params = None
             return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("set-pass-ground-truth")
+    def segments_set_pass_ground_truth_put(
+        ctx: typer.Context,
+        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
+        ground_truth: bool = typer.Option(..., "--ground-truth/--no-ground-truth", help="Request field: ground_truth."),
+    ) -> None:
+        """Set Pass Ground Truth (PUT /api/segments/passes/{pass_id}/ground-truth)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/passes/{pass_id}/ground-truth"
+            params = None
+            payload = _build_json_payload({
+                "ground_truth": ground_truth,
+            }, {
+                "ground_truth": {'type': 'boolean', 'title': 'Ground Truth', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-pass-original")

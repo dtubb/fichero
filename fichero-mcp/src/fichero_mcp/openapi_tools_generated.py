@@ -2176,12 +2176,13 @@ def fichero_formats_import_document_page(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
     format: Annotated[Optional[str], Field(description='Force a format instead of recognising one from the bytes')] = None,
+    ground_truth: Annotated[Optional[bool], Field(description="The file holds CORRECTED transcriptions: mark the pass as ground truth, so the bake-off and the evaluation count its lines (#5513). Off by default, as a file of unknown origin is often a machine's.")] = None,
     name: Annotated[Optional[str], Field(description='What to call the pass')] = None,
     fields: Annotated[Optional[dict[str, str]], Field(description='Multipart text fields, name to value.')] = None,
     uploads: Annotated[Optional[dict[str, str]], Field(description='Multipart files: form field name to a file path on the machine this MCP server runs on.')] = None,
 ) -> Any:
     "Import a PAGE XML, ALTO, hOCR, TEI or YOLO file as a new pass\n\n`POST /api/documents/{doc_id}/import` — a file becomes a pass.\n\nThe upload is spooled to a temporary file because the action takes a PATH: an\naction's parameters go into the tamper-evident audit row, and a megabyte of\nsomebody's transcription in a chain nothing can purge is not a parameter. The path\nis recorded; the content becomes rows.\n\nThe temporary file is removed afterwards **whatever happens**, including on a\nrefusal -- an import that refuses should leave nothing behind, least of all a copy\nof a scholar's file in a temp directory.\n\nRoute: POST /api/documents/{doc_id}/import (toolset `formats`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", f"/api/documents/{doc_id}/import", params={"format": format, "name": name}, files=_rt.multipart(fields, uploads))
+    return _rt.call("POST", f"/api/documents/{doc_id}/import", params={"format": format, "ground_truth": ground_truth, "name": name}, files=_rt.multipart(fields, uploads))
 
 
 def fichero_documents_move(
@@ -3457,13 +3458,14 @@ def fichero_ingest_folder(
     auto_embed: Annotated[Optional[bool], Field(description='Auto Embed. Default: false.')] = None,
     copy_mode: Annotated[Optional[bool], Field(description='Copy Mode. Default: false.')] = None,
     extract_text: Annotated[Optional[bool], Field(description='Extract Text. Default: true.')] = None,
+    ground_truth: Annotated[Optional[bool], Field(description='Ground Truth. Default: false.')] = None,
     mode: Annotated[Optional[str], Field(description='Mode. One of: link, copy, move, index.')] = None,
     parent_id: Annotated[Optional[str], Field(description='Parent Id.')] = None,
     path: Annotated[str, Field(description='Path.')],
     recursive: Annotated[Optional[bool], Field(description='Recursive. Default: true.')] = None,
 ) -> Any:
     'Ingest Folder\n\nIngest a folder into the library.\n\nReturns immediately with a task_id. Use /status/{task_id} to check progress.\n\nRoute: POST /api/ingest/folder (toolset `ingest`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/ingest/folder", json=_rt.body({"auto_embed": auto_embed, "copy_mode": copy_mode, "extract_text": extract_text, "mode": mode, "parent_id": parent_id, "path": path, "recursive": recursive}))
+    return _rt.call("POST", "/api/ingest/folder", json=_rt.body({"auto_embed": auto_embed, "copy_mode": copy_mode, "extract_text": extract_text, "ground_truth": ground_truth, "mode": mode, "parent_id": parent_id, "path": path, "recursive": recursive}))
 
 
 def fichero_ingest_cancel(
@@ -6948,6 +6950,15 @@ def fichero_segments_delete_pass(
     return _rt.call("DELETE", f"/api/segments/passes/{pass_id}")
 
 
+def fichero_segments_set_pass_ground_truth(
+    *,
+    pass_id: Annotated[str, Field(description='Pass Id')],
+    ground_truth: Annotated[bool, Field(description='Ground Truth.')],
+) -> Any:
+    "Set Pass Ground Truth\n\n`PUT /api/segments/passes/{pass_id}/ground-truth` -- Mark as Ground Truth, or unmark (#5513).\n\nFor corrected transcriptions imported without the mark: the bake-off and the evaluation count a\nmarked pass's lines, and its readings are not labelled machine. Audited and undoable.\n\nRoute: PUT /api/segments/passes/{pass_id}/ground-truth (toolset `segments`; changes data, as the agent account when one exists)."
+    return _rt.call("PUT", f"/api/segments/passes/{pass_id}/ground-truth", json=_rt.body({"ground_truth": ground_truth}))
+
+
 def fichero_segments_get_pass_original(
     *,
     pass_id: Annotated[str, Field(description='Pass Id')],
@@ -8971,6 +8982,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_merge", "segments", "POST", "/api/segments/merge", fichero_segments_merge),
     GeneratedTool("fichero_segments_create_pass", "segments", "POST", "/api/segments/passes", fichero_segments_create_pass),
     GeneratedTool("fichero_segments_delete_pass", "segments", "DELETE", "/api/segments/passes/{pass_id}", fichero_segments_delete_pass),
+    GeneratedTool("fichero_segments_set_pass_ground_truth", "segments", "PUT", "/api/segments/passes/{pass_id}/ground-truth", fichero_segments_set_pass_ground_truth),
     GeneratedTool("fichero_segments_get_pass_original", "segments", "GET", "/api/segments/passes/{pass_id}/original", fichero_segments_get_pass_original),
     GeneratedTool("fichero_segments_split", "segments", "POST", "/api/segments/split", fichero_segments_split),
     GeneratedTool("fichero_segments_undelete", "segments", "POST", "/api/segments/undelete", fichero_segments_undelete),

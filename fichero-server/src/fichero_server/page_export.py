@@ -152,6 +152,8 @@ def page_from_library(
     segments: list[PageSegment] = []
     rule = project_record_rule(db)
     retired_memo: dict[tuple[str, str], set[str]] = {}
+    # One pass, asked once: on a pass a person marked ground truth the file's readings are theirs (#5513).
+    on_ground_truth = bool(pass_row is not None and pass_row.ground_truth)
     for row in rows:
         # A word its line's edit took out is written with its shape and no text, and its
         # retired readings are not alternatives either (#5190, `retired-words-in-the-export`).
@@ -166,7 +168,8 @@ def page_from_library(
         said = {i.content for i in items if not i.provisional}
         items = [i for i in items if not (i.provisional and i.content in said)]
         counted = (
-            counting_by_kind(db, row.id, items, rule=rule, retired_memo=retired_memo).get(reading_kind)
+            counting_by_kind(db, row.id, items, rule=rule, retired_memo=retired_memo,
+                             on_ground_truth=on_ground_truth).get(reading_kind)
             if items else None
         )
         counting_id = counted.representation_id if counted else None

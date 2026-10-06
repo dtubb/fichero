@@ -50,7 +50,7 @@ _MEMBERSHIP_ACTIONS = frozenset({
 })
 
 
-#: The one action whose named pass is NOT the pass that ends up working, so "is the working pass among
+#: The actions whose named pass may NOT be the pass that ends up working, so "is the working pass among
 #: those touched?" is the wrong question to ask of it.
 #:
 #: Deleting the working pass names the pass being REMOVED; the page's text then comes from a
@@ -68,7 +68,10 @@ _MEMBERSHIP_ACTIONS = frozenset({
 #: action with this property would be silently wrong — the property-based form is "a pass this
 #: action named is now deleted", which needs no list; it is worth doing when there is a second
 #: entry, and not before.
-_CHANGES_WHICH_PASS_IS_WORKING = frozenset({"segment.pass_delete"})
+#:
+#: `segment.pass_ground_truth` (#5513) is the second entry: UNMARKING the working pass names the pass
+#: that stops being the person's, and the page's text then comes from a pass the action never named.
+_CHANGES_WHICH_PASS_IS_WORKING = frozenset({"segment.pass_delete", "segment.pass_ground_truth"})
 
 
 def _document_ids(spec: Any, action_name: str, params: Any) -> list[str]:

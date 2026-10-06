@@ -3477,6 +3477,69 @@
         }
       }
     },
+    "/api/segments/passes/{pass_id}/ground-truth": {
+      "put": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Set Pass Ground Truth",
+        "description": "`PUT /api/segments/passes/{pass_id}/ground-truth` -- Mark as Ground Truth, or unmark (#5513).\n\nFor corrected transcriptions imported without the mark: the bake-off and the evaluation count a\nmarked pass's lines, and its readings are not labelled machine. Audited and undoable.",
+        "operationId": "set_pass_ground_truth_api_segments_passes__pass_id__ground_truth_put",
+        "parameters": [
+          {
+            "name": "pass_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pass Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PassGroundTruthBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassGroundTruthResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/passes/{pass_id}/original": {
       "get": {
         "tags": [
@@ -8677,6 +8740,18 @@
               "title": "Name"
             },
             "description": "What to call the pass"
+          },
+          {
+            "name": "ground_truth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "The file holds CORRECTED transcriptions: mark the pass as ground truth, so the bake-off and the evaluation count its lines (#5513). Off by default, as a file of unknown origin is often a machine's.",
+              "default": false,
+              "title": "Ground Truth"
+            },
+            "description": "The file holds CORRECTED transcriptions: mark the pass as ground truth, so the bake-off and the evaluation count its lines (#5513). Off by default, as a file of unknown origin is often a machine's."
           },
           {
             "name": "X-Fichero-Origin-Window",
@@ -47135,7 +47210,7 @@
           "lines": {
             "type": "integer",
             "title": "Lines",
-            "description": "corrected lines on the sample pages (each page's newest pass a person made)"
+            "description": "corrected lines on the sample pages (each page's newest pass a person made or marked ground truth, else the lines a person corrected)"
           },
           "pages": {
             "type": "integer",
@@ -47159,6 +47234,12 @@
             "type": "integer",
             "title": "More Pages",
             "description": "how many more pages with corrected lines are needed; 0 when there are enough"
+          },
+          "unmarked_import_pages": {
+            "type": "integer",
+            "title": "Unmarked Import Pages",
+            "description": "pages of imported transcriptions not marked as ground truth (#5513): marking them is how they count",
+            "default": 0
           },
           "sentence": {
             "type": "string",
@@ -60885,6 +60966,11 @@
             "title": "Extract Text",
             "default": true
           },
+          "ground_truth": {
+            "type": "boolean",
+            "title": "Ground Truth",
+            "default": false
+          },
           "auto_embed": {
             "type": "boolean",
             "title": "Auto Embed",
@@ -69747,6 +69833,38 @@
         ],
         "title": "ParquetExportResponse"
       },
+      "PassGroundTruthBody": {
+        "properties": {
+          "ground_truth": {
+            "type": "boolean",
+            "title": "Ground Truth"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ground_truth"
+        ],
+        "title": "PassGroundTruthBody"
+      },
+      "PassGroundTruthResponse": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "ground_truth": {
+            "type": "boolean",
+            "title": "Ground Truth"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pass_id",
+          "ground_truth"
+        ],
+        "title": "PassGroundTruthResponse"
+      },
       "PassOriginalResponse": {
         "properties": {
           "pass_id": {
@@ -69867,6 +69985,11 @@
             "type": "string",
             "nullable": true,
             "title": "Transformation"
+          },
+          "ground_truth": {
+            "type": "boolean",
+            "title": "Ground Truth",
+            "default": false
           },
           "working": {
             "type": "boolean",
@@ -78303,6 +78426,11 @@
             "nullable": true,
             "title": "Source Holds A Persons Work"
           },
+          "ground_truth": {
+            "type": "boolean",
+            "title": "Ground Truth",
+            "default": false
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -86597,6 +86725,11 @@
             "type": "array",
             "title": "Pages Left Out",
             "default": []
+          },
+          "ground_truth": {
+            "type": "boolean",
+            "title": "Ground Truth",
+            "default": false
           }
         },
         "type": "object",

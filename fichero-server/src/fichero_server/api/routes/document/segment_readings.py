@@ -397,9 +397,12 @@ def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription
         choices.setdefault(choice.segment_id, []).append(choice)
     texts: dict[str, str] = {}
     retired_memo: dict[tuple[str, str], set[str]] = {}   # a line's words worked out once (#5190)
+    pass_of = {row.id: row.pass_id for row in rows}
+    marked = ground_truth_pass_ids(db, pass_of.values())
     for segment_id, items in by_segment.items():
         counted = counting_by_kind(
             db, segment_id, items, rule=rule, choices=choices.get(segment_id, []), retired_memo=retired_memo,
+            on_ground_truth=pass_of.get(segment_id) in marked,
         ).get(kind)
         if counted is not None and counted.representation_id is not None:
             texts[segment_id] = next(i.content for i in items if i.id == counted.representation_id)
@@ -455,7 +458,10 @@ def _readings_for_live_rows(
     return by_segment
 
 
-def _candidate(item: ReadingRead) -> ReadingCandidate:
+def _candidate(item: ReadingRead, on_ground_truth: bool = False) -> ReadingCandidate:
+    """`on_ground_truth`: the reading's segment is on a pass a person marked ground truth (#5513), so the
+    FILE's reading there is vouched for by a person. Only the file's: a machine's reading added to such a
+    pass later is still a machine's."""
     return ReadingCandidate(
         representation_id=item.id,
         kind=item.kind,
@@ -464,7 +470,28 @@ def _candidate(item: ReadingRead) -> ReadingCandidate:
         retracted=item.retracted,
         provisional=item.provisional,
         corrects_representation_id=item.corrects_representation_id,
+        vouched_by_a_person=on_ground_truth and item.provenance_kind is ProvenanceKind.external_import,
     )
+
+
+def ground_truth_pass_ids(db: Database, pass_ids: Any) -> set[str]:
+    """Which of these passes a person marked ground truth (#5513): one `get` per distinct pass, so a
+    caller counting a whole page asks once per pass, not once per line."""
+    marked: set[str] = set()
+    for pass_id in set(pass_ids):
+        if pass_id and not pass_id.startswith(LEGACY_ID_PREFIX):
+            row = db.get(SegmentPass, pass_id)
+            if row is not None and row.ground_truth:
+                marked.add(pass_id)
+    return marked
+
+
+def segment_on_ground_truth(db: Database, segment_id: str) -> bool:
+    """Whether one segment lies on a pass a person marked ground truth (#5513)."""
+    if segment_id.startswith(LEGACY_ID_PREFIX):
+        return False
+    row = db.get(Segment, segment_id)
+    return row is not None and bool(ground_truth_pass_ids(db, [row.pass_id]))
 
 
 def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> dict[str, set[str]]:
@@ -550,6 +577,7 @@ def counting_by_kind(
     choices: list[ReadingChoice] | None = None,
     retired_memo: dict[tuple[str, str], set[str]] | None = None,
     lines_read_by_a_person_skip_their_words: bool = False,
+    on_ground_truth: bool | None = None,
 ) -> dict[str, CountingAnswer]:
     """The counting answer for each kind present, worked out fresh.
 
@@ -564,6 +592,10 @@ def counting_by_kind(
         rule = project_record_rule(db)
     if choices is None:
         choices = list(db.query(ReadingChoice, segment_id=segment_id))
+    # On a pass a person marked ground truth, the file's readings count as a person's (#5513). A caller
+    # deriving a whole page says so per pass (`ground_truth_pass_ids`); otherwise it is looked up here.
+    if on_ground_truth is None:
+        on_ground_truth = segment_on_ground_truth(db, segment_id)
     # A word a person's edit of its line took out does not count (#5190). The page's own
     # derivation passes `lines_read_by_a_person_skip_their_words`: it never reads the words under
     # a line a person read, so it cannot meet a retired word, and a dense page skips the lookup.
@@ -578,7 +610,8 @@ def counting_by_kind(
             rule,
             [row for row in choices if row.kind == kind],
             [
-                _candidate(item).model_copy(update={"retracted": True}) if item.id in retired else _candidate(item)
+                _candidate(item, on_ground_truth).model_copy(update={"retracted": True})
+                if item.id in retired else _candidate(item, on_ground_truth)
                 for item in items if item.kind == kind
             ],
         )
@@ -809,7 +842,8 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
         # working-pass check cost seconds (#5086, found measuring a dense import).
         # A COUNT, not the rows: an imported pass is all human rows, and loading 20,000 of them to
         # ask "is there one?" was half of a dense page's derivation (slice 12).
-        human_live = db.count(
+        # A pass a person marked ground truth is theirs (#5513, `made_by_a_person`): no count needed.
+        human_live = 1 if pass_row.ground_truth else db.count(
             Segment, pass_id=pass_row.id, provenance_kind=ProvenanceKind.human.value, deleted_at=None,
         )
         from_text_layer = False
@@ -1426,13 +1460,14 @@ def document_text(
     choices_by_segment: dict[str, list[ReadingChoice]] = {}
     for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in rows]):
         choices_by_segment.setdefault(choice.segment_id, []).append(choice)
+    marked = ground_truth_pass_ids(db, (row.pass_id for row in rows))
     for row in rows:
         items = [item for item in page_readings[row.id] if item.kind == kind]
         if not items or row.id in read_through_children or _under_a_line_read_by_a_person(row.id):
             continue
         counted = counting_by_kind(
             db, row.id, items, rule=record_rule, choices=choices_by_segment.get(row.id, []),
-            lines_read_by_a_person_skip_their_words=True,
+            lines_read_by_a_person_skip_their_words=True, on_ground_truth=row.pass_id in marked,
         ).get(kind)
         if counted is None or counted.representation_id is None:
             # The line HAS readings and none of them counts (a strict project

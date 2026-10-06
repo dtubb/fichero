@@ -94,10 +94,15 @@ def page_lines(page_xml: str) -> list[dict[str, Any]]:
     found = []
     for line in parse_xml_string(page_xml).iter(f"{ns}TextLine"):
         coords, base = line.find(f"{ns}Coords"), line.find(f"{ns}Baseline")
+        # The line's FIRST own TextEquiv: the export writes the counting reading first and the others
+        # after it as alternatives. Joining every Unicode read a corrected line as the correction plus the
+        # machine's original (#5499). Only a line with no text of its own reads its words'.
+        own = line.find(f"{ns}TextEquiv")
+        texts = own.iter(f"{ns}Unicode") if own is not None else line.iter(f"{ns}Unicode")
         found.append({"id": line.get("id") or "",
                       "polygon": _points(coords.get("points") if coords is not None else None),
                       "baseline": _points(base.get("points") if base is not None else None),
-                      "text": "".join(u.text or "" for u in line.iter(f"{ns}Unicode")).strip()})
+                      "text": "".join(u.text or "" for u in texts).strip()})
     return found
 
 
