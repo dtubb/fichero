@@ -60,12 +60,9 @@ extension ContentView {
             viewName = schedule?.name ?? "Schedule"
         case .trigger(let trigger):
             viewName = trigger?.name ?? "Trigger"
-        case .activity(let selectedRun):
-            if let run = selectedRun {
-                viewName = run.name
-            } else {
-                viewName = "Activity"
-            }
+        case .activity:
+            // The selection is a job id now (#5561); the details view names the row itself.
+            viewName = "Activity"
         }
 
         return viewName
