@@ -236,9 +236,9 @@ class TestGroupADeterministicPresetsAreTested:
     """
 
     GROUP_A = {
-        "1 · Import → Artifacts",
-        "4 · Merge / Dedup",
-        "5 · KG Persist / Finalize",
+        "Import → Artifacts",
+        "Merge / Dedup",
+        "KG Persist / Finalize",
         "Enhance Images",
         "Export to Desktop (MD + DOCX + XLSX)",
         "Fuzzy Clean Images",

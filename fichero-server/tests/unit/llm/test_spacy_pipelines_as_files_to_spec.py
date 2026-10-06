@@ -160,7 +160,7 @@ def test_runtime_spacy_pin_is_honoured_and_loaded_from_the_store(client, db, sto
     from fichero_server.workflows.default_workflows import preset_workflow_id
 
     r = client.post("/api/workflow-execution/execute", json={
-        "workflow_id": preset_workflow_id("2 · Extract Entities"), "inputs": {"selected_doc_ids": [page.id]},
+        "workflow_id": preset_workflow_id("Extract Entities"), "inputs": {"selected_doc_ids": [page.id]},
         "provider_override": "spacy", "model_override": NAME})
     thread, status = r.json()["thread_id"], {}
     end = time.monotonic() + 60

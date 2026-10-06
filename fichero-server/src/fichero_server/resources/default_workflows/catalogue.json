@@ -1,6 +1,6 @@
 {
   "name": "Catalogue",
-  "description": "Run the whole Catalogue pipeline: the six numbered stage presets in this folder, in order, as one chain. 1 · Import → Artifacts registers per-page import receipts and transcription artifacts from the already-imported page content; 2 · Extract Entities and 3 · Extract SVO → Claims read those artifacts and persist entity and claim rows ($small model); 4 · Merge / Dedup reapplies curation rules; 5 · KG Persist / Finalize recomputes corroboration, embeddings and the graph snapshot; 6 · Catalogue writes the narrative archival description ($small model). Every stage is also runnable standalone from this folder, and each is safe to re-run. Pages must already carry text — run a Transcribe workflow first for scans without content.",
+  "description": "Run the whole Catalogue pipeline: the six stage presets in this folder, in order, as one chain. Import → Artifacts registers per-page import receipts and transcription artifacts from the already-imported page content; Extract Entities and Extract SVO → Claims read those artifacts and persist entity and claim rows ($small model); Merge / Dedup reapplies curation rules; KG Persist / Finalize recomputes corroboration, embeddings and the graph snapshot; Catalogue Description writes the narrative archival description ($small model). Every stage is also runnable standalone from this folder, and each is safe to re-run. Pages must already carry text — run a Transcribe workflow first for scans without content.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -14,7 +14,7 @@
     "small"
   ],
   "config": {
-    "preset_version": 6
+    "preset_version": 7
   },
   "nodes": [
     {
@@ -29,12 +29,12 @@
     {
       "id": "stage-1-import-artifacts",
       "tool": "sub_workflow",
-      "label": "1 · Import → Artifacts",
+      "label": "Import → Artifacts",
       "position_x": 340,
       "position_y": 220,
       "inputs": {},
       "config": {
-        "workflow_ref": "1 · Import → Artifacts",
+        "workflow_ref": "Import → Artifacts",
         "input_contract": [
           {
             "id": "documents",
@@ -59,12 +59,12 @@
     {
       "id": "stage-2-extract-entities",
       "tool": "sub_workflow",
-      "label": "2 · Extract Entities",
+      "label": "Extract Entities",
       "position_x": 600,
       "position_y": 220,
       "inputs": {},
       "config": {
-        "workflow_ref": "2 · Extract Entities",
+        "workflow_ref": "Extract Entities",
         "input_contract": [
           {
             "id": "documents",
@@ -95,12 +95,12 @@
     {
       "id": "stage-3-extract-svo",
       "tool": "sub_workflow",
-      "label": "3 · Extract SVO → Claims",
+      "label": "Extract SVO → Claims",
       "position_x": 860,
       "position_y": 220,
       "inputs": {},
       "config": {
-        "workflow_ref": "3 · Extract SVO → Claims",
+        "workflow_ref": "Extract SVO → Claims",
         "input_contract": [
           {
             "id": "documents",
@@ -131,12 +131,12 @@
     {
       "id": "stage-4-merge-dedup",
       "tool": "sub_workflow",
-      "label": "4 · Merge / Dedup",
+      "label": "Merge / Dedup",
       "position_x": 1120,
       "position_y": 220,
       "inputs": {},
       "config": {
-        "workflow_ref": "4 · Merge / Dedup",
+        "workflow_ref": "Merge / Dedup",
         "input_contract": [
           {
             "id": "documents",
@@ -167,12 +167,12 @@
     {
       "id": "stage-5-kg-persist",
       "tool": "sub_workflow",
-      "label": "5 · KG Persist / Finalize",
+      "label": "KG Persist / Finalize",
       "position_x": 1380,
       "position_y": 220,
       "inputs": {},
       "config": {
-        "workflow_ref": "5 · KG Persist / Finalize",
+        "workflow_ref": "KG Persist / Finalize",
         "input_contract": [
           {
             "id": "documents",
@@ -203,12 +203,12 @@
     {
       "id": "stage-6-catalogue",
       "tool": "sub_workflow",
-      "label": "6 · Catalogue",
+      "label": "Catalogue Description",
       "position_x": 1640,
       "position_y": 220,
       "inputs": {},
       "config": {
-        "workflow_ref": "6 · Catalogue",
+        "workflow_ref": "Catalogue Description",
         "input_contract": [
           {
             "id": "documents",

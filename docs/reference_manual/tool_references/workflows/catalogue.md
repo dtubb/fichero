@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Run the whole Catalogue pipeline: the six numbered stage presets in this folder, in order, as one chain. 1 · Import → Artifacts registers per-page import receipts and transcription artifacts from the already-imported page content; 2 · Extract Entities and 3 · Extract SVO → Claims read those artifacts and persist entity and claim rows ($small model); 4 · Merge / Dedup reapplies curation rules; 5 · KG Persist / Finalize recomputes corroboration, embeddings and the graph snapshot; 6 · Catalogue writes the narrative archival description ($small model). Every stage is also runnable standalone from this folder, and each is safe to re-run. Pages must already carry text — run a Transcribe workflow first for scans without content.
+Run the whole Catalogue pipeline: the six stage presets in this folder, in order, as one chain. Import → Artifacts registers per-page import receipts and transcription artifacts from the already-imported page content; Extract Entities and Extract SVO → Claims read those artifacts and persist entity and claim rows ($small model); Merge / Dedup reapplies curation rules; KG Persist / Finalize recomputes corroboration, embeddings and the graph snapshot; Catalogue Description writes the narrative archival description ($small model). Every stage is also runnable standalone from this folder, and each is safe to re-run. Pages must already carry text — run a Transcribe workflow first for scans without content.
 
 | | |
 | --- | --- |
@@ -18,7 +18,7 @@ Run the whole Catalogue pipeline: the six numbered stage presets in this folder,
 
 Tool: [Files](../tools/files.md) — Pass through input files from workflow context
 
-### 2. 1 · Import → Artifacts
+### 2. Import → Artifacts
 
 Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
@@ -29,9 +29,9 @@ Settings this step uses:
 | `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}] |
 | `output_contract` | [{"data_type": "json", "description": "Stage summary; also the ordering edge into stage 2.", "id": "summary", "required": true}] |
 | `output_mapping` | {"summary": "$.nodes.import-artifacts.summary"} |
-| `workflow_ref` | 1 · Import → Artifacts |
+| `workflow_ref` | Import → Artifacts |
 
-### 3. 2 · Extract Entities
+### 3. Extract Entities
 
 Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
@@ -42,9 +42,9 @@ Settings this step uses:
 | `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}, {"data_type": "any", "description": "Ordering edge: stage 1 must finish before entities are extracted.", "id": "barrier", "required": false}] |
 | `output_contract` | [{"data_type": "json", "description": "Stage summary; also the ordering edge into stage 3.", "id": "summary", "required": true}] |
 | `output_mapping` | {"summary": "$.nodes.extract-entities.summary"} |
-| `workflow_ref` | 2 · Extract Entities |
+| `workflow_ref` | Extract Entities |
 
-### 4. 3 · Extract SVO → Claims
+### 4. Extract SVO → Claims
 
 Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
@@ -55,9 +55,9 @@ Settings this step uses:
 | `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}, {"data_type": "any", "description": "Ordering edge: stage 2's entity rows must exist before claims are extracted.", "id": "barrier", "required": false}] |
 | `output_contract` | [{"data_type": "json", "description": "Stage summary; also the ordering edge into stage 4.", "id": "summary", "required": true}] |
 | `output_mapping` | {"summary": "$.nodes.extract-svo.summary"} |
-| `workflow_ref` | 3 · Extract SVO → Claims |
+| `workflow_ref` | Extract SVO → Claims |
 
-### 5. 4 · Merge / Dedup
+### 5. Merge / Dedup
 
 Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
@@ -68,9 +68,9 @@ Settings this step uses:
 | `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}, {"data_type": "any", "description": "Ordering edge: stages 2-3 must have written their rows before curation reapplies.", "id": "barrier", "required": false}] |
 | `output_contract` | [{"data_type": "json", "description": "Stage summary; also the ordering edge into stage 5.", "id": "summary", "required": true}] |
 | `output_mapping` | {"summary": "$.nodes.merge-dedup.summary"} |
-| `workflow_ref` | 4 · Merge / Dedup |
+| `workflow_ref` | Merge / Dedup |
 
-### 6. 5 · KG Persist / Finalize
+### 6. KG Persist / Finalize
 
 Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
@@ -81,9 +81,9 @@ Settings this step uses:
 | `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}, {"data_type": "any", "description": "Ordering edge: merged/deduped rows must be final before corroboration and the graph snapshot.", "id": "barrier", "required": false}] |
 | `output_contract` | [{"data_type": "json", "description": "Stage summary; also the ordering edge into stage 6.", "id": "summary", "required": true}] |
 | `output_mapping` | {"summary": "$.nodes.kg-persist-finalize.summary"} |
-| `workflow_ref` | 5 · KG Persist / Finalize |
+| `workflow_ref` | KG Persist / Finalize |
 
-### 7. 6 · Catalogue
+### 7. Catalogue Description
 
 Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
@@ -94,4 +94,4 @@ Settings this step uses:
 | `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}, {"data_type": "any", "description": "Ordering edge: the narrative reads the KG rows stages 1-5 produced.", "id": "barrier", "required": false}] |
 | `output_contract` | [{"data_type": "text", "description": "The narrative catalogue entry written onto the selected container.", "id": "text", "required": true}] |
 | `output_mapping` | {"text": "$.nodes.catalogue.text"} |
-| `workflow_ref` | 6 · Catalogue |
+| `workflow_ref` | Catalogue Description |

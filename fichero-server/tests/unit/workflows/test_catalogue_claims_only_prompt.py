@@ -1,7 +1,7 @@
 """Claims-only catalogue narrative must never send an empty user prompt.
 
 Found live (Marshall sample, Apple-only chain run, 2026-09-03): the 1–6
-Catalogue chain hands '6 · Catalogue' no transcript text — only the KG rows
+Catalogue chain hands 'Catalogue Description' no transcript text — only the KG rows
 stages 2–4 wrote. `_generate_resumen("")` then called the model with an EMPTY
 user prompt, carrying the entity context only in the system instructions.
 Apple's fm-bridge rejects that outright ("Missing or empty 'prompt' field"),

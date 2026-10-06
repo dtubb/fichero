@@ -8,7 +8,7 @@ is running right now (#4379), so its two presets get the structural proof
 first:
 
 - ``NER per-page (local)``      (ner_per_page_local.json)
-- ``2 · Extract Entities``      (catalogue_stage_2_extract_entities.json)
+- ``Extract Entities``      (catalogue_stage_2_extract_entities.json)
 
 What is pinned here, per #4369 work-item 1:
   * every node's tool is actually registered (a renamed tool must fail here,
@@ -42,14 +42,14 @@ from fichero_server.workflows.validation import (
 import fichero_server.workflows.tools  # noqa: F401
 
 
-NER_PRESET_NAMES = ["NER per-page (local)", "2 · Extract Entities"]
+NER_PRESET_NAMES = ["NER per-page (local)", "Extract Entities"]
 
 # The tool each preset must terminate in. If a preset is ever rewired so it
 # no longer ends in entity extraction, that is a product change that must be
 # a deliberate edit to this map, not a silent drift.
 NER_TERMINAL_TOOL = {
     "NER per-page (local)": "extract_all",
-    "2 · Extract Entities": "extract_entities_only",
+    "Extract Entities": "extract_entities_only",
 }
 
 

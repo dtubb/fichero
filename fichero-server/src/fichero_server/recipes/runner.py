@@ -11,8 +11,11 @@ page, and every file that has no pages), or, after an import, over the pages tha
 * an **export** card is the project's synced folder (`sync_folder.py`): the folder the step names is tied
   (once) and the pages are written, or a folder already tied rewrites them.
 
-Each card's job is a child of the recipe's row. A card starts only when the one before it has finished; one
-that fails stops those after it, which say "not run". The plan's skipped steps are kept on the row with why.
+Each card's job is a child of the recipe's row. A card starts only when the one before it has finished. Each card
+declares what it takes and gives (the job registry's kinds, `start.card_inputs`); one that fails stops only the cards
+that need what it would have given and no other earlier card gave, and those say "not run" and why (#5498): names
+read the uncorrected lines when Correct fails. The plan's skipped steps are kept on the row with why. A run's step
+states are read from the steps' own jobs (the rows Activity shows), so run-status and Activity cannot disagree.
 The recipe job only waits on its cards, so it has its own lane, one at a time: two recipes never wait on
 each other's checks.
 """
@@ -88,15 +91,20 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest
     from fichero_server.execution.runner import WorkflowEventHub, _set_workflow_state
 
+    from fichero_server.workflows.default_workflows import resolve_shipped_workflow
+
     thread_id = f"thread-{uuid.uuid4().hex[:12]}"
-    workflow = _load_step_workflow(db, card["workflow_id"])
+    # By the shipped preset's stable id; a project seeded before ids were stable holds it under another (#5497).
+    workflow = _load_step_workflow(db, card["workflow_id"]) or resolve_shipped_workflow(
+        db, card["workflow_id"], card["workflow"])
     if workflow is None:
-        return thread_id, "failed", f"the shipped workflow {card['workflow']!r} is not in this build"
+        return thread_id, "failed", (f"the shipped workflow {card['workflow']!r} is in neither this project nor "
+                                     "the shipped defaults")
     # Registered up front, as a chain's steps are, so the run's stream and status know the thread.
-    _set_workflow_state(thread_id, {"workflow_id": card["workflow_id"], "workflow_name": workflow.name,
+    _set_workflow_state(thread_id, {"workflow_id": workflow.id, "workflow_name": workflow.name,
                                     "status": "accepted", "events": WorkflowEventHub(), "error": None,
                                     "final_state": None})
-    request = ExecuteWorkflowRequest(workflow_id=card["workflow_id"], inputs={"selected_doc_ids": documents},
+    request = ExecuteWorkflowRequest(workflow_id=workflow.id, inputs={"selected_doc_ids": documents},
                                      thread_id=thread_id, provider_override=card["provider_override"],
                                      model_override=card["model_override"], skip_cache=True)
     try:
@@ -167,12 +175,14 @@ def run(db: Any, subject: str) -> dict[str, Any]:
     steps = [{"steps": card["steps"], "card": card["card"], "state": "waiting", "child_id": None}
              for card in detail["runs"]]
     detail["steps"] = steps
-    failed_at = None
-    for card, step in zip(detail["runs"], steps):
-        if failed_at is not None:
-            step["state"] = "not run"
-            continue
+    problems: list[str] = []
+    for index, (card, step) in enumerate(zip(detail["runs"], steps)):
         named = ", ".join(card["steps"])
+        blocked = _blocked(detail["runs"], steps, index)
+        if blocked:
+            step.update(state="not run", why=blocked)
+            problems.append(f"step {named} not run: {blocked}")
+            continue
         # The pages are worked out now, so pages a split made earlier in this run are among them.
         documents = pages_for(db, card, brought)
         if not redo.intersection(card["steps"]):
@@ -198,25 +208,83 @@ def run(db: Any, subject: str) -> dict[str, Any]:
 
             kept_export.queue_rewrites(db, documents)
         if state != "done":
-            failed_at = f"step {named} {state}: {why or 'no reason given'}"
-    words = (f"Stopped: {failed_at}; the steps after it were not run" if failed_at else
+            problems.append(f"step {named} {state}: {why or 'no reason given'}")
+    finished = sum(1 for s in steps if s["state"] == "done")
+    words = (f"Stopped: {'; '.join(problems)}; {finished} of {len(steps)} steps done" if problems else
              f"Done: {len(steps)} steps run" + (f", {len(detail['skipped'])} skipped (see why)"
                                                  if detail["skipped"] else ""))
     jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
-    if failed_at:
+    if problems:
         raise RuntimeError(words)
     return {"steps": steps}
 
 
+def _blocked(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: int) -> str | None:
+    """Why the card at `index` cannot run, or None (#5498): it needs a kind of thing that only earlier cards of
+    this run give, and none of them finished. A kind no earlier card gives is the material's own (pages already
+    read), so the card never waits for it. A card queued before cards declared their inputs waits on every card
+    before it, as runs did then."""
+    card = cards[index]
+    before = list(zip(cards[:index], steps[:index]))
+    if "takes" not in card:
+        unfinished = [", ".join(c["steps"]) for c, s in before if s["state"] != "done"]
+        return f"step {unfinished[0]} did not finish, and this step comes after it" if unfinished else None
+    for take in card["takes"]:
+        kinds = set(take.split("|"))
+        givers = [(c, s) for c, s in before if kinds.intersection(c.get("gives") or ())]
+        if givers and all(s["state"] != "done" for _c, s in givers):
+            which = "; ".join(f"step {', '.join(c['steps'])} {s['state']}" for c, s in givers)
+            needs = " or ".join(sorted(kinds)).replace("_", " ")
+            return f"it needs {needs}, which no earlier step gave ({which})"
+    return None
+
+
 def status(db: Any, job_id: str) -> dict[str, Any]:
+    """A recipe run: its state and each card's, read from the card's own job (the row Activity shows) once it
+    has one, so this and Activity are one account (#5498). A run still waiting says what it waits for."""
     row = jobs.read_job(db, job_id)
     if row is None or row["kind"] != KIND:
         raise LookupError(f"no recipe run {job_id}")
     detail = json.loads(row["detail"] or "{}")
     steps = detail.get("steps") or [{"steps": c["steps"], "card": c["card"], "state": "waiting", "child_id": None}
                                     for c in detail.get("runs", [])]
-    return {"job_id": job_id, "state": row["state"], "reason": row["reason"], "documents": detail.get("documents"),
+    for step in steps:
+        child = jobs.read_job(db, step["child_id"]) if step.get("child_id") else None
+        if child is not None:
+            step["state"] = child["state"]
+            if child["state"] in ("failed", "cancelled") and not step.get("why"):
+                step["why"] = child["reason"]
+    reason = row["reason"]
+    if row["state"] == "waiting":
+        ahead = [r["id"] for r in jobs.find_jobs(db, kinds=[KIND], states=["running"]) if r["id"] != job_id]
+        if ahead:
+            reason = f"Waiting for the recipe run {ahead[0]} to finish: recipe runs go one at a time"
+    return {"job_id": job_id, "state": row["state"], "reason": reason, "documents": detail.get("documents"),
             "steps": steps, "skipped": detail.get("skipped", [])}
+
+
+def started_plan(db: Any, job_id: str) -> dict[str, Any]:
+    """What a run was started with: its cards and the steps it skipped, as it holds them."""
+    row = jobs.read_job(db, job_id)
+    detail = json.loads((row or {}).get("detail") or "{}")
+    return {"runs": detail.get("runs", []), "skipped": detail.get("skipped", [])}
+
+
+def unfinished_steps(db: Any) -> dict[str, dict[str, str]]:
+    """The recipe steps whose latest finished run did not do them, {step: {"state", "why"}} (#5498): the plan
+    offers them again ("failed last time ...; runs again") rather than dropping them, so retrying is Start,
+    not a guessed `redo`. A step a later run did is done with; a run still going is not looked at."""
+    out: dict[str, dict[str, str]] = {}
+    seen: set[str] = set()
+    for row in jobs.find_jobs(db, kinds=[KIND], states=["done", "failed", "cancelled"]):
+        for step in status(db, row["id"])["steps"]:
+            for sid in step["steps"]:
+                if sid in seen:
+                    continue
+                seen.add(sid)
+                if step["state"] not in ("done", "waiting", "running"):
+                    out[sid] = {"state": step["state"], "why": step.get("why") or "no reason given"}
+    return out
 
 
 def runs(db: Any) -> list[dict[str, Any]]:

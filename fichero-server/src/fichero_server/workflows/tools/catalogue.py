@@ -119,7 +119,7 @@ CATALOGUE_INPUT_PORTS = merge_ports(
             description=(
                 "Dependency-only input. Its value is ignored; it exists to "
                 "sequence catalogue after its upstream — canonical entity "
-                "cleanup in the full preset, the source node in '6 · Catalogue'."
+                "cleanup in the full preset, the source node in 'Catalogue Description'."
             ),
         ),
     ],
@@ -621,8 +621,8 @@ async def catalogue(
                     "No knowledge-graph claims exist for it, and no transcript "
                     "text was supplied. The pages likely carry no text yet — "
                     "run a Transcribe workflow on this material first, then "
-                    "'2 · Extract Entities' (and optionally '3 · Extract SVO' "
-                    "and '4 · Merge / Dedup') or the full 'Catalogue' chain, "
+                    "'Extract Entities' (and optionally 'Extract SVO → Claims' "
+                    "and 'Merge / Dedup') or the full 'Catalogue' chain, "
                     "then run the catalogue again."
                 ),
             }
@@ -1364,7 +1364,7 @@ async def _generate_resumen(
 
     if not text:
         # Claims-only path (the 1–6 Catalogue chain and the standalone
-        # '6 · Catalogue' stage): no transcript flows in, only KG rows. The
+        # 'Catalogue Description' stage): no transcript flows in, only KG rows. The
         # source material must ride in the USER prompt — Apple's fm-bridge
         # rejects an empty prompt outright ("Missing or empty 'prompt'
         # field"), which silently degraded every Apple-only stage-6 run to a

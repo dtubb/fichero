@@ -198,7 +198,7 @@ def test_both_node_shapes_answer_alike(shape):
 def _child() -> WorkflowDef:
     return WorkflowDef(
         id="child",
-        name="2 · Extract Entities",
+        name="Extract Entities",
         nodes=[
             NodeDef(id="src", tool="files"),
             NodeDef(id="entities", tool="extract_entities", model_name="apple-intelligence"),

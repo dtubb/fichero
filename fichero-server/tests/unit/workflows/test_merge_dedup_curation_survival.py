@@ -51,7 +51,7 @@ from tests.unit.workflows.test_merge_dedup_only_workflow import (
 
 
 def _run(library_path: Path, parent_doc_id: str, *, task_id: str) -> dict:
-    workflow = _load_workflow("4 · Merge / Dedup")
+    workflow = _load_workflow("Merge / Dedup")
     result = asyncio.run(
         build_graph(workflow, skip_cache=True).ainvoke(
             _workflow_state(library_path, parent_doc_id, task_id=task_id)

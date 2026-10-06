@@ -131,12 +131,6 @@ nav:
           - Workflows & Tools: reference_manual/tool_references/index.md
           - Workflows:
               - Every Workflow: reference_manual/tool_references/workflows/index.md
-              - 1 · Import → Artifacts: reference_manual/tool_references/workflows/1-import-artifacts.md
-              - 2 · Extract Entities: reference_manual/tool_references/workflows/2-extract-entities.md
-              - 3 · Extract SVO → Claims: reference_manual/tool_references/workflows/3-extract-svo-claims.md
-              - 4 · Merge / Dedup: reference_manual/tool_references/workflows/4-merge-dedup.md
-              - 5 · KG Persist / Finalize: reference_manual/tool_references/workflows/5-kg-persist-finalize.md
-              - 6 · Catalogue: reference_manual/tool_references/workflows/6-catalogue.md
               - AI Convert to HTML: reference_manual/tool_references/workflows/ai-convert-to-html.md
               - AI Convert to Markdown: reference_manual/tool_references/workflows/ai-convert-to-markdown.md
               - AI Redraw as SVG: reference_manual/tool_references/workflows/ai-redraw-as-svg.md
@@ -144,6 +138,7 @@ nav:
               - Backfill Text Geometry: reference_manual/tool_references/workflows/backfill-text-geometry.md
               - Capture OCR + Transcribe: reference_manual/tool_references/workflows/capture-ocr-transcribe.md
               - Catalogue: reference_manual/tool_references/workflows/catalogue.md
+              - Catalogue Description: reference_manual/tool_references/workflows/catalogue-description.md
               - Clean Up Text: reference_manual/tool_references/workflows/clean-up-text.md
               - Describe (visual): reference_manual/tool_references/workflows/describe-visual.md
               - Detect Segments (Apple Vision): reference_manual/tool_references/workflows/detect-segments-apple-vision.md
@@ -153,12 +148,17 @@ nav:
               - English Secretary Hand (16th–17th C.): reference_manual/tool_references/workflows/english-secretary-hand-16th17th-c.md
               - Enhance Images: reference_manual/tool_references/workflows/enhance-images.md
               - Export to Desktop (MD + DOCX + XLSX): reference_manual/tool_references/workflows/export-to-desktop-md-docx-xlsx.md
+              - Extract Entities: reference_manual/tool_references/workflows/extract-entities.md
               - Extract Events (Timeline): reference_manual/tool_references/workflows/extract-events-timeline.md
               - Extract Geo: reference_manual/tool_references/workflows/extract-geo.md
+              - Extract SVO → Claims: reference_manual/tool_references/workflows/extract-svo-claims.md
               - Extract Table: reference_manual/tool_references/workflows/extract-table.md
               - Fuzzy Clean Images: reference_manual/tool_references/workflows/fuzzy-clean-images.md
               - Group Same Documents: reference_manual/tool_references/workflows/group-same-documents.md
+              - Import → Artifacts: reference_manual/tool_references/workflows/import-artifacts.md
+              - KG Persist / Finalize: reference_manual/tool_references/workflows/kg-persist-finalize.md
               - Latin Paleography: reference_manual/tool_references/workflows/latin-paleography.md
+              - Merge / Dedup: reference_manual/tool_references/workflows/merge-dedup.md
               - Modernización (Spanish): reference_manual/tool_references/workflows/modernizacion-spanish.md
               - NER per-page (local): reference_manual/tool_references/workflows/ner-per-page-local.md
               - Paleografía Española (s. XVIII–XIX): reference_manual/tool_references/workflows/paleografia-espanola-s-xviiixix.md

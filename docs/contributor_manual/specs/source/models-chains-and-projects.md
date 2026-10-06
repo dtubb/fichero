@@ -1764,14 +1764,27 @@ Projects
   until the person presses Start at the end of setup (the first yes), which shows what will run,
   on how many pages, with an estimate; what it makes counts as the record only as the project's
   rule allows.
-- `source.recipe.start-runs-the-steps` — **[OK]** (#5390; built: `recipes/runner.py`, the `run-a-recipe` job; tested in `fichero-server/tests/unit/recipes/test_recipe_execution_to_spec.py`) pressing Start runs the recipe over the
+- `source.recipe.start-runs-the-steps` — **[OK]** (#5390, #5497, #5498; built: `recipes/runner.py`, the `run-a-recipe` job; tested in `fichero-server/tests/unit/recipes/test_recipe_execution_to_spec.py`, `fichero-server/tests/unit/recipes/test_recipe_runs_to_spec.py`) pressing Start runs the recipe over the
   project's material: its steps in order, each as the job its card names (a shipped workflow run for
   splitting pages (`Split Pages`), finding lines, reading a line (with a Kraken reader, or Kraken's lines
-  read by a vision model: `Read Lines (Kraken lines, vision model)`) or a page, correcting, finding names and
-  finding statements; a check
+  read by a vision model: `Read Lines (Kraken lines, vision model)`) or a page, correcting, finding names
+  (`Extract Entities`) and finding statements; a check
   run for `check`; the project's synced folder for `export`), together as one `run-a-recipe` job in
-  Activity whose children are those runs; a step starts only when the one before it has finished,
-  and a step that fails stops the steps after it, saying which.
+  Activity whose children are those runs; a step starts only when the one before it has finished.
+  Each step declares what it takes and gives (its job's kinds); a step that fails stops only the steps
+  that need what it would have given and no other earlier step gave, which say "not run" and why (names
+  read the uncorrected lines when correcting fails; statements wait when names failed). A recipe finds
+  each shipped workflow by the preset's stable key, never by a display name, and no ordering prefix
+  ("2 · ") is part of a shipped workflow's name. Start's answer is the run it started: its `runs` and
+  `workflows` are that run's, as `started.workflows` is.
+- `source.recipe.failed-step-offered-again` — **[OK]** (#5498; built: `runner.unfinished_steps`, the plan's
+  `last_run`/`last_why`; tested in `fichero-server/tests/unit/recipes/test_recipe_runs_to_spec.py`) a step the
+  project's last finished run did not do (failed, or not run) stays in the Start plan, even beside a layer's
+  proposed steps, marked with how it ended and why ("failed last time …; runs again"), and Start runs it
+  again without naming it to redo.
+- `source.recipe.run-status-is-activity` — **[OK]** (#5498; built: `runner.status`; tested as above) a recipe
+  run's step states are its steps' own jobs, the rows Activity shows, so the run's status and Activity are one
+  account; a run still waiting says what it waits for (recipe runs go one at a time).
 - `source.recipe.step-skipped-says-why` — **[OK]** (#5390; built: `recipes/start.py` `skipped`; tested as above) a step Start cannot run (no model, a
   condition Start cannot honour yet, a cloud step in a project that keeps its pages on this Mac, a
   job no card runs yet) is skipped, and the plan and the recipe run name the step and why; the other
@@ -2053,7 +2066,7 @@ Setup
   coverage table (Latin hands, print in another script, vertical CJK, kuzushiji, palm-leaf,
   right-to-left, sign-by-sign scripts, an Indigenous syllabary, unwritten speech), setup produces
   the steps the table names or "needs a model", never an error and never a silent substitute.
-- `source.onboard.estimate-before-start` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** the Start plan carries the page count and the cost per run (free on this Mac, unpriced cloud models null); time, carbon and the main alternative's estimate are not built; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. screens 4 and 6 show the whole
+- `source.onboard.estimate-before-start` — **[PARTIAL]** (#4951) **Built 2026-10-03 (engine):** the Start plan carries the page count and the cost per run (free on this Mac, unpriced cloud models null); the count is the pages a run runs over, and `estimate.counted` says what it counts ("4 photographs + 1 PDF page = 5 pages"), what the project holds that is not a page, and photographs that share a file name (copies taken in twice), #5498, pinned by `fichero-server/tests/unit/recipes/test_recipe_runs_to_spec.py`; time, carbon and the main alternative's estimate are not built; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. screens 4 and 6 show the whole
   volume's estimate (time where it runs, cost, carbon labelled as an estimate) for the proposed
   recipe and for its main alternative, before anything runs.
 - `source.onboard.routes-for-the-volume` — **[PARTIAL]** (#4951, #5404) *Built (engine): `GET /api/recipes/routes` (`recipes/routes.py`) returns the cloud, this-Mac and distil routes for a volume; this Mac's time is the median of its finished job rows for that model (measured), cloud cost the price list times the Start plan's per-page tokens (estimate), and a cloud model's time, a training run's cost and hours, accuracy and carbon are `unknown` until measured; pinned by `fichero-server/tests/unit/recipes/test_routes_for_the_volume.py`. Not built: training time from past runs, accuracy from stored bake-off scores, carbon, a cluster as the read target, and setup's screen.* for the volume the person has, setup

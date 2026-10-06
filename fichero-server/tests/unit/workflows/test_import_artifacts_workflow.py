@@ -145,7 +145,7 @@ def _seed_importable_pdf_library(tmp_path: Path) -> tuple[Path, str, list[str]]:
 
 
 def _load_import_artifacts_workflow():
-    preset = next(p for p in _load_preset_files() if p["name"] == "1 · Import → Artifacts")
+    preset = next(p for p in _load_preset_files() if p["name"] == "Import → Artifacts")
     return to_workflow_def(
         Workflow(
             id="default-import-artifacts-regression-harness",

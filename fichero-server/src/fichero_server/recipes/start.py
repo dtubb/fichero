@@ -16,20 +16,22 @@ from typing import Any
 
 from fichero_server.workflows.validation import KRAKEN_READER_PROVIDER
 
-#: job -> the shipped workflow that carries it out, by its name in the store.
+#: job -> the shipped workflow that carries it out, by its stable key: the file the preset ships in, which a
+#: rename of its display name never changes (#5497: the names step looked for "2 · Extract Entities" by an id
+#: minted from that name, and a project seeded before ids were stable said it "is not in this build").
 WORKFLOW_FOR_JOB = {
-    "split-pages": "Split Pages",
-    "find-lines": "Detect Segments (Kraken)",
-    "read-a-line": "Transcribe (Kraken)",
-    "read-a-page": "Transcribe HTR",
-    "correct": "Paleographer Review",
-    "find-names-tag-words": "2 · Extract Entities",
-    "find-statements": "3 · Extract SVO → Claims",
+    "split-pages": "split_pages",
+    "find-lines": "detect_regions_kraken",
+    "read-a-line": "transcribe_kraken",
+    "read-a-page": "transcribe_htr",
+    "correct": "transcribe_paleography_review",
+    "find-names-tag-words": "catalogue_stage_2_extract_entities",
+    "find-statements": "catalogue_stage_3_extract_svo",
     # The same rule extractor as the Extract Date tool, one code path (#5514).
-    "work-out-dates": "Work Out Dates",
+    "work-out-dates": "work_out_dates",
 }
 #: Kraken finds the lines and the step's vision model (a cloud or MLX pin) reads each one (the line reader).
-READ_LINES_WITH_A_MODEL = "Read Lines (Kraken lines, vision model)"
+READ_LINES_WITH_A_MODEL = "read_lines_kraken_vision"
 #: Jobs whose workflow takes the step's model as a run-level provider/model override.
 _OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements"})
 #: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`) and the project's
@@ -45,6 +47,16 @@ def _preset(name: str) -> dict | None:
     from fichero_server.workflows.default_workflows import _load_preset_files
 
     return next((p for p in _load_preset_files() if p.get("name") == name), None)
+
+
+def _shipped(key: str) -> tuple[str, str]:
+    """(display name, stable id) of the shipped workflow under `key`: the id every seed of it mints."""
+    from fichero_server.workflows.default_workflows import preset_workflow_id, shipped_preset
+
+    preset = shipped_preset(key)
+    if preset is None:
+        raise LookupError(f"no shipped workflow under the key {key!r}")
+    return preset["name"], preset_workflow_id(preset["name"])
 
 
 def _kraken_reader_for(pin: dict) -> str | None:
@@ -81,8 +93,6 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     the plan to those step ids: the jobs a layer added later proposes for the material already there
     (`source.onboard.add-layer`); the whole recipe is still checked.
     """
-    from fichero_server.workflows.default_workflows import preset_workflow_id
-
     from fichero_server.recipes.recipe import check_recipe
 
     if not recipe:
@@ -133,12 +143,13 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 entry.update(folder=settings.get("folder"), formats=list(settings.get("formats") or []))
             runs.append(entry)
             continue
-        name = WORKFLOW_FOR_JOB.get(job)
-        if name is None:
+        key = WORKFLOW_FOR_JOB.get(job)
+        if key is None:
             skip(sid, f"{label}: no card runs the job {job!r} yet")
             continue
+        name, workflow_id = _shipped(key)
         entry = {"steps": [sid], "job": job, "card": "workflow", "workflow": name,
-                 "workflow_id": preset_workflow_id(name), "provider_override": None, "model_override": None,
+                 "workflow_id": workflow_id, "provider_override": None, "model_override": None,
                  "runs_on": runs_on}
         if job == "split-pages":
             if pin.get("builtin") != "page-splitter":
@@ -158,7 +169,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 continue
         elif job == "read-a-line" and _override(pin) is not None:
             # A vision model reads the lines Kraken found: the step's own model, as the run's override.
-            entry["workflow"], entry["workflow_id"] = READ_LINES_WITH_A_MODEL, preset_workflow_id(READ_LINES_WITH_A_MODEL)
+            entry["workflow"], entry["workflow_id"] = _shipped(READ_LINES_WITH_A_MODEL)
             entry["provider_override"], entry["model_override"] = _override(pin)
             if runs and runs[-1]["job"] == "find-lines":
                 entry["steps"] = runs.pop()["steps"] + entry["steps"]
@@ -179,6 +190,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 continue
             entry["provider_override"], entry["model_override"] = override
         runs.append(entry)
+    # Each card declares what it takes and gives, so a run knows which steps a failure stops (#5498).
+    jobs_of = {s.get("id"): s.get("job", "") for s in recipe.get("steps") or []}
+    for run in runs:
+        run["takes"], run["gives"] = card_inputs([jobs_of.get(sid, "") for sid in run["steps"]])
     # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
     refusals = check_recipe(recipe)
     downloads = missing_models(runs)
@@ -189,6 +204,24 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         refusals.append("nothing in this recipe can run yet: every step is skipped (see why)")
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
             "offered": offered, "refusals": refusals, "downloads": downloads}
+
+
+def card_inputs(step_jobs: list[str]) -> tuple[list[str], list[str]]:
+    """(takes, gives) of a card that carries these jobs in order, in the job registry's kinds
+    (`recipes/jobs.py`; a take may name kinds joined by "|", any one of which meets it). A take a step of
+    the same card meets (Kraken's lines, read in the same run) is not the card's: only what it needs from
+    the steps before it."""
+    from fichero_server.recipes.jobs import get_job
+
+    takes: list[str] = []
+    gives: set[str] = set()
+    for job_id in step_jobs:
+        job = get_job(job_id)
+        if job is None:
+            continue
+        takes += [k for k in sorted(job.takes) if gives.isdisjoint(k.split("|")) and k not in takes]
+        gives |= job.gives
+    return takes, sorted(gives)
 
 
 def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -251,5 +284,9 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
 
 
 def count_pages(db) -> int:
-    """Units of work in the project: every page, and every file that has no pages (live material only)."""
-    return db.unit_of_work_count()
+    """Units of work in the project: every page, every file that has no pages, and every page a split cut from a
+    photograph (live material only): the pages a started recipe runs over (`done.pages_for`), so the estimate
+    and the run count the same thing (#5498)."""
+    from fichero_server.recipes.done import material
+
+    return material(db)["pages"]

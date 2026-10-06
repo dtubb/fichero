@@ -12950,7 +12950,7 @@
           "recipes"
         ],
         "summary": "Start Project",
-        "description": "The first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).",
+        "description": "The first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.",
         "operationId": "start_project_api_recipes_project_start_post",
         "parameters": [
           {
@@ -80544,7 +80544,13 @@
           "pages": {
             "type": "integer",
             "title": "Pages",
-            "description": "pages, and files with no pages, in the project"
+            "description": "pages, files with no pages, and pages cut from photographs, in the project: the pages a started recipe runs over"
+          },
+          "counted": {
+            "type": "string",
+            "nullable": true,
+            "title": "Counted",
+            "description": "what `pages` counts, in words: '4 photographs + 1 PDF page = 5 pages', what the project holds that is not a page (the PDF a page came from, folders), and photographs that share a file name"
           },
           "runs": {
             "items": {
@@ -80837,6 +80843,34 @@
             "nullable": true,
             "title": "Note",
             "description": "'already done on N of M pages', in words"
+          },
+          "last_run": {
+            "type": "string",
+            "nullable": true,
+            "title": "Last Run",
+            "description": "'failed' or 'not run' when the project's last finished run did not do this step; Start runs it again (no redo needed). Null when it was done, or never ran"
+          },
+          "last_why": {
+            "type": "string",
+            "nullable": true,
+            "title": "Last Why",
+            "description": "why the last run did not do it, in words"
+          },
+          "takes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Takes",
+            "description": "the kinds of thing it needs from the steps before it (the job registry's; 'a|b': either); it waits only when every earlier step that gives one failed"
+          },
+          "gives": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Gives",
+            "description": "the kinds of thing it gives the steps after it"
           }
         },
         "type": "object",

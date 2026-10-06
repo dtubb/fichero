@@ -79,6 +79,15 @@ _DEPRECATED_PRESET_NAMES: set[str] = {
     "Convert to Markdown",
     "Convert to HTML",
     "Convert to SVG",
+    # 2026-10-06 (#5497): the Catalogue stages lost their "N · " ordering prefix,
+    # which leaked into the Start plan and Activity; the order is the Catalogue
+    # chain's (and each stage's `config.order`), not its name.
+    "1 · Import → Artifacts",
+    "2 · Extract Entities",
+    "3 · Extract SVO → Claims",
+    "4 · Merge / Dedup",
+    "5 · KG Persist / Finalize",
+    "6 · Catalogue",
 }
 
 
@@ -98,6 +107,40 @@ def _load_preset_files() -> list[dict]:
         except Exception as exc:
             logger.warning(f"Failed to load preset {path.name}: {exc}")
     return presets
+
+
+def shipped_preset(key: str) -> dict | None:
+    """A shipped preset by its stable key, the file it ships in (``catalogue_stage_2_extract_entities``).
+
+    A preset's display name may change (#5497: the Catalogue stages lost their "N · " prefix); its file
+    does not, so a caller that must find one shipped workflow (a recipe's job) holds the key, never the
+    name. None for a key no preset ships under."""
+    path = _PRESETS_DIR / f"{key}.json"
+    if not path.is_file():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) and data.get("name") else None
+
+
+def resolve_shipped_workflow(db: "Database", workflow_id: str, name: str):
+    """The row a shipped preset runs as for this library (#5497).
+
+    By its deterministic id: this library's row, then the global default. A library seeded before ids
+    were stable (#4450) holds the preset under a random id, which the id misses although the workflow is
+    there (``workflow run NAME`` finds it); so then the seeded row (``is_system``/``is_template``) that
+    carries the preset's name, this library's first, then the global defaults'. A user's own workflow of
+    that name is never taken. None only when the preset is in neither."""
+    from fichero_server.models import Workflow
+    from fichero_server.workflows.workflow_store import WorkflowStore
+
+    row = WorkflowStore(db).get(workflow_id) or resolve_default_workflow(workflow_id)
+    if row is not None:
+        return row
+    seeded = [w for w in db.all(Workflow) if w.name == name
+              and (getattr(w, "is_system", False) or getattr(w, "is_template", False))]
+    if seeded:
+        return seeded[0]
+    return next((w for w in list_global_default_workflows() if w.name == name), None)
 
 
 def seed_default_workflows(db: "Database", force: bool = False) -> int:

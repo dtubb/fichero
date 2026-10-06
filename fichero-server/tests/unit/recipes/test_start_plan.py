@@ -89,7 +89,7 @@ def test_a_job_no_card_runs_is_skipped_by_name():
     links = {"id": "links", "job": "link-to-authorities", "model": {"builtin": "links"}}
     plan = plan_start(_recipe(LINES, READ, names, links), stays_local=True)
     assert any(s["step"] == "links" and "link-to-authorities" in s["why"] for s in plan["skipped"])
-    assert plan["workflows"][-1]["workflow"] == "2 · Extract Entities"
+    assert plan["workflows"][-1]["workflow"] == "Extract Entities"
     assert (plan["workflows"][-1]["provider_override"], plan["workflows"][-1]["model_override"]) == (
         "spacy", "es_core_news_sm")
 

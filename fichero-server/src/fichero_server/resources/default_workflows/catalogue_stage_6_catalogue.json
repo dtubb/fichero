@@ -1,5 +1,5 @@
 {
-  "name": "6 · Catalogue",
+  "name": "Catalogue Description",
   "description": "Step 6 of the discrete import-artifacts pipeline, and the one the full 'Catalogue' preset performs as its final act. Writes the folder-level archival description from the entities, claims and curation stages 1-5 already produced — it does NOT re-transcribe or re-extract, so corrections made after those stages are preserved. Run this when the work below is already done and only the description needs (re)generating. Fails loudly and names the missing stage when no claims exist for the target yet. Output attaches to the container — a selected folder stays on that folder; a single file stays on itself.",
   "format": "nodes",
   "is_template": true,
@@ -13,7 +13,8 @@
     "reviewable"
   ],
   "config": {
-    "preset_version": 1,
+    "preset_version": 2,
+    "order": 6,
     "stage": "catalogue"
   },
   "nodes": [

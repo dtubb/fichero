@@ -1,5 +1,5 @@
 {
-  "name": "2 · Extract Entities",
+  "name": "Extract Entities",
   "description": "Step 2 of the discrete import-artifacts pipeline. Reuse the transcription artifacts from step 1 to extract and persist entity rows only. Safe to re-run: entity upserts reuse existing rows and accumulate per-page provenance without duplicates.",
   "format": "nodes",
   "is_template": true,
@@ -13,7 +13,8 @@
     "reviewable"
   ],
   "config": {
-    "preset_version": 1,
+    "preset_version": 2,
+    "order": 2,
     "stage": "extract_entities"
   },
   "nodes": [

@@ -25,7 +25,7 @@ FIXTURE_TEXT = "Ada Mock signed the ledger. Mockton borders the river."
 def test_extract_svo_preset_persists_claims_and_is_idempotent(tmp_path: Path):
     library_path, parent_doc_id, page_doc_ids = _seed_extractable_library(tmp_path)
     db = db_manager.get_database(library_path)
-    workflow = _load_workflow("3 · Extract SVO → Claims", provider_name="mock")
+    workflow = _load_workflow("Extract SVO → Claims", provider_name="mock")
 
     page_pass_calls = {"n": 0}
 

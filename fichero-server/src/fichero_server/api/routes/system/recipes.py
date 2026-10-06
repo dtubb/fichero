@@ -561,7 +561,11 @@ class StartEstimateRun(BaseModel):
 
 
 class StartEstimate(BaseModel):
-    pages: int = Field(description="pages, and files with no pages, in the project")
+    pages: int = Field(description="pages, files with no pages, and pages cut from photographs, in the project: "
+                       "the pages a started recipe runs over")
+    counted: Optional[str] = Field(default=None, description=(
+        "what `pages` counts, in words: '4 photographs + 1 PDF page = 5 pages', what the project holds that is "
+        "not a page (the PDF a page came from, folders), and photographs that share a file name"))
     runs: list[StartEstimateRun]
     total_cost_usd: Optional[float] = None
 
@@ -596,6 +600,14 @@ class StartRun(BaseModel):
                                 "cannot tell (`source.recipe.done-is-not-redone`)")
     of: Optional[int] = Field(default=None, description="the pages (or, for a split, photographs) it runs over")
     note: Optional[str] = Field(default=None, description="'already done on N of M pages', in words")
+    last_run: Optional[str] = Field(default=None, description=(
+        "'failed' or 'not run' when the project's last finished run did not do this step; Start runs it again "
+        "(no redo needed). Null when it was done, or never ran"))
+    last_why: Optional[str] = Field(default=None, description="why the last run did not do it, in words")
+    takes: list[str] = Field(default_factory=list, description=(
+        "the kinds of thing it needs from the steps before it (the job registry's; 'a|b': either); it waits "
+        "only when every earlier step that gives one failed"))
+    gives: list[str] = Field(default_factory=list, description="the kinds of thing it gives the steps after it")
 
 
 class SkippedStep(BaseModel):
@@ -653,27 +665,49 @@ class StartPlan(BaseModel):
 
 
 def _start_plan(db: Database) -> dict[str, Any]:
+    from fichero_server.recipes import runner
+    from fichero_server.recipes.done import annotate, material
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
-    from fichero_server.recipes.start import count_pages, estimate, plan_start
+    from fichero_server.recipes.start import estimate, plan_start
 
     library = _library(db)
     setup = read_project_setup(library)
     started, proposal = read_start(library), read_proposed(library)
     # A project keeps its pages on this Mac unless setup's answer said otherwise.
     stays_local = not (setup["answers"] or {}).get("cloud_allowed", False)
+    # Steps the last run did not finish stay in the plan, to run again (#5498).
+    unfinished = runner.unfinished_steps(db) if started else {}
     # Before the first yes Start runs the whole recipe, the added layer with it; after it, only what an
-    # added layer proposes for the material already there.
-    only = set(proposal["steps"]) if started and proposal else None
+    # added layer proposes for the material already there, and what did not finish.
+    only = set(proposal["steps"]) | set(unfinished) if started and proposal else None
     plan = plan_start(setup["recipe"], stays_local=stays_local, only=only)
-    plan["estimate"] = estimate(plan["workflows"], count_pages(db))
+    pages = material(db)
+    plan["estimate"] = estimate(plan["workflows"], pages["pages"])
+    plan["estimate"]["counted"] = pages["sentence"]
     plan["started"] = started
     plan["proposed"] = explain(setup["recipe"], proposal)
     plan["addable"] = addable_now(setup["answers"] or {})
-    from fichero_server.recipes.done import annotate
-
-    annotate(db, plan)
+    annotate(db, plan, unfinished)
     return plan
+
+
+def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
+    """The plan as Start started it (#5498): its runs, workflows and skipped steps are the queued run's, so the
+    response's `started.workflows` and `runs` name the same thing, never the plan for next time."""
+    from fichero_server.recipes import runner
+    from fichero_server.recipes.done import annotate
+    from fichero_server.recipes.start import estimate
+
+    job_id = (plan.get("started") or {}).get("job_id")
+    if not job_id:
+        return plan
+    started = runner.started_plan(db, job_id)
+    plan["runs"], plan["skipped"] = started["runs"], started["skipped"]
+    plan["workflows"] = [r for r in plan["runs"] if r["card"] == "workflow"]
+    counted = plan["estimate"].get("counted")
+    plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"]), "counted": counted}
+    return annotate(db, plan)
 
 
 @router.get("/project/start", response_model=StartPlan)
@@ -707,12 +741,13 @@ async def start_project(
     """The first yes: record that the person pressed Start, on which recipe version (audited,
     undoable), and run the recipe over the project's material as one `run-a-recipe` job
     (`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.
-    Refused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run)."""
+    Refused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).
+    The response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is."""
     try:
         registry.invoke(db, "project.start", {"redo": request.redo if request else []}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return StartPlan(**_start_plan(db))
+    return StartPlan(**_as_started(db, _start_plan(db)))
 
 
 def _invert_start(before: dict | None, after: dict | None, ctx: ActionContext):
