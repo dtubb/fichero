@@ -19,6 +19,7 @@ import re
 
 from PIL import Image
 
+from fichero_server.llm.read_guard import READ_FLAG_KEY, ReadFlag, check_read
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
 
 logger = logging.getLogger(__name__)
@@ -122,21 +123,36 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     readings = [r for group in await asyncio.gather(*(batch(g) for g in groups)) for r in group]
 
     boxes, texts, cursor = [], [], 0
+    flagged: list[ReadFlag] = []
     for box, text in zip(found, readings):
         if text is None:
             continue
         texts.append(text)
+        # Each line's reading is checked as it lands (#5522): one picture is one line, so a reading
+        # that loops or runs far past a line's length is marked on its box.
+        flag = check_read(text, line_count=1, model=config.model)
+        metadata = box.metadata
+        if flag is not None:
+            flagged.append(flag)
+            metadata = {**box.metadata, READ_FLAG_KEY: flag.as_data()}
         boxes.append(box.model_copy(update={
             "text": text, "char_start": cursor, "char_end": cursor + len(text),
             "level": OCRGeometryLevel.LINE, "provider": config.provider, "model": config.model,
-            "source": "kraken-lines+vision",
+            "source": "kraken-lines+vision", "metadata": metadata,
         }))
         cursor += len(text) + 1
-    logger.info("line reader %s: %d lines found, %d read, %d without writing",
-                config.model, len(found), len(boxes), len(found) - len(boxes))
+    logger.info("line reader %s: %d lines found, %d read, %d without writing, %d flagged",
+                config.model, len(found), len(boxes), len(found) - len(boxes), len(flagged))
+    page_metadata = {**lines.metadata, "lines_found_by": "kraken", "lines_found": len(found),
+                     "lines_without_writing": len(found) - len(boxes), "lines_flagged": len(flagged)}
+    if flagged:
+        # The page's reading is as trusted as its worst line: it lands marked, not as the page's text.
+        page_metadata[READ_FLAG_KEY] = {
+            "kind": flagged[0].kind,
+            "reason": f"{flagged[0].reason} on {len(flagged)} of its {len(boxes)} lines",
+            "measure": {"lines_flagged": len(flagged), "lines_read": len(boxes), **flagged[0].measure},
+        }
     return lines.model_copy(update={
         "text": "\n".join(texts), "boxes": boxes, "provider": config.provider, "model": config.model,
-        "source": "kraken-lines+vision",
-        "metadata": {**lines.metadata, "lines_found_by": "kraken", "lines_found": len(found),
-                     "lines_without_writing": len(found) - len(boxes)},
+        "source": "kraken-lines+vision", "metadata": page_metadata,
     })

@@ -349,6 +349,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/orchestration_policy.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/prompts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/provider_validation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/providers.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/read_guard.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/script_coverage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/usage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/whisper_runtime.py

@@ -69,11 +69,14 @@ TRANSCRIBE_CONFIG = {
     },
     "regions_first": {
         "type": "boolean",
-        "default": True,
+        # OFF unless asked (#5523): it is a second, Apple Vision reading of the
+        # page, stored beside the chosen reader's -- on a Spanish hand it read
+        # Cyrillic. A run makes only the readings it was asked for.
+        "default": False,
         "description": (
-            "Detect text regions on-device (Apple Vision) BEFORE transcribing, "
-            "saving per-page bounding boxes as a regions artifact — works for "
-            "every provider, unlike return_boxes"
+            "Also detect text regions on-device (Apple Vision) BEFORE transcribing, "
+            "saving per-page bounding boxes as a regions artifact (an extra Apple "
+            "Vision reading of the page). Off unless you ask for it."
         ),
     },
     "update_page_content": {
@@ -252,6 +255,14 @@ Bounding box rules:
     return prompt
 
 
+def _reader_is_apple_vision(vision_mode: str, llm_config: LLMConfig) -> bool:
+    """True when this step's reader is Apple Vision (`vision_mode` apple, or auto on the apple
+    provider) -- `process_vision`'s own rule for `auto`."""
+    if vision_mode == "apple":
+        return True
+    return vision_mode == "auto" and (getattr(llm_config, "provider", "") or "").lower() == "apple"
+
+
 def build_transcribe_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
     # `auto` is passed through, not normalised to a locale — the preview then
@@ -285,7 +296,7 @@ def build_transcribe_prompt(config: dict) -> str:
         "vision_mode": "auto",
         "language": "auto",
         "return_boxes": False,
-        "regions_first": True,
+        "regions_first": False,
         "update_page_content": True,
         "save_to_db": True,
     },
@@ -322,12 +333,19 @@ async def transcribe(
     update_page_content = inputs.get("update_page_content", True)
 
     # Bboxes FIRST (Daniel, 2026-08-11): detect text regions on-device before
-    # any transcription, so every page carries geometry regardless of which
-    # provider transcribes. Under per-file fan-out this runs per page — true
+    # any transcription. Under per-file fan-out this runs per page — true
     # page-level regions-then-text with no graph changes. Detection failure
     # must never cost a transcription: log loudly and continue (the regions
     # artifact is an enhancement; the text is the contract).
-    if inputs.get("regions_first", True) and files:
+    #
+    # ONLY when the step asks for it (#5523). It was on by default, so every
+    # Transcribe -- failed ones too -- also stored an Apple Vision reading of the
+    # page nobody chose (it read a Spanish hand as Cyrillic). And never when the
+    # reader IS Apple Vision: that reading is the transcription itself, and a
+    # second copy is not a reading anyone asked for.
+    if inputs.get("regions_first", False) and files and not _reader_is_apple_vision(
+        vision_mode, llm_config
+    ):
         from fichero_server.workflows.tools.detect_regions import (  # noqa: PLC0415
             detect_regions as _detect_regions,
         )

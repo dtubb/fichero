@@ -1165,7 +1165,17 @@ def _mlx_runtime_row() -> LocalRuntimeRow:
     try:
         status = get_mlx_runtime().status()
         provisioned = bool(status.get("provisioned"))
-        reason = None if provisioned else "Provision the MLX runtime to run local vision/OCR and text models."
+        if not provisioned:
+            reason = "Provision the MLX runtime to run local vision/OCR and text models."
+        elif not status.get("audio_ready"):
+            # Ready for vision and text, and NOT for audio (#5523): the row said a plain 'ready'
+            # while its Whisper part had not installed. Say which part is missing.
+            reason = (
+                "Ready for vision and text models; its audio part (mlx-whisper) is not installed, "
+                "so it cannot transcribe audio. Provision the MLX runtime again to add it."
+            )
+        else:
+            reason = None
     except Exception as exc:  # noqa: BLE001 — one bad runtime must not blank the list
         logger.warning("local-runtimes: MLX status failed: %s", exc)
         provisioned = False

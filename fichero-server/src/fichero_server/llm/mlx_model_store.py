@@ -44,8 +44,20 @@ class ManagedModelSpec:
     page_memory_bytes: int | None = None
 
 
+#: How often a running download's bytes on disk are re-counted for its progress (#5523).
+DOWNLOAD_PROGRESS_POLL_SECONDS = 1.0
+
+
+def _format_bytes(count: int) -> str:
+    return f"{count / 1e9:.1f} GB" if count >= 1e8 else f"{count / 1e6:.0f} MB"
+
+
 @dataclass
 class ManagedModelDownloadJob:
+    """A model download's progress. ``current`` and ``total`` are BYTES (#5523): they were three
+    steps, so a download of any length sat at step 2 of 3 -- 66.7% -- from its first byte to its
+    last."""
+
     job_id: str
     model_id: str
     state: str
@@ -339,8 +351,8 @@ class MLXModelStore:
                 job_id=f"mlx-{len(self._jobs) + 1}",
                 model_id=model_id,
                 state="completed",
-                current=3,
-                total=3,
+                current=max(spec.download_size_bytes, 1),
+                total=max(spec.download_size_bytes, 1),
                 message="Model already installed",
             )
             self._jobs[job.job_id] = job
@@ -350,7 +362,7 @@ class MLXModelStore:
             model_id=model_id,
             state="queued",
             current=0,
-            total=3,
+            total=max(spec.download_size_bytes, 1),
             message="Queued download",
         )
         self._jobs[job.job_id] = job
@@ -519,15 +531,28 @@ class MLXModelStore:
                     return False
         return True
 
+    def downloaded_bytes(self, spec: ManagedModelSpec) -> int:
+        """Bytes of this model on disk so far: its cache's ``blobs``, finished files and the
+        ``.incomplete`` ones being written. Not the snapshot folder -- its files are links to the
+        blobs, and counting both would count every byte twice."""
+        return self._disk_usage_bytes(self.cache_dir / f"models--{spec.repo_id.replace('/', '--')}" / "blobs")
+
+    def _note_progress(self, job: ManagedModelDownloadJob, spec: ManagedModelSpec) -> None:
+        # Capped below the total until the download says it is done: the catalog size is measured,
+        # but a byte count that reached it early must not read as finished.
+        done = min(self.downloaded_bytes(spec), max(job.total - 1, 0))
+        job.current = done
+        job.message = (
+            f"Downloading {spec.display_name}: {_format_bytes(done)} of {_format_bytes(job.total)}"
+        )
+
     async def _run_download(self, job: ManagedModelDownloadJob, spec: ManagedModelSpec) -> None:
         job.state = "running"
-        job.current = 1
         job.message = "Resolving MLX runtime"
         python_path = str(get_mlx_runtime().require_python_path())
         self.root.mkdir(parents=True, exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        job.current = 2
-        job.message = f"Downloading {spec.display_name}"
+        self._note_progress(job, spec)
         process = await asyncio.create_subprocess_exec(
             python_path,
             "-c",
@@ -541,7 +566,12 @@ class MLXModelStore:
             env=self.env(),
         )
         self._job_processes[job.job_id] = process
-        stdout, stderr = await process.communicate()
+        communicating = asyncio.ensure_future(process.communicate())
+        while not communicating.done():
+            await asyncio.wait({communicating}, timeout=DOWNLOAD_PROGRESS_POLL_SECONDS)
+            if not communicating.done():
+                self._note_progress(job, spec)
+        stdout, stderr = communicating.result()
         self._job_processes.pop(job.job_id, None)
         if process.returncode != 0:
             job.state = "failed"
@@ -549,7 +579,7 @@ class MLXModelStore:
             job.error = excerpt or f"download exited {process.returncode}"
             job.message = "Download failed"
             return
-        job.current = 3
+        job.current = job.total
         job.state = "completed"
         job.message = "Download complete"
 

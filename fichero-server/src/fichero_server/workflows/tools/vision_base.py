@@ -42,6 +42,12 @@ from fichero_server.media.ocr_geometry import (
     geometry_unavailable,
     parse_vlm_geometry,
 )
+from fichero_server.llm.read_guard import (
+    READ_FLAG_KEY,
+    check_read,
+    finish_reason_of,
+    page_line_count,
+)
 from fichero_server.workflows.tools.transcription_output import TranscriptionCommentaryError
 from fichero_server.workflows.types import PortDef, DataType
 
@@ -2766,8 +2772,12 @@ async def _propagate_to_page_children(
     artifact_data: dict | None = None,
     page_thinking: list[str | None] | None = None,
     page_episode_ids: list[str | None] | None = None,
+    page_flags: list[dict | None] | None = None,
 ) -> list[str] | None:
     """Write per-page OCR text to page child documents and re-embed each one.
+
+    ``page_flags``: the read checker's flag per page (#5522). A flagged page's
+    artifact is saved carrying its flag, and nothing is written onto the page.
 
     Call this after saving the combined transcript to the parent PDF document
     so that semantic search can surface individual pages instead of only the file.
@@ -2806,13 +2816,14 @@ async def _propagate_to_page_children(
                 continue
             page_text = page_texts[page_idx]
             is_blank = not page_text or not page_text.strip()
+            page_flag = page_flags[page_idx] if page_flags and page_idx < len(page_flags) else None
 
             # #4993/#5081: once a page's boxes have become segment rows its text is DERIVED from them
             # (a person's edits and corrections live there), so a rerun writes nothing onto the page
             # itself: no page_content, no re-embed. It saves a new artifact below, as every other
             # producer does, and the guard runs before anything is written.
             page_is_converted = page_text_is_derived(db, page_doc.id)
-            if not is_blank and not page_is_converted:
+            if not is_blank and not page_is_converted and page_flag is None:
                 if not isinstance(page_doc.metadata, dict):
                     page_doc.metadata = {}
                 page_doc.page_content = page_text
@@ -2847,6 +2858,9 @@ async def _propagate_to_page_children(
                         # result becomes a NEW artifact beside it (#4993).
                         and not is_converted(a)
                     ]
+                    if page_flag is not None:
+                        # A flagged read never replaces a reading in place (#5522): it lands beside.
+                        matched = []
                     # Save even for blank pages so the inspector can
                     # distinguish "blank page" from "tool didn't run" (#1082).
                     artifact_content = page_text if not is_blank else ""
@@ -2873,6 +2887,8 @@ async def _propagate_to_page_children(
                             **(page_data or {}),
                             "episode_id": page_episode_ids[page_idx],
                         }
+                    if page_flag is not None:
+                        page_data = {**(page_data or {}), READ_FLAG_KEY: page_flag}
                     # Stamp WHICH picture these boxes were measured on. If this
                     # node was processed on its own region crop, the boxes are
                     # fractions of the crop, not of the page — a renderer that
@@ -2929,6 +2945,9 @@ async def _propagate_to_page_children(
                         )
                         if page_data is not None:
                             art.data = page_data
+                        elif isinstance(art.data, dict) and READ_FLAG_KEY in art.data:
+                            # A clean read replacing a flagged one drops the old flag with it.
+                            art.data = {k: v for k, v in art.data.items() if k != READ_FLAG_KEY}
                     else:
                         art = Artifact(
                             document_id=page_doc.id,
@@ -3270,6 +3289,40 @@ def _cgimage_to_data_uri(cg_image, max_dimension: int = 2048) -> str:
 # PDF page through Kraken is not a lower-fidelity render than segmenting the
 # same page through Apple/an LLM.
 _KRAKEN_PDF_RENDER_DPI = 300
+
+
+def _flag_for_read(
+    text: str | None,
+    *,
+    finish_reason: str | None,
+    geometry: OCRGeometryResult | None,
+    line_count: int | None,
+    model: str | None,
+) -> dict | None:
+    """The read checker's verdict on one page's read, as the flag a saved reading carries (#5522).
+
+    The line reader checks each line itself and puts the page's flag on the geometry it returns;
+    that flag is the answer when present. Otherwise the page's text is checked whole."""
+    carried = geometry.metadata.get(READ_FLAG_KEY) if geometry is not None else None
+    if isinstance(carried, dict):
+        return carried
+    flag = check_read(text or "", finish_reason=finish_reason, line_count=line_count, model=model)
+    return flag.as_data() if flag is not None else None
+
+
+def _page_lines(library_path: str, document_id: str) -> int | None:
+    """How many lines the page's working pass has (None when not known), for the length check."""
+    from fichero_server.db import db_manager
+
+    return page_line_count(db_manager.get_database(library_path), document_id)
+
+
+def _page_label(doc: dict | None, file_path: str) -> str:
+    """'page 7' when the page knows its place in its source, else the file's name."""
+    sequence = doc.get("sequence") if isinstance(doc, dict) else None
+    if isinstance(sequence, int) and not isinstance(sequence, bool) and sequence > 0:
+        return f"page {sequence}"
+    return Path(file_path).name
 
 
 def _reader_label(vision_mode: str, config: Any, kraken_model: str | None,
@@ -3867,6 +3920,7 @@ async def process_vision(
     artifact_ids = []
     output_files = []
     page_records: list[dict] = []
+    notes: list[str] = []
 
     # Text-format extensions whose content is already plain text — no
     # vision call needed. Mirrors loaders/document_loader.py:TEXT_FORMATS
@@ -3912,6 +3966,8 @@ async def process_vision(
         artifact_ids: list = []
         output_files: list = []
         page_records: list[dict] = []
+        #: What this file's reads caught, in words (#5522).
+        notes: list[str] = []
 
         def _outcome() -> dict:
             return {
@@ -3921,6 +3977,7 @@ async def process_vision(
                 "artifact_ids": artifact_ids,
                 "output_files": output_files,
                 "page_records": page_records,
+                "notes": notes,
             }
 
         # #2543: route every vision/LLM call for this file through the shared
@@ -4202,6 +4259,9 @@ async def process_vision(
             # on the artifact's data ("thinking") so a run can be audited.
             per_page_thinking: list[str | None] | None = None
             page_thinking_single: str | None = None
+            # The model's own finish reason for this read (#5522): "length" means it stopped short.
+            _finish_reason: str | None = None
+            per_page_finish: list[str | None] | None = None
 
             # PDF text-layer short-circuit (#957, #1033, #1064). A born-digital
             # PDF (InDesign export, LaTeX, Word→PDF) already carries a
@@ -4582,7 +4642,9 @@ async def process_vision(
                     _llm_page_texts: list[str] = []
                     _llm_page_geometries: list[OCRGeometryResult | None] = []
                     _llm_page_thinking: list[str | None] = []
+                    _llm_page_finish: list[str | None] = []
                     for _page_idx in range(_llm_num_pages):
+                        _page_finish_now: str | None = None
                         try:
                             _page_uri = await _pdf_page_to_data_uri_async(
                                 file_path,
@@ -4605,6 +4667,7 @@ async def process_vision(
                                     logger.info("Thinking (page %d): %s...", _page_idx, _thk[:100])
                                 _llm_page_texts.append(str(_ans or ""))
                                 _llm_page_thinking.append(_thk or None)
+                                _llm_page_finish.append(_page_finish_now)
                                 # Keep geometries index-aligned with texts:
                                 # this branch never captured any (latent
                                 # misalignment before thinking capture forced
@@ -4632,6 +4695,7 @@ async def process_vision(
                                     )
                                 )
                                 _payload = _pt if isinstance(_pt, str) else ""
+                                _page_finish_now = finish_reason_of(_pt)
                                 if _boxes_requested:
                                     _page_text, _geometry = (
                                         _return_boxes_text_and_geometry(
@@ -4643,6 +4707,7 @@ async def process_vision(
                                     _llm_page_geometries.append(_geometry)
                                     _llm_page_texts.append(_page_text)
                                     _llm_page_thinking.append(None)
+                                    _llm_page_finish.append(_page_finish_now)
                                 else:
                                     _llm_page_geometries.append(
                                         _llm_geometry_unavailable(
@@ -4653,6 +4718,7 @@ async def process_vision(
                                     )
                                     _llm_page_texts.append(_payload)
                                     _llm_page_thinking.append(None)
+                                    _llm_page_finish.append(_page_finish_now)
                         except ProviderRateLimitedError:
                             # #2543: breaker is OPEN for this provider — abort
                             # the per-page loop and fail this file fast rather
@@ -4666,6 +4732,7 @@ async def process_vision(
                             )
                             _llm_page_texts.append("")
                             _llm_page_thinking.append(None)
+                            _llm_page_finish.append(_page_finish_now)
                             _llm_page_geometries.append(
                                 _llm_geometry_unavailable(
                                     effective_config,
@@ -4687,6 +4754,8 @@ async def process_vision(
                     per_page_texts = _llm_page_texts
                     per_page_geometries = _llm_page_geometries
                     per_page_thinking = _llm_page_thinking
+                    # Index-aligned with the pages, like the thinking: a page that failed has no reason.
+                    per_page_finish = _llm_page_finish
                     _parts: list[str] = []
                     for _i, _t in enumerate(per_page_texts):
                         if _t:
@@ -4762,6 +4831,7 @@ async def process_vision(
                                 ),
                             )
                         )
+                        _finish_reason = finish_reason_of(text)
                         # Parse output according to format
                         parsed = parse_output(text, output_format, output_options)
                     if _boxes_requested:
@@ -4837,6 +4907,7 @@ async def process_vision(
                             ),
                         )
                     )
+                    _finish_reason = finish_reason_of(text)
                     parsed = parse_output(text, output_format, output_options)
                     if reference_values:
                         parsed = apply_reference_matching(parsed, reference_values)
@@ -4877,6 +4948,7 @@ async def process_vision(
                                     ),
                                 )
                             )
+                            _finish_reason = finish_reason_of(text)
                             parsed = parse_output(
                                 text, output_format, output_options
                             )
@@ -4938,6 +5010,7 @@ async def process_vision(
                             ),
                         )
                     )
+                    _finish_reason = finish_reason_of(text)
                     text = postprocess_text(text)
                 parsed = parse_output(text, output_format, output_options)
                 if reference_values:
@@ -5023,7 +5096,63 @@ async def process_vision(
                     values.append(None)
                     return _outcome()
 
+            # A model's read is checked before it lands (#5522): a loop, more text than the page's
+            # lines hold, or the model's own "ran out of room" flags it. A flagged read is still
+            # saved, marked, so a person can look at it and choose it -- but it never becomes the
+            # page's text and never displaces a better reading. Only a MODEL's read is checked: a
+            # text layer or Apple/Kraken recognition does not loop or run out of tokens.
+            _model_read = not pdf_layer_used and (
+                vision_mode == "llm"
+                or (vision_mode == "kraken" and lines_read_by == "model" and not kraken_recognition_model)
+            )
+            _read_flag: dict | None = None
+            _page_flags: list[dict | None] | None = None
+            if _model_read:
+                _reader = _reader_label(vision_mode, effective_config, kraken_recognition_model, lines_read_by)[1]
+                if per_page_texts and requested_page_index is None:
+                    _page_flags = [
+                        _flag_for_read(
+                            _pt_text,
+                            finish_reason=per_page_finish[_pi] if per_page_finish and _pi < len(per_page_finish) else None,
+                            geometry=per_page_geometries[_pi] if per_page_geometries and _pi < len(per_page_geometries) else None,
+                            line_count=None,
+                            model=_reader,
+                        )
+                        for _pi, _pt_text in enumerate(per_page_texts)
+                    ]
+                    for _pi, _pf in enumerate(_page_flags):
+                        if _pf is not None:
+                            _note = f"{_pf['reason']} on page {_pi + 1} of {Path(file_path).name}; kept the earlier reading"
+                            notes.append(_note)
+                            _log_vision_warning(_note, file_path)
+                    if not any(_page_flags):
+                        _page_flags = None
+                else:
+                    if vision_mode == "kraken" and page_geometry is not None:
+                        _lines = page_geometry.metadata.get("lines_found")
+                    elif save_to_db and library_path and doc_id_for_file:
+                        _lines = await asyncio.to_thread(_page_lines, library_path, doc_id_for_file)
+                    else:
+                        _lines = None
+                    _read_flag = _flag_for_read(
+                        text, finish_reason=_finish_reason, geometry=page_geometry,
+                        line_count=_lines if isinstance(_lines, int) else None, model=_reader,
+                    )
+                    if _read_flag is not None:
+                        _kept = (
+                            "kept the earlier reading" if (existing_text or "").strip()
+                            else "the page keeps no text from it"
+                        )
+                        _note = f"{_read_flag['reason']} on {_page_label(_preloaded_doc, file_path)}; {_kept}"
+                        notes.append(_note)
+                        _log_vision_warning(_note, file_path)
+
             result = {"file": file_path, "text": text, "value": parsed}
+            if _read_flag is not None:
+                result[READ_FLAG_KEY] = _read_flag
+                result["warning"] = notes[-1]
+            if _page_flags is not None:
+                result["page_read_flags"] = _page_flags
 
             # Episode ledger (2026-08-12, episode-capture program): one
             # training-grade record per model exchange — per page on the
@@ -5104,6 +5233,13 @@ async def process_vision(
                         **(effective_artifact_data or {}),
                         "episode_id": _ep_single_id,
                     }
+                # A flagged read lands marked, and writes nothing onto the page (#5522).
+                _save_tool_config = tool_config
+                if _read_flag is not None:
+                    effective_artifact_data = {**(effective_artifact_data or {}), READ_FLAG_KEY: _read_flag}
+                    _save_tool_config = dataclasses.replace(
+                        tool_config, update_page_content=False, trigger_embedding=False
+                    )
                 # Set proper provider/model labels for local processing
                 save_config = effective_config
                 if pdf_layer_used:
@@ -5176,6 +5312,7 @@ async def process_vision(
                         artifact_data=effective_artifact_data,
                         page_thinking=per_page_thinking,
                         page_episode_ids=_ep_page_ids,
+                        page_flags=_page_flags,
                     )
                     if page_artifact_ids is None and len(per_page_texts) > 1:
                         # Multi-page PDF with NO page children. Per #2430 /
@@ -5213,6 +5350,7 @@ async def process_vision(
                             artifact_data=effective_artifact_data,
                             page_thinking=per_page_thinking,
                             page_episode_ids=_ep_page_ids,
+                            page_flags=_page_flags,
                         )
                         if page_artifact_ids is None:
                             # Still unsplittable. FAIL LOUD rather than write a
@@ -5237,7 +5375,7 @@ async def process_vision(
                             library_path=library_path,
                             llm_config=save_config,
                             task_id=task_id,
-                            tool_config=tool_config,
+                            tool_config=_save_tool_config,
                             ocr_geometry=page_geometry
                             or (
                                 per_page_geometries[0]
@@ -5265,7 +5403,7 @@ async def process_vision(
                         library_path=library_path,
                         llm_config=save_config,
                         task_id=task_id,
-                        tool_config=tool_config,
+                        tool_config=_save_tool_config,
                         ocr_geometry=page_geometry,
                         data=effective_artifact_data,
                         metadata_field=metadata_field,
@@ -5297,14 +5435,20 @@ async def process_vision(
             results.append(result)
             texts.append(text)
             values.append(parsed)
-            page_records.extend(
-                _build_page_records_for_file(
-                    library_path,
-                    doc_id_for_file,
-                    text,
-                    per_page_texts,
+            # A flagged read feeds nothing downstream (#5522): a flagged page's record falls back to
+            # the page's own text, and a flagged single read makes no record.
+            if _read_flag is None:
+                page_records.extend(
+                    _build_page_records_for_file(
+                        library_path,
+                        doc_id_for_file,
+                        text,
+                        [
+                            "" if _page_flags and _pi < len(_page_flags) and _page_flags[_pi] else _t
+                            for _pi, _t in enumerate(per_page_texts)
+                        ] if per_page_texts else per_page_texts,
+                    )
                 )
-            )
 
         except ProviderRateLimitedError as e:
             # #2543: the per-provider circuit breaker is OPEN — record a loud,
@@ -5514,12 +5658,22 @@ async def process_vision(
             artifact_ids.extend(_outcome["artifact_ids"])
             output_files.extend(_outcome["output_files"])
             page_records.extend(_outcome["page_records"])
+            notes.extend(_outcome.get("notes") or [])
 
     # The deferred page-content write for fan-in documents — see the note where
     # `_fan_in_indices_by_doc` is built. One write per document, joining its
     # files' texts in FILE ORDER, which is the order the tiles were cut in.
     _join_failures: list[str] = []
     if _fan_in_indices_by_doc and library_path and save_to_db:
+        # A page with a flagged strip keeps its text (#5522): joining would put the flagged read
+        # onto the page through the back door. `results` is one entry per file, like `texts`.
+        _flagged_files = {
+            i for i, r in enumerate(results) if isinstance(r, dict) and r.get(READ_FLAG_KEY)
+        }
+        _fan_in_indices_by_doc = {
+            doc_id: idxs for doc_id, idxs in _fan_in_indices_by_doc.items()
+            if not _flagged_files.intersection(idxs)
+        }
         _join_failures = _write_joined_page_content(
             indices_by_doc=_fan_in_indices_by_doc,
             texts=texts,
@@ -5577,5 +5731,7 @@ async def process_vision(
         "artifacts": artifact_ids,
         "output_files": output_files,
         "page_records": page_records,
+        # What the read checker caught, one sentence each (#5522): the step reports them.
+        "notes": notes,
         "error": error_msg,
     }

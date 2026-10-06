@@ -2040,6 +2040,17 @@ async def _run_workflow_in_background(
                                 await log_execution(
                                     f"Node '{original_id}' completed in {node_duration_ms:.0f}ms"
                                 )
+                            # What the step caught, in words (#5522: "the model repeated
+                            # itself on page 7; kept the earlier reading"). A completed step
+                            # can still have kept a read off the page; the run says so.
+                            _notes = [
+                                str(n) for n in (output.get("notes") or []) if n
+                            ] if isinstance(output, dict) else []
+                            if _notes:
+                                activity_metadata["notes"] = _notes
+                                node_end_data["notes"] = _notes
+                                for _note in _notes:
+                                    await log_execution(f"Node '{original_id}': {_note}")
 
                     # Live usage for THIS node, so a chain reports its cost as
                     # it runs rather than only in hindsight.

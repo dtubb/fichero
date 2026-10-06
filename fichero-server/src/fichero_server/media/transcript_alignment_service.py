@@ -59,8 +59,11 @@ def resolve_transcript(db: object, document_id: str) -> str | None:
     transcriptions = db.query(  # type: ignore[attr-defined]
         Artifact, document_id=document_id, artifact_type="transcription"
     )
+    from fichero_server.llm.read_guard import read_flag_of
+
+    # A read the checker flagged (#5522) is not aligned onto the lines: it is not the page's text.
     newest = max(
-        (a for a in transcriptions if (a.content or "").strip()),
+        (a for a in transcriptions if (a.content or "").strip() and read_flag_of(a) is None),
         key=lambda a: a.created_at,
         default=None,
     )
