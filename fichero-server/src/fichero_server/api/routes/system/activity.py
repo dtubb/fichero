@@ -186,9 +186,10 @@ class JobTree(BaseModel):
     kind: str
     name: str
     subject: str
-    # What a person calls it (#5560): a page's file name (SM_NPQ_C01_004.jpg), not its id; null for a run
-    # or a step, and for work on no file.
-    label: Optional[str] = None
+    # A page's document and what a person calls it (#5560, #5561): its file name (SM_NPQ_C01_004.jpg), not
+    # its id; null for a run or a step, and for work on no file.
+    document_id: Optional[str] = None
+    display_name: Optional[str] = None
     model: Optional[str] = None
     state: str
     reason: Optional[str] = None
@@ -467,8 +468,11 @@ async def get_job_tree(job_id: str, db: Database = Depends(get_library_database)
 
         account = await run_account(db, job_id)
         if account is not None:
-            found.update(done=account.pages_done, total=account.pages_total, failed=account.pages_failed,
-                         account=account)
+            found["account"] = account
+            # The account's pages, unless the rows under the run saw more: a sub-workflow's pages are in
+            # its child run's checkpoint, and a step that failed outright never checkpointed its page.
+            found.update(done=max(found["done"], account.pages_done), total=max(found["total"], account.pages_total),
+                         failed=max(found["failed"], account.pages_failed))
             if account.waiting_reason and found["state"] in ("running", "waiting"):
                 found["reason"] = account.waiting_reason
     return JobTree.model_validate(found)

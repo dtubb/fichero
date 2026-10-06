@@ -105,14 +105,14 @@ def test_activity_run_account__activity_counts_the_pages_the_status_counts(clien
 
 def test_activity_window_page_by_file_name__a_page_row_is_named_by_its_file(client, workflow, pages, cloud):
     """#5560: Activity listed the pages being read by their long ids; a page's row carries its file name
-    (`label`), the id staying in `subject` for the details."""
+    (`display_name`), with its `document_id` beside `subject` (#5561)."""
     run = _execute(client, workflow, pages)
     assert _wait_for(lambda: _status(client, run) in ("completed", "failed"))
     tree = _tree(client, run)
     page_rows = [p for step in tree["children"] for p in step["children"]]
-    assert sorted(p["label"] for p in page_rows) == ["p0.png", "p1.png", "p2.png"]
-    assert {p["subject"] for p in page_rows} == {p.id for p in pages}
-    assert tree["label"] is None and all(step["label"] is None for step in tree["children"])
+    assert sorted(p["display_name"] for p in page_rows) == ["p0.png", "p1.png", "p2.png"]
+    assert {p["document_id"] for p in page_rows} == {d.id for d in pages}
+    assert tree["display_name"] is None and all(step["display_name"] is None for step in tree["children"])
 
 
 def test_compute_run_retry_once__a_page_failing_while_the_model_loads_is_read_again(

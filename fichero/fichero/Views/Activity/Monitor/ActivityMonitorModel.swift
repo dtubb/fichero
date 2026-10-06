@@ -402,7 +402,7 @@ extension ActivityMonitorRow {
     /// A step's subject is "<run id>:<step>"; a page's is what it read, named
     /// by its file (the engine's `label`, #5560), never its id.
     private static func label(_ node: ActivityJobNode) -> String {
-        if let label = node.label, !label.isEmpty { return label }
+        if let name = node.displayName, !name.isEmpty { return name }
         var subject = node.subject
         if let parent = node.parentId, subject.hasPrefix(parent + ":") {
             subject.removeFirst(parent.count + 1)

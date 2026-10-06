@@ -67,8 +67,9 @@ db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task._runner 1
 db/embeddings.py::DatabaseEmbeddingMixin.flush_deferred_embeddings._flush 1
 db/embeddings.py::DatabaseEmbeddingMixin.migrate_embedding_space 1
-# #5464/#5480: giving a project its Sources folder at open is best-effort, like the steps beside it.
-db/manager.py::DatabaseManager.get_database 4
+# #5464/#5480: giving a project its Sources folder at open is best-effort, like the steps beside it;
+# #5555: so is marking its unfinished runs interrupted (a failure leaves the older sweep to do it).
+db/manager.py::DatabaseManager.get_database 5
 db/migrations/schema.py::migrate_knowledge_indices 2
 db/migrations/schema.py::migrate_segment_indices 1
 db/storage.py::_generate_image 1
@@ -152,7 +153,8 @@ workflows/activity_store.py::_rebuild_workflow_runs_flipping_stale 4
 workflows/activity_store.py::_recover_stale_workflow_runs 1
 workflows/activity_store.py::_reopen_managed_library_connection 1
 workflows/builder.py::_make_node_function.node_function 2
-workflows/builder.py::_make_parallel_node_function.parallel_node_function 7
+# #5555: the file_retry event, like the file_start/complete/error events beside it, never fails a page.
+workflows/builder.py::_make_parallel_node_function.parallel_node_function 8
 workflows/builder.py::_resolve_node_llm_config_inner 1
 workflows/cache.py::NodeCache.set 1
 workflows/completion.py::finalize_run_documents 3

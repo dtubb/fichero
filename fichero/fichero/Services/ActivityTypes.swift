@@ -312,8 +312,9 @@ struct ActivityJobNode: Identifiable, Equatable {
     let kind: String
     let name: String
     let subject: String
-    /// What a person calls it: a page's file name (#5560); `nil` for runs and steps.
-    let label: String?
+    /// What a person calls it: a page's file name (#5560, the engine's
+    /// `display_name`, #5561); `nil` for runs and steps.
+    let displayName: String?
     let model: String?
     var state: String
     let reason: String?
@@ -334,7 +335,7 @@ struct ActivityJobNode: Identifiable, Equatable {
         kind = tree.kind
         name = tree.name
         subject = tree.subject
-        label = tree.label
+        displayName = tree.displayName
         model = tree.model
         state = tree.state
         reason = tree.reason

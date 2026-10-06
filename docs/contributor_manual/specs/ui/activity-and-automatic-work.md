@@ -1194,10 +1194,10 @@ code path.
 - `activity.window.icons-names-info` — **[OK]** (#5560) every row of the table shows an SF Symbol for its kind
   (a run, a step, a page, a model load, training, other work) beside its name and one for its state
   (running, waiting, paused, failed, stopped, done) beside its state; a page is named by its file
-  (`SM_NPQ_C01_004.jpg`), from the `label` the engine's tree gives each page's node, never by its id (the id
+  (`SM_NPQ_C01_004.jpg`), from the `display_name` (with its `document_id`) the engine's tree gives each page's node (#5561's fields), never by its id (the id
   stays in the details); double-click opens the row's run log and details, and an ⓘ (`info.circle`) button at
   the far right of each row of a run opens the same. Tests: `fichero-server/tests/unit/jobs/test_run_account_5555.py`
-  (the page's `label`); `ActivityTableTests` (Swift, `testActivityWindowIcons_*`). Not covered: the drawn table
+  (the page's `display_name`); `ActivityTableTests` (Swift, `testActivityWindowIcons_*`). Not covered: the drawn table
   (no mounted-view harness).
 
 ### H. Workflow runs: efficiency

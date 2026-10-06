@@ -377,21 +377,19 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
 
     from fichero_server.llm.usage import aggregate_usage
 
-    # A page's row is named by its file (SM_NPQ_C01_004.jpg), never its id (#5560): a subject that is a
-    # document's id reads as that document's name, one that is a path as its last part.
+    # A page's row is named by its file (SM_NPQ_C01_004.jpg), never its id (#5560, and the details view's
+    # "the page's document id and display name beside `subject`", #5561): a subject that is a document's
+    # id gives `document_id` and that document's name; one that is a path, its last part.
     leaf_subjects = [n["subject"] for n in nodes.values() if n["kind"] not in RUN_KINDS and n["subject"]]
-    names: dict[str, str] = {}
-    if leaf_subjects:
-        try:
-            names = dict(db.execute_fetchall(
-                f"SELECT id, name FROM documents WHERE id IN ({', '.join('?' for _ in leaf_subjects)})",
-                leaf_subjects))
-        except Exception:  # noqa: BLE001 -- a project without documents still has its tree
-            names = {}
+    names: dict[str, str] = dict(db.execute_fetchall(
+        f"SELECT id, name FROM documents WHERE id IN ({', '.join('?' for _ in leaf_subjects)})",
+        leaf_subjects)) if leaf_subjects else {}
     for node in nodes.values():
         subject = node["subject"] or ""
-        node["label"] = (names.get(subject) or (Path(subject).name if "/" in subject else None)
-                         if node["kind"] not in RUN_KINDS else None)
+        is_page = node["kind"] not in RUN_KINDS
+        node["document_id"] = subject if is_page and subject in names else None
+        node["display_name"] = (names.get(subject) or (Path(subject).name if "/" in subject else None)
+                                if is_page else None)
 
     now = utc_now()
 
@@ -427,6 +425,33 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     root = nodes[job_id]
     roll(root)
     return root
+
+
+def waiting_reason_under(db: "Database", run_id: str) -> str | None:
+    """What a page of this run is waiting for, from its row (a memory wait says so there, #5537, #5555)."""
+    _ensure(db)
+    row = db.execute_fetchone(
+        "SELECT reason FROM jobs WHERE (parent_id = ? OR parent_id LIKE ?) AND reason IS NOT NULL "
+        "AND (state = 'waiting' OR (state = 'running' AND reason LIKE 'Waiting%')) ORDER BY created_at LIMIT 1",
+        [run_id, f"{run_id}:%"])
+    return row[0] if row else None
+
+
+def last_heard(db: "Database", run_id: str) -> Any:
+    """The last moment a run recorded work on its rows: its own, its steps' and its pages' (#5555)."""
+    _ensure(db)
+    row = db.execute_fetchone(
+        "SELECT max(greatest(COALESCE(finished_at, created_at), COALESCE(started_at, created_at))) FROM jobs "
+        "WHERE id = ? OR id LIKE ? OR parent_id LIKE ?", [run_id, f"{run_id}:%", f"{run_id}:%"])
+    return row[0] if row else None
+
+
+def fail_run_rows(db: "Database", run_id: str, reason: str) -> None:
+    """A run the engine did not finish (#5555): its row and its unfinished steps' rows fail with `reason`."""
+    _ensure(db)
+    db.execute("UPDATE jobs SET state = 'failed', reason = ?, finished_at = ? WHERE (id = ? OR id LIKE ?) "
+               "AND kind IN ('workflow', 'workflow-step') AND state NOT IN ('done', 'failed', 'cancelled')",
+               [reason, utc_now(), run_id, f"{run_id}:%"])
 
 
 def _key(db: "Database") -> str:

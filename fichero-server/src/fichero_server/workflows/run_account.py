@@ -179,12 +179,7 @@ def waiting_reason(db: Any, thread_id: str) -> str | None:
     """What a page of this run is waiting for, from its row (a memory wait says so there, #5537)."""
     from fichero_server.execution import jobs
 
-    jobs._ensure(db)
-    row = db.execute_fetchone(
-        "SELECT reason FROM jobs WHERE (parent_id = ? OR parent_id LIKE ?) AND reason IS NOT NULL "
-        "AND (state = 'waiting' OR (state = 'running' AND reason LIKE 'Waiting%')) ORDER BY created_at LIMIT 1",
-        [thread_id, f"{thread_id}:%"])
-    return row[0] if row else None
+    return jobs.waiting_reason_under(db, thread_id)
 
 
 def _live_peaks(thread_id: str) -> dict[str, int]:
@@ -250,15 +245,6 @@ def stopped_at_words(when: datetime | None) -> str:
     return f"{INTERRUPTED_PREFIX} at {local.strftime('%H:%M')}"
 
 
-def _last_heard(db: Any, thread_id: str, started_at: Any) -> datetime | None:
-    """The last moment the run recorded work: its own row's, its steps' and its pages' times."""
-    row = db.execute_fetchone(
-        "SELECT max(greatest(COALESCE(finished_at, created_at), COALESCE(started_at, created_at))) FROM jobs "
-        "WHERE id = ? OR id LIKE ? OR parent_id LIKE ?", [thread_id, f"{thread_id}:%", f"{thread_id}:%"])
-    times = [t for t in ((row[0] if row else None), started_at) if t is not None]
-    return max(ensure_utc(t) for t in times) if times else None
-
-
 def mark_interrupted_runs(db: Any) -> list[str]:
     """On opening a project, every run this engine did not finish is marked interrupted (#5555): its record
     and its job row say "Interrupted: the engine stopped at HH:MM, before this run finished", the time being
@@ -267,28 +253,18 @@ def mark_interrupted_runs(db: Any) -> list[str]:
     and opened again mid-run) is left alone. Returns the runs marked; the caller settles their documents."""
     from fichero_server.execution import jobs
     from fichero_server.execution.runner import _running_workflows
-    from fichero_server.workflows.run_status import NON_TERMINAL_STATUSES, is_terminal
+    from fichero_server.workflows import activity_store
+    from fichero_server.workflows.run_status import is_terminal
 
-    if not db.execute_fetchone(
-            "SELECT 1 FROM information_schema.tables WHERE table_name = 'workflow_runs' LIMIT 1"):
-        return []
-    jobs._ensure(db)
     live = {tid for tid, s in list(_running_workflows.items()) if not is_terminal(s.get("status"))}
-    statuses = sorted(NON_TERMINAL_STATUSES)
-    rows = db.execute_fetchall(
-        f"SELECT thread_id, started_at FROM workflow_runs WHERE status IN ({', '.join('?' for _ in statuses)})",
-        statuses)
     marked: list[str] = []
-    for thread_id, started_at in rows:
+    for thread_id, started_at in activity_store.unfinished_runs(db):
         if thread_id in live:
             continue
-        reason = f"{stopped_at_words(_last_heard(db, thread_id, started_at))}, before this run finished"
-        db.execute("UPDATE workflow_runs SET status = 'failed', error = ?, "
-                   "completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE thread_id = ?",
-                   [reason, thread_id])
-        db.execute("UPDATE jobs SET state = 'failed', reason = ?, finished_at = ? WHERE (id = ? OR id LIKE ?) "
-                   "AND kind IN ('workflow', 'workflow-step') AND state NOT IN ('done', 'failed', 'cancelled')",
-                   [reason, utc_now(), thread_id, f"{thread_id}:%"])
+        heard = [t for t in (jobs.last_heard(db, thread_id), started_at) if t is not None]
+        reason = f"{stopped_at_words(max(ensure_utc(t) for t in heard) if heard else None)}, before this run finished"
+        activity_store.mark_run_failed(db, thread_id, reason)
+        jobs.fail_run_rows(db, thread_id, reason)
         forget(thread_id)
         marked.append(thread_id)
     return marked

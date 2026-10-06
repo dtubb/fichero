@@ -592,6 +592,22 @@ def _recover_stale_workflow_runs(
         )
 
 
+def unfinished_runs(db: Any) -> list[tuple[str, Any]]:
+    """(thread id, started at) of every run whose record says it is not finished, through the project's
+    own connection (opening a project, #5555). None when the project has no run table yet."""
+    if not db.execute_fetchone(
+            "SELECT 1 FROM information_schema.tables WHERE table_name = 'workflow_runs' LIMIT 1"):
+        return []
+    return [(r[0], r[1]) for r in db.execute_fetchall(
+        f"SELECT thread_id, started_at FROM workflow_runs WHERE status IN ({_SWEEPABLE_STATUS_SQL})")]
+
+
+def mark_run_failed(db: Any, thread_id: str, reason: str) -> None:
+    """A run's record ends failed with `reason` (an interrupted run, #5555)."""
+    db.execute("UPDATE workflow_runs SET status = 'failed', error = ?, "
+               "completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE thread_id = ?", [reason, thread_id])
+
+
 def _reopen_managed_library_connection(db_path: str) -> None:
     """Reopen the library's managed shared connection, if one is cached.
 

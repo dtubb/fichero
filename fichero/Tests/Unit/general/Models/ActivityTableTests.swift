@@ -698,19 +698,19 @@ final class ActivityTableTests: XCTestCase {
         let tree = Data("""
         {
           "id": "\(Self.runId)", "kind": "workflow", "name": "Workflow run", "subject": "\(Self.runId)",
-          "label": null, "model": null, "state": "running", "reason": null, "parent_id": null,
+          "display_name": null, "model": null, "state": "running", "reason": null, "parent_id": null,
           "done": 0, "total": 1, "failed": 0, "seconds": 3.0, "tokens": 0, "cost_usd": null,
           "unpriced_models": [], "account": null,
           "children": [
             {
               "id": "\(Self.runId):Transcribe", "kind": "workflow-step", "name": "Step",
-              "subject": "\(Self.runId):Transcribe", "label": null, "model": null, "state": "running",
+              "subject": "\(Self.runId):Transcribe", "display_name": null, "model": null, "state": "running",
               "reason": null, "parent_id": "\(Self.runId)", "done": 0, "total": 1, "failed": 0, "seconds": 3.0,
               "tokens": 0, "cost_usd": null, "unpriced_models": [],
               "children": [
                 {
                   "id": "page-row", "kind": "read-a-page", "name": "read-a-page", "subject": "\(pageId)",
-                  "label": "SM_NPQ_C01_004.jpg", "model": "mlx:qwen", "state": "waiting",
+                  "document_id": "\(pageId)", "display_name": "SM_NPQ_C01_004.jpg", "model": "mlx:qwen", "state": "waiting",
                   "reason": "Waiting: memory is tight", "parent_id": "\(Self.runId):Transcribe",
                   "done": 0, "total": 1, "failed": 0, "seconds": null, "tokens": 0, "cost_usd": null,
                   "unpriced_models": [], "children": []
