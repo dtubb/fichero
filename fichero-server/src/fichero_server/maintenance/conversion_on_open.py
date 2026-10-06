@@ -93,6 +93,14 @@ def _run(db: Any, package_path: Path, stop_event: threading.Event) -> None:
     except Exception:  # noqa: BLE001 -- a background thread: logged; anchors read the block meanwhile
         logger.exception("recording converted box origins or composing line readings stopped: %s", package_path)
 
+    # CLOSED DURING THE STEPS ABOVE (#5562): they return early on a stop, and this used to fall
+    # through into `convert_project`, which snapshots before it checks a stop (between pages) --
+    # so a quit during them snapshotted the project at engine SHUTDOWN, while its jobs were being
+    # stopped and its connection was about to close. Nothing is converted or written; the next
+    # open converts.
+    if stop_event.is_set():
+        return
+
     try:
         run = convert_project(db, package_path, should_stop=stop_event.is_set)
     except ConversionAlreadyRunning as exc:

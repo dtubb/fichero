@@ -170,7 +170,9 @@ def _live_row_counts(db: Any) -> dict[str, int]:
         ) from exc
 
 
-def prove_snapshot(db: Any, snapshot: Any) -> dict[str, Any]:
+def prove_snapshot(
+    db: Any, snapshot: Any, live: dict[str, int] | None = None
+) -> dict[str, Any]:
     """Open the snapshot and compare row counts, table by table.
 
     **The rule is "snapshot first, AND PROVED RESTORABLE" — so the snapshot
@@ -190,8 +192,17 @@ def prove_snapshot(db: Any, snapshot: Any) -> dict[str, Any]:
     Returns the proof: `{"tables": n, "rows": n, "mismatches": {...}}`. A
     non-empty `mismatches` means the caller must refuse — this function reports,
     it does not decide.
+
+    `live` is the project's row counts AT THE POINT THE COPY WAS TAKEN (#5562),
+    which is what the copy must equal. Counting the project now instead compares
+    the copy with a project that has moved on since: on Marshall, the dates
+    artifacts and job rows written while the snapshot's exports and vectors were
+    still being copied read as a snapshot that "does not read back" (artifacts
+    21,996 expected, 17,727 found). Without it the project is counted now, which
+    can only refuse more, never less.
     """
-    live = _live_row_counts(db)
+    if live is None:
+        live = _live_row_counts(db)
     restore_source = Path(snapshot.snapshot_path) / "duckdb_file" / "fichero.duckdb"
     if not restore_source.is_file():
         return {
@@ -297,6 +308,8 @@ def plan_conversion(db: Any, library_path: str | Path) -> ConversionRun | None:
         # this is allowed to fall through to the refusal below.
         db.checkpoint()
 
+        # The project's row counts at the copy, taken under the same locks (#5562).
+        rows_at_copy: dict[str, int] = {}
         snapshot = snapshot_library(
             str(library_path),
             reason=(
@@ -305,6 +318,8 @@ def plan_conversion(db: Any, library_path: str | Path) -> ConversionRun | None:
             ),
             initiator="system",
             run_id=run.run_id,
+            database=db,
+            rows_at_copy=rows_at_copy,
         )
     except (OSError, RuntimeError, ValueError) as exc:
         # NARROWED (#4420 sweep). These are what a snapshot genuinely fails
@@ -323,7 +338,7 @@ def plan_conversion(db: Any, library_path: str | Path) -> ConversionRun | None:
     run.snapshot_id = snapshot.id
     run.snapshot_path = snapshot.snapshot_path
     _pin(snapshot)
-    run.snapshot_proof = prove_snapshot(db, snapshot)
+    run.snapshot_proof = prove_snapshot(db, snapshot, rows_at_copy or None)
     if run.snapshot_proof.get("mismatches"):
         logger.warning(
             "project conversion refused: snapshot %s does not read back (%s)",

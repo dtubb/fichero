@@ -17,7 +17,7 @@ import shutil
 from datetime import datetime, timedelta
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from fichero_server.core.duckdb_session import connect_utc
@@ -146,6 +146,8 @@ def snapshot_library(
     max_snapshots: int = DEFAULT_RETAINED_SNAPSHOTS,
     offsite_dir: str | Path | None = None,
     include_files: bool = False,
+    database: Any = None,
+    rows_at_copy: dict[str, int] | None = None,
 ) -> "LibrarySnapshot":
     """Create a point-in-time snapshot of a library.
 
@@ -160,6 +162,12 @@ def snapshot_library(
         initiator_id: Optional agent_id or user_id
         run_id: Optional AI run_id for auto-created snapshots
         auto_expire_days: If set, snapshot auto-deletes after this many days
+        database: The caller's own connection to this library, held and checkpointed with
+            the managed ones while the file is copied (#5562).
+        rows_at_copy: If given (with `database`), filled with every table's row count at
+            the point the file was copied -- what a proof must compare the copy against,
+            not a count taken after the exports and vectors, by which time live tables
+            have moved on (#5562).
 
     Returns:
         LibrarySnapshot record with paths and sizes
@@ -208,7 +216,13 @@ def snapshot_library(
 
             duckdb_copy_path = duckdb_file_dir / "fichero.duckdb"
             db_manager.copy_database_file(
-                library_path_p, duckdb_copy_path, source=db_path, wait=SNAPSHOT_WRITE_WAIT_S
+                library_path_p, duckdb_copy_path, source=db_path, wait=SNAPSHOT_WRITE_WAIT_S,
+                database=database,
+                count_rows=(
+                    database.table_row_counts
+                    if database is not None and rows_at_copy is not None else None
+                ),
+                rows_at_copy=rows_at_copy,
             )
             duckdb_size = duckdb_copy_path.stat().st_size
 

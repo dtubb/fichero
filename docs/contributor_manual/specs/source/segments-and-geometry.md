@@ -1055,6 +1055,13 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   PDF's text layer, regions, Kraken's pixel polygons, Kraken HTR, merged geometry, aligned
   transcripts, a box set measured on a crop), converts: `test_every_legacy_shape_converts.py`.
   Opening the real engine converts nothing in the test suite (`FICHERO_SKIP_PROJECT_CONVERSION`).
+  **A close or shutdown before the conversion has begun is a stop, not a start** (→ #5562): a
+  stop that arrives during the open-time steps (box origins, line readings) takes no snapshot and
+  writes nothing; the next open starts it. It used to fall through to the snapshot anyway, so
+  Marshall's refusal was logged at engine SHUTDOWN, snapshotting a project whose jobs were being
+  stopped and whose connection was about to close. It still runs at open (20 s after, in the
+  background); a run that has reached `convert_project` stops at a page boundary as before.
+  Pinned by `test_conversion_snapshot_reads_back.py::test_closing_during_the_open_time_steps_takes_no_snapshot`.
 - `source.convert.converting-is-not-a-persons-work` — **[OK]** (→ #5222, #5081) a page the ENGINE
   converted is still the machine's to write: a later tool run still writes its text into the page's
   stored text (search, embeddings, the Reader), exactly as before the conversion. Only a person's
@@ -1078,6 +1085,18 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   not use; a project reporting no tables is treated as blindness and not as cleanliness
   (`fichero-server/tests/unit/maintenance/test_project_conversion_preflight.py::TestIsThereAWayBack`, and
   `::TestTheReport::test_the_snapshot_stays_pinned_until_the_run_is_finished_and_seen`).
+  **The copy is checked against the project AS IT WAS AT THE COPY** (→ #5562): every table's
+  rows are counted under the same locks as the copy, once before its checkpoint and once after,
+  and the copy is retried (bounded, then refused as busy) when a connection outside the engine's
+  locks -- the activity store, the workflow checkpointer -- committed in between. Before #5562 the
+  project was counted after the snapshot's exports and vector copy, and on clones of Marshall the
+  rows written meanwhile (one dates artifact per page, live job, run and activity rows) read as a
+  snapshot that "does not read back": no project in use could convert. The check is exactly as
+  strict -- every table, exact counts -- and a copy missing rows the project had at the copy is
+  still refused. Pinned on a project with dates artifacts on every page by
+  `fichero-server/tests/unit/maintenance/test_conversion_snapshot_reads_back.py` (clean end to end;
+  rows written while the snapshot finishes; a lossy copy still refused; an outside writer across
+  the checkpoint waited out; one that never stops refused by name).
 - `source.convert.refused-when-disk-is-short` — **[OK]** (→ #4998) with too little free disk nothing
   starts and nothing is half done; the report says how much is needed; it tries again at the next
   open. The margin is applied, the estimate grows with the work, and an unreadable disk RAISES

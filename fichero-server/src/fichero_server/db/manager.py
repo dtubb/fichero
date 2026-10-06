@@ -10,7 +10,7 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 from fichero_server.api.change_stream import emit_change
 from fichero_server.db.library_paths import nfc_path
@@ -387,8 +387,26 @@ class DatabaseManager:
         *,
         source: str | Path | None = None,
         wait: float = 10.0,
+        database: Any = None,
+        count_rows: Callable[[], dict[str, int]] | None = None,
+        rows_at_copy: dict[str, int] | None = None,
     ) -> Path:
         """A CONSISTENT copy of this library's database file.
+
+        `database` is the CALLER'S connection to this library, held and checkpointed with the
+        managed ones (#5562). A caller holding a `Database` the manager does not (a test, a
+        private manager) otherwise copied with no writer excluded at all.
+
+        `count_rows` + `rows_at_copy` (#5562): the library's row counts AT THE POINT OF THE COPY,
+        filled into `rows_at_copy`. A snapshot is proved by comparing the copy with the library;
+        counting the library afterwards compared it with a library that had moved on (Marshall:
+        a whole page set of dates artifacts and live job rows written while the snapshot's
+        exports and vectors were still being copied, refused as "does not read back"). Counted
+        under the same locks, once before the CHECKPOINT and once after: connections outside the
+        manager (the workflow checkpointer, the activity store) still commit, so the two counts
+        agreeing is what says the checkpointed file holds exactly those rows. If they differ the
+        copy is retried, bounded by `wait`, and then refused as busy -- never taken against a
+        count that is not the copy's.
 
         Checkpoint and copy as ONE step, without releasing the lock in between
         (#5070 review). `quiesce_database` cannot be used for this: it takes the
@@ -435,6 +453,7 @@ class DatabaseManager:
         # transaction ("the current transaction has transaction local changes" -- a 500, and a
         # checkpoint issued inside someone else's unit of work). Each gate is waited for, bounded
         # by the same deadline, and held across the checkpoint and the copy.
+        callers = database  # the loops below rebind `database`
         deadline = time.monotonic() + wait
         pause = 0.02
         busy: Exception | str = "a managed transaction did not finish"
@@ -443,6 +462,8 @@ class DatabaseManager:
                 managed = [
                     self._databases[key] for key in list(self._databases) if key == package_str
                 ]
+            if callers is not None and not any(held is callers for held in managed):
+                managed.append(callers)
             with contextlib.ExitStack() as stack:
                 gated = True
                 for database in managed:
@@ -465,14 +486,30 @@ class DatabaseManager:
                                 break
                             locks.callback(database._lock.release)
                         if locked:
+                            before = count_rows() if count_rows is not None else None
+                            checkpointed = False
                             try:
-                                for database in managed:
-                                    database.conn.execute("CHECKPOINT")
+                                for held in managed:
+                                    held.conn.execute("CHECKPOINT")
+                                checkpointed = True
                             except Exception as exc:  # noqa: BLE001 -- only the busy case is retried
                                 if "other write transactions" not in str(exc):
                                     raise
                                 busy = exc
-                            else:
+                            after = count_rows() if checkpointed and count_rows is not None else None
+                            if checkpointed and after != before:
+                                # A connection outside these locks committed across the checkpoint
+                                # (#5562): the file and the counts need not agree. Wait and retry.
+                                moved = sorted(
+                                    t for t in set(after or {}) | set(before or {})
+                                    if (after or {}).get(t) != (before or {}).get(t)
+                                )
+                                busy = f"rows were written while the copy was checkpointed ({', '.join(moved)})"
+                                checkpointed = False
+                            if checkpointed:
+                                if rows_at_copy is not None and after is not None:
+                                    rows_at_copy.clear()
+                                    rows_at_copy.update(after)
                                 if managed:
                                     logger.info(
                                         "Checkpointed %d connection(s) and copied %s under one lock",
