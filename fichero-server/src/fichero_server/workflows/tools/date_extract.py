@@ -95,6 +95,26 @@ def volume_years_for(db: Any, doc: Document) -> list[int]:
     return []
 
 
+def _summary_row(record: dict[str, Any]) -> dict[str, Any]:
+    """One page's line in the tool's output: what it was dated, not every reason why.
+
+    WHY (#5518): the output lands in workflow state, capped at 8 MB; a whole
+    project's full records (heading, flags, refusals, both readings) grow with
+    every page. The full record stays where a person reads it: the page's
+    ``date_meta`` and its ``dates`` artifact.
+    """
+    meta = record.get("meta") or {}
+    return {
+        "document_id": record["document_id"],
+        "status": record["status"],
+        "date_original": record["date_original"],
+        "date_jdn": record["date_jdn"],
+        "date_jdn_end": record["date_jdn_end"],
+        "date": meta.get("converted_gregorian_iso"),
+        **({"conflict": record["conflict"]} if "conflict" in record else {}),
+    }
+
+
 def _project_languages(library_path: Any) -> list[str]:
     """The languages the project's setup names (``.../setup.yaml``), [] when it has none."""
     from pathlib import Path
@@ -321,7 +341,7 @@ async def date_extract_tool(
                 "date_jdn_end": doc.date_jdn_end,
                 "meta": doc.date_meta,
             }
-            results.append(record)
+            results.append(_summary_row(record))
             pinned_artifact = Artifact(
                 document_id=doc.id,
                 artifact_type="dates",
@@ -379,7 +399,7 @@ async def date_extract_tool(
             "date_jdn_end": doc.date_jdn_end,
             "meta": doc.date_meta,
         }
-        results.append(record)
+        results.append(_summary_row(record))
         dates_artifact = Artifact(
             document_id=doc.id,
             artifact_type="dates",

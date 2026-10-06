@@ -277,17 +277,35 @@ def _resolve_selection_pairs(
             _add(abs_path, page, origin)
         return True
 
+    def _expand_split_pages(page: Document, origin: str) -> None:
+        """Collect the pages filed UNDER a page: the halves a spread was split
+        into (#5518: the 1932 Marshall volume's 148 halves sit under their
+        spread's page document and were never reached). Only PAGE documents:
+        a diary entry or a region under a page is not a page and is not a work
+        unit. A page with no file of its own borrows the spread's path, as a
+        directly selected page borrows its parent's."""
+        for child in db.query(Document, parent_id=page.id) or []:
+            if child.doc_type == DocType.page:
+                _add(_abs(child) if child.path else _abs(page), child, origin)
+                _expand_split_pages(child, origin)
+
     def _expand_folder(folder: Document, origin: str) -> None:
-        """Recursively collect file descendants of a folder."""
+        """Recursively collect every page document under a folder (#5518).
+
+        Folders AND groups are walked (a "Stack of 10" is a group; its pages
+        were skipped); a PDF fans out to its pages; a page with pages under it
+        (a split spread) yields itself and its halves.
+        """
         children = db.query(Document, parent_id=folder.id)
         for child in children:
-            if child.doc_type == DocType.folder:
+            if child.doc_type in (DocType.folder, DocType.group):
                 _expand_folder(child, origin)
             elif child.path and not _expand_to_pages(child, origin):
                 _add(_abs(child), child, origin)
+                _expand_split_pages(child, origin)
 
     for doc in docs:
-        if doc.doc_type == DocType.folder:
+        if doc.doc_type in (DocType.folder, DocType.group):
             if not expand_folders:
                 # "This folder" (Daniel, 2026-09-06): the folder IS the unit of
                 # work, not its files. Emit it as its own pair — folder-aware
@@ -476,6 +494,24 @@ def _load_capped_folder_files(
 # =============================================================================
 
 
+#: The fields a reference carries: who the document is and where it sits,
+#: never its text, metadata or embedding.
+_REF_FIELDS = ("id", "name", "doc_type", "parent_id", "sequence", "path")
+
+
+def document_ref(doc: Document) -> dict[str, Any]:
+    """A document as a reference, for a tool that reads each page itself.
+
+    WHY (#5518): the Files source put every page's full dump into workflow
+    state, so "Work Out Dates" over the whole Marshall Diaries project (4,292
+    pages) failed at 16.8 MB against the 8 MB state cap before dating anything.
+    A node configured ``documents_as: "refs"`` passes these instead; the tool
+    downstream loads each page by id when it needs it. The cap stays.
+    """
+    dumped = doc.model_dump(mode="json", include=set(_REF_FIELDS))
+    return {key: dumped.get(key) for key in _REF_FIELDS}
+
+
 @register_tool(
     name="files",
     display_name="Files",
@@ -560,7 +596,10 @@ async def files_tool(
                 expand_folders=bool(state.get("expand_folders", True)),
             )
             files = [path for path, _ in pairs]
-            documents = [d.model_dump(mode="json") for _, d in pairs]
+            if inputs.get("documents_as") == "refs":
+                documents = [document_ref(d) for _, d in pairs]
+            else:
+                documents = [d.model_dump(mode="json") for _, d in pairs]
             logger.info(
                 f"Files source tool: {len(files)} entries from selected_doc_ids "
                 f"({len(documents)} unique docs)"

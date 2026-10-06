@@ -64,11 +64,13 @@ CASES = [
     # --- K2: the year with or without a comma, and the 1919 volume's "1918"
     ("no comma (sample 36)", "SUNDAY, JUNE 9 1918", V1919,
      {"iso": "1918-06-09", "source": "written", "flag": "volume_year_conflict"}),
+    # The weekday and the volume year agree on 1919 against the written 1918: they win and
+    # the written year is kept and flagged (the 1919 rule, ruled for #5518).
     ("full stop before the year; weekday fits 1919 (sample 37)", "FRIDAY, JANUARY 24. 1918", V1919,
-     {"iso": "1918-01-24", "flag": "weekday_conflict"}),
+     {"iso": "1919-01-24", "source": "weekday_and_volume", "flag": "year_overruled"}),
     ("full stop after the weekday (sample 38)", "MONDAY. OCTOBER 7 1918", V1919, {"iso": "1918-10-07"}),
     ("comma year whose weekday says 1919", "WEDNESDAY, JANUARY 15, 1918", V1919,
-     {"iso": "1918-01-15", "flag": "weekday_conflict"}),
+     {"iso": "1919-01-15", "source": "weekday_and_volume", "flag": "written_year"}),
     ("no comma, volume agrees", "JANUARY 7 1918", [1918], {"iso": "1918-01-07", "source": "written"}),
     # --- K3 + K6: a yearless heading takes the volume year; the weekday picks among several
     ("weekday picks 1916 in a 1915-18 volume (sample 48)", "Friday March 17", V1915_18,

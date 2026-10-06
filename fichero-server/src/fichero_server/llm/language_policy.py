@@ -252,6 +252,20 @@ def read_document_language(document: Any) -> LanguageResolution:
             source=source,
             basis=f"document language recorded by {source}",
         )
+    # The language an import carried in the document's metadata (a manifest's
+    # "language": "en", #5518): stated by the source, so it is the document's
+    # own word, read when nothing has been recorded in the column. Before this
+    # it was ignored and the Marshall pages read as never determined.
+    stated = _doc_get(document, "metadata") or {}
+    stated_language = stated.get("language") if isinstance(stated, dict) else None
+    if (isinstance(stated_language, str) and stated_language.strip()
+            and stated_language.strip().lower() not in ("und", "unknown", "zxx")):
+        return LanguageResolution(
+            language=stated_language.strip(),
+            status=RESOLVED,
+            source=SOURCE_METADATA,
+            basis="document language stated in its imported metadata",
+        )
     if meta.get("status") == STATUS_UNKNOWN:
         return LanguageResolution(
             language=None,

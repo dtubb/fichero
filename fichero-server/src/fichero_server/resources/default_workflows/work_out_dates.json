@@ -1,6 +1,6 @@
 {
  "name": "Work Out Dates",
- "description": "Date each page from its own heading: the line near the top that leads with a date, read as written (abbreviations, ordinals, numeric dates read month/day, a year with or without a comma). A heading with no year takes its volume's year, chosen by the weekday when the volume spans several years, and is marked inferred. Impossible dates are refused and recorded, memoranda and cash pages stay undated, and a date you set yourself is never overwritten. No model is used.",
+ "description": "Date each page from its own heading: the line near the top that leads with a date, read as written (abbreviations, ordinals, a year with or without a comma, a page number after it); a numeric date takes its day/month order from the page's language. A heading with no year takes its volume's year, chosen by the weekday when the volume spans several years, and is marked inferred; when the written weekday and the volume's year both disagree with a written year, they win and the written year is kept beside the date. Impossible dates are refused and recorded, memoranda, cash and almanac pages stay undated, and a date you set yourself is never overwritten. Runs over a whole project in one go. No model is used.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -11,7 +11,7 @@
   "timeline"
  ],
  "config": {
-  "preset_version": 1
+  "preset_version": 2
  },
  "nodes": [
   {
@@ -21,7 +21,9 @@
    "position_x": 80,
    "position_y": 200,
    "inputs": {},
-   "config": {}
+   "config": {
+    "documents_as": "refs"
+   }
   },
   {
    "id": "date_extract",
