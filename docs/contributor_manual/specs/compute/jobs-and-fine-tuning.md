@@ -221,6 +221,22 @@ already supports.
   (`source.train.model-lineage`). A model whose scores are worse than its base is shown as
   worse, not hidden.
 
+### Where a trained model lives, and sharing it (proposed 2026-10-06, #5539; awaiting the maintainer)
+
+Training, fine-tuning and distilling are recipe steps like any other (the guided path in
+`source/models-chains-and-projects.md`), run by the job runner under the memory rules below and where
+the compute is (Hugging Face Jobs, ACENET or another Alliance cluster, a bigger Mac).
+- **In the project.** A model made for a project lives in it: its card and its weights (a Kraken
+  `.mlmodel`, a 4-bit vision student, a spaCy pipeline, YOLO weights), so a project copied or moved to
+  another Mac carries its models. (On 2026-10-06 a project copied to the M1 Air showed its vision
+  student as not here and lost its Kraken fine-tunes.) Open question: large weights inside the package,
+  or kept once in the machine's store and referenced by checksum, reconnected on a move (#5535).
+- **Make Global.** "Use in all projects" puts the model in the app's model store; every project's
+  discovery and bake-off can then offer it.
+- **Publish.** To Hugging Face or Zenodo with its card, its base's licence, the training data's consent
+  (refused where the data may not be released) and its scores with the sets they were measured on
+  (`compute/distillation.md`, best practice).
+
 ### Models in memory: loading, unloading, never leaking (maintainer 2026-10-06, #5537)
 
 The engine runs beside the person's own work on a Mac that may have 8 GB (`user-machine-always-useful`),
