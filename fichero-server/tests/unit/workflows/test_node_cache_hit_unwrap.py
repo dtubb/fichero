@@ -47,23 +47,29 @@ def test_second_run_cache_hit_still_emits_text(tmp_path, monkeypatch):
     library_path, selected_doc_id, source_doc_id, _ = _seed_fixture_library(
         tmp_path, selection_shape="file"
     )
-    workflow = _load_workflow_by_name("Transcribe")
+    try:
+        workflow = _load_workflow_by_name("Transcribe")
 
-    first = _run_transcribe(workflow, library_path, selected_doc_id, "cache-run-1")
-    first_out = (first.get("outputs") or {}).get("transcribe") or {}
-    first_text = first_out.get("text") or ""
-    assert FIXTURE_TEXT.split()[0] in first_text, (
-        "first (uncached) run produced no usable transcribe text — "
-        f"got: {first_text!r}"
-    )
+        first = _run_transcribe(workflow, library_path, selected_doc_id, "cache-run-1")
+        first_out = (first.get("outputs") or {}).get("transcribe") or {}
+        first_text = first_out.get("text") or ""
+        assert FIXTURE_TEXT.split()[0] in first_text, (
+            "first (uncached) run produced no usable transcribe text — "
+            f"got: {first_text!r}"
+        )
 
-    second = _run_transcribe(workflow, library_path, selected_doc_id, "cache-run-2")
-    second_out = (second.get("outputs") or {}).get("transcribe") or {}
-    second_text = second_out.get("text") or ""
-    # The cache HIT must hand downstream the RESULT dict, not the CacheEntry
-    # wrapper: with the wrapper, aggregation emitted text="" while reporting
-    # success, and every downstream text node failed with "No text provided".
-    assert second_text == first_text, (
-        "cache-hit run lost the transcribe text — the CacheEntry wrapper "
-        f"leaked into parallel_results (got: {second_text!r})"
-    )
+        second = _run_transcribe(workflow, library_path, selected_doc_id, "cache-run-2")
+        second_out = (second.get("outputs") or {}).get("transcribe") or {}
+        second_text = second_out.get("text") or ""
+        # The cache HIT must hand downstream the RESULT dict, not the CacheEntry
+        # wrapper: with the wrapper, aggregation emitted text="" while reporting
+        # success, and every downstream text node failed with "No text provided".
+        assert second_text == first_text, (
+            "cache-hit run lost the transcribe text — the CacheEntry wrapper "
+            f"leaked into parallel_results (got: {second_text!r})"
+        )
+    finally:
+        # The runs queue the page's jobs: closing the library ends their threads (#5503).
+        from fichero_server.db.manager import db_manager
+
+        db_manager.close_database(library_path)

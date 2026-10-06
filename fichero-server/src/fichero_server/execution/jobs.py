@@ -1277,6 +1277,9 @@ class _Scheduler:
                 lane.libraries.difference_update(closed - lane.rewoken)
             keys = [key for key in keys if key not in closed]
         if not stored and not attached:
+            if full_scan:  # no stored kind runs on this lane and no one waits on it: nothing to find
+                with self._lock:
+                    lane.libraries.difference_update(set(keys) - lane.rewoken)
             return None
         where = " OR ".join(filter(None, [
             f"kind IN ({', '.join('?' for _ in stored)})" if stored else "",
