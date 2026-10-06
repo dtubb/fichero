@@ -558,6 +558,9 @@ class StartEstimateRun(BaseModel):
     where: str
     pages: int
     cost_usd: Optional[float] = Field(description="0 on this Mac; null when the model has no price")
+    memory: Optional[str] = Field(default=None, description=(
+        "a run on this Mac's model server: the model's memory need, how many pages at once it reads on this Mac, "
+        "and the peak that comes to (#5537); null for any other run"))
 
 
 class StartEstimate(BaseModel):

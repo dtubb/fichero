@@ -254,6 +254,21 @@ def local_reads_at_once(spec: Any, *, physical_bytes: Any = None) -> int:
     return max(1, min(LOCAL_READS_CEILING, fits))
 
 
+def local_read_plan(spec: Any, *, physical_bytes: Any = None) -> str:
+    """The plan's words for a local model before Start (#5537, rule 8): its need, how many pages at
+    once it reads on this Mac, and the peak that comes to (the weights once, a margin per read)."""
+    from fichero_server.llm import kraken_runtime
+
+    total = (physical_bytes or kraken_runtime._physical_memory_bytes)()
+    at_once = local_reads_at_once(spec, physical_bytes=lambda: total)
+    need = mlx_memory_need_bytes(spec)
+    peak = need + (at_once - 1) * _MLX_LOAD_MARGIN_BYTES
+    gb = lambda n: f"{n / 1024**3:.1f} GB"  # noqa: E731
+    mac = f"this Mac ({gb(total)})" if total else "this Mac"
+    pages = "one page at a time" if at_once == 1 else f"{at_once} pages at once"
+    return f"{spec.display_name} needs about {gb(need)}; on {mac} it reads {pages}, about {gb(peak)} at most"
+
+
 _reads_lock = threading.Lock()
 _reads_in_flight = 0
 #: True while this task holds a local read slot: a call inside one does not ask for a second.
