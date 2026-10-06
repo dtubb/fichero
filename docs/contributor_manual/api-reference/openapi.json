@@ -80858,6 +80858,12 @@
             "nullable": true,
             "title": "Cost Usd",
             "description": "0 on this Mac; null when the model has no price"
+          },
+          "memory": {
+            "type": "string",
+            "nullable": true,
+            "title": "Memory",
+            "description": "a run on this Mac's model server: the model's memory need, how many pages at once it reads on this Mac, and the peak that comes to (#5537); null for any other run"
           }
         },
         "type": "object",

@@ -287,9 +287,24 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
         cost = (estimate_cost(w["model_override"] or "", pages * _TOKENS_IN, pages * _TOKENS_OUT,
                               provider=w["provider_override"] or "") if cloud else 0.0)
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
-                     "pages": pages, "cost_usd": cost})
+                     "pages": pages, "cost_usd": cost, "memory": _local_memory(w)})
         total = None if total is None or cost is None else total + cost
     return {"pages": pages, "runs": rows, "total_cost_usd": total}
+
+
+def _local_memory(run: dict[str, Any]) -> str | None:
+    """A run on this Mac's model server, in words: the model's need, pages at once, the peak (#5537,
+    rule 8). None for any other run, or a model the catalogue does not size."""
+    if run.get("provider_override") != "omlx" or not run.get("model_override"):
+        return None
+    from fichero_server.llm.local_inference import local_read_plan
+    from fichero_server.llm.local_model_choice import model_to_serve
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+    try:
+        return local_read_plan(get_mlx_model_store().spec(model_to_serve(run["model_override"])))
+    except KeyError:
+        return None
 
 
 def count_pages(db) -> int:

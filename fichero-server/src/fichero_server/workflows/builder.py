@@ -55,6 +55,9 @@ logger = logging.getLogger(__name__)
 # far more in-flight calls than one running local MLX. Unset/blank/invalid or
 # < 1 falls back to the default with a loud warning — the cap must never
 # silently become unbounded.
+# A model this engine serves on this Mac is bounded again at the call, by its memory need and this
+# Mac's memory (`llm.model_call_slot`, `local_inference.local_reads_at_once`, #5537): on an 8 GB Mac
+# a 3B vision model reads one page at a time whatever this cap says.
 _DEFAULT_VISION_FAN_OUT_CONCURRENCY = 4
 # A node whose model is a HOSTED provider (#5264): pages wait on the network, not this machine,
 # and local inference is serialized anyway (MLX job lock, Kraken inference lock). Measured with a

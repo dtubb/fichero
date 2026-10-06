@@ -6,7 +6,8 @@ second time, once, after a short pause (`builder._make_parallel_node_function`);
 page's failure, with its reason, and the run's account offers to read the failed pages as one action.
 
 Passing causes: the model is still loading or its server is starting or not ready, memory was short (a
-memory wait that ran out, #5537), or the connection to the model server dropped. Never a cause that a
+memory wait that ran out, #5537), the connection to the model server dropped, or the local model server
+stopped while reading (#5537: read again once the server has restarted). Never a cause that a
 second try cannot change: a model too big for this Mac, a model not installed, a refusal, a bad request.
 """
 from __future__ import annotations
@@ -20,7 +21,7 @@ _PASSING = re.compile(
     r"not ready|still loading|is loading|model (?:is )?loading|loading the model|is starting|starting up"
     r"|did not start .* in time|stopped before it was ready"
     r"|memory is tight|waited \d+ minutes? for memory|connection (?:refused|reset|error)|server disconnected"
-    r"|temporarily unavailable",
+    r"|temporarily unavailable|server stopped while reading",
     re.IGNORECASE,
 )
 #: Causes another try cannot change, even when their words also match the above.

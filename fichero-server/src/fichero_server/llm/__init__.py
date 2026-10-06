@@ -1381,7 +1381,95 @@ def _get_remote_llm_semaphore() -> asyncio.Semaphore:
 @contextlib.asynccontextmanager
 async def model_call_slot(config: LLMConfig, *, library: str | None = None,
                           subject: str | None = None) -> AsyncIterator[None]:
-    """One model call's slot. In a library's work (a workflow node names its library, or a caller
+    """One model call's slot: its lane (`_lane_call_slot`), then, for a model this engine serves on
+    this Mac, one of the reads the server may be asked at once (#5537): as many as the model's need
+    and this Mac's memory allow (`local_inference.local_reads_at_once`; one at a time for a 3B on
+    8 GB), whichever path asks (a page, a line reader's batches, a check). Lane first, then the
+    read slot, always in that order, so a page holding the lane never waits on a read slot held by
+    a call waiting for the lane. A request the server died under says so, with its last output."""
+    provider = (config.provider or "").strip().lower()
+    async with _lane_call_slot(config, library=library, subject=subject):
+        if provider != "omlx":
+            yield
+            return
+        from fichero_server.llm.local_inference import local_read_slot
+
+        at_once = _local_reads_at_once(config)
+        async with (local_read_slot(at_once) if at_once else contextlib.nullcontext()):
+            try:
+                yield
+            except Exception as exc:
+                stopped = await _local_server_stopped(exc)
+                if stopped is None:
+                    raise
+                raise stopped from exc
+
+
+def _local_reads_at_once(config: LLMConfig) -> int | None:
+    """How many reads at once this local model may be asked on this Mac; None for a model the
+    catalogue does not size (a developer's own server command)."""
+    from fichero_server.llm.local_inference import local_reads_at_once
+    from fichero_server.llm.local_model_choice import model_to_serve
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+    try:
+        return local_reads_at_once(get_mlx_model_store().spec(model_to_serve(config.model)))
+    except KeyError:
+        return None
+
+
+#: How long a failed request waits to see its server's exit: the stream's error can arrive a moment
+#: before the process is gone.
+_SERVER_EXIT_GRACE_SECONDS = 3.0
+
+
+def _is_transport_failure(exc: BaseException) -> bool:
+    """A request that broke off (the stream's error event, a dropped connection), not an answer the
+    server gave (a 4xx/5xx with a body)."""
+    import httpx
+    import openai
+
+    seen: BaseException | None = exc
+    for _ in range(5):
+        if seen is None:
+            break
+        if isinstance(seen, httpx.TransportError) or (
+            isinstance(seen, openai.APIError) and not isinstance(seen, openai.APIStatusError)
+        ):
+            return True
+        seen = seen.__cause__ or seen.__context__
+    return False
+
+
+async def _local_server_stopped(exc: BaseException) -> Exception | None:
+    """The page's cause when the engine's model server died under this request (#5537): "The local
+    model server stopped while reading: <its last output>", never "An error occurred during
+    streaming". None when the server is still up (the failure is the request's own)."""
+    import time
+
+    if not _is_transport_failure(exc):
+        return None
+    from fichero_server.api.routes.ai.local_inference import engine_started_servers
+    from fichero_server.llm.local_inference import LocalModelServerStoppedError
+
+    deadline = time.monotonic() + _SERVER_EXIT_GRACE_SECONDS
+    while True:
+        servers = [p for p in engine_started_servers() if getattr(p, "_process", None) is not None]
+        gone = [p for p in servers if not p.is_running()]
+        if gone or not servers or time.monotonic() >= deadline:
+            break
+        await asyncio.sleep(0.1)
+    if not gone:
+        return None
+    process = gone[0]
+    said = process.output_tail(lines=3) or process.last_error or "it left no output"
+    return LocalModelServerStoppedError(f"The local model server stopped while reading: {said}")
+
+
+@contextlib.asynccontextmanager
+async def _lane_call_slot(config: LLMConfig, *, library: str | None = None,
+                          subject: str | None = None) -> AsyncIterator[None]:
+    """One model call's lane slot. In a library's work (a workflow node names its library, or a caller
     such as chat passes its own), the call is a job on a lane (#5353, #5358): a cloud model's on
     the network lane, whose cap is one per Mac shared by every run and every chat; a model served
     on this Mac on the local-model lane, so no other heavy model loads beside it. In a run it is a
@@ -1459,7 +1547,8 @@ async def _remote_llm_batch_slots(
 
 def _batch_max_concurrency(config: LLMConfig) -> int | None:
     if _is_local_or_builtin_provider(config.provider):
-        return None
+        # A batch to the engine's own model server: as many at once as its memory allows (#5537).
+        return _local_reads_at_once(config) if (config.provider or "").lower() == "omlx" else None
     return _max_inflight_llm()
 
 

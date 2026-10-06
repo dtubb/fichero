@@ -8,7 +8,10 @@ fake process and health clients.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import threading
 from collections import deque
+from contextvars import ContextVar
 from functools import lru_cache
 import ipaddress
 import logging
@@ -220,6 +223,104 @@ def _smaller_models_that_fit(spec: Any, free: int | None, catalog: Any = None) -
     ]
     fits.sort(key=mlx_memory_need_bytes, reverse=True)   # the most capable that fits, first
     return [other.display_name for other in fits[:2]]
+
+
+#: How many reads at once one local model server may be asked, at most (#5537): the page fan-out's
+#: own default (`builder._DEFAULT_VISION_FAN_OUT_CONCURRENCY`).
+LOCAL_READS_CEILING = 4
+#: The share of physical memory a model server's weights and its reads may hold together; the rest
+#: is macOS's, the app's and the engine's (Kraken finding lines beside it).
+_LOCAL_READS_SHARE = 0.5
+
+
+def local_reads_at_once(spec: Any, *, physical_bytes: Any = None) -> int:
+    """How many reads (pages, or a page's line batches) one local model server is asked at once on
+    this Mac: decided from the model's need and the Mac's memory, the one place that decides it (#5537).
+
+    ponytail: the rule is (half the Mac's memory - the weights) / the per-read margin, at least 1, at
+    most `LOCAL_READS_CEILING` (4). The weights are loaded once and shared; each read in flight adds
+    about the margin (KV cache, activations, the image tensors). 8 GB Mac, 3B (2.9 GB): (4 - 2.9) / 1
+    = 1 -- one at a time (the Air, 2026-10-06: four at once ran it out of memory mid-read). 16 GB, 3B:
+    4. 16 GB, 8B (5.4 GB): 2. Half, not `_MLX_CEILING_SHARE`: the load check asks whether the model
+    fits at all; this asks how much more the reads may take beside the OS, the app and Kraken.
+    Re-measure with the run's peak memory (`run_usage.model_server_peak_memory_bytes`)."""
+    from fichero_server.llm import kraken_runtime
+
+    total = (physical_bytes or kraken_runtime._physical_memory_bytes)()
+    if not total:
+        return 1
+    weights = max(0, mlx_memory_need_bytes(spec) - _MLX_LOAD_MARGIN_BYTES)
+    fits = int((total * _LOCAL_READS_SHARE - weights) // _MLX_LOAD_MARGIN_BYTES)
+    return max(1, min(LOCAL_READS_CEILING, fits))
+
+
+def local_read_plan(spec: Any, *, physical_bytes: Any = None) -> str:
+    """The plan's words for a local model before Start (#5537, rule 8): its need, how many pages at
+    once it reads on this Mac, and the peak that comes to (the weights once, a margin per read)."""
+    from fichero_server.llm import kraken_runtime
+
+    total = (physical_bytes or kraken_runtime._physical_memory_bytes)()
+    at_once = local_reads_at_once(spec, physical_bytes=lambda: total)
+    need = mlx_memory_need_bytes(spec)
+    peak = need + (at_once - 1) * _MLX_LOAD_MARGIN_BYTES
+    gb = lambda n: f"{n / 1024**3:.1f} GB"  # noqa: E731
+    mac = f"this Mac ({gb(total)})" if total else "this Mac"
+    pages = "one page at a time" if at_once == 1 else f"{at_once} pages at once"
+    return f"{spec.display_name} needs about {gb(need)}; on {mac} it reads {pages}, about {gb(peak)} at most"
+
+
+_reads_lock = threading.Lock()
+#: The tasks holding a read slot now, across every event loop.
+_readers: set[asyncio.Task] = set()
+#: True while this task holds a local read slot: a call inside one does not ask for a second.
+_holding_read: ContextVar[bool] = ContextVar("fichero_holding_local_read", default=False)
+#: How often a read waiting for a slot looks again.
+_READ_LOOK_AGAIN_SECONDS = 0.05
+
+
+@contextlib.asynccontextmanager
+async def local_read_slot(at_once: int):
+    """Hold one of `at_once` slots on the local model server for one request (#5537). One count for
+    the whole engine, across every run's event loop (each workflow run has its own): the server is
+    one process per Mac, whichever run asks it. Re-entrant within a task. A holder whose task ended
+    or whose loop closed without letting go is dropped, so a run torn down mid-read never wedges the
+    slots of the runs after it."""
+    if _holding_read.get():
+        yield
+        return
+    me = asyncio.current_task()
+    while True:
+        with _reads_lock:
+            _readers.difference_update(
+                [t for t in _readers if t.done() or t.get_loop().is_closed()])
+            if len(_readers) < max(1, at_once):
+                _readers.add(me)
+                break
+        await asyncio.sleep(_READ_LOOK_AGAIN_SECONDS)
+    _holding_read.set(True)  # entered only when False: no token, which a torn-down loop's context cannot reset
+    try:
+        yield
+    finally:
+        _holding_read.set(False)
+        with _reads_lock:
+            _readers.discard(me)
+
+
+class LocalModelServerStoppedError(RuntimeError):
+    """The local model server stopped while it was reading (#5537): the page's cause names it and the
+    server's last output, and the page is read once more after the server restarts (`page_retry`)."""
+
+
+def _pid_alive(pid: Any) -> bool:
+    if not isinstance(pid, int) or pid <= 0:
+        return True  # nothing to look at: trust the handle
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
 
 
 class LocalServiceState(str, Enum):
@@ -605,6 +706,10 @@ class ManagedLocalInferenceProcess:
         self._stderr_task: asyncio.Task[None] | None = None
         self._recent_stdout: deque[str] = deque(maxlen=output_buffer_lines)
         self._recent_stderr: deque[str] = deque(maxlen=output_buffer_lines)
+        #: Its process is gone though its handle never heard (`is_running`).
+        self._gone = False
+        #: The process whose exit was written to the log (`_log_exit`).
+        self._exit_logged: Any = None
 
     async def start(self) -> None:
         if self.is_running():
@@ -626,6 +731,7 @@ class ManagedLocalInferenceProcess:
             str(self._port()),
         ]
         self.last_error = None
+        self._gone = False
         self._recent_stdout.clear()
         self._recent_stderr.clear()
         try:
@@ -704,9 +810,35 @@ class ManagedLocalInferenceProcess:
         if self._process is None:
             return False
         if self._process.returncode is None:
-            return True
+            if self._handle_hears_its_exit() or _pid_alive(getattr(self._process, "pid", None)):
+                return True
+            # Gone, but its handle never heard (#5537): the run whose loop started it has ended, so
+            # nothing sets the return code; the pid says it.
+            self._gone = True
         self._update_last_error()
+        self._log_exit()
         return False
+
+    def _handle_hears_its_exit(self) -> bool:
+        """Whether the handle's own loop is this one and still open: its return code then arrives
+        with its output drained, and a pid gone a moment early is not read as the exit."""
+        owner = getattr(self._process, "_loop", None)
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        return owner is not None and owner is running and not owner.is_closed()
+
+    def _log_exit(self) -> None:
+        """Write the server's last output to the engine log, once per process, when it is found to
+        have exited (#5537: the Air's server died mid-read and its stderr was kept nowhere)."""
+        if self._exit_logged is self._process:
+            return
+        self._exit_logged = self._process
+        lines = [line for line in (*self._recent_stdout, *self._recent_stderr) if line and line.strip()]
+        logger.error("The local model server (%s, pid %s) exited: %s. Its last output:\n%s",
+                     self.profile.model_id, self.pid, self.last_error or "no reason given",
+                     "\n".join(lines[-20:]) or "(none)")
 
     async def _drain_stream(
         self,
@@ -874,7 +1006,9 @@ class ManagedLocalInferenceProcess:
         return " | ".join(tail) or None
 
     def _update_last_error(self) -> None:
-        if self._process is None or self._process.returncode in {None, 0}:
+        if self._process is None or (self._process.returncode is None and not self._gone):
+            return
+        if self._process.returncode == 0:
             return
         excerpt = (
             self._most_informative(self._recent_stderr)
@@ -882,7 +1016,8 @@ class ManagedLocalInferenceProcess:
             or ""
         )
         suffix = f": {excerpt}" if excerpt else ""
-        self.last_error = f"local inference process exited {self._process.returncode}{suffix}"
+        code = self._process.returncode
+        self.last_error = f"local inference process exited{'' if code is None else f' {code}'}{suffix}"
 
 
 class LocalHealthClient(Protocol):
