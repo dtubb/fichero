@@ -93,6 +93,9 @@ def _run(db: Any, package_path: Path, stop_event: threading.Event) -> None:
     except Exception:  # noqa: BLE001 -- a background thread: logged; anchors read the block meanwhile
         logger.exception("recording converted box origins or composing line readings stopped: %s", package_path)
 
+    if stop_event.is_set():
+        return  # closed during the steps above (#5562): no snapshot at shutdown; the next open converts
+
     try:
         run = convert_project(db, package_path, should_stop=stop_event.is_set)
     except ConversionAlreadyRunning as exc:
