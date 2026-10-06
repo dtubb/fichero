@@ -356,6 +356,27 @@ photograph shows its shadow, which changes with the light.
 - The vector glyph becomes the sign's picture in the sign list and each instance's own form;
   where Unicode has the sign, a standard cuneiform font draws the conventional form beside it.
 
+### 12. The order of the leaves (2026-10-06, #5548)
+
+A manuscript can be read in the wrong order because it was bound wrongly. In October 2026 Colin
+Layfield and Lisa Fagin Davis (*Digital Medievalist*) argued that the Voynich manuscript's leaves
+were stacked like folded cards rather than nested, and used latent semantic analysis of each page's
+text to infer which sheets were once next to each other. Fichero supports this for any manuscript,
+deciphered or not:
+- **A collation model.** Leaves, conjugate bifolia, quires and the binding order are recorded on the
+  source; a page has a physical position (where it is bound) and a reading position (where it
+  belongs), kept apart as the page model's physical and logical orders.
+- **Adjacency from evidence.** Page-to-page similarity from the text (topic models, latent semantic
+  analysis, embeddings; over sign sequences where the script is undeciphered), from layout and hand,
+  and from physical marks (stains, offsets, catchwords, quire signatures) ranks which sheets were
+  once neighbours, each with its reasons.
+- **Reorderings are hypotheses** (§8): tried on without changing the source, compared by how coherent
+  the text runs become, and shared.
+- **Seen.** A collation diagram drawn from the model, and the pages placed in a 2D or 3D map by
+  similarity (#5549) so neighbours and outliers can be seen.
+The Voynich (Beinecke MS 408, published through IIIF) is the first test material; the licence of
+its transcriptions is checked before use.
+
 ## Behaviors
 
 Tablets and vector glyphs:

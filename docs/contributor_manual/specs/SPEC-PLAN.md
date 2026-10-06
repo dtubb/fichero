@@ -30,6 +30,48 @@ it, automatic reprocessing), `ai/local-runtimes.md` (how each model runs), and t
 onboarding sections of `source/models-chains-and-projects.md` (what runs, chosen how). These
 three are one connected set and are built together.
 
+## Coverage against the maintainer's pipeline list (checked 2026-10-06)
+
+The maintainer's eleven-stage list (ingest; layout and palaeographic classification; tiered reading
+with MUFI/TEI and distillation; post-correction and structure; entities, relations, time, place;
+grounding and maps; curation; model adaptation; knowledge, vectors, graph completion and GraphRAG;
+generation; static publishing) was checked bullet by bullet against the specs and the job registry.
+Almost every bullet has a home above; most are partly built. The recipes catch it through the job
+registry (`recipes/jobs.py`, 31 jobs) and the guided path (`source/models-chains-and-projects.md`):
+every step can be distilled from a frontier teacher, checked, fine-tuned locally or on Hugging
+Face / ACENET, measured, and used, on an 8 GB M1 (`compute/jobs-and-fine-tuning.md`, "Models in
+memory"; `compute/distillation.md`, "Best practice").
+
+Built today: Kraken lines; page and line reading by cloud and local models; spaCy + LLM names; regnal
+years; the KG in DuckDB with rdflib / JSON-LD / Turtle; PyKEEN link prediction; hybrid full-text +
+vector search (LanceDB); Parquet export; the 11ty site; checking by person or model; CER (four
+policies); Allmaps georeference annotations; Nominatim geocoding.
+
+The gaps, most important for the goals first:
+
+| # | Gap | Issue | Home |
+|---|---|---|---|
+| 1 | Hand and script detection before reading | #5456 | a `detect-script-and-hand` job; `recipe.distil.script-and-hand-routed-per-region` |
+| 2 | Corrections trigger retraining (the closed loop) | #5404, #5337 | `compute/distillation.md`, `compute.tune.adopted-by-the-recipe` |
+| 3 | Tiered and cascade routing by confidence | #4948, #5338 | `source.recipe.reader-tiers`, `distill.cascade.*` |
+| 4 | Coreference ("su merced") | #5541 | a `resolve-references` job or `kg/coreference.md` |
+| 5 | Feast days and liturgical dates | #5542 | `source.date.*` |
+| 6 | Character-level post-correction (ByT5-class) | #5543 | a `correct-characters` job with its A/B |
+| 7 | Page furniture, entries, logical structure | #4927, #4949 | `source.segment.furniture`, `source.job.split-into-entries` |
+| 8 | Archive-scale ingest and storage backends | #5544, #5540 | `source/iiif.md`, `source/synced-folder.md` |
+| 9 | ACENET / Slurm training and reading | #5238, #5457 | `compute/targets-and-connection.md` |
+| 10 | F1 and WER as measured behaviours | #5545 | `distill.eval.*` |
+| 11 | Money and institutions as typed entities | #5546 | `kg/kg-tables.md` |
+| 12 | Map warping in the app | #1755 | `source.geo.map-view-georeference-overlay` |
+| 13 | CIDOC-CRM mapping | #1678 | `kg.enrich.ontology-layer` |
+| 14 | Image-patch vectors, federated SPARQL, apparatus and collation, network prose, lemmatisation, crowd transcription, GraphRAG | #5547 | as listed in the issue |
+
+Named tools Fichero does not plan to embed, with what it uses instead: LayPa and LayoutLM (Kraken,
+YOLO planned); PyLaia and Calamari (Kraken); BookNLP (spaCy); GLiNER and NuExtract (LLM jobs, distilled);
+GeospaCy (Nominatim and the gazetteers); JiWER (the engine's own CER); Leaflet and MapLibre (MapKit);
+PostGIS (DuckDB Spatial, planned). Allmaps and Mapwarper are exchanged with by file, not embedded. Any
+of them can enter as a candidate through discovery (#5519) and be measured in the bake-off (#5533).
+
 ## The programme beyond the pipeline
 
 **Onboarding is the user manual.** Each setup step explains itself from the job registry, and the
