@@ -478,6 +478,52 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(drawn.map(\.kind), ["word", "word", "word", "word"])
     }
 
+    /// #5504: a page Kraken read (find lines, then read each line) showed the bare image while its Layout
+    /// Order listed the lines. The engine's answer for that page (`c01_012_right.jpg`, recorded from the dev
+    /// engine's `GET /api/segments/document/{id}`): ONE flat pass of 48 lines, no regions, 11 of them with no
+    /// reading. Played through the REAL image preview in the library window's tree: all 48 line boxes are
+    /// drawn, in the page's one implicit region (one hue, shaded along the order), the unread lines dashed.
+    func testAKrakenLineOnlyPageDrawsEveryLineIncludingTheUnread() async throws {
+        let library = try hostedLibrary()
+        let pageId = "a15216e202f745dbae9e85eed095dc74"
+        RecordedEngine.body = try Data(
+            contentsOf: fixtures().appendingPathComponent("kraken_line_only_c01_012_right.route.json")
+        )
+        let route = try XCTUnwrap(JSONSerialization.jsonObject(with: RecordedEngine.body) as? [String: Any])
+        let segments = try XCTUnwrap(route["segments"] as? [[String: Any]])
+        XCTAssertEqual(segments.count, 48)
+        XCTAssertEqual(Set(segments.compactMap { $0["kind"] as? String }), ["line"], "a flat line-only pass")
+        let unread = Set(segments.filter { ($0["text"] as? String ?? "").isEmpty }.compactMap { $0["id"] as? String })
+        XCTAssertEqual(unread.count, 11, "lines Kraken found and did not read")
+
+        let window = hostInWindow(
+            ZoomableImagePreview(documentId: pageId, renderedImage: NSImage(size: NSSize(width: 1500, height: 2000))),
+            library: library
+        )
+        defer { window.contentView = nil }
+        let root = try XCTUnwrap(window.contentView)
+        var overlay: DocumentOverlayView?
+        for _ in 0..<500 {
+            root.layoutSubtreeIfNeeded()
+            overlay = Self.firstSubview(DocumentOverlayView.self, in: root)
+            if let drawn = overlay?.overlay.boxes, drawn.count >= 48 { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let view = try XCTUnwrap(overlay, "the preview mounted its overlay")
+        let drawn = view.overlay.boxes
+        XCTAssertEqual(Set(drawn.compactMap(\.segmentId)), Set(segments.compactMap { $0["id"] as? String }),
+                       "every line of the page is drawn (\(drawn.count) drawn)")
+        XCTAssertEqual(Set(drawn.map(\.kind)), ["line"])
+        XCTAssertEqual(Set(drawn.filter(\.noReading).compactMap(\.segmentId)), unread, "the unread lines, dashed, never hidden")
+        let tones = drawn.compactMap(\.tone)
+        XCTAssertEqual(tones.count, 48, "each line takes a tone")
+        XCTAssertEqual(Set(tones.map(\.hue)), [0], "the page's one implicit region: one hue")
+        XCTAssertEqual(tones.first?.strength, 1)
+        XCTAssertLessThan(tones.last?.strength ?? 1, tones.first?.strength ?? 0, "shaded along the order")
+        let imageRect = DrawnImageFrame.drawnRect(in: try XCTUnwrap(view.superview))
+        XCTAssertEqual(view.overlay.boxes(in: .infinite, imageRect: imageRect).count, 48, "all 48 are painted on the image")
+    }
+
     // MARK: - One pass per page (#5467, #5465)
 
     /// The diary page's recorded engine answer (`diary_words_beside_an_unconverted_run.route.json`): the
