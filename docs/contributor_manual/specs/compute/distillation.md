@@ -235,6 +235,13 @@ what a corrected set holds and how it is scored differs by kind:
 | Vision model (LoRA) | the same, or a larger vision model | as above | line or page readings | character and word error rate; repetition and truncation flagged (#5522) |
 | YOLO layout / tables | a frontier model or an existing layout model proposing regions | overlap with a second detector | regions (and table cells) with their kinds | box overlap: precision and recall at a stated overlap, per region kind |
 | spaCy names | a frontier model naming people, places, things | agreement with a second tagger | names as mentions on segments (#5488) | precision and recall per kind of name |
+| Tesseract line reader (#5554) | a frontier vision model reading each line | a second reader that is not the one trained | line readings on the page's lines, as line image + text | character and word error rate against the base language data |
+| Apple Vision (#5554) | — (no training API) | — | the project's names, places and terms as its custom-word list | character and word error rate with and without the list |
+
+Tesseract fine-tunes its line reader from corrected lines (tesstrain, starting from the language's data), on the CPU, small enough for the 8 GB Mac; the result is a model in the project like any other (#5554).
+Apple Vision cannot be trained. It can be given a list of words, so the project's own names, places and
+terms are passed to it, and the check pages measure whether the list helps; the app says plainly that this
+reader is given words, not trained (#5554).
 
 ### Cascade: small first, big when unsure
 

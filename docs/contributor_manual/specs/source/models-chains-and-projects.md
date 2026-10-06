@@ -1598,6 +1598,12 @@ Moved from `ai/local-runtimes.md` on 2026-10-04 (the card has one home). Each re
 - `source.model.coverage-two-ways` — **[GAP]** (#4948) a card states its coverage of a script: the
   LOOVE tokenizer tiers for a language or vision-language model, the share of the script's
   exemplar characters in its character set for Kraken or Tesseract, or "unknown".
+- `source.recipe.text-material-is-not-read` — **[GAP]** (#5553) material that is already text (Markdown,
+  plain text, Word, a PDF with a text layer, notes from Tinderbox, DEVONthink or Bookends) gets no reading
+  step: the plan goes straight to search and whatever else was ticked, and Ready says the notes are already
+  text. A project whose purpose is finding related material asks for no transcription. Scans of printed or
+  typed pages are read by Tesseract first; Kraken or a vision model is offered only when the check on a few
+  pages shows Tesseract misses.
 - `source.model.tesseract-provider` — **[GAP]** (#4948) Tesseract is a provider row in the AI
   settings: its binary is built into the app, each language's data is downloaded on demand as
   data with a card of its own, and it can read whole pages or cut lines.
