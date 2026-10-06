@@ -333,6 +333,7 @@ non-image batch ids return `404`.
 - `POST /api/recipes/project/bakeoffs/{bakeoff_id}/use` — make a scored candidate the reading step's reader for the project or one folder (audited, undoable).
 - `PUT /api/segments/passes/{pass_id}/ground-truth` — mark a pass as ground truth, or unmark it (#5513).
 - `POST /api/workflow-execution/threads/{thread_id}/read-again` — one new run of the same workflow and model over the pages a run did not do: the pages that failed, or after an interruption the pages not done (#5555).
+- `GET /api/activity/jobs/{job_id}/log` — the log of one Activity row and the rows under it, newest last: a run's activity events, a step's node events, and each job's own lines (started, failed and why, waiting and for what); nothing from another row (#5561).
 
 ## Sandbox (Mac App Store)
 
