@@ -1301,6 +1301,21 @@ unless the person adds sample pages, each listed before sending.
 and show each recipe's measurements. Fichero checks the catalogue for updates to followed recipes
 at most once a day, sending only the recipe ids; offline, nothing is offered and nothing breaks.
 
+**One guided path to a good reader, for any language (maintainer's direction, 2026-10-06).** The
+app decides among Kraken readers, Hugging Face models run on this Mac, and cloud models; it does
+not stop at "no reader fits". For a project's scripts and languages it walks the person through one
+path, each step a job they can watch and stop:
+1. **Find** every candidate (installed, the Kraken repository, Hugging Face by tags, cloud) — #5519.
+2. **Compare** them on the project's own corrected pages: error, time per page, cost for the volume,
+   local or cloud, with the not-read rule (#5531) — #5533.
+3. **If none is good enough, teach one:** a strong reader reads the lines as teacher, the
+   teacher-line check removes lines it misread (#5446), a local reader is fine-tuned (Hugging Face or
+   this Mac) and measured on the same pages — #5526, #5527, #5444.
+4. **Use the winner** with the person's yes, and keep measuring as corrections arrive.
+Proved by hand on 2026-10-05/06 (Mosquera notebooks): the check removed 34% of Gemini's teacher lines
+(about 700 read the line above); fine-tuning cut McCATMuS from 40.4% to 19.6% and PP-OCRv6 from 24.6%
+to 18.4% on ten checked pages, for about $1.15. Each hand step that night is a gap the issues close.
+
 **Finding models beyond the shipped cards (maintainer's direction 2026-10-05: less hardcoded;
 look models up; design proposed, #5519).** The shipped cards are a seed, not the list. For a
 project's scripts, languages, material and period, discovery gathers candidates for each job from:
