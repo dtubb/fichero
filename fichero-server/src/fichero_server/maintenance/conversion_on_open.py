@@ -116,6 +116,13 @@ def _run(db: Any, package_path: Path, stop_event: threading.Event) -> None:
             logger.info("project conversion %s: %s", package_path, run.verdict.value)
 
 
+def running(package_path: str | Path) -> bool:
+    """Whether this library's conversion thread is alive now. Reads only; never starts one."""
+    with _lock:
+        run = _runs.get(str(package_path))
+    return run is not None and run[0].is_alive()
+
+
 def stop(package_path: str | Path | None = None, *, wait: float = 30.0) -> None:
     """Ask the runner(s) to stop at the next page boundary, and wait for them.
 

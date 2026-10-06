@@ -2297,6 +2297,26 @@ class OpenLibraryHandlesResponse(BaseModel):
     count: int
 
 
+class ReleaseLibraryParams(BaseModel):
+    """Body of POST /api/registry/release (#5563)."""
+
+    path: str = Field(description="Absolute path to the .fichero package to release.")
+
+
+class ReleaseLibraryResponse(BaseModel):
+    """What releasing a project did (#5563). The project stays registered; opening it again
+    (any request naming it) reopens its connection and resumes its jobs."""
+
+    status: Literal["released", "not_open"] = Field(
+        description="released: its connection was open and is now closed; not_open: it had none, nothing to stop."
+    )
+    path: str
+    registered: bool = Field(description="Whether the project is in the known-library registry (release never removes it).")
+    jobs_stopped: int = Field(0, description="Jobs that were running for it; each finishes its page, then waits for the next open.")
+    jobs_waiting: int = Field(0, description="Jobs left waiting; they carry on when the project opens again.")
+    conversion_stopped: bool = Field(False, description="Whether its background conversion was running and was stopped at a page boundary.")
+
+
 class UnicodeLibraryCollisionIdentity(BaseModel):
     """One side of a Unicode-equivalent library collision."""
 
@@ -2928,6 +2948,8 @@ __all__ = [
     "LibraryRegistryResponse",
     "OpenLibraryHandle",
     "OpenLibraryHandlesResponse",
+    "ReleaseLibraryParams",
+    "ReleaseLibraryResponse",
     "UnicodeLibraryCollisionIdentity",
     "UnicodeLibraryCollision",
     "UnicodeLibraryCollisionResponse",
