@@ -76,7 +76,7 @@ def cli_live_engine(tmp_path_factory):
     from tests.integration._seedlib import seed
 
     workdir = tmp_path_factory.mktemp("cli-live")
-    _share_real_model_cache(workdir)
+    model_store = _share_real_model_cache(workdir)
     library = workdir / "library.fichero"
     summary = seed(library)
 
@@ -93,6 +93,7 @@ def cli_live_engine(tmp_path_factory):
         "FICHERO_FEATURE_TIER": "dev",
         "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1",
         "FICHERO_BASE_PATH": str(workdir / "base"),
+        "FICHERO_MODEL_STORE_ROOT": str(model_store),
         "FICHERO_PARENT_PID": str(os.getpid()),
     }
     engine_log = workdir / "engine.log"

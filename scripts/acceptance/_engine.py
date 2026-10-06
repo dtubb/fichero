@@ -60,6 +60,9 @@ def engine_env() -> dict[str, str]:
             "FICHERO_UDS_PATH": str(SOCKET),
             # Own state dir: app.duckdb, thumbnails, global library -- never the maintainer's.
             "FICHERO_BASE_PATH": str(STATE),
+            # ...but the models this Mac already has (the model stores follow the base path
+            # unless told otherwise, #5530): an acceptance run reads with the real models.
+            "FICHERO_MODEL_STORE_ROOT": str(Path.home() / "Library" / "Application Support" / "Fichero"),
             # Own key file (api/auth.py: FICHERO_TOKEN_DIR is "for TEST engines only").
             "FICHERO_TOKEN_DIR": str(STATE),
             "FICHERO_LIBRARY_ALLOWED_ROOTS": str(LIBRARY_ROOT),

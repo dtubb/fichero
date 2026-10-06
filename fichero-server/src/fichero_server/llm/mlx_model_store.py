@@ -11,7 +11,7 @@ import shutil
 from typing import Any
 
 from fichero_server.llm.mlx_runtime import get_mlx_runtime
-from fichero_server.db.paths import server_state_dir
+from fichero_server.db.paths import model_store_root
 from fichero_server.llm.providers import ProviderType
 
 
@@ -218,7 +218,7 @@ repo_id, revision, models_path = sys.argv[1], sys.argv[2], sys.argv[3]
 ignore_patterns = sys.argv[4:] or None
 # One line on purpose: the shared-folder guardrail reads per LINE, so a call
 # split across lines hides `models_path` from the check that exists to prove
-# every download lands under server_state_dir()/"models" (#6b).
+# every download lands under model_store_root()/"models" (#6b).
 snapshot_download(repo_id=repo_id, revision=revision, cache_dir=models_path, ignore_patterns=ignore_patterns)
 """
 
@@ -613,7 +613,7 @@ _STORE: MLXModelStore | None = None
 
 
 def mlx_model_store_dir(home: Path | None = None) -> Path:
-    return (server_state_dir(home) / "models" / "mlx").expanduser()
+    return (model_store_root(home) / "models" / "mlx").expanduser()
 
 
 def get_mlx_model_store() -> MLXModelStore:

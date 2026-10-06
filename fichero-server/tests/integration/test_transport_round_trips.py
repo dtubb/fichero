@@ -59,10 +59,11 @@ def _child_env(base_path: Path, token: str) -> dict[str, str]:
     # walks the maintainer's libraries (`_cli_live`'s reason for its fake HOME, #4434). Only the
     # models cache is shared.
     home = base_path / "home"
-    _share_real_model_cache(home)
+    model_store = _share_real_model_cache(home)
     env = dict(os.environ)
     env.update(
         HOME=str(home),
+        FICHERO_MODEL_STORE_ROOT=str(model_store),
         # Each engine gets its OWN base path: app.duckdb takes an EXCLUSIVE
         # lock, so a shared one silently prevents the second engine booting.
         FICHERO_BASE_PATH=str(base_path),

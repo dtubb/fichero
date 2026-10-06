@@ -35,7 +35,7 @@ from pathlib import Path
 import shutil
 import subprocess
 
-from fichero_server.db.paths import server_state_dir
+from fichero_server.db.paths import model_store_root
 from fichero_server.llm.mlx_runtime import MLXAudioRuntimeMissingError, get_mlx_runtime
 
 logger = logging.getLogger(__name__)
@@ -147,7 +147,7 @@ _DOWNLOAD_STATE: dict[str, tuple[str, str | None]] = {}
 
 def whisper_store_dir(home: Path | None = None) -> Path:
     """The one shared models folder (#2269), not ~/.cache."""
-    return server_state_dir(home) / "models" / "whisper"
+    return model_store_root(home) / "models" / "whisper"
 
 
 def whisper_cache_dir(home: Path | None = None) -> Path:
@@ -210,7 +210,7 @@ def audio_runtime_status() -> dict[str, object]:
 
 
 #: Runs in the MLX runtime interpreter, not this one. The third argument is
-#: always ``whisper_cache_dir()`` -- i.e. under ``server_state_dir()/models``,
+#: always ``whisper_cache_dir()`` -- i.e. under ``model_store_root()/models``,
 #: the ONE shared models folder (#2269) -- and is named ``models_path`` so the
 #: shared-folder guardrail can see that, exactly as the MLX model store does.
 _DOWNLOAD_SCRIPT = """

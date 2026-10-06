@@ -26,7 +26,7 @@ from fichero_server.db.embeddings import (
     DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL,
     SUPPORTED_EMBEDDING_SPACES,
 )
-from fichero_server.db.paths import server_state_dir
+from fichero_server.db.paths import model_store_root
 from fichero_server.llm.whisper_runtime import (
     WHISPER_MLX_MODELS,
     audio_runtime_status,
@@ -48,7 +48,7 @@ class ModelType(str, Enum):
 
 
 # Stable storage location (not ~/.cache which gets auto-cleaned by macOS)
-MODELS_BASE = server_state_dir() / "models"
+MODELS_BASE = model_store_root() / "models"
 
 
 # =============================================================================

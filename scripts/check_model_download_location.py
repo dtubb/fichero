@@ -57,13 +57,17 @@ ROOT = Path(__file__).resolve().parent.parent
 ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero_server"
 RULE_DOC = "docs/contributor_manual/architecture/fichero/reform_masterplan_2026-06.md"
 
-# The canonical shared models folder, as defined in fichero/db/paths.py.
-CANONICAL_MODELS_DIR_EXPR = 'server_state_dir() / "models"'
+# The canonical shared models folder, as defined in fichero/db/paths.py. `model_store_root()` IS
+# `server_state_dir()` unless a harness engine sets FICHERO_MODEL_STORE_ROOT (#5530), so a path
+# derived from either is the one shared folder.
+CANONICAL_MODELS_DIR_EXPR = 'model_store_root() / "models"'
+_CANONICAL_ROOTS = ("server_state_dir", "model_store_root")
 
 # Tokens that prove a path derives from the shared models folder.
 CANONICAL_TOKENS = (
     "MODELS_BASE",
     "server_state_dir",
+    "model_store_root",
     "whisper_path",
     "embeddings_path",
     "spacy_path",
@@ -123,7 +127,7 @@ def scan(engine_src: Path = ENGINE_SRC) -> dict[str, str]:
         # (A) MODELS_BASE definitions must derive from server_state_dir().
         for m in _MODELS_BASE_RE.finditer(source):
             window = _models_base_window(source, m.start())
-            if "server_state_dir" not in window:
+            if not any(root in window for root in _CANONICAL_ROOTS):
                 found[_key(rel, window)] = (
                     f"MODELS_BASE does not derive from server_state_dir(): {window}"
                 )

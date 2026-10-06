@@ -89,8 +89,7 @@ class TestDatabaseBasics:
     def test_default_path(self, monkeypatch):
         """Default Database() path should be in Application Support — when
         FICHERO_BASE_PATH isn't set. Conftest sets it for test isolation,
-        so clear it here and reload `fichero_server.db.storage` so its module-level
-        `settings = StorageSettings()` re-reads the (now-empty) env.
+        so clear it here and patch in a `StorageSettings()` read from the (now-empty) env.
         """
         class FakeConn:
             description = []
@@ -123,9 +122,11 @@ class TestDatabaseBasics:
         monkeypatch.setattr(_db_migrations, "migrate_spatial_node_layout_fields", lambda _conn, _f=None: None)
         monkeypatch.setattr(_db_migrations, "migrate_references_table", lambda _conn, _f=None: None)
         monkeypatch.setattr(_db_migrations, "migrate_reference_provenance_table", lambda _conn, _f=None: None)
+        # Swap in a settings object read from the cleared env -- never reload the module (#5530):
+        # a reload left `storage.settings` pointing at the REAL home for every later test, and the
+        # next fixture to open `settings.global_library_path` opened the maintainer's own registry.
         import fichero_server.db.storage as _storage_mod
-        from importlib import reload as _reload
-        _reload(_storage_mod)
+        monkeypatch.setattr(_storage_mod, "settings", _storage_mod.StorageSettings())
         from fichero_server.db import Database as _Database
         db = _Database()
         expected = Path.home() / "Library/Application Support/Fichero/library.duckdb"
