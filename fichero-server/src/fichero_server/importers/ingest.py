@@ -2323,19 +2323,26 @@ def apply_import_date(doc: Document, raw_date: Any, *, source: str) -> bool:
     doc.date_jdn_end = parsed.jdn_end
     doc.date_meta = parsed.as_meta()
     if doc.page_content:
-        doc.date_meta.update(_heading_check(doc.page_content, parsed, str(raw_date)))
+        from fichero_server.histdate import day_first_for_language
+        from fichero_server.llm.language_policy import read_document_language
+
+        day_first = day_first_for_language(read_document_language(doc).language)
+        doc.date_meta.update(_heading_check(doc.page_content, parsed, str(raw_date), day_first))
     return True
 
 
-def _heading_check(page_text: str, supplied: Any, raw_date: str) -> dict[str, Any]:
+def _heading_check(page_text: str, supplied: Any, raw_date: str,
+                   day_first: bool | None = None) -> dict[str, Any]:
     """What the page's heading says about a supplied date: the heading as written, and any conflict."""
     from fichero_server.histdate import find_page_date, jdn_to_gregorian
 
     first_year = jdn_to_gregorian(supplied.jdn)[0]
     last_year = jdn_to_gregorian(supplied.jdn_end)[0]
     # The supplied year stands in for the volume year, so a yearless heading
-    # ("Friday March 17") is compared by its month, day and weekday.
-    finding = find_page_date(page_text, volume_years=list(range(first_year, last_year + 1)))
+    # ("Friday March 17") is compared by its month, day and weekday. A numeric
+    # heading's order comes from the page's language, as in the Extract Date tool.
+    finding = find_page_date(page_text, volume_years=list(range(first_year, last_year + 1)),
+                             day_first=day_first)
     out: dict[str, Any] = {"date_as_supplied": raw_date}
     reasons: list[str] = []
     heading_date = finding.date
@@ -2345,6 +2352,11 @@ def _heading_check(page_text: str, supplied: Any, raw_date: str) -> dict[str, An
         reasons.append(f"the page is headed {finding.non_entry}, not a dated entry")
     for refused in finding.invalid:
         reasons.append(f"the heading's date is impossible: {refused['reason']}")
+    supplied_iso = supplied.meta.get("converted_gregorian_iso")
+    for numeric in finding.ambiguous:
+        out["heading_ambiguous"] = numeric["readings"]
+        if supplied_iso not in {r["date"] for r in numeric["readings"]}:
+            reasons.append("the heading's numeric date fits neither reading of the supplied date")
     if heading_date is not None:
         meta = heading_date.meta
         if heading_date.jdn > supplied.jdn_end or supplied.jdn > heading_date.jdn_end:

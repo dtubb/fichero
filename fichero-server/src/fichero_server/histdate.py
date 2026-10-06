@@ -407,11 +407,15 @@ def parse_historical_date(
 #   a month, not 19 February, and "October 2.00" is an amount, not a date;
 # - the year may follow with or without a comma ("JANUARY 7 1918");
 # - ordinals (1st, 2d, 3rd) and old abbreviations (Jany, Feby, Sepr, Decr);
-# - numeric dates (1/3/23, Jan 3/23) read MONTH/DAY by default: these are
-#   U.S. English diaries. A first number over 12 makes it day/month, a second
-#   over 12 month/day; when both could be either, the default (or the caller's
-#   ``day_first``) is used and recorded as assumed. A two-digit year takes the
-#   century nearest the volume's year; with no volume year it is refused;
+# - numeric dates (1/3/23): a first number over 12 makes it day/month, a
+#   second over 12 month/day. When both could be either, the order comes from
+#   the LANGUAGE (``day_first_for_languages``): en-US reads month/day; en-GB and
+#   every other language day/month (most of the archives here are Spanish and
+#   Colombian). The caller's ``day_first`` is an explicit override. With no
+#   language known, both readings are recorded in ``PageDate.ambiguous`` and
+#   the page is not dated: a guess here moves a page by up to eleven months.
+#   "Jan 3/23" names its month and is never ambiguous. A two-digit year takes
+#   the century nearest the volume's year; with no volume year it is refused;
 # - a year outside 1000-2100, an impossible day (31 February) or month is
 #   refused and RECORDED as invalid; the page stays undated, never rolled;
 # - a heading with no year takes the volume year passed in, marked inferred;
@@ -465,13 +469,43 @@ class PageDate:
     ``invalid`` lists headings refused (impossible day, year out of range),
     each ``{"text", "reason"}``: a refused date is a fact about the page, not
     an absence. ``non_entry`` names the marker (MEMORANDA, CASH ACCOUNT) that
-    kept a non-entry page undated.
+    kept a non-entry page undated. ``ambiguous`` lists a numeric heading whose
+    day/month order no language settles, ``{"text", "readings": [...]}`` with
+    both readings, so a person can choose; the page is left undated.
     """
 
     date: HistoricalDate | None = None
     heading: str | None = None
     invalid: list[dict[str, str]] = field(default_factory=list)
     non_entry: str | None = None
+    ambiguous: list[dict[str, Any]] = field(default_factory=list)
+
+
+def day_first_for_language(tag: str | None) -> bool | None:
+    """Whether a language writes numeric dates day first: False for en-US, True for every
+    other language (en-GB, es, es-CO, fr…), None when the tag does not say.
+
+    WHY bare "en" is None: English writes both orders (U.S. month/day, British
+    day/month), so "en" alone cannot settle 1/3/23; nor can "und" or nothing.
+    """
+    norm = (tag or "").strip().lower().replace("_", "-")
+    if not norm or norm in ("en", "eng", "und", "unknown", "mul", "zxx"):
+        return None
+    if norm == "en-us" or norm.startswith("en-us-"):
+        return False
+    return True
+
+
+def day_first_for_languages(document_language: str | None,
+                            project_languages: list[str] | tuple[str, ...] | None = None) -> bool | None:
+    """The order for ambiguous numeric dates: the document's language, else the project's setup
+    languages (only when they all agree), else None (unknown: record both readings)."""
+    own = day_first_for_language(document_language)
+    if own is not None:
+        return own
+    orders = {day_first_for_language(t) for t in project_languages or ()}
+    orders.discard(None)
+    return orders.pop() if len(orders) == 1 else None
 
 
 def years_from_name(name: str | None) -> list[int]:
@@ -587,7 +621,7 @@ def _resolve_heading(
     *,
     volume_years: list[int],
     page_year: int | None,
-    day_first: bool,
+    day_first: bool | None,
     year_start_march: bool,
     assume_julian: bool,
 ) -> PageDate:
@@ -650,6 +684,25 @@ def _resolve_heading(
             day, month, order = a, b, "day/month"
         elif b > 12:
             month, day, order = a, b, "month/day"
+        elif a == b:
+            day, month, order = a, b, "day/month"  # 5/5: both readings are one date
+        elif day_first is None:
+            # No language says which: record both readings, date nothing.
+            readings = []
+            for first in (True, False):
+                reading = _resolve_heading(
+                    line, h, volume_years=volume_years, page_year=page_year,
+                    day_first=first, year_start_march=year_start_march,
+                    assume_julian=assume_julian,
+                )
+                readings.append({
+                    "order": "day/month" if first else "month/day",
+                    "date": reading.date.meta["converted_gregorian_iso"] if reading.date else None,
+                    "invalid": reading.invalid[0]["reason"] if reading.invalid else None,
+                })
+            if not any(r["date"] for r in readings):
+                return _invalid(line, readings[0]["invalid"] or "not a real date")
+            return PageDate(heading=line, ambiguous=[{"text": line, "readings": readings}])
         elif day_first:
             day, month, order = a, b, "day/month (assumed)"
         else:
@@ -728,7 +781,7 @@ def find_page_date(
     text: str,
     *,
     volume_years: list[int] | tuple[int, ...] | None = None,
-    day_first: bool = False,
+    day_first: bool | None = None,
     year_start_march: bool = False,
     assume_julian: bool = False,
     max_lines: int = HEADING_LINES,
@@ -776,7 +829,7 @@ def extract_date_from_text(
     assume_julian: bool = False,
     max_chars: int = 4000,
     volume_years: list[int] | tuple[int, ...] | None = None,
-    day_first: bool = False,
+    day_first: bool | None = None,
 ) -> HistoricalDate | None:
     """The page's heading date (``find_page_date``), or None."""
     if not text:

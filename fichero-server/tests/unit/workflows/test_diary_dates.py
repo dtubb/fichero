@@ -8,7 +8,9 @@ knowledge-graph claims carrying the prompt's own "YYYY-08-17" as their date. Eac
 one row; a regression in any of them is a page that sorts in the wrong year.
 
 The rules themselves are written once, in ``fichero_server.histdate`` (the "A page's own date"
-block). Numeric dates read MONTH/DAY unless a number over 12 says otherwise (or ``day_first``).
+block). An ambiguous numeric date (1/3/23) takes its order from the language: en-US month/day,
+en-GB and every other language day/month (most archives here are Spanish and Colombian); with no
+language known both readings are recorded and the page is left undated; ``day_first`` overrides.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import pytest
 
 from fichero_server.histdate import (
     check_claim_date,
+    day_first_for_languages,
     find_page_date,
     gregorian_to_jdn,
     years_from_name,
@@ -89,13 +92,31 @@ CASES = [
     ("Feby", "Feby 14, 1920", None, {"iso": "1920-02-14"}),
     ("Jany", "Jany 5 1920", None, {"iso": "1920-01-05"}),
     ("Sepr", "Sepr 30, 1913", None, {"iso": "1913-09-30"}),
-    # --- numeric forms: month/day by default; a number over 12 decides
-    ("numeric month/day assumed", "1/3/23", [1923], {"iso": "1923-01-03", "flag": "numeric_order"}),
+    # --- numeric forms: a number over 12 decides; else the LANGUAGE does (en-US month/day,
+    #     en-GB and every other language day/month); no language -> both readings, undated
+    ("es reads day/month", "1/3/1791", None,
+     {"iso": "1791-03-01", "flag": "numeric_order", "given": {"lang": "es"}}),
+    ("en-US reads month/day", "1/3/23", [1923],
+     {"iso": "1923-01-03", "flag": "numeric_order", "given": {"lang": "en-US"}}),
+    ("en-GB reads day/month", "1/3/23", [1923], {"iso": "1923-03-01", "given": {"lang": "en-GB"}}),
+    ("project setup language es-CO decides", "1/3/1791", None,
+     {"iso": "1791-03-01", "given": {"project": ["es-CO"]}}),
+    ("the document's language beats the project's", "1/3/23", [1923],
+     {"iso": "1923-01-03", "given": {"lang": "en-US", "project": ["es"]}}),
+    ("no language known: both readings, flagged", "1/3/23", [1923],
+     {"ambiguous": ["1923-03-01", "1923-01-03"]}),
+    ("bare 'en' writes both orders", "1/3/23", [1923],
+     {"ambiguous": ["1923-03-01", "1923-01-03"], "given": {"lang": "en"}}),
+    ("project languages that disagree settle nothing", "1/3/1791", None,
+     {"ambiguous": ["1791-03-01", "1791-01-03"], "given": {"project": ["es", "en-US"]}}),
+    ("same number twice needs no order", "5/5/23", [1923], {"iso": "1923-05-05"}),
     ("numeric day first (>12)", "13/3/23", [1923], {"iso": "1923-03-13"}),
     ("numeric month first (>12)", "8/31/45", [1945], {"iso": "1945-08-31"}),
     ("month name with a slashed year", "Jan 3/23", [1923], {"iso": "1923-01-03"}),
     ("numeric four-digit year", "4/17/1893", None, {"iso": "1893-04-17"}),
-    ("two-digit year and no volume", "1/3/23", None, {"invalid": "two-digit year"}),
+    ("two-digit year and no volume", "1/3/23", None,
+     {"invalid": "two-digit year", "given": {"lang": "en-US"}}),
+    ("two-digit year, no volume, no language", "1/3/23", None, {"invalid": "two-digit year"}),
     ("neither number a month", "31/13/23", [1923], {"invalid": "can be a month"}),
     # --- impossible and out-of-range dates are refused and recorded, never rolled
     ("Feb 31 is invalid, not March 3", "Feb 31, 1923", [1923], {"invalid": "no day 31"}),
@@ -129,10 +150,18 @@ CASES = [
 
 @pytest.mark.parametrize("case,text,volume,expected", CASES, ids=[c[0] for c in CASES])
 def test_page_date_rules(case, text, volume, expected):
-    finding = find_page_date(text, volume_years=volume)
+    given = expected.get("given", {})
+    day_first = day_first_for_languages(given.get("lang"), given.get("project"))
+    finding = find_page_date(text, volume_years=volume, day_first=day_first)
     date = finding.date
     if expected.get("none"):
         assert date is None and not finding.invalid and finding.non_entry is None, case
+        assert not finding.ambiguous, case
+        return
+    if "ambiguous" in expected:
+        assert date is None, f"{case}: an order no language settles must not be guessed"
+        readings = [r["date"] for r in finding.ambiguous[0]["readings"]]
+        assert readings == expected["ambiguous"], (case, finding.ambiguous)
         return
     if "non_entry" in expected:
         assert date is None and finding.non_entry == expected["non_entry"], case
@@ -353,3 +382,49 @@ def test_extract_date_tool_uses_the_volume_year_and_records_refusals():
     assert impossible.date_jdn is None
     assert "no day 31" in impossible.date_meta["invalid"][0]["reason"]
     assert memo.date_jdn is None and memo.date_meta["non_entry"] == "MEMORANDA"
+
+
+def _run_tool(library_path: str, docs: list[Document], config: dict | None = None) -> None:
+    from unittest.mock import MagicMock, patch
+
+    from fichero_server.workflows.tools.date_extract import date_extract_tool
+
+    rows = {d.id: d for d in docs}
+    db = MagicMock()
+    db.get.side_effect = lambda _model, doc_id: rows.get(doc_id)
+    with patch("fichero_server.workflows.tools.date_extract.db_manager") as mgr, patch(
+        "fichero_server.workflows.tools.date_extract.emit_workflow_document_changes"
+    ), patch("fichero_server.workflows.tools.date_extract.emit_workflow_artifact_changes"):
+        mgr.get_database.return_value = db
+        asyncio.run(date_extract_tool(
+            {"documents": [{"id": d.id} for d in docs], "config": config or {}},
+            {"library_path": library_path},
+            MagicMock(),
+        ))
+
+
+def test_extract_date_tool_reads_numeric_order_from_the_language(tmp_path: Path):
+    """The order of 1/3/1791 comes from the page's language, else the project's setup
+    languages; with neither, both readings are recorded and the page is not dated."""
+    from fichero_server.recipes.project import write_project_setup
+
+    spanish = Document(id="es", name="a", page_content="1/3/1791\nRecibí", language="es")
+    american = Document(id="us", name="b", page_content="1/3/1791\nGot", language="en-US")
+    unknown = Document(id="un", name="c", page_content="1/3/1791\n...")
+    no_setup = tmp_path / "plain.fichero"
+    _run_tool(str(no_setup), [spanish, american, unknown])
+    assert spanish.date_meta["converted_gregorian_iso"] == "1791-03-01"
+    assert american.date_meta["converted_gregorian_iso"] == "1791-01-03"
+    assert unknown.date_jdn is None
+    readings = unknown.date_meta["ambiguous"][0]["readings"]
+    assert [r["date"] for r in readings] == ["1791-03-01", "1791-01-03"]
+
+    colombian = tmp_path / "colombia.fichero"
+    write_project_setup(colombian, {"languages": ["es-CO"]}, None)
+    unknown_here = Document(id="un2", name="d", page_content="1/3/1791\n...")
+    _run_tool(str(colombian), [unknown_here])
+    assert unknown_here.date_meta["converted_gregorian_iso"] == "1791-03-01"
+
+    overridden = Document(id="ov", name="e", page_content="1/3/1791\n...", language="es")
+    _run_tool(str(colombian), [overridden], config={"day_first": False})
+    assert overridden.date_meta["converted_gregorian_iso"] == "1791-01-03", "day_first overrides"
