@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from fichero_server.workflows.run_account import RunAccount
 from fichero_server.workflows.run_progress import RunProgress
 from fichero_server.workflows.run_status import RunStatus
 from fichero_server.workflows.selection import SelectionKind, WorkflowSelection
@@ -121,6 +122,10 @@ class ExecutionStatusResponse(BaseModel):
     current_state: dict[str, Any] | None = None
     error: str | None = None
     progress: RunProgress | None = None
+    # The run's account (#5555): pages done, failed and left, each failure's reason, what it waits for,
+    # the estimate, its peak memory, interrupted, and the offer to read the pages it did not do. Activity
+    # shows this same account.
+    account: RunAccount | None = None
 
 
 class ResumeWorkflowRequest(BaseModel):
@@ -154,6 +159,17 @@ class ExecuteAcceptedResponse(BaseModel):
     workflow_name: str
     status: RunStatus = RunStatus.accepted  # Will transition to "running"
     stream_url: str  # URL to subscribe for SSE events
+
+
+class ReadAgainResponse(BaseModel):
+    """A new run reading the pages another run did not do (#5555)."""
+
+    thread_id: str = Field(description="The new run.")
+    from_thread_id: str = Field(description="The run whose pages it reads again.")
+    workflow_id: str
+    workflow_name: str
+    pages: int = Field(description="How many pages it reads.")
+    stream_url: str
 
 
 class SSEEvent(BaseModel):

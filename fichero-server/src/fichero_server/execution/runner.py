@@ -1281,6 +1281,8 @@ async def _run_workflow_in_background(
         )
 
     peak_memory.start()
+    # The run's account reads the peaks so far while it runs (#5555, `run_account._live_peaks`).
+    state["peak_memory"] = peak_memory
     try:
         # Mark as running
         state["status"] = "running"
@@ -1384,6 +1386,14 @@ async def _run_workflow_in_background(
                 for e in workflow.edges
             ],
             "inputs": request.inputs,
+            # What the run was started with beyond its inputs, so reading its pages again
+            # (`read-again`, #5555) uses the same model.
+            "request": {
+                "provider_override": request.provider_override,
+                "model_override": request.model_override,
+                "skip_cache": request.skip_cache,
+                "force_recompute": request.force_recompute,
+            },
         }
 
         # Build node name mapping (UUID → readable name)

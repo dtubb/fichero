@@ -43,6 +43,7 @@ from fichero_server.workflows.activity import (
     get_activity_tracker,
 )
 from fichero_server.models import ActivityListResponse
+from fichero_server.workflows.run_account import RunAccount
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/activity", tags=["activity"])
@@ -144,6 +145,8 @@ class BackgroundJob(BaseModel):
     reason: Optional[str] = None
     # The job this one belongs to: a page's step (whose own parent is its run), #5353.
     parent_id: Optional[str] = None
+    # A workflow run's account (#5555): `current`/`total` are its pages done and in all.
+    account: Optional[RunAccount] = None
 
 
 class MachineState(BaseModel):
@@ -195,6 +198,9 @@ class JobTree(BaseModel):
     cost_usd: Optional[float] = Field(
         None, description="what its model calls cost, from the vendored price list; null unless every one is priced")
     unpriced_models: list[str] = Field(default_factory=list, description="models under it the price list does not know")
+    # A workflow run's account (#5555): its status shows the same one. Its pages are what `done`,
+    # `total` and `failed` count on the run's own node.
+    account: Optional[RunAccount] = None
     children: list["JobTree"] = Field(default_factory=list)
 
 
@@ -378,14 +384,17 @@ async def list_background_jobs(
     try:
         tracker = get_activity_tracker(str(db.path))
         runs = await tracker.store.list_workflow_runs(limit=50)
+        from fichero_server.workflows.run_account import run_account
+
         for run in runs:
             status = (run.status or "").lower()
             if status not in ("running", "failed"):
                 continue
-            timeline = getattr(run, "progress_timeline", None) or []
-            last = timeline[-1] if isinstance(timeline, list) and timeline else {}
-            current = int(last.get("current", 0)) if isinstance(last, dict) else 0
-            total = int(last.get("total", 0)) if isinstance(last, dict) else 0
+            # The run's account, the one its status shows (#5555): its pages done and in all, not the
+            # saved timeline's last event (which read "total 0" for a fanned-out run).
+            account = await run_account(db, run.thread_id, run=run)
+            current = account.pages_done if account else 0
+            total = account.pages_total if account else 0
             percent = (
                 100.0 if status == "failed"
                 else (current * 100.0 / total if total else 0.0)
@@ -400,7 +409,8 @@ async def list_background_jobs(
                     total=total,
                     percent=round(percent, 1),
                     state=status,
-                    reason=(run.error or None) if status == "failed" else None,
+                    reason=(run.error or None) if status == "failed" else (account.waiting_reason if account else None),
+                    account=account,
                 )
             )
     except Exception as exc:  # never let the jobs list fail over the workflow half
@@ -446,6 +456,18 @@ async def get_job_tree(job_id: str, db: Database = Depends(get_library_database)
     found = job_queue.tree(db, job_id)
     if found is None:
         raise HTTPException(status_code=404, detail=f"no job {job_id!r} in this project")
+    if found["kind"] == "workflow":
+        # A run's own node counts its pages from its account, the one its status shows (#5555): the
+        # rows under its steps are lane work (a Kraken line, a model call), not pages, and a page read
+        # without the lane has no row at all.
+        from fichero_server.workflows.run_account import run_account
+
+        account = await run_account(db, job_id)
+        if account is not None:
+            found.update(done=account.pages_done, total=account.pages_total, failed=account.pages_failed,
+                         account=account)
+            if account.waiting_reason and found["state"] in ("running", "waiting"):
+                found["reason"] = account.waiting_reason
     return JobTree.model_validate(found)
 
 

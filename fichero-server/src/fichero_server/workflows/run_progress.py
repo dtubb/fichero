@@ -74,8 +74,8 @@ def _step(node: str, items: list[dict[str, Any]]) -> StepProgress:
                         failed=len(failed), cancelled=len(cancelled), failures=failures)
 
 
-def summarize_run_state(state: dict[str, Any] | None, pending_writes: Iterable[Any] = ()) -> RunProgress:
-    """Progress from a checkpoint's state and its pending writes (task_id, channel, value)."""
+def results_by_step(state: dict[str, Any] | None, pending_writes: Iterable[Any] = ()) -> dict[str, list[dict[str, Any]]]:
+    """Each fanned-out step's per-file results so far: the state's and the pending writes'."""
     state = state if isinstance(state, dict) else {}
     per_node: dict[str, list[dict[str, Any]]] = {}
 
@@ -88,6 +88,18 @@ def summarize_run_state(state: dict[str, Any] | None, pending_writes: Iterable[A
     for write in pending_writes or ():
         if isinstance(write, (tuple, list)) and len(write) >= 3 and write[1] == "parallel_results":
             add(write[2])
+    return per_node
+
+
+def item_error(item: dict[str, Any]) -> str | None:
+    """Why one file's result failed, or None."""
+    return _item_error(item)
+
+
+def summarize_run_state(state: dict[str, Any] | None, pending_writes: Iterable[Any] = ()) -> RunProgress:
+    """Progress from a checkpoint's state and its pending writes (task_id, channel, value)."""
+    state = state if isinstance(state, dict) else {}
+    per_node = results_by_step(state, pending_writes)
     files = state.get("files")
     return RunProgress(
         current_node=state.get("current_node"),

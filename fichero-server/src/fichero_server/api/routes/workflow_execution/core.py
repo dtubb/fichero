@@ -34,6 +34,7 @@ from .schemas import (
     ExecuteAcceptedResponse,
     ExecuteWorkflowRequest,
     ExecutionStatusResponse,
+    ReadAgainResponse,
     ResumeWorkflowRequest,
     format_sse,
     workflow_internal_error,
@@ -628,6 +629,14 @@ async def get_thread_status(
         else:
             status = "completed"
 
+        account = None
+        if run is not None:
+            # The run's account (#5555), the one Activity shows: read from what was just read here.
+            from fichero_server.workflows.run_account import run_account  # noqa: PLC0415
+
+            account = await run_account(db, thread_id, run=run, state=current_state,
+                                        pending_writes=checkpoint_tuple.pending_writes)
+
         return ExecutionStatusResponse(
             thread_id=thread_id,
             workflow_id=workflow_id,
@@ -637,6 +646,7 @@ async def get_thread_status(
             current_state=None if view == "summary" else _sanitize_for_json(current_state),
             error=workflow_error,
             progress=summarize_run_state(current_state, checkpoint_tuple.pending_writes),
+            account=account,
         )
 
     except HTTPException:
@@ -644,3 +654,55 @@ async def get_thread_status(
     except Exception:
         logger.exception(f"Failed to get status for thread {thread_id}")
         raise workflow_internal_error("Failed to get workflow status")
+
+
+@router.post("/threads/{thread_id}/read-again", status_code=202)
+async def read_pages_again(
+    thread_id: str,
+    http_request: Request,
+    db: Database = Depends(get_library_database_for_write),
+) -> ReadAgainResponse:
+    """Read the pages a run did not do: the pages that failed, or after an interruption the pages not
+    done (#5555, the run's account's `offer`). One new run of the same workflow, with the same model,
+    over those pages only; the pages it did are not read again.
+
+    Raises:
+        404: no record of the run, or its workflow is gone
+        409: the run has nothing to read again (it is still going, or every page was done)
+    """
+    from fichero_server.execution.runner import start_run  # noqa: PLC0415
+    from fichero_server.workflows import run_account as accounts  # noqa: PLC0415
+    from fichero_server.workflows.default_workflows import resolve_default_workflow  # noqa: PLC0415
+
+    run = await get_activity_tracker(str(db.path)).store.get_workflow_run(thread_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"No run {thread_id} in this project")
+    account = await accounts.run_account(db, thread_id, run=run)
+    if account is None or account.offer is None:
+        state = account.state if account else "unknown"
+        raise HTTPException(status_code=409, detail=(
+            f"The run is still {state}; read its pages again when it ends"
+            if state in ("running", "waiting", "paused")
+            else "The run did every page; there is nothing to read again"))
+    workflow = WorkflowStore(db).get(run.workflow_id) or resolve_default_workflow(run.workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail=f"The run's workflow {run.workflow_name!r} is gone")
+    snapshot = run.workflow_snapshot if isinstance(run.workflow_snapshot, dict) else {}
+    started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
+    inputs = dict(snapshot["inputs"]) if isinstance(snapshot.get("inputs"), dict) else {}
+    inputs["selected_doc_ids"] = account.not_done_ids
+    new_thread = f"thread-{uuid4().hex[:12]}"
+    request = ExecuteWorkflowRequest(
+        workflow_id=workflow.id, inputs=inputs, thread_id=new_thread,
+        provider_override=started_with.get("provider_override"),
+        model_override=started_with.get("model_override"),
+        skip_cache=bool(started_with.get("skip_cache")),
+        force_recompute=bool(started_with.get("force_recompute")),
+    )
+    _validate_workflow_for_execution(workflow, request, db)
+    await start_run(db, workflow, request, new_thread, started_by=f"read-again:{thread_id}")
+    accounts.forget(thread_id)
+    base_url = str(http_request.base_url).rstrip("/")
+    return ReadAgainResponse(
+        thread_id=new_thread, from_thread_id=thread_id, workflow_id=workflow.id, workflow_name=workflow.name,
+        pages=len(account.not_done_ids), stream_url=f"{base_url}/api/workflow-execution/stream/{new_thread}")

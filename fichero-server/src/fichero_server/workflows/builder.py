@@ -1699,6 +1699,8 @@ def _make_parallel_node_function(
         document = state.get("parallel_document")
         index = state.get("parallel_index", 0)
         total = state.get("parallel_total", 1)
+        # The passing cause of a first attempt that was read again (#5555).
+        retried_after: str | None = None
 
         # Per-page pipelining (lane step 2): when this stage has chained
         # elementwise successors, EVERY branch outcome — success, cache hit,
@@ -1709,6 +1711,14 @@ def _make_parallel_node_function(
         from langgraph.types import Command, Send  # noqa: PLC0415
 
         def _with_chaining(update: dict, *, failed: bool = False, error: str | None = None):
+            # Each result names its page, so the run's account can offer to read
+            # the pages it did not do (#5555, `run_account`); and says when the
+            # page was read a second time after a passing cause.
+            for item in update.get("parallel_results", {}).get(node_id, []):
+                if isinstance(document, dict) and document.get("id"):
+                    item.setdefault("document_id", str(document["id"]))
+                if retried_after:
+                    item.setdefault("retried", retried_after)
             if not chain_process_names:
                 return update
             if failed:
@@ -2010,32 +2020,75 @@ def _make_parallel_node_function(
             # #4553: re-entrant slot — the tool acquires the same shared
             # semaphore internally, and a plain `async with semaphore` here
             # self-deadlocked every fan-out of 4+ files.
-            async with vision_slot(remote=_is_remote_model(node_llm_config)):
-                # #4317: branches queued behind the semaphore re-check after
-                # acquiring it, so a cancel stops the queue within one file
-                # boundary instead of draining every waiting branch.
-                if _run_cancelled():
-                    return _with_chaining(
-                        _cancelled_result(), failed=True, error="cancelled"
-                    )
-                result = await tool_fn(
-                    inputs=tool_inputs,
-                    state=state,
-                    llm_config=node_llm_config,
-                )
+            # A page that fails for a passing cause (its model still loading,
+            # memory short, the model server not ready) is read once more
+            # before it counts as failed (#5555, `page_retry`).
+            from fichero_server.workflows import page_retry  # noqa: PLC0415
 
-            # Check for errors - both top-level and in results array
-            error_msg = None
-            if isinstance(result, dict):
-                # Check top-level error
-                if result.get("error"):
-                    error_msg = result["error"]
-                # Also check results array for errors (defensive)
-                elif result.get("results"):
-                    for r in result.get("results", []):
-                        if isinstance(r, dict) and r.get("error"):
-                            error_msg = r["error"]
-                            break
+            tries_left = 1
+            while True:
+                caught: Exception | None = None
+                async with vision_slot(remote=_is_remote_model(node_llm_config)):
+                    # #4317: branches queued behind the semaphore re-check after
+                    # acquiring it, so a cancel stops the queue within one file
+                    # boundary instead of draining every waiting branch.
+                    if _run_cancelled():
+                        return _with_chaining(
+                            _cancelled_result(), failed=True, error="cancelled"
+                        )
+                    try:
+                        result = await tool_fn(
+                            inputs=tool_inputs,
+                            state=state,
+                            llm_config=node_llm_config,
+                        )
+                    except Exception as exc:  # noqa: BLE001 -- judged below, re-raised unless read again
+                        caught = exc
+
+                # Check for errors - both top-level and in results array
+                error_msg = None
+                if caught is None and isinstance(result, dict):
+                    # Check top-level error
+                    if result.get("error"):
+                        error_msg = result["error"]
+                    # Also check results array for errors (defensive)
+                    elif result.get("results"):
+                        for r in result.get("results", []):
+                            if isinstance(r, dict) and r.get("error"):
+                                error_msg = r["error"]
+                                break
+                cause = str(caught) if caught is not None else error_msg
+                if (
+                    tries_left
+                    and page_retry.is_passing_cause(cause)
+                    and not (caught is not None and _is_quota_error(caught))
+                    and not _run_cancelled()
+                ):
+                    tries_left -= 1
+                    retried_after = str(cause)
+                    logger.info(
+                        "Reading %s again after a passing cause: %s", file_path, cause
+                    )
+                    if event_callback:
+                        try:
+                            await event_callback(
+                                "file_retry",
+                                {
+                                    "node_id": node_id,
+                                    "file_path": file_path,
+                                    "file_index": index,
+                                    "file_total": total,
+                                    "error": str(cause),
+                                    **event_document_meta,
+                                },
+                            )
+                        except Exception as cb_err:
+                            logger.warning(f"Failed to emit file_retry event: {cb_err}")
+                    await asyncio.sleep(page_retry.RETRY_AFTER_SECONDS)
+                    continue
+                if caught is not None:
+                    raise caught
+                break
 
             if error_msg:
                 print(f"[PARALLEL] [{index + 1}/{total}] FAILED: {error_msg}")

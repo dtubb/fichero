@@ -261,6 +261,22 @@ class DatabaseManager:
                     except Exception:
                         logger.exception("Pending-derivative resume failed")
 
+                # Runs the engine did not finish are marked interrupted, said with when (#5555): here,
+                # on every open, not left to the activity tracker's sweep, which is skipped when the
+                # tracker is first made off an event loop (and a ghost run then said "running" for good).
+                try:
+                    from fichero_server.workflows.run_account import mark_interrupted_runs
+
+                    interrupted = mark_interrupted_runs(db)
+                    if interrupted:
+                        logger.warning("Marked %d run(s) interrupted: %s", len(interrupted), interrupted)
+                        from fichero_server.execution.runner import on_background_loop
+                        from fichero_server.workflows.activity import _settle_recovered_run_documents
+
+                        on_background_loop(_settle_recovered_run_documents(interrupted, str(db.path)))
+                except Exception:
+                    logger.exception("Could not mark the project's unfinished runs interrupted")
+
                 # Jobs left running at quit or crash go back to waiting and carry on (#5357).
                 try:
                     from fichero_server.execution import jobs
