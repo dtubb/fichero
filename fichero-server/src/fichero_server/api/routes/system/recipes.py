@@ -932,12 +932,15 @@ class BakeoffReadiness(BaseModel):
     the refusal of a start (`bakeoff.readiness`), so setup can say it before anything is pressed."""
 
     ready: bool
-    lines: int = Field(description="corrected lines on the sample pages (each page's newest pass a person made)")
+    lines: int = Field(description="corrected lines on the sample pages (each page's newest pass a person made or "
+                             "marked ground truth, else the lines a person corrected)")
     pages: int = Field(description="pages with such lines")
     min_lines: int
     min_pages: int
     more_lines: int = Field(description="how many more corrected lines are needed; 0 when there are enough")
     more_pages: int = Field(description="how many more pages with corrected lines are needed; 0 when there are enough")
+    unmarked_import_pages: int = Field(default=0, description="pages of imported transcriptions not marked as ground "
+                                                              "truth (#5513): marking them is how they count")
     sentence: Optional[str] = Field(default=None, description="when not ready, what to correct, in words")
 
 
@@ -997,7 +1000,7 @@ async def list_bakeoffs(db: Database = Depends(get_library_database)) -> Bakeoff
     pages, _ = bakeoff.ground_truth(db, None)
     return BakeoffList(items=[BakeoffResult(**bakeoff.result(db, library, r["id"]))
                               for r in bakeoff.list_records(library)],
-                       readiness=BakeoffReadiness(**bakeoff.readiness(pages)))
+                       readiness=BakeoffReadiness(**bakeoff.readiness(pages, bakeoff.unmarked_import_pages(db))))
 
 
 @router.get("/project/bakeoffs/{bakeoff_id}", response_model=BakeoffResult, response_model_by_alias=True)

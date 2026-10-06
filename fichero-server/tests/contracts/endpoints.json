@@ -3157,6 +3157,11 @@
             "type": "string"
           },
           {
+            "name": "ground_truth",
+            "required": false,
+            "type": "boolean"
+          },
+          {
             "name": "name",
             "required": false,
             "type": "string"
@@ -9985,6 +9990,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "PUT",
+        "path": "/segments/passes/{pass_id}/ground-truth",
+        "operation_id": "set_pass_ground_truth_api_segments_passes__pass_id__ground_truth_put",
+        "summary": "Set Pass Ground Truth",
+        "path_params": [
+          "pass_id"
+        ],
+        "query_params": [],
+        "request_model": "PassGroundTruthBody",
+        "response_model": "PassGroundTruthResponse"
       },
       {
         "method": "GET",

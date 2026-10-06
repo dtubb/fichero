@@ -239,6 +239,9 @@ class PassRead(BaseModel):
     has_original: bool = False
     #: A georeferencing pass's transformation type (#5122); None for any other pass.
     transformation: str | None = None
+    #: Marked ground truth by a person (#5513, `SegmentPass.ground_truth`): the app shows it and offers
+    #: Mark as Ground Truth / Unmark (`PUT /api/segments/passes/{pass_id}/ground-truth`).
+    ground_truth: bool = False
     #: Whether this is the page's WORKING pass -- the one its text and edits come from -- and why
     #: (#5156; `PassBasis`: "chosen" when a person chose it, else the rule that picked it). The app
     #: shows it, draws the working pass first (#5443), and offers the choice. Only the working pass has a
@@ -618,10 +621,26 @@ class SegmentPass(BaseModel):
     #: (the SACRED signals, #5222). None while the result is there: it is read from the result.
     source_artifact_type: str | None = None
     source_holds_a_persons_work: bool | None = None
+    #: MARKED GROUND TRUTH by a person (#5513, `source.onboard.ground-truth-from-files`): its lines are
+    #: trusted to test or teach a model. Set when a person imports corrected transcriptions saying so
+    #: (`format.import`'s `ground_truth`), or later by `segment.pass_ground_truth`. Who MADE the pass
+    #: stays `provenance_kind` (an import is `external_import`, #5150); this is who VOUCHES for it, and
+    #: every rule that asks "did a person make it?" reads both through `made_by_a_person`.
+    ground_truth: bool = False
     created_at: datetime = Field(default_factory=utc_now)
     #: Soft delete -- a pass is never removed (`segment.pass_delete`'s
     #: inverse, `segment.pass_restore`, clears this).
     deleted_at: datetime | None = None
+
+
+def made_by_a_person(pass_row: Any) -> bool:
+    """Whether a pass counts as a person's: a person made it, or a person marked it ground truth.
+
+    The spec's "person-made passes marked as ground truth" (#5513): imported corrected transcriptions
+    are made by a file and vouched for by a person. THE ONE question the bake-off's ground truth, the
+    evaluation's reference and the working pass ask of a pass, so the three cannot disagree."""
+    kind = getattr(pass_row.provenance_kind, "value", pass_row.provenance_kind)
+    return kind == ProvenanceKind.human.value or bool(getattr(pass_row, "ground_truth", False))
 
 
 class Segment(BaseModel):
@@ -1469,6 +1488,7 @@ def pass_read_from_row(
         import_format=row.import_format,
         has_original=row.import_original is not None,
         transformation=row.transformation,
+        ground_truth=row.ground_truth,
         # Readings of their own arrive in slice 8; until then a converted
         # pass's text is the block's own (`source_block`).
         text=(source_block.text or None) if source_block is not None else None,

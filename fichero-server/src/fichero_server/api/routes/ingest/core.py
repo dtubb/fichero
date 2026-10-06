@@ -138,6 +138,10 @@ class IngestFolderRequest(BaseModel):
     mode: Literal["link", "copy", "move", "index"] | None = None
     recursive: bool = True
     extract_text: bool = True
+    # The folder's layout files hold CORRECTED transcriptions (#5513): each pass they become is marked
+    # ground truth (`format.import`'s `ground_truth`). Off by default: a file of unknown origin is often
+    # a machine's.
+    ground_truth: bool = False
     # Deferred by default (2026-08-09) — see IngestFileRequest.auto_embed.
     # The old inline default made a first import pay the ~19s model load
     # plus per-page compute before the request finished; searchability now
@@ -648,7 +652,7 @@ def import_folder_impl(
     )
     if plan is not None:
         read: list[tuple[Path, str, str]] = []
-        report = _import_paired_layout(db, docs, plan, ctx, read=read)
+        report = _import_paired_layout(db, docs, plan, ctx, read=read, ground_truth=request.ground_truth)
         if interchange_report is not None:
             interchange_report.update(report)
         if indexing:
@@ -673,6 +677,7 @@ def _import_paired_layout(
     db: Database, docs: list[Document], plan, ctx: "ActionContext",
     by_source: "dict[str, Document] | None" = None,
     read: "list[tuple[Path, str, str]] | None" = None,
+    ground_truth: bool = False,
 ) -> dict:
     """Write each paired layout file as a pass on its image's document (#5132).
 
@@ -704,7 +709,8 @@ def _import_paired_layout(
             registry.invoke(
                 db,
                 "format.import",
-                {"document_id": document.id, "path": str(layout), "format": plan.formats[layout]},
+                {"document_id": document.id, "path": str(layout), "format": plan.formats[layout],
+                 "ground_truth": ground_truth},
                 ctx,
             )
             imported.append(layout.name)
@@ -729,7 +735,8 @@ def _import_paired_layout(
                 registry.invoke(
                     db,
                     "format.import",
-                    {"document_id": document.id, "path": str(layout), "format": "tei", "pages": numbers},
+                    {"document_id": document.id, "path": str(layout), "format": "tei", "pages": numbers,
+                     "ground_truth": ground_truth},
                     ctx,
                 )
                 imported.append(label)

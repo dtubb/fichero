@@ -180,6 +180,10 @@ class FormatImportParams(BaseModel):
     #: order, become this pass. Omitted, the first. Several are ONE pass on this document --
     #: the Digital Genji puts two printed pages on one scan (#5143).
     pages: Optional[list[int]] = None
+    #: The person says these are CORRECTED transcriptions (#5513, `source.onboard.ground-truth-from-files`):
+    #: the pass is marked ground truth, so the bake-off and the evaluation count its lines and its
+    #: readings are not labelled machine. Off by default: a file of unknown origin is often a machine's.
+    ground_truth: bool = False
 
 
 def _invert_format_import(before, after, ctx: ActionContext):
@@ -285,6 +289,7 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
         ctx=ctx,
         # Kept only once the file has been READ: an unreadable file leaves nothing behind (#5149).
         original=keep_original(db, path),
+        ground_truth=params.ground_truth,
     )
 
     if spec.name == "tei":
@@ -622,10 +627,13 @@ def write_page_into_library(
     pass_name: str,
     ctx: ActionContext,
     original: str | None = None,
+    ground_truth: bool = False,
 ) -> dict[str, Any]:
     """One `SourcePage` as a pass, its segments, their readings and its order.
 
     `original` is where the file's own bytes were kept (`keep_original`), package-relative.
+    `ground_truth`: the person marked the file's transcriptions as ground truth (#5513); the pass says
+    so (`SegmentPass.ground_truth`) and its provenance still says the file made it.
 
 
     In BATCHES, and in this order: the pass, then the segments, then the readings,
@@ -652,6 +660,7 @@ def write_page_into_library(
         import_checksum=checksum,
         import_format=format_name,
         import_original=original,
+        ground_truth=ground_truth,
     )
     db.save(pass_row)
 
@@ -867,6 +876,7 @@ def write_page_into_library(
         "checksum": checksum,
         "hand_attributions": hand_attributions,
         "editorial_facts": len(facts),
+        "ground_truth": pass_row.ground_truth,
         # What the file marked that the library does not hold, and why (#5179): never dropped quietly.
         "not_imported": not_imported,
     }
@@ -1095,6 +1105,8 @@ class ImportResponse(BaseModel):
     #: the rest are named here rather than dropped without a word.
     pages_in_file: int = 1
     pages_left_out: list[str] = []
+    #: Whether the pass was marked ground truth as it came in (#5513).
+    ground_truth: bool = False
 
 
 @router.post(
@@ -1134,6 +1146,14 @@ async def import_document_page(
         description="Force a format instead of recognising one from the bytes",
     ),
     name: Optional[str] = Query(None, description="What to call the pass"),
+    ground_truth: bool = Query(
+        False,
+        description=(
+            "The file holds CORRECTED transcriptions: mark the pass as ground truth, so the bake-off and "
+            "the evaluation count its lines (#5513). Off by default, as a file of unknown origin is often "
+            "a machine's."
+        ),
+    ),
     dataset: Optional[UploadFile] = File(
         None,
         description=(
@@ -1184,6 +1204,7 @@ async def import_document_page(
                 **({"format": format_name} if format_name else {}),
                 "name": name or file.filename or label_path.name,
                 "uploaded": True,
+                "ground_truth": ground_truth,
             },
             ctx,
         ).result

@@ -2068,9 +2068,18 @@ Setup
   chip and memory, keys present and compute targets are worked out, shown, and correctable, never
   asked; direction is worked out and pre-filled, then chosen (ruled 2026-10-05,
   `source.onboard.direction-chosen`).
-- `source.onboard.ground-truth-from-files` — **[GAP]** (#4951) corrected transcriptions given at
-  setup (PAGE, ALTO, TEI, or plain text named after its image) come in through the one import path
-  as person-made passes marked ground truth, and the bake-off uses them.
+- `source.onboard.ground-truth-from-files` — **[PARTIAL]** (#4951, #5513) *Built (engine, 2026-10-06):
+  a pass can be **marked ground truth** (`SegmentPass.ground_truth`; who made it stays the file,
+  `external_import`), at import (`ground_truth` on `format.import`, `POST /api/documents/{id}/import` and
+  the folder import; off by default) or afterwards (`PUT /api/segments/passes/{id}/ground-truth`, the
+  audited, undoable `segment.pass_ground_truth`). One question, `made_by_a_person`, makes a marked pass a
+  person's for the bake-off's ground truth, the evaluation's reference (trust `person`) and the working
+  pass; its file readings count as a person's (not `labelled_machine`). The readiness sentence names
+  pages of imported transcriptions not marked and how to mark them (`unmarked_import_pages`). Pinned by
+  `fichero-server/tests/unit/recipes/test_import_ground_truth.py`. Not built: setup's screen taking the
+  files, the app's Mark as Ground Truth, plain text named after its image as page-level ground truth.*
+  Corrected transcriptions given at setup (PAGE, ALTO, TEI, or plain text named after its image) come
+  in through the one import path as person-made passes marked ground truth, and the bake-off uses them.
 - `source.onboard.existing-library` — **[GAP]** (#4951) setup on an existing library takes samples
   and ground truth from its pages, rewrites nothing, and offers running the recipe over its
   existing pages as a separate job with its page count and estimate.
@@ -2296,9 +2305,13 @@ Trying another option
   the sentence; `bakeoff.readiness`, the one count a start refuses by), and the app says the sentence
   before anything is pressed and shows Compare Readers only when ready. Pinned by
   `test_bakeoff_readers.py` (the row's name, assemble keeps Use This, readiness matches the start
-  refusal, no card id in a refusal) and `BakeoffStoreTests.swift`. *Not built: combinations across steps
-  (find lines then read; at most nine); other steps than reading; per-line confirmations inside a model's
-  pass as ground truth; WER (the one function gives CER only); per hand and page kind (per page only); a
+  refusal, no card id in a refusal) and `BakeoffStoreTests.swift`. **Built 2026-10-06 (#5513, part of
+  #5499):** ground truth counts passes marked ground truth and, on a page with no person-made pass, the
+  lines a person corrected inside a model's pass (those lines only; `evaluation.person_read_lines`, by
+  the one counting rule); the sentence reads "Needs 100 corrected lines on at least 2 pages; this project
+  has 44 on 1 page. Correct 56 more lines, on at least 1 more page." (`test_import_ground_truth.py`).
+  *Not built: combinations across steps (find lines then read; at most nine); other steps than reading;
+  WER (the one function gives CER only); per hand and page kind (per page only); a
   cloud candidate scored (the evaluation job has no remote target yet: it is priced, not scored); Start
   honouring a folder override.* setup's bake-off is Try Another
   Option… run on the sample ground-truth pages over the rule-proposed combinations; there is one

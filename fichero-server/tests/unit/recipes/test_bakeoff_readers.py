@@ -134,13 +134,14 @@ def test_below_the_threshold_it_says_how_many_more_and_runs_nothing(client, db, 
     one_page = client.post("/api/recipes/project/bakeoffs", json={})
     assert one_page.status_code == 422
     said = one_page.json()["detail"]
-    assert f"there are {LINES_PER_PAGE} on 1 page" in said
-    assert f"Correct {100 - LINES_PER_PAGE} more corrected lines and corrected lines on 1 more page" in said
+    # One plain sentence (#5513): the old one read "Correct 56 more corrected lines and corrected lines on 1 more page".
+    assert said == (f"Needs 100 corrected lines on at least 2 pages; this project has {LINES_PER_PAGE} on 1 page. "
+                    f"Correct {100 - LINES_PER_PAGE} more lines, on at least 1 more page.")
 
     _corrected(db, tmp_path, "SM_NPQ_C01_002", folder)
     two_pages = client.post("/api/recipes/project/bakeoffs", json={})
     assert two_pages.status_code == 422
-    assert f"Correct {100 - 2 * LINES_PER_PAGE} more corrected lines," in two_pages.json()["detail"]
+    assert two_pages.json()["detail"].endswith(f"has {2 * LINES_PER_PAGE} on 2 pages. Correct {100 - 2 * LINES_PER_PAGE} more lines.")
     assert _evaluation_jobs(db) == 0 and readers.read == {}
     assert client.get("/api/recipes/project/bakeoffs").json()["items"] == []
     # A page with only a model's reading is not ground truth.

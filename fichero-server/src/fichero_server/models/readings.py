@@ -341,10 +341,13 @@ class ReadingCandidate(BaseModel):
     provisional: bool = False
     #: The reading this one explicitly corrects (#5175), if any.
     corrects_representation_id: str | None = None
+    #: The file's reading on a pass a person marked ground truth (#5513): the file made it, a person
+    #: vouches for it, so it counts as a person's and is not labelled machine.
+    vouched_by_a_person: bool = False
 
     @property
     def by_a_person(self) -> bool:
-        return self.provenance_kind is ProvenanceKind.human
+        return self.provenance_kind is ProvenanceKind.human or self.vouched_by_a_person
 
 
 class CountingAnswer(BaseModel):

@@ -12,9 +12,12 @@ This module only decides what goes in and reads what came out:
   allows the cloud (the rules already refuse it otherwise), and its whole-volume cost is shown before
   anything runs. A candidate the evaluation cannot score here (not on this Mac, its runtime not in this
   build, a remote model) is named with why, never silently dropped and never substituted.
-* **Ground truth.** On each sample page, the newest pass a person made: its lines are the right readings.
-  The bake-off needs at least `MIN_LINES` such lines on at least `MIN_PAGES` pages; below that it says
-  how many more are needed, in words, and runs nothing.
+* **Ground truth.** On each sample page, the newest pass a person made or marked ground truth (imported
+  corrected transcriptions, #5513): its lines are the right readings; with none, the lines a person
+  corrected inside another pass (#5499). The one choice is the evaluation's (`training.evaluation.
+  reference_page`). The bake-off needs at least `MIN_LINES` such lines on at least `MIN_PAGES` pages; below
+  that it says how many more are needed, in words, and runs nothing, and names imported transcriptions
+  not yet marked ground truth, the usual reason a corpus project counts none.
 * **The run.** One `evaluate-models` job in Activity, through the audited `evaluation.run` action: every
   scored candidate reads the same pages, scored by the one CER; the scores and the measured speed land on
   each model's card, keyed by the job.
@@ -155,12 +158,32 @@ def candidates(a: Answers, cards: list[Card], *, volume: int) -> list[dict[str, 
 # --- the ground truth ----------------------------------------------------------------------------------
 
 
-def person_made_pages(db: Any) -> list[str]:
-    """Every page with a live pass a person made, oldest pass first."""
-    from fichero_server.models.segments import SegmentPass
+#: Imported formats that carry transcriptions (a YOLO or GCP file carries none, so it is never ground truth).
+TRANSCRIPTION_FORMATS = ("pagexml", "alto", "tei", "hocr", "plain-text")
 
-    passes = [p for p in db.query(SegmentPass, provenance_kind="human") if not p.deleted_at]
-    return list(dict.fromkeys(p.document_id for p in sorted(passes, key=lambda p: p.created_at)))
+
+def person_made_pages(db: Any) -> list[str]:
+    """Every page with a live pass a person made or marked ground truth (`made_by_a_person`, #5513), oldest
+    pass first; then every page with a reading a person made on any pass (#5499)."""
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.segments import SegmentPass, made_by_a_person
+
+    passes = [p for p in db.query(SegmentPass) if not p.deleted_at and made_by_a_person(p)]
+    pages = [p.document_id for p in sorted(passes, key=lambda p: p.created_at)]
+    corrected = sorted((r for r in db.query(ContentRepresentation, provenance_kind="human") if r.segment_id),
+                       key=lambda r: r.created_at)
+    return list(dict.fromkeys(pages + [r.document_id for r in corrected]))
+
+
+def unmarked_import_pages(db: Any) -> int:
+    """How many pages hold imported transcriptions nobody has marked ground truth and no person-made pass:
+    what the readiness sentence names, since on a corpus project it is why nothing counts (#5513)."""
+    from fichero_server.models.segments import SegmentPass, made_by_a_person
+
+    live = [p for p in db.query(SegmentPass) if not p.deleted_at]
+    counted = {p.document_id for p in live if made_by_a_person(p)}
+    return len({p.document_id for p in live
+                if p.import_format in TRANSCRIPTION_FORMATS and not made_by_a_person(p)} - counted)
 
 
 def ground_truth(db: Any, page_ids: list[str] | None) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
@@ -177,25 +200,38 @@ def ground_truth(db: Any, page_ids: list[str] | None) -> tuple[list[dict[str, An
     return pages, left_out
 
 
-def readiness(pages: list[dict[str, Any]]) -> dict[str, Any]:
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
+def readiness(pages: list[dict[str, Any]], unmarked_pages: int = 0) -> dict[str, Any]:
     """Whether the sample pages hold enough ground truth for a fair bake-off: the corrected lines and pages
     counted, how many more of each are needed, and, when short, the sentence that says so. The one count
-    behind both the list's readiness (shown before anything is pressed) and Start's refusal."""
+    behind both the list's readiness (shown before anything is pressed) and Start's refusal.
+
+    `unmarked_pages` (`unmarked_import_pages`): pages of imported transcriptions not marked ground truth.
+    When short and there are some, the sentence says so and how to mark them, since that is the usual
+    reason a project of corrected files counts none (#5513)."""
     lines = sum(p["lines"] for p in pages)
     more_lines, more_pages = max(0, MIN_LINES - lines), max(0, MIN_PAGES - len(pages))
     sentence = None
     if more_lines or more_pages:
-        more = []
-        if more_lines:
-            more.append(f"{more_lines} more corrected line{'s' if more_lines != 1 else ''}")
-        if more_pages:
-            more.append(f"corrected lines on {more_pages} more page{'s' if more_pages != 1 else ''}")
-        sentence = (f"The bake-off needs at least {MIN_LINES} corrected lines on at least {MIN_PAGES} pages; "
-                    f"there {'is' if lines == 1 else 'are'} {lines} on {len(pages)} "
-                    f"page{'s' if len(pages) != 1 else ''}. Correct {' and '.join(more)}, and it will be "
-                    f"offered again.")
+        needs = (f"Needs {MIN_LINES} corrected lines on at least {MIN_PAGES} pages; this project has {lines} on "
+                 f"{_plural(len(pages), 'page')}.")
+        if unmarked_pages:
+            what = (f"{_plural(unmarked_pages, 'page')} {'has' if unmarked_pages == 1 else 'have'} imported "
+                    "transcriptions not marked as ground truth: mark the corrected ones as ground truth "
+                    "(Mark as Ground Truth on the pass), or correct more lines.")
+        elif more_lines and more_pages:
+            what = f"Correct {_plural(more_lines, 'more line')}, on at least {_plural(more_pages, 'more page')}."
+        elif more_lines:
+            what = f"Correct {_plural(more_lines, 'more line')}."
+        else:
+            what = f"Correct lines on {_plural(more_pages, 'more page')}."
+        sentence = f"{needs} {what}"
     return {"ready": sentence is None, "lines": lines, "pages": len(pages), "min_lines": MIN_LINES,
-            "min_pages": MIN_PAGES, "more_lines": more_lines, "more_pages": more_pages, "sentence": sentence}
+            "min_pages": MIN_PAGES, "more_lines": more_lines, "more_pages": more_pages,
+            "unmarked_import_pages": unmarked_pages, "sentence": sentence}
 
 
 # --- starting --------------------------------------------------------------------------------------------
@@ -209,7 +245,7 @@ def start(db: Any, library: Path, a: Answers, cards: list[Card], *, page_ids: li
     `evaluation.run` action). Refused in words, with nothing run, below the threshold or when no
     candidate can be scored here."""
     pages, left_out = ground_truth(db, page_ids)
-    ready = readiness(pages)
+    ready = readiness(pages, unmarked_import_pages(db))
     if not ready["ready"]:
         raise BakeoffRefused(ready["sentence"])
     chosen = candidates(a, cards, volume=volume)

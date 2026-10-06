@@ -981,6 +981,56 @@ def _action_pass_restore(db: Database, params: SegmentPassRestoreParams, ctx: Ac
     return {"pass_id": pass_row.id}, spec
 
 
+class SegmentPassGroundTruthParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pass_id: str
+    #: True marks the pass ground truth; False unmarks it.
+    ground_truth: bool
+
+
+def _invert_pass_ground_truth(before, after, ctx: ActionContext):
+    if not before:
+        return None
+    return ("segment.pass_ground_truth", {"pass_id": before["pass_id"], "ground_truth": before["ground_truth"]})
+
+
+@action(
+    "segment.pass_ground_truth",
+    SegmentPassGroundTruthParams,
+    # `representation`: on a marked pass the file's readings count as a person's, so the page's text
+    # (and which pass is working) can change; the text cache refreshes on it.
+    domains=["segment", "representation"],
+    undoable=True,
+    invert=_invert_pass_ground_truth,
+)
+def _action_pass_ground_truth(db: Database, params: SegmentPassGroundTruthParams, ctx: ActionContext):
+    """Mark a pass as ground truth, or unmark it (#5513, `source.onboard.ground-truth-from-files`).
+
+    A person vouching that a pass's transcriptions are corrected: imported PAGE/ALTO/TEI arrive as the
+    FILE's (`external_import`), and only a person can say they are right. Who made the pass is not
+    rewritten; the mark is its own fact on the pass, read through `made_by_a_person` by the bake-off,
+    the evaluation and the working pass, and by the readings' counting. Undo puts the mark back as it was.
+    """
+    _assert_not_provisional_http(params.pass_id, what="pass_id")
+    pass_row = db.get(SegmentPass, params.pass_id)
+    if pass_row is None or pass_row.deleted_at is not None:
+        raise HTTPException(status_code=404, detail=f"Pass not found: {params.pass_id}")
+    before = {"pass_id": pass_row.id, "ground_truth": pass_row.ground_truth}
+    pass_row.ground_truth = params.ground_truth
+    db.save(pass_row)
+    after = {"pass_id": pass_row.id, "ground_truth": pass_row.ground_truth}
+    return after, ChangeSpec(
+        domains=["segment", "representation"],
+        target_ids=[pass_row.id],
+        before=before,
+        after=after,
+        emit_type="segment.pass_updated",
+        pass_ids=[pass_row.id],
+        document_ids=[pass_row.document_id],
+    )
+
+
 def _validate_segment_placement(
     db: Database, *, document_id: str, pass_id: str, parent_segment_id: str | None,
     anchor: SourceAnchor,
@@ -3737,6 +3787,41 @@ async def delete_pass(
     )
     result = registry.invoke(db, "segment.pass_delete", {"pass_id": pass_id}, ctx)
     return result.result
+
+
+class PassGroundTruthBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: True marks the pass ground truth; False unmarks it.
+    ground_truth: bool
+
+
+class PassGroundTruthResponse(BaseModel):
+    pass_id: str
+    ground_truth: bool
+
+
+@router.put("/passes/{pass_id}/ground-truth", response_model=PassGroundTruthResponse)
+async def set_pass_ground_truth(
+    pass_id: str,
+    body: PassGroundTruthBody,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> PassGroundTruthResponse:
+    """`PUT /api/segments/passes/{pass_id}/ground-truth` -- Mark as Ground Truth, or unmark (#5513).
+
+    For corrected transcriptions imported without the mark: the bake-off and the evaluation count a
+    marked pass's lines, and its readings are not labelled machine. Audited and undoable."""
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(
+        db, "segment.pass_ground_truth", {"pass_id": pass_id, "ground_truth": body.ground_truth}, ctx,
+    )
+    return PassGroundTruthResponse(**result.result)
 
 
 class PassOriginalResponse(BaseModel):
