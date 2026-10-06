@@ -754,6 +754,17 @@ class TestEveryEmitTypeCarriesItsIdLists:
         assert call["pass_ids"] == [pass_row.id]
         assert call["document_ids"] == [doc.id]
 
+    def test_pass_ground_truth_updated(self, db, captured):
+        """#5513: marking a pass ground truth tells every open window which pass and page changed."""
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        ctx = _ctx(db, actor="daniel")
+        registry.invoke(db, "segment.pass_ground_truth", {"pass_id": pass_row.id, "ground_truth": True}, ctx)
+        call = captured[-1]
+        assert call["type"] == "segment.pass_updated"
+        assert call["pass_ids"] == [pass_row.id]
+        assert call["document_ids"] == [doc.id]
+
     def test_segment_created(self, db, captured):
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
@@ -867,7 +878,7 @@ class TestEveryEmitTypeCarriesItsIdLists:
         src = inspect.getsource(sys.modules["fichero_server.api.routes.document.segments"])
         found = set(re.findall(r'emit_type="([a-z_.]+)"', src))
         tested = {
-            "pass.created", "pass.deleted", "segment.created", "segment.deleted",
+            "pass.created", "pass.deleted", "segment.pass_updated", "segment.created", "segment.deleted",
             "segment.restored", "segment.updated", "segment.matched",
             "segment.merged", "segment.split",
         }
@@ -1702,6 +1713,10 @@ _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
     ("GET", "/segments/passes/{pass_id}/original"): [],
     ("DELETE", "/segments/passes/{pass_id}"): [
         ("pass_id (path)", lambda doc_id, pass_id: ("DELETE", "/api/segments/passes/legacy:x", None)),
+    ],
+    ("PUT", "/segments/passes/{pass_id}/ground-truth"): [
+        ("pass_id (path)", lambda doc_id, pass_id: (
+            "PUT", "/api/segments/passes/legacy:x/ground-truth", {"ground_truth": True})),
     ],
     ("POST", "/segments"): [
         ("document_id", lambda doc_id, pass_id: (

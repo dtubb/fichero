@@ -162,6 +162,11 @@ def _build_pass_delete(db, doc_id):
     return "DELETE", f"/api/segments/passes/{pass_row.id}", None
 
 
+def _build_pass_ground_truth(db, doc_id):
+    pass_row = _make_pass(db, doc_id)
+    return "PUT", f"/api/segments/passes/{pass_row.id}/ground-truth", {"ground_truth": True}
+
+
 def _build_segment_create(db, doc_id):
     pass_row = _make_pass(db, doc_id)
     return "POST", "/api/segments", {
@@ -295,6 +300,7 @@ def _build_restore_version(db, doc_id):
 _WRITE_ROUTE_CHECKS: dict[tuple[str, str], object] = {
     ("POST", "/segments/passes"): _build_pass_create,
     ("DELETE", "/segments/passes/{pass_id}"): _build_pass_delete,
+    ("PUT", "/segments/passes/{pass_id}/ground-truth"): _build_pass_ground_truth,
     ("POST", "/segments"): _build_segment_create,
     ("POST", "/segments/bulk"): _build_segment_bulk,
     ("POST", "/segments/matches"): _build_match_propose,
