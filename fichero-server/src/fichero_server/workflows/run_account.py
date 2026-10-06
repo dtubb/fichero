@@ -220,9 +220,12 @@ async def run_account(db: Any, thread_id: str, *, run: Any = None, state: dict[s
         return cached
     if state is None:
         state, pending_writes = await _checkpoint(db, thread_id)
-    scope = run.resolved_scope if isinstance(run.resolved_scope, dict) else {}
+    # A record from before a column existed lacks it: the account says less, it never fails (#5555).
+    scope = getattr(run, "resolved_scope", None)
+    scope = scope if isinstance(scope, dict) else {}
     account = build_account(status=run.status, reason=run.error, state=state, pending_writes=pending_writes or (),
-                            started_at=run.started_at, run_usage=run.run_usage, live_peaks=_live_peaks(thread_id),
+                            started_at=getattr(run, "started_at", None), run_usage=getattr(run, "run_usage", None),
+                            live_peaks=_live_peaks(thread_id),
                             waiting_reason=waiting_reason(db, thread_id),
                             scope_ids=scope.get("resolved_ids") or scope.get("requested_ids"))
     if account.state in ("done", "failed", "cancelled", "interrupted"):

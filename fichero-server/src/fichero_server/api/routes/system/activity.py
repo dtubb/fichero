@@ -396,7 +396,13 @@ async def list_background_jobs(
                 continue
             # The run's account, the one its status shows (#5555): its pages done and in all, not the
             # saved timeline's last event (which read "total 0" for a fanned-out run).
-            account = await run_account(db, run.thread_id, run=run)
+            # A run whose account cannot be read still shows, with its own state and reason: a failed
+            # run must never vanish from the list (FIX 3).
+            try:
+                account = await run_account(db, run.thread_id, run=run)
+            except Exception as exc:  # noqa: BLE001 -- the row stands without its account; said in the log
+                logger.warning("list_background_jobs: no account for run %s: %s", run.thread_id, exc)
+                account = None
             current = account.pages_done if account else 0
             total = account.pages_total if account else 0
             percent = (
