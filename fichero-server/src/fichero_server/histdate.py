@@ -442,6 +442,17 @@ def parse_historical_date(
 #   on the next lines ("Saturday, March 23, 1918");
 # - with no heading near the top, the first line further down that leads with
 #   a date and a weekday dates the page ("Sunday February 14th - Ran aground").
+# The rerun on a fresh clone (#5557), rows in test_diary_dates_5557.py:
+# - in a volume of several years a yearless heading follows page order: the
+#   year of the dated page before it, the next when the months wrap; kept inside
+#   the volume name's full date range (``_year_from_page_order``);
+# - a margin label alone on its line gives way to a full heading a day or two
+#   off it; "MONDAY. 1918 MARCH 31" is read; OCR damage ("FEBRUARY 21918",
+#   "OCTOBE 3") only when the weekday confirms;
+# - "Novembe / Cash Account Received Paid", the printed MEMORANDA head in OCR
+#   debris, a recapitulation, and a date or year line more than a year from the
+#   volume's do not date a page; "11/16/23" in 1943-45 is refused;
+# - "Jan 1, 1932 - Dec 31, 1932" is a range, not 1 January.
 
 YEAR_MIN, YEAR_MAX = 1000, 2100
 #: How far down a page a heading may sit: its first non-empty lines.
