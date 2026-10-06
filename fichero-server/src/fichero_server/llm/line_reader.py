@@ -122,7 +122,11 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
 
     page = Image.open(image_path)
     page.load()
-    found = [b for b in lines.boxes if b.metadata.get("polygon_px")]
+    found = [b for b in lines.boxes if b.metadata.get("polygon_px") and b.level == OCRGeometryLevel.LINE]
+    # Kraken's regions are kept, first, as the lines' parents (#5487); a line names its region by position.
+    kept = [(i, b) for i, b in enumerate(lines.boxes) if b.level != OCRGeometryLevel.LINE]
+    regions = [b for _i, b in kept]
+    moved = {i: n for n, (i, _b) in enumerate(kept)}
     crops = [_crop(page, b) for b in found]
     gate = asyncio.Semaphore(CONCURRENT_CALLS)
 
@@ -147,7 +151,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     groups = [list(range(i, min(i + per_call, len(found)))) for i in range(0, len(found), per_call)]
     readings = [r for group in await asyncio.gather(*(batch(g) for g in groups)) for r in group]
 
-    boxes, texts, cursor = [], [], 0
+    boxes, texts, cursor = list(regions), [], 0
     flagged: list[ReadFlag] = []
     for box, text in zip(found, readings):
         if text is None:
@@ -157,6 +161,11 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         # that loops or runs far past a line's length is marked on its box.
         flag = check_read(text, line_count=1, model=config.model)
         metadata = box.metadata
+        if "parent_box_index" in metadata:
+            parent = moved.get(metadata["parent_box_index"])
+            metadata = {k: v for k, v in metadata.items() if k != "parent_box_index"}
+            if parent is not None:
+                metadata["parent_box_index"] = parent
         if flag is not None:
             flagged.append(flag)
             metadata = {**box.metadata, READ_FLAG_KEY: flag.as_data()}
@@ -166,16 +175,17 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
             "source": "kraken-lines+vision", "metadata": metadata,
         }))
         cursor += len(text) + 1
+    read = len(boxes) - len(regions)
     logger.info("line reader %s: %d lines found, %d read, %d without writing, %d flagged",
-                config.model, len(found), len(boxes), len(found) - len(boxes), len(flagged))
+                config.model, len(found), read, len(found) - read, len(flagged))
     page_metadata = {**lines.metadata, "lines_found_by": "kraken", "lines_found": len(found),
-                     "lines_without_writing": len(found) - len(boxes), "lines_flagged": len(flagged)}
+                     "lines_without_writing": len(found) - read, "lines_flagged": len(flagged)}
     if flagged:
         # The page's reading is as trusted as its worst line: it lands marked, not as the page's text.
         page_metadata[READ_FLAG_KEY] = {
             "kind": flagged[0].kind,
-            "reason": f"{flagged[0].reason} on {len(flagged)} of its {len(boxes)} lines",
-            "measure": {"lines_flagged": len(flagged), "lines_read": len(boxes), **flagged[0].measure},
+            "reason": f"{flagged[0].reason} on {len(flagged)} of its {read} lines",
+            "measure": {"lines_flagged": len(flagged), "lines_read": read, **flagged[0].measure},
         }
     return lines.model_copy(update={
         "text": "\n".join(texts), "boxes": boxes, "provider": config.provider, "model": config.model,

@@ -594,23 +594,42 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
     return value  # type: ignore[return-value]
 
 
+def _field(item: object, name: str) -> object:
+    return item.get(name) if isinstance(item, dict) else getattr(item, name, None)
+
+
 def _raw_lines(segmentation: object) -> list[dict[str, object]]:
+    """Each line Kraken found: its baseline, its outline and the id of the region it sits in (None when
+    Kraken put it in none), in Kraken's order."""
     raw = getattr(segmentation, "lines", None)
     if raw is None and isinstance(segmentation, dict):
         raw = segmentation.get("lines", [])
     out: list[dict[str, object]] = []
     for line in raw or []:
-        if isinstance(line, dict):
-            baseline, boundary = line.get("baseline"), line.get("boundary")
-        else:
-            baseline = getattr(line, "baseline", None)
-            boundary = getattr(line, "boundary", None)
+        baseline, boundary = _field(line, "baseline"), _field(line, "boundary")
+        regions = _field(line, "regions") or []
         out.append(
             {
                 "baseline": [[float(x), float(y)] for x, y in (baseline or [])],
                 "polygon": [[float(x), float(y)] for x, y in (boundary or [])],
+                "region": str(regions[0]) if regions else None,
             }
         )
+    return out
+
+
+def _raw_regions(segmentation: object) -> list[dict[str, object]]:
+    """The regions Kraken's segmenter found (#5487: they were thrown away), each `{"id", "type",
+    "polygon"}`, by type then in Kraken's order. A line names its region by this id (`_raw_lines`)."""
+    raw = getattr(segmentation, "regions", None)
+    if raw is None and isinstance(segmentation, dict):
+        raw = segmentation.get("regions")
+    out: list[dict[str, object]] = []
+    for kind, regions in (raw or {}).items():
+        for region in regions or []:
+            boundary = _field(region, "boundary") or []
+            out.append({"id": str(_field(region, "id")), "type": str(kind),
+                        "polygon": [[float(x), float(y)] for x, y in boundary]})
     return out
 
 
@@ -623,7 +642,8 @@ def _segment_raw(image_path: str | Path) -> dict[str, object]:
             image = image.convert("RGB")
         segmentation = blla.segment(image, model=_segmenter())
         width, height = image.width, image.height
-    return {"width": width, "height": height, "lines": _raw_lines(segmentation)}
+    return {"width": width, "height": height, "lines": _raw_lines(segmentation),
+            "regions": _raw_regions(segmentation)}
 
 
 #: One resident model per kind ("segment", "read"), kept between pages: every page used to reload
@@ -726,7 +746,7 @@ def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]
     for index, line in enumerate(lines):
         record = predictions[index] if index < len(predictions) else None
         line["text"] = "" if record is None else str(getattr(record, "prediction", record) or "")
-    return {"width": width, "height": height, "lines": lines}
+    return {"width": width, "height": height, "lines": lines, "regions": _raw_regions(segmentation)}
 
 
 def segment_lines(
@@ -877,6 +897,47 @@ def download_recognition_model(
     )
 
 
+def _region_boxes(
+    payload: dict[str, object], width: float, height: float, *, model: str, source: str
+) -> tuple[list[OCRGeometryBox], dict[str, int]]:
+    """Kraken's regions as boxes, and each region id's box index (#5487): the lines that sit in a region
+    name it as their parent (`parent_box_index`), so the page keeps region -> line, not a flat list."""
+    boxes: list[OCRGeometryBox] = []
+    index_of: dict[str, int] = {}
+    for region in payload.get("regions") or []:  # type: ignore[union-attr]
+        polygon = [(float(x), float(y)) for x, y in region.get("polygon") or []]
+        if len(polygon) < 3:
+            continue
+        xs = [point[0] for point in polygon]
+        ys = [point[1] for point in polygon]
+        x0, x1 = max(0.0, min(xs)), min(width, max(xs))
+        y0, y1 = max(0.0, min(ys)), min(height, max(ys))
+        if x1 <= x0 or y1 <= y0:
+            continue
+        index_of[str(region.get("id"))] = len(boxes)
+        boxes.append(
+            OCRGeometryBox(
+                text="",
+                bbox=[x0 / width, y0 / height, (x1 - x0) / width, (y1 - y0) / height],
+                level=OCRGeometryLevel.REGION,
+                provider=_PROVIDER,
+                model=model,
+                source=source,
+                metadata={
+                    "kind_raw": region.get("type"),
+                    "polygon_px": [[x, y] for x, y in polygon],
+                    "pixel_frame": {"width": width, "height": height},
+                },
+            )
+        )
+    return boxes, index_of
+
+
+def _parent(line: dict[str, object], index_of: dict[str, int]) -> dict[str, int]:
+    region = line.get("region")
+    return {"parent_box_index": index_of[str(region)]} if region is not None and str(region) in index_of else {}
+
+
 def segment_to_geometry(
     image_path: str | Path,
     *,
@@ -902,7 +963,7 @@ def segment_to_geometry(
             f"Kraken reported an unusable pixel frame for {image_path}"
         )
 
-    boxes: list[OCRGeometryBox] = []
+    boxes, region_index = _region_boxes(payload, width, height, model=_MODEL, source="kraken-blla")
     for index, line in enumerate(payload.get("lines") or []):
         polygon = [(float(x), float(y)) for x, y in line.get("polygon") or []]
         if len(polygon) < 3:
@@ -935,11 +996,12 @@ def segment_to_geometry(
                         [float(x), float(y)] for x, y in line.get("baseline") or []
                     ],
                     "pixel_frame": {"width": width, "height": height},
+                    **_parent(line, region_index),
                 },
             )
         )
 
-    if not boxes:
+    if not any(box.level is OCRGeometryLevel.LINE for box in boxes):
         return geometry_unavailable(
             status=OCRGeometryStatus.PRODUCED_NOTHING,
             provider=_PROVIDER,
@@ -987,7 +1049,7 @@ def recognize_to_geometry(
         )
 
     stamped_model = model_id or str(model_path)
-    boxes: list[OCRGeometryBox] = []
+    boxes, region_index = _region_boxes(payload, width, height, model=stamped_model, source="kraken-htr")
     texts: list[str] = []
     cursor = 0
     for index, line in enumerate(payload.get("lines") or []):
@@ -1026,11 +1088,12 @@ def recognize_to_geometry(
                         [float(x), float(y)] for x, y in line.get("baseline") or []
                     ],
                     "pixel_frame": {"width": width, "height": height},
+                    **_parent(line, region_index),
                 },
             )
         )
 
-    if not boxes:
+    if not texts:
         return geometry_unavailable(
             status=OCRGeometryStatus.PRODUCED_NOTHING,
             provider=_PROVIDER,

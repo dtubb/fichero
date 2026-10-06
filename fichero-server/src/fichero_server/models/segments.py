@@ -496,6 +496,10 @@ def segment_from_box(
         metadata["raw_baseline_px"] = box.metadata.get("baseline_px")
     if "pixel_frame" in box.metadata:
         metadata["raw_pixel_frame"] = box.metadata.get("pixel_frame")
+    # The box this one sits inside, by its place in the same result (#5487: Kraken's line in its region).
+    parent_index = box.metadata.get("parent_box_index")
+    if isinstance(parent_index, int) and parent_index != box_index:
+        metadata["parent_box_index"] = parent_index
     if all_problems:
         geometry_problem = "; ".join(all_problems)
         metadata["geometry_problem"] = geometry_problem
@@ -510,6 +514,10 @@ def segment_from_box(
         pass_id=legacy_pass_id(artifact_id),
         kind=str(box.level),
         kind_raw=box.metadata.get("kind_raw"),
+        parent_segment_id=(
+            legacy_segment_id(artifact_id, metadata["parent_box_index"])
+            if "parent_box_index" in metadata else None
+        ),
         provenance_kind=(
             ProvenanceKind.human if _box_is_hand_drawn(box) else pass_provenance_kind
         ),
@@ -1705,6 +1713,12 @@ def rows_from_reads(
                 pass_id=pass_row.id,
                 kind=read.kind,
                 kind_raw=read.kind_raw,
+                # The region a line sits in, by its place in the same result (#5487): the converted
+                # ids are worked out from (artifact, box index), so the parent's is known here.
+                parent_segment_id=(
+                    converted_segment_id(artifact_id, metadata["parent_box_index"])
+                    if metadata.get("parent_box_index") in range(len(segment_reads)) else None
+                ),
                 anchor=read.anchor,
                 baseline=read.baseline,
                 bbox_x=bbox_x,
