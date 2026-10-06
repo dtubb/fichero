@@ -26,20 +26,10 @@ struct ActivityRun: Identifiable {
     /// table's state column shows it (`activity.window.row-shows-lane-state-reason`).
     var failureReason: String?
 
-    /// Convert to SelectedActivityRun for viewMode
-    func toSelectedRun() -> SelectedActivityRun {
-        SelectedActivityRun(
-            id: runId,
-            name: workflowName,
-            workflowId: workflowId,
-            threadId: threadId,
-            timestamp: timestamp,
-            status: status.toStatusType(),
-            isLive: isLive,
-            libraryId: libraryId,
-            libraryName: libraryName,
-            childType: nil
-        )
+    /// The details' selection for this run (#5561): its job (the thread id)
+    /// and its project. Nothing else is copied: the details read the row.
+    var selection: ActivitySelection {
+        ActivitySelection(jobId: runId, libraryId: libraryId)
     }
 }
 
@@ -89,7 +79,8 @@ enum ActivityRunStatus {
         }
     }
 
-    func toStatusType() -> SelectedActivityRun.ActivityRunStatusType {
+    /// The app-wide run vocabulary `RunControls` speaks (#4321).
+    var workflowStatus: WorkflowStatus {
         switch self {
         case .running: return .running
         case .paused: return .paused

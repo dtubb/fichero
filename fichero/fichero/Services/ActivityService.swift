@@ -441,6 +441,26 @@ extension ActivityService {
         }
     }
 
+    /// `GET /api/activity/jobs/{id}/log` (#5561): the lines the engine wrote
+    /// for this row and the rows under it, newest last. `nil` when the project
+    /// has no job by that id (a job of its own the job table has no row for).
+    func getJobLog(id: String) async throws -> [ActivityJobLogLine]? {
+        let response = try await client.api.getJobLogApiActivityJobsJobIdLogGet(path: .init(jobId: id))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.lines?.enumerated().map { ActivityJobLogLine(index: $0.offset, $0.element) } ?? []
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            if statusCode == 404 { return nil }
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw denial
+            }
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// Pause or resume one job and what is under it (`activity.pause.per-job`):
     /// the audited `job.pause` action. Returns the job's state after the request.
     func setJobPaused(id: String, paused: Bool) async throws -> String {

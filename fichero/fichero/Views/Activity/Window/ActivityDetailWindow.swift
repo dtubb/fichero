@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// Root of the standalone "Activity Detail" window. The monitor
-/// (`ActivityMonitorWindow`) opens this window on double-click; the detail view
-/// lives here alone so the monitor window never inlines it. Resolves the active
-/// library and injects the same per-library stores as the monitor so the
-/// detached detail shows the same live run.
+/// Root of the standalone "Activity Details" window, opened by a row's ⓘ and by
+/// double-click (#5560). It mounts the one details view (#5561) for the
+/// selected row's job, read through the row's own project: a row always
+/// carries its project, so the current or the global library is only the
+/// fallback for a selection made without one.
 struct ActivityDetailWindow: View {
     @Environment(LibraryManager.self) private var libraryManager
     @State private var selectionState = ActivityWindowSelectionState.shared
 
     private var library: LibraryManager.LibraryReference? {
-        if let id = selectionState.selectedRun?.libraryId ?? selectionState.libraryId,
+        if let id = selectionState.selection?.libraryId ?? selectionState.libraryId,
            let library = libraryManager.getLibrary(id: id) {
             return library
         }
@@ -23,8 +23,8 @@ struct ActivityDetailWindow: View {
 
     var body: some View {
         Group {
-            if let library, let selectedRun = selectionState.selectedRun {
-                ActivityDetailView(selectedRun: selectedRun)
+            if let library, let selection = selectionState.selection {
+                ActivityDetailsView(selection: selection)
                     // The ONE service list, never a hand-picked subset: this window's own copy once
                     // omitted ArtifactService and TRAPPED the moment a run with artifacts was opened
                     // (#4284) -- a missing @Environment object is a fatal error, not a nil.
@@ -33,11 +33,11 @@ struct ActivityDetailWindow: View {
                 ContentUnavailableView(
                     "No Activity Selected",
                     systemImage: "info.circle",
-                    description: Text("Double-click a run in the Activity window to inspect it.")
+                    description: Text("Double-click a row in the Activity window to see its details.")
                 )
             }
         }
         .navigationTitle("Activity Details")
-        .frame(minWidth: 720, minHeight: 520)
+        .frame(minWidth: 520, minHeight: 420)
     }
 }

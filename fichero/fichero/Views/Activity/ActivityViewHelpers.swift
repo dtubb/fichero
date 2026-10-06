@@ -7,12 +7,13 @@ final class ActivityWindowSelectionState {
     static let monitorWindowID = "activity-monitor"
     static let detailWindowID = "activity-detail"
 
-    var selectedRun: SelectedActivityRun?
+    /// The row the details window shows (#5561): a job id and its project.
+    var selection: ActivitySelection?
     var libraryId: UUID?
 
-    func select(_ run: SelectedActivityRun?) {
-        selectedRun = run
-        if let libraryId = run?.libraryId {
+    func select(_ selection: ActivitySelection?) {
+        self.selection = selection
+        if let libraryId = selection?.libraryId {
             self.libraryId = libraryId
         }
     }
@@ -22,98 +23,6 @@ final class ActivityWindowSelectionState {
 
 /// Shared helper functions for Activity views
 enum ActivityViewHelpers {
-
-    // MARK: - Status Helpers
-
-    static func statusIcon(for status: SelectedActivityRun.ActivityRunStatusType) -> String {
-        switch status {
-        case .running: return "play.circle.fill"
-        case .paused: return "pause.circle.fill"
-        case .completed: return "checkmark.circle.fill"
-        case .failed: return "xmark.circle.fill"
-        case .cancelled: return "stop.circle.fill"
-        }
-    }
-
-    static func statusColor(for status: SelectedActivityRun.ActivityRunStatusType) -> Color {
-        switch status {
-        case .running: return .blue
-        case .paused: return .orange
-        case .completed: return .green
-        case .failed: return .red
-        case .cancelled: return .orange
-        }
-    }
-
-    static func statusText(for status: SelectedActivityRun.ActivityRunStatusType) -> String {
-        switch status {
-        case .running: return "Running"
-        case .paused: return "Paused"
-        case .completed: return "Completed"
-        case .failed: return "Failed"
-        case .cancelled: return "Cancelled"
-        }
-    }
-
-    static func selectedRunStatus(
-        selectedRun: SelectedActivityRun,
-        liveExecution: WorkflowExecution?,
-        persistedRun: WorkflowRunResponse?
-    ) -> SelectedActivityRun.ActivityRunStatusType {
-        if let liveExecution {
-            return selectedRunStatus(for: liveExecution.status)
-        }
-        if let persistedRun {
-            return selectedRunStatus(forRaw: persistedRun.status)
-        }
-        return selectedRun.status
-    }
-
-    static func selectedRunStatus(for status: WorkflowStatus) -> SelectedActivityRun.ActivityRunStatusType {
-        switch status {
-        case .running, .idle:
-            return .running
-        case .paused:
-            return .paused
-        case .completed:
-            return .completed
-        case .failed:
-            return .failed
-        case .cancelled:
-            return .cancelled
-        }
-    }
-
-    /// Inverse bridge for surfaces that hold only the lightweight
-    /// `ActivityRunStatusType` snapshot (the Detail window's `selectedRun`):
-    /// maps 1:1 onto the app-wide `WorkflowStatus` vocabulary the shared
-    /// `RunControls` component speaks (#4321).
-    static func workflowStatus(
-        for status: SelectedActivityRun.ActivityRunStatusType
-    ) -> WorkflowStatus {
-        switch status {
-        case .running: return .running
-        case .paused: return .paused
-        case .completed: return .completed
-        case .failed: return .failed
-        case .cancelled: return .cancelled
-        }
-    }
-
-    static func selectedRunStatus(forRaw raw: String) -> SelectedActivityRun.ActivityRunStatusType {
-        switch raw.lowercased() {
-        case "paused":
-            return .paused
-        case "completed", "complete", "success", "succeeded":
-            return .completed
-        case "failed", "error":
-            return .failed
-        case "cancelled", "canceled":
-            return .cancelled
-        default:
-            return .running
-        }
-    }
 
     // MARK: - Level Helpers
 
@@ -151,8 +60,9 @@ enum ActivityViewHelpers {
 /// Two-column activity layout: this view is the left-column run list.
 /// Fetches its own data so it doesn't depend on SidebarView state.
 struct ActivityBrowserView: View {
+    /// The selected row's job id (a run's thread id).
     let selectedRunId: String?
-    let onSelectRun: (SelectedActivityRun) -> Void
+    let onSelectRun: (ActivitySelection) -> Void
     var showsOpenWindowButton: Bool = true
     var opensDetailWindow: Bool = false
 
@@ -245,9 +155,7 @@ struct ActivityBrowserView: View {
                                 .contextMenu {
                                     RunControls(
                                         threadId: run.threadId ?? run.runId,
-                                        status: ActivityViewHelpers.workflowStatus(
-                                            for: run.status.toStatusType()
-                                        ),
+                                        status: run.status.workflowStatus,
                                         onError: { controlError = $0 }
                                     )
                                 }
@@ -265,7 +173,7 @@ struct ActivityBrowserView: View {
             .onChange(of: listSelection) { _, newId in
                 guard let newId,
                       let run = activityStore.runs.first(where: { $0.runId == newId }) else { return }
-                onSelectRun(run.toSelectedRun())
+                onSelectRun(run.selection)
             }
 
             // Process CPU% from the same jobs read — a persistent footer so the
@@ -357,15 +265,14 @@ struct ActivityBrowserView: View {
     }
 
     private func openDetails(for run: ActivityRun) {
-        let selectedRun = run.toSelectedRun()
-        selectionState.select(selectedRun)
-        onSelectRun(selectedRun)
+        selectionState.select(run.selection)
+        onSelectRun(run.selection)
         openWindow(id: ActivityWindowSelectionState.detailWindowID)
     }
 }
 
 // `ActivityWindowLauncherView` DELETED (#4705 increment 4a): it launched the
 // separate Activity window from the regular-width `.activity` Library
-// takeover. Now the Library stays the navigator and `ActivityDetailView`
-// (already used by the compact flow and `ActivityDetailWindow.swift`) mounts
+// takeover. Now the Library stays the navigator and `ActivityDetailsView`
+// (#5561, also the compact flow's and `ActivityDetailWindow.swift`'s) mounts
 // directly in Source/Preview instead (`ContentView+DetailLayout.swift`).

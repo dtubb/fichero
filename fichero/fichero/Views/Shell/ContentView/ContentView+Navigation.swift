@@ -367,15 +367,15 @@ extension ContentView {
                     )
                 ) {
                     ActivityBrowserView(
-                        selectedRunId: selectedRun?.id,
+                        selectedRunId: selectedRun?.jobId,
                         onSelectRun: { run in viewMode = .activity(run) }
                     )
                 } detail: { run in
-                    ActivityDetailView(selectedRun: run)
+                    ActivityDetailsView(selection: run)
                 }
             } else {
                 // #4705 increment 4a: Library stays the navigator; the
-                // Preview pane mounts `ActivityDetailView` directly (the
+                // Preview pane mounts `ActivityDetailsView` directly (the
                 // SAME component the compact flow above and
                 // `ActivityDetailWindow.swift` already trust) instead of
                 // launching a separate window via the now-deleted

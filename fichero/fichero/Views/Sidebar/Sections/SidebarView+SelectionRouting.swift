@@ -51,7 +51,7 @@ extension SidebarView {
             return
         case .run:
             guard let selectedRun = unifiedSelectedRun(forSidebarId: destination.serializedID) else { return }
-            viewMode = .activity(selectedRun.toSelectedRun())
+            viewMode = .activity(selectedRun.selection)
             return
         default:
             routeItemSelection(for: destination)

@@ -134,6 +134,9 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// The engine's kind of work ("read-a-page", "train-a-model", …), for the
     /// row's kind icon (#5560); `nil` when the row has no job behind it.
     var engineKind: String?
+    /// A job of its own's id (an embedding queue): what its details read
+    /// (#5561). It has no Pause or Stop of its own, so `jobId` stays `nil`.
+    var ownJobId: String?
 
     // MARK: - Icons (#5560)
 
@@ -165,15 +168,30 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         }
     }
 
-    /// Whether ⓘ (and double-click) can open this row's log and details: a row
-    /// that belongs to a run.
-    var opensDetails: Bool { runRowID != nil }
+    /// The job the details view reads for this row (#5561): its own job, a
+    /// run's thread id before its tree is loaded, or a job of its own's id.
+    var detailsJobId: String? { jobId ?? runThreadId ?? ownJobId }
+
+    /// Whether ⓘ (and double-click) can open this row's log and details:
+    /// every row with a job behind it, a job of its own too (#5561).
+    var opensDetails: Bool { detailsJobId != nil }
+
+    /// The details' selection for this row: its job and its project.
+    var selection: ActivitySelection? {
+        detailsJobId.map { ActivitySelection(jobId: $0, libraryId: libraryId) }
+    }
 
     // MARK: - Columns
 
     /// "Failed: the provider refused this letter", "Waiting: memory is tight",
     /// "Running: Entities". The reason is the point of a failed row.
     var stateText: String {
+        Self.stateText(phase: phase, reason: reason, workingOn: workingOn, account: account)
+    }
+
+    /// The State column's words, shared with the details view so the two never
+    /// word a row differently (`activity.details.state-says-why`, #5561).
+    static func stateText(phase: Phase, reason: String?, workingOn: String?, account: ActivityRunAccount?) -> String {
         // An interrupted run says so, and when ("Interrupted: the engine stopped at 14:05, …").
         if let account, account.interrupted, let why = account.reason ?? reason {
             return why
@@ -366,7 +384,8 @@ extension ActivityMonitorRow {
             model: nil,
             isLive: false,
             children: nil,
-            engineKind: job.taskType
+            engineKind: job.taskType,
+            ownJobId: job.id
         )
     }
 

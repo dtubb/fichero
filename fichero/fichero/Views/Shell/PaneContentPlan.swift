@@ -84,8 +84,8 @@ enum PaneContentPlan {
     /// `TriggerRunHistoryView` only read an id string, so carrying the whole
     /// `ScheduleInfo`/`TriggerInfo` would make the Reader re-evaluate on
     /// every unrelated field change (next-run time, run count, …) and couple
-    /// it to the detail model; `ActivityLogView` genuinely needs the whole
-    /// `SelectedActivityRun` (`.isLive`, `.workflowId`, `.threadId` all
+    /// it to the detail model; `ActivityDetailsLogPane` needs the whole
+    /// `ActivitySelection` (the row's job id and its project, #5561, both
     /// matter to it), so that case carries the struct. `Hashable` so the
     /// Reader's dispatcher can key a mount on it (`.id(subject)`) — a
     /// long-lived pane must remount, not silently keep showing the PREVIOUS
@@ -93,7 +93,7 @@ enum PaneContentPlan {
     enum ReaderSubject: Hashable {
         case schedule(scheduleId: String)
         case trigger(triggerId: String)
-        case activityRun(SelectedActivityRun)
+        case activityRun(ActivitySelection)
 
         /// Exhaustive over every `AppViewMode` case, no `default` — a new
         /// case fails to compile here until this function's answer for it is

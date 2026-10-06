@@ -32,7 +32,7 @@ enum PaneSurface: String, CaseIterable, Equatable {
     case workflowCanvas
     /// A schedule/trigger/chain/batches/activity node's detail in
     /// Source/Preview (#4705 increment 4a) — `ScheduleDetailView`/
-    /// `TriggerDetailView`/`ChainEditorView`/`BatchRunView`/`ActivityDetailView`,
+    /// `TriggerDetailView`/`ChainEditorView`/`BatchRunView`/`ActivityDetailsView`,
     /// reused as-is. None of them holds a shared window-level binding the way
     /// `WorkflowEditor`'s `$editingWorkflow` did (each takes a plain value
     /// param + its own `@State`), so `allowsSplit` stays `true` — no
@@ -47,7 +47,7 @@ enum PaneSurface: String, CaseIterable, Equatable {
     case workflowRecipe
     /// A schedule's/trigger's/activity run's history in the Reader (#4705
     /// "4b-2", #4741) — `ScheduleRunHistoryView`/`TriggerRunHistoryView`/
-    /// `ActivityLogView`, the SAME components the Preview `.nodeDetail` view
+    /// `ActivityDetailsLogPane`, the SAME components the Preview `.nodeDetail` view
     /// already mounts (extracted so one renderer serves both panes). Needs
     /// the entity's identity, which `PaneSurface` deliberately does NOT
     /// carry (it stays a plain `CaseIterable` enum — Swift cannot synthesize
@@ -213,12 +213,12 @@ extension AppViewMode {
         case .activity:
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
-                // #4705 increment 4a: `ActivityDetailView` (already used by
+                // #4705 increment 4a: `ActivityDetailsView` (already used by
                 // the compact flow and its own window) renders here instead
                 // of launching a separate window via the now-deleted
                 // `ActivityWindowLauncherView`.
                 preview: .surface(.nodeDetail),
-                // #4705 "4b-2" — the SAME `ActivityLogView` the Preview
+                // #4705 "4b-2" — the SAME `ActivityDetailsLogPane` the Preview
                 // detail view's Log tab already mounts; no extraction was
                 // needed, it was already a standalone component.
                 reader: .surface(.runHistory),

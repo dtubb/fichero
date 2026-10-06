@@ -278,11 +278,14 @@ enum RunTraceFormat {
     }
 }
 
-/// Sheet wrapper used by surfaces outside Activity (e.g. the artifact
-/// detail's "Produced by" link, #4319) to show a run's trace.
+/// Sheet wrapper showing a run's trace: the artifact detail's "Produced by"
+/// link (#4319) and the Activity details' *Show the trace* (#5561) open it.
+/// Comparing this run with another starts here (the details view's old
+/// "Compare Runs…" button moved in, #5561).
 struct RunTraceSheet: View {
     let threadId: String
     @Environment(\.dismiss) private var dismiss
+    @State private var isComparingRuns = false
 
     var body: some View {
         NavigationStack {
@@ -292,6 +295,15 @@ struct RunTraceSheet: View {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Done") { dismiss() }
                     }
+                    ToolbarItem(placement: .primaryAction) {
+                        // Comparing two runs that already exist costs nothing; the cost
+                        // notice for producing a second run lives inside the sheet (#4341).
+                        Button("Compare Runs…") { isComparingRuns = true }
+                            .accessibilityIdentifier("runTrace.compare")
+                    }
+                }
+                .sheet(isPresented: $isComparingRuns) {
+                    RunComparisonSheet(threadId: threadId)
                 }
         }
         .frame(minWidth: 560, minHeight: 420)

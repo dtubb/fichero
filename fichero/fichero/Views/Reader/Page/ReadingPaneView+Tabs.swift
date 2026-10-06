@@ -71,7 +71,7 @@ extension ReadingPaneView {
         case .trigger(let triggerId):
             TriggerRunHistoryView(triggerId: triggerId)
         case .activityRun(let run):
-            ActivityLogView(selectedRun: run)
+            ActivityDetailsLogPane(selection: run)
         }
     }
 

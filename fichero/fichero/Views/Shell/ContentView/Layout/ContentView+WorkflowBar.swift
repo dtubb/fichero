@@ -443,18 +443,10 @@ extension ContentView {
         // (review fix, 2026-08-29).
         if step.state == .running || step.state == .failed,
            let threadId = step.threadId {
-            ActivityWindowSelectionState.shared.select(SelectedActivityRun(
-                id: threadId,
-                name: step.name,
-                workflowId: step.workflow?.id,
-                threadId: threadId,
-                timestamp: Date(),
-                status: step.state == .failed ? .failed : .running,
-                isLive: step.state == .running,
-                libraryId: windowState.libraryId,
-                libraryName: windowState.library?.displayName,
-                childType: nil
-            ))
+            // The run's details (#5561): its job and its project; the view reads the rest live.
+            ActivityWindowSelectionState.shared.select(
+                ActivitySelection(jobId: threadId, libraryId: windowState.libraryId)
+            )
             openWindow(id: ActivityWindowSelectionState.detailWindowID)
             return
         }
