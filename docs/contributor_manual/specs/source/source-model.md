@@ -267,9 +267,9 @@ the page, (4) a loose artifact, (5) nothing kept.
 | Producer | Writes | Gap | Issue |
 |---|---|---|---|
 | File import (PAGE, ALTO, hOCR, TEI, plain, YOLO, IIIF) | 1 + 2, full hierarchy, letters from PAGE Glyph | TEI names do not become names | — |
-| Line finding (Kraken, Apple, VLM boxes) | 1, flat | Kraken's regions dropped; no nesting | #5487, #5489 |
-| Reading lines (Kraken reader, line reader) | 1 + 2, its own new pass | re-segments instead of reading the find-lines pass | #5487 |
-| Reading a page (LLM Transcribe) | 4, page text | no pass; export refuses the page; the converter (`tie_text`) is not a recipe step | #5444 |
+| Line finding (Kraken, Apple, VLM boxes) | 1; Kraken's lines nested in its regions (#5487, 2026-10-06), the others flat | no nesting for Apple and VLM boxes | #5489 |
+| Reading lines (Kraken reader, line reader) | 2, readings on the working pass's lines (#5487, 2026-10-06); 1 + 2 only on a page with no lines | none | — |
+| Reading a page (LLM Transcribe) | 4, page text; tied onto the lines by the `tie-text-to-lines` card (#5444, 2026-10-06) | the tie is a step a recipe names, not run after every page reading | #5444 |
 | Correcting (Paleographer Review) | 4, page-level, overwrites page text | corrections never become readings on lines | #5486 |
 | Checking | 2, verdicts and corrections on segments | none: the model for the rest | — |
 | Names | 3, tied to the document only | spans discarded; no mention on a segment | #5488 |
@@ -294,7 +294,8 @@ the page, (4) a loose artifact, (5) nothing kept.
   is a time segment. A kind of output with no anchor is not built until it has one.
 
 Not built: every row with an issue above. The order proposed: #5487 and #5444 (one line pass,
-text onto lines), then #5486, then #5489, then #5488 and #4932, then #5490.
+text onto lines; built 2026-10-06 for the readers and the tie, see `source.model.one-line-pass`), then
+#5486, then #5489, then #5488 and #4932, then #5490.
 
 ## What exists today (read on disk 2026-09-19; corrected the same night after an independent check of every claim against the code)
 
@@ -609,6 +610,23 @@ The foundation has two of its own. Everything else is in the slices.
   ways of saying "where" (`OCRGeometryBox`'s own box, `AgentNoteSourceAnchor`, and any new
   one) are retired onto it, slice by slice; no new addressing scheme is introduced. This is a
   migration, the largest in the programme, and each slice that retires one says so.
+
+- `source.model.one-line-pass` — **[PARTIAL]** (#5487, #5444; ruled 2026-10-05, #5467) *Built
+  (2026-10-06): a reader of lines (`read-a-line`: a Kraken reader, or a vision model reading line by line)
+  reads the lines of the page's working pass (`llm/working_lines.py`: the first pass in the working-pass
+  ranking with shapes and live lines), on their own outlines and baselines (a line with none is read
+  along three quarters of its box), and writes each line's words as a reading on that line
+  (`representation.create` under the run, `workflow`, derived from the reader's page artifact, which
+  keeps the page text and no geometry, marked `read_onto_pass`); lines are found only on a page with
+  none. Kraken's regions are kept: its lines carry their region (`parent_box_index`) and conversion
+  nests them (`parent_segment_id`). The tie (`source.job.tie-text-to-lines`) writes onto the same lines.
+  A recipe's read step counts as done on a page whose lines carry its model's readings, and the
+  training set finds a teacher's readings on those lines. Pinned by
+  `fichero-server/tests/unit/workflows/test_one_line_pass_read_many.py`. Not built: correcting (#5486)
+  and the other producers in the table; nesting for Apple and VLM boxes (#5489); the cluster reader
+  (`remote_read/runner.py`) still drops Kraken's regions.* Finding lines makes the page's one line pass;
+  every reading after it adds readings to those lines and never makes a second line pass, and a model's
+  regions stay the parents of the lines found in them.
 
 Where the promises in "What stands on segments" are pinned: search landing on a segment and
 vectors, `source.derived.recomputable` (segments); claims resting on segments,

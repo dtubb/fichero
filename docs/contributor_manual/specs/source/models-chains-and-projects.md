@@ -1658,30 +1658,43 @@ Jobs and chains
   and segments name the rendition they used.
 - `source.job.split-pages` — **[PARTIAL]** (#4949, #5382) *Built: the `split_pages` tool (51dbbfa93) cuts an open notebook at its gutter inside Apple Vision's outline and never a closed cover, pinned by `fichero-server/tests/unit/workflows/test_split_pages.py`; a recipe runs it as the `Split Pages` workflow (#5390), its pages then read by the steps after it, pinned by `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`.* splitting a spread or a strip of frames into ordered
   pages is a job a recipe can name.
-- `source.job.tie-text-to-lines` — **[PARTIAL]** (#5444) *Built (2026-10-05): `POST /api/check/runs`
-  with `check: tie-text-to-lines` (provider `kraken`, a Kraken reader; `pass_model` names the lines' pass)
-  queues a `tie-text-to-lines` job on the local model lane; `checking/tie_text.py` reads each line of the
-  page's newest lines pass through `kraken_runtime.read_given_lines`, aligns the page's newest model
-  transcription to those rough reads in one monotonic character alignment (accent-, case- and
-  space-blind; a cut inside a word moves to the nearest space), and writes a new pass (named for the page
-  reading, its provider and model) with a copy of each Kraken line in the Kraken pass's order and each
-  line's stretch as its reading, all through audited, undoable actions under the job's run, so every row
-  is `workflow`, never `human`. A line whose stretch agrees with its own rough read (1 − accent-blind CER)
-  below the threshold keeps the stretch and is rejected (`check.verdict`, trust `model`, "doubtful: page
-  text and line disagree" with its score), so the training set leaves it out until a person confirms it;
-  a page already tied to that reading is not tied again; `GET /api/check/runs/{id}` gives the counts and
-  each doubtful line. Default taken 2026-10-05 (design lead), awaiting the maintainer's ruling: the match
-  threshold is 0.30, the line check's own-score floor. Tested in
-  `fichero-server/tests/unit/check/test_tie_text_to_lines.py`. Not built: a person's or a checked page
-  reading ranked before the newest model one; the old line's readings retired as counting; a recipe
-  card that runs this job.* a page's reading is tied to its lines for free, on
+- `source.job.tie-text-to-lines` — **[PARTIAL]** (#5444, #5487) *Built (2026-10-05, reworked 2026-10-06 to
+  the one-line-pass ruling, #5467): `POST /api/check/runs` with `check: tie-text-to-lines` (provider
+  `kraken`, a Kraken reader; `pass_model` keeps only that model's lines) queues a `tie-text-to-lines` job on
+  the local model lane; `checking/tie_text.py` takes the page's best reading (`page_reading`: a person's,
+  then one marked reviewed or confirmed by a person's verdict, then the newest model transcription; never a
+  flagged read, never a reading that is the lines' own text, i.e. a reader's words already written onto
+  the lines or Kraken's own read), takes the page's own lines (`llm/working_lines.py`, the working pass;
+  a page with none has them found by Kraken first, regions kept as the lines' parents, counted
+  `lines_found`), reads each line roughly through `kraken_runtime.read_given_lines`, aligns the page
+  reading to those rough reads in one monotonic character alignment (accent-, case- and space-blind; a
+  cut inside a word moves to the nearest space), and writes each line's stretch as a reading ON THAT LINE
+  (`representation.create`, derived from the page reading's artifact, whose provider and model name the
+  reader), all through audited, undoable actions under the job's run, so every row is `workflow`, never
+  `human`; no second pass is made. A line given no stretch stays untied and is counted (`untied`). A line
+  whose stretch agrees with its own rough read (1 − accent-blind CER) below the threshold keeps the
+  stretch and is rejected (`check.verdict`, trust `model`, "doubtful: page text and line disagree" with its
+  score), so the training set leaves it out until a person confirms it; the training set finds the
+  teacher's readings on the page's lines (`training/kraken_set.teacher_pass`). A page whose lines already
+  carry that page reading is not tied again; `GET /api/check/runs/{id}` gives the counts and each doubtful
+  line. The tied stretch is the line's newest machine reading, so by the counting rule
+  (`resolve_counting`) it counts over the older machine readings, which stay as history. A recipe card
+  runs it (`recipes/start.py`: a `check` card with `check: tie-text-to-lines` and the step's Kraken reader,
+  which the three Kraken reader cards offer). Default taken 2026-10-05 (design lead), awaiting the
+  maintainer's ruling: the match threshold is 0.30, the line check's own-score floor. Tested in
+  `fichero-server/tests/unit/check/test_tie_text_to_lines.py` and
+  `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`. Not built: a machine reading made
+  AFTER the tie (a Kraken re-read) is then the newest and counts over the tied stretch, because the
+  counting rule ranks machine readings by date only; the tie runs as a step a recipe names, not
+  automatically after every page reading.* a page's reading is tied to its lines for free, on
   this Mac: Kraken finds the lines, a Kraken reader reads each roughly, and the page's best reading is
   aligned to them in order by the characters they share (a monotonic alignment; no line takes text
   from beyond its neighbours'). Each line gets the stretch of the page reading it matches, automatically,
   wherever the alignment scores above the match threshold (ruled 2026-10-04); a line whose alignment
   is doubtful is flagged for review and counted, and stays out of the training set until a person
   checks it. The
-  new pass names Kraken for the shapes and the page reading's model for the text. The page's best
+  lines keep Kraken's shapes (the page's own pass) and each reading names the page reading's model for the
+  text; no second pass is made. The page's best
   reading is, in order: a person's checked reading, a checked model reading, then the newest model page
   reading. After alignment the line's counting reading is its aligned stretch; an earlier machine
   reading of the same line (Apple Vision's OCR, a stock Kraken read) stays as history and never counts
