@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import dataclasses
 import io
 import json
 import logging
@@ -19,7 +20,7 @@ import re
 
 from PIL import Image
 
-from fichero_server.llm.read_guard import READ_FLAG_KEY, ReadFlag, check_read
+from fichero_server.llm.read_guard import READ_FLAG_KEY, ReadFlag, check_read, finish_reason_of, is_truncation
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,10 @@ logger = logging.getLogger(__name__)
 LINES_PER_CALL = 8
 CONCURRENT_CALLS = 4
 _MAX_CROP_WIDTH = 1600
+#: What one line's reading may spend (#5534). A line of handwriting is a few dozen words; the
+#: step's own ceiling (8,192) let a student that loops on a line ("1000000000…") generate for
+#: ~100 s per line at 20 tokens/s, past the 60 s request timeout, and every retry ran it again.
+TOKENS_PER_LINE = 192
 
 PROMPT = (
     "Each of the {n} images is one line cut from a photographed handwritten page{language}. "
@@ -81,6 +86,22 @@ def lines_per_call(config) -> int:
     return LINES_PER_CALL
 
 
+def line_call_config(config, n: int):
+    """`config` with its output ceiling cut to what n lines can need (`TOKENS_PER_LINE`)."""
+    cap = TOKENS_PER_LINE * n + 32
+    current = getattr(config, "max_tokens", None)
+    if not dataclasses.is_dataclass(config) or (isinstance(current, int) and 0 < current <= cap):
+        return config
+    return dataclasses.replace(config, max_tokens=cap)
+
+
+def cut_short_reading(raw: str) -> str | None:
+    """A one-line answer that ran out of room, as the text it got to (the read checker then marks
+    it), rather than dropped as a line with no writing."""
+    text = re.sub(r'^\s*(?:```(?:json)?\s*)?\[?\s*"?', "", raw or "").strip()
+    return text or None
+
+
 def parse_answer(raw: str, n: int) -> list[str | None] | None:
     """The model's JSON array of n readings, or None when it is not exactly that."""
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", (raw or "").strip())
@@ -108,8 +129,12 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     async def ask(indices: list[int]) -> list[str | None] | None:
         async with gate:
             raw = await vision(images=[crops[i] for i in indices],
-                               prompt=prompt_for(len(indices), language), config=config)
-        return parse_answer(raw, len(indices))
+                               prompt=prompt_for(len(indices), language),
+                               config=line_call_config(config, len(indices)))
+        answer = parse_answer(raw, len(indices))
+        if answer is None and len(indices) == 1 and is_truncation(finish_reason_of(raw)):
+            return [cut_short_reading(raw)]
+        return answer
 
     async def batch(indices: list[int]) -> list[str | None]:
         answer = await ask(indices)

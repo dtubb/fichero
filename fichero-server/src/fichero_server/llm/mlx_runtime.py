@@ -191,10 +191,20 @@ class MLXRuntime:
         if self.is_provisioned():
             return self.python_path()
         raise RuntimeError(
-            "MLX runtime is not provisioned (needs both mlx-lm and mlx-vlm). "
+            f"MLX runtime is not provisioned (needs both mlx-lm and mlx-vlm): {self.missing()}. "
             "Call POST /api/local-inference/runtime/provision "
             "or enable Local Models in Settings before starting oMLX."
         )
+
+    def missing(self) -> str:
+        """What this runtime lacks, and WHERE it looked (#5534): an engine whose status said
+        provisioned while its read said not could not be told apart from one looking elsewhere."""
+        python, metadata = self.python_path(), self._metadata()
+        if not python.exists():
+            return f"no interpreter at {python}"
+        absent = [key for key in ("mlx_lm_version", "mlx_vlm_version") if not metadata.get(key)]
+        where = self.runtime_dir / _METADATA_FILENAME
+        return f"{where} does not record {' or '.join(absent)}" if absent else f"looked in {self.runtime_dir}"
 
     def require_audio_python_path(self) -> Path:
         """Interpreter that can run mlx-whisper, or a typed refusal saying so."""

@@ -4154,31 +4154,77 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig, capability: st
     if not profile.managed_by_app or str(profile.base_url).rstrip("/") != effective_base_url:
         return
 
-    manager = await manager_serving(
-        _local_model_for_request(config, custom_command=bool(profile.command), capability=capability))
-    profile = manager.profile
-    try:
-        if profile.startup_policy == LocalProviderStartupPolicy.manual:
-            status = await manager.health() if manager.state != LocalServiceState.stopped else manager.status()
-        elif manager.state != LocalServiceState.stopped and not manager.process.is_running():
-            if manager.restart_count >= _MANAGED_OMLX_RESTART_CAP:
-                status = await manager.health()
+    model_id = _local_model_for_request(config, custom_command=bool(profile.command), capability=capability)
+    # One readiness check at a time on this loop (#5534): a line reader asks four lines at once, and
+    # four concurrent switches each stopped the server another had just started and spawned their
+    # own on the same port (pids 4097, 4098, 4100 in one second); the losers answered 'local model
+    # unavailable' with no cause, and one server outlived them all.
+    async with _local_ready_lock():
+        manager = await manager_serving(model_id)
+        profile = manager.profile
+        try:
+            if profile.startup_policy == LocalProviderStartupPolicy.manual:
+                status = await manager.health() if manager.state != LocalServiceState.stopped else manager.status()
+            elif manager.state != LocalServiceState.stopped and not manager.process.is_running():
+                if manager.restart_count >= _MANAGED_OMLX_RESTART_CAP:
+                    status = await manager.health()
+                else:
+                    status = await manager.restart_after_crash()
             else:
-                status = await manager.restart_after_crash()
-        else:
-            status = await manager.start()
-    except LocalInferenceRuntimeMissingError as exc:
-        raise LocalModelRuntimeMissingError(str(exc)) from exc
-    except LocalInferenceHardwareError as exc:
-        raise LocalModelHardwareError(str(exc)) from exc
-    except LocalModelNotInstalledError as exc:
-        raise LocalModelUnavailableError(str(exc)) from exc
+                status = await manager.start()
+        except LocalInferenceRuntimeMissingError as exc:
+            raise LocalModelRuntimeMissingError(str(exc)) from exc
+        except LocalInferenceHardwareError as exc:
+            raise LocalModelHardwareError(str(exc)) from exc
+        except LocalModelNotInstalledError as exc:
+            raise LocalModelUnavailableError(str(exc)) from exc
 
     if not status.healthy:
-        detail = status.last_error or "local model unavailable"
+        detail = local_model_unavailable_reason(manager, status)
         if profile.startup_policy == LocalProviderStartupPolicy.manual:
             detail = f"Managed local model is manual-start only and not healthy: {detail}"
         raise LocalModelUnavailableError(detail)
+
+
+_LOCAL_READY_LOCKS: weakref.WeakKeyDictionary[Any, asyncio.Lock] = weakref.WeakKeyDictionary()
+
+
+def _local_ready_lock() -> asyncio.Lock:
+    """This event loop's lock around the local model server's switch and start (an asyncio lock
+    belongs to one loop; each workflow run has its own)."""
+    loop = asyncio.get_running_loop()
+    lock = _LOCAL_READY_LOCKS.get(loop)
+    if lock is None:
+        lock = _LOCAL_READY_LOCKS[loop] = asyncio.Lock()
+    return lock
+
+
+def local_model_unavailable_reason(manager: Any, status: Any) -> str:
+    """Why the local model server cannot serve its model, in words (#5534): it failed to load (the
+    loader's own last words), it did not start in time (its output's tail), or it was stopped
+    while it started (another step switched models). Never just 'local model unavailable'."""
+    model = (getattr(status, "model_id", None)
+             or getattr(getattr(manager, "profile", None), "model_id", None) or "its model")
+    tail_of = getattr(getattr(manager, "process", None), "output_tail", None)
+    tail = tail_of() if callable(tail_of) else None
+    state = getattr(status, "state", None)
+    state = str(getattr(state, "value", state) or "not ready")
+    if status.last_error:
+        detail = status.last_error
+        if "exited" in detail:
+            why = f"the local model server could not load {model}: {detail}"
+        elif "did not become healthy" in detail or "during startup" in detail:
+            why = f"the local model server did not start {model} in time: {detail}"
+        else:
+            why = f"the local model server for {model} is not ready: {detail}"
+    elif state == "stopped":
+        why = (f"the local model server for {model} was stopped before it was ready (the local model "
+               "was switched while it started)")
+    else:
+        why = f"the local model server for {model} is {state}, not ready, and gave no reason"
+    if tail and tail not in why:
+        why += f". Its last output: {tail}"
+    return why[0].upper() + why[1:]
 
 # Sentinel for dict.pop "was-present" detection without colliding on a
 # legitimately-stored None value.

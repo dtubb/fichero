@@ -230,6 +230,21 @@ TRAINED_REVISION = "trained"
 TRAINED_CARD = "fichero-card.json"
 
 
+def trained_base_spec(card: dict[str, Any]) -> ManagedModelSpec | None:
+    """The catalogue model a trained model was trained from, by its card's `base`: the same
+    repository, or the catalogue's MLX conversion of it (`Qwen/Qwen2.5-VL-3B-Instruct` is the
+    catalogue's `mlx-community/Qwen2.5-VL-3B-Instruct-4bit`). None when the catalogue lacks it."""
+    base = str(card.get("base") or "").strip()
+    if not base:
+        return None
+    name = base.rsplit("/", 1)[-1].lower()
+    for spec in MANAGED_MLX_MODELS.values():
+        repo = spec.repo_id.lower()
+        if repo == base.lower() or repo.rsplit("/", 1)[-1] in (name, f"{name}-4bit", f"{name}-8bit", f"{name}-bf16"):
+            return spec
+    return None
+
+
 class MLXModelStore:
     def __init__(self, root: Path | None = None) -> None:
         self.root = root or mlx_model_store_dir()
@@ -430,15 +445,23 @@ class MLXModelStore:
         card = self.trained_card(model_id)
         if card is None:
             raise KeyError(f"Unknown managed MLX model: {model_id}")
-        memory = int(card.get("min_memory_bytes") or 8 * 1024**3)
+        # A landed model is its base with other weights (#5534): its size is its own weight files,
+        # and what it needs to load and read a page is its card's, else its base's. With a size of 0
+        # the memory guard thought it needed 1.5 GB, let it start where its 3B base was refused
+        # ('needs about 5.0 GB free; this Mac has 4.5 GB'), and it died loading with no reason.
+        base = trained_base_spec(card)
+        memory = int(card.get("min_memory_bytes") or (base.min_memory_bytes if base else 8 * 1024**3))
+        weights = sum(p.stat().st_size for p in self.trained_dir(model_id).glob("*.safetensors"))
         return ManagedModelSpec(
             model_id=model_id, repo_id=model_id, revision=TRAINED_REVISION,
-            display_name=str(card.get("display_name") or model_id), download_size_bytes=0,
+            display_name=str(card.get("display_name") or model_id),
+            download_size_bytes=weights or (base.download_size_bytes if base else 0),
             min_memory_bytes=memory, memory_class=f"needs {memory // 1024**3} GB unified memory",
             capabilities=("text", "vision"),
             note=" ".join(filter(None, [str(card.get("summary") or ""),
                                         "Not for release." if card.get("not_for_release") else ""])),
             tested_status="untested",
+            page_memory_bytes=card.get("page_memory_bytes") or (base.page_memory_bytes if base else None),
         )
 
     def trained_dir(self, model_id: str) -> Path:
