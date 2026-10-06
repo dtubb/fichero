@@ -21,7 +21,13 @@ project's held-out pages with each candidate and scores each against the checked
 * **The score.** The ONE CER (`workflows.transcription_accuracy.character_error_rate`) of the page's
   readings (lines joined by newlines) against the checked text, under every named normalisation policy
   (`POLICIES`: diplomatic, layout-insensitive, lenient, accent-blind); per model, total edits over total
-  reference characters across the pages. Every figure names its policy and carries the definition.
+  reference characters across the pages read. Every figure names its policy and carries the definition.
+* **Read or not read** (#5531). A page a reader returned nothing for, or far too little (fewer characters
+  than `READ_SHARE` of the reference's), is recorded as not read, with why (the error it raised, what the
+  reader said, else "returned no text"), and never scored as 100% CER: an empty reader once "won" a
+  Hebrew bake-off at 100% against two readers that had read something. A candidate is measured only when
+  it read at least `MEASURED_SHARE` of the pages; its CER is over the pages it read, shown with that
+  count. A best (the bake-off's winner) is named only when at least two candidates were measured.
 * **The speed.** The seconds each candidate spent reading, and so its pages an hour on this Mac, measured
   in the run (`source.try.bakeoff-is-the-same-tool`: speed is measured where the model has run).
 * **Where it lands.** On each model's card, appended to `evaluations` and never overwriting one: a
@@ -41,12 +47,23 @@ from pathlib import Path
 from typing import Any, Callable
 
 from fichero_server.execution import jobs
+from fichero_server.execution.throttle import MemoryShortError
 from fichero_server.models.compute_requests import EvaluationCandidate, EvaluationRunRequest
 
 KIND = "evaluate-models"
 #: Providers that run on this Mac. Anything else is a remote target, not built yet.
 LOCAL_PROVIDERS = ("omlx",)
 CARDS_DIR = "cards"
+#: A page counts as read only when the reader's text has at least this share of the reference's characters
+#: (under the default policy). A reader that reads badly still writes about as much as the page holds (a
+#: 58%-CER reader wrote whole pages); one that wrote a tenth of it did not read the page, and a CER of
+#: ~100% on it would measure the failure, not the reading (Czech: 26-29 characters over 8 pages).
+READ_SHARE = 0.10
+#: A candidate is measured only when it read at least this share of the pages: a CER over the few pages it
+#: happened to read is a score on a different, self-chosen sample, not comparable with the others'.
+MEASURED_SHARE = 0.80
+#: What a page not read says when the reader gave no reason of its own.
+NO_TEXT = "returned no text"
 
 
 class EvaluationRefused(ValueError):
@@ -275,11 +292,16 @@ def reference_page(db: Any, page_id: str, checked: str | None) -> tuple[dict[str
 # --- reading and scoring -----------------------------------------------------------------------------
 
 
-def read_with_kraken(photo: str, model: str, lines: list[dict[str, Any]]) -> list[str]:
+def read_with_kraken(photo: str, model: str, lines: list[dict[str, Any]]) -> tuple[list[str], str | None]:
+    """(the lines' readings, why Kraken read nothing when that is known). Kraken reads a line on its own
+    baseline and outline; a page whose lines carry neither (some imported transcriptions) reads as nothing."""
     from fichero_server.llm import kraken_runtime
 
     model_path, _catalog = kraken_runtime.resolve_recognition_model(model)
-    return kraken_runtime.read_given_lines(photo, model_path, lines)
+    reads = kraken_runtime.read_given_lines(photo, model_path, lines)
+    if not kraken_runtime._usable(lines):
+        return reads, "its lines carry no baseline and outline for Kraken to read on"
+    return reads, None
 
 
 async def ask_vision(candidate: EvaluationCandidate, image: str, prompt: str) -> str:
@@ -291,7 +313,8 @@ async def ask_vision(candidate: EvaluationCandidate, image: str, prompt: str) ->
 
 
 def read_with_vision(photo: str, candidate: EvaluationCandidate, lines: list[dict[str, Any]],
-                     language: str | None) -> list[str]:
+                     language: str | None) -> tuple[list[str], str | None]:
+    """(the lines' readings, why the model gave nothing when it answered nothing or nothing readable)."""
     from PIL import Image
 
     from fichero_server.llm.line_reader import _crop_data_uri, parse_answer, prompt_for
@@ -300,14 +323,23 @@ def read_with_vision(photo: str, candidate: EvaluationCandidate, lines: list[dic
     with Image.open(photo) as page:
         crops = [_crop_data_uri(page, ln["polygon"]) for ln in lines]
 
+    answers: list[str] = []
+
     async def all_lines() -> list[str]:
         out = []
         for crop in crops:  # one line a call, one at a time: the local lane holds one model
-            parsed = parse_answer(await ask_vision(candidate, crop, prompt), 1)
+            raw = await ask_vision(candidate, crop, prompt)
+            answers.append(raw or "")
+            parsed = parse_answer(raw, 1)
             out.append((parsed[0] if parsed else None) or "")
         return out
 
-    return asyncio.run(all_lines())
+    reads = asyncio.run(all_lines())
+    if answers and not any(a.strip() for a in answers):
+        return reads, "the model gave an empty answer for every line"
+    if answers and all(parse_answer(a, 1) is None for a in answers):
+        return reads, "the model's answers were not the readings it was asked for"
+    return reads, None
 
 
 def score_page(reference: list[str], reads: list[str]) -> dict[str, dict[str, Any]]:
@@ -328,8 +360,64 @@ def score_page(reference: list[str], reads: list[str]) -> dict[str, dict[str, An
     return scores
 
 
+def judge_page(page: dict[str, Any], why: str | None = None) -> dict[str, Any]:
+    """The page as read, or not read with why (#5531): the one judgement for a page just read and for one an
+    older evaluation kept without it (judged from the characters its scores recorded). `why` is the reader's
+    own reason (an error it raised, what it said); a page it read anyway is read. A page not read keeps no
+    CER: its scores say why instead, so nothing sums it as 100%."""
+    from fichero_server.workflows.transcription_accuracy import DEFAULT_POLICY_NAME
+
+    if "read" in page:
+        return page
+    s = page["scores"].get(DEFAULT_POLICY_NAME) or {}
+    ref, hyp = s.get("reference_chars"), s.get("hypothesis_chars")
+    if ref is None or hyp is None:  # the reference itself could not be scored: not the reader's failure
+        return {**page, "read": True, "why": None}
+    if hyp >= READ_SHARE * ref:
+        return {**page, "read": True, "why": None, "reference_chars": ref, "hypothesis_chars": hyp}
+    why = why or (NO_TEXT if hyp == 0 else f"returned {hyp} characters against {ref} in the reference")
+    return {**page, "read": False, "why": why, "reference_chars": ref, "hypothesis_chars": hyp,
+            "scores": {name: {"cer": None, "why": f"not read: {why}"} for name in page["scores"]}}
+
+
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
+def measured(per_page: list[dict[str, Any]], pages: int) -> dict[str, Any]:
+    """Whether the candidate read enough of the `pages` to be measured (`MEASURED_SHARE`), the pages it read,
+    and, when not, why in words: "not measured: read 2 of 8 pages (returned no text on 6 pages)"."""
+    from collections import Counter
+
+    kept = [judge_page(p) for p in per_page]
+    read = sum(bool(p["read"]) for p in kept)
+    if pages and read >= MEASURED_SHARE * pages:
+        return {"measured": True, "pages_read": read, "pages_total": pages, "why": None}
+    reasons = Counter(p["why"] for p in kept if not p["read"])
+    because = "; ".join(f"{why} on {_plural(n, 'page')}" for why, n in reasons.most_common(2))
+    return {"measured": False, "pages_read": read, "pages_total": pages,
+            "why": f"not measured: read {read} of {_plural(pages, 'page')}" + (f" ({because})" if because else "")}
+
+
+def no_winner_why(measured_names: list[str]) -> str | None:
+    """Why no best is named, in words, or None when there is one: a best needs at least two measured."""
+    if len(measured_names) >= 2:
+        return None
+    if measured_names:
+        return f"No winner: only one reader could be compared ({measured_names[0]})."
+    return "No winner: no reader read these pages."
+
+
+def judged(per_page: list[dict[str, Any]], pages: int) -> dict[str, Any]:
+    """A candidate's pages judged read or not, its scores over the pages it read, and whether it was
+    measured: the one reading of a candidate's pages, live and for an evaluation kept before #5531."""
+    kept = [judge_page(p) for p in per_page]
+    return {"per_page": kept, "scores": totals(kept), **measured(kept, pages)}
+
+
 def totals(per_page: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Per policy: total edits over total reference characters across the pages scored."""
+    """Per policy: total edits over total reference characters across the pages scored (a page not read
+    carries no CER, so it is never summed)."""
     from fichero_server.workflows.transcription_accuracy import POLICIES
 
     out = {}
@@ -431,26 +519,35 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
                 progress(f"Reading {page['name']} with {c.model} (model {i} of {len(candidates)})")
             reference = [ln["text"] for ln in page["lines"]]
             began = time.monotonic()
-            reads = (read_with_kraken(page["photo"], c.model, page["lines"]) if c.reader == "kraken"
-                     else read_with_vision(page["photo"], c, page["lines"], request.language))
+            try:
+                reads, why = (read_with_kraken(page["photo"], c.model, page["lines"]) if c.reader == "kraken"
+                              else read_with_vision(page["photo"], c, page["lines"], request.language))
+            except MemoryShortError:
+                raise  # not the reader's failure: the job waits for memory and carries on (#5524)
+            except Exception as exc:  # recorded on the page as why it was not read (#5531), never 100% CER
+                reads, why = [], f"failed: {exc}"
             seconds += time.monotonic() - began
-            per_page.append({"document_id": page["document_id"], "name": page["name"], "trust": page["trust"],
-                             "lines": len(reference), "scores": score_page(reference, reads)})
+            per_page.append(judge_page({"document_id": page["document_id"], "name": page["name"],
+                                        "trust": page["trust"], "lines": len(reference),
+                                        "scores": score_page(reference, reads)}, why))
             _keep_measured(db, job_id, key, per_page, seconds)
         models.append({"model": c.model, "reader": c.reader,
                        "role": "trained" if trained_card(c) is not None else "out of the box",
-                       "scores": totals(per_page), "per_page": per_page, "speed": speed(seconds, len(pages))})
+                       **judged(per_page, len(pages)), "speed": speed(seconds, len(pages))})
     measured_at = datetime.now(timezone.utc).isoformat()
     for m in models:
         record_on_card(m["model"], m["reader"], {
             "job_id": job_id, "measured_at": measured_at, "checked": request.checked, "trust": trust,
             "definition": CER_DEFINITION, "pages": [p["document_id"] for p in pages], "role": m["role"],
-            "scores": m["scores"], "per_page": m["per_page"], "speed": m["speed"],
+            "scores": m["scores"], "per_page": m["per_page"], "speed": m["speed"], "measured": m["measured"],
+            "pages_read": m["pages_read"], "pages_total": m["pages_total"], "why": m["why"],
             "compared_with": [o["model"] for o in models if o is not m]})
-    ranked = sorted((m for m in models if m["scores"][DEFAULT_POLICY_NAME]["cer"] is not None),
+    ranked = sorted((m for m in models if m["measured"] and m["scores"][DEFAULT_POLICY_NAME]["cer"] is not None),
                     key=lambda m: m["scores"][DEFAULT_POLICY_NAME]["cer"])
+    no_best = no_winner_why([m["model"] for m in ranked])
     return {"stopped": False, "measured_at": measured_at, "definition": CER_DEFINITION, "trust": trust,
-            "ranked_by": DEFAULT_POLICY_NAME, "best": ranked[0]["model"] if ranked else None, "models": models}
+            "ranked_by": DEFAULT_POLICY_NAME, "best": None if no_best else ranked[0]["model"],
+            "no_best_why": no_best, "models": models}
 
 
 def words(result: dict[str, Any], pages: int) -> str:
@@ -460,6 +557,8 @@ def words(result: dict[str, Any], pages: int) -> str:
     said = f"Scored {len(result['models'])} models on {pages} held-out pages"
     if best:
         said += f"; best {best['model']} (CER {best['scores'][DEFAULT_POLICY_NAME]['cer']:.3f}, {DEFAULT_POLICY_NAME})"
+    elif result.get("no_best_why"):
+        said += f". {result['no_best_why']}"
     return said
 
 

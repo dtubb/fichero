@@ -882,7 +882,11 @@ class BakeoffPageScore(BaseModel):
     document_id: str
     name: str
     lines: int
-    cer: Optional[float] = None
+    cer: Optional[float] = Field(default=None, description="none for a page the reader did not read")
+    read: bool = Field(default=True, description="false when the reader returned nothing, or far too little "
+                       "against the reference, for this page: not read, never scored as 100% CER (#5531)")
+    why: Optional[str] = Field(default=None, description="why the page was not read: the reader's error or what "
+                               "it said, else 'returned no text'")
 
 
 class BakeoffRow(BaseModel):
@@ -899,10 +903,15 @@ class BakeoffRow(BaseModel):
     model: Optional[str] = Field(default=None, description="the model id the evaluation reads with")
     runs_on: str
     local: bool
-    cer: Optional[float] = Field(default=None, description="its character error rate on the sample pages, under `policy`")
+    cer: Optional[float] = Field(default=None, description="its character error rate over the sample pages it read, "
+                                 "under `policy`; none unless it was measured")
     policy: Optional[str] = None
     scores: dict[str, Optional[float]] = Field(default_factory=dict, description="CER under every named policy")
     per_page: list[BakeoffPageScore] = Field(default_factory=list)
+    measured: bool = Field(default=False, description="it read enough of the pages to be compared (#5531); only a "
+                           "measured reader can win or be used")
+    pages_read: Optional[int] = Field(default=None, description="the sample pages it read (its CER is over these)")
+    pages_total: Optional[int] = Field(default=None, description="the sample pages it was given")
     pages_per_hour: Optional[float] = Field(default=None, description="measured on this Mac in this run")
     seconds: Optional[float] = None
     cost_usd: Figure = Field(description="for the whole volume, before anything runs")
@@ -910,7 +919,7 @@ class BakeoffRow(BaseModel):
     trainable: bool
     size_gb: float
     why: Optional[str] = Field(default=None, description="why it has no score (not on this Mac, not in this build, "
-                               "remote, still running)")
+                               "remote, still running, or 'not measured: read N of M pages (why)')")
 
 
 class BakeoffResult(BaseModel):
@@ -924,7 +933,10 @@ class BakeoffResult(BaseModel):
     left_out: list[BakeoffLeftOut]
     lines: int
     rows: list[BakeoffRow]
-    winner: Optional[str] = Field(default=None, description="the first scored row's card")
+    winner: Optional[str] = Field(default=None, description="the first measured row's card, only when at least two "
+                                  "readers were measured")
+    no_winner_why: Optional[str] = Field(default=None, description="when the job has finished with no winner, why, in "
+                                         "words: only one reader could be compared, or no reader read these pages")
 
 
 class BakeoffReadiness(BaseModel):

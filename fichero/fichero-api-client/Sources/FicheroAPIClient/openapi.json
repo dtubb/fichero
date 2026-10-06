@@ -47207,7 +47207,20 @@
           "cer": {
             "type": "number",
             "nullable": true,
-            "title": "Cer"
+            "title": "Cer",
+            "description": "none for a page the reader did not read"
+          },
+          "read": {
+            "type": "boolean",
+            "title": "Read",
+            "description": "false when the reader returned nothing, or far too little against the reference, for this page: not read, never scored as 100% CER (#5531)",
+            "default": true
+          },
+          "why": {
+            "type": "string",
+            "nullable": true,
+            "title": "Why",
+            "description": "why the page was not read: the reader's error or what it said, else 'returned no text'"
           }
         },
         "type": "object",
@@ -47336,7 +47349,13 @@
             "type": "string",
             "nullable": true,
             "title": "Winner",
-            "description": "the first scored row's card"
+            "description": "the first measured row's card, only when at least two readers were measured"
+          },
+          "no_winner_why": {
+            "type": "string",
+            "nullable": true,
+            "title": "No Winner Why",
+            "description": "when the job has finished with no winner, why, in words: only one reader could be compared, or no reader read these pages"
           }
         },
         "type": "object",
@@ -47413,7 +47432,7 @@
             "type": "number",
             "nullable": true,
             "title": "Cer",
-            "description": "its character error rate on the sample pages, under `policy`"
+            "description": "its character error rate over the sample pages it read, under `policy`; none unless it was measured"
           },
           "policy": {
             "type": "string",
@@ -47435,6 +47454,24 @@
             },
             "type": "array",
             "title": "Per Page"
+          },
+          "measured": {
+            "type": "boolean",
+            "title": "Measured",
+            "description": "it read enough of the pages to be compared (#5531); only a measured reader can win or be used",
+            "default": false
+          },
+          "pages_read": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages Read",
+            "description": "the sample pages it read (its CER is over these)"
+          },
+          "pages_total": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages Total",
+            "description": "the sample pages it was given"
           },
           "pages_per_hour": {
             "type": "number",
@@ -47468,7 +47505,7 @@
             "type": "string",
             "nullable": true,
             "title": "Why",
-            "description": "why it has no score (not on this Mac, not in this build, remote, still running)"
+            "description": "why it has no score (not on this Mac, not in this build, remote, still running, or 'not measured: read N of M pages (why)')"
           }
         },
         "type": "object",
