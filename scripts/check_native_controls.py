@@ -35,7 +35,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Reader/MultiSelectionReaderView.swift#59b0e99ae5": "2026-08-23 multi-selection reader: continuous transcript SECTIONS under pinned headers — prose, not a row collection; List would impose row selection and separators on reading text",
     # The next five read only "#1912 baseline" until 2026-09-27; each was read and given
     # its reason. DESIGN = not a row collection; DEBT = should become a List.
-    "Activity/Overview/ActivityOverviewView+Cards.swift#d6f20143ab": "DESIGN: a horizontally scrolling document x step GRID with a fixed header row, not a list of rows; List scrolls one axis and has no column header",
     "Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift#c6a609c38d": "DEBT: claims grouped under per-source headers, expressible as List { Section }; its only host is the unmounted EntityDetailView (#4828), so migrate or retire with it",
     "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "DEBT: read-only prediction cards (no per-row tap or selection); no caller outside #4828's orphaned KG views, so migrate or retire with them",
     "Library/ViewModes/Graph/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "DESIGN: per-speaker comparison CARDS under a title, not selectable rows; only its previews construct it today (#4828)",

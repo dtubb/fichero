@@ -276,18 +276,14 @@ struct ActivityDetailsLog: View {
                     .foregroundStyle(.secondary)
             } else {
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 2) {
-                            ForEach(lines) { line in
-                                Text(line.plainText)
-                                    .font(.callout.monospaced())
-                                    .foregroundStyle(line.level == "error" ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
-                                    .textSelection(.enabled)
-                                    .id(line.id)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    List(lines) { line in
+                        Text(line.plainText)
+                            .font(.callout.monospaced())
+                            .foregroundStyle(line.level == "error" ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
+                            .textSelection(.enabled)
+                            .id(line.id)
                     }
+                    .listStyle(.plain)
                     .frame(minHeight: 120, idealHeight: 220, maxHeight: 320)
                     .onAppear { scrollToEnd(proxy) }
                     .onChange(of: lines.count) { _, _ in
@@ -350,4 +346,23 @@ private struct ActivityDetailsResources: View {
         }
         .accessibilityIdentifier("activity.details.resources")
     }
+}
+
+#Preview("A waiting job of its own") {
+    let row = ActivityMonitorRow.job(
+        ActivityJob(id: "embed-1", taskType: "embedding", name: "Embedding queue", current: 4, total: 10,
+                    state: .waiting, reason: "Waiting: memory is tight"),
+        libraryId: nil, projectName: "Marshall Diaries")
+    let details = ActivityDetails(row: row, node: nil, runRow: nil, projectName: "Marshall Diaries",
+                                  startedBy: "automatic", machine: nil)
+    return VStack(alignment: .leading, spacing: 16) {
+        ActivityDetailsHeading(details: details)
+        if let counts = details.counts { ActivityDetailsProgress(counts: counts) }
+        ActivityDetailsResources(resources: [
+            .init(label: "Started", value: "14:02"), .init(label: "Elapsed", value: "4m 10s"),
+            .init(label: "Cost", value: "$0.0068"), .init(label: "Peak memory, engine", value: "2.0 GB")
+        ])
+    }
+    .padding()
+    .frame(width: 480)
 }
