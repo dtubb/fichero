@@ -266,9 +266,22 @@ rather than defaulting to the pessimistic prior.
   the volume's (a 1926 passport memo in the 1929 diary), a year line likewise ("1924." in 1927),
   and a two-digit year naming none of the volume's years ("11/16/23" in 1943-45, refused and
   recorded) do not date the page. The year before a volume is not a mention (the 1919 rule's
-  business). Pinned: `test_diary_dates_5557.py::test_non_entry_pages_stay_undated`,
+  business). Account pages (#5559) are not entries either, though their line items carry dates:
+  a page headed "Expense Account", "Insurance Due:" or "Bank balance …" (anything may follow
+  the bank balance on a page's first line: "Bank balance Irving Trust Co. Jan.1, 1940"), and the
+  account-page shape, five or more of the top lines (and a third of them) ending in an amount
+  with no weekday heading among them ("Nov. 1 Lunch and taxi at Panama $1.80 / Dinner at Miami
+  2.25 / …" at the back of the 1943-45 book); they are marked `non_entry` and stay undated. A
+  diary day that lists its costs names its weekday and stays an entry. A weekday abbreviation
+  followed by a capitalised word starts a name ("October 28 - Sun Life Assurance" is not a
+  Sunday). Pinned: `test_diary_dates_5557.py::test_non_entry_pages_stay_undated`,
   `test_diary_dates_5557.py::test_a_date_of_another_year_does_not_date_the_page`,
-  `test_diary_dates_5557.py::test_a_two_digit_year_outside_the_volume_is_refused`.
+  `test_diary_dates_5557.py::test_a_two_digit_year_outside_the_volume_is_refused`,
+  `test_diary_dates_5559.py::test_account_pages_stay_undated`,
+  `test_diary_dates_5559.py::test_a_diary_day_listing_its_expenses_is_still_an_entry`,
+  `test_diary_dates_5559.py::test_bank_balance_inside_an_entry_does_not_undate_it`,
+  `test_diary_dates_5559.py::test_sun_life_is_an_insurer_not_a_sunday`,
+  `test_diary_dates_5559.py::test_a_trailing_weekday_abbreviation_is_still_read`.
 - `histnorm.dates.cover-ranges` — **[OK]** (#5557) two dates with written years joined by a dash
   or "to" ("Jan 1, 1932 - Dec 31, 1932", "JANUARY 1, 1920 TO DECEMBER 31, 1920") are one range
   (precision `range`, shown as written), not the first day; when the volume's name gives no
