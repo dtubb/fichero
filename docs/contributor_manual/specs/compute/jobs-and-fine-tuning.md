@@ -221,6 +221,37 @@ already supports.
   (`source.train.model-lineage`). A model whose scores are worse than its base is shown as
   worse, not hidden.
 
+### Models in memory: loading, unloading, never leaking (maintainer 2026-10-06, #5537)
+
+The engine runs beside the person's own work on a Mac that may have 8 GB (`user-machine-always-useful`),
+so every model it loads is held on purpose, counted, and let go. One rule set for every runtime
+(Kraken, MLX vision and text, spaCy, embedding models, Whisper, YOLO, any torch model):
+
+1. **One owner per runtime.** Each runtime has one model cache, keyed by the model's identity; no job,
+   page or candidate loads its own copy. A second request for a loaded model reuses it.
+2. **A budget, not luck.** The engine keeps the sum of what its loaded models hold under a memory
+   budget derived from the machine (and the person's Settings); loading a model that would cross it
+   unloads the least recently used first. A model that cannot fit at all is refused before the job
+   starts, in words, with the model that would fit (never a text-only model offered to read images).
+3. **Unload when idle and when a project closes.** A model idle for a short period (Kraken: 120 s) is
+   released with its helper processes; closing a project releases what only it used; engine shutdown
+   releases everything. A page being processed is never interrupted.
+4. **One memory check.** The job throttle and every runtime's guard ask one function with one margin
+   (`throttle.memory_short`); a job that does not fit **waits** (paused, resumable, its progress kept),
+   it does not fail.
+5. **No orphan processes.** A model server the engine starts is watched and ends with the engine,
+   and stops after an idle period (#5529).
+6. **Known traps are designed out.** Kraken reads on the CPU by default: on Apple's GPU, torch caches
+   a compiled graph per new line shape and never frees it (measured 2026-10-06: ~6 GB of an 8.7 GB
+   engine). Any runtime with such a cache gets the same treatment.
+7. **Measured, not assumed.** Each runtime has a leak test the gate runs: the same model reading many
+   pages of varied shape keeps its footprint within a bound, and its cache evicts when idle. Activity
+   shows what each loaded model holds and why a job is waiting.
+
+Built (#5529, 54c493940): rules 4, 5, 6, and 3 for Kraken. Not built (#5537): the budget (2), the per-runtime
+owners and idle/close unloading for MLX, spaCy, embeddings, Whisper and YOLO (1, 3), the leak test per
+runtime (7), and Activity's memory view.
+
 ### Publishing
 
 Publishing is the exporter's work and the model-card spec's; this set asks for it and states

@@ -1301,7 +1301,7 @@ unless the person adds sample pages, each listed before sending.
 and show each recipe's measurements. Fichero checks the catalogue for updates to followed recipes
 at most once a day, sending only the recipe ids; offline, nothing is offered and nothing breaks.
 
-**One guided path to a good reader, for any language (maintainer's direction, 2026-10-06).** The
+**One guided path to a good model, for any language and any step (maintainer's direction, 2026-10-06).** It is the same for every model a recipe runs — readers, names (spaCy, #5536), layout (YOLO, #5525), vision models (LoRA): distil from a strong teacher (Gemini or whatever is best), check the teacher's output, fine-tune locally or on Hugging Face, measure, use. For readers: The
 app decides among Kraken readers, Hugging Face models run on this Mac, and cloud models; it does
 not stop at "no reader fits". For a project's scripts and languages it walks the person through one
 path, each step a job they can watch and stop:
