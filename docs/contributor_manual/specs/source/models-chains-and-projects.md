@@ -1301,6 +1301,34 @@ unless the person adds sample pages, each listed before sending.
 and show each recipe's measurements. Fichero checks the catalogue for updates to followed recipes
 at most once a day, sending only the recipe ids; offline, nothing is offered and nothing breaks.
 
+**Finding models beyond the shipped cards (maintainer's direction 2026-10-05: less hardcoded;
+look models up; design proposed, #5519).** The shipped cards are a seed, not the list. For a
+project's scripts, languages, material and period, discovery gathers candidates for each job from:
+1. **What is installed** on this engine (Kraken readers, MLX vision models, spaCy pipelines, YOLO
+   weights), each given a card made from its own metadata when none ships (`made_from: metadata`),
+   so an installed model is never invisible to the rules.
+2. **The Kraken model repository** (HTRMoPo on Zenodo, the one `ketos list` reads), by script and
+   language tags.
+3. **Hugging Face**, by task and by language and script tags (image-to-text, token-classification,
+   object-detection for layout), never by keyword; a GGUF chat model is not a reader.
+4. **spaCy's published pipelines** and the named community ones (LatinCy, greCy), by language.
+Each candidate becomes a card that says where it came from, its licence, size, what it claims to
+cover and what was measured; the same rules rank it; it is offered for download through the one
+model path; and it can enter the bake-off like any other. Rules stay data: no candidate is named
+in code. Offline, discovery offers only what is installed. A "no model fits" problem names what
+was searched and the nearest candidates, and offers Train a Model where none exists.
+Known gaps that discovery must close (corpus run 2026-10-06, #5519): Fraktur (UB Mannheim, Tesseract
+`frk`), Japanese (NDLOCR), traditional Chinese (PaddleOCR `chinese_cht`), Hebrew (BiblIA Kraken),
+Syriac (eScriptorium, Calamari), Latin and Ancient Greek spaCy (LatinCy, greCy).
+
+**Training layout models (YOLO) and tables (proposed, maintainer 2026-10-05, #5525).**
+Fichero reads and writes YOLO labels today (`formats/yolo.py`) but has no YOLO training. The
+proposal: a `train-a-model` kind for layout, using the same training set builder as Kraken (pages
+with person-made regions, or imported PAGE regions marked as ground truth, #5513) exported as YOLO
+labels, trained on Hugging Face Jobs (private bucket, as Kraken) or on this Mac gently, coming home
+as a layout card measured in the bake-off by region overlap. Tables follow the same path with
+table and cell regions (corpus: USS Albatross logbooks, Reichsanzeiger, Paris notaries' forms).
+
 **Follow and update.** A project that takes a published recipe **follows** it at a version. When
 a new version appears, the Inspector says an update is available and shows exactly what would
 change, step by step: steps added and removed, a model's old and new pin, a prompt's text
