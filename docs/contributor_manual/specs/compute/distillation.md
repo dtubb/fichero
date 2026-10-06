@@ -226,6 +226,16 @@ refuses or warns, in words, when one is not met.
    which volumes, who corrected), the settings, every score with the set it was measured on, cost and
    time.
 
+The same rules for every kind of model (ruled 2026-10-06: Kraken, YOLO, vision models, spaCy alike);
+what a corrected set holds and how it is scored differs by kind:
+
+| Model | Teacher (example) | Neutral check | Corrected sets hold | Scored by |
+| --- | --- | --- | --- | --- |
+| Kraken line reader | a frontier vision model reading each line | a second reader that is not the one trained | line readings on the page's lines | character and word error rate |
+| Vision model (LoRA) | the same, or a larger vision model | as above | line or page readings | character and word error rate; repetition and truncation flagged (#5522) |
+| YOLO layout / tables | a frontier model or an existing layout model proposing regions | overlap with a second detector | regions (and table cells) with their kinds | box overlap: precision and recall at a stated overlap, per region kind |
+| spaCy names | a frontier model naming people, places, things | agreement with a second tagger | names as mentions on segments (#5488) | precision and recall per kind of name |
+
 ### Cascade: small first, big when unsure
 
 With a student adopted, a run uses the **student first**. Where its confidence on a line, a box or
