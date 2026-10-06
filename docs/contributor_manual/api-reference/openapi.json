@@ -29026,6 +29026,49 @@
         }
       }
     },
+    "/api/workflow-execution/threads/{thread_id}/read-again": {
+      "post": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Read Pages Again",
+        "description": "Read the pages a run did not do: the pages that failed, or after an interruption the pages not\ndone (#5555, the run's account's `offer`). One new run of the same workflow, with the same model,\nover those pages only; the pages it did are not read again.\n\nRaises:\n    404: no record of the run, or its workflow is gone\n    409: the run has nothing to read again (it is still going, or every page was done)",
+        "operationId": "read_pages_again_api_workflow_execution_threads__thread_id__read_again_post",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadAgainResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflow-execution/threads/{thread_id}/history": {
       "get": {
         "tags": [
@@ -47046,6 +47089,10 @@
             "type": "string",
             "nullable": true,
             "title": "Parent Id"
+          },
+          "account": {
+            "$ref": "#/components/schemas/RunAccount",
+            "nullable": true
           }
         },
         "type": "object",
@@ -58774,6 +58821,10 @@
           "progress": {
             "$ref": "#/components/schemas/RunProgress",
             "nullable": true
+          },
+          "account": {
+            "$ref": "#/components/schemas/RunAccount",
+            "nullable": true
           }
         },
         "type": "object",
@@ -62016,6 +62067,16 @@
             "type": "string",
             "title": "Subject"
           },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "display_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Display Name"
+          },
           "model": {
             "type": "string",
             "nullable": true,
@@ -62076,6 +62137,10 @@
             "type": "array",
             "title": "Unpriced Models",
             "description": "models under it the price list does not know"
+          },
+          "account": {
+            "$ref": "#/components/schemas/RunAccount",
+            "nullable": true
           },
           "children": {
             "items": {
@@ -69485,6 +69550,37 @@
         ],
         "title": "PageExportResponse"
       },
+      "PageFailure": {
+        "properties": {
+          "page": {
+            "type": "string",
+            "title": "Page",
+            "description": "The page's file name."
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "retried": {
+            "type": "boolean",
+            "title": "Retried",
+            "description": "It failed for a passing cause, was read once more, and failed again.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "page",
+          "reason"
+        ],
+        "title": "PageFailure",
+        "description": "One page the run could not do, and why."
+      },
       "PageNotConverted": {
         "properties": {
           "document_id": {
@@ -72420,6 +72516,48 @@
         ],
         "title": "RAGModesResponse",
         "description": "Response listing available RAG modes."
+      },
+      "ReadAgainResponse": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id",
+            "description": "The new run."
+          },
+          "from_thread_id": {
+            "type": "string",
+            "title": "From Thread Id",
+            "description": "The run whose pages it reads again."
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "title": "Workflow Name"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "How many pages it reads."
+          },
+          "stream_url": {
+            "type": "string",
+            "title": "Stream Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "from_thread_id",
+          "workflow_id",
+          "workflow_name",
+          "pages",
+          "stream_url"
+        ],
+        "title": "ReadAgainResponse",
+        "description": "A new run reading the pages another run did not do (#5555)."
       },
       "ReadAtScaleRequest": {
         "properties": {
@@ -75776,6 +75914,92 @@
         ],
         "title": "RoutesResponse"
       },
+      "RunAccount": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "running, waiting, paused, done, failed, cancelled or interrupted"
+          },
+          "pages_total": {
+            "type": "integer",
+            "title": "Pages Total",
+            "default": 0
+          },
+          "pages_done": {
+            "type": "integer",
+            "title": "Pages Done",
+            "default": 0
+          },
+          "pages_failed": {
+            "type": "integer",
+            "title": "Pages Failed",
+            "default": 0
+          },
+          "pages_left": {
+            "type": "integer",
+            "title": "Pages Left",
+            "default": 0
+          },
+          "failures": {
+            "items": {
+              "$ref": "#/components/schemas/PageFailure"
+            },
+            "type": "array",
+            "title": "Failures",
+            "description": "The first 10 failed pages, with why."
+          },
+          "retried": {
+            "type": "integer",
+            "title": "Retried",
+            "description": "Pages read once more after a passing cause (a model loading, memory).",
+            "default": 0
+          },
+          "waiting_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Waiting Reason",
+            "description": "What a page of the run is waiting for, in words."
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason",
+            "description": "Why the run failed, stopped or was interrupted."
+          },
+          "interrupted": {
+            "type": "boolean",
+            "title": "Interrupted",
+            "default": false
+          },
+          "estimate_seconds_left": {
+            "type": "number",
+            "nullable": true,
+            "title": "Estimate Seconds Left",
+            "description": "At this run's own pace so far; null until a page is done or when nothing is left."
+          },
+          "engine_peak_memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Engine Peak Memory Bytes"
+          },
+          "model_server_peak_memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Model Server Peak Memory Bytes"
+          },
+          "offer": {
+            "$ref": "#/components/schemas/RunOffer",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "title": "RunAccount",
+        "description": "How a run went, page by page (#5555): what its status and Activity both show."
+      },
       "RunComparisonResponse": {
         "properties": {
           "left": {
@@ -75850,6 +76074,32 @@
           "comparable"
         ],
         "title": "RunComparisonResponse"
+      },
+      "RunOffer": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "POST /api/workflow-execution/threads/{thread_id}/read-again",
+            "default": "read-again"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Read the 3 pages that failed\", or \"Read the 4 pages not done\""
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "label"
+        ],
+        "title": "RunOffer",
+        "description": "What the run offers at its end: read the pages it did not do, as one action."
       },
       "RunProgress": {
         "properties": {

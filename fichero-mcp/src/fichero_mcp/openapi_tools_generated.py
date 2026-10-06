@@ -8014,6 +8014,14 @@ def fichero_workflow_execution_pause(
     return _rt.call("POST", f"/api/workflow-execution/threads/{thread_id}/pause")
 
 
+def fichero_workflow_execution_read_pages_again(
+    *,
+    thread_id: Annotated[str, Field(description='Thread Id')],
+) -> Any:
+    "Read Pages Again\n\nRead the pages a run did not do: the pages that failed, or after an interruption the pages not\ndone (#5555, the run's account's `offer`). One new run of the same workflow, with the same model,\nover those pages only; the pages it did are not read again.\n\nRaises:\n    404: no record of the run, or its workflow is gone\n    409: the run has nothing to read again (it is still going, or every page was done)\n\nRoute: POST /api/workflow-execution/threads/{thread_id}/read-again (toolset `workflow-execution`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/workflow-execution/threads/{thread_id}/read-again")
+
+
 def fichero_workflow_execution_resume(
     *,
     thread_id: Annotated[str, Field(description='Thread Id')],
@@ -9095,6 +9103,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_workflow_execution_get_thread_episodes", "workflow-execution", "GET", "/api/workflow-execution/threads/{thread_id}/episodes", fichero_workflow_execution_get_thread_episodes),
     GeneratedTool("fichero_workflow_execution_get_thread_history", "workflow-execution", "GET", "/api/workflow-execution/threads/{thread_id}/history", fichero_workflow_execution_get_thread_history),
     GeneratedTool("fichero_workflow_execution_pause", "workflow-execution", "POST", "/api/workflow-execution/threads/{thread_id}/pause", fichero_workflow_execution_pause),
+    GeneratedTool("fichero_workflow_execution_read_pages_again", "workflow-execution", "POST", "/api/workflow-execution/threads/{thread_id}/read-again", fichero_workflow_execution_read_pages_again),
     GeneratedTool("fichero_workflow_execution_resume", "workflow-execution", "POST", "/api/workflow-execution/threads/{thread_id}/resume", fichero_workflow_execution_resume),
     GeneratedTool("fichero_workflow_execution_get_run", "workflow-execution", "GET", "/api/workflow-execution/threads/{thread_id}/run", fichero_workflow_execution_get_run),
     GeneratedTool("fichero_workflow_execution_get_thread_status", "workflow-execution", "GET", "/api/workflow-execution/threads/{thread_id}/status", fichero_workflow_execution_get_thread_status),

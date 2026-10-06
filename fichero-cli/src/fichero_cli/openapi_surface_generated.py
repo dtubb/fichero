@@ -16776,6 +16776,18 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("read-pages-again")
+    def workflow_execution_read_pages_again_post(
+        ctx: typer.Context,
+        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+    ) -> None:
+        """Read Pages Again (POST /api/workflow-execution/threads/{thread_id}/read-again)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}/read-again"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("resume")
     def workflow_execution_resume_post(
         ctx: typer.Context,
