@@ -6143,6 +6143,14 @@ def fichero_library_list_open_libraries(
     return _rt.call("GET", "/api/registry/open")
 
 
+def fichero_library_release(
+    *,
+    path: Annotated[str, Field(description='Absolute path to the .fichero package to release.')],
+) -> Any:
+    "Release Library\n\nRelease a project: close its connection and stop its background work; it stays registered.\n\nThe engine closes its database connection for the project and stops the work it runs for it\n(derivative, embedding and other page jobs stop after the page in hand and wait for the next\nopen; the background conversion stops at a page boundary). The project stays in the registry,\nso the app's sidebar keeps it, and opening it again works as before. Releasing a project with\nno open connection does nothing (`not_open`) and never opens it. Refused (409) while a workflow\nrun or batch is going in it. Audited as `library.release` (#5563).\n\nRoute: POST /api/registry/release (toolset `library`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/registry/release", json=_rt.body({"path": path}))
+
+
 def fichero_library_list_unicode_collisions(
 ) -> Any:
     'List Unicode Library Collisions\n\nReport Unicode-normalization collisions across known libraries.\n\nRoute: GET /api/registry/unicode-collisions (toolset `library`; reads).'
@@ -8913,6 +8921,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_library_list_known_libraries", "library", "GET", "/api/registry", fichero_library_list_known_libraries),
     GeneratedTool("fichero_library_add_known", "library", "POST", "/api/registry/add", fichero_library_add_known),
     GeneratedTool("fichero_library_list_open_libraries", "library", "GET", "/api/registry/open", fichero_library_list_open_libraries),
+    GeneratedTool("fichero_library_release", "library", "POST", "/api/registry/release", fichero_library_release),
     GeneratedTool("fichero_library_list_unicode_collisions", "library", "GET", "/api/registry/unicode-collisions", fichero_library_list_unicode_collisions),
     GeneratedTool("fichero_library_confirm_unicode_merge", "library", "POST", "/api/registry/unicode-collisions/merge", fichero_library_confirm_unicode_merge),
     GeneratedTool("fichero_library_update_access", "library", "POST", "/api/registry/update-access", fichero_library_update_access),
