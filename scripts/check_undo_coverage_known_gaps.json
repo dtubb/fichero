@@ -439,5 +439,6 @@
   "POST /api/check/verdicts": "not undoable by design (check.verdict, audited, undoable=False): a verdict is a dated record beside the proposal; a later verdict is recorded beside it, never over it",
   "POST /api/mcp/tools/check/verdicts": "not undoable by design (check.verdict, audited, undoable=False): an agent's verdict is a dated record at model trust; a person's later verdict is recorded beside it",
   "POST /api/recipes/project/layers": "project.add_layer is audited and undoable in the engine (test_add_a_layer_later: undo removes the layer and its proposals); the app's Edit > Undo does not reach it yet, and Remove in the Inspector withdraws it (#5470)",
-  "PUT /api/segments/passes/{pass_id}/ground-truth": "#5513 - engine undo exists via /api/actions/audit/{id}/undo (segment.pass_ground_truth inverts to the previous mark); the app's Mark as Ground Truth, and its undo wiring, are not built yet"
+  "PUT /api/segments/passes/{pass_id}/ground-truth": "#5513 - engine undo exists via /api/actions/audit/{id}/undo (segment.pass_ground_truth inverts to the previous mark); the app's Mark as Ground Truth, and its undo wiring, are not built yet",
+  "POST /api/registry/release": "release a project (#5563) closes a connection and changes no data; undo is opening it again (any request naming it)"
 }

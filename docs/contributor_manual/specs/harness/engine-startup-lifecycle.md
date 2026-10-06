@@ -335,6 +335,17 @@ very engine spawn those tests exist to exercise.
   later request find the project served. Wired in `LibraryReference.changeStream`
   (`fichero/fichero/Models/LibraryManager.swift`, `beforeReconnect`). Pinned through the real
   reconnect loop by `fichero/Tests/Unit/general/Transport/ChangeStreamReconnectRegistersLibraryTests.swift`.
+- `engine.release-keeps-the-project-registered` — **[OK]** (#5563) an agent or operator can release a
+  project without unregistering it: `POST /api/registry/release` (the audited `library.release`
+  action; CLI `fichero registry release-library`, MCP `fichero_library_release`) closes the engine's
+  connection to it and stops its background work, as a close does: its job threads finish the page
+  in hand and its waiting jobs wait, and its conversion stops at a page boundary. The project stays
+  in the registry and the app's sidebar, and the next request naming it opens it as before, its jobs
+  carrying on. A release never opens a project to release it (`not_open`), and never starts a
+  conversion or a snapshot (#5562). It is refused, saying which, while a workflow run or batch is
+  going in the project, since a run has no page-boundary stop. `DELETE /api/registry/{path}` (CLI
+  `library close`) is still the one that unregisters. Pinned through the real route by
+  `fichero-server/tests/unit/api/test_release_project.py`.
 
 ### E. Typed errors, not silent fallbacks
 
