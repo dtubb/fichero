@@ -237,11 +237,16 @@ what a corrected set holds and how it is scored differs by kind:
 | spaCy names | a frontier model naming people, places, things | agreement with a second tagger | names as mentions on segments (#5488) | precision and recall per kind of name |
 | Tesseract line reader (#5554) | a frontier vision model reading each line | a second reader that is not the one trained | line readings on the page's lines, as line image + text | character and word error rate against the base language data |
 | Apple Vision (#5554) | — (no training API) | — | the project's names, places and terms as its custom-word list | character and word error rate with and without the list |
+| Apple Foundation Models adapter (#5556) | a frontier model doing the text step | agreement with a second model | the step's corrected outputs (names normalised, claims) | the step's own score; retrained when macOS changes the on-device model |
+| Create ML word tagger or detector (#5556) | as spaCy names or YOLO regions | as those rows | as those rows | as those rows |
 
 Tesseract fine-tunes its line reader from corrected lines (tesstrain, starting from the language's data), on the CPU, small enough for the 8 GB Mac; the result is a model in the project like any other (#5554).
 Apple Vision cannot be trained. It can be given a list of words, so the project's own names, places and
 terms are passed to it, and the check pages measure whether the list helps; the app says plainly that this
 reader is given words, not trained (#5554).
+Models trained elsewhere (YOLO, and Kraken where it converts) can be converted to Core ML to run on the
+Neural Engine, in less memory on the 8 GB Mac; a converted model is scored against its original before it
+replaces it (#5556).
 
 ### Cascade: small first, big when unsure
 

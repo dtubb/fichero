@@ -199,6 +199,41 @@ rather than defaulting to the pessimistic prior.
   (`date_extract` workflow tool) is built and tested but not wired into any default workflow, so
   it runs only when a workflow author adds it — not automatically at every import the way
   segmentation and embeddings are.
+- `histnorm.dates.whole-project-one-run` — **[OK]** (#5518) "Work Out Dates" runs over a
+  whole project (the Marshall Diaries' 4,292 pages) as ONE run: its Files step passes page
+  references (`documents_as: "refs"`), the date tool loads each page by id, and its own output
+  is one short line per page (the full record stays on the page and its `dates` artifact). The
+  8 MB workflow-state cap is unchanged. Pinned:
+  `test_diary_dates_5518.py::test_one_run_over_a_whole_project_stays_under_the_state_cap`.
+- `histnorm.dates.every-page-in-scope` — **[OK]** (#5518) running on a folder reaches every
+  page document under it: pages in a group ("Stack of 10"), the halves a spread was split into
+  (filed under the spread's page), never a diary entry or a region under a page. Pinned:
+  `test_diary_dates_5518.py::test_folder_expansion_reaches_every_page_under_the_scope`.
+- `histnorm.dates.numeric-order-from-stated-language` — **[OK]** (#5518) the language an import
+  states in a page's metadata (`metadata.language`) is the page's own language when none is
+  recorded, so it settles a numeric date's order: en-US month/day, every other language
+  day/month, bare `en` (what the Marshall pages carry) and unknown both readings, undated.
+  Pinned: `test_diary_dates_5518.py::test_the_language_in_imported_metadata_is_the_documents_own`,
+  `test_diary_dates_5518.py::test_extract_date_reads_the_numeric_order_from_metadata_language`.
+- `histnorm.dates.heading-shapes` — **[OK]** (#5518) a page's heading is read where diaries put
+  it: closing a line after a running header ("Seattle Office. Vice-Consul. WEDNESDAY, APRIL 24,
+  1940"), with a page number after the year ("MAY 13. 1918 12", unless the weekday then fits no
+  year), "Dec.4" with no space, and, when nothing near the top is a heading, the first line
+  further down that leads with a date and a weekday. A margin label ("Mar. 23") gives way to the
+  full heading of the same day. Pinned: `test_diary_dates_5518.py::test_marshall_redating_rules`.
+- `histnorm.dates.almanac-and-account-pages-undated` — **[OK]** (#5518) almanac and account
+  pages give no diary date: "May Cash Account", "MOON'S PHASES", "LEGAL HOLIDAYS", the
+  "CALENDAR. VALUES OF FOREIGN COINS" table; a week page with a cash column ("April 1914 Cash
+  Account Received Paid") is still a month page. Pinned:
+  `test_diary_dates_5518.py::test_marshall_redating_rules`.
+- `histnorm.dates.weekday-and-volume-outvote-a-written-year` — **[OK]** (ruled by the
+  maintainer for #5518) when the written weekday AND the volume's folder year agree against a
+  written year, they win: the 1919 volume's "FRIDAY, JANUARY 24. 1918" is dated 24 January
+  1919, shown with the year in brackets, the written year kept beside it (`written_year`,
+  `year_overruled`). A written year inside the volume, or with no volume year, is never
+  overruled; the disagreement is flagged instead. Pinned:
+  `test_diary_dates_5518.py::test_an_overruled_year_is_kept_and_shown_as_supplied`,
+  `test_diary_dates_5518.py::test_marshall_redating_rules`.
 - `histnorm.dates.search-and-sort` — **[PARTIAL]** (implemented and tested,
   `test_dataset_query.py`; → #3309, #3322 still open pending close) `date_jdn_from`/
   `date_jdn_to` filters and JDN-based sort exist in `db/__init__.py` and `dataset_query.py`;

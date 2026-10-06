@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Date each page from its own heading: the line near the top that leads with a date, read as written (abbreviations, ordinals, numeric dates read month/day, a year with or without a comma). A heading with no year takes its volume's year, chosen by the weekday when the volume spans several years, and is marked inferred. Impossible dates are refused and recorded, memoranda and cash pages stay undated, and a date you set yourself is never overwritten. No model is used.
+Date each page from its own heading: the line near the top that leads with a date, read as written (abbreviations, ordinals, a year with or without a comma, a page number after it); a numeric date takes its day/month order from the page's language. A heading with no year takes its volume's year, chosen by the weekday when the volume spans several years, and is marked inferred; when the written weekday and the volume's year both disagree with a written year, they win and the written year is kept beside the date. Impossible dates are refused and recorded, memoranda, cash and almanac pages stay undated, and a date you set yourself is never overwritten. Runs over a whole project in one go. No model is used.
 
 | | |
 | --- | --- |
@@ -17,6 +17,12 @@ Date each page from its own heading: the line near the top that leads with a dat
 ### 1. Files
 
 Tool: [Files](../tools/files.md) — Pass through input files from workflow context
+
+Settings this step uses:
+
+| Option | Value |
+| --- | --- |
+| `documents_as` | refs |
 
 ### 2. Extract Date
 
