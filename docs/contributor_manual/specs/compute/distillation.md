@@ -196,6 +196,36 @@ entities, claims.
   more than the noise band (0.5 CER), or the loop stops and says so. A student never trains on its
   own unchecked output, and held-out pages never train.
 
+### Best practice the loop enforces (maintainer 2026-10-06, #5538)
+
+The first full run (Sergio's notebooks, 2026-10-05/06: McCATMuS 40.4% to 19.6%, PP-OCRv6 24.6% to
+18.4% character error) proved the loop and showed where it can flatter itself. Every distillation and
+fine-tune, for every model kind (readers, names, layout, vision), follows these rules; the guided path
+refuses or warns, in words, when one is not met.
+
+1. **Three sets, kept apart.** Train (teacher lines that passed the check), a small **dev set** (used to
+   choose epochs and settings, never trained on) and an untouched **test set** (used once per model,
+   to report). A model's validation on its own teacher lines measures agreement with the teacher,
+   not the truth, and is never reported as accuracy.
+2. **Dev and test sets are corrected readings**, corrected **by a person or by a frontier model**
+   (ruled 2026-10-06), each labelled with who corrected it (person, or the model and its version). A
+   frontier-model-corrected set is acceptable ground truth; a person-corrected anchor set, where one
+   exists, is reported beside it.
+3. **A neutral teacher check.** The reader that checks teacher lines is never the model being trained,
+   nor its base; where possible two readers must agree. (The first run used PP-OCRv6 to check the lines
+   PP-OCRv6 then trained on.)
+4. **Test beyond the training material.** The test set includes pages from volumes, notebooks or hands
+   that are not in training; scores are reported per volume and per hand, not only as one mean.
+5. **Repeat and report the spread.** Each setting is trained more than once where cost allows, and
+   scores are reported with their spread; small sweeps (learning rate, augmentation, LoRA rank) are
+   chosen on the dev set.
+6. **People and frontier models in the loop.** The lines where teacher and student disagree most are
+   corrected first (by a person, or a frontier model, labelled); corrections join the next training
+   round and the dev set, never the test set.
+7. **Every model's card says how it was made:** the teacher and its check, the three sets (sizes,
+   which volumes, who corrected), the settings, every score with the set it was measured on, cost and
+   time.
+
 ### Cascade: small first, big when unsure
 
 With a student adopted, a run uses the **student first**. Where its confidence on a line, a box or
