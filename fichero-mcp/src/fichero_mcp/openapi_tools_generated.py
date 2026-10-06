@@ -7088,6 +7088,7 @@ def fichero_settings_set_ai_defaults(
     embeddings_provider: Annotated[Optional[str], Field(description='Embeddings Provider.')] = None,
     large_model: Annotated[Optional[str], Field(description='Large Model.')] = None,
     large_provider: Annotated[Optional[str], Field(description='Large Provider.')] = None,
+    local_model: Annotated[Optional[str], Field(description='Local Model.')] = None,
     max_tokens: Annotated[Optional[str], Field(description='Max Tokens.')] = None,
     medium_model: Annotated[Optional[str], Field(description='Medium Model.')] = None,
     medium_provider: Annotated[Optional[str], Field(description='Medium Provider.')] = None,
@@ -7110,7 +7111,7 @@ def fichero_settings_set_ai_defaults(
     vision_small_provider: Annotated[Optional[str], Field(description='Vision Small Provider.')] = None,
 ) -> Any:
     'Set Ai Defaults\n\nSet default AI models for each category.\n\nRoute: PUT /api/settings/ai-defaults (toolset `settings`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", "/api/settings/ai-defaults", json=_rt.body({"audio_model": audio_model, "audio_provider": audio_provider, "embeddings_model": embeddings_model, "embeddings_provider": embeddings_provider, "large_model": large_model, "large_provider": large_provider, "max_tokens": max_tokens, "medium_model": medium_model, "medium_provider": medium_provider, "primary_language": primary_language, "prompt_prefix": prompt_prefix, "small_model": small_model, "small_provider": small_provider, "temperature": temperature, "text_model": text_model, "text_provider": text_provider, "video_model": video_model, "video_provider": video_provider, "vision_large_model": vision_large_model, "vision_large_provider": vision_large_provider, "vision_medium_model": vision_medium_model, "vision_medium_provider": vision_medium_provider, "vision_model": vision_model, "vision_provider": vision_provider, "vision_small_model": vision_small_model, "vision_small_provider": vision_small_provider}))
+    return _rt.call("PUT", "/api/settings/ai-defaults", json=_rt.body({"audio_model": audio_model, "audio_provider": audio_provider, "embeddings_model": embeddings_model, "embeddings_provider": embeddings_provider, "large_model": large_model, "large_provider": large_provider, "local_model": local_model, "max_tokens": max_tokens, "medium_model": medium_model, "medium_provider": medium_provider, "primary_language": primary_language, "prompt_prefix": prompt_prefix, "small_model": small_model, "small_provider": small_provider, "temperature": temperature, "text_model": text_model, "text_provider": text_provider, "video_model": video_model, "video_provider": video_provider, "vision_large_model": vision_large_model, "vision_large_provider": vision_large_provider, "vision_medium_model": vision_medium_model, "vision_medium_provider": vision_medium_provider, "vision_model": vision_model, "vision_provider": vision_provider, "vision_small_model": vision_small_model, "vision_small_provider": vision_small_provider}))
 
 
 def fichero_settings_repair_ai_defaults(

@@ -38,6 +38,10 @@ class ManagedModelSpec:
     #: hands the loader a mixture. Empty for a clean repo; see Nanonets below
     #: for the one that is not.
     ignore_patterns: tuple[str, ...] = ()
+    #: Unified memory this Mac needs for the model to READ A PAGE (its vision path), when that is
+    #: more than `min_memory_bytes`, the floor for loading it. None: the load floor is enough, or
+    #: nothing more is known. Only a measurement or the model's own note sets it (#5520).
+    page_memory_bytes: int | None = None
 
 
 @dataclass
@@ -107,6 +111,23 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         capabilities=("text", "vision"),
         note="Strongest OCR here, but its VISION path needs 24 GB+ in practice: on a 16 GB Mac a single page drove swap to 24 GB and produced no text in ten minutes. Text prompts work at 16 GB.",
         tested_status="verified",
+        # The measurement in the note above (#4560), as a fact the defaults and the Start plan read
+        # (#5520): never chosen to read pages on a Mac under 24 GB.
+        page_memory_bytes=24 * 1024**3,
+    ),
+    "Qwen2.5-VL-7B": ManagedModelSpec(
+        model_id="Qwen2.5-VL-7B",
+        # The reader and corrector the recipe rules pin (`recipes/seed/cards.yaml`), so a recipe step
+        # naming it can be installed and served here rather than refused as unknown (#5496).
+        # Revision and size read from the Hub's API for this exact commit, 2026-10-06.
+        repo_id="mlx-community/Qwen2.5-VL-7B-Instruct-4bit",
+        revision="fdcc572e8b05ba9daeaf71be8c9e4267c826ff9b",
+        display_name="Qwen2.5-VL 7B (OCR)",
+        download_size_bytes=5_653_000_000,
+        min_memory_bytes=16 * 1024**3,
+        memory_class="needs 16 GB unified memory",
+        capabilities=("text", "vision"),
+        note="The recipe rules' default corrector and page reader. Not yet run inside Fichero -- untested here.",
     ),
     "Chandra-OCR": ManagedModelSpec(
         model_id="Chandra-OCR",
@@ -380,6 +401,16 @@ class MLXModelStore:
         raise FileNotFoundError(
             f"Local model {model_id} is not installed. Download it from /api/local-inference/models/{model_id}/download before starting oMLX."
         )
+
+    def canonical_id(self, name: str | None) -> str | None:
+        """The store's id for a model a step names by its catalogue id, its Hub repository, or a
+        trained model's id; None for any other name (#5520: a recipe pins the repo, the CLI the id)."""
+        if not name:
+            return None
+        for model_id, spec in MANAGED_MLX_MODELS.items():
+            if name in (model_id, spec.repo_id):
+                return model_id
+        return name if self.trained_card(name) is not None else None
 
     def spec(self, model_id: str) -> ManagedModelSpec:
         if model_id in MANAGED_MLX_MODELS:

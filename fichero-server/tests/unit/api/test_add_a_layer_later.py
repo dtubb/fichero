@@ -24,12 +24,16 @@ NAMES = "find-names-tag-words"
 @pytest.fixture(autouse=True)
 def hold_the_run(monkeypatch):
     """Runs are queued, never executed here: these tests pin what is queued and when, not the models.
-    The Spanish spaCy pipeline counts as present, so the plan's only refusal would be ours to find."""
+    The Spanish spaCy pipeline and the recipe's local models count as present on this Mac (which
+    models a Mac can serve is test_local_model_choice.py's), so the plan's only refusal would be ours
+    to find."""
     from fichero_server.execution import jobs
     from fichero_server.llm import local_models
+    from fichero_server.recipes import start
 
     monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
     monkeypatch.setattr(local_models, "spacy_pipeline_available", lambda name: True)
+    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs: [])
 
 
 @pytest.fixture

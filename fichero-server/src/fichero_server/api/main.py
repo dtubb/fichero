@@ -417,31 +417,42 @@ def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
     placeholders fail immediately with "no default model configured"
     (#932 first-run blocker).
 
-    The values come from ``FACTORY_AI_DEFAULTS`` in db/app.py — the single
-    tier-default table (#4325). Every tier seeds ON-DEVICE (Apple) so a
-    keyless fresh install can run every default workflow.
+    The values come from ``machine_ai_defaults()`` — ``FACTORY_AI_DEFAULTS``
+    (db/app.py, the single tier-default table, #4325) less any provider this
+    build lacks (#5520): every tier seeds ON-DEVICE so a keyless fresh install
+    can run every default workflow, and a text tier names Apple Intelligence
+    only when this engine carries it.
 
     Only writes a key when it is currently unset; user configuration is
     never overwritten. (#933 — Reset Defaults must not erase user choices
     on its own; explicit per-pane Reset buttons handle that case.)
     """
-    from fichero_server.db.app import FACTORY_AI_DEFAULTS
+    from fichero_server.llm.local_model_choice import (
+        machine_ai_defaults,
+        read_chosen_because,
+        record_chosen_because,
+    )
 
+    values, because = machine_ai_defaults()
     written: list[str] = []
-    for key, value in FACTORY_AI_DEFAULTS.items():
+    for key, value in values.items():
         if not app_db.get_setting(key):
             app_db.set_setting(key, value)
             written.append(key)
     if written:
+        kept = read_chosen_because(app_db)
+        kept.update({key: why for key, why in because.items() if key in written})
+        record_chosen_because(app_db, kept)
         logger.info(
-            "Seeded Apple Intelligence as default for %d AI tier keys: %s",
+            "Seeded AI defaults for %d keys: %s",
             len(written),
-            ", ".join(written),
+            ", ".join(f"{key}={values[key]}" for key in written),
         )
 
 
 def _repair_known_bad_ai_defaults(app_db) -> None:
     """Repair stale tier defaults from older broken seeds."""
+    _repair_text_tiers_this_build_cannot_run(app_db)
     large_provider = app_db.get_setting("default_large_provider")
     large_model = app_db.get_setting("default_large_model")
     if large_provider == "openrouter" and large_model == "openrouter/free":
@@ -494,6 +505,41 @@ def _repair_known_bad_ai_defaults(app_db) -> None:
                 f"Repaired stale AI default {tier}: apple/apple-intelligence "
                 "is text-only; now apple/apple-vision."
             )
+
+
+def _repair_text_tiers_this_build_cannot_run(app_db) -> None:
+    """A text tier on Apple Intelligence in an engine without it moves to what this Mac runs (#5520).
+
+    The Apple pairing was OUR seed, written before the seed knew whether the fm-bridge was in the
+    build; in an engine without it every entity and statement step failed. It moves to the same
+    choice a fresh seed makes here (`machine_ai_defaults`), and says which, once, in the log and in
+    the reasons Settings shows. A build with Apple Intelligence leaves every tier alone."""
+    from fichero_server.llm.local_model_choice import (
+        apple_intelligence_in_this_build,
+        machine_ai_defaults,
+        read_chosen_because,
+        record_chosen_because,
+    )
+
+    tiers = [t for t in ("text", "small", "medium", "large")
+             if app_db.get_setting(f"default_{t}_provider") == "apple"
+             and app_db.get_setting(f"default_{t}_model") == "apple-intelligence"]
+    if not tiers or apple_intelligence_in_this_build():
+        return
+    values, because = machine_ai_defaults(apple_intelligence=False)
+    moved = [t for t in tiers if values[f"default_{t}_provider"] != "apple"]
+    if not moved:
+        return
+    for tier in moved:
+        app_db.set_setting(f"default_{tier}_provider", values[f"default_{tier}_provider"])
+        app_db.set_setting(f"default_{tier}_model", values[f"default_{tier}_model"])
+    kept = read_chosen_because(app_db)
+    kept.update({f"default_{t}_provider": because[f"default_{t}_provider"] for t in moved})
+    record_chosen_because(app_db, kept)
+    logger.warning(
+        "Apple Intelligence is not in this engine build: AI defaults %s moved to %s/%s.",
+        ", ".join(moved), values[f"default_{moved[0]}_provider"], values[f"default_{moved[0]}_model"],
+    )
 
 
 def _collapse_duplicate_providers() -> None:

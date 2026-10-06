@@ -67,6 +67,13 @@ class AIDefaults(BaseModel):
     temperature: str = ""
     max_tokens: str = ""
     prompt_prefix: str = ""
+    #: The model this Mac's local model server loads when a step names none (#5520). Settings'
+    #: choice when set; otherwise the vision model chosen for this Mac from what it runs and has
+    #: installed. A step that names its own local model is always served that one instead.
+    local_model: str = ""
+    #: Why each default holds the value it does, keyed by field name (`local_model`,
+    #: `text_provider`, ...): chosen in Settings, or chosen for this Mac and build, and why.
+    chosen_because: dict[str, str] = Field(default_factory=dict)
 
 
 class AIDefaultsUpdate(BaseModel):
@@ -98,6 +105,9 @@ class AIDefaultsUpdate(BaseModel):
     temperature: str | None = None
     max_tokens: str | None = None
     prompt_prefix: str | None = None
+    #: Settings › AI's local model; "" returns it to the model chosen for this Mac. Refused (422)
+    #: when it is not a local catalogue model or this Mac cannot run it.
+    local_model: str | None = None
 
 
 _AI_DEFAULT_FIELDS: tuple[tuple[str, str], ...] = (
@@ -127,6 +137,7 @@ _AI_DEFAULT_FIELDS: tuple[tuple[str, str], ...] = (
     ("temperature", "default_temperature"),
     ("max_tokens", "default_max_tokens"),
     ("prompt_prefix", "default_prompt_prefix"),
+    ("local_model", "default_local_model"),
 )
 
 _TIER_SETTING_KEYS = {
@@ -153,6 +164,19 @@ def _validate_provider_updates(body: AIDefaultsUpdate) -> None:
                 status_code=422,
                 detail=f"Unknown AI default provider for {field_name}: {value}",
             )
+
+
+def _validate_local_model(name: str) -> str:
+    """Settings' local model must be one this Mac's local server can run (#5520): a catalogue or
+    trained model whose card fits this Mac's memory. It need not be installed yet: a run then says
+    to install it. Returns the catalogue id, whether it was named by that or by its Hub repo."""
+    from fichero_server.llm.local_model_choice import local_model_problem
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+    problem = local_model_problem(name, "vision")
+    if problem is not None and problem.kind != "not-installed":
+        raise HTTPException(status_code=422, detail=f"Local model refused: {problem}")
+    return get_mlx_model_store().canonical_id(name) or name
 
 
 def _validate_profile(profile: ModelProfile) -> None:
@@ -274,8 +298,12 @@ def get_ai_defaults(request: Request) -> AIDefaults:
 
     from fichero_server.db.app import get_app_db
 
+    from fichero_server.llm.local_model_choice import default_local_model
+
     db = get_app_db()
     defaults = db.get_ai_defaults()
+    local = default_local_model()
+    chosen_because = _chosen_because(db, defaults, local)
     return AIDefaults(
         vision_provider=defaults.get("default_vision_provider", ""),
         vision_model=defaults.get("default_vision_model", ""),
@@ -303,7 +331,24 @@ def get_ai_defaults(request: Request) -> AIDefaults:
         temperature=defaults.get("default_temperature", ""),
         max_tokens=defaults.get("default_max_tokens", ""),
         prompt_prefix=defaults.get("default_prompt_prefix", ""),
+        local_model=local.model_id or "",
+        chosen_because=chosen_because,
     )
+
+
+def _chosen_because(db, defaults: dict[str, str], local) -> dict[str, str]:
+    """Why each default is what it is, by field name: the seed's recorded reasons, for values
+    the seed still holds, and the local model's reason."""
+    from fichero_server.llm.local_model_choice import read_chosen_because
+
+    out = {}
+    recorded = read_chosen_because(db)
+    for field_name, key in _AI_DEFAULT_FIELDS:
+        why = recorded.get(key)
+        if why and defaults.get(key):
+            out[field_name] = why
+    out["local_model"] = local.reason
+    return out
 
 
 @router.put("/ai-defaults", response_model=StatusOkResponse)
@@ -316,8 +361,13 @@ def set_ai_defaults(
     from fichero_server.db.app import get_app_db
 
     _validate_provider_updates(body)
+    if body.local_model:
+        body.local_model = _validate_local_model(body.local_model)
+
+    from fichero_server.llm.local_model_choice import read_chosen_because, record_chosen_because
 
     db = get_app_db()
+    changed: set[str] = set()
     # Tier-alias keys ($small/$medium/$large and vision variants) must never be
     # deleted mid-session — workflows silently lose their fallback target
     # (#1057, #2200). Skip empty values for these; explicit reset goes through
@@ -332,6 +382,13 @@ def set_ai_defaults(
             db.set_setting(key, value)
         elif key not in _TIER_SETTING_KEYS:
             db.delete_setting(key)
+        changed.add(key.removesuffix("_provider").removesuffix("_model"))
+    # A value the person chose is no longer the seed's: the seed's reason for it goes too.
+    recorded = read_chosen_because(db)
+    kept = {k: v for k, v in recorded.items()
+            if k.removesuffix("_provider").removesuffix("_model") not in changed}
+    if kept != recorded:
+        record_chosen_because(db, kept)
     return StatusOkResponse(status="ok")
 
 
@@ -346,12 +403,11 @@ def repair_ai_defaults(
     values the user has already set. Fixes libraries created before the
     factory-defaults seed was added (#1057).
     """
-    from fichero_server.db.app import FACTORY_AI_DEFAULTS, get_app_db
+    from fichero_server.api.main import _ensure_default_ai_defaults
+    from fichero_server.db.app import get_app_db
 
-    db = get_app_db()
-    for key, value in FACTORY_AI_DEFAULTS.items():
-        if not db.get_setting(key):
-            db.set_setting(key, value)
+    # The same seed as first launch (#5520): this Mac's and this build's defaults, gaps only.
+    _ensure_default_ai_defaults(get_app_db(), "")
     return StatusOkResponse(status="ok")
 
 

@@ -283,6 +283,9 @@ def test_a_managed_model_goes_over_the_wire_as_its_local_path(tmp_path, monkeypa
     snapshot.mkdir()
 
     class _Store:
+        def canonical_id(self, name: str) -> str | None:
+            return name if name == "Qwen2.5-VL-3B" else None
+
         def resolve_model_path(self, model_id: str) -> str:
             if model_id == "Qwen2.5-VL-3B":
                 return str(snapshot)

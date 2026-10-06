@@ -28,11 +28,16 @@ class TestGetAIDefaults:
         assert expected_keys.issubset(data.keys())
 
     def test_defaults_are_empty_strings(self, client):
+        from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+
         r = client.get("/api/settings/ai-defaults")
         assert r.status_code == 200
         data = r.json()
-        # Fresh db should have all empty strings
+        # Fresh db: every stored default is empty. The local model is never empty: unset, it is
+        # the catalogue model chosen for this Mac, and says why (#5520).
+        local, because = data.pop("local_model"), data.pop("chosen_because")
         assert all(v == "" for v in data.values())
+        assert local in MANAGED_MLX_MODELS and set(because) == {"local_model"}
 
 
 class TestModelProfiles:
@@ -341,7 +346,12 @@ class TestRepairAIDefaults:
 
 
 class TestResetAIDefaults:
-    def test_reset_clears_all_settings(self, client):
+    def test_reset_clears_all_settings(self, client, monkeypatch):
+        # The Apple baseline is a build that carries Apple Intelligence; without it, see
+        # test_local_model_choice.py (#5520).
+        from fichero_server.llm import local_model_choice
+
+        monkeypatch.setattr(local_model_choice, "apple_intelligence_in_this_build", lambda: True)
         payload = {
             "vision_provider": "openai", "vision_model": "gpt-4o",
             "text_provider": "anthropic", "text_model": "claude-3",
@@ -358,6 +368,7 @@ class TestResetAIDefaults:
         assert r.json()["status"] == "ok"
         r2 = client.get("/api/settings/ai-defaults")
         data = r2.json()
+        assert data.pop("local_model") and "local_model" in data.pop("chosen_because")
         # After reset, factory defaults are re-seeded.
         # Only fields without factory defaults remain empty.
         non_empty_fields = {k: v for k, v in data.items() if v != ""}
