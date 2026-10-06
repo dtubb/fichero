@@ -61,6 +61,18 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         }
 
         var isLive: Bool { self == .running || self == .waiting || self == .paused }
+
+        /// The state as an SF Symbol (#5560).
+        var symbol: String {
+            switch self {
+            case .running: "play.circle.fill"
+            case .waiting: "clock"
+            case .paused: "pause.circle.fill"
+            case .failed: "xmark.circle.fill"
+            case .cancelled: "stop.circle.fill"
+            case .done: "checkmark.circle.fill"
+            }
+        }
     }
 
     /// What a row's Pause, Resume and Stop buttons offer.
@@ -116,12 +128,60 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     let isLive: Bool
     /// `nil` = a leaf (no disclosure triangle).
     var children: [ActivityMonitorRow]?
+    /// A run's account (#5555): what its row says beyond the counts. `nil`
+    /// on steps, pages, other jobs and runs the engine has no account for.
+    var account: ActivityRunAccount?
+    /// The engine's kind of work ("read-a-page", "train-a-model", …), for the
+    /// row's kind icon (#5560); `nil` when the row has no job behind it.
+    var engineKind: String?
+
+    // MARK: - Icons (#5560)
+
+    /// What kind of row it is, as an SF Symbol: a run, a step, a page, a model
+    /// load, training, or other work of its own.
+    var kindSymbol: String {
+        let work = (engineKind ?? "").lowercased()
+        if work.contains("train") { return "graduationcap" }
+        if work.contains("download") || work.contains("load-model") || work.contains("install") {
+            return "arrow.down.circle"
+        }
+        switch kind {
+        case .run: return "flowchart"
+        case .step: return "list.bullet.indent"
+        case .page: return "doc.text"
+        case .job: return "gearshape"
+        }
+    }
+
+    /// The kind in words, for VoiceOver beside the icon.
+    var kindWord: String {
+        switch kindSymbol {
+        case "graduationcap": "Training"
+        case "arrow.down.circle": "Model load"
+        case "flowchart": "Run"
+        case "list.bullet.indent": "Step"
+        case "doc.text": "Page"
+        default: "Job"
+        }
+    }
+
+    /// Whether ⓘ (and double-click) can open this row's log and details: a row
+    /// that belongs to a run.
+    var opensDetails: Bool { runRowID != nil }
 
     // MARK: - Columns
 
     /// "Failed: the provider refused this letter", "Waiting: memory is tight",
     /// "Running: Entities". The reason is the point of a failed row.
     var stateText: String {
+        // An interrupted run says so, and when ("Interrupted: the engine stopped at 14:05, …").
+        if let account, account.interrupted, let why = account.reason ?? reason {
+            return why
+        }
+        // A running run whose page waits (for memory, #5537) says what for.
+        if phase == .running, let waiting = account?.waitingReason, !waiting.isEmpty {
+            return waiting
+        }
         if let reason, !reason.isEmpty, phase == .failed || phase == .waiting || phase == .paused {
             if reason.lowercased().hasPrefix(phase.word.lowercased()) || reason.hasPrefix("Paused") {
                 return reason
@@ -134,10 +194,48 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         return phase.word
     }
 
-    /// Seconds left at the pace so far, while it runs and some are done.
+    /// Seconds left at the pace so far, while it runs and some are done: the
+    /// engine's estimate when the run's account has one.
     var remainingSeconds: Double? {
-        guard phase == .running, let seconds, done > 0, total > done else { return nil }
+        guard phase == .running else { return nil }
+        if let estimate = account?.estimateSecondsLeft { return estimate }
+        guard let seconds, done > 0, total > done else { return nil }
         return seconds / Double(done) * Double(total - done)
+    }
+
+    /// The run's failed pages with why, one a line, then its peak memory:
+    /// what the State cell's help shows (#5555).
+    var accountDetail: String? {
+        guard let account else { return nil }
+        var lines = account.failures.map { failure in
+            "\(failure.page): \(failure.reason)" + (failure.retried ? " (read twice)" : "")
+        }
+        if account.pagesFailed > account.failures.count {
+            lines.append("and \(account.pagesFailed - account.failures.count) more")
+        }
+        if let peak = peakMemoryText { lines.append(peak) }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    /// "Peak memory: engine 2.0 GB, model server 3.5 GB" (#5537), when measured.
+    var peakMemoryText: String? {
+        guard let account else { return nil }
+        let parts = [
+            account.enginePeakMemoryBytes.map { "engine \(Self.gigabytes($0))" },
+            account.modelServerPeakMemoryBytes.map { "model server \(Self.gigabytes($0))" }
+        ].compactMap { $0 }
+        return parts.isEmpty ? nil : "Peak memory: " + parts.joined(separator: ", ")
+    }
+
+    /// "Read the 3 pages that failed": the run's one action at its end, or nil.
+    var readAgainLabel: String? {
+        guard kind == .run, !phase.isLive else { return nil }
+        return account?.offerLabel
+    }
+
+    static func gigabytes(_ bytes: Int) -> String {
+        let value = Double(bytes) / 1_073_741_824
+        return value.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "en_US_POSIX"))) + " GB"
     }
 
     /// "12 of 40", plus "about 3 min left" while it runs.
@@ -237,7 +335,9 @@ extension ActivityMonitorRow {
             errors: tree?.failed ?? run.errorCount,
             model: tree.flatMap(Self.models),
             isLive: run.isLive && phase == .running,
-            children: steps.isEmpty ? nil : steps
+            children: steps.isEmpty ? nil : steps,
+            account: tree?.account,
+            engineKind: "workflow"
         )
     }
 
@@ -265,7 +365,8 @@ extension ActivityMonitorRow {
             errors: job.state.isFailed ? 1 : 0,
             model: nil,
             isLive: false,
-            children: nil
+            children: nil,
+            engineKind: job.taskType
         )
     }
 
@@ -293,12 +394,15 @@ extension ActivityMonitorRow {
             errors: node.failed,
             model: models(node),
             isLive: false,
-            children: children.isEmpty ? nil : children
+            children: children.isEmpty ? nil : children,
+            engineKind: node.kind
         )
     }
 
-    /// A step's subject is "<run id>:<step>"; a page's is what it read.
+    /// A step's subject is "<run id>:<step>"; a page's is what it read, named
+    /// by its file (the engine's `label`, #5560), never its id.
     private static func label(_ node: ActivityJobNode) -> String {
+        if let label = node.label, !label.isEmpty { return label }
         var subject = node.subject
         if let parent = node.parentId, subject.hasPrefix(parent + ":") {
             subject.removeFirst(parent.count + 1)

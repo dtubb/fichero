@@ -973,7 +973,9 @@ and node, not by job); a retry action for failed pages.
 - `activity.durable.lease-not-fail` — **[BROKEN]** (#5357) after a crash or quit, an
   interrupted job goes back to waiting and resumes; today every running, accepted **and paused**
   workflow run is flipped to `failed` on reopen (`workflows/activity.py:658-707`), although its
-  checkpoints are on disk (`workflows/checkpointer.py`).
+  checkpoints are on disk (`workflows/checkpointer.py`). Since #5555 the flip is on every open and says
+  so — "Interrupted: the engine stopped at HH:MM" — and the run offers to read its pages not done as a new
+  run (`compute.run.interrupted-on-start`); it is still not resumed in place.
 - `activity.durable.paused-stays-paused` — **[BROKEN]** (#5357) a paused job is still
   paused after relaunch. Holds for rows in the `jobs` table (`fichero-server/tests/unit/jobs/test_job_queue.py`). Broken for
   workflow runs: their rows are jobs now, but on reopen the run sweep still turns every running,
@@ -1176,6 +1178,27 @@ code path.
   and greenhouse gas, each measured, estimated or unknown, never invented. For a whole volume the
   same figures come from `source.onboard.routes-for-the-volume`; `compute.job.choose-where` is the
   chooser and cites this line.
+- `activity.run.account` — **[OK]** (#5555, #5498 ruling: Activity is the run's account) a run's status
+  and its row in Activity read one account (`workflows/run_account.py`): pages done, failed and left;
+  each failed page with its reason (and whether it was read twice); what a page is waiting for (a memory
+  wait says "Waiting: memory is tight: … needs about X GB, this Mac has about Y GB free"); the time left
+  at the run's own pace; the engine's and the model servers' peak memory (so far, while it runs);
+  interrupted, with when the engine stopped; and the offer "Read the N pages that failed". The run's
+  node in `GET /api/activity/jobs/{run}` counts its pages from it, and `GET /api/activity/jobs` lists a
+  running or failed run with it; the run's status (`/threads/{id}/status`) carries the same `account`.
+  Before, Activity read the run's saved timeline and showed a ten-page run as "running, total 0" while
+  only the status counted pages. The Activity row shows the failures, the wait, the estimate, the peak
+  memory and a *Read the N pages that failed* button (`compute.run.read-failed-again`).
+  Tests: `fichero-server/tests/unit/jobs/test_run_account_5555.py`; the row's words,
+  `ActivityTableTests` (Swift, `testActivityRunAccount_*`).
+- `activity.window.icons-names-info` — **[OK]** (#5560) every row of the table shows an SF Symbol for its kind
+  (a run, a step, a page, a model load, training, other work) beside its name and one for its state
+  (running, waiting, paused, failed, stopped, done) beside its state; a page is named by its file
+  (`SM_NPQ_C01_004.jpg`), from the `label` the engine's tree gives each page's node, never by its id (the id
+  stays in the details); double-click opens the row's run log and details, and an ⓘ (`info.circle`) button at
+  the far right of each row of a run opens the same. Tests: `fichero-server/tests/unit/jobs/test_run_account_5555.py`
+  (the page's `label`); `ActivityTableTests` (Swift, `testActivityWindowIcons_*`). Not covered: the drawn table
+  (no mounted-view harness).
 
 ### H. Workflow runs: efficiency
 

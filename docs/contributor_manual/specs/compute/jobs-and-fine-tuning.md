@@ -316,9 +316,11 @@ What the memory check does for a local model's load (#5537), each pinned in
 - `compute.memory.decided-before-start` — **[OK]** (#5537) the wait and the refusal are decided
   before the model server starts, so a refusal costs no start (it was ~50 s a page). A model already
   loaded is not checked again.
-- `compute.memory.run-peak` — **[PARTIAL]** (#5537) a run's account (`run_usage`, in the run's status)
+- `compute.memory.run-peak` — **[PARTIAL]** (#5537, #5555) a run's account (`run_usage`, in the run's status)
   carries the engine's and the model servers' peak memory (physical footprint, sampled each second).
-  Not yet shown in Activity's run row, nor stated before Start (rule 8).
+  Since #5555 the run's account (`activity.run.account`) carries the peaks, the peaks so far while the
+  run runs, and Activity's run row shows them
+  (`fichero-server/tests/unit/jobs/test_run_account_5555.py`). Not yet stated before Start (rule 8).
 
 ### Publishing
 
@@ -427,6 +429,35 @@ All [GAP]: designed, not built.
 - `compute.job.own-projects-own-allocation` — **[GAP]** (#5458) Fichero runs only the person's own
   projects on their own allocation; it never runs work for other people from one person's
   allocation, and the docs say how someone else sets up their own. (Ruled 2026-10-04.)
+
+### A run on this Mac: stopped, failed pages, reading them again (#5555)
+
+Found on the 8 GB Air (2026-10-06): after an engine restart a ten-page run said "running" for good; three
+pages failed while a model loaded and nobody read them again. Each pinned in
+`fichero-server/tests/unit/jobs/test_run_account_5555.py` through the execute route, the run's status, Activity's
+routes and a project opened through the database manager.
+
+- `compute.run.interrupted-on-start` — **[OK]** (#5555) when the engine opens a project, every run it did not
+  finish (running, waiting to start or paused, with no worker in this engine) is marked interrupted: its
+  record and its row in Activity say "Interrupted: the engine stopped at HH:MM, before this run finished",
+  the time being the last work the run recorded (its pages' rows), in this Mac's time. Its checkpoint is
+  kept, so its account still counts the pages done and left, and it offers "Read the N pages not done"
+  (`compute.run.read-failed-again`). This is done on every open, not left to the activity tracker's sweep,
+  which was skipped whenever the tracker was first made off an event loop: the ghost run. Stored jobs go
+  back to waiting and carry on, as before (`activity.durable.poison-item`); a recipe run carries on and
+  skips the pages its steps already did. Not built: the interrupted run is not resumed in place from its
+  checkpoint (`activity.durable.lease-not-fail`); its pages not done are read by a new run.
+- `compute.run.retry-passing-cause-once` — **[OK]** (#5555) a page that fails for a passing cause — its model
+  server still loading, starting or not ready, a memory wait that ran out, a dropped connection — is read
+  once more, 10 s later, before it counts as failed (`workflows/page_retry.py`). Never for a cause another
+  try cannot change (a model too big for this Mac, not installed, a refusal). A second failure is the
+  page's failure, with its reason, and the page is marked "retried"; the run's account counts the pages
+  read again.
+- `compute.run.read-failed-again` — **[OK]** (#5555) when a run ends with pages failed (or, interrupted, with
+  pages not done), its account offers "Read the 3 pages that failed" (or "Read the 4 pages not done") as one
+  action: `POST /api/workflow-execution/threads/{id}/read-again` starts one new run of the same workflow,
+  with the same model, over those pages only. It is in the generated MCP tools and command line, and on
+  the run's row in Activity. A run still going, or one that did every page, refuses (409).
 
 ### Engines
 

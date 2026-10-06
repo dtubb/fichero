@@ -550,6 +550,19 @@ extension ActivityStore {
         }
     }
 
+    /// Read the pages a finished run did not do (#5555): the engine starts one
+    /// new run; the run list picks it up on the next resync. Returns what went
+    /// wrong, in words, or nil.
+    func readPagesAgain(runThreadId: String) async -> String? {
+        do {
+            _ = try await activityService.readPagesAgain(threadId: runThreadId)
+            await resync()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     private func scheduleTreeRead(threadId: String) {
         pendingTreeReads[threadId]?.cancel()
         pendingTreeReads[threadId] = Task { [weak self] in

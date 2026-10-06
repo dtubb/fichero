@@ -8,6 +8,7 @@ again. Driven through the public surface: real runs started with `POST /api/work
 read with the run's status, `GET /api/activity/jobs` and `GET /api/activity/jobs/{run}`, and a project
 opened through the database manager. Only the model is a stub (a cloud vision model answering from memory).
 """
+# ruff: noqa: F811 -- pytest fixtures imported from test_runs_are_jobs are named as test arguments
 from __future__ import annotations
 
 from datetime import timedelta
@@ -100,6 +101,18 @@ def test_activity_run_account__activity_counts_the_pages_the_status_counts(clien
     tree = _tree(client, run)
     assert (tree["done"], tree["total"], tree["failed"]) == (2, 3, 1)
     assert tree["account"] == account
+
+
+def test_activity_window_page_by_file_name__a_page_row_is_named_by_its_file(client, workflow, pages, cloud):
+    """#5560: Activity listed the pages being read by their long ids; a page's row carries its file name
+    (`label`), the id staying in `subject` for the details."""
+    run = _execute(client, workflow, pages)
+    assert _wait_for(lambda: _status(client, run) in ("completed", "failed"))
+    tree = _tree(client, run)
+    page_rows = [p for step in tree["children"] for p in step["children"]]
+    assert sorted(p["label"] for p in page_rows) == ["p0.png", "p1.png", "p2.png"]
+    assert {p["subject"] for p in page_rows} == {p.id for p in pages}
+    assert tree["label"] is None and all(step["label"] is None for step in tree["children"])
 
 
 def test_compute_run_retry_once__a_page_failing_while_the_model_loads_is_read_again(

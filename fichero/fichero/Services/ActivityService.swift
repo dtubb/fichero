@@ -461,6 +461,27 @@ extension ActivityService {
 
     /// Stop one job and what is under it (the audited `job.cancel` action).
     /// Returns the job's state after the request.
+    /// Read the pages a finished run did not do (#5555, the account's offer):
+    /// one new run of the same workflow and model over those pages only.
+    /// Returns the new run's thread id.
+    func readPagesAgain(threadId: String) async throws -> String {
+        let response = try await client.api.readPagesAgainApiWorkflowExecutionThreadsThreadIdReadAgainPost(
+            path: .init(threadId: threadId)
+        )
+        switch response {
+        case .accepted(let accepted):
+            return try accepted.body.json.threadId
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw denial
+            }
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     func cancelJob(id: String) async throws -> String {
         let response = try await client.api.cancelJobApiActivityJobsJobIdCancelPost(path: .init(jobId: id))
         switch response {

@@ -312,6 +312,8 @@ struct ActivityJobNode: Identifiable, Equatable {
     let kind: String
     let name: String
     let subject: String
+    /// What a person calls it: a page's file name (#5560); `nil` for runs and steps.
+    let label: String?
     let model: String?
     var state: String
     let reason: String?
@@ -323,6 +325,8 @@ struct ActivityJobNode: Identifiable, Equatable {
     let tokens: Int
     /// `nil` unless every model call under it is priced (never a guess).
     let costUsd: Double?
+    /// A workflow run's account (#5555); `nil` on steps, pages and other jobs.
+    let account: ActivityRunAccount?
     var children: [ActivityJobNode]
 
     init(_ tree: Components.Schemas.JobTree) {
@@ -330,6 +334,7 @@ struct ActivityJobNode: Identifiable, Equatable {
         kind = tree.kind
         name = tree.name
         subject = tree.subject
+        label = tree.label
         model = tree.model
         state = tree.state
         reason = tree.reason
@@ -340,6 +345,7 @@ struct ActivityJobNode: Identifiable, Equatable {
         seconds = tree.seconds
         tokens = tree.tokens ?? 0
         costUsd = tree.costUsd
+        account = tree.account.map(ActivityRunAccount.init)
         children = (tree.children ?? []).map(ActivityJobNode.init)
     }
 
@@ -359,6 +365,82 @@ struct ActivityJobNode: Identifiable, Equatable {
             }
         }
         return nil
+    }
+}
+
+/// A workflow run's account (#5555, `activity.run.account`): the engine's one
+/// record of how the run went, which its status and Activity both show. The
+/// Activity row only words it; nothing here is counted again.
+struct ActivityRunAccount: Equatable {
+    struct Failure: Equatable {
+        let page: String
+        let reason: String
+        /// Failed for a passing cause, was read once more, and failed again.
+        let retried: Bool
+    }
+
+    let state: String
+    let pagesTotal: Int
+    let pagesDone: Int
+    let pagesFailed: Int
+    let pagesLeft: Int
+    let failures: [Failure]
+    let waitingReason: String?
+    let reason: String?
+    let interrupted: Bool
+    let estimateSecondsLeft: Double?
+    let enginePeakMemoryBytes: Int?
+    let modelServerPeakMemoryBytes: Int?
+    /// "Read the 3 pages that failed": the run's one action at its end.
+    let offerLabel: String?
+
+    init(_ account: Components.Schemas.RunAccount) {
+        state = account.state
+        pagesTotal = account.pagesTotal ?? 0
+        pagesDone = account.pagesDone ?? 0
+        pagesFailed = account.pagesFailed ?? 0
+        pagesLeft = account.pagesLeft ?? 0
+        failures = (account.failures ?? []).map {
+            Failure(page: $0.page, reason: $0.reason, retried: $0.retried ?? false)
+        }
+        waitingReason = account.waitingReason
+        reason = account.reason
+        interrupted = account.interrupted ?? false
+        estimateSecondsLeft = account.estimateSecondsLeft
+        enginePeakMemoryBytes = account.enginePeakMemoryBytes
+        modelServerPeakMemoryBytes = account.modelServerPeakMemoryBytes
+        offerLabel = account.offer?.label
+    }
+
+    /// Test/preview seam — construct without the generated schema.
+    init(
+        state: String,
+        pagesTotal: Int = 0,
+        pagesDone: Int = 0,
+        pagesFailed: Int = 0,
+        pagesLeft: Int = 0,
+        failures: [Failure] = [],
+        waitingReason: String? = nil,
+        reason: String? = nil,
+        interrupted: Bool = false,
+        estimateSecondsLeft: Double? = nil,
+        enginePeakMemoryBytes: Int? = nil,
+        modelServerPeakMemoryBytes: Int? = nil,
+        offerLabel: String? = nil
+    ) {
+        self.state = state
+        self.pagesTotal = pagesTotal
+        self.pagesDone = pagesDone
+        self.pagesFailed = pagesFailed
+        self.pagesLeft = pagesLeft
+        self.failures = failures
+        self.waitingReason = waitingReason
+        self.reason = reason
+        self.interrupted = interrupted
+        self.estimateSecondsLeft = estimateSecondsLeft
+        self.enginePeakMemoryBytes = enginePeakMemoryBytes
+        self.modelServerPeakMemoryBytes = modelServerPeakMemoryBytes
+        self.offerLabel = offerLabel
     }
 }
 

@@ -186,6 +186,9 @@ class JobTree(BaseModel):
     kind: str
     name: str
     subject: str
+    # What a person calls it (#5560): a page's file name (SM_NPQ_C01_004.jpg), not its id; null for a run
+    # or a step, and for work on no file.
+    label: Optional[str] = None
     model: Optional[str] = None
     state: str
     reason: Optional[str] = None

@@ -377,6 +377,22 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
 
     from fichero_server.llm.usage import aggregate_usage
 
+    # A page's row is named by its file (SM_NPQ_C01_004.jpg), never its id (#5560): a subject that is a
+    # document's id reads as that document's name, one that is a path as its last part.
+    leaf_subjects = [n["subject"] for n in nodes.values() if n["kind"] not in RUN_KINDS and n["subject"]]
+    names: dict[str, str] = {}
+    if leaf_subjects:
+        try:
+            names = dict(db.execute_fetchall(
+                f"SELECT id, name FROM documents WHERE id IN ({', '.join('?' for _ in leaf_subjects)})",
+                leaf_subjects))
+        except Exception:  # noqa: BLE001 -- a project without documents still has its tree
+            names = {}
+    for node in nodes.values():
+        subject = node["subject"] or ""
+        node["label"] = (names.get(subject) or (Path(subject).name if "/" in subject else None)
+                         if node["kind"] not in RUN_KINDS else None)
+
     now = utc_now()
 
     def roll(node: dict[str, Any]) -> list[dict[str, Any]]:

@@ -105,9 +105,14 @@ struct ActivityMonitorWindow: View {
             TableColumn("Model", value: \.modelKey) { row in Text(row.model ?? "").lineLimit(1) }
                 .width(min: 60, ideal: 120)
             TableColumn("") { row in
-                ActivityRowControls(row: row) { control in Task { await act(control, on: row) } }
+                ActivityRowControls(
+                    row: row,
+                    perform: { control in Task { await act(control, on: row) } },
+                    readAgain: { Task { await readPagesAgain(row) } },
+                    showDetails: { showDetails(for: row) }
+                )
             }
-            .width(min: 60, ideal: 70)
+            .width(min: 70, ideal: 110)
         } rows: {
             if groupByProject {
                 ForEach(sortedGroups) { group in
@@ -227,6 +232,19 @@ struct ActivityMonitorWindow: View {
         notice = failure.map { "Couldn't \(control.label.lowercased()) \(row.name): \($0)" }
     }
 
+    /// ⓘ on a row (#5560): opens the same log and details double-click opens.
+    private func showDetails(for row: ActivityMonitorRow) {
+        guard let run = run(owning: row.id) else { return }
+        openDetails(for: run)
+    }
+
+    /// The run's offer at its end (#5555): one new run over the pages it did not do.
+    private func readPagesAgain(_ row: ActivityMonitorRow) async {
+        guard let threadId = row.runThreadId, let store = library(for: row.libraryId)?.activityStore else { return }
+        let failure = await store.readPagesAgain(runThreadId: threadId)
+        notice = failure.map { "Couldn't read the pages of \(row.name) again: \($0)" }
+    }
+
     /// The ONE delete operation (#4960), routed per row's OWN library. Only
     /// run rows delete; a still-running run is SKIPPED by the engine, and the
     /// reader is told.
@@ -293,6 +311,10 @@ private struct ActivityNameCell: View {
 
     var body: some View {
         HStack(spacing: 5) {
+            // What kind of row it is (#5560): a run, a step, a page, a model load, training.
+            Image(systemName: row.kindSymbol)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(row.kindWord)
             if showsProject, let project = row.projectName, !project.isEmpty {
                 Text(project).foregroundStyle(.secondary)
                 Text("·").foregroundStyle(.tertiary)
@@ -309,25 +331,14 @@ private struct ActivityStateCell: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: symbol)
+            Image(systemName: row.phase.symbol)
                 .foregroundStyle(color)
                 .accessibilityHidden(true)
             Text(row.stateText)
                 .lineLimit(1)
                 .foregroundStyle(row.phase == .failed ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
         }
-        .help(row.stateText)
-    }
-
-    private var symbol: String {
-        switch row.phase {
-        case .running: "play.circle.fill"
-        case .waiting: "clock"
-        case .paused: "pause.circle.fill"
-        case .failed: "xmark.circle.fill"
-        case .cancelled: "stop.circle.fill"
-        case .done: "checkmark.circle.fill"
-        }
+        .help([row.stateText, row.accountDetail].compactMap { $0 }.joined(separator: "\n"))
     }
 
     private var color: Color {
@@ -354,13 +365,26 @@ private struct ActivityElapsedCell: View {
     }
 }
 
-/// Pause or Resume, and Stop, on a row that is still working.
+/// Pause or Resume, and Stop, on a row that is still working; on a finished
+/// run with pages it did not do, its one offer ("Read the 3 pages that failed").
 private struct ActivityRowControls: View {
     let row: ActivityMonitorRow
     let perform: (ActivityMonitorRow.Control) -> Void
+    let readAgain: () -> Void
+    let showDetails: () -> Void
 
     var body: some View {
         HStack(spacing: 4) {
+            if let offer = row.readAgainLabel {
+                Button(action: readAgain) {
+                    Label(offer, systemImage: "arrow.clockwise")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.borderless)
+                .help(offer)
+                .accessibilityLabel(offer)
+                .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).readAgain")
+            }
             ForEach(row.controls) { control in
                 Button {
                     perform(control)
@@ -372,6 +396,18 @@ private struct ActivityRowControls: View {
                 .help("\(control.label) \(row.name)")
                 .accessibilityLabel("\(control.label) \(row.name)")
                 .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).\(control == .stop ? "cancel" : control.rawValue)")
+            }
+            // Far right (#5560): the row's log and details, as double-click opens them.
+            Spacer(minLength: 0)
+            if row.opensDetails {
+                Button(action: showDetails) {
+                    Label("Show Details", systemImage: "info.circle")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.borderless)
+                .help("Show the log and details of \(row.name)")
+                .accessibilityLabel("Show details of \(row.name)")
+                .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).info")
             }
         }
     }

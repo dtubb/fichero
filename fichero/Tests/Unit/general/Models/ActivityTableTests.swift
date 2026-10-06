@@ -599,4 +599,173 @@ final class ActivityTableTests: XCTestCase {
         XCTAssertEqual(summary.heldBack, "Heavy work is held back: the Mac is on battery",
                        "the throttle's own reason wins over a waiting job's")
     }
+
+    // MARK: - activity.run.account (#5555): the run's row is its account
+
+    /// A run's node as `GET /api/activity/jobs/{run}` returns it since #5555: its
+    /// counts are its account's pages, and the account rides beside them
+    /// (shape: `fichero-server/tests/unit/jobs/test_run_account_5555.py`).
+    private static func accountTreeJSON(runState: String, reason: String?, account: String) -> Data {
+        let reasonJSON = reason.map { "\"\($0)\"" } ?? "null"
+        return Data("""
+        {
+          "id": "\(runId)", "kind": "workflow", "name": "Workflow run", "subject": "\(runId)",
+          "model": null, "state": "\(runState)", "reason": \(reasonJSON), "parent_id": null,
+          "done": 2, "total": 3, "failed": 1, "seconds": 61.5, "tokens": 0, "cost_usd": null,
+          "unpriced_models": [], "account": \(account), "children": []
+        }
+        """.utf8)
+    }
+
+    private static let failedRunAccount = """
+    {
+      "state": "done", "pages_total": 3, "pages_done": 2, "pages_failed": 1, "pages_left": 0,
+      "failures": [{"page": "p1.png", "document_id": "doc-1", "reason": "the provider refused this letter",
+                    "retried": true}],
+      "retried": 1, "waiting_reason": null, "reason": null, "interrupted": false,
+      "estimate_seconds_left": null, "engine_peak_memory_bytes": 2147483648,
+      "model_server_peak_memory_bytes": 3758096384,
+      "offer": {"action": "read-again", "pages": 1, "label": "Read the 1 page that failed"}
+    }
+    """
+
+    func testActivityRunAccount_aFinishedRunShowsItsFailuresPeakMemoryAndItsOffer() async throws {
+        // WHY: Activity showed a ten-page run as "running, total 0" with no
+        // counts and no reasons; the run's row is now its account, and a run
+        // with failed pages offers to read them as one action.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs/\(Self.runId)", method: "GET", status: 200,
+                 body: Self.accountTreeJSON(runState: "done", reason: nil, account: Self.failedRunAccount))
+        ])
+        let row = ActivityMonitorRow.run(Self.run(status: .completed, failureReason: nil),
+                                         tree: try await loadedTree(store))
+
+        XCTAssertEqual(row.progressText, "2 of 3", "the run counts its pages from its account")
+        XCTAssertEqual(row.errors, 1)
+        XCTAssertEqual(row.peakMemoryText, "Peak memory: engine 2.0 GB, model server 3.5 GB")
+        XCTAssertEqual(row.accountDetail,
+                       "p1.png: the provider refused this letter (read twice)\nPeak memory: engine 2.0 GB, model server 3.5 GB")
+        XCTAssertEqual(row.readAgainLabel, "Read the 1 page that failed")
+    }
+
+    func testActivityRunAccount_anInterruptedRunSaysWhenTheEngineStopped() async throws {
+        // WHY: after an engine restart a run said "running" for good; the
+        // engine now marks it interrupted, and the row says so in its words.
+        let why = "Interrupted: the engine stopped at 14:05, before this run finished"
+        let account = """
+        {"state": "interrupted", "pages_total": 10, "pages_done": 6, "pages_failed": 0, "pages_left": 4,
+         "failures": [], "retried": 0, "waiting_reason": null, "reason": "\(why)", "interrupted": true,
+         "estimate_seconds_left": null, "engine_peak_memory_bytes": null, "model_server_peak_memory_bytes": null,
+         "offer": {"action": "read-again", "pages": 4, "label": "Read the 4 pages not done"}}
+        """
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs/\(Self.runId)", method: "GET", status: 200,
+                 body: Self.accountTreeJSON(runState: "failed", reason: why, account: account))
+        ])
+        let row = ActivityMonitorRow.run(Self.run(status: .failed, failureReason: why), tree: try await loadedTree(store))
+
+        XCTAssertEqual(row.stateText, why, "not 'Failed: Interrupted: …'")
+        XCTAssertEqual(row.readAgainLabel, "Read the 4 pages not done")
+        XCTAssertNil(row.peakMemoryText, "a peak never measured is not shown")
+    }
+
+    func testActivityRunAccount_aRunningRunSaysWhatItWaitsForAndTheEnginesEstimate() {
+        // WHY: a page waiting for memory (#5537) looked like a stuck run; the
+        // row says what it waits for, and the estimate is the engine's.
+        let waiting = "Waiting: memory is tight: Qwen needs about 3.9 GB, this Mac has about 1.8 GB free"
+        let account = ActivityRunAccount(state: "running", pagesTotal: 4, pagesDone: 1, pagesLeft: 3,
+                                         waitingReason: waiting, estimateSecondsLeft: 180)
+        let row = ActivityMonitorRow(
+            id: "run", kind: .run, libraryId: nil, runRowID: "run", runThreadId: Self.runId, jobId: Self.runId,
+            name: "Read", projectName: nil, phase: .running, reason: nil, workingOn: "Transcribe",
+            done: 1, total: 4, started: nil, seconds: 60, costUsd: nil, tokens: 0, errors: 0, model: nil,
+            isLive: true, children: nil, account: account
+        )
+        XCTAssertEqual(row.stateText, waiting)
+        XCTAssertEqual(row.remainingSeconds, 180)
+        XCTAssertEqual(row.progressText, "1 of 4, \(ActivityMonitorRow.duration(180)) left")
+        XCTAssertNil(row.readAgainLabel, "a run still going offers nothing to read again")
+    }
+
+    // MARK: - #5560: icons, pages by file name, ⓘ
+
+    func testActivityWindowIcons_aPageIsNamedByItsFileAndEachRowHasKindAndStateIcons() async throws {
+        // WHY: the maintainer watched pages listed as long ids, with no icon to
+        // tell a run from a page or a failure from a wait.
+        let pageId = "4d2286cef90f41819cea3295d7c7197a"
+        let tree = Data("""
+        {
+          "id": "\(Self.runId)", "kind": "workflow", "name": "Workflow run", "subject": "\(Self.runId)",
+          "label": null, "model": null, "state": "running", "reason": null, "parent_id": null,
+          "done": 0, "total": 1, "failed": 0, "seconds": 3.0, "tokens": 0, "cost_usd": null,
+          "unpriced_models": [], "account": null,
+          "children": [
+            {
+              "id": "\(Self.runId):Transcribe", "kind": "workflow-step", "name": "Step",
+              "subject": "\(Self.runId):Transcribe", "label": null, "model": null, "state": "running",
+              "reason": null, "parent_id": "\(Self.runId)", "done": 0, "total": 1, "failed": 0, "seconds": 3.0,
+              "tokens": 0, "cost_usd": null, "unpriced_models": [],
+              "children": [
+                {
+                  "id": "page-row", "kind": "read-a-page", "name": "read-a-page", "subject": "\(pageId)",
+                  "label": "SM_NPQ_C01_004.jpg", "model": "mlx:qwen", "state": "waiting",
+                  "reason": "Waiting: memory is tight", "parent_id": "\(Self.runId):Transcribe",
+                  "done": 0, "total": 1, "failed": 0, "seconds": null, "tokens": 0, "cost_usd": null,
+                  "unpriced_models": [], "children": []
+                }
+              ]
+            }
+          ]
+        }
+        """.utf8)
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs/\(Self.runId)", method: "GET", status: 200, body: tree)
+        ])
+        let row = ActivityMonitorRow.run(Self.run(status: .running, failureReason: nil), tree: try await loadedTree(store))
+        let step = try XCTUnwrap(row.children?.first)
+        let page = try XCTUnwrap(step.children?.first)
+
+        XCTAssertEqual(page.name, "SM_NPQ_C01_004.jpg", "a page is named by its file, never its id")
+        XCTAssertEqual([row.kindSymbol, step.kindSymbol, page.kindSymbol], ["flowchart", "list.bullet.indent", "doc.text"])
+        XCTAssertEqual([row.kindWord, step.kindWord, page.kindWord], ["Run", "Step", "Page"])
+        XCTAssertEqual(page.phase.symbol, "clock")
+        XCTAssertEqual(ActivityMonitorRow.Phase.failed.symbol, "xmark.circle.fill")
+        XCTAssertEqual(ActivityMonitorRow.Phase.done.symbol, "checkmark.circle.fill")
+        XCTAssertTrue(row.opensDetails && page.opensDetails, "ⓘ on every row of a run opens the run's log")
+    }
+
+    func testActivityWindowIcons_trainingAndAModelLoadHaveTheirOwnIcons() {
+        let training = ActivityMonitorRow.job(
+            ActivityJob(id: "t", taskType: "train-a-model", name: "Train a model", state: .running),
+            libraryId: Self.libraryId, projectName: nil)
+        let download = ActivityMonitorRow.job(
+            ActivityJob(id: "d", taskType: "model-download", name: "Download a model", state: .running),
+            libraryId: Self.libraryId, projectName: nil)
+        XCTAssertEqual(training.kindSymbol, "graduationcap")
+        XCTAssertEqual(download.kindSymbol, "arrow.down.circle")
+        XCTAssertFalse(training.opensDetails, "a job of its own has no run log for ⓘ to open")
+    }
+
+    func testActivityRunAccount_readTheFailedPagesAgainIsOneCallToTheEngine() async throws {
+        // WHY: failed pages had to be found and re-run by hand; the offer is
+        // one action, the engine's `read-again` route.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/workflow-execution/threads/\(Self.runId)/read-again", method: "POST", status: 202,
+                 body: Data("""
+                 {"thread_id": "thread-new", "from_thread_id": "\(Self.runId)", "workflow_id": "wf",
+                  "workflow_name": "Read", "pages": 1, "stream_url": "https://127.0.0.1:8765/api/x"}
+                 """.utf8))
+        ])
+
+        let failure = await store.readPagesAgain(runThreadId: Self.runId)
+
+        XCTAssertNil(failure)
+        let request = try XCTUnwrap(MockTransportURLProtocol.recorded().last)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/api/workflow-execution/threads/\(Self.runId)/read-again")
+    }
 }
