@@ -278,7 +278,7 @@ The Activity window (`ActivityMonitorWindow.swift`) becomes a SwiftUI `Table` wi
   history.
 - **Selecting a row** shows its detail: one view for a run, a step, a page or a job, read from the
   row's own job record, with its log under it ("The details view (#5561)" below). The five tabs
-  of today's `ActivityDetailView` go.
+  of the old `ActivityDetailView` are gone (#5561).
 - The **toolbar status island** stays as the summary ("Reading 212 of 400 · 3 waiting"), reading
   the same store. Its **popover is a summary, not a list** (ruled 2026-10-04): what is running, what
   is waiting and the main reason, the last three errors, and the Mac's state (memory pressure,
@@ -689,7 +689,7 @@ workflow by hand: a hand run is a job like any other.
 
 ### The details view (#5561)
 
-**What is there today (verified 2026-10-06, read-only).** Double-clicking a row in the Activity
+**What was there before #5561 (verified 2026-10-06, read-only; replaced by the one view below, the files named here are deleted).** Double-clicking a row in the Activity
 table, or pressing its ⓘ button (#5560), opens the Activity Details window
 (`Views/Activity/Window/ActivityDetailWindow.swift`), which mounts `ActivityDetailView`
 (`Views/Activity/Detail/ActivityDetailView.swift`); the same view is mounted in the Preview pane
@@ -807,48 +807,48 @@ run's peak memory on the run node (it lives only in `run_usage`); `started_by`; 
 id (the run log is one `execution_log` string per run, and activity events are keyed by thread
 and node, not by job); a retry action for failed pages.
 
-- `activity.details.one-view` — **[GAP]** (#5561) the details of a selected row, whether a run,
+- `activity.details.one-view` — **[OK]** (#5561) the details of a selected row, whether a run,
   a step, a page or a job of its own, is one scrolling view with no tabs or sections to choose
-  between; the Overview, Console, Progress, Trace and Log sections are gone.
-- `activity.details.one-record` — **[GAP]** (#5561) everything the view shows is read from the
+  between; the Overview, Console, Progress, Trace and Log sections are gone. Built: `Views/Activity/Detail/ActivityDetailsView.swift`; the five sections' files are deleted (pinned: `ActivityWindowSelectionStateTests`).
+- `activity.details.one-record` — **[OK]** (#5561) everything the view shows is read from the
   row's own node of `GET /api/activity/jobs/{id}` and one filtered log read, never from a live
   `WorkflowExecution`, a persisted `WorkflowRunResponse` and the activity events side by side; the
-  Errors, Progress, Cost and Model figures it shows equal the table row's.
-- `activity.details.heading-names-not-ids` — **[GAP]** (#5561) the heading says what the row is,
+  Errors, Progress, Cost and Model figures it shows equal the table row's. Built: `ActivityDetails` words the table's own row for the job (pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`).
+- `activity.details.heading-names-not-ids` — **[PARTIAL]** (#5561) the heading says what the row is,
   on which file or page by its display name, with which model and started by whom; no thread id,
-  node id or upload temp name appears anywhere on the view.
-- `activity.details.state-says-why` — **[GAP]** (#5561) the state line uses the table's State
+  node id or upload temp name appears anywhere on the view. Built for runs, steps and pages read by a lane (pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`, `fichero-server/tests/unit/jobs/test_activity_details_5561.py`). Left: a model call a text step makes names no page (its caller passes none; the file being read is known only in `workflows/builder.py`), so its row says its kind, not the page.
+- `activity.details.state-says-why` — **[OK]** (#5561) the state line uses the table's State
   column words and adds the reason: a failed row its recorded cause, a waiting row the throttle's
-  reason with the Mac reading it rests on, a running row what it is working on now.
-- `activity.details.progress-counts` — **[GAP]** (#5561, #5555) a row with pages shows pages
+  reason with the Mac reading it rests on, a running row what it is working on now. Built: the State column's words (`ActivityMonitorRow.stateText(phase:…)`), and a waiting row adds the Mac's reading (pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`).
+- `activity.details.progress-counts` — **[OK]** (#5561, #5555) a row with pages shows pages
   done, failed and left with the time left at the pace so far; a row with no pages shows no counts
-  rather than "0 of 0".
-- `activity.details.failed-pages-by-name` — **[GAP]** (#5561, #5555) the failed pages under the
+  rather than "0 of 0". Pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`.
+- `activity.details.failed-pages-by-name` — **[OK]** (#5561, #5555) the failed pages under the
   row are listed by display name, each with its own reason, and *Read the N pages that failed
-  again* enqueues only those pages and nothing else.
-- `activity.details.log-filtered-newest-last` — **[GAP]** (#5561) the log shows only the lines the
+  again* enqueues only those pages and nothing else. Pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`; the retry is the run's `read-again` (#5555).
+- `activity.details.log-filtered-newest-last` — **[OK]** (#5561) the log shows only the lines the
   engine wrote for this row and the rows under it, newest last, following the end while the row
-  runs, and copies as plain text with one command.
-- `activity.details.resources` — **[GAP]** (#5561, #5555, #5537) the view shows started at and
+  runs, and copies as plain text with one command. Built: `GET /api/activity/jobs/{id}/log` (pinned: `fichero-server/tests/unit/jobs/test_activity_details_5561.py`, `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`).
+- `activity.details.resources` — **[OK]** (#5561, #5555, #5537) the view shows started at and
   finished at as absolute times, elapsed, tokens and cost as the table does, and the engine's and
   model servers' peak memory during the run; a figure the engine did not measure is omitted, never
-  shown as zero or as now.
-- `activity.details.actions-are-the-rows` — **[GAP]** (#5561) Pause, Resume and Stop on the view
+  shown as zero or as now. Pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`.
+- `activity.details.actions-are-the-rows` — **[OK]** (#5561) Pause, Resume and Stop on the view
   are the same job routes the row's buttons call, and an action that does not apply to this row's
-  kind or state is absent.
-- `activity.details.open-in-the-app` — **[GAP]** (#5561, #5560) a page row offers *Open the page*
-  and a step or run row *Show the pages*, which select those documents in the Library window.
-- `activity.details.follows-the-row` — **[GAP]** (#5561) the view follows the selected row: it
+  kind or state is absent. Pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`.
+- `activity.details.open-in-the-app` — **[PARTIAL]** (#5561, #5560) a page row offers *Open the page*
+  and a step or run row *Show the pages*, which select those documents in the Library window. Built: *Open the page* (`UIVerbs.openNode`) and *Show the pages* (`UIVerbs.selectNodes`); their presence is pinned, the Library's selection after them is not.
+- `activity.details.follows-the-row` — **[OK]** (#5561) the view follows the selected row: it
   changes when another row is selected, updates when the table's tree re-read updates that row,
-  and opens no stream, poll or fetch of its own beyond the log read.
-- `activity.details.one-mount` — **[GAP]** (#5561, #5560) the ⓘ button, double-click, the detail
+  and opens no stream, poll or fetch of its own beyond the log read. Pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift` (a tree re-read on the change stream updates the same selection; no other read).
+- `activity.details.one-mount` — **[OK]** (#5561, #5560) the ⓘ button, double-click, the detail
   below the table, the Preview pane of the `.activity` mode and the compact stack all mount this
-  one view for the row's job id and library, and a job of its own has details like any run.
-- `activity.details.engine-carries-what-it-shows` — **[GAP]** (#5561) every node of
+  one view for the row's job id and library, and a job of its own has details like any run. Built: the details window, the detail below the table, the Preview pane, the compact stack, and the Reader (its log alone); a job of its own has details (pinned: `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`, `ActivityTableTests`).
+- `activity.details.engine-carries-what-it-shows` — **[OK]** (#5561) every node of
   `GET /api/activity/jobs/{id}` carries `started_at`, `finished_at`, `working_on`, `started_by`,
   the page's document id and display name, and the run node its peak memory; the engine serves a
   log filtered by job id and a retry action for a row's failed pages; the view adds nothing the
-  engine does not record.
+  engine does not record. Pinned: `fichero-server/tests/unit/jobs/test_activity_details_5561.py`; the run node's peak memory rides on its `account` (#5537), the retry is `read-again`.
 
 ### C. Pause and start
 
