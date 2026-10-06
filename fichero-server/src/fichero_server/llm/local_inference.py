@@ -810,7 +810,7 @@ class ManagedLocalInferenceProcess:
         if self._process is None:
             return False
         if self._process.returncode is None:
-            if _pid_alive(getattr(self._process, "pid", None)):
+            if self._handle_hears_its_exit() or _pid_alive(getattr(self._process, "pid", None)):
                 return True
             # Gone, but its handle never heard (#5537): the run whose loop started it has ended, so
             # nothing sets the return code; the pid says it.
@@ -818,6 +818,16 @@ class ManagedLocalInferenceProcess:
         self._update_last_error()
         self._log_exit()
         return False
+
+    def _handle_hears_its_exit(self) -> bool:
+        """Whether the handle's own loop is this one and still open: its return code then arrives
+        with its output drained, and a pid gone a moment early is not read as the exit."""
+        owner = getattr(self._process, "_loop", None)
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        return owner is not None and owner is running and not owner.is_closed()
 
     def _log_exit(self) -> None:
         """Write the server's last output to the engine log, once per process, when it is found to
