@@ -574,15 +574,6 @@ def convert_project(
     """
     library_path = Path(library_path)
 
-    # A STOP BEFORE THE START IS A STOP (#5562). The library is closing or the engine is
-    # shutting down: no snapshot, no report, nothing written; the next open starts afresh.
-    # Without this, a stop that arrived during the open-time steps before the conversion
-    # still went on to snapshot a project whose jobs were being stopped and whose connection
-    # was about to close -- which is how a refusal came to be logged at engine SHUTDOWN.
-    if should_stop is not None and should_stop():
-        logger.info("project conversion not started: the library is closing")
-        return None
-
     # The lock FIRST, before the snapshot: a second runner must not take a
     # snapshot of a project the first one is already converting.
     held = running_conversion(db)

@@ -1056,13 +1056,12 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   transcripts, a box set measured on a crop), converts: `test_every_legacy_shape_converts.py`.
   Opening the real engine converts nothing in the test suite (`FICHERO_SKIP_PROJECT_CONVERSION`).
   **A close or shutdown before the conversion has begun is a stop, not a start** (→ #5562): a
-  stop that arrives during the open-time steps (box origins, line readings) or before the lock
-  takes no snapshot and writes nothing; the next open starts it. It used to fall through to the
-  snapshot anyway, so Marshall's refusal was logged at engine SHUTDOWN, snapshotting a project
-  whose jobs were being stopped and whose connection was about to close. It still runs at open
-  (20 s after, in the background); only a run already past its snapshot stops at a page boundary.
-  Pinned by `test_conversion_snapshot_reads_back.py::test_a_stop_before_the_start_takes_no_snapshot_and_writes_nothing`
-  and `::test_closing_during_the_open_time_steps_takes_no_snapshot`.
+  stop that arrives during the open-time steps (box origins, line readings) takes no snapshot and
+  writes nothing; the next open starts it. It used to fall through to the snapshot anyway, so
+  Marshall's refusal was logged at engine SHUTDOWN, snapshotting a project whose jobs were being
+  stopped and whose connection was about to close. It still runs at open (20 s after, in the
+  background); a run that has reached `convert_project` stops at a page boundary as before.
+  Pinned by `test_conversion_snapshot_reads_back.py::test_closing_during_the_open_time_steps_takes_no_snapshot`.
 - `source.convert.converting-is-not-a-persons-work` — **[OK]** (→ #5222, #5081) a page the ENGINE
   converted is still the machine's to write: a later tool run still writes its text into the page's
   stored text (search, embeddings, the Reader), exactly as before the conversion. Only a person's

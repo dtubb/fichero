@@ -215,19 +215,10 @@ def test_a_writer_that_never_stops_refuses_by_name_and_converts_nothing(project,
     assert not any(db.query(Segment, document_id=d.id) for d in docs)
 
 
-def test_a_stop_before_the_start_takes_no_snapshot_and_writes_nothing(project):
-    """A library closing (or the engine shutting down) before the conversion began does not
-    snapshot it on the way out -- Marshall's refusal was logged at SHUTDOWN."""
-    db, package, _docs = project
-
-    assert pc.convert_project(db, package, should_stop=lambda: True) is None
-    assert db.query(ConversionRun) == []
-    assert storage_snapshots.list_snapshots() == []
-
-
 def test_closing_during_the_open_time_steps_takes_no_snapshot(project, monkeypatch):
     """Through the open path: the stop arrives while the steps before the conversion run; the
-    runner returns without snapshotting, so nothing happens at shutdown."""
+    runner returns without snapshotting, so nothing happens at shutdown. (Marshall's refusal was
+    logged at SHUTDOWN: the stop was ignored here and the snapshot taken on the way out.)"""
     db, package, _docs = project
     monkeypatch.setenv("FICHERO_CONVERSION_START_DELAY_SECONDS", "0")
     monkeypatch.delenv("FICHERO_SKIP_PROJECT_CONVERSION", raising=False)
