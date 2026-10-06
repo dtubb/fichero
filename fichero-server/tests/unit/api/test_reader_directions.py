@@ -204,6 +204,9 @@ def test_undoing_the_direction_puts_the_reader_back_at_once(db, client):
 # the scroll to the top -- what a browser may do when the focused element leaves the page and the
 # caret is put back -- so a kept scroll is kept by the page, not by the stand-in.
 _FAKE_DOM = r"""
+// refreshPage redraws the region rules (#5426) after a patch; they are pinned by test_reader_region_rules.py,
+// and this fake DOM has no layout to measure them in, so here that call does nothing.
+function applyRegionRules() {}
 const scroller = { scrollTop: 0 };
 const textOf = (html) => html.replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
