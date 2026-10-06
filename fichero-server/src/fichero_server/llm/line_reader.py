@@ -26,6 +26,9 @@ from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, 
 logger = logging.getLogger(__name__)
 
 LINES_PER_CALL = 8
+#: Calls one page asks at once. A model this engine serves is bounded again, across every page and
+#: run, by what its memory allows (`llm.model_call_slot`, `local_inference.local_reads_at_once`:
+#: one at a time for a 3B on an 8 GB Mac, #5537); a cloud model keeps these four.
 CONCURRENT_CALLS = 4
 _MAX_CROP_WIDTH = 1600
 #: What one line's reading may spend (#5534). A line of handwriting is a few dozen words; the

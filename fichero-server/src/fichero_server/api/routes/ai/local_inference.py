@@ -271,6 +271,12 @@ async def manager_serving(model_id: str) -> LocalInferenceServiceManager:
     return manager
 
 
+def engine_started_servers() -> list:
+    """The processes of the model servers this engine started (running or not): what a request that
+    failed mid-read looks at to tell whether its server died (#5537)."""
+    return [m.process for m in list(_MANAGERS.values()) if m.profile.managed_by_app]
+
+
 def model_server_pids() -> list[int]:
     """The process ids of the model servers this engine started that are running now (#5537: the
     run's peak memory counts them)."""
