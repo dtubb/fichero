@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence
 from urllib.parse import ParseResult, urlparse
 
+from fichero_server.db.paths import server_state_dir
+
 if TYPE_CHECKING:
     # cryptography is heavy (~30ms of engine import time) and is only needed by
     # the TLS-material helpers below, which run when remote sharing is set up at
@@ -30,7 +32,8 @@ if TYPE_CHECKING:
     from cryptography import x509
 
 DEFAULT_BIND_PORT = 8765
-DEFAULT_STORAGE_ROOT = Path.home() / "Library/Application Support/Fichero/Remote Access"
+# Under the one engine state root (#5530): ~/Library/Application Support/Fichero in the app.
+DEFAULT_STORAGE_ROOT = server_state_dir() / "Remote Access"
 _MAX_CERT_AGE = timedelta(days=3650)
 
 

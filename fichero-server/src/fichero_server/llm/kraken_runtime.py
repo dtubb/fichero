@@ -74,7 +74,7 @@ import threading
 from pathlib import Path
 from typing import Callable, TypeVar
 
-from fichero_server.db.paths import server_state_dir
+from fichero_server.db.paths import model_store_root
 from fichero_server.media.ocr_geometry import (
     OCRGeometryBox,
     OCRGeometryLevel,
@@ -148,7 +148,7 @@ def _kraken_data_dir(home: Path | None = None) -> Path:
     override = os.environ.get("FICHERO_KRAKEN_DATA_DIR")
     if override:
         return Path(override).expanduser()
-    return server_state_dir(home) / _MODEL_DATA_DIRNAME
+    return model_store_root(home) / _MODEL_DATA_DIRNAME
 
 
 def recognition_model_dir(home: Path | None = None) -> Path:

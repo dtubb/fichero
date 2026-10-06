@@ -483,6 +483,22 @@ def pytest_runtest_teardown(item, nextitem):  # noqa: ARG001
 
 
 @pytest.fixture(autouse=True)
+def _no_real_state_touched():
+    """Fail the test that reached the maintainer's real Fichero state (#5530).
+
+    The guard already refused the open or write at the call; this catches the test whose code
+    swallowed that refusal (an `except Exception` that logs and carries on) so it still fails,
+    named. Autouse and first-instantiated, so it is torn down after the test's other fixtures and
+    sees their teardown writes too. Each message names the test that was running at the call."""
+    from tests._real_state_guard import drain
+
+    yield
+    touched = drain()
+    if touched:
+        pytest.fail("touched the real Fichero state:\n" + "\n".join(touched), pytrace=False)
+
+
+@pytest.fixture(autouse=True)
 def _reclaim_tmp_path_after_test(request, tmp_path):
     """Reclaim tmp_path on pass, retain (bounded) on failure — every suite.
 
@@ -530,6 +546,23 @@ os.environ.setdefault("FICHERO_BASE_PATH", str(_test_base))
 # Normal-exit cleanup. Cannot fire on SIGKILL, which is why the startup sweep
 # above exists as the durable half rather than the belt-and-braces one.
 _atexit.register(_shutil.rmtree, _test_base, True)
+# #5530: every engine-owned path (global.fichero, app.duckdb, the model stores, job dirs) derives
+# from FICHERO_BASE_PATH, so the model stores are temp too -- never inherit a harness's override.
+os.environ.pop("FICHERO_MODEL_STORE_ROOT", None)
+# The bootstrap token files too: `.api-key` and the sandboxed app's container copy are not under the
+# base (the app reads them where it always has), and `_ensure_bootstrap_token_written` rewrote the
+# RUNNING app's container `.api-key` from a security test (found by the guard below, #5530). Set,
+# not setdefault: a dev shell's own token dir is exactly what a test must not write.
+os.environ["FICHERO_TOKEN_DIR"] = str(_pathlib.Path(os.environ["FICHERO_BASE_PATH"]) / "tokens")
+# ...and a test that still reaches the maintainer's real Fichero state fails, named, before
+# it touches anything. The one read allowed is the pinned embedding model (see the helper).
+from tests._real_state_guard import (  # noqa: E402
+    install as _install_real_state_guard,
+    share_real_embedding_cache as _share_real_embedding_cache,
+)
+
+_share_real_embedding_cache(_pathlib.Path(os.environ["FICHERO_BASE_PATH"]) / "models")
+_install_real_state_guard()
 
 from fichero_server.api.main import app  # noqa: E402
 # The library dependencies the routes were built with, taken with `app` (#5407). A test that

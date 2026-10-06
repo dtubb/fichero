@@ -333,6 +333,11 @@ def main() -> int:
     env = dict(os.environ)
     env.update({
         "FICHERO_BASE_PATH": str(tmp),
+        # The REAL local models this Mac has: the model stores follow the base path unless told
+        # otherwise (#5530), and this run is about the real models.
+        "FICHERO_MODEL_STORE_ROOT": env.get(
+            "FICHERO_MODEL_STORE_ROOT", str(Path.home() / "Library" / "Application Support" / "Fichero")
+        ),
         "FICHERO_MULTIUSER": "0",
         # The workflow + workflow-execution API prefixes are beta-tier
         # (feature_tiers_generated.py); the default release tier would 404 them.

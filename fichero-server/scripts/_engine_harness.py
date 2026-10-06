@@ -53,6 +53,11 @@ def _child_env(*, base_path: str, token: str, uds_path: str | None = None) -> di
     env["PYTHONPATH"] = f"{src}:{existing}" if existing else src
     env["FICHERO_MULTIUSER"] = "0"
     env["FICHERO_BASE_PATH"] = base_path
+    # The model stores follow the base path unless told otherwise (#5530); a probe engine keeps
+    # using the models this Mac already has, as it did before.
+    env.setdefault(
+        "FICHERO_MODEL_STORE_ROOT", str(Path.home() / "Library" / "Application Support" / "Fichero")
+    )
     # CRITICAL: token adoption WRITES .api-key. Without an isolated token
     # dir a probe engine rewrites the USER'S container key and every live
     # app session starts failing sign-in (the 2026-08-24 pathology —

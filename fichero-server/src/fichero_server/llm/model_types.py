@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from importlib import resources as importlib_resources
 from pathlib import Path
 from typing import Any
@@ -31,9 +30,9 @@ _REGISTRY_MAX_AGE_SECONDS = 7 * 24 * 3600
 
 
 def _cached_registry_path() -> Path:
-    base = os.environ.get("FICHERO_BASE_PATH", "").strip()
-    root = Path(base) if base else Path.home() / "Library" / "Application Support" / "Fichero"
-    return root / "model_prices.json"
+    from fichero_server.db.paths import server_state_dir
+
+    return server_state_dir() / "model_prices.json"
 
 
 def _refresh_registry_cache(cache: Path) -> bool:

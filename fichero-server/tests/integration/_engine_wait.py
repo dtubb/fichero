@@ -76,7 +76,7 @@ def _wait_healthy(base_url: str, process: subprocess.Popen) -> str | None:
     return wait_for_engine(healthy, process)
 
 
-def _share_real_model_cache(workdir: Path) -> None:
+def _share_real_model_cache(workdir: Path) -> Path:
     """Point the spawned engine's fake HOME at the REAL model cache (#4434).
 
     The fixture redirects HOME into the workdir (necessary — startup library
@@ -88,10 +88,14 @@ def _share_real_model_cache(workdir: Path) -> None:
     teardown reclaims it. The models tree is a shared CACHE, not library
     data — the harness's isolation rule protects Daniel's library, and this
     shares only what a real engine on this machine would populate anyway.
+
+    Returns the model-store root to give the engine as ``FICHERO_MODEL_STORE_ROOT``: the model
+    stores follow ``FICHERO_BASE_PATH`` unless told otherwise (#5530), so the engine is pointed
+    back at this fake home's store, where the link is.
     """
-    real_models = Path.home() / "Library" / "Application Support" / "Fichero" / "models"
-    if not real_models.is_dir():
-        return
     fake_fichero = workdir / "Library" / "Application Support" / "Fichero"
     fake_fichero.mkdir(parents=True, exist_ok=True)
-    (fake_fichero / "models").symlink_to(real_models)
+    real_models = Path.home() / "Library" / "Application Support" / "Fichero" / "models"
+    if real_models.is_dir():
+        (fake_fichero / "models").symlink_to(real_models)
+    return fake_fichero

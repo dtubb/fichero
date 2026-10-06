@@ -49,7 +49,7 @@ from fichero_server.security.path_security import (
     resolve_under_allowed_roots,
 )
 from fichero_server.core.perf import perf_span
-from fichero_server.db.paths import server_state_dir
+from fichero_server.db.paths import default_server_state_dir
 # Transparency -> WHITE, in one place for the whole engine. Imports no
 # PIL at module scope, so storage.py's lazy _load_pil() still holds.
 from fichero_server.media.image_flatten import flatten_for_opaque_format
@@ -143,7 +143,7 @@ class StorageSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="FICHERO_")
 
     # Base path - can be overridden for testing
-    base_path: Path = server_state_dir()
+    base_path: Path = default_server_state_dir()
 
     # Thumbnail settings
     thumb_width: int = THUMBNAIL_MAX_DIMENSION

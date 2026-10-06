@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero_server.llm import LLMConfig, audio_transcription
-from fichero_server.db.paths import server_state_dir
+from fichero_server.db.paths import model_store_root
 from fichero_server.llm.whisper_runtime import transcribe_sync
 
 from fichero_server.workflows.types import PortDef, DataType
@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 # Stable storage for local models (not ~/.cache which gets auto-cleaned).
 # The ONE shared models folder shared with embeddings/spaCy/etc. (#2269) — never
 # a per-library, scattered, or stale-bundle-id path. Canonical: local_models.py.
-MODELS_BASE = server_state_dir() / "models"
+MODELS_BASE = model_store_root() / "models"
 
 # The process-global Whisper model cache is gone with the in-process torch
 # model: mlx-whisper runs in the managed runtime venv as a subprocess, so
@@ -136,7 +136,7 @@ def transcribe_with_whisper_sync(
     openai-whisper is undeclared and torch is deliberately absent, so every
     local_whisper run died with an ImportError. The transcriber now lives in
     the same isolated runtime venv the app provisions for MLX, and the weights
-    live in the ONE shared models folder (``server_state_dir()/models/whisper``,
+    live in the ONE shared models folder (``model_store_root()/models/whisper``,
     #2269) -- never ~/.cache, which macOS auto-cleans.
 
     Args:
