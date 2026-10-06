@@ -1,6 +1,6 @@
 {
  "name": "Work Out Dates",
- "description": "Date each page from its own heading: the line near the top that leads with a date, read as written (abbreviations, ordinals, a year with or without a comma, a page number after it); a numeric date takes its day/month order from the page's language. A heading with no year takes its volume's year and is marked inferred; in a volume spanning several years it follows page order (the year of the page before, the next one when the months wrap from December to January), stays inside the dates the volume's name gives, and a written weekday chooses between that year and the next; a cover's \"Jan 1 - Dec 31\" is the volume's span, not its first day; when the written weekday and the volume's year both disagree with a written year, they win and the written year is kept beside the date. Impossible dates are refused and recorded, memoranda, cash, recapitulation and almanac pages and dates of another year stay undated, and a date you set yourself is never overwritten. Runs over a whole project in one go. No model is used.",
+ "description": "Date each page from its own heading: the line near the top that leads with a date, read as written (abbreviations, ordinals, a year with or without a comma, a page number after it); a numeric date takes its day/month order from the page's language. A heading with no year takes its volume's year and is marked inferred; in a volume spanning several years it follows page order (the year of the page before, the next one when the months wrap from December to January), stays inside the dates the volume's name gives, and a written weekday chooses between that year and the next; a cover's \"Jan 1 - Dec 31\" is the volume's span, not its first day; when the written weekday and the volume's year both disagree with a written year, they win and the written year is kept beside the date. Impossible dates are refused and recorded, memoranda, cash, recapitulation and almanac pages, account pages (an expense account, a bank balance, insurance due, a column of dated items with amounts) and dates of another year stay undated, and a date you set yourself is never overwritten. Runs over a whole project in one go. No model is used.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -11,7 +11,7 @@
   "timeline"
  ],
  "config": {
-  "preset_version": 3
+  "preset_version": 4
  },
  "nodes": [
   {

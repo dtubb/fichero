@@ -453,6 +453,10 @@ def parse_historical_date(
 #   debris, a recapitulation, and a date or year line more than a year from the
 #   volume's do not date a page; "11/16/23" in 1943-45 is refused;
 # - "Jan 1, 1932 - Dec 31, 1932" is a range, not 1 January.
+# Account pages (#5559), rows in test_diary_dates_5559.py:
+# - pages headed "Expense Account", "Bank balance …", "Insurance Due:" and a
+#   column of dated line items with amounts and no weekday heading are accounts,
+#   not entries, and stay undated; "Sun Life" after a date is not a Sunday.
 
 YEAR_MIN, YEAR_MAX = 1000, 2100
 #: How far down a page a heading may sit: its first non-empty lines.
@@ -471,9 +475,26 @@ _NON_ENTRY_RE = re.compile(
     r"(memoranda|memorandum|cash\s+account|cash|accounts?|bills\s+payable|"
     r"bills\s+receivable|addresses|almanac|postal\s+information|holidays|"
     r"telephone\s+numbers|legal\s+holidays|moon'?s\s+phases|phases\s+of\s+the\s+moon|calendar|"
-    r"values\s+of\s+foreign\s+coins|recapitulation)\b[^a-z]*(?:[a-z]+[^a-z]*)?$",
+    r"values\s+of\s+foreign\s+coins|recapitulation|expense\s+account|bank\s+balance|"
+    r"insurance\s+due)\b[^a-z]*(?:[a-z]+[^a-z]*)?$",
     re.IGNORECASE,
 )
+#: An account's title leading a page's FIRST line, whatever follows it: "Bank
+#: balance Irving Trust Co. Jan.1, 1940" (#5559) names the bank and the day of
+#: the balance, and is still not an entry. Only the first line: under a heading,
+#: "Bank balance $500" is a line of that day's entry.
+_ACCOUNT_TITLE_RE = re.compile(r"^\W*(expense\s+account|bank\s+balance|insurance\s+due)\b", re.IGNORECASE)
+#: A line that ends in a money amount ("Lunch and taxi at Panama $1.80", "Hotel
+#: Granada 155.50", "15.50 pesos"): a column of these is an account (#5559).
+_AMOUNT_END_RE = re.compile(
+    r"(?:\$\s?)?\d{0,6}[.,]\d{2}\s*(?:pesos|p\.?|usd|us\$?|col\.?\s*pesos)?\W*$", re.IGNORECASE
+)
+#: The account-page shape (#5559): at least this many of a page's top lines end
+#: in an amount, a third of them or more, and no heading there names a weekday.
+#: Measured on the Marshall Diaries: every expense and bank page at the back of
+#: the 1943-45 book has 5 to 12 of its first 12 lines ending in an amount; no
+#: dated page without a weekday heading has more than 3.
+ACCOUNT_AMOUNT_LINES = 5
 #: The printed column heads of a week page's cash column, alone on a line
 #: ("Novembe / Cash Account Received Paid", #5557). Under a month AND year
 #: ("May 1914") the page is a week of entries dated by that month; under a
@@ -613,6 +634,20 @@ def range_from_name(name: str | None) -> tuple[int, int] | None:
 
 def _weekday_of(word: str | None) -> int | None:
     return _WEEKDAYS.get((word or "").lower().rstrip("."))
+
+
+#: English weekday abbreviations, which are also the first word of names.
+_WEEKDAY_ABBREVIATIONS = frozenset({"mon", "tue", "tues", "wed", "wednes", "thu", "thur",
+                                    "thurs", "fri", "sat", "sun"})
+
+
+def _weekday_starts_a_name(word: str, after: str) -> bool:
+    """A weekday abbreviation with no full stop, followed by a capitalised word, is a name.
+
+    "October 28 - Sun Life Assurance Co. of Canada" (#5559) is an insurer, not a
+    Sunday; "Dec. 1 Sun." and "Nov. 29 Sun" are still Sundays.
+    """
+    return word.lower() in _WEEKDAY_ABBREVIATIONS and re.match(r"\s+[A-Z][a-z]", after) is not None
 
 
 def _heading_date(line: str) -> dict[str, Any] | None:
@@ -818,7 +853,8 @@ def _date_at(line: str, pos: int, weekday: int | None = None) -> dict[str, Any] 
             and _MONTHS.get(following.group("mon").lower())):
         return None
     trail = _TRAIL_WEEKDAY_RE.match(rest)
-    if trail and _weekday_of(trail.group("wd")) is not None:
+    if (trail and _weekday_of(trail.group("wd")) is not None
+            and not _weekday_starts_a_name(trail.group("wd"), rest[trail.end():])):
         found["weekday"] = _weekday_of(trail.group("wd"))
         found["end"] += trail.end()
     return found
@@ -1166,6 +1202,11 @@ def find_page_date(
                 (above_h := _heading_date(above)) is not None and above_h.get("year")
                 for above in lines[:index]):
             return PageDate(non_entry="CASH ACCOUNT")
+    title = _ACCOUNT_TITLE_RE.match(lines[0])
+    if title:
+        return PageDate(non_entry=re.sub(r"\s+", " ", title.group(1)).upper())
+    if _is_account_page(lines):
+        return PageDate(non_entry="ACCOUNT")
     years = sorted(set(volume_years or []))
     page_year: int | None = None
     fallback: tuple[str, dict[str, Any]] | None = None
@@ -1249,6 +1290,21 @@ def find_page_date(
         return _resolve_heading(fallback[0], fallback[1], volume_years=years,
                                 page_year=None, **common)
     return PageDate()
+
+
+def _is_account_page(lines: list[str]) -> bool:
+    """A column of dated line items with amounts and no weekday heading (#5559).
+
+    "Nov. 1 Lunch and taxi at Panama $1.80 / Dinner at Miami 2.25 / ..." at the
+    back of the 1943-45 book: the dates are the items', not the page's. A diary
+    day that lists what it cost ("MONDAY, JANUARY 10, 1927 / RR fare to Cali
+    .70") names its weekday, so it stays an entry.
+    """
+    amounts = sum(1 for line in lines if _AMOUNT_END_RE.search(line))
+    if amounts < ACCOUNT_AMOUNT_LINES or amounts * 3 < len(lines):
+        return False
+    return not any((h := _heading_date(line)) is not None and h["kind"] == "day"
+                   and h.get("weekday") is not None for line in lines)
 
 
 def _mentions_another_year(h: dict[str, Any], years: list[int]) -> bool:
