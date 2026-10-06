@@ -33,6 +33,7 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from fichero_server.llm import LLMConfig
 
+from fichero_server.core.failure_text import failure_text
 from fichero_server.media.ocr_geometry import (
     GEOMETRY_REASON_KEY,
     OCRGeometryResult,
@@ -5454,7 +5455,7 @@ async def process_vision(
             # #2543: the per-provider circuit breaker is OPEN — record a loud,
             # unmistakable per-file error so the run surfaces WHY it stopped
             # transcribing instead of silently burning the remaining files.
-            err = str(e)
+            err = failure_text(e)
             msg = (
                 f"Vision processing skipped for {Path(file_path).name}: {err}"
             )
@@ -5482,13 +5483,13 @@ async def process_vision(
                     e,
                 )
                 raise
-            err = str(e)
+            err = failure_text(e)
             if _is_non_retriable_provider_error(err):
                 msg = f"Vision processing failed for {Path(file_path).name} with non-retriable provider/auth/quota error: {err}"
                 logger.error(msg)
                 _log_vision_warning(msg, file_path)
             else:
-                msg = f"Vision processing failed for {Path(file_path).name}: {e}"
+                msg = f"Vision processing failed for {Path(file_path).name}: {err}"
                 logger.error(msg)
                 _log_vision_warning(msg, file_path)
             results.append(
@@ -5501,14 +5502,16 @@ async def process_vision(
             # for the lane must end the run as cancelled or paused, not as this file's error.
             raise
         except Exception as e:
-            err = str(e)
+            err = failure_text(e)
             if _is_non_retriable_provider_error(err):
                 msg = f"Vision processing failed for {Path(file_path).name} with non-retriable provider/auth/quota error: {err}"
                 logger.error(msg)
                 _log_vision_warning(msg, file_path)
             else:
-                msg = f"Vision processing failed for {Path(file_path).name}: {e}"
-                logger.error(msg)
+                msg = f"Vision processing failed for {Path(file_path).name}: {err}"
+                # The traceback too (#5534): a failure whose message was empty left nothing to
+                # say where it came from.
+                logger.error(msg, exc_info=True)
                 _log_vision_warning(msg, file_path)
             results.append(
                 {"file": file_path, "text": "", "value": None, "error": err}
@@ -5587,7 +5590,7 @@ async def process_vision(
             # every file, so isolating it protects nothing and hides everything.
             if _is_call_signature_error(str(exc)):
                 raise
-            err = str(exc)
+            err = failure_text(exc)
             logger.error(
                 "Vision per-file task crashed for %s: %s",
                 Path(file_path).name,
@@ -5608,7 +5611,7 @@ async def process_vision(
         except Exception as exc:  # defensive: _process_file already isolates
             # per-file errors via its own try/except, but never let an
             # unexpected escape abort the sibling files.
-            err = str(exc)
+            err = failure_text(exc)
             logger.error(
                 "Vision per-file task crashed for %s: %s",
                 Path(file_path).name,

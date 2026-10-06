@@ -359,3 +359,46 @@ def test_a_crash_report_falls_back_to_the_last_line_when_nothing_looks_causal() 
     process._update_last_error()
 
     assert "something unusual happened" in process.last_error
+
+
+@pytest.mark.asyncio
+async def test_a_runtime_provisioned_under_a_relocated_store_root_is_found_by_a_read(tmp_path, monkeypatch):
+    """#5534 (M1 Air, 2026-10-06): an engine with FICHERO_BASE_PATH and FICHERO_MODEL_STORE_ROOT on an
+    external volume provisioned its runtime (status: provisioned) and its read then said 'MLX runtime
+    is not provisioned'. Provisioning and the read must resolve ONE runtime: provisioned through the
+    engine's runtime, the read's interpreter -- asked from a worker thread, as a lane asks it -- is
+    the relocated one."""
+    import asyncio
+
+    from fichero_server.llm import mlx_runtime
+
+    state = tmp_path / "Files" / "Fichero-Work" / "state"
+    monkeypatch.setenv("FICHERO_BASE_PATH", str(state))
+    monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(state))
+    monkeypatch.delenv("FICHERO_MLX_RUNTIME_DIR", raising=False)
+    monkeypatch.setattr(mlx_runtime, "_RUNTIME_MANAGER", None)
+    runtime = mlx_runtime.get_mlx_runtime()
+    runtime._create_venv = _touch_python
+    runtime._run_command = lambda argv: None
+    await runtime.start_provision()
+    await runtime.wait_for_current_job()
+    assert runtime.status()["provisioned"] is True
+    assert runtime.runtime_dir == state / "mlx-runtime"
+
+    process = ManagedLocalInferenceProcess(profile=type("Profile", (), {
+        "python_executable": None, "command": [], "model_id": "Qwen2.5-VL-3B",
+        "base_url": "http://127.0.0.1:8000/v1"})())
+    python = await asyncio.to_thread(process._python_executable)
+    assert python == str(state / "mlx-runtime" / "bin" / "python")
+
+
+def test_an_unprovisioned_runtime_says_where_it_looked(tmp_path):
+    """#5534: 'not provisioned' alone could not tell a missing runtime from one looked for elsewhere."""
+    runtime = MLXRuntime(tmp_path / "mlx-runtime")
+    with pytest.raises(RuntimeError) as refused:
+        runtime.require_python_path()
+    assert str(tmp_path / "mlx-runtime" / "bin" / "python") in str(refused.value)
+    _touch_python(runtime.runtime_dir)
+    with pytest.raises(RuntimeError) as refused:
+        runtime.require_python_path()
+    assert "runtime.json does not record mlx_lm_version or mlx_vlm_version" in str(refused.value)

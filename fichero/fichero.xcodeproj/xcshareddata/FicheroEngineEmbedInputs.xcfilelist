@@ -218,6 +218,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/core/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/background_compute.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/compute_preferences.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/duckdb_session.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/failure_text.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/logging.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/naturalsort.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/perf.py

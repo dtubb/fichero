@@ -260,6 +260,12 @@ async def manager_serving(model_id: str) -> LocalInferenceServiceManager:
         return existing
     if existing is not None:
         await existing.stop()
+        # Another caller may have switched while this one waited for the stop (#5534): use its
+        # manager rather than start a second server on the same port.
+        current = _MANAGERS.get(profile.id)
+        if current is not None and current is not existing and current.profile == profile:
+            _stop_when_idle(current)
+            return current
     manager = _new_manager(profile)
     _stop_when_idle(manager)
     return manager

@@ -111,8 +111,10 @@ def assert_memory_available_for_model(
 
 
 def _smaller_models_that_fit(spec: Any, free: int | None, catalog: Any = None) -> list[str]:
-    """Catalog models sharing a capability with `spec` whose load fits in `free`, the most capable
-    that fits first: at most two names."""
+    """Catalog models that can do everything `spec` does whose load fits in `free`, the most
+    capable that fits first: at most two names. Every capability, not any one (#5534): a vision
+    model refused while reading a page was offered Qwen3 4B Instruct and Llama 3.2 3B, which read
+    no images -- they share only 'text' with it."""
     if free is None:
         return []
     if catalog is None:
@@ -122,7 +124,7 @@ def _smaller_models_that_fit(spec: Any, free: int | None, catalog: Any = None) -
     wanted = set(spec.capabilities)
     fits = [
         other for other in catalog
-        if other.model_id != spec.model_id and wanted & set(other.capabilities)
+        if other.model_id != spec.model_id and wanted <= set(other.capabilities)
         and mlx_memory_need_bytes(other) <= free
     ]
     fits.sort(key=mlx_memory_need_bytes, reverse=True)   # the most capable that fits, first
@@ -771,6 +773,13 @@ class ManagedLocalInferenceProcess:
             if line and any(hint in line.lower() for hint in cls._ERROR_HINTS):
                 return line
         return next((line for line in reversed(lines) if line), None)
+
+    def output_tail(self, lines: int = 3) -> str | None:
+        """The server's last few lines of output (stderr first), for a failure that says why (#5534):
+        a server that was slow to start, or loaded and then refused, leaves its reason here."""
+        source = self._recent_stderr if any(self._recent_stderr) else self._recent_stdout
+        tail = [line.strip() for line in source if line and line.strip()][-lines:]
+        return " | ".join(tail) or None
 
     def _update_last_error(self) -> None:
         if self._process is None or self._process.returncode in {None, 0}:
