@@ -248,6 +248,14 @@ so every model it loads is held on purpose, counted, and let go. One rule set fo
    pages of varied shape keeps its footprint within a bound, and its cache evicts when idle. Activity
    shows what each loaded model holds and why a job is waiting.
 
+8. **Plan the run for the smallest Mac.** The target is an **8 GB M1**: a recipe with many steps using
+   different models is scheduled so the Mac never holds two big models at once — steps that share a
+   model run together across the volume (all pages through the line reader, then all through names,
+   rather than every model per page), a model is loaded once per run, and the plan states the peak
+   memory before Start. Training and distilling go where the compute is — Hugging Face Jobs, ACENET or
+   another Alliance cluster (Rorqual), or a bigger Mac — and the model comes home sized to run on the
+   8 GB Mac (4-bit for vision models, CPU for Kraken).
+
 Built (#5529, 54c493940): rules 4, 5, 6, and 3 for Kraken. Not built (#5537): the budget (2), the per-runtime
 owners and idle/close unloading for MLX, spaCy, embeddings, Whisper and YOLO (1, 3), the leak test per
 runtime (7), and Activity's memory view.
