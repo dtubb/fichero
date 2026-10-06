@@ -105,6 +105,94 @@ def memory_short(
     return None
 
 
+def footprint_bytes(pid: int) -> int | None:
+    """A process's physical footprint now (what Activity Monitor calls its Memory), or None when it
+    cannot be read. `proc_pid_rusage(pid, RUSAGE_INFO_V0)`'s `ri_phys_footprint`, in-process via
+    ctypes; works for this engine and the model servers it started (same user)."""
+    import ctypes
+    import ctypes.util
+
+    class _RusageInfoV0(ctypes.Structure):  # <sys/resource.h> rusage_info_v0
+        _fields_ = [("ri_uuid", ctypes.c_uint8 * 16)] + [(name, ctypes.c_uint64) for name in (
+            "ri_user_time", "ri_system_time", "ri_pkg_idle_wkups", "ri_interrupt_wkups",
+            "ri_pageins", "ri_wired_size", "ri_resident_size", "ri_phys_footprint",
+            "ri_proc_start_abstime", "ri_proc_exit_abstime")]
+
+    try:
+        libsystem = ctypes.CDLL(ctypes.util.find_library("System"))
+        info = _RusageInfoV0()
+        if libsystem.proc_pid_rusage(int(pid), 0, ctypes.byref(info)) != 0:
+            return None
+    except Exception:  # noqa: BLE001 -- not macOS, or the process is gone
+        return None
+    return int(info.ri_phys_footprint)
+
+
+class PeakMemory:
+    """The peak memory of the engine and of the model servers it started, over one run (#5537): the
+    run's account says what the run took, which is how the need of a model is re-measured
+    (`llm.local_inference._MLX_LOAD_MARGIN_BYTES`). A daemon thread samples both every
+    `interval` seconds while the run runs.
+    ponytail: sampled, so a spike shorter than the interval can be missed; one second is well under
+    a page's read. The readers are injectable so a test never reads the real machine."""
+
+    def __init__(self, *, engine: Callable[[], int | None] | None = None,
+                 servers: Callable[[], int | None] | None = None, interval: float = 1.0) -> None:
+        self._engine = engine or (lambda: footprint_bytes(os.getpid()))
+        self._servers = servers or _model_servers_footprint
+        self._interval = interval
+        self.engine_peak: int | None = None
+        self.server_peak: int | None = None
+        self._stop = None
+        self._thread = None
+
+    def sample(self) -> None:
+        for attr, read in (("engine_peak", self._engine), ("server_peak", self._servers)):
+            try:
+                value = read()
+            except Exception:  # noqa: BLE001 -- a reading must never fail the run
+                value = None
+            if value is not None and value > (getattr(self, attr) or 0):
+                setattr(self, attr, value)
+
+    def start(self) -> "PeakMemory":
+        import threading
+
+        self._stop = threading.Event()
+
+        def loop() -> None:
+            while True:
+                self.sample()
+                if self._stop.wait(self._interval):
+                    return
+
+        self._thread = threading.Thread(target=loop, name="run-peak-memory", daemon=True)
+        self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        if self._stop is not None:
+            self._stop.set()
+        self.sample()
+
+    def record(self) -> dict[str, int]:
+        """The peaks for the run's account (`run_usage`), only those read."""
+        out = {}
+        if self.engine_peak is not None:
+            out["engine_peak_memory_bytes"] = self.engine_peak
+        if self.server_peak is not None:
+            out["model_server_peak_memory_bytes"] = self.server_peak
+        return out
+
+
+def _model_servers_footprint() -> int | None:
+    """What the model servers this engine started hold together now, or None when none runs."""
+    from fichero_server.api.routes.ai.local_inference import model_server_pids
+
+    readings = [r for r in (footprint_bytes(pid) for pid in model_server_pids()) if r is not None]
+    return sum(readings) if readings else None
+
+
 class MemoryShortError(RuntimeError):
     """Raised where heavy work finds `memory_short` true at the moment it would load (Kraken's guard).
     Not a failure: the job lane puts a stored job back to waiting with this reason and runs it again

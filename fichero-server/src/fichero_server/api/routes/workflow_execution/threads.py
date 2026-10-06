@@ -119,6 +119,12 @@ class RunUsageResponse(BaseModel):
     #: provider's own count.
     estimated_tokens: bool = False
     unpriced_models: list[str] = Field(default_factory=list)
+    #: The engine's peak memory (physical footprint) during the run, in bytes (#5537). Null when
+    #: not measured (a run recorded before it was, or off macOS).
+    engine_peak_memory_bytes: int | None = None
+    #: The peak memory of the local model servers the engine ran during the run, in bytes; null
+    #: when no model server ran.
+    model_server_peak_memory_bytes: int | None = None
 
 
 class WorkflowRunResponse(BaseModel):

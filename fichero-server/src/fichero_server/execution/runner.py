@@ -1090,6 +1090,10 @@ async def _run_workflow_in_background(
     # choice is set, and a NameError in a cleanup block would mask the real
     # failure with an accounting one.
     run_choice_token: Any = None
+    # Sampled while the run runs; stopped in the run's `finally` (#5537).
+    from fichero_server.execution.throttle import PeakMemory
+
+    peak_memory = PeakMemory()
 
     def _run_usage_totals() -> "UsageTotals":
         """Everything the run spent so far, across every node."""
@@ -1114,9 +1118,12 @@ async def _run_workflow_in_background(
         and the client shows no cost rather than a confident $0.00.
         """
         totals = _run_usage_totals()
-        if not totals.model_calls:
+        # The engine's and the model servers' peak memory over the run (#5537): what the run took,
+        # carried even by a run that called no model (a Kraken-only run is still memory).
+        peaks = peak_memory.record()
+        if not totals.model_calls and not peaks:
             return None
-        return totals.model_dump(exclude={"calls"})
+        return {**totals.model_dump(exclude={"calls"}), **peaks}
 
     async def _finish_as_cancelled() -> None:
         """Record the run as cancelled and settle its documents (#4402).
@@ -1273,6 +1280,7 @@ async def _run_workflow_in_background(
             run_usage=_run_usage_record(),
         )
 
+    peak_memory.start()
     try:
         # Mark as running
         state["status"] = "running"
@@ -2517,6 +2525,7 @@ async def _run_workflow_in_background(
         await _finalize_documents("failed", error=str(e)[:500])
 
     finally:
+        peak_memory.stop()
         # Stop the usage collector with the run. Guarded because the collector
         # only exists once streaming has begun — an early failure reaches this
         # block without it, and accounting bookkeeping must never be the thing
