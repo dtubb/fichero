@@ -272,6 +272,20 @@ so every model it loads is held on purpose, counted, and let go. One rule set fo
    another Alliance cluster (Rorqual), or a bigger Mac — and the model comes home sized to run on the
    8 GB Mac (4-bit for vision models, CPU for Kraken).
 
+9. **Order of operations at archive scale (#5540).** A run over a few hundred pages runs step by step across
+   all its pages (one model load per step). A run over an archive — e.g. 800 folders of 100–500
+   images, 80,000–400,000 pages — runs in **batches**: a batch is a folder (or about 500 pages, whichever
+   is smaller); within a batch the steps run one after another, each model loaded once for the batch;
+   batches run one after another, so finished folders appear early and can be read, checked and
+   corrected while the rest runs. Batches go in the order the person is likely to need them: the
+   folder they are working in first, then the order of the project's tree; a person can move a folder
+   to the front. Every batch is a checkpoint: a stop, quit or crash resumes at the next unfinished page,
+   never redoing finished ones. The plan states, before Start, the number of batches, pages, the time
+   per batch measured on this Mac, the whole run's estimate, disk it will use, and peak memory; Activity
+   shows progress per folder, not one bar for 400,000 pages. Background throttling and the memory rules
+   apply between pages and between batches. A cheap step that every later step needs (finding lines,
+   splitting pages) may run a batch ahead, so the next batch never waits for it.
+
 Built (#5529, 54c493940): rules 4, 5, 6, and 3 for Kraken. Not built (#5537): the budget (2), the per-runtime
 owners and idle/close unloading for MLX, spaCy, embeddings, Whisper and YOLO (1, 3), the leak test per
 runtime (7), and Activity's memory view.
