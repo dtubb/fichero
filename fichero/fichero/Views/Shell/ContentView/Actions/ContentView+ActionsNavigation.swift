@@ -182,7 +182,7 @@ extension ContentView {
     /// A folder with no previewable source of its own (image- or PDF-backed
     /// "folders" preview themselves and step through the LIBRARY, not inward).
     private func isPlainFolder(_ doc: Document) -> Bool {
-        doc.docType == .folder && doc.fileType != .image && doc.fileType != .pdf
+        doc.isFolderLike && doc.fileType != .image && doc.fileType != .pdf  // a group steps into its pages too (#5570)
     }
 
     /// Move detailDocument + browserSelection to the previous sibling in the

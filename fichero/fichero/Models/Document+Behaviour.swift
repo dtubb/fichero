@@ -49,11 +49,24 @@ extension Document {
     /// Containers in 0.0.2:
     ///   - Folders — children are the folder's contents
     ///   - PDFs — children are one `Document` per page (see #568)
+    ///   - Groups — children are the group's pages, in its order (#5570): a
+    ///     group is a document made of pages, and it was hidden from the
+    ///     sidebar (with its pages) while only folders and PDFs counted here.
     var isNavigableContainer: Bool {
-        if docType == .folder { return true }
+        if isFolderLike { return true }
         if fileType == .pdf { return true }
         return false
     }
+
+    /// A folder, or a group (#5570): a node whose contents are other documents,
+    /// listed and opened like a folder's. The difference that remains is what
+    /// a group IS (one document of pages): its picture is its first page and
+    /// the Reader reads its pages as one document — both answered by the engine.
+    var isFolderLike: Bool { docType == .folder || docType == .group }
+
+    /// A group: one document made of pages (a letter, a judgment), made by
+    /// Group as Stack (#5303, #5570).
+    var isGroup: Bool { docType == .group }
 
     /// True for the workflow rows the engine MIRRORS into the document tree to
     /// sit under the seeded "Default Workflows" folder (#11 Phase 1 — the

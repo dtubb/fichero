@@ -75,7 +75,7 @@ extension ContentView {
                 return [.list]
             }
             if let doc = libraryViewDocument,
-               doc.docType == .folder || doc.isWorkspace ||
+               doc.isFolderLike || doc.isWorkspace ||
                (doc.docType == .file && doc.fileType.map { [.pdf, .word, .epub, .presentation].contains($0) } ?? false) {
                 // Canvas (.canvas → Spatial2DCanvas) is the live 2D positioned-node
                 // library view; Space (.space → SpaceSceneView) is the RealityKit

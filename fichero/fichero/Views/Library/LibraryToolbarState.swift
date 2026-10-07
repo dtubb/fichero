@@ -17,7 +17,7 @@ import SwiftUI
 final class LibraryToolbarState {
     /// Raw value of the active `LibrarySortField` (kept as `String` to match the
     /// existing per-folder persistence + FocusedValue plumbing).
-    var sortFieldRaw: String = LibrarySortField.name.rawValue
+    var sortFieldRaw: String = LibrarySortField.defaultField.rawValue
     /// Sort direction — `true` ascending.
     var sortAscending: Bool = true
     /// Whether the inline ⌘F filter bar is shown inside the library content.
@@ -46,6 +46,6 @@ final class LibraryToolbarState {
 
     /// Convenience typed accessor for the active sort field.
     var sortField: LibrarySortField {
-        LibrarySortField(rawValue: sortFieldRaw) ?? .name
+        LibrarySortField(rawValue: sortFieldRaw) ?? .defaultField
     }
 }

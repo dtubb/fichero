@@ -41,6 +41,12 @@ struct CanvasPlaceable: Identifiable, Equatable {
     /// Persisted card size (from a layout row's `w`/`h`); nil → renderer default.
     var size: CGSize?
     var zIndex: Int
+    /// A group drawn as a frame that holds its pages (#5570, `CanvasGroupNesting`): no picture of
+    /// its own, drawn behind its pages.
+    var isContainer = false
+    /// For a page drawn inside a group's frame: that group's placeable id. Such a page is never a
+    /// row on the board it is drawn on; it follows its group.
+    var containerId: String?
 }
 
 /// How an edge is painted — unifies room connections, typed content links, and

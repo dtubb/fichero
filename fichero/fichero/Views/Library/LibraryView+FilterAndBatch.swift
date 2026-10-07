@@ -178,7 +178,7 @@ extension LibraryView {
             if activeSearchQuery != nil, !libraryToolbar.userChoseSortDuringSearch {
                 return .relevance
             }
-            return LibrarySortField(rawValue: sortFieldRaw) ?? .name
+            return LibrarySortField(rawValue: sortFieldRaw) ?? .defaultField
         }()
         return LibrarySortField.orderedForDisplay(docs, field: field, using: sortOrder)
     }

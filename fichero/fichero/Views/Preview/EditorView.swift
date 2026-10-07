@@ -191,6 +191,12 @@ struct EditorView: View {
         if doc.docType == .folder {
             return folderPreviewRoute(for: doc, isEditing: isEditing)
         }
+        if doc.isGroup {
+            // A group previews as its pages, on its own canvas (#5570,
+            // `library.group.previews-as-its-pages`): it has no source file, so
+            // the Quick Look fall-through below showed "Preview unavailable".
+            return .folderContents(folderId: doc.id)
+        }
         if doc.docType == .page {
             return pagePreviewRoute(for: doc, isEditing: isEditing)
         }
@@ -277,7 +283,8 @@ struct EditorView: View {
         case .folderContents(let folderId):
             FolderContentsPreview(
                 folderId: folderId,
-                onNavigateToDocument: onNavigateToDocument
+                onNavigateToDocument: onNavigateToDocument,
+                isGroup: doc.isGroup
             )
         case .glyph(let systemImage, let title):
             GlyphPreviewPlaceholder(systemImage: systemImage, title: title)

@@ -166,7 +166,12 @@ extension LibraryView {
                 moveIntoContainer: moveCanvasNodeIntoContainer,
                 storageService: activeLibraryReference?.storageService,
                 emphasis: canvasSearchEmphasis,
-                tint: canvasTint
+                tint: canvasTint,
+                // A group is a frame holding its pages (#5570).
+                groupNodeIds: CanvasGroupNesting.groupNodeIds(in: filteredDocuments),
+                pagesOfGroup: { [documentStore] nodeId in
+                    await documentStore.canvasPageNodes(ofGroupNode: nodeId)
+                }
             )
             .contextMenu { canvasContextMenu() }
         } else {

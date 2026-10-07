@@ -26,6 +26,10 @@ enum DocumentThumbnailKind: Equatable {
         // which is why MailStyleRow grew a second, inline glyph (#4516)
         // that then showed folders' icons TWICE. One glyph, in the well.
         if document.docType == .folder || document.isWorkflowNode { return .folder }
+        // A group has no file, and it is not a folder glyph either: it is a document of pages,
+        // and its picture is its first page, which the engine serves under the group's own id
+        // (#5570). It used to fall to the same branch by accident, with nothing behind it.
+        if document.isGroup { return .storageImage }
         if document.fileType == .image { return .storageImage }
         // Text-preview thumbnail (#625) is only for genuinely text documents
         // (JSON/plain text) with no page image. A PDF page ALWAYS shows its
@@ -93,6 +97,9 @@ struct DocumentThumbnail: View {
         }
         .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: 4))
+        // A group's picture is its first page (the engine answers it, #5570); the mark says it
+        // stands for a stack of pages, and how many.
+        .groupStackBadge(for: document)
     }
 }
 

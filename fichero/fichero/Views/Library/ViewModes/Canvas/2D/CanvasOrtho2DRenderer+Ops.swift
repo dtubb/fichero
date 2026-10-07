@@ -62,7 +62,8 @@ extension CanvasOrtho2DRenderer {
             guard let card = child as? ModelEntity, let placeable = placeablesById[card.name] else { continue }
             CanvasTintPainter.apply(
                 tint, to: card, id: card.name,
-                fallback: baseColor(for: placeable.content), isTextured: isTextured(card.name)
+                // A group's frame keeps its wash: colouring it would paint over its pages (#5570).
+                fallback: baseColor(for: placeable.content), isTextured: isTextured(card.name) || placeable.isContainer
             )
         }
     }
@@ -77,7 +78,7 @@ extension CanvasOrtho2DRenderer {
         placeablesById[id]?.position = position
         guard let entity = placeablesRoot.findEntity(named: id) else { return }
         var transform = entity.transform
-        transform.translation = Canvas2DProjection.scenePosition(position)
+        transform.translation = scenePosition(position, keepingDepthOf: entity)
         entity.move(to: transform, relativeTo: entity.parent, duration: moveDuration)
     }
 }

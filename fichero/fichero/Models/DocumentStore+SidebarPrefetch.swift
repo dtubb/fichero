@@ -135,7 +135,7 @@ extension DocumentStore {
         in documents: [Document],
         cache: [String: [Document]]
     ) -> [Document] {
-        documents.filter { $0.docType == .folder && cache[$0.id] == nil }
+        documents.filter { $0.isFolderLike && cache[$0.id] == nil }
     }
 
     /// Fold a batch of freshly fetched child lists into a cache snapshot,

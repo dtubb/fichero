@@ -21,6 +21,9 @@ extension EnvironmentValues {
 struct FolderContentsPreview: View {
     let folderId: String
     var onNavigateToDocument: ((String) -> Void)?
+    /// A group previews here too, as its pages on its own board (#5570); only its empty state
+    /// differs.
+    var isGroup = false
 
     @Environment(DocumentStore.self) private var documentStore
     @Environment(LibraryManager.self) private var libraryManager
@@ -46,7 +49,12 @@ struct FolderContentsPreview: View {
                     // Double-click a card: the Preview shows that item.
                     onOpenDocument: { onNavigateToDocument?($0) },
                     storageService: library.storageService,
-                    tint: tint
+                    tint: tint,
+                    // A folder of groups shows each as a frame holding its pages (#5570).
+                    groupNodeIds: CanvasGroupNesting.groupNodeIds(in: items),
+                    pagesOfGroup: { [documentStore] nodeId in
+                        await documentStore.canvasPageNodes(ofGroupNode: nodeId)
+                    }
                 )
                 .overlay(alignment: .topTrailing) {
                     CanvasControlStrip()
@@ -66,11 +74,19 @@ struct FolderContentsPreview: View {
                     onFolderCanvasSelection?([])
                 }
             } else if loaded {
-                ContentUnavailableView(
-                    "Empty Folder",
-                    systemImage: "folder",
-                    description: Text("Items you add to this folder appear here.")
-                )
+                if isGroup {
+                    ContentUnavailableView(
+                        "Empty Group",
+                        systemImage: DocType.group.icon,
+                        description: Text("This group holds no pages.")
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Empty Folder",
+                        systemImage: "folder",
+                        description: Text("Items you add to this folder appear here.")
+                    )
+                }
             } else {
                 // ★ EVERY FRAME PERFECT: hold a quiet frame while the cached
                 // children resolve (usually one turn) instead of flashing the

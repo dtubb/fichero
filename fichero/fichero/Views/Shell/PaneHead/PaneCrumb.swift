@@ -22,6 +22,7 @@ extension PaneCrumb {
     /// — the filled glyphs carry their tint better at crumb size.
     static func icon(for doc: Document) -> String {
         if doc.docType == .folder { return doc.isWorkspace ? "square.grid.2x2.fill" : "folder.fill" }
+        if doc.isGroup { return "rectangle.stack.fill" }  // a group is a stack of pages (#5570)
         if doc.docType == .page { return doc.fileType == .image ? "photo.fill" : "doc.richtext.fill" }
         if doc.fileType == .pdf { return "doc.richtext.fill" }
         if doc.fileType == .image { return "photo.fill" }

@@ -27,4 +27,22 @@ extension Document {
     var dateHeaderSortKey: Int {
         dateJdn ?? Int.min
     }
+
+    /// The folder's own order as one sortable value (#5570, `LibrarySortField.asFiled`): the
+    /// engine's `sort_order`, ties broken by name in natural order ("p2" before "p10"), the same
+    /// key the engine lists a folder by (`_ordered_by_sort_order`).
+    var filedOrder: FiledOrder {
+        FiledOrder(position: sortOrder, name: name)
+    }
+}
+
+/// A position in a folder: sort order first, then name in natural (Finder) order.
+nonisolated struct FiledOrder: Comparable, Hashable {
+    let position: Int
+    let name: String
+
+    static func < (lhs: FiledOrder, rhs: FiledOrder) -> Bool {
+        if lhs.position != rhs.position { return lhs.position < rhs.position }
+        return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+    }
 }
