@@ -3,7 +3,9 @@
 Thin over `fichero_server.sync_folder`. Tying and untying are audited actions (`sync.tie`,
 `sync.untie`), so the app, the CLI, MCP and an agent do it the one way. A folder is kept as `index`
 or `keep-arranged` (#5480): `GET /{id}/arrangement` is the dry run, `PUT /{id}/mode` the yes, and
-every arrangement is the audited, undoable `sync.arrange` (undo puts each file back). The folder is a path on the
+every arrangement is the audited, undoable `sync.arrange` (undo puts each file back). Documents
+duplicated by #5495 (the same file held twice) are listed by `GET /duplicates` (the dry run) and
+sent to the trash by `POST /duplicates/remove`, the audited, undoable `sync.remove_duplicates`. The folder is a path on the
 engine's disk (the engine may be on another machine; the app never assumes it can see it).
 """
 from __future__ import annotations
@@ -126,6 +128,39 @@ class SyncFolderList(BaseModel):
     folders: list[SyncFolderStatus]
 
 
+class DuplicateDocument(BaseModel):
+    """One document holding a file that another document of the project holds too."""
+
+    id: str
+    name: str
+    parent_id: str | None = None
+    created_at: datetime
+    passes: int = Field(description="passes the document carries (work a removal would take to the trash)")
+
+
+class DuplicateGroup(BaseModel):
+    """One file in a synced folder held by more than one document (#5495)."""
+
+    path: str = Field(description="the file, on the engine's disk")
+    keep: DuplicateDocument = Field(description="the document kept: the first made, in its folder")
+    remove: list[DuplicateDocument] = Field(description="the documents the repair would send to the trash")
+
+
+class DuplicateReport(BaseModel):
+    """The dry run of the duplicate repair: nothing is changed by asking."""
+
+    groups: list[DuplicateGroup]
+
+
+class RemoveDuplicatesParams(BaseModel):
+    document_ids: list[str] = Field(min_length=1, description="documents to send to the trash, each one the dry "
+                                                              "run lists under `remove`")
+
+
+class RemovedDuplicates(BaseModel):
+    removed: list[str] = Field(description="documents sent to the trash (with anything under them)")
+
+
 @action("sync.tie", TieParams, domains=["library"], undoable=False)
 def _action_tie(db: Database, params: TieParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server import sync_folder
@@ -195,6 +230,54 @@ def _action_follow(db: Database, params: FollowParams, ctx: ActionContext) -> tu
     return {"id": params.document_id}, ChangeSpec(
         domains=["library", "document"], target_ids=[params.document_id],
         after=params.model_dump(), document_ids=[params.document_id], emit_type="sync.followed")
+
+
+def _invert_remove_duplicates(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    """Undo brings every removed duplicate back from the trash, as it was."""
+    if not before or not before.get("documents"):
+        return None
+    return ("document.restore", {"doc_ids": [d["id"] for d in before["documents"]], "documents": before["documents"]})
+
+
+@action("sync.remove_duplicates", RemoveDuplicatesParams, domains=["document"], undoable=True,
+        invert=_invert_remove_duplicates)
+def _action_remove_duplicates(db: Database, params: RemoveDuplicatesParams,
+                              ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """Send documents duplicated by #5495 to the trash: only ones the dry run lists, never a kept one."""
+    from fichero_server import sync_folder
+
+    removed, snapshots = sync_folder.remove_duplicates(db, params.document_ids, ctx.actor)
+    return {"removed": removed}, ChangeSpec(
+        domains=["document"], target_ids=removed, before={"documents": snapshots}, after={"document_ids": removed},
+        document_ids=removed, emit_type="document.deleted")
+
+
+@router.get("/duplicates", response_model=DuplicateReport,
+            summary="Documents holding the same file of a synced folder (a dry run: nothing changes)")
+async def get_duplicates(db: Database = Depends(get_library_database)) -> DuplicateReport:
+    """Each file in a synced folder that more than one document holds (as an engine restart once
+    took an Index folder's files in again, #5495): the document kept (the first made, in its
+    folder) and those the repair would send to the trash, each with the passes it carries."""
+    from fichero_server import sync_folder
+
+    return DuplicateReport(groups=[DuplicateGroup(**g) for g in sync_folder.duplicates(db)])
+
+
+@router.post("/duplicates/remove", response_model=RemovedDuplicates,
+             summary="Send duplicates of a synced folder's files to the trash (undoable)")
+async def remove_duplicates(
+    request: RemoveDuplicatesParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RemovedDuplicates:
+    """One audited, undoable action: the documents named, each one the dry run lists under `remove`,
+    go to the trash (nothing is deleted for good). Refused (409) in words if any is a kept document
+    or no longer a duplicate; then nothing is removed."""
+    try:
+        result = registry.invoke(db, "sync.remove_duplicates", request.model_dump(), ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return RemovedDuplicates(**result.result)
 
 
 def _intake_state(db: Database, folder_id: str) -> IntakeState:

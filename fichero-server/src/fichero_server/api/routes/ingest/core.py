@@ -856,10 +856,13 @@ async def ingest_files(
 def import_file_set(
     db: Database, files: list[Path], ctx: "ActionContext", *, parent_id: str | None = None,
     mode: str | None = None, extract_text: bool = True, auto_embed: bool = False,
+    parent_of: "dict[Path, str] | None" = None,
 ) -> tuple[list[Document], dict]:
     """Import files that arrived TOGETHER as one set (#5220): a layout file that pairs with an image
     in the set becomes a pass on it, as in a folder import. The one path for a drop of files and
-    for files arriving in a synced folder (#4952, `source.sync.one-import-path`)."""
+    for files arriving in a synced folder (#4952, `source.sync.one-import-path`). `parent_of`: a
+    file's own place in the project where it is not `parent_id` (a synced folder's arrivals land in
+    the project folder of the folder they were put in, #5495)."""
     from fichero_server.importers.interchange_pairing import plan_pairs
 
     plan = plan_pairs(files)
@@ -873,7 +876,7 @@ def import_file_set(
             "import.file",
             {
                 "path": str(path),
-                "parent_id": parent_id,
+                "parent_id": (parent_of or {}).get(path, parent_id),
                 "copy_mode": mode == "copy",
                 "mode": mode,
                 "extract_text": extract_text,

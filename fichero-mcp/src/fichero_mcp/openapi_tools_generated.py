@@ -7473,6 +7473,20 @@ def fichero_sync_folders_tie(
     return _rt.call("POST", "/api/sync-folders", json=_rt.body({"formats": formats, "mode": mode, "path": path}))
 
 
+def fichero_sync_folders_get_duplicates(
+) -> Any:
+    "Documents holding the same file of a synced folder (a dry run: nothing changes)\n\nEach file in a synced folder that more than one document holds (as an engine restart once\ntook an Index folder's files in again, #5495): the document kept (the first made, in its\nfolder) and those the repair would send to the trash, each with the passes it carries.\n\nRoute: GET /api/sync-folders/duplicates (toolset `sync-folders`; reads)."
+    return _rt.call("GET", "/api/sync-folders/duplicates")
+
+
+def fichero_sync_folders_remove_duplicates(
+    *,
+    document_ids: Annotated[list[Any], Field(description='documents to send to the trash, each one the dry run lists under `remove`.')],
+) -> Any:
+    "Send duplicates of a synced folder's files to the trash (undoable)\n\nOne audited, undoable action: the documents named, each one the dry run lists under `remove`,\ngo to the trash (nothing is deleted for good). Refused (409) in words if any is a kept document\nor no longer a duplicate; then nothing is removed.\n\nRoute: POST /api/sync-folders/duplicates/remove (toolset `sync-folders`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/sync-folders/duplicates/remove", json=_rt.body({"document_ids": document_ids}))
+
+
 def fichero_sync_folders_untie(
     *,
     folder_id: Annotated[str, Field(description='Folder Id')],
@@ -9088,6 +9102,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_storage_get_thumbnail", "storage", "GET", "/api/storage/thumbnail/{doc_id}", fichero_storage_get_thumbnail),
     GeneratedTool("fichero_sync_folders_list", "sync-folders", "GET", "/api/sync-folders", fichero_sync_folders_list),
     GeneratedTool("fichero_sync_folders_tie", "sync-folders", "POST", "/api/sync-folders", fichero_sync_folders_tie),
+    GeneratedTool("fichero_sync_folders_get_duplicates", "sync-folders", "GET", "/api/sync-folders/duplicates", fichero_sync_folders_get_duplicates),
+    GeneratedTool("fichero_sync_folders_remove_duplicates", "sync-folders", "POST", "/api/sync-folders/duplicates/remove", fichero_sync_folders_remove_duplicates),
     GeneratedTool("fichero_sync_folders_untie", "sync-folders", "DELETE", "/api/sync-folders/{folder_id}", fichero_sync_folders_untie),
     GeneratedTool("fichero_sync_folders_get_arrangement", "sync-folders", "GET", "/api/sync-folders/{folder_id}/arrangement", fichero_sync_folders_get_arrangement),
     GeneratedTool("fichero_sync_folders_get_intake", "sync-folders", "GET", "/api/sync-folders/{folder_id}/intake", fichero_sync_folders_get_intake),

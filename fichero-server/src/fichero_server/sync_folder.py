@@ -60,6 +60,14 @@ document's file went missing) and the project follows it (`follow_hand_moves`): 
 the new place, the document moves to the project folder of the same name (made if missing) and
 takes the file's new name, and it is marked as placed by hand.
 
+A file that is already a document's own file (live or in the trash) never arrives, whatever way the
+folder is kept: an Index import links its files but records rows only for the layout files it read,
+and before #5495 each start of the engine took every one of them in again at the project's root.
+A file that does arrive lands in the project folder of the folder it was put in (the one importing
+the folder made, then its subfolders by name). Documents duplicated by that defect are found by
+`duplicates` (the dry run: the same file held by two documents) and sent to the trash by the
+audited, undoable `sync.remove_duplicates`, only those the dry run lists, never automatically.
+
 Not built yet: running a subfolder's own recipe on what lands in it, settling a conflict, adopting
 a TEI file spanning several images, restricted material, Rebuild Folder, and a folder of part of a
 project. Keep arranged by date or by a written rule (spec open question 10), and moving a layout
@@ -235,8 +243,11 @@ def _arrivals(db: Any, folder: dict[str, Any]) -> list[tuple[Path, str | None]]:
     root = Path(folder["path"])
     known = {r[0] for r in db.execute_fetchall("SELECT rel_path FROM sync_files WHERE folder_id = ?",
                                                [folder["id"]])}
-    if folder.get("mode") == KEEP_ARRANGED:  # a file that is a document's own file has not arrived
-        known |= {rel for _doc, rel in _documents_in(db, root)}
+    # A file that is already a document's own file has not arrived, however the folder is kept and
+    # however it came in: an Index import links every file in place but records only the layout
+    # files it read, so without this each restart took the folder's files in again (#5495). A
+    # document in the trash still holds its file: the person removed it, and it does not come back.
+    known |= {rel for _doc, rel in _documents_in(db, root, include_trashed=True)}
     found = []
     for path in sorted(root.rglob("*")):
         rel = path.relative_to(root)
@@ -482,7 +493,21 @@ def _take_in(db: Any, folder: dict[str, Any], arrivals: list[tuple[Path, str | N
     docs = []
     if taking:
         ctx = ActionContext(actor=FROM_SYNCED_FOLDER, library_path=str(Path(db.path).parent), is_bootstrap=True)
-        docs, _report = import_file_set(db, taking, ctx, mode="link")
+        # Each file lands in the project folder of the folder it was put in (#5495): the one importing
+        # the folder made, and below it its subfolders by name, made where missing. A made folder has
+        # none, so its arrivals land where any import without a place does.
+        anchor, parent_of = _anchor(db, root), {}
+        if anchor is not None:
+            import fichero_server.api.routes.document.documents  # noqa: F401  (registers document.create)
+            from fichero_server.actions.registry import registry
+
+            places: dict[Path, str] = {}
+            for path in taking:
+                rel_dir = path.parent.relative_to(root)
+                if rel_dir not in places:
+                    places[rel_dir] = _project_folder(db, registry, ctx, anchor, rel_dir)
+                parent_of[path] = places[rel_dir]
+        docs, _report = import_file_set(db, taking, ctx, mode="link", parent_of=parent_of)
     by_path = {str(Path(d.path).resolve()): d.id for d in docs if d.path}
     for path, kind in arrivals:
         _record(db, folder["id"], path.relative_to(root).as_posix(), document_id=by_path.get(str(path.resolve())),
@@ -584,6 +609,52 @@ def rescan(db: Any) -> None:
                            [folder["id"], rel])
 
 
+def duplicates(db: Any) -> list[dict[str, Any]]:
+    """The dry run of the duplicate repair (#5495): each file in a tied folder that more than one live
+    document holds, the one kept (the first made: the one the folder's import put in its place)
+    and the ones the repair would send to the trash, each with how many passes it carries. Changes
+    nothing."""
+    from fichero_server.models import Document
+    from fichero_server.models.segments import SegmentPass
+
+    def summary(doc: Any) -> dict[str, Any]:
+        return {"id": doc.id, "name": doc.name, "parent_id": doc.parent_id, "created_at": doc.created_at,
+                "passes": len(db.query(SegmentPass, document_id=doc.id))}
+
+    groups, seen = [], set()
+    for folder in _folders(db):
+        root = Path(folder["path"])
+        by_file: dict[str, list[str]] = {}
+        for doc_id, rel in _documents_in(db, root):
+            by_file.setdefault(os.path.realpath(root / rel), []).append(doc_id)
+        for path, ids in sorted(by_file.items()):
+            if len(ids) < 2 or path in seen:
+                continue
+            seen.add(path)
+            docs = sorted((db.get(Document, i) for i in ids), key=lambda d: (d.created_at, d.id))
+            groups.append({"path": path, "keep": summary(docs[0]), "remove": [summary(d) for d in docs[1:]]})
+    return groups
+
+
+def remove_duplicates(db: Any, document_ids: list[str], actor: str) -> tuple[list[str], list[dict[str, Any]]]:
+    """Send these duplicates to the trash: each must be one the dry run lists to remove now (never a
+    kept one; refused otherwise, and then nothing is removed). Returns the ids removed and their
+    snapshots, for undo."""
+    from fichero_server.api.routes.document.documents import delete_document_impl
+
+    removable = {d["id"] for group in duplicates(db) for d in group["remove"]}
+    refused = [i for i in document_ids if i not in removable]
+    if refused:
+        raise ValueError(f"Not a duplicate the repair would remove now (a kept document, or no longer a "
+                         f"duplicate): {', '.join(refused)}. Nothing was removed.")
+    removed, snapshots = [], []
+    for doc_id in dict.fromkeys(document_ids):
+        ids, snaps = delete_document_impl(db, doc_id, actor=actor)
+        removed.extend(ids)
+        snapshots.extend(snaps)
+    return removed, snapshots
+
+
 def status(db: Any) -> list[dict[str, Any]]:
     """Each tied folder: where, which formats, last written, files waiting to be written, and the
     files written, in the way, changed outside and deleted outside."""
@@ -614,12 +685,26 @@ def status(db: Any) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------------------------------
 
 
-def _documents_in(db: Any, root: Path) -> list[tuple[str, str]]:
-    """Each live file document whose file is inside the folder: (document id, path in the folder)."""
-    roots = {str(root), os.path.realpath(root)}
+def _bases(db: Any, root: Path) -> set[str]:
+    """The ways a path into the folder is spelled in the documents' records: as tied, resolved, and
+    as the folder import that made its project folder wrote it (a path through a symlink, such as
+    macOS's /var, is stored as it was given)."""
+    real = os.path.realpath(root)
+    bases = {str(root), real}
+    for (path,) in db.execute_fetchall("SELECT path FROM documents WHERE doc_type = 'folder' AND path IS NOT NULL"):
+        if path not in bases and os.path.realpath(path) == real:
+            bases.add(path)
+    return bases
+
+
+def _documents_in(db: Any, root: Path, *, include_trashed: bool = False) -> list[tuple[str, str]]:
+    """Each live file document whose file is inside the folder: (document id, path in the folder).
+    `include_trashed`: the documents in the trash too."""
+    roots = _bases(db, root)
     found = []
+    live = "" if include_trashed else "AND deleted_at IS NULL "
     for doc_id, path in db.execute_fetchall("SELECT id, path FROM documents WHERE doc_type = 'file' "
-                                            "AND deleted_at IS NULL AND path IS NOT NULL"):
+                                            f"{live}AND path IS NOT NULL"):
         for base in roots:
             if path.startswith(base + os.sep):
                 found.append((doc_id, Path(os.path.relpath(path, base)).as_posix()))
@@ -926,17 +1011,26 @@ def _follow_in_project(db: Any, registry: Any, ctx: Any, anchor: str, doc_id: st
     folder named as the file's folder is (made if missing), so nothing would move it back."""
     from fichero_server.models import Document
 
-    parent = anchor
-    for part in rel.parent.parts:
-        child = next((d for d in db.query(Document, parent_id=parent, name=part)
-                      if d.doc_type == "folder" and d.deleted_at is None), None)
-        parent = child.id if child is not None else registry.invoke(
-            db, "document.create", {"name": part, "parent_id": parent, "doc_type": "folder"}, ctx).result["id"]
+    parent = _project_folder(db, registry, ctx, anchor, rel.parent)
     doc = db.get(Document, doc_id)
     if doc.name != rel.name:
         registry.invoke(db, "document.update", {"doc_id": doc_id, "update": {"name": rel.name}}, ctx)
     if doc.parent_id != parent:
         registry.invoke(db, "document.move", {"doc_id": doc_id, "parent_id": parent}, ctx)
+
+
+def _project_folder(db: Any, registry: Any, ctx: Any, anchor: str, rel_dir: Path) -> str:
+    """The project folder standing for `rel_dir` of the folder: under the anchor, one live project
+    folder per part, by name, made (audited) where missing."""
+    from fichero_server.models import Document
+
+    parent = anchor
+    for part in rel_dir.parts:
+        child = next((d for d in db.query(Document, parent_id=parent, name=part)
+                      if d.doc_type == "folder" and d.deleted_at is None), None)
+        parent = child.id if child is not None else registry.invoke(
+            db, "document.create", {"name": part, "parent_id": parent, "doc_type": "folder"}, ctx).result["id"]
+    return parent
 
 
 def follow(db: Any, folder_id: str, doc_id: str, old_rel: str, new_rel: str) -> None:
