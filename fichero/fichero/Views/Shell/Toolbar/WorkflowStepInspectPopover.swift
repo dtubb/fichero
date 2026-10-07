@@ -113,26 +113,9 @@ struct WorkflowStepInspectPopover: View {
     /// select the run, open the one details window. The store's own run row
     /// when it has one, so the details match the table's.
     private func openDetails(threadId: String, glance: WorkflowStepRunGlance) {
-        let ranStep = chain.first { $0.threadId == threadId }
-        let status: SelectedActivityRun.ActivityRunStatusType
-        switch glance {
-        case .running: status = .running
-        case .failed: status = .failed
-        case .finished, .notRun: status = .completed
-        }
-        let selected = activityStore?.runs.first { $0.threadId == threadId || $0.runId == threadId }?.toSelectedRun()
-            ?? SelectedActivityRun(
-                id: threadId,
-                name: ranStep?.name ?? step.name,
-                workflowId: ranStep?.workflow?.id,
-                threadId: threadId,
-                timestamp: nil,
-                status: status,
-                isLive: status == .running,
-                libraryId: nil,
-                libraryName: nil,
-                childType: nil
-            )
+        // The selection is the run's job id (#5561); the details read the row themselves.
+        let selected = activityStore?.runs.first { $0.threadId == threadId || $0.runId == threadId }?.selection
+            ?? ActivitySelection(jobId: threadId, libraryId: nil)
         ActivityWindowSelectionState.shared.select(selected)
         openWindow(id: ActivityWindowSelectionState.detailWindowID)
     }
