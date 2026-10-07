@@ -41,3 +41,11 @@ extension View {
         }
     }
 }
+
+#Preview("Group mark on a page") {
+    RoundedRectangle(cornerRadius: 4)
+        .fill(.quaternary)
+        .frame(width: 84, height: 108)
+        .groupStackBadge(for: Document(id: "g", docType: .group, name: "Sentencia 1", childCount: 12))
+        .padding()
+}

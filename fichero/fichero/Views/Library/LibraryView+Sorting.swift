@@ -2,6 +2,17 @@ import SwiftUI
 
 // MARK: - Sort Field
 
+/// A position in a folder: sort order first, then name in natural (Finder) order.
+nonisolated struct FiledOrder: Comparable, Hashable {
+    let position: Int
+    let name: String
+
+    static func < (lhs: FiledOrder, rhs: FiledOrder) -> Bool {
+        if lhs.position != rhs.position { return lhs.position < rhs.position }
+        return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+    }
+}
+
 /// Sortable fields for library documents
 enum LibrarySortField: String, CaseIterable, Identifiable {
     /// The ENGINE's ranking — the default while search results are showing,
