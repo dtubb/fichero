@@ -857,6 +857,201 @@ rule; a file the person moves by hand is left where they put it and recorded as 
 (Fichero does not fight the person). Before the first arrangement, setup shows how many files
 would move and a sample of the new paths, and nothing moves until the person says yes.
 
+#### Everything automatic after Start (review 2026-10-07)
+
+**The goal (the maintainer's, paraphrased).** A person brings material (a folder, a box of loose
+pages, PDFs, notes), answers the four steps, and presses Start. From then on everything happens by
+itself: the right reader for the language, script and hand is chosen and checked, the pages are
+read, names, places and dates are found, and the material is **organised** (Find the Documents:
+boundaries, kinds as prototypes, groups or cases, their order, the canvas). The person never drives
+a step by hand, always sees progress and results, and nothing fails without saying so.
+
+**How this was reviewed.** Read on disk in the `lead` worktree on 2026-10-07, nothing run: the four
+steps (`FirstRunWindow`, `RecipeSetupPlanFields`, `RecipeStepsView`, `RecipeSetupStore`), the engine's
+`recipes/assemble.py`, `start.py`, `runner.py`, `done.py`, `jobs.py`, `answers.py`, `seed/cards.yaml`,
+`api/routes/system/recipes.py` and `importers/derivatives.py`, against `source/finding-documents.md`,
+`compute/jobs-and-fine-tuning.md` (memory, runs, read again) and `ui/activity-and-automatic-work.md`.
+Three cases were traced end to end.
+
+**The order after Start, by kind of material (the target).** Each stage is a job with its rows in
+Activity; a stage that cannot run says why and the stages that do not need it carry on.
+
+| Material | After Start, in order |
+|---|---|
+| **Images of loose pages** (a box: Istmina) | 1 look at the pages: blank pages, recto/verso pairs, duplicate shots; a sample of about ten suggests script, language, material and hand → 2 prepare damaged images where the sample shows damage → 3 find lines → 4 read: a strong reader reads the sample, the check removes its misreads, the candidate readers are compared on it, the winner reads the rest, each page by the reader for its material and hand → 5 correct where unsure → 6 names → 7 dates → 8 statements, if ticked → 9 **organise**: Find the Documents proposes boundaries, kinds as prototypes, groups and order, drawn on the canvas for review → 10 search (vectors follow every reading) → kept exports → a summary of what was found |
+| **Bound volumes** (a diary across volumes: Marshall) | as above, run **volume by volume** (one batch per folder, so the first volume is finished and readable early, #5540), with step 9 splitting each volume into **dated entries** rather than finding boundaries between documents; once enough lines are corrected, the offer to train the project's own reader comes by itself |
+| **Text already** (a slip box of md/txt notes, Word, a PDF with a text layer) | 1 count, and detect the language from the text → names → dates → statements, if ticked → organise (groups by shared names, links and likeness; canvas) → search. No lines and no reading (#5553) |
+
+**What happens today, case by case.**
+
+*(a) Istmina: 203 page images of 1940s Spanish court papers, handwritten and typed.*
+- **Setup asks:** the project's name and place; the way in and Add a Folder…; material (Handwriting is
+  ticked by default; the person must tick Typescript); languages and scripts typed by hand (`es`, `Latn`;
+  nothing is suggested from the pages, and the plan is not proposed until both are given); the purposes
+  (say, The full knowledge graph) and which kinds of names. Ready shows the plan, the cloud question
+  only when a cloud model would fit, and "203 pages · free, runs on this Mac". No time, and not the
+  peak-memory sentence the engine already writes for a step on this Mac's model server.
+- **The plan:** lines and reading as one Kraken run, the reader chosen by rule. PP-OCRv6 ranks first
+  because its card carries a published aggregate CER of 3.9% over 44 languages, and no other reader
+  has a figure; the same reader measured 24.6% on Mosquera pages on 2026-10-05/06. Then correcting
+  with the 3B local vision model (the 7B is refused on 8 GB), names with spaCy's Spanish pipeline, and
+  dates by the Gregorian rules. Statements and authority links have no model card, so setup shows them
+  with a problem and a fix. Search **has** a card in setup, but Start has no runner card for
+  `make-a-vector`, so the plan skips it with "no card runs the job yet". Vectors do still come from the
+  import's embed job and the re-embed after changes, but the plan never says so. The typescript reader
+  that the recipe assembles under `readers` is never used, because the runner reads every page with
+  the default (handwriting) reader. No purpose brings image preparation, page splitting or Find the
+  Documents, and Start has no card for them.
+- **What runs:** one `run-a-recipe` row. Kraken lines and reads all 203 images, about a hundred of them
+  blank versos; then correcting, names and dates, each step across every page before the next starts
+  (one model load per step, as `compute/jobs-and-fine-tuning.md` rule 8 asks).
+- **What the person sees:** Start closes setup, and the project opens with nothing pointing to the
+  run. The skipped steps are in the plan's `skipped` list and the run's detail, but the app never reads
+  either, and it has no caller of `/api/recipes/project/runs`. When the run ends, its row says "Done: N
+  steps run, K skipped (see why)", with no account of what was found. Pages that failed inside a step
+  are shown on that step's workflow row and are not counted on the recipe's row.
+- **Where it stops:** transcriptions, names and dates on 203 flat pages in one folder. There are no
+  documents, kinds, cases, order or canvas: none of the organising happens.
+
+*(b) Marshall: an English diary in cursive, across several volumes.*
+- **Setup asks** the same questions (`en`, `Latn`, handwriting typed and ticked by hand). The volumes
+  come in through Add a Folder…, either one folder per volume or their shared parent.
+- **The plan:** the same reader by the same published aggregate, the 3B corrector (`en`), names with
+  spaCy's English pipeline, and dates. `split-into-entries` is in the job registry, but no purpose
+  brings it and Start has no card for it.
+- **What runs:** each step across every page of every volume before the next step starts. At thousands
+  of pages no volume is finished early (`compute/jobs-and-fine-tuning.md` rule 9, #5540, not built).
+- **What the person sees:** as in (a). The train step is assembled as `offered_when: 2,000 corrected
+  lines`, but nothing in the engine watches that count and the app never reads the plan's `offered`. So
+  the offer to fine-tune Kraken on Marshall's own hand never arrives, though this is the clearest case
+  for it (section 14).
+- **Where it stops:** read and corrected pages, names, and dates attached to pages rather than entries.
+  There are no dated entries and no reader trained on this hand.
+
+*(c) A slip box: a folder of born-digital md/txt notes (#5553).*
+- **Setup asks** for a material, with no "already text" choice (Handwriting by default), and for a
+  language and a script before it proposes anything.
+- **The plan:** every purpose except Decipher and Not sure brings `find-lines` and `read-a-line`. A
+  recipe's inputs start from page images (`jobs.STARTS_WITH`), so a recipe made only of names, dates and
+  search fails the recipe check. Not sure runs nothing.
+- **What runs:** Kraken is pointed at files that have no image, because files without pages count as
+  units of work. At best it does nothing. At worst the step fails, and names and statements say "not
+  run: needs line readings". This must be confirmed on a fixture.
+- **What helps today:** the import embeds the notes' text, so search works, and the NLP draft runs if
+  its setting is on.
+- **Where it stops:** searchable notes with no names, dates, links or arrangement, unless each step is
+  run by hand.
+
+**The memory and the 8 GB Mac.** The runner already loads each model once per step. What is not built
+(#5537): the budget across runtimes, letting MLX, spaCy and the embedder go between steps, and the
+plan's peak memory across steps. Ready shows none of it.
+
+**Gaps, as behaviours.**
+- `source.onboard.auto.no-hand-driving` — **[PARTIAL]** (#5492) after the four steps and Start, the
+  person is asked nothing more except where money is spent or pages would leave the Mac: one question,
+  in one place, with the run waiting on it and saying so. Built: the four steps and Start. Not built:
+  the stages below.
+- `source.onboard.auto.plan-shows-what-will-not-run` — **[GAP]** (#5573) Ready lists every step
+  the Start plan skips (`skipped`) with its reason and fix button, and every model that must be fetched
+  (`downloads`) with its size and a Download button. Start is never pressed without the person seeing
+  what will not run. Today the app reads only `refusals`.
+- `source.onboard.auto.every-proposed-step-runs` — **[GAP]** (#5574) setup never proposes a step
+  that Start has no card for. Each registered job either has a card in `start.py` or is not offered as
+  a step that runs by itself. Jobs with no card today: `make-a-vector`, `link-to-authorities`,
+  `place-in-a-gazetteer`, `prepare-the-image`, `find-documents-in-a-folder`, `put-in-order`,
+  `split-into-entries`, `translate-transliterate-normalise`, `pull-out-passages`,
+  `describe-for-the-catalogue`, `extract-to-a-table`, `find-regions` and `find-a-tables-cells`. Search is
+  the first fix: its step is the embed job that already follows every reading, and the plan says so
+  rather than "skipped". *Test:* for every purpose, the assembled recipe's steps that have a model all
+  appear in the Start plan's `runs`.
+- `source.onboard.auto.runs-by-itself-honoured` — **[PARTIAL]** (#5478) the import hand-off reads
+  `answers.automatic`. With Nothing runs automatically, an import after Start queues no recipe run;
+  otherwise it runs only the ticked steps. Today `runner.material_arrived` reads only the purposes, so a
+  person's "nothing" or an unticked step is ignored without a word.
+- `source.onboard.auto.on-add-refusal-said` — **[GAP]** (#5575) an import after Start whose
+  recipe cannot run (the plan has refusals, or nothing runs) leaves a row in Activity saying why and
+  what fixes it. Today `material_arrived` returns quietly and the new pages are never read.
+- `source.onboard.auto.lands-on-the-run` — **[GAP]** (#5576, see #5555) after Start, the project
+  window shows the run: each stage, pages done and left, time left, and what is waiting and why (memory,
+  a download, another run). It is read from `/api/recipes/project/runs`, which the app does not call
+  today.
+- `source.onboard.auto.results-summary` — **[GAP]** (#5577) when a run ends, the project says what
+  it made: pages read, lines, names by kind, dates, statements, documents and groups proposed, pages
+  failed (with Read Again) and steps skipped (with their fixes). Each figure opens what it counts.
+- `source.onboard.auto.failed-pages-roll-up` — **[PARTIAL]** (#5555) the recipe run's own row counts
+  the pages that failed inside its steps and offers Read Again for them. Built: per workflow run
+  (`compute.run.read-failed-again`). Not built: on the recipe's row, which today says "Done" when every
+  step's workflow completed.
+- `source.onboard.auto.estimate-time-and-memory` — **[PARTIAL]** (#4951, #5537) Ready states the
+  whole run's time on this Mac, labelled measured or estimate, and its peak memory across steps. Built:
+  pages and cost, and a per-step memory sentence in the engine's estimate. Not built: time, the
+  across-steps peak, and the app showing either.
+- `source.onboard.auto.suggested-from-samples` — **[GAP]** (#4951, as `source.onboard.samples-first`)
+  from a sample of the material, setup fills in its suggestions for language, script, material, period
+  and hand, labelled "suggested from your pages", along with the pages that are blank or duplicates. The
+  person confirms them; they do not type them.
+- `source.onboard.auto.reader-measured-before-bulk` — **[GAP]** (#5533, #5519, #4951) no reader reads
+  the whole material on the strength of a published figure alone. Before the bulk read, a strong reader
+  reads the sample, the teacher-line check (#5446) removes its misreads, the candidates are compared on
+  it, and the winner reads the rest. All of this is jobs in the run. The person's yes for the winner is
+  one question, asked where the run waits (the ruling of section 12, "Use the winner").
+- `source.onboard.auto.reader-per-material` — **[PARTIAL]** (#5478, #5578 the sorting job)
+  each page is read by the reader for its kind. A cheap first job sorts the pages (handwriting, print,
+  typescript, blank) from the image, and a person's correction of a page's kind is kept. Built: the
+  recipe assembles `readers`, one per kind. Not built: the sorting, and a runner that uses anything but
+  the default reader.
+- `source.onboard.auto.hand-and-script-per-page` — **[GAP]** (#5456) script and hand are found per
+  page and region, and each region goes to the reader that suits it (as
+  `recipe.distil.script-and-hand-routed-per-region`).
+- `source.onboard.auto.blank-pages-not-read` — **[GAP]** (#5579; #5550 for pairing leaves)
+  blank pages are found before reading and are not read, lined or sent to a model. Each is reported in
+  the run's account. About half of Istmina's 203 images are blank versos.
+- `source.onboard.auto.prepare-damaged-images` — **[GAP]** (#5580) where the sample shows faded
+  or damaged pages, image preparation (contrast, deskew) is proposed as a step with a card. It runs before
+  lines, and the original image is kept.
+- `source.onboard.auto.organise-is-a-stage` — **[GAP]** (#5550) Find the Documents is a recipe stage
+  that runs after names and dates, on any material, images or text. Its proposals (boundaries, kinds as
+  prototypes, groups, order) are drawn on the canvas for review. Nothing in the source moves until the
+  person accepts, and a project of loose material brings this stage by default. Today no purpose brings
+  `find-documents-in-a-folder`, and Start has no card for it.
+- `source.onboard.auto.diary-entries` — **[GAP]** (#5581) a diary or register is split into dated
+  entries as a recipe stage (`split-into-entries`). Each entry carries its date, the entries are ordered
+  by it, and an entry that runs across a page break is one entry.
+- `source.onboard.auto.volumes-in-batches` — **[GAP]** (#5540) a run over several volumes goes one
+  volume at a time, with every stage finished on that volume before the next volume starts. Progress is
+  shown per volume.
+- `source.onboard.auto.train-offer-comes` — **[GAP]** (#5440) when a project's corrected lines reach a
+  train step's `offered_when` threshold, the offer appears by itself, with where, time and cost. Today
+  nothing watches the count and the app never reads `offered`.
+- `source.onboard.auto.text-needs-no-reading` — **[GAP]** (#5553, as
+  `source.recipe.text-material-is-not-read`) material that is already text is a kind of its own. Its
+  recipe starts from text (`STARTS_WITH` includes the page's text), its language is detected from the
+  text, no script or material is asked, and the plan goes straight to names, dates, organising and
+  search.
+- `source.onboard.auto.job-answers-read` — **[PARTIAL]** (#5478) the answers given under a purpose
+  (which kinds of names, which gazetteer, how far to normalise) are read by the steps they configure.
+  Built: saved as `answers.job_answers`. Not built: read by any step.
+- `source.onboard.auto.models-fetched-first` — **[PARTIAL]** (#5367, #5537) every model the plan needs
+  is fetched before its step, as a visible download job, never during a page read. This covers the
+  Kraken readers and the MLX vision models as well as spaCy pipelines. Built: spaCy pipelines
+  (`missing_models`).
+
+**The five fixes that would most make onboarding just work, ranked.**
+1. **Make the run visible and honest** (#5573, #5575, #5576, #5577; #5555). Ready shows skipped steps and downloads.
+   Start lands on the run, live. An import that cannot run says why. The run ends with a summary of what
+   it found, and failed pages roll up to the run's row. Without this, every other gap is silent.
+2. **Run every step that setup proposes, and keep the What runs by itself promise** (#5574, #5478).
+   Either add a card for each proposed job or stop proposing it, starting with search, and have the
+   import hand-off read `answers.automatic`.
+3. **Organising as a stage** (#5550, #5579 blank pages). Find the Documents runs after names and
+   dates, with leaves and blank pages first, its proposals on the canvas. This is the half of the goal
+   that does not run at all today.
+4. **Measure before the bulk read** (#4951, #5533, #5519, #5456, #5578 sorting). Samples suggest the
+   answers. A teacher reads and is checked, the readers are compared, and the winner reads, each page by
+   its material's reader. Today a published aggregate decides, and one reader reads everything.
+5. **Text needs no reading** (#5553). A slip box gets a recipe that starts from its text and goes
+   straight to names, dates, organising and search. Today it cannot get a recipe that passes the check.
+
 ### 8. How the recipe is assembled: rules first, measurement second
 
 **By rule, and deterministic** (ruled 2026-10-01). The recipe is assembled from the answers and
