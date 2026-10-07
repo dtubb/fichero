@@ -951,11 +951,18 @@ plan's peak memory across steps. Ready shows none of it.
   person is asked nothing more except where money is spent or pages would leave the Mac: one question,
   in one place, with the run waiting on it and saying so. Built: the four steps and Start. Not built:
   the stages below.
-- `source.onboard.auto.plan-shows-what-will-not-run` — **[GAP]** (#5573) Ready lists every step
+- `source.onboard.auto.plan-shows-what-will-not-run` — **[GAP]** (#5573; engine half #5574: every entry in the
+  plan's `skipped` carries `why` and `fix` in words, pinned by `fichero-server/tests/unit/recipes/test_every_step_runs_to_spec.py`) Ready lists every step
   the Start plan skips (`skipped`) with its reason and fix button, and every model that must be fetched
   (`downloads`) with its size and a Download button. Start is never pressed without the person seeing
   what will not run. Today the app reads only `refusals`.
-- `source.onboard.auto.every-proposed-step-runs` — **[GAP]** (#5574) setup never proposes a step
+- `source.onboard.auto.every-proposed-step-runs` — **[OK]** (#5574; built 2026-10-07: `start.START_JOBS`,
+  `assemble()` puts a job Start has no card for under the recipe's `by_hand` and never among its steps, the plan
+  lists each in `skipped` with why and the workflow or tool that does it by hand; search runs as an `embed` card,
+  the `make-a-vector` job for each page, and the rules name the engine's own search embedder; tested in
+  `fichero-server/tests/unit/recipes/test_every_step_runs_to_spec.py`. Wired: `make-a-vector`. No longer proposed as a step, because Start has no card and no shipped
+  workflow can take the step's model or read its inputs: the other twelve below; a layer whose jobs Start cannot
+  run is not addable) setup never proposes a step
   that Start has no card for. Each registered job either has a card in `start.py` or is not offered as
   a step that runs by itself. Jobs with no card today: `make-a-vector`, `link-to-authorities`,
   `place-in-a-gazetteer`, `prepare-the-image`, `find-documents-in-a-folder`, `put-in-order`,
@@ -964,7 +971,10 @@ plan's peak memory across steps. Ready shows none of it.
   the first fix: its step is the embed job that already follows every reading, and the plan says so
   rather than "skipped". *Test:* for every purpose, the assembled recipe's steps that have a model all
   appear in the Start plan's `runs`.
-- `source.onboard.auto.runs-by-itself-honoured` — **[PARTIAL]** (#5478) the import hand-off reads
+- `source.onboard.auto.runs-by-itself-honoured` — **[OK]** (#5478; built 2026-10-07: the import hand-off's plan
+  reads `answers.automatic` (`plan_start(automatic=…)`), so with Nothing runs automatically nothing is queued and
+  an unticked step is in the run's `skipped` saying it runs only by hand; Start, pressed by hand, runs the recipe
+  once as screen 8 says; tested in `fichero-server/tests/unit/recipes/test_every_step_runs_to_spec.py`) the import hand-off reads
   `answers.automatic`. With Nothing runs automatically, an import after Start queues no recipe run;
   otherwise it runs only the ticked steps. Today `runner.material_arrived` reads only the purposes, so a
   person's "nothing" or an unticked step is ignored without a word.
@@ -1028,9 +1038,14 @@ plan's peak memory across steps. Ready shows none of it.
   recipe starts from text (`STARTS_WITH` includes the page's text), its language is detected from the
   text, no script or material is asked, and the plan goes straight to names, dates, organising and
   search.
-- `source.onboard.auto.job-answers-read` — **[PARTIAL]** (#5478) the answers given under a purpose
+- `source.onboard.auto.job-answers-read` — **[PARTIAL]** (#5478, #5574) the answers given under a purpose
   (which kinds of names, which gazetteer, how far to normalise) are read by the steps they configure.
-  Built: saved as `answers.job_answers`. Not built: read by any step.
+  Built: saved as `answers.job_answers`; each becomes its step's setting (`start.JOB_ANSWER_SETTINGS`), at
+  assembly when sent and in the Start plan from the saved answers; the kinds of names reach the names step as
+  the sections its entity extraction finds (tested in `fichero-server/tests/unit/recipes/test_every_step_runs_to_spec.py`). Not built: the gazetteer and how far
+  to normalise reach no step, because placing in a gazetteer and translating are not steps Start runs yet
+  (`by_hand`); setup's gazetteers (GeoNames, Wikidata, the project's list) are not the engine's (a small
+  offline list, then Nominatim).
 - `source.onboard.auto.models-fetched-first` — **[PARTIAL]** (#5367, #5537) every model the plan needs
   is fetched before its step, as a visible download job, never during a page read. This covers the
   Kraken readers and the MLX vision models as well as spaCy pipelines. Built: spaCy pipelines
@@ -2120,14 +2135,14 @@ Purposes and layers
   normalise, Gather quotations, Catalogue my sources and Tables and forms proposed); a job not in the
   registry (hands, today) is never offered. *Test:* ticking Map places shows Find lines, Read each
   line, Correct, Find names, Place in a gazetteer.
-- `source.onboard.job-detail-screens` — **[PARTIAL]** (#5478) **Built 2026-10-05 (app), not yet seen, as ruled that day (every ticked job its own screen):** each ticked job adds one screen after What it is, in step order (`SetupPage.pages`), with its topic's paragraph and example; Entities asks its kinds (default people and places), Translate or normalise how far, Map places which gazetteer, saved as `answers.job_answers`; an unticked job adds none; pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. *Not built: the steps reading `job_answers`; translate's target language, the gazetteer's region and period, catalogue fields, table columns.* a ticked job that needs an answer the
+- `source.onboard.job-detail-screens` — **[PARTIAL]** (#5478) **Built 2026-10-05 (app), not yet seen, as ruled that day (every ticked job its own screen):** each ticked job adds one screen after What it is, in step order (`SetupPage.pages`), with its topic's paragraph and example; Entities asks its kinds (default people and places), Translate or normalise how far, Map places which gazetteer, saved as `answers.job_answers`; an unticked job adds none; pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. *Built 2026-10-07 (engine): the names step reads its kinds (`source.onboard.auto.job-answers-read`). Not built: the gazetteer and translate steps reading theirs; translate's target language, the gazetteer's region and period, catalogue fields, table columns.* a ticked job that needs an answer the
   engine cannot work out gets one short screen of its own after What it is, and only then: entity
   kinds (checkboxes; default people and places), translate or normalise (into which language, how
   far), gazetteer (which one, region and period), catalogue fields, table columns; an unticked job
   never shows its screen; image clean-up, reading order, dates and statements have no screen (their
   defaults live in the Inspector). *Test:* purposes [transcribe] show no detail screen; adding
   People, places and things shows the entity-kinds screen once.
-- `source.onboard.what-runs-by-itself` — **[PARTIAL]** (#5478) **Built 2026-10-05 (app), not yet seen:** its own screen before Start (`RecipeAutomaticFields`): the choice, each recipe step with a checkbox pre-ticked from the purposes that run by themselves (training never), the sentences about Start and import; saved as `answers.automatic` (`runs`, `steps`); pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. *Not built: the import hand-off reading it (engine).* "What runs by itself" is its own screen
+- `source.onboard.what-runs-by-itself` — **[PARTIAL]** (#5478) **Built 2026-10-05 (app), not yet seen:** its own screen before Start (`RecipeAutomaticFields`): the choice, each recipe step with a checkbox pre-ticked from the purposes that run by themselves (training never), the sentences about Start and import; saved as `answers.automatic` (`runs`, `steps`); pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. *Built 2026-10-07 (engine, #5574): the import hand-off reads it (`source.onboard.auto.runs-by-itself-honoured`).* "What runs by itself" is its own screen
   before Start: **Nothing runs automatically** or **New material runs through the ticked steps**,
   then each recipe step with a checkbox pre-ticked by its purposes' kind (none ticked for Edit a
   corpus, Decipher, or no purpose); it says that Start runs the recipe once over the material
@@ -2536,7 +2551,7 @@ The recipe and its format
   spreadsheet.
 - `source.job.pull-out-passages` — **[GAP]** (#4949) a step can gather excerpts on a question or theme,
   each with its source and place, into a note or collection.
-- `source.recipe.embedder-by-language` — **[PARTIAL]** (#4948, #4951) **Built 2026-10-03 (engine):** the smallest local embedder covering the languages, in `assemble()`; the search A/B is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the embedder is the smallest local
+- `source.recipe.embedder-by-language` — **[PARTIAL]** (#4948, #4951, #5574) **Built 2026-10-03 (engine):** the smallest local embedder covering the languages, in `assemble()`; since 2026-10-07 the engine's own search embedder first where its card covers them (a library searches one embedding space, so a step naming another is skipped with its fix); the search A/B is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the embedder is the smallest local
   model whose card covers all the project's languages and scripts and that this Mac holds; its A/B
   is a side-by-side search on the person's own questions; changing it re-embeds as one job.
 - `source.recipe.advanced-per-step` — **[GAP]** (#4951) every step shown in setup and the Inspector has an
