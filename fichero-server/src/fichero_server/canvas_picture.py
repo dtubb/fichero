@@ -24,9 +24,10 @@ import io
 import math
 import textwrap
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+if TYPE_CHECKING:  # PIL loads only when a picture is drawn: the engine's startup import budget
+    from PIL import Image, ImageFont
 
 from fichero_server.models import DocType, Document
 from fichero_server.models.canvas import CanvasItem, CanvasItemKind, CanvasLayout
@@ -50,6 +51,8 @@ _FAINT = (120, 120, 120)
 
 
 def _font(px: int) -> ImageFont.ImageFont:
+    from PIL import ImageFont
+
     return ImageFont.load_default(size=max(8, px))
 
 
@@ -101,6 +104,8 @@ def _card_for(db: Any, item_id: str) -> dict | None:
 
 
 def _thumbnail(doc: Document | None, package_path: Path | None, db: Any) -> Image.Image | None:
+    from PIL import Image
+
     if doc is None:
         return None
     from fichero_server.db.storage import get_thumbnail
@@ -124,6 +129,8 @@ def render_canvas_picture(
     max_size: int = 1600,
 ) -> bytes:
     """Draw the folder's board as one PNG (see the module docstring for what is drawn)."""
+    from PIL import Image, ImageDraw, ImageOps
+
     max_size = max(MIN_SIZE, min(MAX_SIZE, int(max_size)))
     placed: list[tuple[CanvasLayout, dict]] = []
     links: list[CanvasItem] = []

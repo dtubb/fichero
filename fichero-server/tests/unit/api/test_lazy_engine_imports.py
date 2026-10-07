@@ -80,7 +80,11 @@ HEAVY_MODULES = [
 # 798 from 2026-09-28 (#5228): rdflib (56 modules, ~80 ms of every launch) no longer rides in at app
 # build -- the SPARQL route's JSON-LD context needed only two namespace IRIs, now plain strings in
 # `knowledge.namespaces`. Lowered to lock that in.
-MODULE_BUDGET = 798
+# 801 from 2026-10-07 (#5550): the Find the Documents route registers its audited accept/reject actions at
+# startup (undo after a restart needs them registered), adding three small fichero_server modules
+# (finddocs, finddocs.store, finddocs.accept). The canvas picture's PIL import was made lazy the same day,
+# so PIL does not ride in at app import.
+MODULE_BUDGET = 801
 
 
 def _run(code: str) -> str:
