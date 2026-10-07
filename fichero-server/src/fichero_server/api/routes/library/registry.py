@@ -12,6 +12,7 @@ and these endpoints do NOT require an ``X-Fichero-Library-Path`` header.
 Endpoints:
   GET /api/registry                 — List all known libraries
   GET /api/registry/open            — List live backend library handles
+  POST /api/registry/release        — Release a project: close + stop its work, keep it registered
   POST /api/registry/add            — Add a library path to registry
   POST /api/registry/update-access  — Mark library as accessed (for sorting)
   DELETE /api/registry/{path}       — Remove from registry (idempotent)
@@ -57,6 +58,8 @@ from fichero_server.models import (
     LibraryRegistryResponse,
     OpenLibraryHandle,
     OpenLibraryHandlesResponse,
+    ReleaseLibraryParams,
+    ReleaseLibraryResponse,
     UnicodeLibraryCollision,
     UnicodeLibraryCollisionIdentity,
     UnicodeLibraryCollisionResponse,
@@ -1018,6 +1021,89 @@ def list_open_libraries() -> OpenLibraryHandlesResponse:
         for path in db_manager.open_library_paths()
     ]
     return OpenLibraryHandlesResponse(libraries=libraries, count=len(libraries))
+
+
+class ReleaseRefused(Exception):
+    """A project cannot be released now; the message says why, in words (#5563)."""
+
+
+@action("library.release", ReleaseLibraryParams, domains=["library"], atomic=False)
+def _action_release_library(
+    db: Database,
+    params: ReleaseLibraryParams,
+    ctx: ActionContext,
+) -> tuple[dict[str, object], ChangeSpec]:
+    """Release a project (#5563): close the engine's connection to it and stop its background work
+    (its job threads, its conversion), and leave it REGISTERED -- it stays in the app's sidebar and in
+    `GET /api/registry`, and any later request naming it opens it again as before (its waiting jobs
+    carry on). Unlike `DELETE /api/registry/{path}`, nothing is unregistered and no owner allowance
+    is withdrawn.
+
+    Never OPENS the project to release it: a project with no connection is `not_open`, nothing
+    stopped. Opening it would start the very work a release stops (the conversion, the job resume,
+    #5562). Refused while a workflow run or batch is live in it: a run has no stop at a page
+    boundary and would reopen the project to record its next step."""
+    from fichero_server.db.paths import is_global_library_package
+    from fichero_server.maintenance import conversion_on_open
+
+    stored_path = nfc_path(str(Path(nfc_path(params.path)).expanduser().resolve()))
+    if is_global_library_package(stored_path):
+        raise ReleaseRefused("The engine's global library is not a project; it is never released.")
+    key = db_manager._cache_key(stored_path)
+    registered = bool(db.query(KnownLibrary, path=stored_path))
+
+    project = db_manager.open_database(key)  # a dict read: never opens
+    if project is None:
+        result = {"status": "not_open", "path": stored_path, "registered": registered,
+                  "jobs_stopped": 0, "jobs_waiting": 0, "conversion_stopped": False}
+    else:
+        from fichero_server.execution import jobs
+
+        runs, running, waiting = jobs.live_work(project)
+        if runs:
+            raise ReleaseRefused(
+                f"{len(runs)} workflow run(s) are going in this project ({', '.join(runs[:3])}); "
+                "stop them or let them finish, then release it."
+            )
+        conversion = conversion_on_open.running(key)
+        db_manager.close_database(stored_path)  # stops the conversion, then the job threads, then closes
+        result = {"status": "released", "path": stored_path, "registered": registered,
+                  "jobs_stopped": running, "jobs_waiting": waiting, "conversion_stopped": conversion}
+        logger.info("Released project %s: %d job(s) stopped, %d waiting, conversion stopped: %s",
+                    stored_path, running, waiting, conversion)
+    return result, ChangeSpec(
+        domains=["library"],
+        target_ids=[stored_path],
+        before={"open": project is not None},
+        after=result,
+        emit_type=None,
+    )
+
+
+@router.post("/registry/release", response_model=ReleaseLibraryResponse)
+def release_library(
+    request: Request,
+    body: ReleaseLibraryParams,
+    db: Database = Depends(get_global_database),
+) -> ReleaseLibraryResponse:
+    """Release a project: close its connection and stop its background work; it stays registered.
+
+    The engine closes its database connection for the project and stops the work it runs for it
+    (derivative, embedding and other page jobs stop after the page in hand and wait for the next
+    open; the background conversion stops at a page boundary). The project stays in the registry,
+    so the app's sidebar keeps it, and opening it again works as before. Releasing a project with
+    no open connection does nothing (`not_open`) and never opens it. Refused (409) while a workflow
+    run or batch is going in it. Audited as `library.release` (#5563)."""
+    try:
+        result = registry.invoke(
+            db,
+            "library.release",
+            body.model_dump(),
+            ActionContext(actor=actor_from_request(request)),
+        )
+    except ReleaseRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return ReleaseLibraryResponse.model_validate(result.result)
 
 
 @router.get("/registry/unicode-collisions", response_model=UnicodeLibraryCollisionResponse)

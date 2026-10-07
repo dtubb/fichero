@@ -871,6 +871,35 @@ def resume(db: "Database") -> None:
     if db.execute_fetchone("SELECT 1 FROM jobs WHERE state = 'waiting' LIMIT 1"):
         _scheduler.wake(_key(db))
 
+#: Job rows that are a workflow run or a batch of runs, not a page job.
+_RUN_KINDS = ("workflow", "batch")
+
+
+def live_work(db: "Database") -> tuple[list[str], int, int]:
+    """(the names of the workflow runs and batches waiting or running, page jobs running, page jobs
+    waiting) in this library. Read by a project release (#5563): a run holds the project from its
+    own thread and has no stop at a page boundary, so a release refuses while one is live."""
+    _ensure(db)
+    marks = ", ".join("?" for _ in _RUN_KINDS)
+    runs = db.execute_fetchall(
+        f"SELECT id, detail FROM jobs WHERE state IN ('waiting', 'running') AND kind IN ({marks}) "
+        "AND parent_id IS NULL ORDER BY created_at",
+        list(_RUN_KINDS),
+    )
+    names: list[str] = []
+    for run_id, detail in runs:
+        try:
+            names.append((json.loads(detail) or {}).get("name") or run_id)
+        except (TypeError, ValueError):
+            names.append(run_id)
+    counts = dict(db.execute_fetchall(
+        f"SELECT state, count(*) FROM jobs WHERE state IN ('waiting', 'running') "
+        f"AND kind NOT IN ('workflow-step', {marks}) GROUP BY state",
+        list(_RUN_KINDS),
+    ))
+    return names, int(counts.get("running", 0)), int(counts.get("waiting", 0))
+
+
 def count_jobs(db: "Database", kind: str, *, subject_prefix: str,
                states: tuple[str, ...] = ("waiting", "running", "paused")) -> int:
     """How many jobs of this kind, on subjects starting so, are not finished."""

@@ -294,6 +294,25 @@ them.
 - Response: `200` `OpenLibraryHandlesResponse`, whose items expose `id`,
   `path`, and `is_open` from a lock-safe manager snapshot.
 
+`POST /api/registry/release`
+
+- Purpose: release a project (#5563). The engine closes its database connection
+  for the project and stops the background work it runs for it: its job threads
+  (derivatives, embeddings and other page jobs) finish the page in hand and wait,
+  and its background conversion stops at a page boundary. The project STAYS in
+  the registry, so the app's sidebar keeps it; any later request naming it opens
+  it again and its waiting jobs carry on. `DELETE /api/registry/{path}` (CLI
+  `library close`) is the one that unregisters.
+- Request: JSON `ReleaseLibraryParams` with `path`, the `.fichero` package.
+- Response: `200` `ReleaseLibraryResponse`: `status` (`released`, or `not_open`
+  when the engine held no connection: nothing is opened to release it),
+  `path`, `registered`, `jobs_stopped`, `jobs_waiting`, `conversion_stopped`.
+- Refusals: `409` while a workflow run or batch is waiting or running in the
+  project (named in `detail`), and for the engine's global library. A release
+  never starts a conversion or a snapshot (#5562).
+- Audited as the `library.release` action. CLI: `fichero registry
+  release-library --path …`; MCP: `fichero_library_release`.
+
 ### Reversible image regions and batches
 
 All routes below preserve the source document. Crop and split create derived

@@ -12836,6 +12836,23 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("release-library")
+    def registry_release_library_post(
+        ctx: typer.Context,
+        path: str = typer.Option(..., "--path", help="Request field: path."),
+    ) -> None:
+        """Release Library (POST /api/registry/release)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/registry/release"
+            params = None
+            payload = _build_json_payload({
+                "path": path,
+            }, {
+                "path": {'type': 'string', 'title': 'Path', 'description': 'Absolute path to the .fichero package to release.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-unicode-library-collisions")
     def registry_list_unicode_library_collisions_get(
         ctx: typer.Context,

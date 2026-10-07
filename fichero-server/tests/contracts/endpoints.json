@@ -8967,6 +8967,16 @@
         "response_model": "OpenLibraryHandlesResponse"
       },
       {
+        "method": "POST",
+        "path": "/registry/release",
+        "operation_id": "release_library_api_registry_release_post",
+        "summary": "Release Library",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ReleaseLibraryParams",
+        "response_model": "ReleaseLibraryResponse"
+      },
+      {
         "method": "GET",
         "path": "/registry/unicode-collisions",
         "operation_id": "list_unicode_library_collisions_api_registry_unicode_collisions_get",

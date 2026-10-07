@@ -21912,6 +21912,48 @@
         }
       }
     },
+    "/api/registry/release": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Release Library",
+        "description": "Release a project: close its connection and stop its background work; it stays registered.\n\nThe engine closes its database connection for the project and stops the work it runs for it\n(derivative, embedding and other page jobs stop after the page in hand and wait for the next\nopen; the background conversion stops at a page boundary). The project stays in the registry,\nso the app's sidebar keeps it, and opening it again works as before. Releasing a project with\nno open connection does nothing (`not_open`) and never opens it. Refused (409) while a workflow\nrun or batch is going in it. Audited as `library.release` (#5563).",
+        "operationId": "release_library_api_registry_release_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseLibraryParams"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseLibraryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/registry/unicode-collisions": {
       "get": {
         "tags": [
@@ -74566,6 +74608,69 @@
         ],
         "title": "RelativePlace",
         "description": "A place described relative to another -- \"21 leguas de Quito\", \"96 leguas al N de Santa Fe\"\n(maps D10, `source.geo.relative-place`). Stored as the source says it: the anchor, the relation,\nthe distance AS WRITTEN with its number and unit, and a certainty. Never a point: it resolves on\nread to an AREA of uncertainty through the unit's conversion (`knowledge.units`)."
+      },
+      "ReleaseLibraryParams": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "Absolute path to the .fichero package to release."
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "ReleaseLibraryParams",
+        "description": "Body of POST /api/registry/release (#5563)."
+      },
+      "ReleaseLibraryResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "released",
+              "not_open"
+            ],
+            "title": "Status",
+            "description": "released: its connection was open and is now closed; not_open: it had none, nothing to stop."
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "registered": {
+            "type": "boolean",
+            "title": "Registered",
+            "description": "Whether the project is in the known-library registry (release never removes it)."
+          },
+          "jobs_stopped": {
+            "type": "integer",
+            "title": "Jobs Stopped",
+            "description": "Jobs that were running for it; each finishes its page, then waits for the next open.",
+            "default": 0
+          },
+          "jobs_waiting": {
+            "type": "integer",
+            "title": "Jobs Waiting",
+            "description": "Jobs left waiting; they carry on when the project opens again.",
+            "default": 0
+          },
+          "conversion_stopped": {
+            "type": "boolean",
+            "title": "Conversion Stopped",
+            "description": "Whether its background conversion was running and was stopped at a page boundary.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "path",
+          "registered"
+        ],
+        "title": "ReleaseLibraryResponse",
+        "description": "What releasing a project did (#5563). The project stays registered; opening it again\n(any request naming it) reopens its connection and resumes its jobs."
       },
       "RemoteBackendHealth": {
         "properties": {
