@@ -1,0 +1,279 @@
+{
+ "10.5281/zenodo.7933402": {
+  "v0": {
+   "doi": "10.5281/zenodo.7933402",
+   "concept_doi": "10.5281/zenodo.6891851",
+   "creators": [
+    {
+     "name": "Weil, Stefan",
+     "orcid": "https://orcid.org/0000-0002-0524-9898",
+     "affiliation": "University of Mannheim"
+    },
+    {
+     "name": "Kamlah, Jan",
+     "orcid": "https://orcid.org/0000-0002-0417-7562",
+     "affiliation": "University of Mannheim"
+    },
+    {
+     "name": "Schmidt, Thomas",
+     "orcid": "https://orcid.org/0000-0003-3620-3355",
+     "affiliation": "University of Mannheim"
+    },
+    {
+     "name": "Stefan Weil",
+     "affiliation": "Universitätsbibliothek Mannheim"
+    }
+   ],
+   "summary": "Fraktur model trained from enhanced Austrian Newspapers dataset",
+   "description": "Recognition model for 19th century German Fraktur texts, trained with ground truth from Austrian Newspapers",
+   "metrics": {
+    "cer": 0.7491350173950195
+   },
+   "license": "CC-BY-SA-4.0",
+   "script": [
+    "Latn"
+   ],
+   "distribution": [
+    {
+     "url": "https://zenodo.org/records/7933402/files/metadata.json",
+     "size": 1774
+    },
+    {
+     "url": "https://zenodo.org/records/7933402/files/austriannewspapers.mlmodel",
+     "size": 16263754
+    }
+   ],
+   "graphemes": [],
+   "publication_date": "2026-03-23T12:13:26+00:00",
+   "model_type": [
+    "recognition"
+   ],
+   "keywords": [
+    "kraken_pytorch",
+    "Fraktur",
+    "Latin"
+   ],
+   "version": "v0"
+  }
+ },
+ "10.5281/zenodo.19188500": {
+  "v0": {
+   "doi": "10.5281/zenodo.19188500",
+   "concept_doi": "10.5281/zenodo.19188499",
+   "creators": [
+    {
+     "name": "Kamlah, Jan",
+     "orcid": "https://orcid.org/0000-0002-0417-7562",
+     "affiliation": "University of Mannheim"
+    },
+    {
+     "name": "Rohr, Benjamin",
+     "orcid": "https://orcid.org/0000-0002-4302-7591",
+     "affiliation": "University of Mannheim"
+    },
+    {
+     "name": "Jan Kamlah",
+     "affiliation": "UB Mannheim"
+    }
+   ],
+   "summary": "Historical era and location: The training material is derived from the official parliamentary protocols of the German Reichstag (the national parliament) and covers the entire Weimar Republic era, from 1920 to 1932.",
+   "description": "Typography (blackletter): The original documents were printed in Fraktur, a traditional German blackletter typeface. Write long form description (training \ndata, transcription standards) of the model here Base training data: The transcription model is based on the Reichsanzeiger-GT dataset (Schmidt ",
+   "metrics": {
+    "cer": 0.3022432327270508
+   },
+   "license": "CC-BY-SA-4.0",
+   "script": [
+    "Latf"
+   ],
+   "distribution": [
+    {
+     "url": "https://zenodo.org/records/19188500/files/metadata.json",
+     "size": 2486
+    },
+    {
+     "url": "https://zenodo.org/records/19188500/files/RP_Transcriber.mlmodel",
+     "size": 16245260
+    }
+   ],
+   "graphemes": [],
+   "publication_date": "2026-03-25T15:08:18+00:00",
+   "model_type": [
+    "recognition"
+   ],
+   "keywords": [
+    "kraken_pytorch"
+   ],
+   "version": "v0"
+  }
+ },
+ "10.5281/zenodo.13942714": {
+  "v0": {
+   "doi": "10.5281/zenodo.13942714",
+   "concept_doi": "10.5281/zenodo.13942713",
+   "creators": [
+    {
+     "name": "Daniel Stökl Ben Ezra",
+     "orcid": "https://orcid.org/0000-0001-5668-493X",
+     "affiliation": "EPHE-PSL"
+    },
+    {
+     "name": "Daniel Stökl Ben Ezra",
+     "affiliation": "EPHE-PSL"
+    }
+   ],
+   "summary": "Kuzushiji",
+   "description": "Training data came from the Kuronet Dataset of Japanese Classical Texts in Cursive Script (Owned by the National Institute of Japanese Literature and others/Processed by CODH) doi:10.20676/00000340 available at http://codh.rois.ac.jp/char-shape/ at the ROIS-DS Center for Open Data in the Humanities ",
+   "metrics": {
+    "cer": 4.049999999999997
+   },
+   "license": "CC-BY-SA-4.0",
+   "script": [
+    "Jpan"
+   ],
+   "distribution": [
+    {
+     "url": "https://zenodo.org/records/13942714/files/metadata.json",
+     "size": 178422
+    },
+    {
+     "url": "https://zenodo.org/records/13942714/files/kuzushiji-on-chat-version-0.9.mlmodel",
+     "size": 43419503
+    }
+   ],
+   "graphemes": [],
+   "publication_date": "2024-10-16T23:15:45+00:00",
+   "model_type": [
+    "recognition"
+   ],
+   "keywords": [
+    "kraken_pytorch",
+    "ATR",
+    "HTR",
+    "OCR",
+    "kraken",
+    "eScriptorium",
+    "japanese",
+    "kuzushiji"
+   ],
+   "version": "v0"
+  }
+ },
+ "10.5281/zenodo.20702142": {
+  "v1": {
+   "doi": "10.5281/zenodo.20702142",
+   "concept_doi": "10.5281/zenodo.20702141",
+   "creators": [
+    {
+     "name": "Magnus Kolsjö",
+     "orcid": null,
+     "affiliation": ""
+    },
+    {
+     "name": "Magnus Kolsjö"
+    }
+   ],
+   "summary": "Kraken recognition model for older Swedish Fraktur (1626-1816), fine-tuned from german_print.",
+   "description": "# Swedish Fraktur — Kraken recognition model\n\nA Kraken recognition model for OCR of older Swedish text printed in Fraktur\n(blackletter). It produces a diplomatic transcription that preserves historical\northography, the long s (ſ) and period spelling.\n\n## Training data and standards\n\nFine-tuned from ",
+   "license": "CC-BY-4.0",
+   "software_name": "kraken",
+   "script": [
+    "Latf"
+   ],
+   "language": [
+    "swe"
+   ],
+   "publication_date": "2026-06-15T12:00:06+00:00",
+   "distribution": [
+    {
+     "url": "https://zenodo.org/records/20702142/files/svensk_fraktur.mlmodel",
+     "size": 16468044
+    },
+    {
+     "url": "https://zenodo.org/records/20702142/files/README.md",
+     "size": 1640
+    },
+    {
+     "url": "https://zenodo.org/records/20702142/files/metadata.json",
+     "size": 4071
+    }
+   ],
+   "model_type": [
+    "recognition"
+   ],
+   "license_url": null,
+   "software_hints": [
+    "kind=coreml",
+    "version>=5.0.0",
+    "seg_type=baselines",
+    "one_channel_mode=L",
+    "legacy_polygons=False"
+   ],
+   "metrics": {
+    "cer": 1.2000000000000028
+   },
+   "datasets": [
+    "10.23695/5sme-7437"
+   ],
+   "base_model": [
+    "10.5281/zenodo.10519596"
+   ],
+   "obsoleted_by": null,
+   "variant_of": null,
+   "keywords": [
+    "historical",
+    "fraktur",
+    "swedish"
+   ],
+   "citation": null,
+   "version": "v1"
+  }
+ },
+ "10.5281/zenodo.13788177": {
+  "v0": {
+   "doi": "10.5281/zenodo.13788177",
+   "concept_doi": "10.5281/zenodo.13788176",
+   "creators": [
+    {
+     "name": "Chagué, Alix",
+     "orcid": "https://orcid.org/0000-0002-0136-4434",
+     "affiliation": "Institut national de recherche en sciences et technologies du numérique"
+    },
+    {
+     "name": "Alix Chagué",
+     "affiliation": "ALMAnaCH, Inria, Paris ; Université de Montréal, Montréal ; Ecole Pratique des Hautes Etudes, Paris"
+    }
+   ],
+   "summary": "McCATMuS - Transcription model for handwritten, printed and typewritten documents from the 16th century to the 21st century",
+   "description": "The McCATMuS model was trained on the aggregation of 22 datasets covering documents written in diverse languages (mostly French, but also Latin, Spanish, English, German and Italian), handwritten, typewritten or printed, produced between the late 16th century and 2023. \n\nThe datasets were curated an",
+   "metrics": {
+    "cer": 7.197326421737671
+   },
+   "license": "CC-BY-4.0",
+   "script": [
+    "Latn"
+   ],
+   "distribution": [
+    {
+     "url": "https://zenodo.org/records/13788177/files/McCATMuS_nfd_nofix_V1.mlmodel",
+     "size": 16173802
+    },
+    {
+     "url": "https://zenodo.org/records/13788177/files/metadata.json",
+     "size": 1743
+    }
+   ],
+   "graphemes": [],
+   "publication_date": "2024-09-23T17:43:15+00:00",
+   "model_type": [
+    "recognition"
+   ],
+   "keywords": [
+    "kraken_pytorch",
+    "HTR",
+    "OCR",
+    "generic model"
+   ],
+   "version": "v0"
+  }
+ }
+}

@@ -44,8 +44,9 @@ CACHE_FOLDER = "discovery"
 REPOSITORY_FILE = "kraken-repository.json"
 #: A cached repository listing older than this is fetched again when a caller asks for the network.
 REFRESH_AFTER = timedelta(days=1)
-#: Hugging Face tasks a page or line reader is published under.
-HF_READER_TASKS = ("image-text-to-text", "image-to-text")
+#: Hugging Face tasks a page or line reader is published under. MLX builds are asked for by the `mlx` tag:
+#: the Hub ignores a `library` parameter, and asking that way returned GGUF repositories (2026-10-07).
+HF_READER_TASKS = ("image-to-text", "image-text-to-text")  # OCR models first
 #: How many Hub results per query, and how many non-MLX originals are looked up for an MLX conversion.
 HF_LIMIT = 20
 HF_CONVERSIONS_LOOKED_UP = 8
@@ -313,7 +314,7 @@ async def search_hugging_face(languages: frozenset[str]) -> list[Card]:
     for task in HF_READER_TASKS:
         for tags in filters:
             said = f"tagged {', '.join(tags)}" if tags else "any language"
-            for m in await _fetch_hf_models(task=task, library="mlx", tags=tags or None, limit=HF_LIMIT):
+            for m in await _fetch_hf_models(task=task, tags=["mlx", *tags], limit=HF_LIMIT):
                 if _runs_on_mlx(m) and not _gguf_only(m):
                     repo = str(m.get("modelId") or m.get("id"))
                     found.setdefault(repo, _hf_card(m, f"an MLX build on Hugging Face ({task}, {said}): "
@@ -323,7 +324,7 @@ async def search_hugging_face(languages: frozenset[str]) -> list[Card]:
                     originals.append((m, f"{task}, {said}"))
     for original, said in originals[:HF_CONVERSIONS_LOOKED_UP]:
         repo = str(original.get("modelId") or original.get("id"))
-        for m in await _fetch_hf_models(library="mlx", tags=[f"base_model:{repo}"], limit=5):
+        for m in await _fetch_hf_models(tags=["mlx", f"base_model:{repo}"], limit=5):
             if _runs_on_mlx(m) and not _gguf_only(m):
                 conversion = str(m.get("modelId") or m.get("id"))
                 card = _hf_card(m, f"the MLX conversion of {repo} (safetensors on Hugging Face, {said}), "
