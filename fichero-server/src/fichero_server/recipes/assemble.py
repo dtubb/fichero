@@ -136,6 +136,12 @@ class Card:
     #: False when the card's runtime is not in this build (its seed row says `runs_here: false`): never a
     #: candidate for the recipe, but the bake-off names it (Tesseract, `source.onboard.bakeoff-tesseract-baseline`).
     runs_here: bool = True
+    #: Where the card came from (#5519): `shipped` (the seed), `installed` (made from an installed model's
+    #: own metadata, `made_from: metadata`), `kraken-repository` (its record in Kraken's repository on
+    #: Zenodo) or `hugging-face` (a Hub search result).
+    source: str = "shipped"
+    #: Why discovery offers it, in words: what was found where, and what its record states.
+    offered_because: str = ""
 
     @property
     def local(self) -> bool:
@@ -316,6 +322,10 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     if acc is not None:
         where = "on your pages" if best.cer_measured_here is not None else "as published"
         reasons.append(f"CER {acc * 100:.1f}% {where}")
+    if best.cer_measured_here is None:
+        reasons.append("unmeasured on your pages until a bake-off measures it")
+    if best.offered_because:
+        reasons.append(best.offered_because)
     reasons.append("runs on this Mac, free" if best.local else f"runs on {best.runs_on}")
     if best.trainable:
         reasons.append("trainable on your corrections")
@@ -333,7 +343,7 @@ def _chosen(choice: Choice) -> dict[str, Any]:
             "id": card.id, "note": card.note, "licence": card.licence,
             "open_licence": card.open_licence, "size_gb": card.size_gb,
             "memory_gb": card.memory_gb, "cer_measured_here": card.cer_measured_here,
-            "cer_published": card.cer_published, "trainable": card.trainable,
+            "cer_published": card.cer_published, "trainable": card.trainable, "source": card.source,
         },
     }
 

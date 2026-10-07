@@ -35,10 +35,12 @@ def write_project_setup(library: Path, answers: Any, recipe: Any) -> None:
     write(library, answers, recipe)
 
 
-def seed_cards() -> Any:
-    from fichero_server.recipes.cards import seed_cards as seed
+def known_cards(answers: Any = None, *, include_not_built: bool = False) -> Any:
+    """The cards the rules choose from: the shipped seed, installed models' and the cached Kraken
+    repository's (#5519, `recipes.discovery`); never the network."""
+    from fichero_server.recipes.discovery import known_cards as known
 
-    return seed()
+    return known(answers, include_not_built=include_not_built)
 
 
 def all_jobs() -> Any:
@@ -125,6 +127,9 @@ class RecipeCard(BaseModel):
     cer_measured_here: Optional[float] = None
     cer_published: Optional[float] = None
     trainable: bool = False
+    source: Literal["shipped", "installed", "kraken-repository", "hugging-face"] = Field(
+        default="shipped", description="where the card came from: the shipped seed, an installed model's own "
+        "metadata, Kraken's model repository or a Hugging Face search (GET /api/recipes/candidates)")
 
 
 class StepProblem(BaseModel):
@@ -407,14 +412,14 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
     For a project with a saved recipe, its overrides come with the recipe and each project-scope one
     sets its step's reader (`bakeoff.apply_project_overrides`, the path Use This takes), so proposing
     the recipe again never undoes a reader the person chose; folder overrides stay overrides."""
-    recipe = assemble(_answers(answers), list(seed_cards()))
+    a = _answers(answers)
+    recipe = assemble(a, known_cards(a))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     if saved.get("overrides"):
         from fichero_server.recipes.bakeoff import apply_project_overrides
-        from fichero_server.recipes.cards import all_seed_cards
 
         recipe["overrides"] = list(saved["overrides"])
-        apply_project_overrides(recipe, list(all_seed_cards()))
+        apply_project_overrides(recipe, known_cards(a, include_not_built=True))
     return recipe
 
 
@@ -475,6 +480,112 @@ class CheckResponse(BaseModel):
 async def check(request: CheckRequest) -> CheckResponse:
     """Every reason a recipe cannot run as it stands, step by step (`source.recipe.*`)."""
     return CheckResponse(problems=check_recipe(request.recipe))
+
+
+# =============================================================================
+# Finding models beyond the shipped cards (#5519): the candidates the rules see, and where they came from.
+# =============================================================================
+
+CardSource = Literal["shipped", "installed", "kraken-repository", "hugging-face"]
+
+
+class CandidateSource(BaseModel):
+    source: CardSource
+    state: Literal["read", "searched", "cached", "not-searched", "offline", "failed"] = Field(description=(
+        "read: on this Mac; searched: fetched now; cached: from the last fetch; not-searched: online was not "
+        "asked; offline: this engine works offline (local-only); failed: the fetch failed (detail says why)"))
+    count: int
+    detail: str
+
+
+class ModelCandidate(BaseModel):
+    """One reader candidate as a card: where it came from, why it is offered, what it states, and what
+    the rules make of it for the project's scripts, languages and material."""
+
+    id: str = Field(description="<runtime>:<source>@<version>")
+    name: str
+    source: CardSource
+    offered_because: str = Field(description="why discovery offers it, in words")
+    pin: dict[str, Any]
+    jobs: list[str]
+    scripts: Optional[list[str]] = Field(default=None, description="ISO 15924 codes its card states; null: unstated")
+    languages: Optional[list[str]] = Field(default=None, description="BCP 47 tags its card states; null: unstated")
+    licence: str = ""
+    open_licence: bool
+    size_gb: float
+    memory_gb: float
+    cer_published: Optional[float] = Field(default=None, description="a published CER the rules rank on (only "
+                                            "where the record names the project's languages)")
+    cer_measured_here: Optional[float] = None
+    measured: str = Field(description="what is measured on this project, or that it is unmeasured until a "
+                          "bake-off measures it")
+    in_recipe_rules: bool = Field(description="false for a Hugging Face result: Fichero cannot download a Hub "
+                                  "model outside its catalogue yet, so the rules do not choose it")
+    rule_rank: Optional[int] = Field(default=None, description="its place by the rules' fixed order among the "
+                                     "candidates they keep; null when refused or not in the rules")
+    refused: Optional[str] = Field(default=None, description="the rules' first reason it cannot do the job here")
+
+
+class ModelCandidateList(BaseModel):
+    job: str
+    items: list[ModelCandidate]
+    count: int
+    sources: list[CandidateSource]
+
+
+@router.get("/candidates", response_model=ModelCandidateList)
+async def model_candidates(
+    scripts: str, languages: str = "", material: str = "handwriting", job: str = "read-a-line",
+    online: bool = False, cloud_allowed: bool = False, mac_memory_gb: Optional[float] = None,
+) -> ModelCandidateList:
+    """Every reader candidate for these scripts and languages (comma-separated codes or names), from the
+    shipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a
+    card saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,
+    `source.find.by-need`). The network is reached only with `online=true`, and never when this engine works
+    offline; otherwise the repository is read from its last fetch and the Hub is not searched. Refused
+    (422), in words, for an unknown script, language, material or job."""
+    from fichero_server.recipes.assemble import MATERIALS, READING_JOBS, _rank_key, _refusal
+    from fichero_server.recipes.discovery import discover
+    from fichero_server.recipes.names import resolve_language, resolve_script
+
+    if job not in READING_JOBS:
+        raise HTTPException(status_code=422, detail=f"discovery finds readers: job must be one of "
+                                                    f"{', '.join(sorted(READING_JOBS))}")
+    if material not in MATERIALS:
+        raise HTTPException(status_code=422, detail=f"material must be one of {', '.join(MATERIALS)}")
+    try:
+        script_codes = frozenset(resolve_script(s) for s in scripts.split(",") if s.strip())
+        tags = frozenset(resolve_language(t) for t in languages.split(",") if t.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not script_codes:
+        raise HTTPException(status_code=422, detail="name at least one script")
+    a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
+                cloud_allowed=cloud_allowed, mac_memory_gb=mac_memory_gb or _this_machine_memory_gb())
+    cards, sources = await discover(a, online=online)
+    cards = [c for c in cards if job in c.jobs]
+    in_rules = [c for c in cards if c.source != "hugging-face"]
+    kept = sorted((c for c in in_rules if _refusal(job, c, a, material) is None),
+                  key=lambda c: _rank_key(c, material))
+    rank = {c.id: i for i, c in enumerate(kept, 1)}
+
+    def measured(c: Any) -> str:
+        if c.cer_measured_here is not None:
+            return f"CER {c.cer_measured_here * 100:.1f}% on your pages"
+        return "unmeasured on your pages until a bake-off measures it"
+
+    items = [ModelCandidate(
+        id=c.id, name=c.note.strip().rstrip(".") or c.id, source=c.source,
+        offered_because=c.offered_because or "a card that ships with Fichero", pin=dict(c.pin),
+        jobs=sorted(c.jobs), scripts=sorted(c.scripts) if c.scripts is not None else None,
+        languages=sorted(c.languages) if c.languages is not None else None, licence=c.licence,
+        open_licence=c.open_licence, size_gb=c.size_gb, memory_gb=c.memory_gb, cer_published=c.cer_published,
+        cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=c.source != "hugging-face",
+        rule_rank=rank.get(c.id),
+        refused=None if c.source == "hugging-face" or c.id in rank else (_refusal(job, c, a, material) or (None, None))[1],
+    ) for c in sorted(cards, key=lambda c: (rank.get(c.id, len(rank) + 1), c.source == "hugging-face", c.id))]
+    return ModelCandidateList(job=job, items=items, count=len(items),
+                              sources=[CandidateSource(**s) for s in sources])
 
 
 # =============================================================================
@@ -1026,7 +1137,6 @@ async def start_bakeoff(
     the same pages. Refused (422) in words, with nothing run, below 100 corrected lines on two pages (saying
     how many more), for a project not set up, or when no candidate can be scored on this Mac."""
     from fichero_server.core.timeutil import utc_now_iso
-    from fichero_server.recipes.cards import all_seed_cards
     from fichero_server.recipes.start import count_pages
 
     library = _library(db)
@@ -1037,7 +1147,7 @@ async def start_bakeoff(
     try:
         a = _answers(setup["answers"])
         record = bakeoff.start(
-            db, library, a, list(all_seed_cards()), page_ids=request.page_ids if request else None,
+            db, library, a, known_cards(a, include_not_built=True), page_ids=request.page_ids if request else None,
             volume=a.pages or count_pages(db), now=utc_now_iso(timespec="seconds"),
             run_evaluation=lambda params: registry.invoke(db, "evaluation.run", params, ctx).result["job_id"])
         return BakeoffResult(**bakeoff.result(db, library, record["id"]))
@@ -1079,14 +1189,13 @@ async def use_bakeoff_choice(
     project with no recipe."""
     from fichero_server.core.timeutil import utc_now_iso
     from fichero_server.models import DocType, Document
-    from fichero_server.recipes.cards import all_seed_cards
 
     bakeoff, library = _bakeoff(), _library(db)
     try:
         table = bakeoff.result(db, library, bakeoff_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    card = next((c for c in all_seed_cards() if c.id == request.card), None)
+    card = next((c for c in known_cards(include_not_built=True) if c.id == request.card), None)
     if card is None:
         raise HTTPException(status_code=422, detail="that reader is not one Fichero has a card for")
     if request.scope == "folder":

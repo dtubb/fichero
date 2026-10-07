@@ -226,6 +226,8 @@ snapshot_download(repo_id=repo_id, revision=revision, cache_dir=models_path, ign
 #: Models Fichero trained (#5398): `fichero-trained/<name>`, kept in the store's own Hub-cache layout
 #: (revision `trained`) so they resolve and load like any downloaded model, each with its card.
 TRAINED_ORG = "fichero-trained"
+#: A Hub repository id, `owner/name`: the only names the store looks up as folders of its own.
+_REPO_ID = re.compile(r"^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$")
 TRAINED_REVISION = "trained"
 TRAINED_CARD = "fichero-card.json"
 
@@ -328,6 +330,8 @@ class MLXModelStore:
             snapshot = self._latest_snapshot_for_repo(repo_id)
             if snapshot is None:
                 continue
+            # A model with a readable config says itself whether it reads images (#5519).
+            found = self.found_spec(repo_id)
             supported, unsupported_reason = check_local_model_hardware(
                 display_name=repo_id.split("/")[-1],
                 min_memory_bytes=None,
@@ -337,7 +341,7 @@ class MLXModelStore:
                     provider_type=ProviderType.omlx,
                     model_id=repo_id,
                     display_name=repo_id.split("/")[-1],
-                    capabilities=["text", "vision"],
+                    capabilities=list(found.capabilities) if found else ["text", "vision"],
                     installed=True,
                     download_size_bytes=None,
                     disk_usage_bytes=self._disk_usage_bytes(snapshot),
@@ -437,14 +441,19 @@ class MLXModelStore:
         for model_id, spec in MANAGED_MLX_MODELS.items():
             if name in (model_id, spec.repo_id):
                 return model_id
-        return name if self.trained_card(name) is not None else None
+        if self.trained_card(name) is not None or self.found_spec(name) is not None:
+            return name
+        return None
 
     def spec(self, model_id: str) -> ManagedModelSpec:
         if model_id in MANAGED_MLX_MODELS:
             return MANAGED_MLX_MODELS[model_id]
         card = self.trained_card(model_id)
         if card is None:
-            raise KeyError(f"Unknown managed MLX model: {model_id}")
+            found = self.found_spec(model_id)
+            if found is None:
+                raise KeyError(f"Unknown managed MLX model: {model_id}")
+            return found
         # A landed model is its base with other weights (#5534): its size is its own weight files,
         # and what it needs to load and read a page is its card's, else its base's. With a size of 0
         # the memory guard thought it needed 1.5 GB, let it start where its 3B base was refused
@@ -462,6 +471,37 @@ class MLXModelStore:
                                         "Not for release." if card.get("not_for_release") else ""])),
             tested_status="untested",
             page_memory_bytes=card.get("page_memory_bytes") or (base.page_memory_bytes if base else None),
+        )
+
+    def found_spec(self, repo_id: str) -> ManagedModelSpec | None:
+        """A complete model in this store that the catalogue does not list and Fichero did not train (one
+        downloaded by hand or by another tool), as a spec made from its own files (#5519): its config says
+        whether it reads images (`vision_config`), its safetensors weights give its size, and the floor to
+        load it is that size, nothing more being known until it runs here. None for a name that is not a
+        Hub repository in this store, or one with no readable config or no safetensors weights (a GGUF
+        repository: this Mac's MLX server cannot load it)."""
+        import json
+
+        if (not _REPO_ID.match(repo_id or "") or repo_id.startswith(f"{TRAINED_ORG}/")
+                or any(repo_id == spec.repo_id for spec in MANAGED_MLX_MODELS.values())):
+            return None
+        snapshot = self._latest_snapshot_for_repo(repo_id)
+        if snapshot is None:
+            return None
+        try:
+            config = json.loads((snapshot / "config.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        weights = sum(p.stat().st_size for p in snapshot.glob("*.safetensors"))
+        if not isinstance(config, dict) or not weights:
+            return None
+        return ManagedModelSpec(
+            model_id=repo_id, repo_id=repo_id, revision=snapshot.name,
+            display_name=repo_id.split("/")[-1], download_size_bytes=weights, min_memory_bytes=weights,
+            memory_class=f"needs at least {weights / 1e9:.1f} GB unified memory (its weights)",
+            capabilities=("text", "vision") if "vision_config" in config else ("text",),
+            note="Found in your model store, not from the Fichero catalogue: its card is made from its own "
+                 "config. Not measured here yet.",
         )
 
     def global_trained_dir(self, model_id: str) -> Path:

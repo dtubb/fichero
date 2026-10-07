@@ -89,8 +89,10 @@ async def _fetch_hf_models(
     limit: int = 20,
     offset: int = 0,
     library: Optional[str] = None,
+    tags: Optional[list[str]] = None,
 ) -> list[dict]:
-    """Fetch models from Hugging Face Hub API."""
+    """Fetch models from Hugging Face Hub API. `tags` filters by Hub tags, all of them (a language
+    such as ``ja``, or ``base_model:<repo>``): model discovery's search (#5519)."""
     params = {
         "sort": sort,
         "limit": limit,
@@ -102,8 +104,10 @@ async def _fetch_hf_models(
         params["search"] = search
     if library:
         params["library"] = library
+    if tags:
+        params["filter"] = list(tags)
 
-    cache_key = f"hf_models:{task}:{search}:{sort}:{limit}:{offset}:{library}"
+    cache_key = f"hf_models:{task}:{search}:{sort}:{limit}:{offset}:{library}:{tags}"
     cached = _get_cache(cache_key)
     if cached is not None:
         return cached

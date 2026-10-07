@@ -16,7 +16,29 @@ from fichero_server.recipes.assemble import Card
 SEED = Path(__file__).parent / "seed" / "cards.yaml"
 CARD_ID = re.compile(r"^[a-z]+:[^@\s]+@[^@\s]+$")
 #: Licences that may be used without a deliberate choice (`source.model.licence-class`).
-OPEN_LICENCES = frozenset({"Apache-2.0", "MIT", "CC-BY-4.0", "GPL-3.0", "BSD-3-Clause", "system"})
+OPEN_LICENCES = frozenset({"Apache-2.0", "MIT", "CC-BY-4.0", "GPL-3.0", "BSD-3-Clause", "system",
+                           "CC0-1.0", "CC-BY-SA-4.0"})
+_OPEN_FOLDED = frozenset(name.lower() for name in OPEN_LICENCES)
+
+
+def is_open_licence(name: str | None) -> bool:
+    """Whether a licence as a record states it (Kraken's repository and the Hub write `cc-by-4.0`,
+    `apache-2.0`) is one of the open licences, ignoring case."""
+    return (name or "").strip().lower() in _OPEN_FOLDED
+
+
+def mlx_model_for(pin: dict) -> str | None:
+    """The model a Hugging Face pin runs as on this Mac's MLX server, or None: an `mlx-community` build,
+    or any repository the MLX store knows (its catalogue, a model Fichero trained, or one found in the
+    store, #5519). The one test the Start plan and the bake-off share."""
+    if set(pin) != {"hf", "revision"}:
+        return None
+    repo = str(pin["hf"])
+    if repo.startswith("mlx-community/"):
+        return repo
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+    return repo if get_mlx_model_store().canonical_id(repo) is not None else None
 
 
 def _set(value) -> frozenset[str] | None:
