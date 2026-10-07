@@ -2,7 +2,7 @@
   "POST /api/export/kept": "not undoable by design (export.keep, audited): the files it wrote stay; removing it (DELETE) stops it and leaves them, which is the inverse a person wants (#5485)",
   "DELETE /api/export/kept/{export_id}": "not undoable by design (export.unkeep, audited): keeping it again is a new export and rewrites its files (#5485)",
   "POST /api/export/kept/{export_id}/write": "queues a background write of the export's own files (one-way; a job in Activity, cancellable there); nothing in the project changes (#5485)",
-  "POST /api/sync-folders":"not undoable by design (sync.tie, audited): the files it wrote stay; untying (DELETE) stops it and leaves them, which is the inverse a person wants (#4952)",
+  "POST /api/sync-folders": "not undoable by design (sync.tie, audited): the files it wrote stay; untying (DELETE) stops it and leaves them, which is the inverse a person wants (#4952)",
   "DELETE /api/sync-folders/{folder_id}": "not undoable by design (sync.untie, audited): tying again is a new folder and rewrites its files (#4952)",
   "PUT /api/sync-folders/{folder_id}/mode": "not undoable by design (sync.mode, audited): switching it back is the inverse; each arrangement it causes is its own undoable sync.arrange, undone from the audit (#5480)",
   "PUT /api/sync-folders/{folder_id}/intake": "not undoable by design (sync.intake, audited): switching it back is the inverse; passes that came in are undone one by one like any import (format.import) (#4952)",
@@ -441,5 +441,8 @@
   "POST /api/mcp/tools/check/verdicts": "not undoable by design (check.verdict, audited, undoable=False): an agent's verdict is a dated record at model trust; a person's later verdict is recorded beside it",
   "POST /api/recipes/project/layers": "project.add_layer is audited and undoable in the engine (test_add_a_layer_later: undo removes the layer and its proposals); the app's Edit > Undo does not reach it yet, and Remove in the Inspector withdraws it (#5470)",
   "PUT /api/segments/passes/{pass_id}/ground-truth": "#5513 - engine undo exists via /api/actions/audit/{id}/undo (segment.pass_ground_truth inverts to the previous mark); the app's Mark as Ground Truth, and its undo wiring, are not built yet",
-  "POST /api/registry/release": "release a project (#5563) closes a connection and changes no data; undo is opening it again (any request naming it)"
+  "POST /api/registry/release": "release a project (#5563) closes a connection and changes no data; undo is opening it again (any request naming it)",
+  "POST /api/find-documents/runs": "not undoable by design (finddocs.run, audited, undoable=False): it stores a proposal and changes nothing in the source; an auto-accept it makes is its own finddocs.accept row, undone as one",
+  "POST /api/find-documents/proposals/{proposal_id}/accept": "finddocs.accept is audited and undoable in the engine (one undo of its audit_id restores the folder, prototypes and canvas; test_find_documents_to_spec); the app's Edit > Undo does not reach it until the app surface is built (#5550)",
+  "POST /api/find-documents/proposals/{proposal_id}/reject": "finddocs.reject is audited and undoable in the engine (finddocs.restate); the app's Edit > Undo does not reach it until the app surface is built (#5550)"
 }

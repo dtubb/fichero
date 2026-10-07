@@ -277,5 +277,11 @@
   "PUT /api/segments/passes/{pass_id}/ground-truth": "Mark as Ground Truth (#5513): engine, CLI and MCP first; the app's Mark as Ground Truth on a pass is not built yet",
   "POST /api/registry/release": "release a project, keep it registered (#5563): an agent/operator action through the generated CLI and MCP; the app closes a project through the registry DELETE and has no Mac surface for release",
   "GET /api/canvas/folders/{folder_id}/canvas-picture": "store missing by design — an agent's LOOK at a folder's board (MCP image content, #5568); the app draws the canvas itself",
-  "GET /api/registry/resolve": "store missing by design — CLI --library/library open and MCP fichero_use_library resolve a project's shown name (#5567); the app opens projects from its own sidebar rows"
+  "GET /api/registry/resolve": "store missing by design — CLI --library/library open and MCP fichero_use_library resolve a project's shown name (#5567); the app opens projects from its own sidebar rows",
+  "POST /api/find-documents/runs": "Find the Documents (#5550): engine, CLI and MCP (the find-documents toolset) first; the app's Organise > Find the Documents, its proposals on the canvas and Accept/Reject are not built yet",
+  "GET /api/find-documents/runs/{job_id}": "Find the Documents (#5550): engine, CLI and MCP (the find-documents toolset) first; the app's Organise > Find the Documents, its proposals on the canvas and Accept/Reject are not built yet",
+  "GET /api/find-documents/proposals": "Find the Documents (#5550): engine, CLI and MCP (the find-documents toolset) first; the app's Organise > Find the Documents, its proposals on the canvas and Accept/Reject are not built yet",
+  "GET /api/find-documents/proposals/{proposal_id}": "Find the Documents (#5550): engine, CLI and MCP (the find-documents toolset) first; the app's Organise > Find the Documents, its proposals on the canvas and Accept/Reject are not built yet",
+  "POST /api/find-documents/proposals/{proposal_id}/accept": "Find the Documents (#5550): engine, CLI and MCP (the find-documents toolset) first; the app's Organise > Find the Documents, its proposals on the canvas and Accept/Reject are not built yet",
+  "POST /api/find-documents/proposals/{proposal_id}/reject": "Find the Documents (#5550): engine, CLI and MCP (the find-documents toolset) first; the app's Organise > Find the Documents, its proposals on the canvas and Accept/Reject are not built yet"
 }
