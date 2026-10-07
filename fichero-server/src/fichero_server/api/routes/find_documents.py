@@ -19,7 +19,7 @@ from fichero_server.api.main import (
 )
 from fichero_server.db import Database
 from fichero_server.finddocs import accept as _accept  # noqa: F401  (registers finddocs.accept, .reject)
-from fichero_server.finddocs import job as finddocs_job
+from fichero_server.finddocs import store as finddocs_store
 from fichero_server.models.found_documents import (
     DocumentsProposal,
     FindDocumentsAcceptRequest,
@@ -32,6 +32,13 @@ from fichero_server.models.found_documents import (
 router = APIRouter(prefix="/find-documents")
 
 
+def _job():
+    """The job module, loaded on first use: the proposer and its cue table stay out of engine start."""
+    from fichero_server.finddocs import job
+
+    return job
+
+
 class DocumentsProposalList(BaseModel):
     items: list[DocumentsProposal]
     count: int
@@ -40,16 +47,16 @@ class DocumentsProposalList(BaseModel):
 
 @action("finddocs.run", FindDocumentsRequest, domains=["job"], undoable=False)
 def _action_run(db: Database, params: FindDocumentsRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    finddocs_job.register_job_kinds()
+    _job().register_job_kinds()
     if not ctx.is_bootstrap:
         # The action layer checked the ids named; the run reads every page under them (fail closed).
         from fichero_server.security import authz
 
-        pages = [p.id for pages in finddocs_job.scopes(db, params.scope_ids).values() for p in pages]
+        pages = [p.id for pages in _job().scopes(db, params.scope_ids).values() for p in pages]
         authz.assert_can_read_every(ctx.actor, ctx.library_path, pages, bootstrap=False)
-    job_id = finddocs_job.start(db, params, started_by=ctx.actor or "owner")
+    job_id = _job().start(db, params, started_by=ctx.actor or "owner")
     return {"job_id": job_id}, ChangeSpec(domains=["job"], target_ids=[job_id],
-                                          after={"job_id": job_id, "kind": finddocs_job.KIND}, emit_type="job.created")
+                                          after={"job_id": job_id, "kind": _job().KIND}, emit_type="job.created")
 
 
 @router.post("/runs", response_model=FindDocumentsRun, summary="Find the documents in folders or a selection of pages")
@@ -66,13 +73,13 @@ async def start_find_documents(
         job_id = registry.invoke(db, "finddocs.run", request.model_dump(), ctx).result["job_id"]
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return FindDocumentsRun(**finddocs_job.status(db, job_id))
+    return FindDocumentsRun(**_job().status(db, job_id))
 
 
 @router.get("/runs/{job_id}", response_model=FindDocumentsRun, summary="A Find the Documents run and its proposals")
 async def find_documents_run(job_id: str, db: Database = Depends(get_library_database)) -> FindDocumentsRun:
     try:
-        return FindDocumentsRun(**finddocs_job.status(db, job_id))
+        return FindDocumentsRun(**_job().status(db, job_id))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -91,7 +98,7 @@ async def list_find_documents_proposals(
     db: Database = Depends(get_library_database),
 ) -> DocumentsProposalList:
     """Newest first; a proposal on a folder this caller may not read is left out and counted."""
-    found = finddocs_job.proposals(db, folder_id)
+    found = finddocs_store.proposals(db, folder_id)
     kept = _readable(request, x_fichero_library_path, found)
     return DocumentsProposalList(items=kept, count=len(kept), withheld=len(found) - len(kept))
 
@@ -104,7 +111,7 @@ async def get_find_documents_proposal(
     db: Database = Depends(get_library_database),
 ) -> DocumentsProposal:
     try:
-        proposal = finddocs_job.read(db, proposal_id)
+        proposal = finddocs_store.read(db, proposal_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if not _readable(request, x_fichero_library_path, [proposal]):
@@ -128,7 +135,7 @@ async def accept_find_documents_proposal(
         result = registry.invoke(db, "finddocs.accept", {"proposal_id": proposal_id, **body.model_dump()}, ctx)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return FindDocumentsAcceptResult(proposal=finddocs_job.read(db, proposal_id), audit_id=result.audit_id,
+    return FindDocumentsAcceptResult(proposal=finddocs_store.read(db, proposal_id), audit_id=result.audit_id,
                                      **result.result)
 
 
@@ -144,4 +151,4 @@ async def reject_find_documents_proposal(
         registry.invoke(db, "finddocs.reject", {"proposal_id": proposal_id, **body.model_dump()}, ctx)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return finddocs_job.read(db, proposal_id)
+    return finddocs_store.read(db, proposal_id)

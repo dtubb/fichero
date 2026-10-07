@@ -10,6 +10,7 @@ from __future__ import annotations
 from fichero_server import finddocs
 from fichero_server.execution import jobs
 from fichero_server.finddocs import job as finddocs_job
+from fichero_server.finddocs import store as finddocs_store
 from fichero_server.recipes import runner
 from fichero_server.recipes.assemble import AUTO_ACCEPT_ABOVE, STEP_ORDER
 from fichero_server.recipes.jobs import READING, get_job
@@ -85,7 +86,7 @@ def test_a_recipe_run_finds_the_documents_under_its_row(client, db, tmp_path, jo
     child = jobs.read_job(db, step["child_id"])
     assert child["kind"] == "find-documents-in-a-folder"
     assert db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [step["child_id"]])[0] == job_id
-    (proposal,) = finddocs_job.proposals(db, folder.id)
+    (proposal,) = finddocs_store.proposals(db, folder.id)
     assert [d.page_ids for d in proposal.documents] == [[ids[p] for p in doc] for doc in truth]
     accepted = [d.index for d in proposal.documents if d.state == "accepted"]
     assert accepted == [d.index for d in proposal.documents if d.confidence >= AUTO_ACCEPT_ABOVE]

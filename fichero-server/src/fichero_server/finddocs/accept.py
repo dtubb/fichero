@@ -22,7 +22,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action
-from fichero_server.finddocs import job as store
+from fichero_server.finddocs import store
 from fichero_server.models.found_documents import (
     FindDocumentsAcceptRequest,
     FindDocumentsRejectRequest,

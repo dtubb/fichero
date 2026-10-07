@@ -257,6 +257,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/accept.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/cues.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/propose.py
+$(SRCROOT)/../fichero-server/src/fichero_server/finddocs/store.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/alto.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/harness.py
