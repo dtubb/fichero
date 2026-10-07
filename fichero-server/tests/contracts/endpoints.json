@@ -8799,6 +8799,18 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/project/runs/{job_id}/summary",
+        "operation_id": "recipe_run_summary_api_recipes_project_runs__job_id__summary_get",
+        "summary": "Recipe Run Summary",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RecipeRunSummary"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/project/start",
         "operation_id": "get_start_plan_api_recipes_project_start_get",
         "summary": "Get Start Plan",

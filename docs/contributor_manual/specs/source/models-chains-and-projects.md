@@ -951,10 +951,18 @@ plan's peak memory across steps. Ready shows none of it.
   person is asked nothing more except where money is spent or pages would leave the Mac: one question,
   in one place, with the run waiting on it and saying so. Built: the four steps and Start. Not built:
   the stages below.
-- `source.onboard.auto.plan-shows-what-will-not-run` — **[GAP]** (#5573) Ready lists every step
+- `source.onboard.auto.plan-shows-what-will-not-run` — **[PARTIAL]** (#5573) Ready lists every step
   the Start plan skips (`skipped`) with its reason and fix button, and every model that must be fetched
   (`downloads`) with its size and a Download button. Start is never pressed without the person seeing
-  what will not run. Today the app reads only `refusals`.
+  what will not run. **Built 2026-10-07 (engine + app), not yet seen:** each skipped step carries its
+  `fix` (`choose-model`, `allow-cloud`, or none when setup cannot fix it: a job no card runs, a condition,
+  a site with no folder, a calendar), set in `recipes/start.py`'s `skip`; Ready shows Will not run (title,
+  why, the fix button through setup's one fix handler) and To download first (model, size, the steps it
+  serves, Download through `POST /api/local-models/download/{runtime}/{model}`, then Downloading…)
+  (`RecipeSkippedRows`, `RecipeDownloadRows`, `RecipeSetupStore.download`). Pinned by
+  `fichero-server/tests/unit/recipes/test_run_visible_to_spec.py` and
+  `fichero/Tests/Unit/general/Models/RecipeRunVisibleTests.swift`. *Not built:* the plan reading again by
+  itself when a download finishes (Ready re-reads it when the plan changes).
 - `source.onboard.auto.every-proposed-step-runs` — **[GAP]** (#5574) setup never proposes a step
   that Start has no card for. Each registered job either has a card in `start.py` or is not offered as
   a step that runs by itself. Jobs with no card today: `make-a-vector`, `link-to-authorities`,
@@ -968,16 +976,34 @@ plan's peak memory across steps. Ready shows none of it.
   `answers.automatic`. With Nothing runs automatically, an import after Start queues no recipe run;
   otherwise it runs only the ticked steps. Today `runner.material_arrived` reads only the purposes, so a
   person's "nothing" or an unticked step is ignored without a word.
-- `source.onboard.auto.on-add-refusal-said` — **[GAP]** (#5575) an import after Start whose
-  recipe cannot run (the plan has refusals, or nothing runs) leaves a row in Activity saying why and
-  what fixes it. Today `material_arrived` returns quietly and the new pages are never read.
-- `source.onboard.auto.lands-on-the-run` — **[GAP]** (#5576, see #5555) after Start, the project
+- `source.onboard.auto.on-add-refusal-said` — **[OK]** (#5575; built: `runner.refused`,
+  `jobs.record_not_run`; tested in `fichero-server/tests/unit/recipes/test_run_visible_to_spec.py`) an
+  import after Start whose recipe cannot run (the plan has refusals, or nothing runs) leaves a row in
+  Activity saying why and what fixes it: a `run-a-recipe` row, failed, started by `import`, whose reason
+  names the pages, the plan's refusals in its words (each with its fix) and that Set Up… › Ready shows
+  the plan; the new pages are not read.
+- `source.onboard.auto.lands-on-the-run` — **[PARTIAL]** (#5576, see #5555) after Start, the project
   window shows the run: each stage, pages done and left, time left, and what is waiting and why (memory,
-  a download, another run). It is read from `/api/recipes/project/runs`, which the app does not call
-  today.
-- `source.onboard.auto.results-summary` — **[GAP]** (#5577) when a run ends, the project says what
+  a download, another run). **Built 2026-10-07 (engine + app), not yet seen:** Start closes setup onto
+  the recipe run's Activity details (the one details view, #5561), which list its stages in order, by
+  name, each with its state and why and, for a workflow stage, its run's account: pages done, failed and
+  left, the time left at its pace and what its pages wait for. The run's node in
+  `GET /api/activity/jobs/{id}` carries `stages`, its reason says what it waits for (another recipe run,
+  memory), and `/api/recipes/project/runs[/{id}]` carry the same accounts with `waiting_for`; a stage's
+  run changing re-reads the recipe run's tree, so the details follow live. Pinned as above. *Not built:*
+  waiting on a download (a run never waits for one; Start is refused until it is here); a panel in the
+  project window itself (the details open in the Activity Details window).
+- `source.onboard.auto.results-summary` — **[PARTIAL]** (#5577) when a run ends, the project says what
   it made: pages read, lines, names by kind, dates, statements, documents and groups proposed, pages
   failed (with Read Again) and steps skipped (with their fixes). Each figure opens what it counts.
+  **Built 2026-10-07 (engine + app), not yet seen:** `GET /api/recipes/project/runs/{id}/summary`
+  (`recipes/run_view.summary`), also on the ended run's node of the job tree: pages and pages with a
+  reading, names by kind and dates (the document knowledge graph's own grouping), statements, each
+  stage's failed pages with its offer and Read Again (the run account's, the existing read-again route),
+  the skipped steps with their fixes (Open Set Up…), and the stages that did not run. The recipe run's
+  Activity details show it as What this run made. Pinned as above. *Not built:* lines; documents and
+  groups proposed (`documents_proposed` is null until Find the Documents runs as a stage, #5574); each
+  figure opening what it counts.
 - `source.onboard.auto.failed-pages-roll-up` — **[PARTIAL]** (#5555) the recipe run's own row counts
   the pages that failed inside its steps and offers Read Again for them. Built: per workflow run
   (`compute.run.read-failed-again`). Not built: on the recipe's row, which today says "Done" when every

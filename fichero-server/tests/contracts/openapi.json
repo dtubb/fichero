@@ -13715,7 +13715,7 @@
           "recipes"
         ],
         "summary": "Recipe Runs",
-        "description": "The project's recipe runs, newest first: Start's, and one for each import after it.",
+        "description": "The project's recipe runs, newest first: Start's, and one for each import after it. Each stage that is a\nworkflow run carries its run account (pages done, failed and left, time left, what it waits for; #5576).",
         "operationId": "recipe_runs_api_recipes_project_runs_get",
         "responses": {
           "200": {
@@ -13737,7 +13737,7 @@
           "recipes"
         ],
         "summary": "Recipe Run Status",
-        "description": "A started recipe's run: each card's state and its own job, and the steps it skipped, with why.",
+        "description": "A started recipe's run: each card's state and its own job (a workflow stage with its run account), the\nsteps it skipped with why and their fixes, and what it waits for now (#5576).",
         "operationId": "recipe_run_status_api_recipes_project_runs__job_id__get",
         "parameters": [
           {
@@ -13757,6 +13757,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RecipeRunStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/project/runs/{job_id}/summary": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Recipe Run Summary",
+        "description": "What a recipe run made, over the pages it ran on (`source.onboard.auto.results-summary`, #5577): pages\nwith a reading, names by kind and dates (the document knowledge graph's grouping), statements, each stage's\nfailed pages with the offer to read them again (its run account's), and the skipped steps with their fixes.\nWhile the run goes on, the figures are what is there so far (`finished` false).",
+        "operationId": "recipe_run_summary_api_recipes_project_runs__job_id__summary_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeRunSummary"
                 }
               }
             }
@@ -63371,6 +63414,18 @@
             "$ref": "#/components/schemas/RunAccount",
             "nullable": true
           },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeRunStep"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Stages"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/RecipeRunSummary",
+            "nullable": true
+          },
           "children": {
             "items": {
               "$ref": "#/components/schemas/JobTree"
@@ -69610,6 +69665,31 @@
         ],
         "title": "NamedCodeList"
       },
+      "NamesOfAKind": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "person, location, organization, event, concept, other (the KG's kinds)"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "People, Places, \u2026: the knowledge graph's own label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "count"
+        ],
+        "title": "NamesOfAKind"
+      },
       "NamingResponse": {
         "properties": {
           "uri": {
@@ -75126,6 +75206,32 @@
             },
             "type": "array",
             "title": "Skipped"
+          },
+          "refusals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Refusals",
+            "description": "why an import's run could not run at all (the plan's refusals then); empty for a run that ran (#5575)"
+          },
+          "started_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started By",
+            "description": "who or what started it: the person, or 'import'"
+          },
+          "waiting_for": {
+            "type": "string",
+            "nullable": true,
+            "title": "Waiting For",
+            "description": "what the run waits for now, in words: another recipe run, or what the running stage's pages wait for (memory, a model loading); null when nothing waits (#5576)"
+          },
+          "estimate_seconds_left": {
+            "type": "number",
+            "nullable": true,
+            "title": "Estimate Seconds Left",
+            "description": "the running stage's time left at its own pace so far; null until it has done a page"
           }
         },
         "type": "object",
@@ -75150,6 +75256,12 @@
             "type": "string",
             "title": "Card"
           },
+          "job": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job",
+            "description": "the stage's last job (read-a-line, find-names-tag-words)"
+          },
           "state": {
             "type": "string",
             "title": "State",
@@ -75165,6 +75277,11 @@
             "type": "string",
             "nullable": true,
             "title": "Why"
+          },
+          "account": {
+            "$ref": "#/components/schemas/RunAccount",
+            "nullable": true,
+            "description": "a workflow stage's run account (#5555): its pages done, failed and left, the time left and what its pages wait for; null for a stage that has not started or is not a workflow run"
           }
         },
         "type": "object",
@@ -75173,7 +75290,105 @@
           "card",
           "state"
         ],
-        "title": "RecipeRunStep"
+        "title": "RecipeRunStep",
+        "description": "One stage of a recipe run: the card that carries one or more recipe steps."
+      },
+      "RecipeRunSummary": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "finished": {
+            "type": "boolean",
+            "title": "Finished",
+            "description": "false while it runs: the figures are what is there so far"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "the pages the run ran over"
+          },
+          "pages_read": {
+            "type": "integer",
+            "title": "Pages Read",
+            "description": "of those, the pages that have a reading (lines read, or a page text)"
+          },
+          "names": {
+            "items": {
+              "$ref": "#/components/schemas/NamesOfAKind"
+            },
+            "type": "array",
+            "title": "Names",
+            "description": "the names found on those pages, by kind, as the KG groups them"
+          },
+          "dates": {
+            "type": "integer",
+            "title": "Dates",
+            "description": "the dates on those pages (the KG's Dates group)"
+          },
+          "statements": {
+            "type": "integer",
+            "title": "Statements",
+            "description": "the statements (claims) on those pages"
+          },
+          "documents_proposed": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Documents Proposed",
+            "description": "the documents Find the Documents proposed; null when it did not run in this run"
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/StageFailures"
+            },
+            "type": "array",
+            "title": "Failed",
+            "description": "each stage's failed pages, with Read Again"
+          },
+          "pages_failed": {
+            "type": "integer",
+            "title": "Pages Failed",
+            "description": "the failed pages over every stage"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedStep"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "description": "the steps the plan skipped, each with why and its fix"
+          },
+          "not_run": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeRunStep"
+            },
+            "type": "array",
+            "title": "Not Run",
+            "description": "the stages that did not run, failed or were stopped, with why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "state",
+          "finished",
+          "pages",
+          "pages_read",
+          "names",
+          "dates",
+          "statements",
+          "failed",
+          "pages_failed",
+          "skipped",
+          "not_run"
+        ],
+        "title": "RecipeRunSummary",
+        "description": "What a recipe run made (`source.onboard.auto.results-summary`, #5577)."
       },
       "RecipeRuns": {
         "properties": {
@@ -81630,6 +81845,12 @@
           "why": {
             "type": "string",
             "title": "Why"
+          },
+          "fix": {
+            "type": "string",
+            "nullable": true,
+            "title": "Fix",
+            "description": "the button that fixes it, as a step problem's `fix` (choose-model, allow-cloud); null when nothing in setup fixes it"
           }
         },
         "type": "object",
@@ -82556,6 +82777,48 @@
         ],
         "title": "SparqlResponseRow",
         "description": "One SPARQL result row. Bindings keyed by query variable name."
+      },
+      "StageFailures": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id",
+            "description": "the stage's workflow run: POST /api/workflow-execution/threads/{thread_id}/read-again reads its failed pages again"
+          },
+          "pages_failed": {
+            "type": "integer",
+            "title": "Pages Failed"
+          },
+          "failures": {
+            "items": {
+              "$ref": "#/components/schemas/PageFailure"
+            },
+            "type": "array",
+            "title": "Failures"
+          },
+          "offer": {
+            "type": "string",
+            "nullable": true,
+            "title": "Offer",
+            "description": "\"Read the 3 pages that failed\"; null: nothing to offer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "thread_id",
+          "pages_failed",
+          "failures"
+        ],
+        "title": "StageFailures",
+        "description": "The pages one workflow stage could not do, and its offer to read them again."
       },
       "StartDownload": {
         "properties": {

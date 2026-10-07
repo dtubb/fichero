@@ -66,7 +66,8 @@ def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, start
 
 def material_arrived(db: Any, document_ids: list[str]) -> str | None:
     """An import brought new material: after Start, a "just do it" project runs its recipe over it alone;
-    before Start, or on a "tools" purpose, nothing runs (`source.onboard.*`)."""
+    before Start, or on a "tools" purpose, nothing runs (`source.onboard.*`). One whose recipe cannot run
+    leaves a failed row saying why (`refused`, #5575). Returns the row's job id, or None when nothing was asked."""
     from fichero_server.recipes.project import read_project_setup, read_start
 
     if not document_ids:
@@ -79,8 +80,21 @@ def material_arrived(db: Any, document_ids: list[str]) -> str | None:
         return None
     plan = _plan(db)
     if plan["refusals"] or not plan["runs"]:
-        return None
+        return refused(db, plan, list(document_ids))
     return enqueue(db, plan, documents=list(document_ids), started_by="import")
+
+
+def refused(db: Any, plan: dict[str, Any], documents: list[str]) -> str:
+    """An import the recipe cannot run on leaves one `run-a-recipe` row in Activity, failed, that says why and
+    what fixes it (`source.onboard.auto.on-add-refusal-said`, #5575): the plan's refusals, in its words (each
+    names its fix: download the model, choose another). The new pages are not read."""
+    why = "; ".join(plan["refusals"]) or "nothing in this recipe can run"
+    noun = "page" if len(documents) == 1 else "pages"
+    words = (f"Not run on the {len(documents)} new {noun} this import brought: {why}. "
+             "Set Up… › Ready shows the plan and each fix")
+    detail = {"runs": [], "skipped": plan["skipped"], "documents": documents, "refusals": plan["refusals"]}
+    return jobs.record_not_run(db, KIND, f"recipe:{uuid.uuid4()}", reason=words, detail=json.dumps(detail),
+                               started_by="import")
 
 
 def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: str) -> tuple[str, str, str | None]:
@@ -281,6 +295,8 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
     detail = json.loads(row["detail"] or "{}")
     steps = detail.get("steps") or [{"steps": c["steps"], "card": c["card"], "state": "waiting", "child_id": None}
                                     for c in detail.get("runs", [])]
+    for card, step in zip(detail.get("runs", []), steps):
+        step["job"] = card.get("job")  # what the stage does, by its last job (a reading, names, dates)
     for step in steps:
         child = jobs.read_job(db, step["child_id"]) if step.get("child_id") else None
         if child is not None:
@@ -293,7 +309,8 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
         if ahead:
             reason = f"Waiting for the recipe run {ahead[0]} to finish: recipe runs go one at a time"
     return {"job_id": job_id, "state": row["state"], "reason": reason, "documents": detail.get("documents"),
-            "steps": steps, "skipped": detail.get("skipped", [])}
+            "steps": steps, "skipped": detail.get("skipped", []), "refusals": detail.get("refusals", []),
+            "started_by": row["started_by"]}
 
 
 def started_plan(db: Any, job_id: str) -> dict[str, Any]:

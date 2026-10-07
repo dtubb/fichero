@@ -19,6 +19,7 @@ from fichero_server.api.main import get_library_database, get_library_database_f
 from fichero_server.db import Database
 
 from fichero_server.recipes.assemble import PURPOSE_STEPS, PURPOSES, Answers, assemble
+from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, SkippedStep
 
 
 # The recipe store, cards, job registry and check load on first use, not at app start (#3950); the purposes
@@ -750,11 +751,6 @@ class StartRun(BaseModel):
     gives: list[str] = Field(default_factory=list, description="the kinds of thing it gives the steps after it")
 
 
-class SkippedStep(BaseModel):
-    step: str
-    why: str
-
-
 class StartDownload(BaseModel):
     """A model a step needs that is not on this Mac, and the action that downloads it."""
 
@@ -990,14 +986,6 @@ def _action_add_layer(db: Database, params: LayerChangeParams, ctx: ActionContex
                              emit_type="project.layer_added")
 
 
-class RecipeRunStep(BaseModel):
-    steps: list[str]
-    card: str
-    state: str = Field(description="waiting, running, done, failed or not run")
-    child_id: Optional[str] = Field(default=None, description="the step's own job: a workflow run or a check run")
-    why: Optional[str] = None
-
-
 class RecipeRunStatus(BaseModel):
     job_id: str
     state: str
@@ -1005,6 +993,14 @@ class RecipeRunStatus(BaseModel):
     documents: Optional[list[str]] = Field(default=None, description="the pages an import brought; none: all")
     steps: list[RecipeRunStep]
     skipped: list[SkippedStep]
+    refusals: list[str] = Field(default_factory=list, description=(
+        "why an import's run could not run at all (the plan's refusals then); empty for a run that ran (#5575)"))
+    started_by: Optional[str] = Field(default=None, description="who or what started it: the person, or 'import'")
+    waiting_for: Optional[str] = Field(default=None, description=(
+        "what the run waits for now, in words: another recipe run, or what the running stage's pages wait for "
+        "(memory, a model loading); null when nothing waits (#5576)"))
+    estimate_seconds_left: Optional[float] = Field(default=None, description=(
+        "the running stage's time left at its own pace so far; null until it has done a page"))
 
 
 class RecipeRuns(BaseModel):
@@ -1013,19 +1009,37 @@ class RecipeRuns(BaseModel):
 
 @router.get("/project/runs", response_model=RecipeRuns)
 async def recipe_runs(db: Database = Depends(get_library_database)) -> RecipeRuns:
-    """The project's recipe runs, newest first: Start's, and one for each import after it."""
+    """The project's recipe runs, newest first: Start's, and one for each import after it. Each stage that is a
+    workflow run carries its run account (pages done, failed and left, time left, what it waits for; #5576)."""
     from fichero_server.recipes import runner
+    from fichero_server.recipes.run_view import with_accounts
 
-    return RecipeRuns(items=[RecipeRunStatus(**r) for r in runner.runs(db)])
+    return RecipeRuns(items=[RecipeRunStatus(**await with_accounts(db, r)) for r in runner.runs(db)])
 
 
 @router.get("/project/runs/{job_id}", response_model=RecipeRunStatus)
 async def recipe_run_status(job_id: str, db: Database = Depends(get_library_database)) -> RecipeRunStatus:
-    """A started recipe's run: each card's state and its own job, and the steps it skipped, with why."""
+    """A started recipe's run: each card's state and its own job (a workflow stage with its run account), the
+    steps it skipped with why and their fixes, and what it waits for now (#5576)."""
     from fichero_server.recipes import runner
+    from fichero_server.recipes.run_view import with_accounts
 
     try:
-        return RecipeRunStatus(**runner.status(db, job_id))
+        return RecipeRunStatus(**await with_accounts(db, runner.status(db, job_id)))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/project/runs/{job_id}/summary", response_model=RecipeRunSummary)
+async def recipe_run_summary(job_id: str, db: Database = Depends(get_library_database)) -> RecipeRunSummary:
+    """What a recipe run made, over the pages it ran on (`source.onboard.auto.results-summary`, #5577): pages
+    with a reading, names by kind and dates (the document knowledge graph's grouping), statements, each stage's
+    failed pages with the offer to read them again (its run account's), and the skipped steps with their fixes.
+    While the run goes on, the figures are what is there so far (`finished` false)."""
+    from fichero_server.recipes import run_view
+
+    try:
+        return await run_view.summary(db, job_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

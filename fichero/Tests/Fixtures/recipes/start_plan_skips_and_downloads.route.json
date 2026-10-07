@@ -1,0 +1,199 @@
+{
+ "request": null,
+ "status": 200,
+ "response": {
+  "started": null,
+  "runs": [
+   {
+    "steps": [
+     "lines",
+     "read"
+    ],
+    "job": "read-a-line",
+    "card": "workflow",
+    "runs_on": "this-mac",
+    "workflow": "Transcribe (Kraken)",
+    "workflow_id": "667dacb2-4a6f-5324-ac65-4222ce3e0c0d",
+    "provider_override": "kraken",
+    "model_override": "kraken-mccatmus",
+    "layer": null,
+    "check": null,
+    "provider": null,
+    "model": null,
+    "prompt": null,
+    "folder": null,
+    "formats": null,
+    "done": 0,
+    "of": 2,
+    "note": "already done on 0 of 2 pages; runs on the rest",
+    "last_run": null,
+    "last_why": null,
+    "takes": [
+     "page_image"
+    ],
+    "gives": [
+     "line_readings",
+     "lines"
+    ]
+   },
+   {
+    "steps": [
+     "names"
+    ],
+    "job": "find-names-tag-words",
+    "card": "workflow",
+    "runs_on": "this-mac",
+    "workflow": "Extract Entities",
+    "workflow_id": "f0e4e22a-0b6b-5633-92f9-f2295748f6ef",
+    "provider_override": "spacy",
+    "model_override": "es_core_news_sm",
+    "layer": null,
+    "check": null,
+    "provider": null,
+    "model": null,
+    "prompt": null,
+    "folder": null,
+    "formats": null,
+    "done": null,
+    "of": 2,
+    "note": "cannot tell what is done; runs on every page (2)",
+    "last_run": null,
+    "last_why": null,
+    "takes": [
+     "line_readings|page_reading"
+    ],
+    "gives": [
+     "mentions"
+    ]
+   },
+   {
+    "steps": [
+     "export"
+    ],
+    "job": "export",
+    "card": "export",
+    "runs_on": "this-mac",
+    "workflow": null,
+    "workflow_id": null,
+    "provider_override": null,
+    "model_override": null,
+    "layer": null,
+    "check": null,
+    "provider": null,
+    "model": null,
+    "prompt": null,
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-122/test_source_onboard_auto_plan_0/edition",
+    "formats": [
+     "pagexml"
+    ],
+    "done": null,
+    "of": 2,
+    "note": "cannot tell what is done; runs on every page (2)",
+    "last_run": null,
+    "last_why": null,
+    "takes": [
+     "line_readings|page_reading"
+    ],
+    "gives": [
+     "files"
+    ]
+   }
+  ],
+  "workflows": [
+   {
+    "steps": [
+     "lines",
+     "read"
+    ],
+    "job": "read-a-line",
+    "workflow": "Transcribe (Kraken)",
+    "workflow_id": "667dacb2-4a6f-5324-ac65-4222ce3e0c0d",
+    "provider_override": "kraken",
+    "model_override": "kraken-mccatmus",
+    "runs_on": "this-mac"
+   },
+   {
+    "steps": [
+     "names"
+    ],
+    "job": "find-names-tag-words",
+    "workflow": "Extract Entities",
+    "workflow_id": "f0e4e22a-0b6b-5633-92f9-f2295748f6ef",
+    "provider_override": "spacy",
+    "model_override": "es_core_news_sm",
+    "runs_on": "this-mac"
+   }
+  ],
+  "skipped": [
+   {
+    "step": "groups",
+    "why": "step groups: no card runs the job 'find-documents-in-a-folder' yet",
+    "fix": null
+   },
+   {
+    "step": "check",
+    "why": "step check would send pages off this Mac, and this project keeps its pages here",
+    "fix": "allow-cloud"
+   },
+   {
+    "step": "nameless",
+    "why": "step nameless has no model: none is named",
+    "fix": "choose-model"
+   }
+  ],
+  "offered": [],
+  "refusals": [
+   "steps names need the spacy model es_core_news_sm (16 MB), which is not on this Mac: download it first"
+  ],
+  "downloads": [
+   {
+    "runtime": "spacy",
+    "model": "es_core_news_sm",
+    "steps": [
+     "names"
+    ],
+    "size_mb": 16,
+    "action": "model.download",
+    "params": {
+     "runtime": "spacy",
+     "model": "es_core_news_sm"
+    }
+   }
+  ],
+  "estimate": {
+   "pages": 2,
+   "counted": "2 photographs = 2 pages; the project holds 15 documents: these, and 13 folders",
+   "runs": [
+    {
+     "workflow": "Transcribe (Kraken)",
+     "steps": [
+      "lines",
+      "read"
+     ],
+     "where": "this-mac",
+     "pages": 2,
+     "cost_usd": 0.0,
+     "memory": null
+    },
+    {
+     "workflow": "Extract Entities",
+     "steps": [
+      "names"
+     ],
+     "where": "this-mac",
+     "pages": 2,
+     "cost_usd": 0.0,
+     "memory": null
+    }
+   ],
+   "total_cost_usd": 0.0
+  },
+  "proposed": null,
+  "addable": [
+   "entities",
+   "graph",
+   "places",
+   "vectors"
+  ]
+ }
+}

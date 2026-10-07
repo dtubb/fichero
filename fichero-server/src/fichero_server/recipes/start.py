@@ -103,11 +103,13 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         return {"runs": [], "workflows": [], "skipped": [], "offered": [],
                 "refusals": ["this project has no recipe yet: run setup first"]}
     runs: list[dict[str, Any]] = []
-    skipped: list[dict[str, str]] = []
+    skipped: list[dict[str, str | None]] = []
     offered: list[str] = []
 
-    def skip(sid: str, why: str) -> None:
-        skipped.append({"step": sid, "why": why})
+    def skip(sid: str, why: str, fix: str | None = None) -> None:
+        # `fix`: the button setup offers for it, in the words of a step problem's `fix` (choose-model,
+        # allow-cloud); None when nothing the person can do in setup fixes it (#5573).
+        skipped.append({"step": sid, "why": why, "fix": fix})
 
     for step in recipe.get("steps") or []:
         sid, job = step.get("id", "?"), step.get("job", "")
@@ -118,10 +120,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             offered.append(sid)
             continue
         if job not in _NO_MODEL_JOBS and (step.get("gap") or not step.get("model")):
-            skip(sid, f"{label} has no model: {step.get('gap') or 'none is named'}")
+            skip(sid, f"{label} has no model: {step.get('gap') or 'none is named'}", "choose-model")
             continue
         if stays_local and _uses_cloud(step):
-            skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here")
+            skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here", "allow-cloud")
             continue
         if step.get("when"):
             skip(sid, f"{label} runs only {sorted(step['when'])}; Start cannot honour a condition yet")
@@ -135,14 +137,14 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 reader = _kraken_reader_for(pin)
                 if reader is None:
                     skip(sid, f"{label}: the page text is tied to its lines by a Kraken reader's rough read, "
-                              f"and {pin} is not one this Mac can fetch")
+                              f"and {pin} is not one this Mac can fetch", "choose-model")
                     continue
                 entry.update(check="tie-text-to-lines", layer="readings", provider=KRAKEN_READER_PROVIDER,
                              model=reader, prompt=None)
             elif job == "check":
                 override = _override(pin)
                 if override is None:
-                    skip(sid, f"{label}: the check job cannot run the model {pin}")
+                    skip(sid, f"{label}: the check job cannot run the model {pin}", "choose-model")
                     continue
                 entry.update(layer=settings.get("layer", "readings"), provider=override[0], model=override[1],
                              prompt=step.get("prompt"))
@@ -168,7 +170,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                  "runs_on": runs_on}
         if job == "split-pages":
             if pin.get("builtin") != "page-splitter":
-                skip(sid, f"{label}: {name} cuts pages with the built-in page splitter only, not {pin}")
+                skip(sid, f"{label}: {name} cuts pages with the built-in page splitter only, not {pin}",
+                     "choose-model")
                 continue
         elif job == "work-out-dates":
             # The rule extractor reads one calendar per run; a recipe asking for a
@@ -180,7 +183,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 continue
         elif job == "find-lines":
             if pin.get("kraken") != "blla":
-                skip(sid, f"{label}: {name} finds lines with Kraken's blla only, not {pin}")
+                skip(sid, f"{label}: {name} finds lines with Kraken's blla only, not {pin}", "choose-model")
                 continue
         elif job == "read-a-line" and _override(pin) is not None:
             # A vision model reads the lines Kraken found: the step's own model, as the run's override.
@@ -192,7 +195,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             reader = _kraken_reader_for(pin)
             if reader is None:
                 skip(sid, f"{label}: the reader {pin} is not in the Kraken catalogue this Mac "
-                          "can fetch, so no workflow can read with it")
+                          "can fetch, so no workflow can read with it", "choose-model")
                 continue
             entry["provider_override"], entry["model_override"] = KRAKEN_READER_PROVIDER, reader
             # Kraken finds its own lines before reading them: one run carries both steps.
@@ -201,7 +204,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         elif job in _OVERRIDE_JOBS:
             override = _override(pin)
             if override is None:
-                skip(sid, f"{label}: {name} cannot run the model {pin}")
+                skip(sid, f"{label}: {name} cannot run the model {pin}", "choose-model")
                 continue
             entry["provider_override"], entry["model_override"] = override
         runs.append(entry)

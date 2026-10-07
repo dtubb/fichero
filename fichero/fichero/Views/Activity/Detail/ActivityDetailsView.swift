@@ -52,6 +52,12 @@ struct ActivityDetailsView: View {
                 if let counts = details.counts {
                     ActivityDetailsProgress(counts: counts)
                 }
+                if let summary = details.summary {
+                    ActivityDetailsSummary(summary: summary, perform: { action in Task { await perform(action, details) } })
+                }
+                if !details.stages.isEmpty {
+                    ActivityDetailsStages(stages: details.stages)
+                }
                 if !details.failedPages.isEmpty {
                     ActivityDetailsFailedPages(details: details)
                 }
@@ -97,6 +103,15 @@ struct ActivityDetailsView: View {
             }
         case .showTrace(let threadId):
             trace = TraceSubject(threadId: threadId)
+        case .readStageAgain(let threadId, _):
+            failure = await store.readPagesAgain(runThreadId: threadId)
+                .map { "Couldn't read the pages again: \($0)" }
+        case .openSetUp:
+            if let libraryId = selection.libraryId {
+                LibraryManager.shared.requestSetUp(for: libraryId)
+            } else {
+                failure = "Couldn't open the project's setup: open it with File › Set Up Project…"
+            }
         }
         actionFailure = failure
     }
@@ -220,6 +235,8 @@ private struct ActivityDetailsActions: View {
         case .openPage: "Open the Page"
         case .showPages: "Show the Pages"
         case .showTrace: "Show the Trace"
+        case .readStageAgain(_, let label): label
+        case .openSetUp: "Open Set Up…"
         }
     }
 
@@ -230,6 +247,8 @@ private struct ActivityDetailsActions: View {
         case .openPage: "doc.text"
         case .showPages: "rectangle.stack"
         case .showTrace: "point.3.connected.trianglepath.dotted"
+        case .readStageAgain: "arrow.clockwise"
+        case .openSetUp: "slider.horizontal.3"
         }
     }
 
@@ -240,7 +259,85 @@ private struct ActivityDetailsActions: View {
         case .openPage: "openPage"
         case .showPages: "showPages"
         case .showTrace: "showTrace"
+        case .readStageAgain: "readStageAgain"
+        case .openSetUp: "openSetUp"
         }
+    }
+}
+
+/// A recipe run's stages in order (#5576): each by name, its state and why,
+/// its pages done, failed and left, its time left and what its pages wait for.
+private struct ActivityDetailsStages: View {
+    let stages: [ActivityDetails.Stage]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Stages").font(.headline)
+            ForEach(stages) { stage in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(stage.title).font(.body.weight(.medium))
+                        Text(stage.steps).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Text(stage.state)
+                        .foregroundStyle(stage.isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                        .textSelection(.enabled)
+                    if let counts = stage.counts {
+                        HStack {
+                            Text(counts).monospacedDigit()
+                            if let timeLeft = stage.timeLeft {
+                                Text("About \(timeLeft) left").foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    if let waiting = stage.waitingFor {
+                        Label(waiting, systemImage: "hourglass").foregroundStyle(.secondary)
+                    }
+                }
+                .font(.callout)
+            }
+        }
+        .accessibilityIdentifier("activity.details.stages")
+    }
+}
+
+/// What a recipe run made, once it has ended (#5577): pages read, names by
+/// kind, dates and statements, each stage's failed pages with Read Again, and
+/// the steps the plan skipped with why, and Set Up… where setup can fix one.
+private struct ActivityDetailsSummary: View {
+    let summary: ActivityDetails.Summary
+    let perform: (ActivityDetails.Action) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("What this run made").font(.headline)
+            ForEach(summary.lines, id: \.self) { line in
+                Text(line).font(.callout)
+            }
+            ForEach(summary.failed) { stage in
+                HStack(alignment: .firstTextBaseline) {
+                    Label(stage.text, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    if let offer = stage.offer {
+                        Button(offer) { perform(.readStageAgain(threadId: stage.threadId, label: offer)) }
+                            .controlSize(.small)
+                            .accessibilityIdentifier("activity.details.summary.readAgain")
+                    }
+                }
+                .font(.callout)
+            }
+            if !summary.skipped.isEmpty {
+                Text("Skipped").font(.subheadline.weight(.semibold))
+                ForEach(summary.skipped) { step in
+                    Text(step.text).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                }
+                if summary.skipped.contains(where: \.hasFix) {
+                    Button("Open Set Up…") { perform(.openSetUp) }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("activity.details.summary.setUp")
+                }
+            }
+        }
+        .accessibilityIdentifier("activity.details.summary")
     }
 }
 

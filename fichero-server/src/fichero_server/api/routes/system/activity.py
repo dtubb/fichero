@@ -44,6 +44,7 @@ from fichero_server.workflows.activity import (
 )
 from fichero_server.models import ActivityListResponse
 from fichero_server.workflows.run_account import RunAccount
+from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/activity", tags=["activity"])
@@ -214,6 +215,11 @@ class JobTree(BaseModel):
     # A workflow run's account (#5555): its status shows the same one. Its pages are what `done`,
     # `total` and `failed` count on the run's own node.
     account: Optional[RunAccount] = None
+    # A recipe run's stages (#5576): every card of the run in order, those not started yet and those not run
+    # included, each workflow stage with its run's account; null on any other job.
+    stages: Optional[list[RecipeRunStep]] = None
+    # A recipe run that has ended: what it made (#5577, GET /api/recipes/project/runs/{id}/summary).
+    summary: Optional[RecipeRunSummary] = None
     children: list["JobTree"] = Field(default_factory=list)
 
 
@@ -490,7 +496,33 @@ async def get_job_tree(job_id: str, db: Database = Depends(get_library_database)
                          failed=max(found["failed"], account.pages_failed))
             if account.waiting_reason and found["state"] in ("running", "waiting"):
                 found["reason"] = account.waiting_reason
+    elif found["kind"] == "run-a-recipe":
+        await _recipe_run(db, found)
     return JobTree.model_validate(found)
+
+
+async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
+    """A recipe run's node (#5576, #5577): its stages in order, each workflow stage with its run's account (the
+    one that run's own node shows), what it waits for now as its reason while it runs, and, once it has ended,
+    what it made."""
+    from fichero_server.recipes import run_view, runner
+
+    status = await run_view.with_accounts(db, runner.status(db, found["id"]))
+    found["stages"] = status["steps"]
+    accounts = {s["child_id"]: s["account"] for s in status["steps"] if s.get("account") is not None}
+    for child in found["children"]:
+        account = accounts.get(child["id"])
+        if account is not None:
+            child["account"] = account
+            child.update(done=max(child["done"], account.pages_done), total=max(child["total"], account.pages_total),
+                         failed=max(child["failed"], account.pages_failed))
+    if found["children"]:  # the roll-up, again, over the stages' own counts
+        for key in ("done", "total", "failed"):
+            found[key] = sum(c[key] for c in found["children"])
+    if status["waiting_for"] and found["state"] in ("running", "waiting"):
+        found["reason"] = status["waiting_for"]
+    if found["state"] in ("done", "failed", "cancelled"):
+        found["summary"] = await run_view.summary(db, found["id"])
 
 
 class JobLogLine(BaseModel):

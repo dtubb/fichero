@@ -535,6 +535,21 @@ def enqueue_remote(db: "Database", kind: str, subject: str, *, target: str, deta
     return job_id
 
 
+def record_not_run(db: "Database", kind: str, subject: str, *, reason: str, detail: str,
+                   started_by: str) -> str:
+    """A job that was asked for and could not run, as a finished row that says why (#5575): `failed`, so
+    Activity lists it among the failures with its reason, and nothing is queued."""
+    _ensure(db)
+    job_id = str(uuid.uuid4())
+    now = utc_now()
+    db.execute(
+        "INSERT INTO jobs (id, kind, subject, model, state, reason, attempts, started_by, created_at, finished_at, "
+        "detail) VALUES (?, ?, ?, NULL, 'failed', ?, 0, ?, ?, ?, ?)",
+        [job_id, kind, subject, reason, started_by, now, now, detail],
+    )
+    return job_id
+
+
 def requeue(db: "Database", job_id: str, *, reason: str) -> None:
     """Put a finished stored job back to waiting (a reading run whose failed shards are re-sent)."""
     _ensure(db)

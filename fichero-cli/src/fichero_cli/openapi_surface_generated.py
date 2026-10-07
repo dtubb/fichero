@@ -12547,6 +12547,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("run-summary")
+    def recipes_run_summary_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Recipe Run Summary (GET /api/recipes/project/runs/{job_id}/summary)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/recipes/project/runs/{job_id}/summary"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-start-plan")
     def recipes_get_start_plan_get(
         ctx: typer.Context,
