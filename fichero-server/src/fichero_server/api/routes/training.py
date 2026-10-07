@@ -315,6 +315,8 @@ class TrainedModelNode(BaseModel):
     licence_note: str | None = None
     may_publish: bool = Field(description="True only when the card says not_for_release: false.")
     release_note: str | None = None
+    lives: str = Field("global", description="Where the model lives (#5539): project (inside this project's "
+                                             "package), global (the engine's store), or both (made global).")
 
 
 class TrainedModelNodes(BaseModel):
@@ -356,6 +358,50 @@ async def trained_model_inspector(
     if node is None:
         raise HTTPException(status_code=404, detail=f"{model} is not a model trained in this project")
     return TrainedModelInspector(**node)
+
+
+class MakeModelGlobalParams(BaseModel):
+    model: str = Field(description="The project's model: kraken-trained-<job> or fichero-trained/<name>.")
+
+
+class ModelMadeGlobal(BaseModel):
+    """A project's model copied into the engine's global store: every project can now use it."""
+
+    model_id: str
+    global_path: str = Field(description="Where the global copy lives on this engine.")
+    may_publish: bool = Field(description="Copied from the card: a model not for release stays so.")
+
+
+@action("training.make_model_global", MakeModelGlobalParams, domains=["model"], undoable=False)
+def _action_make_global(db: Database, params: MakeModelGlobalParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from pathlib import Path
+
+    from fichero_server.training.project_models import make_global
+
+    made = make_global(Path(db.path).parent, params.model)
+    return made, ChangeSpec(domains=["model"], target_ids=[params.model], after=made)
+
+
+@router.post("/models/make-global", response_model=ModelMadeGlobal,
+             summary="Make a project's trained model global (usable in every project)")
+async def make_trained_model_global(
+    params: MakeModelGlobalParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ModelMadeGlobal:
+    """Make Global (#5539): copy a model trained in this project (its card and weights, from the
+    project's `models/` folder) into the engine's global model store, so every project's discovery and
+    bake-off can offer it. The project keeps its own copy; the card goes unchanged, `not_for_release`
+    included. One audited action (`training.make_model_global`). 404 when the project holds no such
+    model; 409 when the global store already has one by that id (never overwritten)."""
+    from fichero_server.training.project_models import NotInProject
+
+    try:
+        return ModelMadeGlobal(**registry.invoke(db, "training.make_model_global", params.model_dump(), ctx).result)
+    except NotInProject as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 class ReasonsJobParams(BaseModel):
