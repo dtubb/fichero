@@ -11034,6 +11034,16 @@
       },
       {
         "method": "POST",
+        "path": "/training/models/make-global",
+        "operation_id": "make_trained_model_global_api_training_models_make_global_post",
+        "summary": "Make a project's trained model global (usable in every project)",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "MakeModelGlobalParams",
+        "response_model": "ModelMadeGlobal"
+      },
+      {
+        "method": "POST",
         "path": "/training/reasons",
         "operation_id": "start_gathering_reasons_api_training_reasons_post",
         "summary": "Ask a palaeographer for its reasons (or review) on each checked line",

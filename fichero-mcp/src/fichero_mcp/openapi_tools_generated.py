@@ -7695,6 +7695,14 @@ def fichero_training_list_trained_models(
     return _rt.call("GET", "/api/training/models")
 
 
+def fichero_training_make_trained_model_global(
+    *,
+    model: Annotated[str, Field(description="The project's model: kraken-trained-<job> or fichero-trained/<name>.")],
+) -> Any:
+    "Make a project's trained model global (usable in every project)\n\nMake Global (#5539): copy a model trained in this project (its card and weights, from the\nproject's `models/` folder) into the engine's global model store, so every project's discovery and\nbake-off can offer it. The project keeps its own copy; the card goes unchanged, `not_for_release`\nincluded. One audited action (`training.make_model_global`). 404 when the project holds no such\nmodel; 409 when the global store already has one by that id (never overwritten).\n\nRoute: POST /api/training/models/make-global (toolset `training`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/training/models/make-global", json=_rt.body({"model": model}))
+
+
 def fichero_training_start_gathering_reasons(
     *,
     checked: Annotated[str, Field(description='The model id of the CHECKED pass (its lines and their right readings).')],
@@ -9079,6 +9087,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_training_start_kraken_here", "training", "POST", "/api/training/kraken/here", fichero_training_start_kraken_here),
     GeneratedTool("fichero_training_trained_model_inspector", "training", "GET", "/api/training/model", fichero_training_trained_model_inspector),
     GeneratedTool("fichero_training_list_trained_models", "training", "GET", "/api/training/models", fichero_training_list_trained_models),
+    GeneratedTool("fichero_training_make_trained_model_global", "training", "POST", "/api/training/models/make-global", fichero_training_make_trained_model_global),
     GeneratedTool("fichero_training_start_gathering_reasons", "training", "POST", "/api/training/reasons", fichero_training_start_gathering_reasons),
     GeneratedTool("fichero_training_start_reasons_ab", "training", "POST", "/api/training/reasons-ab", fichero_training_start_reasons_ab),
     GeneratedTool("fichero_training_reasons_ab_status", "training", "GET", "/api/training/reasons-ab/{job_id}", fichero_training_reasons_ab_status),
