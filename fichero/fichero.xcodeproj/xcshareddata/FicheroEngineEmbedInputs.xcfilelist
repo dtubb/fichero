@@ -206,6 +206,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/bibliography/importers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/bookmarks.py
 $(SRCROOT)/../fichero-server/src/fichero_server/books/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/books/page_offset.py
+$(SRCROOT)/../fichero-server/src/fichero_server/canvas_picture.py
 $(SRCROOT)/../fichero-server/src/fichero_server/checking/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/checking/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/checking/job.py

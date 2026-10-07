@@ -1,5 +1,5 @@
 """An agent organises a project through the MCP, as a historian does in the app (#5568;
-specs/harness/surfaces-from-openapi.md, openapi.mcp.organise-a-project).
+docs/contributor_manual/specs/harness/surfaces-from-openapi.md, openapi.mcp.organise-a-project).
 
 WHY: organising Istmina Full's loose sentencias, the MCP offered one document's x/y and nothing
 else; the agent dropped to the CLI. Here an agent uses only the DEFAULT tool surface, through the
