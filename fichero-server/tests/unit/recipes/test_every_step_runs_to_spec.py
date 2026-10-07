@@ -68,6 +68,7 @@ def test_every_step_setup_proposes_is_one_start_runs(client):
     purpose brings that Start cannot run is in the plan's `skipped`, with why and the fix, never silent."""
     from fichero_server.recipes.start import START_JOBS
 
+    assert "find-documents-in-a-folder" in START_JOBS  # Find the Documents has its card (#5550)
     purposes = [p["id"] for p in client.get("/api/recipes/purposes").json()["items"] if p["runs_by_itself"]]
     assert "search" in purposes and "map-places" in purposes
     for purpose in purposes:

@@ -5894,6 +5894,7 @@ def fichero_recipes_assemble(
     *,
     cloud_allowed: Annotated[Optional[bool], Field(description='Cloud Allowed. Default: false.')] = None,
     directions: Annotated[Optional[dict[str, Any]], Field(description='script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen)')] = None,
+    job_answers: Annotated[Optional[dict[str, Any]], Field(description='the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the step it configures (source.onboard.auto.job-answers-read)')] = None,
     jobs: Annotated[Optional[list[Any]], Field(description="jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)")] = None,
     languages: Annotated[list[Any], Field(description="BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag)")],
     layers: Annotated[Optional[list[Any]], Field(description="layers added beyond the purposes' (source.onboard.add-layer)")] = None,
@@ -5907,7 +5908,7 @@ def fichero_recipes_assemble(
     scripts: Annotated[list[Any], Field(description="ISO 15924 script codes (or a script's English name)")],
 ) -> Any:
     "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "scripts": scripts}))
+    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "scripts": scripts}))
 
 
 def fichero_recipes_model_candidates(

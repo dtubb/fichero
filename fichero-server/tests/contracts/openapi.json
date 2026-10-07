@@ -47372,6 +47372,12 @@
             "nullable": true,
             "title": "Loose Pages",
             "description": "the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open project holds a folder of loose page images (finddocs.recipe-step)"
+          },
+          "job_answers": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Job Answers",
+            "description": "the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the step it configures (source.onboard.auto.job-answers-read)"
           }
         },
         "additionalProperties": false,
@@ -47430,6 +47436,14 @@
             },
             "type": "array",
             "title": "Gaps"
+          },
+          "by_hand": {
+            "items": {
+              "$ref": "#/components/schemas/ByHandJob"
+            },
+            "type": "array",
+            "title": "By Hand",
+            "description": "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that does it by hand (source.onboard.auto.every-proposed-step-runs)"
           },
           "cloud_options": {
             "items": {
@@ -49192,6 +49206,36 @@
         ],
         "title": "BundledFontList",
         "description": "The `{items, count}` envelope every list route returns (#5263), never a bare array."
+      },
+      "ByHandJob": {
+        "properties": {
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "fix": {
+            "type": "string",
+            "title": "Fix",
+            "description": "what does it by hand instead, in words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job",
+          "title",
+          "why",
+          "fix"
+        ],
+        "title": "ByHandJob",
+        "description": "A job the answers bring that Start cannot run by itself: never a step, said with why and the fix."
       },
       "CacheClearResponse": {
         "properties": {
@@ -81630,6 +81674,12 @@
           "why": {
             "type": "string",
             "title": "Why"
+          },
+          "fix": {
+            "type": "string",
+            "nullable": true,
+            "title": "Fix",
+            "description": "what makes it run, or does it by hand, in words"
           }
         },
         "type": "object",
@@ -82835,7 +82885,7 @@
           "card": {
             "type": "string",
             "title": "Card",
-            "description": "workflow, check or export"
+            "description": "workflow, check, embed (search: the embed job for each page), export or publish"
           },
           "runs_on": {
             "type": "string",
@@ -82945,6 +82995,16 @@
             "type": "array",
             "title": "Gives",
             "description": "the kinds of thing it gives the steps after it"
+          },
+          "tool_config": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Tool Config",
+            "description": "settings from setup's answers this run gives its workflow's tools, by tool (which kinds of names)"
           }
         },
         "type": "object",
