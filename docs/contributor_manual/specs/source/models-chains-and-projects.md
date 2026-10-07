@@ -2456,8 +2456,10 @@ node; a model appears in the sidebar only inside a training node, as its base or
   `fichero-server/tests/unit/training/test_trained_model_nodes.py`. Built (app): each project's sidebar
   shows a Training node listing those models (`SidebarTrainingNode`, `TrainedModelsStore`), drawn only
   when there is one; tested in `fichero/Tests/Unit/general/Models/TrainedModelsStoreTests.swift`. Not
-  built: the base model as its own node inside Training (the Inspector names it), and a per-project
-  list: the list is the engine's, since no card records the project it was trained in.* training is a node in the sidebar; the
+  built: the base model as its own node inside Training (the Inspector names it). Since #5539 (ruled
+  2026-10-06) a model trained for a project lives inside its package (`models/`) and the project's list
+  holds those, with the models in the engine's global store whose card names the project; each says
+  where it lives (`lives`: `project`, `global`, `both`; `compute.model.lives-in-project`).* training is a node in the sidebar; the
   base model and every model a run produced show inside it. A model with no training stays in
   Settings only.
 - `source.model.node-inspector` — **[OK]** (#5439) *Built (engine): `GET /api/training/model` gives
@@ -2476,7 +2478,8 @@ node; a model appears in the sidebar only inside a training node, as its base or
   (`source.model.runs-here`); its licence and its release flag.
 - `source.model.node-actions` — **[GAP]** (#5439) from the training node a person can train, fine-tune
   or distil again (the start sheet, `compute.tune.start-sheet`), test (an evaluation job,
-  `distill.eval.job`) and publish, through the one audited action layer. The node keeps the history:
+  `distill.eval.job`), make global (built in the engine as `training.make_model_global`,
+  `compute.model.make-global`, #5539) and publish, through the one audited action layer. The node keeps the history:
   every run, its data set, its scores and the model it produced.
 
 ### The vision base a fine-tune starts from (ruled 2026-10-04, #5442)

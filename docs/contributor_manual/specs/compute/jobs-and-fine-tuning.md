@@ -221,21 +221,53 @@ already supports.
   (`source.train.model-lineage`). A model whose scores are worse than its base is shown as
   worse, not hidden.
 
-### Where a trained model lives, and sharing it (proposed 2026-10-06, #5539; awaiting the maintainer)
+### Where a trained model lives, and sharing it (ruled 2026-10-06, #5539)
 
-Training, fine-tuning and distilling are recipe steps like any other (the guided path in
-`source/models-chains-and-projects.md`), run by the job runner under the memory rules below and where
-the compute is (Hugging Face Jobs, ACENET or another Alliance cluster, a bigger Mac).
-- **In the project.** A model made for a project lives in it: its card and its weights (a Kraken
-  `.mlmodel`, a 4-bit vision student, a spaCy pipeline, YOLO weights), so a project copied or moved to
-  another Mac carries its models. (On 2026-10-06 a project copied to the M1 Air showed its vision
-  student as not here and lost its Kraken fine-tunes.) Open question: large weights inside the package,
-  or kept once in the machine's store and referenced by checksum, reconnected on a move (#5535).
-- **Make Global.** "Use in all projects" puts the model in the app's model store; every project's
-  discovery and bake-off can then offer it.
-- **Publish.** To Hugging Face or Zenodo with its card, its base's licence, the training data's consent
-  (refused where the data may not be released) and its scores with the sets they were measured on
-  (`compute/distillation.md`, best practice).
+Ruled by the maintainer 2026-10-06: a trained model lives inside its project, its card and its
+weights both, in the project's package (not kept once in the machine's store and referenced by
+checksum); an audited action makes it global; a model trained on data that may not be released
+(Sergio's) is never publishable, wherever it is copied. Training, fine-tuning and distilling are recipe
+steps like any other (the guided path in `source/models-chains-and-projects.md`), run by the job runner
+under the memory rules below and where the compute is (Hugging Face Jobs, ACENET or another Alliance
+cluster, a bigger Mac).
+- `compute.model.lives-in-project` — **[PARTIAL]** (#5539) *Built (engine) for Kraken readers and
+  vision students: a training job lands the model in `<project>.fichero/models/` (a reader's `.mlmodel`
+  and `fichero-card.json`; a student's `mlx/` build, `adapter/` and, when kept, merged `hf/` weights),
+  with paths on the card relative to the model's folder; the resolvers look in the engine's global store,
+  then in every open project, so a reader or step names the model by the same id as before, and a model
+  landed before the ruling keeps working from the global store. The project's Training node shows where
+  each model lives (`lives`: `project`, `global`, `both`). Tested in
+  `fichero-server/tests/unit/training/test_models_live_in_the_project.py`. Not built: spaCy pipelines and
+  YOLO weights (no training lands them yet).* A model made for a project lives in it: its card and its
+  weights (a Kraken `.mlmodel`, a 4-bit vision student, a spaCy pipeline, YOLO weights), so a project
+  copied or moved to another Mac carries its models. (On 2026-10-06 a project copied to the M1 Air
+  showed its vision student as not here and lost its Kraken fine-tunes, #5535.)
+- `compute.model.backed-up-with-project` — **[OK]** (#5539) *Built: every snapshot of a project
+  (`storage_snapshots.snapshot_library`, the safety net before risky operations included) copies its
+  `models/` folder, cards copied and weights hard-linked (weights are written once); a restore brings
+  back any model the project lost and never overwrites or removes one trained since. Tested in
+  `fichero-server/tests/unit/db/test_snapshot_keeps_project_models.py`.* A backup of a project keeps
+  its trained models; a backup that loses one is a defect.
+- `compute.model.make-global` — **[PARTIAL]** (#5539) *Built (engine): `POST
+  /api/training/models/make-global`, one audited action (`training.make_model_global`), copies a
+  project's model, card and weights, into the engine's global store; the project keeps its copy; 404 when
+  the project holds no such model, 409 when the global store already has one by that id (never
+  overwritten); CLI and MCP from the OpenAPI. Tested in
+  `fichero-server/tests/unit/training/test_models_live_in_the_project.py`. Not built: the app's "Use in
+  all projects" command on the model node.* "Use in all projects" puts the model in the app's model
+  store; every project's discovery and bake-off can then offer it.
+- `compute.model.never-publishable-stays-so` — **[OK]** (#5539) *Built: Make Global copies the card
+  unchanged, `not_for_release` included, and reports `may_publish` from it. Tested in
+  `test_make_global_keeps_a_model_that_may_not_be_released_unreleasable`.* A model that may not be
+  released (Sergio's: trained on data that may not be released) stays so wherever it is copied.
+- `compute.model.publish` — **[GAP]** (#5539) To Hugging Face or Zenodo with its card, its base's
+  licence, the training data's consent (refused where the data may not be released) and its scores with
+  the sets they were measured on (`compute/distillation.md`, best practice).
+- `compute.model.training-is-a-recipe-step` — **[GAP]** (#5539) a train, fine-tune or distil step is a
+  recipe step like any other, run by the job runner; today training starts from its own routes.
+- `compute.model.one-id-one-model` — **[GAP]** (#5539) two open projects holding different models under the
+  same id (a vision student's id is its name, `fichero-trained/<name>`) each resolve to their own; today
+  the resolver takes the global store's, else the first open project that holds one.
 
 ### Models in memory: loading, unloading, never leaking (maintainer 2026-10-06, #5537)
 
