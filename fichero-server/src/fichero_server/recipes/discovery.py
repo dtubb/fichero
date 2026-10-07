@@ -167,9 +167,9 @@ def _harvest() -> dict[str, dict[str, Any]]:
     """Kraken's model repository as `kraken list` reads it: htrmopo's listing of Zenodo's `ocr_models`
     community, {doi: {"v0"|"v1": record}}. The one network boundary here; tests replace it with a
     recorded listing."""
-    from htrmopo import get_listing
+    from fichero_server.llm.kraken_runtime import repository_listing
 
-    return get_listing()
+    return repository_listing()
 
 
 def _row(record: Any) -> dict[str, Any] | None:

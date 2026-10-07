@@ -422,6 +422,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/assemble.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/bakeoff.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/derived.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/discovery.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/done.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/layers.py
