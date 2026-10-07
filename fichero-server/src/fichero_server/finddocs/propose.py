@@ -330,7 +330,8 @@ def propose(pages: list[PageInput], *, proposal_id: str = "", folder_id: str | N
     """Find the documents in `pages` (in the folder's order)."""
     units, findings, leaves, leading = _leaves(pages)
     joins = [_join(units[i - 1].page, units[i].page) for i in range(1, len(units))]
-    starts = [0] + [i for i, join in enumerate(joins, start=1) if join.probability >= BOUNDARY_AT]
+    # No written page, no document: blank pages alone are only findings.
+    starts = ([0] if units else []) + [i for i, join in enumerate(joins, start=1) if join.probability >= BOUNDARY_AT]
     documents: list[ProposedDocument] = []
     for n, start in enumerate(starts):
         end = starts[n + 1] if n + 1 < len(starts) else len(units)

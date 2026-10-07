@@ -106,8 +106,8 @@ def _look(path: str | None) -> tuple[float | None, int | None]:
             image.draft("L", (THUMB * 4, THUMB * 4))
             gray = ImageOps.grayscale(image)
             gray.thumbnail((THUMB, THUMB))
-            pixels = list(gray.getdata())
-            small = list(gray.resize((8, 8)).getdata())
+            pixels = list(gray.tobytes())
+            small = list(gray.resize((8, 8)).tobytes())
     except OSError:
         return None, None
     # Ink is what is much darker than the paper (its median): bleed-through on a blank verso is not.

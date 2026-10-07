@@ -106,7 +106,7 @@ FOLIO_PATTERNS = (
     re.compile(r"^\s*[-–—(\[]?\s*(\d{1,3})\s*[-–—)\]]?\s*$"),
     re.compile(r"^\s*(?:folio|fol\.|f\.|p[aá]gina|p[aá]g\.|page|p\.)\s*(\d{1,3})\b", re.IGNORECASE),
 )
-NUMBERING_RESTARTS = 2.0
+NUMBERING_RESTARTS = 4.0
 NUMBERING_CONTINUES = -3.0
 
 # --- Continuity across the break --------------------------------------------------------------------
@@ -123,6 +123,7 @@ _TITLE = r"(?:(?i:señor(?:a)?|sr\.|sra\.|don|doña|dr\.|mr\.?|mrs\.?|miss|the)\
 PARTY_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("against", re.compile(rf"(?i:\bcontra)\s+(?:(?i:el|la|los|las)\s+)?{_TITLE}({NAME})")),
     ("plaintiff", re.compile(rf"(?i:\bdemandante|\bactor|\bplaintiff|\bpromovid[oa]\s+por)[,:]?\s+{_TITLE}({NAME})")),
+    ("named-plaintiff", re.compile(rf"{_TITLE}({NAME}),?\s+(?i:demandante)\b")),
     ("defendant", re.compile(rf"(?i:\bdemandad[oa]|\bdefendant)[,:]?\s+{_TITLE}({NAME})")),
     ("versus", re.compile(rf"({NAME})\s+(?:v\.|vs\.?|versus)\s+")),
     ("addressee", re.compile(rf"^\s*(?i:dear|estimad[oa]|señor(?:a)?|sr\.|sra\.)\s+{_TITLE}({NAME})\s*[:,]\s*$",

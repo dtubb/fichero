@@ -130,15 +130,22 @@ def _action_accept(db: Any, params: FindDocumentsAcceptParams, ctx: ActionContex
         pages = [pid for pid in document.page_ids if (page := db.get(Document, pid)) is not None and not page.deleted_at]
         if not pages:
             raise LookupError(f"document {document.index + 1}'s pages are gone")
+        if document.prototype_key:
+            _ensure_prototype(db, document.prototype_key, document.kind or document.prototype_key, values_made)
         if len(pages) >= 2:
-            target = group_documents_impl(db, DocumentGroupParams(name=document.name, child_ids=pages)).id
+            group = group_documents_impl(db, DocumentGroupParams(name=document.name, child_ids=pages))
+            target = group.id
             made.append(target)
+            if document.prototype_key:
+                # The group is this action's own, not yet committed: the assign route's impl reads committed
+                # rows only, so the new node takes its prototype as it is made.
+                group.prototype_key = document.prototype_key
+                db.save(group)
         else:
             target = pages[0]
             prototypes_before[target] = db.get(Document, target).prototype_key
-        if document.prototype_key:
-            _ensure_prototype(db, document.prototype_key, document.kind or document.prototype_key, values_made)
-            assign_document_prototype_impl(db, target, PrototypeAssignRequest(prototype_key=document.prototype_key))
+            if document.prototype_key:
+                assign_document_prototype_impl(db, target, PrototypeAssignRequest(prototype_key=document.prototype_key))
         document.state, document.accepted_as = "accepted", target
     # A proposed group whose documents are all accepted becomes a group of them, in its order.
     tops = {d.index: d.accepted_as for d in proposal.documents if d.state == "accepted"}
