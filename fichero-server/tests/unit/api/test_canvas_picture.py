@@ -1,4 +1,5 @@
-"""GET /api/canvas/folders/{id}/canvas-picture: the board as one PNG (#5568).
+"""GET /api/canvas/folders/{id}/canvas-picture: the board as one PNG (#5568;
+specs/harness/surfaces-from-openapi.md, openapi.mcp.organise-a-project).
 
 An agent organising a project through the MCP must be able to LOOK at a folder's canvas. These
 tests read the picture back as pixels: a placed page's stored thumbnail at its saved position, a

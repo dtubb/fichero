@@ -108,7 +108,7 @@ def test_each_generated_tool_is_one_engine_call_and_nothing_else():
 
 
 def test_a_picture_route_answers_the_agent_with_an_image(monkeypatch):
-    """WHY (#5568): an agent organising a board must SEE it. A route answering image/png reaches the
+    """WHY (openapi.mcp.pictures-are-images, #5568): an agent organising a board must SEE it. A route answering image/png reaches the
     agent as MCP image content, not as a count of bytes; a refusal is still a typed error."""
     import base64
     import io
