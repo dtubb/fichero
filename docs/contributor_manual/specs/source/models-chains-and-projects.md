@@ -1354,6 +1354,11 @@ was searched and the nearest candidates, and offers Train a Model where none exi
 Known gaps that discovery must close (corpus run 2026-10-06, #5519): Fraktur (UB Mannheim, Tesseract
 `frk`), Japanese (NDLOCR), traditional Chinese (PaddleOCR `chinese_cht`), Hebrew (BiblIA Kraken),
 Syriac (eScriptorium, Calamari), Latin and Ancient Greek spaCy (LatinCy, greCy).
+Built 2026-10-07 for readers (#5519, `source.find.installed-count`, `source.find.kraken-repository`,
+`source.find.hub-runs-here`, `source.find.rules-see-candidates`): sources 1 (MLX vision models), 2 and 3,
+through `GET /api/recipes/candidates`. Still owed: installed Kraken readers outside the repository,
+spaCy pipelines, YOLO weights, downloading a found Hub model, and a "no model fits" problem that names
+the nearest candidates.
 
 **Training layout models (YOLO) and tables (proposed, maintainer 2026-10-05, #5525).**
 Fichero reads and writes YOLO labels today (`formats/yolo.py`) but has no YOLO training. The
@@ -1633,9 +1638,12 @@ Moved from `ai/local-runtimes.md` on 2026-10-04 (the card has one home). Each re
 - `source.model.line-or-page-from-architecture` — **[GAP]** (#4948) where a card does not say
   whether a reader reads lines or pages, it is worked out from the architecture (CTC readers read
   lines; vision-language models read pages), shown as worked out, and correctable.
-- `source.find.zenodo-through-htrmopo` — **[GAP]** (#4948) Kraken's Zenodo repository is searched
+- `source.find.zenodo-through-htrmopo` — **[OK]** (#4948, #5519) Kraken's Zenodo repository is searched
   through the `htrmopo` library, which reads each record's card (model type, script, language,
-  CER, licence), never through Zenodo's plain search alone.
+  CER, licence), never through Zenodo's plain search alone. *Built 2026-10-07: `recipes/discovery.py`
+  reads `htrmopo.get_listing` (the call `kraken list` makes), keeps Kraken recognition models only, the
+  newest version of each; pinned by `fichero-server/tests/unit/recipes/test_model_discovery.py` with
+  recorded records.*
 - `source.find.adapters-as-a-tier` — **[GAP]** (#4948) the search finds fine-tuned adapters (Hugging
   Face `library=peft`) as their own tier, each shown with its base model and training data.
 
@@ -2435,9 +2443,40 @@ Sharing
   published, naming the recipe and version it came from and crediting its authors.
 
 Finding models
-- `source.find.by-need` — **[GAP]** (#4948) the existing model recommender and language-fit score
+- `source.find.by-need` — **[PARTIAL]** (#4948, #5519) the existing model recommender and language-fit score
   are extended (not replaced) to search by job, script, language, period and local-only, across an
-  open list of sources including Kraken's repository and Hugging Face (→ #2116).
+  open list of sources including Kraken's repository and Hugging Face (→ #2116). *Built 2026-10-07 for
+  readers: `GET /api/recipes/candidates` gathers the shipped, installed, Kraken-repository and Hugging
+  Face candidates by job, script and language, ranked by the rules (below). Period, spaCy pipelines,
+  YOLO weights and installed Kraken readers outside the repository are not searched yet.*
+- `source.find.installed-count` — **[OK]** (#5519) every complete MLX vision model in this engine's
+  model store that no shipped card pins (a catalogue model, one Fichero trained, one found in the
+  store) is a reader candidate with a card made from its own metadata: its config says it reads
+  images, its weights give its size and memory floor, its README's front matter its licence and
+  languages; its scripts are unstated, so the rules never miss it for a script no shipped card covers.
+  A model with no stated licence needs the person's acceptance like any other. *Pinned by
+  `test_model_discovery.py`.*
+- `source.find.kraken-repository` — **[OK]** (#5519) the repository's Kraken readers join the
+  rules by script (a Latin record whose card says Fraktur covers `Latf`; Han, kana and Hangul cover
+  `Jpan` and `Kore`); a record's published CER is ranked on only when it names the project's languages,
+  and otherwise is named in its reason. Fetched only when asked and the engine is not offline, kept in
+  the model store's `discovery/` folder, fetched again at most daily; offline, the last fetch is used.
+  *Pinned by `test_model_discovery.py`.*
+- `source.find.hub-runs-here` — **[PARTIAL]** (#5519) the Hugging Face search asks by task
+  (image-to-text, image-text-to-text) and language tag, never by keyword, and offers only MLX builds
+  (the `mlx` tag; the Hub ignores a `library` parameter, which is how the old search returned GGUF chat
+  models) or a safetensors model's MLX conversion found by its `base_model:` tag, each saying why it is
+  offered; never a GGUF repository. *Built, pinned by `test_model_discovery.py` with recorded Hub
+  answers. Residue: Fichero cannot download a Hub model outside its catalogue yet, so these are
+  listed (`in_recipe_rules: false`), not chosen by the rules; installed by hand, one becomes an
+  installed candidate.*
+- `source.find.rules-see-candidates` — **[OK]** (#5519) setup's assembly, the bake-off and Use This
+  choose from the shipped, installed and cached repository cards (never the network), ranked by the
+  same fixed order, so a Japanese, Chinese or Fraktur project gets a reader where one is installed or
+  was found; every chosen step whose model is not measured on the project says it is unmeasured until
+  a bake-off measures it, and its card names where it came from (`card.source`). An installed vision
+  model runs at Start and is scored in the bake-off like a catalogue one. *Pinned by
+  `test_model_discovery.py`.*
 - `source.find.download-is-a-provider-row` — **[GAP]** (#4948) a downloaded model becomes a row under
   its provider, through the one catalogue's download path.
 - `source.find.results-are-cards` — **[GAP]** (#4948) results are shown as cards, with licence

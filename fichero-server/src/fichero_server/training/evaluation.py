@@ -149,10 +149,12 @@ def on_this_mac(model: str, reader: str) -> bool:
     from fichero_server.llm.mlx_model_store import get_mlx_model_store
 
     store = get_mlx_model_store()
-    try:
-        return store.trained_card(model) is not None or store.is_complete(store.spec(model))
-    except KeyError:
+    # By the store's own id for any name it knows: a catalogue id, its Hub repository (a recipe's pin and
+    # the vision bases name the repository), a trained model, or a model found in the store (#5519).
+    model_id = store.canonical_id(model)
+    if model_id is None:
         return False
+    return store.trained_card(model_id) is not None or store.is_complete(store.spec(model_id))
 
 
 # --- the candidates and the pages --------------------------------------------------------------------

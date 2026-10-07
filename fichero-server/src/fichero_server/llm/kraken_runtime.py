@@ -213,6 +213,15 @@ def recognition_model_path(model_id: str, home: Path | None = None) -> str | Non
 _ZENODO_READER = re.compile(r"^kraken-zenodo-(\d+)$")
 
 
+def repository_listing() -> dict[str, dict[str, object]]:
+    """Kraken's model repository as `kraken list` reads it: htrmopo's listing of Zenodo's `ocr_models`
+    community, {doi: {"v0"|"v1": record}} (#5519, `recipes.discovery`). Network: many requests on a
+    first call (htrmopo caches what it read); call only when the person asked and egress allows it."""
+    from htrmopo import get_listing
+
+    return get_listing()
+
+
 def reader_id_for_doi(doi: str) -> str:
     """The model id under which a repository reader's DOI is downloaded and run."""
     return f"kraken-zenodo-{str(doi).rsplit('.', 1)[-1]}"

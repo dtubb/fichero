@@ -89,8 +89,10 @@ async def _fetch_hf_models(
     limit: int = 20,
     offset: int = 0,
     library: Optional[str] = None,
+    tags: Optional[list[str]] = None,
 ) -> list[dict]:
-    """Fetch models from Hugging Face Hub API."""
+    """Fetch models from Hugging Face Hub API. `tags` filters by Hub tags, all of them (a language
+    such as ``ja``, or ``base_model:<repo>``): model discovery's search (#5519)."""
     params = {
         "sort": sort,
         "limit": limit,
@@ -100,10 +102,13 @@ async def _fetch_hf_models(
         params["pipeline_tag"] = task
     if search:
         params["search"] = search
-    if library:
-        params["library"] = library
+    # A library is a Hub tag: the API ignores a `library` parameter (2026-10-07, `library=mlx` with
+    # `filter=ja` returned GGUF repositories), so it is asked for as a filter, as `tags` are (#5519).
+    filters = [*([library] if library else []), *(tags or [])]
+    if filters:
+        params["filter"] = filters
 
-    cache_key = f"hf_models:{task}:{search}:{sort}:{limit}:{offset}:{library}"
+    cache_key = f"hf_models:{task}:{search}:{sort}:{limit}:{offset}:{library}:{tags}"
     cached = _get_cache(cache_key)
     if cached is not None:
         return cached

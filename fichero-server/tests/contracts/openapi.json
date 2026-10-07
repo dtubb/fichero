@@ -13034,6 +13034,109 @@
         }
       }
     },
+    "/api/recipes/candidates": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Model Candidates",
+        "description": "Every reader candidate for these scripts and languages (comma-separated codes or names), from the\nshipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is reached only with `online=true`, and never when this engine works\noffline; otherwise the repository is read from its last fetch and the Hub is not searched. Refused\n(422), in words, for an unknown script, language, material or job.",
+        "operationId": "model_candidates_api_recipes_candidates_get",
+        "parameters": [
+          {
+            "name": "scripts",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scripts"
+            }
+          },
+          {
+            "name": "languages",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Languages"
+            }
+          },
+          {
+            "name": "material",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "handwriting",
+              "title": "Material"
+            }
+          },
+          {
+            "name": "job",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "read-a-line",
+              "title": "Job"
+            }
+          },
+          {
+            "name": "online",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Online"
+            }
+          },
+          {
+            "name": "cloud_allowed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Cloud Allowed"
+            }
+          },
+          {
+            "name": "mac_memory_gb",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "nullable": true,
+              "title": "Mac Memory Gb"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCandidateList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project": {
       "get": {
         "tags": [
@@ -48911,6 +49014,49 @@
         "title": "CancelResponse",
         "description": "Response from POST /threads/{thread_id}/cancel (#1127).\n\n``partial_results_preserved`` is always True for now \u2014 the issue's\ninvariant is that artifacts and entities written before the cancel\nstay in place. Future work could add a soft-rollback option that\ndeletes per-thread writes; for now we surface the contract clearly\nin the response shape."
       },
+      "CandidateSource": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "shipped",
+              "installed",
+              "kraken-repository",
+              "hugging-face"
+            ],
+            "title": "Source"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "read",
+              "searched",
+              "cached",
+              "not-searched",
+              "offline",
+              "failed"
+            ],
+            "title": "State",
+            "description": "read: on this Mac; searched: fetched now; cached: from the last fetch; not-searched: online was not asked; offline: this engine works offline (local-only); failed: the fetch failed (detail says why)"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "state",
+          "count",
+          "detail"
+        ],
+        "title": "CandidateSource"
+      },
       "CanvasDeletedResponse": {
         "properties": {
           "status": {
@@ -67564,6 +67710,164 @@
         ],
         "title": "ModeRequest"
       },
+      "ModelCandidate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "<runtime>:<source>@<version>"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "shipped",
+              "installed",
+              "kraken-repository",
+              "hugging-face"
+            ],
+            "title": "Source"
+          },
+          "offered_because": {
+            "type": "string",
+            "title": "Offered Because",
+            "description": "why discovery offers it, in words"
+          },
+          "pin": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Pin"
+          },
+          "jobs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Jobs"
+          },
+          "scripts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Scripts",
+            "description": "ISO 15924 codes its card states; null: unstated"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Languages",
+            "description": "BCP 47 tags its card states; null: unstated"
+          },
+          "licence": {
+            "type": "string",
+            "title": "Licence",
+            "default": ""
+          },
+          "open_licence": {
+            "type": "boolean",
+            "title": "Open Licence"
+          },
+          "size_gb": {
+            "type": "number",
+            "title": "Size Gb"
+          },
+          "memory_gb": {
+            "type": "number",
+            "title": "Memory Gb"
+          },
+          "cer_published": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cer Published",
+            "description": "a published CER the rules rank on (only where the record names the project's languages)"
+          },
+          "cer_measured_here": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cer Measured Here"
+          },
+          "measured": {
+            "type": "string",
+            "title": "Measured",
+            "description": "what is measured on this project, or that it is unmeasured until a bake-off measures it"
+          },
+          "in_recipe_rules": {
+            "type": "boolean",
+            "title": "In Recipe Rules",
+            "description": "false for a Hugging Face result: Fichero cannot download a Hub model outside its catalogue yet, so the rules do not choose it"
+          },
+          "rule_rank": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Rule Rank",
+            "description": "its place by the rules' fixed order among the candidates they keep; null when refused or not in the rules"
+          },
+          "refused": {
+            "type": "string",
+            "nullable": true,
+            "title": "Refused",
+            "description": "the rules' first reason it cannot do the job here"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "source",
+          "offered_because",
+          "pin",
+          "jobs",
+          "open_licence",
+          "size_gb",
+          "memory_gb",
+          "measured",
+          "in_recipe_rules"
+        ],
+        "title": "ModelCandidate",
+        "description": "One reader candidate as a card: where it came from, why it is offered, what it states, and what\nthe rules make of it for the project's scripts, languages and material."
+      },
+      "ModelCandidateList": {
+        "properties": {
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelCandidate"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/CandidateSource"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job",
+          "items",
+          "count",
+          "sources"
+        ],
+        "title": "ModelCandidateList"
+      },
       "ModelCreate": {
         "properties": {
           "provider_id": {
@@ -73952,6 +74256,18 @@
             "type": "boolean",
             "title": "Trainable",
             "default": false
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "shipped",
+              "installed",
+              "kraken-repository",
+              "hugging-face"
+            ],
+            "title": "Source",
+            "description": "where the card came from: the shipped seed, an installed model's own metadata, Kraken's model repository or a Hugging Face search (GET /api/recipes/candidates)",
+            "default": "shipped"
           }
         },
         "type": "object",

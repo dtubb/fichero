@@ -76,13 +76,13 @@ def _figure(value: float | None, basis: str, source: str) -> dict[str, Any]:
 
 def _reader_of(card: Card) -> tuple[str | None, str | None, str]:
     """(reader kind, model id as the evaluation runs it, provider) for the card's pin."""
-    from fichero_server.recipes.cards import kraken_reader_for
+    from fichero_server.recipes.cards import kraken_reader_for, mlx_model_for
 
     pin = card.pin
     if "zenodo" in pin:
         return "kraken", kraken_reader_for(pin), "omlx"
-    if set(pin) == {"hf", "revision"} and str(pin["hf"]).startswith("mlx-community/"):
-        return "vision", str(pin["hf"]), "omlx"
+    if mlx_model_for(pin):
+        return "vision", mlx_model_for(pin), "omlx"
     if set(pin) == {"cloud", "model"}:
         return "vision", str(pin["model"]), str(pin["cloud"])
     if "tesseract" in pin:
@@ -123,9 +123,9 @@ def reader_name(card: Card) -> str:
 
 def _name_of(card_id: str) -> str:
     """The card's own name for a card id a record kept; empty for a card no longer shipped."""
-    from fichero_server.recipes.cards import all_seed_cards
+    from fichero_server.recipes.discovery import known_cards
 
-    return next((reader_name(c) for c in all_seed_cards() if c.id == card_id), "")
+    return next((reader_name(c) for c in known_cards(include_not_built=True) if c.id == card_id), "")
 
 
 def _candidate(card: Card, *, rule_rank: int | None, role: str, volume: int) -> dict[str, Any]:

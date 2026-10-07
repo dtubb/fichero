@@ -72,9 +72,10 @@ def _override(pin: dict) -> tuple[str, str] | None:
         return str(pin["cloud"]), str(pin["model"])
     if "spacy" in pin and set(pin) <= {"spacy", "version"}:  # names: spaCy is the entity tool's local reader
         return "spacy", str(pin["spacy"])
-    if set(pin) == {"hf", "revision"} and str(pin["hf"]).startswith("mlx-community/"):
-        return "omlx", str(pin["hf"])
-    return None
+    from fichero_server.recipes.cards import mlx_model_for
+
+    model = mlx_model_for(pin)
+    return ("omlx", model) if model else None
 
 
 def _uses_cloud(step: dict) -> bool:
