@@ -1622,6 +1622,24 @@
         "query_params": [],
         "request_model": "CanvasLayoutSaveRequest",
         "response_model": "CanvasLayoutBatchResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/canvas/folders/{folder_id}/canvas-picture",
+        "operation_id": "get_folder_canvas_picture_api_canvas_folders__folder_id__canvas_picture_get",
+        "summary": "A picture of a folder's canvas: its cards' thumbnails at their saved positions",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [
+          {
+            "name": "max_size",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "chains": [
@@ -8975,6 +8993,22 @@
         "query_params": [],
         "request_model": "ReleaseLibraryParams",
         "response_model": "ReleaseLibraryResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/registry/resolve",
+        "operation_id": "resolve_known_library_api_registry_resolve_get",
+        "summary": "Find a known project by its name as the sidebar shows it (or by its path)",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "name",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "KnownLibrary"
       },
       {
         "method": "GET",

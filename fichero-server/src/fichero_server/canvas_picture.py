@@ -7,7 +7,7 @@ and adjust, without screen control. This draws what the saved layout says, from 
   with a thick outline and its member count);
 * each canvas item (note, text, quote) is a yellow box with its text; a link is a line between
   the two things it joins;
-* every card is labelled with its name and the first 8 characters of its id, so what the agent
+* every card is labelled with its name and, below it, the first 8 characters of its id, so what the agent
   sees maps back to the ids its tools take;
 * a folder child with no saved position is drawn in a strip under the board, labelled
   "not placed", in folder order.
@@ -61,10 +61,20 @@ def _strip_node_prefix(item_id: str) -> str:
 
 
 def _label(name: str | None, item_id: str) -> str:
-    name = (name or "").strip() or "(untitled)"
-    if len(name) > 28:
-        name = name[:27] + "…"
-    return f"{name} · {item_id[:8]}"
+    """Two lines under a card: its name, then the first 8 characters of its id."""
+    return f"{(name or '').strip() or '(untitled)'}\n{item_id[:8]}"
+
+
+def _fit(text: str, font: ImageFont.ImageFont, width: float) -> str:
+    """Each line of `text` cut to `width` pixels, so a label never runs under its neighbour."""
+    lines = []
+    for line in text.split("\n"):
+        if font.getlength(line) > width:
+            while line and font.getlength(line + "...") > width:
+                line = line[:-1]
+            line += "..."
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def _group_members(db: Any, group_id: str) -> list[Document]:
@@ -161,7 +171,7 @@ def render_canvas_picture(
         for index, doc in enumerate(unplaced):
             col, line = index % columns, index // columns
             x0 = left + col * (CARD_W + gap)
-            y0 = strip_top + line * (CARD_H + gap + 20)
+            y0 = strip_top + line * (CARD_H + gap + 30)
             strip.append((doc, (x0, y0, x0 + CARD_W, y0 + CARD_H)))
         right = max(right, max(b[1][2] for b in strip))
         bottom = max(bottom, max(b[1][3] for b in strip))
@@ -206,8 +216,13 @@ def render_canvas_picture(
             width_px = max(2, int(4 * scale))
             pad = width_px + 1
             draw.rectangle((rect[0] - pad, rect[1] - pad, rect[2] + pad, rect[3] + pad), outline=_GROUP, width=width_px)
-            label = f"group: {label} ({group} pages)"
-        draw.text((rect[0], rect[3] + 3), label, fill=_GROUP if group is not None else (_FAINT if faint else _INK), font=font)
+            label = f"group: {label} · {group} pages"
+        draw.multiline_text(
+            (rect[0], rect[3] + 3 + (pad if group is not None else 0)),
+            _fit(label, font, rect[2] - rect[0] + 20 * scale),
+            fill=_GROUP if group is not None else (_FAINT if faint else _INK),
+            font=font,
+        )
 
     for (row, card), box in zip(placed, boxes):
         rect = to_px(box)
@@ -217,7 +232,7 @@ def render_canvas_picture(
             chars = max(6, int((rect[2] - rect[0]) / max(6.0, 7 * max(scale, 0.6))))
             text = "\n".join(textwrap.wrap(item.text or f"({item.kind.value})", chars)[:8])
             draw.multiline_text((rect[0] + 4, rect[1] + 4), text, fill=_INK, font=font)
-            draw.text((rect[0], rect[3] + 3), f"{item.kind.value} · {item.id[:8]}", fill=_FAINT, font=font)
+            draw.text((rect[0], rect[3] + 3), f"{item.kind.value} {item.id[:8]}", fill=_FAINT, font=font)
         elif card["kind"] == "group":
             draw_card(rect, card.get("thumb_doc"), card["label"], group=card["members"])
         elif card["kind"] == "doc":

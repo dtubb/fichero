@@ -2319,6 +2319,21 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("a-picture-of-a-folder-s-its-cards-thumbnails-at-their-saved-positions")
+    def canvas_a_picture_of_a_folder_s_its_cards_thumbnails_at_their_saved_positions_get(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        max_size: Optional[int] = typer.Option(None, "--max-size", help="Query parameter: max_size."),
+    ) -> None:
+        """A picture of a folder's canvas: its cards' thumbnails at their saved positions (GET /api/canvas/folders/{folder_id}/canvas-picture)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/canvas/folders/{folder_id}/canvas-picture"
+            params = {
+                "max_size": max_size,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('chains')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for chains endpoints.', no_args_is_help=True)
@@ -12851,6 +12866,20 @@ def register_generated_openapi_commands(
                 "path": {'type': 'string', 'title': 'Path', 'description': 'Absolute path to the .fichero package to release.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("find-a-known-project-by-its-name-as-the-sidebar-shows-it-or-by-its-path")
+    def registry_find_a_known_project_by_its_name_as_the_sidebar_shows_it_or_by_its_path_get(
+        ctx: typer.Context,
+        name: str = typer.Option(..., "--name", help="Query parameter: name."),
+    ) -> None:
+        """Find a known project by its name as the sidebar shows it (or by its path) (GET /api/registry/resolve)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/registry/resolve"
+            params = {
+                "name": name,
+            }
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-unicode-library-collisions")

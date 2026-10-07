@@ -46,8 +46,14 @@ mcp = FastMCP("fichero")
 # which FicheroClient already does.
 _CONFIG: dict[str, Optional[str]] = {"base_url": None, "library_path": None}
 
-#: The recipe golden path: what an agent driving a recipe needs, and no more.
-DEFAULT_TOOLSETS = ("recipes", "training", "check", "segments", "documents", "activity", "local-models", "hpc")
+#: The recipe golden path: what an agent driving a recipe needs, and no more; plus what it needs to
+#: ORGANISE the project as a historian does (#5568): `documents` already groups pages, moves and
+#: orders them, assigns prototypes and sets attribute values; `canvas` lays a folder's board out,
+#: labels it and returns a PICTURE of it to look at; `classifications` lists and makes prototypes.
+DEFAULT_TOOLSETS = (
+    "recipes", "training", "check", "segments", "documents", "activity", "local-models", "hpc",
+    "canvas", "classifications",
+)
 
 #: Old hand-written tool names an existing agent configuration (the fichero-operator agent's tool
 #: list) still calls, each pointing at the generated tool for the SAME route. Registered whatever
@@ -221,18 +227,30 @@ def fichero_health() -> Any:
         return client.health()
 
 
+def _project_path(value: str) -> str:
+    """A .fichero path as given; a project's shown name resolved to its path by the engine (#5567)."""
+    text = value.strip()
+    if "/" in text or text.lower().endswith(".fichero") or text.startswith("~"):
+        return value
+    return str(openapi_runtime.call("GET", "/api/registry/resolve", params={"name": text})["path"])
+
+
 @mcp.tool()
 def fichero_use_library(path: str) -> Any:
-    """Scope this MCP session to one library by its .fichero path.
+    """Scope this MCP session to one project, by its .fichero path or by its name as the
+    sidebar shows it (for example "Istmina Full").
 
     Every subsequent library-scoped tool (docs, search, workflows, KG, …)
     uses it. Without this, tools answer 400 asking for a library — the
     server binds NO library by default (Daniel, 2026-08-27: one server,
-    all libraries).
+    all libraries). A name the engine does not know, or one two projects
+    share, is refused with the known names or the paths to choose from.
 
     Kept (#5453): it sets this session's library, which no route does.
-    Routes: GET /api/documents (a one-row probe that proves the choice).
+    Routes: GET /api/registry/resolve (a name to its path, #5567), GET /api/documents
+    (a one-row probe that proves the choice).
     """
+    path = _project_path(path)
     _CONFIG["library_path"] = path
     with _client() as client:
         # Prove the choice immediately instead of deferring the failure to

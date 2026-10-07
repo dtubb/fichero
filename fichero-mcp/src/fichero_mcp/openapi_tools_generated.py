@@ -542,7 +542,7 @@ def fichero_annotations_get_crop(
     annotation_id: Annotated[str, Field(description='Annotation Id')],
 ) -> Any:
     "Cropped content for this annotation (text body or image bytes)\n\nReturns the annotation's underlying content cropped to its anchor: substring for text, PNG bytes for image / PDF region. Workflow tools call this to feed only the highlighted region to vision / LLM providers instead of the whole document. (#914)\n\nRoute: GET /api/annotations/{annotation_id}/crop (toolset `annotations`; reads)."
-    return _rt.call("GET", f"/api/annotations/{annotation_id}/crop")
+    return _rt.image("GET", f"/api/annotations/{annotation_id}/crop")
 
 
 def fichero_annotations_promote_to_claim(
@@ -1083,6 +1083,15 @@ def fichero_canvas_save_folder_layout(
 ) -> Any:
     'Save Folder Canvas Layout\n\nRoute: PUT /api/canvas/folders/{folder_id}/canvas-layout (toolset `canvas`; changes data, as the agent account when one exists).'
     return _rt.call("PUT", f"/api/canvas/folders/{folder_id}/canvas-layout", json=_rt.body({"items": items}))
+
+
+def fichero_canvas_get_folder_picture(
+    *,
+    folder_id: Annotated[str, Field(description='Folder Id')],
+    max_size: Annotated[Optional[int], Field(description='Longest side of the picture, in pixels')] = None,
+) -> Any:
+    'A picture of a folder\'s canvas: its cards\' thumbnails at their saved positions\n\nDraw the folder\'s board from the stored thumbnails and the saved layout, so an agent can\nlay pages out, look, and adjust without screen control (#5568).\n\nEach card is labelled with its name and the first 8 characters of its id; a group has a blue\noutline and its member count; notes are yellow boxes; children with no saved position are\ndrawn in a "not placed" strip below. A read: nothing is generated or changed.\n\nRoute: GET /api/canvas/folders/{folder_id}/canvas-picture (toolset `canvas`; reads).'
+    return _rt.image("GET", f"/api/canvas/folders/{folder_id}/canvas-picture", params={"max_size": max_size})
 
 
 def fichero_chains_list(
@@ -2397,7 +2406,7 @@ def fichero_renditions_get_content(
     rendition_id: Annotated[str, Field(description='Rendition Id')],
 ) -> Any:
     'Get Rendition Content\n\nServe one rendition\'s pixels.\n\nWithout this a client can list a page\'s renditions and name them but never\nSHOW one, because `Rendition.path` is a server-side path and the standing\nrule is that visuals travel over storage endpoints — the engine may be on\nanother machine, so a path is not something a client can open.\n\nEvery failure is a 404 on purpose, and the reasons are deliberately not\ndistinguished to the caller: separating "no such rendition" from "belongs\nto another document" from "outside the permitted roots" would let a caller\nprobe for the existence of ids and paths it has no grant for. The\ndistinction that IS meaningful to a client — no such document versus a\ndocument with no renditions — is already answered by the list route above.\n\nThe path is confined by `resolve_document_source_path`, the same authority\nthe IIIF image route uses. Its contract is that the path comes from a\nRECORD reached by id and never from the caller, which is exactly the case\nhere: `rendition_id` selects a row, and only that row\'s stored path is\nresolved. The client never supplies a path.\n\nRoute: GET /api/documents/{document_id}/renditions/{rendition_id}/content (toolset `renditions`; reads).'
-    return _rt.call("GET", f"/api/documents/{document_id}/renditions/{rendition_id}/content")
+    return _rt.image("GET", f"/api/documents/{document_id}/renditions/{rendition_id}/content")
 
 
 def fichero_documents_rollup(
@@ -3408,7 +3417,7 @@ def fichero_images_preview(
     page: Annotated[Optional[int], Field(description='PDF page number (1-indexed)')] = None,
 ) -> Any:
     'Preview Image\n\nRoute: GET /api/images/{document_id}/preview (toolset `images`; reads).'
-    return _rt.call("GET", f"/api/images/{document_id}/preview", params={"apply_edits": apply_edits, "page": page})
+    return _rt.image("GET", f"/api/images/{document_id}/preview", params={"apply_edits": apply_edits, "page": page})
 
 
 def fichero_images_split(
@@ -6159,6 +6168,14 @@ def fichero_library_release(
     return _rt.call("POST", "/api/registry/release", json=_rt.body({"path": path}))
 
 
+def fichero_library_resolve_known(
+    *,
+    name: Annotated[str, Field(description='Name')],
+) -> Any:
+    'Find a known project by its name as the sidebar shows it (or by its path)\n\nThe one known project called `name`, so a client can open a project by the name a person sees\nrather than its .fichero path (#5567).\n\nMatches a registered path exactly first, then the shown name ignoring case. No match is a 404\nnaming the known projects; two projects with that name is a 409 naming their paths.\n\nRoute: GET /api/registry/resolve (toolset `library`; reads).'
+    return _rt.call("GET", "/api/registry/resolve", params={"name": name})
+
+
 def fichero_library_list_unicode_collisions(
 ) -> Any:
     'List Unicode Library Collisions\n\nReport Unicode-normalization collisions across known libraries.\n\nRoute: GET /api/registry/unicode-collisions (toolset `library`; reads).'
@@ -7039,7 +7056,7 @@ def fichero_segments_get_picture(
     straighten: Annotated[Optional[bool], Field(description='Level the line along its baseline')] = None,
 ) -> Any:
     "A segment's picture, cut to its shape\n\nPNG bytes of the segment's own area, cropped to its derived box plus `margin`, masked outside its polygon when `mask` is set, and levelled along its baseline when `straighten` is set. A worked-out thing, never a record: cached per segment version and remade when the segment changes. Refuses rather than returning a picture of the wrong place when the segment was measured on an image that is not the one here. (#4925)\n\nRoute: GET /api/segments/{segment_id}/picture (toolset `segments`; reads)."
-    return _rt.call("GET", f"/api/segments/{segment_id}/picture", params={"margin": margin, "mask": mask, "size": size, "straighten": straighten})
+    return _rt.image("GET", f"/api/segments/{segment_id}/picture", params={"margin": margin, "mask": mask, "size": size, "straighten": straighten})
 
 
 def fichero_segments_list_readings(
@@ -7354,7 +7371,7 @@ def fichero_storage_get_display_image(
     doc_id: Annotated[str, Field(description='Doc Id')],
 ) -> Any:
     'Get Display Image\n\nGet display-size image for a document.\n\nLarger than thumbnail, suitable for preview display.\nOn a cache miss, also schedules generation of the companion thumbnail\nso both formats exist after the first access (#2216).\n\nRoute: GET /api/storage/display/{doc_id} (toolset `storage`; reads).'
-    return _rt.call("GET", f"/api/storage/display/{doc_id}")
+    return _rt.image("GET", f"/api/storage/display/{doc_id}")
 
 
 def fichero_storage_regenerate_missing_thumbnails(
@@ -7437,7 +7454,7 @@ def fichero_storage_get_thumbnail(
     doc_id: Annotated[str, Field(description='Doc Id')],
 ) -> Any:
     'Get Thumbnail\n\nGet thumbnail image for a document.\n\nReturns 404 if document not found or no thumbnail available.\nOn a cache miss, also schedules generation of the companion display image\nso both formats exist after the first access (#2217).\n\nRoute: GET /api/storage/thumbnail/{doc_id} (toolset `storage`; reads).'
-    return _rt.call("GET", f"/api/storage/thumbnail/{doc_id}")
+    return _rt.image("GET", f"/api/storage/thumbnail/{doc_id}")
 
 
 def fichero_sync_folders_list(
@@ -7993,7 +8010,7 @@ def fichero_workflow_execution_get_thread_diagram_png(
     thread_id: Annotated[str, Field(description='Thread Id')],
 ) -> Any:
     'Get Thread Diagram Png\n\nGet workflow diagram PNG from workflow run snapshot.\n\nThis endpoint generates a diagram from the saved workflow snapshot,\nwhich means it works even if the original workflow definition was deleted.\n\nArgs:\n    thread_id: Thread ID of the workflow run\n\nReturns:\n    PNG image of the workflow diagram\n\nRaises:\n    404: Run not found or no snapshot available\n    500: Failed to generate diagram\n\nRoute: GET /api/workflow-execution/threads/{thread_id}/diagram.png (toolset `workflow-execution`; reads).'
-    return _rt.call("GET", f"/api/workflow-execution/threads/{thread_id}/diagram.png")
+    return _rt.image("GET", f"/api/workflow-execution/threads/{thread_id}/diagram.png")
 
 
 def fichero_workflow_execution_get_thread_diagram_svg(
@@ -8411,6 +8428,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_canvas_update_folder_item", "canvas", "PATCH", "/api/canvas/folders/{folder_id}/canvas-items/{item_id}", fichero_canvas_update_folder_item),
     GeneratedTool("fichero_canvas_get_folder_layout", "canvas", "GET", "/api/canvas/folders/{folder_id}/canvas-layout", fichero_canvas_get_folder_layout),
     GeneratedTool("fichero_canvas_save_folder_layout", "canvas", "PUT", "/api/canvas/folders/{folder_id}/canvas-layout", fichero_canvas_save_folder_layout),
+    GeneratedTool("fichero_canvas_get_folder_picture", "canvas", "GET", "/api/canvas/folders/{folder_id}/canvas-picture", fichero_canvas_get_folder_picture),
     GeneratedTool("fichero_chains_list", "chains", "GET", "/api/chains", fichero_chains_list),
     GeneratedTool("fichero_chains_create", "chains", "POST", "/api/chains", fichero_chains_create),
     GeneratedTool("fichero_chains_cancel_execution", "chains", "DELETE", "/api/chains/executions/{execution_id}", fichero_chains_cancel_execution),
@@ -8931,6 +8949,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_library_add_known", "library", "POST", "/api/registry/add", fichero_library_add_known),
     GeneratedTool("fichero_library_list_open_libraries", "library", "GET", "/api/registry/open", fichero_library_list_open_libraries),
     GeneratedTool("fichero_library_release", "library", "POST", "/api/registry/release", fichero_library_release),
+    GeneratedTool("fichero_library_resolve_known", "library", "GET", "/api/registry/resolve", fichero_library_resolve_known),
     GeneratedTool("fichero_library_list_unicode_collisions", "library", "GET", "/api/registry/unicode-collisions", fichero_library_list_unicode_collisions),
     GeneratedTool("fichero_library_confirm_unicode_merge", "library", "POST", "/api/registry/unicode-collisions/merge", fichero_library_confirm_unicode_merge),
     GeneratedTool("fichero_library_update_access", "library", "POST", "/api/registry/update-access", fichero_library_update_access),
