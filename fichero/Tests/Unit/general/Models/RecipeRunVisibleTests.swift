@@ -160,7 +160,8 @@ final class RecipeRunVisibleTests: XCTestCase {
         XCTAssertNil(FirstRunWindow.startedRunSelection(jobId: store.startedRunJobId, projectId: Self.libraryId),
                      "nothing to land on before Start")
 
-        XCTAssertTrue(await store.start())
+        let didStart = await store.start()
+        XCTAssertTrue(didStart)
 
         let jobId = try XCTUnwrap((Self.object(started)["started"] as? [String: Any])?["job_id"] as? String)
         XCTAssertEqual(store.startedRunJobId, jobId)
@@ -243,7 +244,8 @@ final class RecipeRunVisibleTests: XCTestCase {
         XCTAssertTrue(summary.skipped.contains { $0.id == "check" && $0.hasFix }, "a skipped step with its fix")
         XCTAssertTrue(summary.skipped.contains { $0.id == "groups" && !$0.hasFix })
 
-        XCTAssertNil(await store.readPagesAgain(runThreadId: stage.threadId), "Read Again is the run's own route")
+        let readAgainError = await store.readPagesAgain(runThreadId: stage.threadId)
+        XCTAssertNil(readAgainError, "Read Again is the run's own route")
         XCTAssertTrue(MockTransportURLProtocol.recorded().contains {
             $0.httpMethod == "POST" && $0.url?.path == "/api/workflow-execution/threads/\(threadId)/read-again"
         })
