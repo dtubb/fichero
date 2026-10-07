@@ -383,6 +383,7 @@ nav:
           - AI:
               - Settings, AI (providers, keys, runtimes, targets, downloads): contributor_manual/specs/ai/ai-settings.md
               - Local Runtimes & Providers: contributor_manual/specs/ai/local-runtimes.md
+              - Where Models Run (model + place): contributor_manual/specs/ai/where-models-run.md
           - Compute:
               - Remote Compute (foundation): contributor_manual/specs/compute/remote-compute.md
               - The Linux Server Image: contributor_manual/specs/compute/linux-server-image.md

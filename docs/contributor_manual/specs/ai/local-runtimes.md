@@ -1,5 +1,7 @@
 # Local Runtimes and Providers — how each model runs — Design Spec (#5367)
 
+> **Consolidating design:** `ai/where-models-run.md` (#5582) owns choosing a model together with where it runs, local or remote, under one job model; this spec keeps how each runtime on this Mac ships and loads.
+
 > Milestone: ai-settings
 > Manual: TBD — a "What runs on your Mac" section in the Settings part: each runtime (Kraken,
 > Apple's on-device models, MLX, Whisper, spaCy, the search model, Tesseract, cloud providers),

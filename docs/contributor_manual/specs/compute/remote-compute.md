@@ -1,5 +1,7 @@
 # Remote Compute — where and how work runs — Design Spec (#TBD)
 
+> **Consolidating design:** `ai/where-models-run.md` (#5582) owns choosing a model together with where it runs (this Mac, an endpoint, Hugging Face Jobs, a cluster) under one job model; this set keeps targets, packages, transfer and Slurm.
+
 > Milestone: remote-compute
 > Manual: TBD — the user manual needs a "Running work somewhere else" section, written for a
 > researcher: what a compute target is; adding a Linux machine, a cluster or Hugging Face;
