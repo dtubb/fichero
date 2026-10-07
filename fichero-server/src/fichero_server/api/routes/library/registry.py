@@ -1009,6 +1009,47 @@ def list_known_libraries(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+def _library_display_name(library: KnownLibrary) -> str:
+    """The name the sidebar shows: the registered name, else the package's name without `.fichero`."""
+    if library.name and library.name.strip():
+        return library.name.strip()
+    stem = Path(library.path).name
+    return stem[: -len(".fichero")] if stem.lower().endswith(".fichero") else stem
+
+
+@router.get(
+    "/registry/resolve",
+    response_model=KnownLibrary,
+    summary="Find a known project by its name as the sidebar shows it (or by its path)",
+)
+def resolve_known_library(
+    name: str,
+    db: Database = Depends(get_global_database),
+) -> KnownLibrary:
+    """The one known project called `name`, so a client can open a project by the name a person sees
+    rather than its .fichero path (#5567).
+
+    Matches a registered path exactly first, then the shown name ignoring case. No match is a 404
+    naming the known projects; two projects with that name is a 409 naming their paths.
+    """
+    wanted = nfc_path(name.strip())
+    libraries = db.all(KnownLibrary)
+    by_path = [lib for lib in libraries if nfc_path(lib.path) == nfc_path(str(Path(wanted).expanduser()))]
+    if by_path:
+        return by_path[0]
+    matches = [lib for lib in libraries if nfc_path(_library_display_name(lib)).casefold() == wanted.casefold()]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        known = sorted(_library_display_name(lib) for lib in libraries)
+        raise HTTPException(status_code=404, detail=f"No known project is called {name!r}. Known: {known}")
+    raise HTTPException(
+        status_code=409,
+        detail=f"{len(matches)} known projects are called {name!r}; open one by its path: "
+        f"{sorted(lib.path for lib in matches)}",
+    )
+
+
 @router.get("/registry/open", response_model=OpenLibraryHandlesResponse)
 def list_open_libraries() -> OpenLibraryHandlesResponse:
     """List the library connections currently open in the backend.
