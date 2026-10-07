@@ -314,8 +314,8 @@ final class RecipeSetupStore {
     }
 
     /// Fetch a model the plan needs, through the one download route
-    /// (`POST /api/local-models/download/{runtime}/{model}`), then read the plan again: the step
-    /// stays refused until the download has finished, and the plan says so.
+    /// (`POST /api/local-models/download/{runtime}/{model}`); the row says Downloading…. The step
+    /// stays refused until the download has finished; Ready reads the plan again when it changes.
     func download(_ download: Components.Schemas.StartDownload) async {
         do {
             let response = try await client.api.downloadModelApiLocalModelsDownloadModelTypeModelIdPost(
@@ -324,7 +324,6 @@ final class RecipeSetupStore {
             switch response {
             case .ok:
                 downloading.insert(download.model)
-                await loadStartPlan()
             case .unprocessableContent:
                 errorMessage = "Could not download \(download.model)."
             case .undocumented(let code, _):

@@ -2,16 +2,10 @@
   "GET /api/sync-folders/duplicates": "the dry run of the duplicate repair (#5495): engine first, reached through the generated CLI and MCP; the app's view of it is not built",
   "POST /api/sync-folders/duplicates/remove": "the duplicate repair (sync.remove_duplicates, #5495): engine first, reached through the generated CLI and MCP; the app's view of it is not built",
   "GET /api/iiif/iiif/lines/{document_id}": "served to IIIF viewers through a manifest's canvas annotations, not called by the app (#5326)",
-  "GET /api/activity/jobs/{job_id}": "a job and everything under it (a run, its steps, their pages, #5353): engine and CLI first; the Activity window's table with disclosure rows is the app half (#5354)",
   "POST /api/training/models/make-global": "Make Global (#5539): engine, CLI and MCP (fichero_training_make_trained_model_global) first; the app's Use in All Projects command on the model node is not built yet",
   "POST /api/training/kraken/here": "training on this Mac (#5397): engine, CLI and MCP (fichero_train_kraken_here) first; the app's Train a Reader sheet is not built yet",
   "GET /api/recipes/routes": "engine half of setup's routes for the volume; the app's Ready step shows them next (#4951)",
   "GET /api/recipes/candidates": "model discovery (#5519): engine, CLI and MCP first; setup's and the Inspector's model finder that shows these candidates as cards is the app half, not built yet",
-  "GET /api/recipes/routes":"engine half of setup's routes for the volume; the app's Ready step shows them next (#4951)",
-  "PUT /api/activity/jobs/{job_id}/paused": "engine, CLI and MCP (fichero_job_pause) only: the Activity window's per-row Pause comes with the jobs table (#5354, #5356)",
-  "POST /api/activity/jobs/{job_id}/cancel": "engine, CLI and MCP (fichero_job_cancel) only: the Activity window's per-row Cancel comes with the jobs table (#5354, #5356)",
-  "GET /api/recipes/languages": "engine half of setup's language search; the app's Your Material step switches from Apple's locale list to this next",
-  "GET /api/recipes/scripts": "engine half of setup's script search; the app's Your Material step switches from Apple's locale list to this next",
   "GET /api/settings/compute": "the Settings pane for compute priority and device is not built yet; read by Kraken now and by the job model next",
   "PUT /api/settings/compute": "the Settings pane for compute priority and device is not built yet; set from the CLI or MCP meanwhile",
   "PUT /api/activity/jobs/paused": "engine and CLI only: Pause Background Work has no Mac control yet; the Activity window's toolbar gets it (#5355)",
@@ -285,5 +279,6 @@
   "PUT /api/segments/passes/{pass_id}/ground-truth": "Mark as Ground Truth (#5513): engine, CLI and MCP first; the app's Mark as Ground Truth on a pass is not built yet",
   "POST /api/registry/release": "release a project, keep it registered (#5563): an agent/operator action through the generated CLI and MCP; the app closes a project through the registry DELETE and has no Mac surface for release",
   "GET /api/canvas/folders/{folder_id}/canvas-picture": "store missing by design — an agent's LOOK at a folder's board (MCP image content, #5568); the app draws the canvas itself",
-  "GET /api/registry/resolve": "store missing by design — CLI --library/library open and MCP fichero_use_library resolve a project's shown name (#5567); the app opens projects from its own sidebar rows"
+  "GET /api/registry/resolve": "store missing by design — CLI --library/library open and MCP fichero_use_library resolve a project's shown name (#5567); the app opens projects from its own sidebar rows",
+  "GET /api/recipes/project/runs/{job_id}/summary": "store missing by design (#5577): the app reads the same summary on the recipe run's node of GET /api/activity/jobs/{job_id}; this route serves the CLI and MCP"
 }

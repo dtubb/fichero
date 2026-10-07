@@ -63,7 +63,7 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
     return status
 
 
-class KindCount(BaseModel):
+class NamesOfAKind(BaseModel):
     kind: str = Field(description="person, location, organization, event, concept, other (the KG's kinds)")
     label: str = Field(description="People, Places, …: the knowledge graph's own label")
     count: int
@@ -88,7 +88,7 @@ class RecipeRunSummary(BaseModel):
     finished: bool = Field(description="false while it runs: the figures are what is there so far")
     pages: int = Field(description="the pages the run ran over")
     pages_read: int = Field(description="of those, the pages that have a reading (lines read, or a page text)")
-    names: list[KindCount] = Field(description="the names found on those pages, by kind, as the KG groups them")
+    names: list[NamesOfAKind] = Field(description="the names found on those pages, by kind, as the KG groups them")
     dates: int = Field(description="the dates on those pages (the KG's Dates group)")
     statements: int = Field(description="the statements (claims) on those pages")
     documents_proposed: Optional[int] = Field(default=None, description=(
@@ -111,7 +111,7 @@ def _has_reading(db: Any, doc_id: str) -> bool:
     return _has_page_reading(db, doc_id, None) or _has_line_readings(db, doc_id, None)
 
 
-def _knowledge(db: Any, pages: list[str]) -> tuple[list[KindCount], int, int]:
+def _knowledge(db: Any, pages: list[str]) -> tuple[list[NamesOfAKind], int, int]:
     """(names by kind, dates, statements) on these pages, by the document KG's own grouping."""
     from fichero_server.api.routes.document.inspector import _build_knowledge_graph
     from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
@@ -122,7 +122,7 @@ def _knowledge(db: Any, pages: list[str]) -> tuple[list[KindCount], int, int]:
     claims = [c for c in db.query(KnowledgeClaim) if c.source_document_id in scope]
     linked = [e for e in db.query(KnowledgeEntity) if scope & set(e.source_document_ids or [])]
     graph = _build_knowledge_graph(db, "", claims, False, [], linked_entities=linked, scope_doc_ids=scope)
-    names = [KindCount(kind=g.kind, label=g.label, count=len(g.items)) for g in graph.groups if g.kind != "date"]
+    names = [NamesOfAKind(kind=g.kind, label=g.label, count=len(g.items)) for g in graph.groups if g.kind != "date"]
     dates = sum(len(g.items) for g in graph.groups if g.kind == "date")
     return names, dates, graph.claim_count
 

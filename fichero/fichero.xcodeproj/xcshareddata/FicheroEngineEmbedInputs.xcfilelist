@@ -431,6 +431,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/names.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/project.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/recipe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/routes.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/run_view.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/cards.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/glottolog.txt.gz

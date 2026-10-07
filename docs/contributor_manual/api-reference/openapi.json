@@ -63421,31 +63421,6 @@
         "title": "KeywordCloudListResponse",
         "description": "Envelope for the keyword cloud list."
       },
-      "KindCount": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind",
-            "description": "person, location, organization, event, concept, other (the KG's kinds)"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label",
-            "description": "People, Places, \u2026: the knowledge graph's own label"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kind",
-          "label",
-          "count"
-        ],
-        "title": "KindCount"
-      },
       "KnowledgeClaim": {
         "properties": {
           "id": {
@@ -69099,6 +69074,31 @@
         ],
         "title": "NamedCodeList"
       },
+      "NamesOfAKind": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "person, location, organization, event, concept, other (the KG's kinds)"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "People, Places, \u2026: the knowledge graph's own label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "count"
+        ],
+        "title": "NamesOfAKind"
+      },
       "NamingResponse": {
         "properties": {
           "uri": {
@@ -74508,7 +74508,7 @@
           },
           "names": {
             "items": {
-              "$ref": "#/components/schemas/KindCount"
+              "$ref": "#/components/schemas/NamesOfAKind"
             },
             "type": "array",
             "title": "Names",
