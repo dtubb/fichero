@@ -105,3 +105,19 @@ def test_a_folder_someone_laid_out_is_untouched_by_a_later_import(client, db, bo
     assert after == before
     assert after[f"doc:{first.id}"][:2] == (999.0, -40.0)
 
+
+def test_a_failed_arrangement_is_reported_and_the_files_are_still_in(db, box, monkeypatch):
+    """WHY: an arrangement is not the import; if it fails, the pages are in and the action's
+    result says which folder was not arranged and why, rather than a log line nobody reads."""
+    import fichero_server.api.routes.interpretation.canvas as canvas
+
+    def refuse(*args, **kwargs):
+        raise RuntimeError("the board is locked")
+
+    monkeypatch.setattr(canvas, "arrange_impl", refuse)
+    ctx = ActionContext(actor="historian", library_path=str(Path(db.path).parent), is_bootstrap=True)
+    result = registry.invoke(db, "import.folder", {"path": str(box)}, ctx).result
+    assert len(result["document_ids"]) == 6
+    top = _folder(db, "Box 12")
+    assert result["interchange"]["not_arranged"][top.id] == "the board is locked"
+

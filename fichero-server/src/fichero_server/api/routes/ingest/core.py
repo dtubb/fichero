@@ -662,13 +662,15 @@ def import_folder_impl(
     # Queued after the whole folder lands rather than per file: the queue is
     # bounded (#4225) and the ingest loop must not block on it.
     queue_derivatives(docs, library_path=package_path, db=db)
-    _arrange_new_folders(db, docs, request.parent_id, ctx)
+    not_arranged = _arrange_new_folders(db, docs, request.parent_id, ctx)
+    if not_arranged and interchange_report is not None:
+        interchange_report["not_arranged"] = not_arranged
     return docs
 
 
 def _arrange_new_folders(
     db: Database, docs: list[Document], destination_id: str | None, ctx: "ActionContext | None"
-) -> None:
+) -> dict[str, str]:
     """Lay each folder this import filled out on its canvas, as filed (#5585,
     `library.canvas.arranged-at-import`): a new box opened every page "not placed".
 
@@ -676,8 +678,8 @@ def _arrange_new_folders(
     not new) with NO saved layout gets the one arrange action (`canvas.arrange`, the route the app
     and agents use): its children in folder order (`sort_order`, then name, as the canvas picture
     files them), on a grid, under the app's card ids (`doc:<id>`). A folder someone has already
-    laid out is never touched. A failed arrangement is logged, never the import's failure: the
-    files are in.
+    laid out is never touched. A failed arrangement is not the import's failure (the files are
+    in): it is returned, folder id -> why, and the action's result carries it as `not_arranged`.
     """
     from fichero_server.api.routes.interpretation.canvas import _load_canvas_layout, arrange_impl
 
@@ -688,6 +690,7 @@ def _arrange_new_folders(
             folder_ids.append(folder_id)
             parent = db.get(Document, folder_id)
             folder_id = parent.parent_id if parent is not None else None
+    not_arranged: dict[str, str] = {}
     for folder_id in folder_ids:
         try:
             if _load_canvas_layout(db, folder_id):
@@ -705,8 +708,10 @@ def _arrange_new_folders(
                 registry.invoke(
                     db, "canvas.arrange", {"folder_id": folder_id, "node_ids": node_ids, "strategy": "grid"}, ctx
                 )
-        except Exception:
+        except Exception as exc:
             logger.exception("Could not arrange folder %s on its canvas after import", folder_id)
+            not_arranged[folder_id] = str(exc) or type(exc).__name__
+    return not_arranged
 
 
 def _interchange_plan(folder: Path, recursive: bool):

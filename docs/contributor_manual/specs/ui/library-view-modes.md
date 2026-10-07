@@ -384,7 +384,8 @@ homeless until a map-view UI spec exists (#5128).
   laying its children out in folder order on a grid under the app's card ids (`doc:<id>`). A folder
   with a saved layout (someone laid it out, or an earlier import did) is never touched; items a later
   import adds to it stay "not placed" until someone arranges it. The destination folder the import
-  lands in is not new and is left alone.
+  lands in is not new and is left alone. An arrangement that fails does not fail the import (the
+  files are in); the action's result names each folder not arranged and why (`not_arranged`).
   - **Why (2026-10-07):** after linking a 203-page box, the canvas picture showed all 203 pages
     "not placed": nothing had ever saved a place for them.
   - Tested through the real `import.folder` action and canvas-layout route
