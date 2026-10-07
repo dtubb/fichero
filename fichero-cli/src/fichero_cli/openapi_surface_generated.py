@@ -12195,6 +12195,32 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("model-candidates")
+    def recipes_model_candidates_get(
+        ctx: typer.Context,
+        cloud_allowed: Optional[bool] = typer.Option(None, "--cloud-allowed/--no-cloud-allowed", help="Query parameter: cloud_allowed."),
+        job: Optional[str] = typer.Option(None, "--job", help="Query parameter: job."),
+        languages: Optional[str] = typer.Option(None, "--languages", help="Query parameter: languages."),
+        mac_memory_gb: Optional[float] = typer.Option(None, "--mac-memory-gb", help="Query parameter: mac_memory_gb."),
+        material: Optional[str] = typer.Option(None, "--material", help="Query parameter: material."),
+        online: Optional[bool] = typer.Option(None, "--online/--no-online", help="Query parameter: online."),
+        scripts: str = typer.Option(..., "--scripts", help="Query parameter: scripts."),
+    ) -> None:
+        """Model Candidates (GET /api/recipes/candidates)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/candidates"
+            params = {
+                "cloud_allowed": cloud_allowed,
+                "job": job,
+                "languages": languages,
+                "mac_memory_gb": mac_memory_gb,
+                "material": material,
+                "online": online,
+                "scripts": scripts,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("check")
     def recipes_check_post(
         ctx: typer.Context,

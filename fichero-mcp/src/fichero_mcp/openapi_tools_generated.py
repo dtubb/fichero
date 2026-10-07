@@ -5846,6 +5846,20 @@ def fichero_recipes_assemble(
     return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "jobs": jobs, "languages": languages, "layers": layers, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "scripts": scripts}))
 
 
+def fichero_recipes_model_candidates(
+    *,
+    cloud_allowed: Annotated[Optional[bool], Field(description='Cloud Allowed')] = None,
+    job: Annotated[Optional[str], Field(description='Job')] = None,
+    languages: Annotated[Optional[str], Field(description='Languages')] = None,
+    mac_memory_gb: Annotated[Optional[float], Field(description='Mac Memory Gb')] = None,
+    material: Annotated[Optional[str], Field(description='Material')] = None,
+    online: Annotated[Optional[bool], Field(description='Online')] = None,
+    scripts: Annotated[str, Field(description='Scripts')],
+) -> Any:
+    "Model Candidates\n\nEvery reader candidate for these scripts and languages (comma-separated codes or names), from the\nshipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is reached only with `online=true`, and never when this engine works\noffline; otherwise the repository is read from its last fetch and the Hub is not searched. Refused\n(422), in words, for an unknown script, language, material or job.\n\nRoute: GET /api/recipes/candidates (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/candidates", params={"cloud_allowed": cloud_allowed, "job": job, "languages": languages, "mac_memory_gb": mac_memory_gb, "material": material, "online": online, "scripts": scripts})
+
+
 def fichero_recipes_check(
     *,
     recipe: Annotated[dict[str, Any], Field(description='Recipe.')],
@@ -8905,6 +8919,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_reading_orders_neighbours", "reading-orders", "GET", "/api/reading-orders/{order_id}/neighbours", fichero_reading_orders_neighbours),
     GeneratedTool("fichero_reading_orders_place_in", "reading-orders", "POST", "/api/reading-orders/{order_id}/place", fichero_reading_orders_place_in),
     GeneratedTool("fichero_recipes_assemble", "recipes", "POST", "/api/recipes/assemble", fichero_recipes_assemble),
+    GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
     GeneratedTool("fichero_recipes_check", "recipes", "POST", "/api/recipes/check", fichero_recipes_check),
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
     GeneratedTool("fichero_recipes_list_jobs", "recipes", "GET", "/api/recipes/jobs", fichero_recipes_list_jobs),

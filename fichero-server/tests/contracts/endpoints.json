@@ -8505,6 +8505,52 @@
         "response_model": "AssembledRecipe"
       },
       {
+        "method": "GET",
+        "path": "/recipes/candidates",
+        "operation_id": "model_candidates_api_recipes_candidates_get",
+        "summary": "Model Candidates",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "cloud_allowed",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "job",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "languages",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "mac_memory_gb",
+            "required": false,
+            "type": "number"
+          },
+          {
+            "name": "material",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "online",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "scripts",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ModelCandidateList"
+      },
+      {
         "method": "POST",
         "path": "/recipes/check",
         "operation_id": "check_api_recipes_check_post",
