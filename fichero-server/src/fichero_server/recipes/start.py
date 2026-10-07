@@ -3,7 +3,7 @@
 `source/models-chains-and-projects.md` section 11: `source.project.automatic-after-first-yes`,
 `source.recipe.makes-a-workflow`, `source.recipe.holds-no-second-copy`, `source.project.stays-local`,
 `source.onboard.estimate-before-start`. A recipe runs only as workflows Fichero already ships,
-named, never copied: each step's job maps to one shipped workflow, and the step's model reaches it
+named, never copied: each step's job maps to one shipped workflow (or, for search, the embed job), and the step's model reaches it
 only where that workflow can honestly take it (a provider/model override; for a Kraken reader,
 the `kraken` run override that sets the reading node's reader). A step that cannot be mapped is refused by name, never run with another model.
 
@@ -42,6 +42,47 @@ OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export
                "find-documents-in-a-folder": "find-documents"}
 #: Jobs that need no model.
 _NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates", "find-documents-in-a-folder"})
+#: Search: the page's text embedded by the embed job that also follows every correction
+#: (`actions/page_text_cache.REEMBED_KIND`, a job named `make-a-vector`), one per page (#5574).
+EMBED_JOB = "make-a-vector"
+#: Every job Start has a card for (or, for training, offers later). Setup proposes no other job as a step: the
+#: rest are listed in the recipe's `by_hand` and in the plan's `skipped`, with the tool that does them by hand
+#: (`source.onboard.auto.every-proposed-step-runs`, #5574). A job given a card joins this set.
+START_JOBS = frozenset(WORKFLOW_FOR_JOB) | frozenset(OTHER_CARDS) | {EMBED_JOB, "train-a-model"}
+#: What to use instead, by hand, for a job Start cannot run by itself (the shipped workflow or tool that does it).
+BY_HAND_FIX = {
+    "prepare-the-image": "run the Prepare Images for OCR or Enhance Images workflow on the pages by hand",
+    "find-regions": "run the Detect Segments (Apple Vision) workflow by hand",
+    "split-into-entries": "run the Diary Entries workflow on the volume by hand",
+    "translate-transliterate-normalise": "run the Translate workflow (or Modernización, for Spanish) by hand",
+    "link-to-authorities": "link each name to an authority from its Inspector",
+    "place-in-a-gazetteer": "run the Extract Geo workflow by hand: it finds the places and puts them on the map",
+    "describe-for-the-catalogue": "run the Catalogue Description workflow by hand",
+    "extract-to-a-table": "run the Extract Table workflow by hand",
+}
+_NO_TOOL_YET = "nothing in Fichero does this yet, by hand or by itself"
+#: Setup's answers under a purpose (`answers.job_answers`) -> the setting of the step they configure (#5478).
+JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
+                       "place-in-a-gazetteer": ("gazetteer", "gazetteer"),
+                       "translate-transliterate-normalise": ("normalise_how_far", "target")}
+#: Setup's kinds of names -> the sections the entity extraction finds (`extract_entities_only.entity_types`).
+_ENTITY_SECTIONS = {"people": "people", "places": "places", "organisations": "organizations",
+                    "organizations": "organizations", "events": "events", "dates": "dates"}
+
+
+def start_runs(job: str) -> bool:
+    """Whether Start can run this job by itself (`source.onboard.auto.every-proposed-step-runs`)."""
+    return job in START_JOBS
+
+
+def by_hand(job: str) -> dict[str, str]:
+    """A job Start cannot run by itself, as the recipe's `by_hand` and the plan's `skipped` say it: why, and the fix."""
+    from fichero_server.recipes.jobs import get_job
+
+    known = get_job(job)
+    name = known.name if known else job
+    return {"job": job, "title": name, "why": f"no card runs the job {job!r} yet: Start cannot run “{name}” by itself",
+            "fix": BY_HAND_FIX.get(job, _NO_TOOL_YET)}
 #: Per-page token assumptions: the same ones the workflow cost estimate prices with (runner.py).
 _TOKENS_IN, _TOKENS_OUT = 1200, 300
 
@@ -84,18 +125,39 @@ def _uses_cloud(step: dict) -> bool:
     return str(step.get("runs_on") or "").startswith("cloud") or "cloud" in (step.get("model") or {})
 
 
-def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None = None) -> dict[str, Any]:
+def _automatic_skip(step: dict, automatic: dict | None) -> tuple[str, str] | None:
+    """(why, fix) when What runs by itself (`answers.automatic`) leaves this step to a run by hand (#5478)."""
+    if not isinstance(automatic, dict):
+        return None
+    if not automatic.get("runs", True):
+        return ("What runs by itself is “Nothing runs automatically”: new material waits for a run by hand",
+                "press Start to run the recipe over it, or choose “New material runs through the ticked steps” "
+                "in the project's setup")
+    ticked = set(automatic.get("steps") or [])
+    if step.get("job") not in ticked and step.get("id") not in ticked:
+        return ("it is not ticked under What runs by itself, so it runs only by hand",
+                "tick it under What runs by itself in the project's setup, or press Start to run it")
+    return None
+
+
+def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None = None,
+               automatic: dict | None = None, job_answers: dict | None = None) -> dict[str, Any]:
     """What Start would run, in order, what it skips and why, and what refuses it outright.
 
     Returns `{"runs": [...], "workflows": [...], "skipped": [...], "offered": [...], "refusals": [...]}`.
     `runs` are the cards Start runs in order: a shipped workflow (name, id, provider/model override), a
-    check run (its layer and checker), or the project's synced folder (its folder and formats); `workflows`
-    is the workflow runs among them. A step that cannot run is SKIPPED with its reason, and the others
-    still run (`source.recipe.step-skipped-says-why`). `offered` lists steps that wait to be offered
+    check run (its layer and checker), the embed job (search), or the project's synced folder (its folder and
+    formats); `workflows` is the workflow runs among them. A step that cannot run is SKIPPED with its reason and
+    its fix, and the others still run (`source.recipe.step-skipped-says-why`); so is each job the recipe lists
+    `by_hand` (one Start has no card for, #5574). `offered` lists steps that wait to be offered
     (train), never run at Start (`source.recipe.train-never-automatic`). Start may go ahead only when
     `refusals` is empty: a recipe that fails the recipe check, or one with nothing to run. `only` limits
     the plan to those step ids: the jobs a layer added later proposes for the material already there
-    (`source.onboard.add-layer`); the whole recipe is still checked.
+    (`source.onboard.add-layer`); the whole recipe is still checked. `automatic` is setup's What runs by itself
+    (`answers.automatic`), given for a run new material starts by itself (an import after Start), never for Start:
+    with Nothing runs automatically every step is skipped, else every step not ticked (#5478). `job_answers` are
+    setup's answers under a purpose (`answers.job_answers`): each reaches the step it configures as its setting
+    (`JOB_ANSWER_SETTINGS`) where the recipe does not already set it (#5478).
     """
     from fichero_server.recipes.recipe import check_recipe
 
@@ -106,9 +168,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     skipped: list[dict[str, str]] = []
     offered: list[str] = []
 
-    def skip(sid: str, why: str) -> None:
-        skipped.append({"step": sid, "why": why})
+    def skip(sid: str, why: str, fix: str) -> None:
+        skipped.append({"step": sid, "why": why, "fix": fix})
 
+    choose = "choose another model for this step in the project's setup"
     for step in recipe.get("steps") or []:
         sid, job = step.get("id", "?"), step.get("job", "")
         label = f"step {sid}"
@@ -117,32 +180,59 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         if step.get("offered_when"):
             offered.append(sid)
             continue
+        if not start_runs(job):
+            gone = by_hand(job)
+            skip(sid, f"{label}: {gone['why']}", gone["fix"])
+            continue
         if job not in _NO_MODEL_JOBS and (step.get("gap") or not step.get("model")):
-            skip(sid, f"{label} has no model: {step.get('gap') or 'none is named'}")
+            problem = step.get("problem") or {}
+            skip(sid, f"{label} has no model: {step.get('gap') or 'none is named'}",
+                 problem.get("sentence", "") + (" " if problem.get("sentence") else "")
+                 + "Choose a model for it in the project's setup.")
             continue
         if stays_local and _uses_cloud(step):
-            skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here")
+            skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here",
+                 "allow pages to leave this Mac in the project's setup, or choose a model that runs on this Mac")
             continue
         if step.get("when"):
-            skip(sid, f"{label} runs only {sorted(step['when'])}; Start cannot honour a condition yet")
+            skip(sid, f"{label} runs only {sorted(step['when'])}; Start cannot honour a condition yet",
+                 "remove the condition from the step, or run it by hand")
+            continue
+        held = _automatic_skip(step, automatic)
+        if held is not None:
+            skip(sid, f"{label}: {held[0]}", held[1])
             continue
         pin = step.get("model") or {}
-        settings = step.get("settings") or {}
+        settings = dict(step.get("settings") or {})
+        answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
+        if answer and setting not in settings and (job_answers or {}).get(answer) not in (None, "", []):
+            settings[setting] = job_answers[answer]
         runs_on = step.get("runs_on") or "this-mac"
+        if job == EMBED_JOB:
+            from fichero_server.db.embeddings import search_embedder
+
+            engine, named = search_embedder(), str(pin.get("hf") or pin)
+            if named.lower() != engine.lower():
+                skip(sid, f"{label}: this library's search embeds with {engine}, and the step names {named}, whose "
+                          "vectors could not be searched beside them",
+                     f"choose {engine} for this step: propose the recipe again in the project's setup")
+                continue
+            runs.append({"steps": [sid], "job": job, "card": "embed", "runs_on": runs_on, "model": engine})
+            continue
         if job in OTHER_CARDS:
             entry: dict[str, Any] = {"steps": [sid], "job": job, "card": OTHER_CARDS[job], "runs_on": runs_on}
             if job == "tie-text-to-lines":
                 reader = _kraken_reader_for(pin)
                 if reader is None:
                     skip(sid, f"{label}: the page text is tied to its lines by a Kraken reader's rough read, "
-                              f"and {pin} is not one this Mac can fetch")
+                              f"and {pin} is not one this Mac can fetch", "choose a Kraken reader for this step")
                     continue
                 entry.update(check="tie-text-to-lines", layer="readings", provider=KRAKEN_READER_PROVIDER,
                              model=reader, prompt=None)
             elif job == "check":
                 override = _override(pin)
                 if override is None:
-                    skip(sid, f"{label}: the check job cannot run the model {pin}")
+                    skip(sid, f"{label}: the check job cannot run the model {pin}", choose)
                     continue
                 entry.update(layer=settings.get("layer", "readings"), provider=override[0], model=override[1],
                              prompt=step.get("prompt"))
@@ -151,24 +241,22 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 entry.update(accept_above=settings.get("accept_above"))
             elif job == "publish":
                 if not settings.get("where"):
-                    skip(sid, f"{label} names no folder (`where`) to publish the site into")
+                    skip(sid, f"{label} names no folder (`where`) to publish the site into",
+                         "name the folder to publish the site into")
                     continue
                 entry.update(folder=settings["where"])
             else:
                 entry.update(folder=settings.get("folder"), formats=list(settings.get("formats") or []))
             runs.append(entry)
             continue
-        key = WORKFLOW_FOR_JOB.get(job)
-        if key is None:
-            skip(sid, f"{label}: no card runs the job {job!r} yet")
-            continue
-        name, workflow_id = _shipped(key)
+        name, workflow_id = _shipped(WORKFLOW_FOR_JOB[job])
         entry = {"steps": [sid], "job": job, "card": "workflow", "workflow": name,
                  "workflow_id": workflow_id, "provider_override": None, "model_override": None,
                  "runs_on": runs_on}
         if job == "split-pages":
             if pin.get("builtin") != "page-splitter":
-                skip(sid, f"{label}: {name} cuts pages with the built-in page splitter only, not {pin}")
+                skip(sid, f"{label}: {name} cuts pages with the built-in page splitter only, not {pin}",
+                     "choose the built-in page splitter for this step")
                 continue
         elif job == "work-out-dates":
             # The rule extractor reads one calendar per run; a recipe asking for a
@@ -176,11 +264,13 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             calendars = set(settings.get("calendars") or [])
             if calendars - {"gregorian"}:
                 skip(sid, f"{label}: {name} reads Gregorian dates only; it cannot use "
-                          f"{sorted(calendars)} or switch calendars yet")
+                          f"{sorted(calendars)} or switch calendars yet",
+                     "keep only the Gregorian calendar for this step, or work out the other dates by hand")
                 continue
         elif job == "find-lines":
             if pin.get("kraken") != "blla":
-                skip(sid, f"{label}: {name} finds lines with Kraken's blla only, not {pin}")
+                skip(sid, f"{label}: {name} finds lines with Kraken's blla only, not {pin}",
+                     "choose Kraken's built-in line finder for this step")
                 continue
         elif job == "read-a-line" and _override(pin) is not None:
             # A vision model reads the lines Kraken found: the step's own model, as the run's override.
@@ -192,7 +282,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             reader = _kraken_reader_for(pin)
             if reader is None:
                 skip(sid, f"{label}: the reader {pin} is not in the Kraken catalogue this Mac "
-                          "can fetch, so no workflow can read with it")
+                          "can fetch, so no workflow can read with it", choose)
                 continue
             entry["provider_override"], entry["model_override"] = KRAKEN_READER_PROVIDER, reader
             # Kraken finds its own lines before reading them: one run carries both steps.
@@ -201,10 +291,22 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         elif job in _OVERRIDE_JOBS:
             override = _override(pin)
             if override is None:
-                skip(sid, f"{label}: {name} cannot run the model {pin}")
+                skip(sid, f"{label}: {name} cannot run the model {pin}", choose)
                 continue
             entry["provider_override"], entry["model_override"] = override
+        if job == "find-names-tag-words" and settings.get("kinds"):
+            # Setup's kinds of names reach the entity extraction as its sections (#5478).
+            sections = [_ENTITY_SECTIONS[k] for k in settings["kinds"] if k in _ENTITY_SECTIONS]
+            if not sections:
+                skip(sid, f"{label}: {name} finds people, places, organisations, events and dates, and none of "
+                          f"{sorted(settings['kinds'])} is among them",
+                     "tick a kind of name it finds under the purpose in the project's setup")
+                continue
+            entry["tool_config"] = {"extract_entities_only": {"entity_types": ",".join(dict.fromkeys(sections))}}
         runs.append(entry)
+    for item in recipe.get("by_hand") or []:
+        if only is None or item.get("job") in only:
+            skip(item.get("job", "?"), item.get("why", ""), item.get("fix", ""))
     # Each card declares what it takes and gives, so a run knows which steps a failure stops (#5498).
     jobs_of = {s.get("id"): s.get("job", "") for s in recipe.get("steps") or []}
     for run in runs:
@@ -216,7 +318,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                  f"which is not on this Mac: download it first" for d in downloads]
     refusals += local_models_this_mac_cannot_serve(runs)
     if not runs and not refusals:
-        refusals.append("nothing in this recipe can run yet: every step is skipped (see why)")
+        nothing = isinstance(automatic, dict) and not automatic.get("runs", True)
+        refusals.append("What runs by itself is “Nothing runs automatically”: new material waits for a run by hand"
+                        if nothing else "nothing in this recipe can run yet: every step is skipped (see why)")
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
             "offered": offered, "refusals": refusals, "downloads": downloads}
 

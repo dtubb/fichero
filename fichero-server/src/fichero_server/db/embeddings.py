@@ -373,6 +373,12 @@ def _configured_embedding_space() -> EmbeddingSpaceSpec:
     return space
 
 
+def search_embedder() -> str:
+    """The model this engine embeds pages with for search (its one embedding space): what a recipe's
+    search step must name to run (#5574)."""
+    return _configured_embedding_space().source_model_name
+
+
 def format_for_model(model_name: str, text: str, role: EmbeddingRole) -> str:
     """Apply model-specific input formatting.
 

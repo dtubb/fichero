@@ -103,17 +103,20 @@ def purpose_jobs(purposes) -> list[str]:
 
 
 def layer_jobs(layer: str) -> tuple[str, ...]:
-    """The jobs a layer turns on, in order: the assembled jobs whose registry entry names that layer."""
+    """The jobs a layer turns on, in order: the assembled jobs whose registry entry names that layer, and that
+    Start can run (#5574)."""
     from fichero_server.recipes.jobs import get_job
+    from fichero_server.recipes.start import start_runs
 
-    return tuple(j for j in LAYER_STEPS if (job := get_job(j)) is not None and job.layer == layer)
+    return tuple(j for j in LAYER_STEPS if (job := get_job(j)) is not None and job.layer == layer and start_runs(j))
 
 
 def addable_layers() -> list[str]:
-    """The layers a project can add later: those the rules can assemble a step for."""
+    """The layers a project can add later: those the rules can assemble a step for that Start can run."""
     from fichero_server.recipes.jobs import get_job
+    from fichero_server.recipes.start import start_runs
 
-    return list(dict.fromkeys(get_job(j).layer for j in LAYER_STEPS))
+    return list(dict.fromkeys(get_job(j).layer for j in LAYER_STEPS if start_runs(j)))
 
 
 @dataclass(frozen=True)
@@ -175,6 +178,12 @@ class Answers:
     #: The material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them
     #: then finds the documents among them (`finddocs.recipe-step`, #5550).
     loose_pages: bool = False
+    #: The answers under a purpose (`answers.job_answers`): which kinds of names, which gazetteer, how far to
+    #: normalise; each reaches the setting of the step it configures (`start.JOB_ANSWER_SETTINGS`, #5478).
+    job_answers: dict[str, Any] = field(default_factory=dict, compare=False, hash=False)
+    #: The model this engine's search embeds with (its one embedding space); the search step names it where its
+    #: card fits (#5574). Empty: no preference.
+    search_embedder: str = ""
 
     def __post_init__(self) -> None:
         # In the order setup offers them, so the same purposes ticked in any order give the same recipe.
@@ -318,8 +327,11 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     # local one passes (the A/B, not the rules, decides any move to a costlier option).
     pool = [c for c in kept if c.local] or kept
     if job == "make-a-vector":
-        # The embedder: the smallest local model whose card covers all the project's languages.
-        pool = sorted(pool, key=lambda c: (c.size_gb, c.id))[:1]
+        # The embedder: the one this engine's search embeds with, where its card covers all the project's
+        # languages (vectors from another could not be searched beside them, #5574); else the smallest local one.
+        engine = a.search_embedder.lower()
+        pool = sorted(pool, key=lambda c: (not engine or str(c.pin.get("hf", "")).lower() != engine,
+                                           c.size_gb, c.id))[:1]
     best = sorted(pool, key=lambda c: _rank_key(c, material))[0]
     reasons = [f"its card names this job; covers {', '.join(sorted(a.scripts))}"]
     if best.languages is not None and job in LANGUAGE_JOBS:
@@ -366,12 +378,18 @@ def _topic(job: str) -> dict[str, Any]:
 
 
 def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
-    """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps."""
+    """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps. A job Start
+    cannot run by itself is never a step: it is listed under `by_hand`, with why and the tool that does it by hand
+    (`source.onboard.auto.every-proposed-step-runs`, #5574)."""
+    from fichero_server.recipes.start import JOB_ANSWER_SETTINGS, by_hand, start_runs
+
     jobs = set(purpose_jobs(a.purposes))
     jobs |= {j for layer in a.layers for j in layer_jobs(layer)}
     jobs |= {j for j in a.jobs if j in STEP_ORDER}
     if a.loose_pages and jobs & READING_JOBS:
         jobs.add(FIND_DOCUMENTS)
+    left_by_hand = [by_hand(j) for j in sorted(jobs, key=STEP_ORDER.index) if not start_runs(j)]
+    jobs = {j for j in jobs if start_runs(j)}
     train_ticked = "train-a-model" in jobs
     jobs.discard("train-a-model")
     jobs_in_order = sorted(jobs, key=STEP_ORDER.index)
@@ -405,6 +423,9 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
             step["material"] = a.material
             step["readers"] = [{"material": m, **_chosen(_choose(job, cards, a, m))} for m in a.materials]
         step.update(_chosen(choice))
+        answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
+        if answer and a.job_answers.get(answer) not in (None, "", []):
+            step["settings"] = {setting: a.job_answers[answer]}
         if choice.card is None:
             notes.append(f"{job}: {choice.gap}")
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
@@ -426,6 +447,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         "suits": {"scripts": sorted(a.scripts), "languages": sorted(a.languages), "material": list(a.materials)},
         "purposes": list(a.purposes),
         "steps": steps,
+        "by_hand": left_by_hand,
         "gaps": notes,
         "cloud_options": cloud_options,
     }
