@@ -8,6 +8,8 @@ page, and every file that has no pages), or, after an import, over the pages tha
   (`api/routes/workflow/chains.py`), so a run is the one job tree the activity spec draws (a `workflow` row,
   its steps and pages beneath it);
 * a **check** card is a check run (`checking/job.py`);
+* a **find-documents** card is a Find the Documents run (`finddocs/job.py`) over the pages' folders, accepting by
+  itself only what the step's `accept_above` allows;
 * an **export** card is the project's synced folder (`sync_folder.py`): the folder the step names is tied
   (once) and the pages are written, or a folder already tied rewrites them.
 
@@ -35,6 +37,8 @@ KIND = "run-a-recipe"
 #: Purposes that run by themselves after Start (the "just do it" ones; `recipes/assemble.PURPOSES`).
 AUTOMATIC_PURPOSES = frozenset(PURPOSES) - TOOL_PURPOSES
 _CHECK_POLL_SECONDS = 0.5
+#: Cards that line or read pages: a blank verso is left out of them (#5579).
+_NOT_ON_BLANK_VERSOS = frozenset({"find-lines", "read-a-line", "read-a-page"})
 
 
 def _library(db: Any) -> Path:
@@ -132,6 +136,24 @@ def _run_check(db: Any, card: dict[str, Any], documents: list[str], parent: str,
                                                 model=card["model"], prompt_file=card.get("prompt"),
                                                 check=card.get("check", "model")),
                             started_by=started_by)["job_id"]
+    return _wait(db, child, parent)
+
+
+def _run_find_documents(db: Any, card: dict[str, Any], documents: list[str], parent: str,
+                        started_by: str) -> tuple[str, str, str | None]:
+    """Find the Documents over the step's pages (each with its folder), accepting by itself only what the project's
+    setting allows (`finddocs.recipe-step`, #5550)."""
+    from fichero_server.finddocs import job as finddocs_job
+    from fichero_server.models.found_documents import FindDocumentsRequest
+
+    finddocs_job.register_job_kinds()
+    child = finddocs_job.start(db, FindDocumentsRequest(scope_ids=documents, accept_above=card.get("accept_above")),
+                               started_by=started_by, watched=False)
+    return _wait(db, child, parent)
+
+
+def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
+    """The card's own job, a child of the recipe's row, waited on until it ends."""
     jobs.set_parent(db, child, parent)
     while True:
         row = jobs.read_job(db, child)
@@ -189,6 +211,14 @@ def run(db: Any, subject: str) -> dict[str, Any]:
         if not redo.intersection(card["steps"]):
             documents, done = split_done(db, card, documents)
             step["already_done"] = done
+        if card.get("job") in _NOT_ON_BLANK_VERSOS and documents:
+            # The backs of leaves, blank as their images show, are not lined or read (#5579).
+            from fichero_server.finddocs.job import blank_versos
+
+            versos = blank_versos(db, documents)
+            if versos:
+                documents = [d for d in documents if d not in versos]
+                step["blank_versos"] = len(versos)
         if not documents:
             step.update(state="done", child_id=None, why="already done on every page")
             continue
@@ -198,6 +228,8 @@ def run(db: Any, subject: str) -> dict[str, Any]:
             child, state, why = _run_workflow(db, card, documents, job_id)
         elif card["card"] == "check":
             child, state, why = _run_check(db, card, documents, job_id, started_by)
+        elif card["card"] == "find-documents":
+            child, state, why = _run_find_documents(db, card, documents, job_id, started_by)
         elif card["card"] == "publish":
             child, state, why = _run_publish(db, card)
         else:

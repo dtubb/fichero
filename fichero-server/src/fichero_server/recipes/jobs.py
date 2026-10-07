@@ -88,7 +88,6 @@ _LIST = "the two lists side by side, with precision and recall where a person ha
 _job("prepare-the-image", {"page_image"}, {"page_image", "rendition"}, "prepare", "the renditions side by side",
      ("operations",))
 _job("split-pages", {"page_image"}, {"page_image"}, "prepare", "the cut pages side by side")
-_job("find-documents-in-a-folder", {"page_image"}, {"document_groups"}, "prepare", _LIST)
 _job("find-regions", {"page_image"}, {"regions"}, "lines", _BOXES, ("model",))
 _job("find-lines", {"page_image"}, {"lines"}, "lines", _BOXES, ("model", "regions"))
 _job("put-in-order", {"lines"}, {"reading_order"}, "lines", "the two orders side by side")
@@ -104,6 +103,8 @@ _job("identify-signs", {"signs"}, {"sign_identifications"}, "reading", _LIST, ("
 _job("transcribe-speech", {"recording"}, {"line_readings"}, "reading", _TEXT, ("model",))
 _job("translate-transliterate-normalise", {"line_readings"}, {"line_readings"}, "reading", _TEXT, ("model", "target"))
 # --- Structure and knowledge ----------------------------------------------------------------------
+# Reads the text already there (and the thumbnails), so it comes after reading (`finddocs.recipe-step`, #5550).
+_job("find-documents-in-a-folder", {READING}, {"document_groups"}, "structure", _LIST, ("accept_above",))
 _job("split-into-entries", {"line_readings"}, {"entries"}, "structure", _LIST)
 _job("find-names-tag-words", {READING}, {"mentions"}, "entities", _LIST, ("model",))
 _job("find-statements", {READING, "mentions"}, {"claims"}, "graph", _LIST, ("model", "prompt"))

@@ -49,10 +49,11 @@ _CONFIG: dict[str, Optional[str]] = {"base_url": None, "library_path": None}
 #: The recipe golden path: what an agent driving a recipe needs, and no more; plus what it needs to
 #: ORGANISE the project as a historian does (#5568): `documents` already groups pages, moves and
 #: orders them, assigns prototypes and sets attribute values; `canvas` lays a folder's board out,
-#: labels it and returns a PICTURE of it to look at; `classifications` lists and makes prototypes.
+#: labels it and returns a PICTURE of it to look at; `classifications` lists and makes prototypes;
+#: `find-documents` proposes where documents start and end in a box, and accepts or rejects (#5550).
 DEFAULT_TOOLSETS = (
     "recipes", "training", "check", "segments", "documents", "activity", "local-models", "hpc",
-    "canvas", "classifications",
+    "canvas", "classifications", "find-documents",
 )
 
 #: Old hand-written tool names an existing agent configuration (the fichero-operator agent's tool

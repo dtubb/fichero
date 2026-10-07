@@ -109,7 +109,7 @@ def _recipe(tmp_path, *steps):
 
 def _steps(tmp_path):
     return [
-        {"id": "groups", "job": "find-documents-in-a-folder", "model": {"builtin": "folder-grouper"}},
+        {"id": "signs", "job": "find-signs", "model": {"builtin": "sign-finder"}},
         {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"}},
         {"id": "read", "job": "read-a-line", "model": {"zenodo": "10.5281/zenodo.13788177"}},
         {"id": "check", "job": "check", "settings": {"layer": "claims"}, "model": CLOUD, "runs_on": "cloud:openai"},
@@ -201,15 +201,15 @@ def test_source_recipe_step_skipped_says_why(client, db, pages, tmp_path, engine
     _save(client, _recipe(tmp_path, *steps), cloud_allowed=False)
     plan = client.get("/api/recipes/project/start").json()
     why = {s["step"]: s["why"] for s in plan["skipped"]}
-    assert set(why) == {"groups", "check", "names", "maybe"} and plan["refusals"] == []
-    assert "no card runs" in why["groups"] and "off this Mac" in why["check"] and "no model" in why["names"]
+    assert set(why) == {"signs", "check", "names", "maybe"} and plan["refusals"] == []
+    assert "no card runs" in why["signs"] and "off this Mac" in why["check"] and "no model" in why["names"]
     assert "condition" in why["maybe"]
     run = _finished(client, _start(client))
     assert [s["steps"] for s in run["steps"]] == [["lines", "read"], ["export"]] and run["state"] == "done"
     assert {s["step"] for s in run["skipped"]} == set(why) and engine.checked == []
 
-    _save(client, _recipe(tmp_path, {"id": "groups", "job": "find-documents-in-a-folder",
-                                     "model": {"builtin": "folder-grouper"}}))
+    _save(client, _recipe(tmp_path, {"id": "signs", "job": "find-signs",
+                                     "model": {"builtin": "sign-finder"}}))
     r = client.post("/api/recipes/project/start")
     assert r.status_code == 422 and "nothing" in r.json()["detail"]
     _save(client, _recipe(tmp_path, {"id": "x", "job": "no-such-job", "model": CLOUD}))

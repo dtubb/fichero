@@ -114,38 +114,96 @@ involve the company it names. Lessons the tool must carry:
 
 ## Behaviors
 
-- `finddocs.job.any-box` — **[GAP]** (#5550) Find the Documents runs on any folder or selection of
-  pages as one background job and stores proposals; it changes nothing in the source.
-- `finddocs.boundaries.proposed-with-evidence` — **[GAP]** (#5550) every proposed start or end of a
+- `finddocs.job.any-box` — **[OK]** (#5550) Find the Documents runs on any folder or selection of
+  pages as one background job and stores proposals; it changes nothing in the source. **Built
+  2026-10-07 (engine):** `POST /api/find-documents/runs` queues one `find-documents-in-a-folder` job
+  (`finddocs/job.py`, images lane): each folder's loose pages in its order, read from the page's text or
+  its best reading, the thumbnail's ink and look, and the knowledge graph's people on the page; the
+  proposal is stored as a `grouping` artifact on the folder (the existing hypothesis store). Pinned by
+  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py`. *App: Organise ▸ Find the
+  Documents is not built.*
+- `finddocs.boundaries.proposed-with-evidence` — **[PARTIAL]** (#5550) every proposed start or end of a
   document carries its signals (cue lines, continuity score, furniture, look, parties) and a
-  confidence.
-- `finddocs.kinds.prototypes` — **[GAP]** (#5550) each proposed document is matched to a prototype or
-  proposes a new one, and its attribute values are filled from the pages and cited to them.
-- `finddocs.groups.and-order` — **[GAP]** (#5550) documents are proposed into groups by shared
-  parties, case numbers, dates and replies, each group with an order and its reasons.
+  confidence. **Built 2026-10-07 (engine):** every join between written pages has a probability and
+  its named signals, from one cue table (`finddocs/cues.py`, Spanish and English rows; a language adds
+  rows): opening cues at the page's head (court caption, VISTOS, Sentencia, Demanda, Poder, Audiencia,
+  salutations, Telegrama/Cable, Recibo, place-and-date lines), closing cues at the foot of the page
+  before (Cópiese/notifíquese, "(fdo)", letter closings), folio numbers restarting or running on, and a
+  sentence or a word running over the break (the cheap rule: page n ends mid-sentence and n+1 starts in
+  lower case). Each document's confidence is the least sure of its start, its end and its inner joins.
+  *Not built: the look of the page (an image embedding), a language model's surprise at the join.*
+- `finddocs.kinds.prototypes` — **[PARTIAL]** (#5550) each proposed document is matched to a prototype or
+  proposes a new one, and its attribute values are filled from the pages and cited to them. **Built
+  2026-10-07 (engine):** the kind is the strongest opening cue's (VISTOS: Sentencia; a salutation:
+  Carta or Letter; Telegrama: Cable), else a ruling or closing cue's; it is proposed as a prototype key,
+  made on accept when the project has none of that name. *Not built: attribute values filled and cited.*
+- `finddocs.groups.and-order` — **[PARTIAL]** (#5550) documents are proposed into groups by shared
+  parties, case numbers, dates and replies, each group with an order and its reasons. **Built
+  2026-10-07 (engine):** parties are read after "contra", "demandante", "demandado", "v.", a letter's
+  addressee and its signer, and the knowledge graph's people and organisations on the page; documents
+  sharing two parties are one group (one shared party, such as a company sued four times, is not a
+  case), ordered by their dates, with reasons. *Not built: case numbers, replies ("en contestación a").*
 - `finddocs.canvas.drawn` — **[GAP]** (#5550) proposals are drawn on the 2D canvas: a document's
-  pages together in order, a group as a labelled region, uncertainty visible.
-- `finddocs.accept-makes-groups` — **[GAP]** (#5550, #5303) accepting a document makes a group node of
+  pages together in order, a group as a labelled region, uncertainty visible. (Accepting arranges the
+  folder's canvas in the documents' order, `finddocs.accept-makes-groups`; drawing the proposals before
+  they are accepted is the app's next slice.)
+- `finddocs.accept-makes-groups` — **[PARTIAL]** (#5550, #5303) accepting a document makes a group node of
   its pages with its prototype; accepting a group makes a group of documents with a named order;
-  audited; undone by Ungroup.
-- `finddocs.corrections-teach` — **[GAP]** (#5550) every accept, reject and adjustment is kept as a
-  labelled example for the project.
+  audited; undone by Ungroup. **Built 2026-10-07 (engine):** one audited action, `finddocs.accept`
+  (`POST /api/find-documents/proposals/{id}/accept`: all, the ones named, or those above
+  `min_confidence`), groups each document's pages with the Group command's code, assigns its prototype
+  (made if missing, the classifications code), groups the documents of a fully accepted group, and
+  arranges the folder's canvas (the Arrange code); one undo of its audit row (`finddocs.unaccept`)
+  restores the folder, the prototypes and the canvas; redo accepts again. Pinned by
+  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py`. *App: Accept, Reject and Accept
+  All Above a Confidence are not built.*
+- `finddocs.corrections-teach` — **[PARTIAL]** (#5550) every accept, reject and adjustment is kept as a
+  labelled example for the project. **Built 2026-10-07 (engine):** accepted and rejected documents keep
+  their state on the stored proposal (`finddocs.reject`, undoable). *Not built: an adjustment (a moved
+  card) recorded, and the states exported as training examples.*
+- `finddocs.recipe-step` — **[OK]** (#5550) onboarding organises by itself: a recipe that reads a project
+  of loose pages has the step "Find documents in a folder" after reading (after Correct, before names),
+  run as background work. **Built 2026-10-07 (engine):** setup's answer `loose_pages` adds it (unset, it
+  is on when the open project holds a folder of loose page images, as "Everything automatic after
+  Start" lays out for a box); Start runs it as its own card (`find-documents`) under the recipe's row.
+  **Default:** propose, and accept by itself only a document at least 95% sure (the step's
+  `accept_above`, the project's setting; empty leaves every proposal for the person). *Needs the
+  maintainer's decision: confirm the default and its threshold (taken 2026-10-07 so onboarding organises
+  the clear cases by itself; one undo restores them).* Pinned by
+  `fichero-server/tests/unit/recipes/test_find_documents_step.py`.
 - `finddocs.teacher-on-uncertain` — **[GAP]** (#5550) a thinking vision-language model is asked only
   about uncertain boundaries, kinds or groups, with its reasons kept; never about all pages by
   default; the egress gate applies.
 - `finddocs.student-model` — **[GAP]** (#5550, #5539) with enough examples the project trains its own
   boundary-and-kind model (distillation.md), held out by box, scored, kept in the project.
-- `finddocs.scored` — **[GAP]** (#5550) a run against a person's breakdown reports boundary precision
-  and recall, exact documents, kind accuracy and group agreement.
-- `finddocs.known-answer-first` — **[GAP]** (#5548, #5550) the method is checked on the Voynich
-  conjugate leaves and one public page-stream set before it is offered on a real box.
-- `finddocs.leaves-first` — **[GAP]** (#5550) images pair into leaves (recto/verso) before boundaries
+- `finddocs.scored` — **[PARTIAL]** (#5550) a run against a person's breakdown reports boundary precision
+  and recall, exact documents, kind accuracy and group agreement. **Built 2026-10-07 (engine):**
+  `propose.score` gives boundary precision and recall and exact documents. *Not built: kind accuracy and
+  group agreement, and a route that scores a stored run.*
+- `finddocs.known-answer-first` — **[PARTIAL]** (#5548, #5550) the method is checked on the Voynich
+  conjugate leaves and one public page-stream set before it is offered on a real box. **Built
+  2026-10-07:** two synthetic boxes with a known answer and no real text
+  (`fichero-server/tests/unit/finddocs/boxes.py`): the Istmina '1948 Sentencias' structure (eight
+  judgments, blank versos, two leaves shot twice, four cases against one company) scores precision 1.0,
+  recall 1.0, 8 of 8 documents exact; a bundle of letters, cables and a receipt in Spanish and English
+  scores 1.0 and 1.0, 7 of 7, with both correspondences grouped. Pinned by
+  `fichero-server/tests/unit/finddocs/test_find_documents_known_answer.py`. *Not built: the Voynich
+  conjugate leaves, a public page-stream set, and the real box broken down by a person.*
+- `finddocs.leaves-first` — **[PARTIAL]** (#5550) images pair into leaves (recto/verso) before boundaries
   are proposed; blank versos, duplicate shots and leaves seen only as bleed-through are reported as
-  findings, not documents.
+  findings, not documents. **Built 2026-10-07 (engine):** a near-blank page (short reading, and little
+  ink in its thumbnail) right after a written one is its verso; a written page whose text is at least
+  90% the same as one of the last six is a second shot (its thumbnail's hash is named as support); a
+  page with ink and no reading is reported; all travel with their leaf's document. Before reading, a
+  blank verso as its image shows it is left out of finding lines and reading (#5579; a recipe run's
+  reading cards, `runner._NOT_ON_BLANK_VERSOS`). *Not built: leaves seen only as bleed-through, mirrored
+  bleed-through matched to its recto.*
 - `finddocs.inserts-are-ranges` — **[GAP]** (#5550) a document copied inside another (a complaint
   inside a judgment) is proposed as a text range with its own prototype, not as a group of pages.
-- `finddocs.mcp-cli` — **[GAP]** (#5568) the job, its proposals, accept/reject and a picture of the
-  canvas are MCP tools and CLI commands from the same routes.
+- `finddocs.mcp-cli` — **[PARTIAL]** (#5568, #5550) the job, its proposals, accept/reject and a picture of
+  the canvas are MCP tools and CLI commands from the same routes. **Built 2026-10-07:** the
+  `/api/find-documents/*` routes are generated into the MCP (the `find-documents` toolset, on by default)
+  and the CLI; the canvas picture is #5568's. *Not seen: an agent driving it end to end on a real box.*
 
 ## Open questions
 

@@ -113,6 +113,10 @@ class AssembleRequest(BaseModel):
     mac_memory_gb: Optional[float] = Field(default=None, description="defaults to this machine's memory")
     layers: list[str] = Field(default_factory=list, description="layers added beyond the purposes' "
                               "(source.onboard.add-layer)")
+    loose_pages: Optional[bool] = Field(default=None, description=(
+        "the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them "
+        "then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open "
+        "project holds a folder of loose page images (finddocs.recipe-step)"))
 
 
 class RecipeCard(BaseModel):
@@ -412,6 +416,10 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
     For a project with a saved recipe, its overrides come with the recipe and each project-scope one
     sets its step's reader (`bakeoff.apply_project_overrides`, the path Use This takes), so proposing
     the recipe again never undoes a reader the person chose; folder overrides stay overrides."""
+    if answers.get("loose_pages") is None and library is not None:
+        # Default on for a project that holds a folder of loose page images (§7b, "Everything automatic after
+        # Start": a box is organised as a stage of the run); an answer of False turns it off.
+        answers = {**answers, "loose_pages": _holds_loose_pages(library)}
     a = _answers(answers)
     recipe = assemble(a, known_cards(a))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
@@ -421,6 +429,21 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
         recipe["overrides"] = list(saved["overrides"])
         apply_project_overrides(recipe, known_cards(a, include_not_built=True))
     return recipe
+
+
+def _holds_loose_pages(library: Path) -> bool:
+    """Whether the project holds a folder (or a root) with two or more photographs of pages lying loose in it."""
+    from collections import Counter
+
+    from fichero_server.db.manager import db_manager
+    from fichero_server.models import Document
+
+    db = db_manager.get_database(str(library))
+    folders = {d.id for d in db.query(Document, doc_type="folder") if not d.deleted_at}
+    loose = Counter(d.parent_id for d in db.query(Document, doc_type="file")
+                    if not d.deleted_at and str(getattr(d.file_type, "value", d.file_type)) == "image"
+                    and (d.parent_id is None or d.parent_id in folders))
+    return any(n >= 2 for n in loose.values())
 
 
 def _optional_library(request: Request) -> Optional[Path]:
@@ -441,7 +464,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
         jobs=tuple(a.get("jobs") or ()),
         pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
-        layers=frozenset(a.get("layers") or ()),
+        layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
     )
 
 

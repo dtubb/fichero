@@ -97,6 +97,10 @@ _ORPHAN_BASELINE: frozenset[str] = frozenset(
         # (sort/filter read those); the artifact rides the generic artifact
         # browser like catalogue.chunk. Generic read, not a dead feature.
         "dates",
+        # "grouping" (#5550): a Find the Documents proposal, a hypothesis on the folder. Clients read it
+        # through /api/find-documents/proposals (the engine's own query, `finddocs/store.py`), never by
+        # artifact type; the app's artifact list shows it generically ("Grouping"). Generic read.
+        "grouping",
         # "entity_merge_proposals": a GENERIC read — the manifest importer writes
         # one report per root document (`routes/ingest/core.py`) and it rides the
         # artifact browser like the two above; the only by-name query is the

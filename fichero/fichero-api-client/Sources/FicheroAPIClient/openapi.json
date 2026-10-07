@@ -6541,6 +6541,345 @@
         }
       }
     },
+    "/api/find-documents/runs": {
+      "post": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "Find the documents in folders or a selection of pages",
+        "description": "Queue one background job: each folder's loose pages are paired into leaves, and documents, their kinds\nand their groups are proposed from the text already read, with evidence and a confidence; blank versos and\nsecond shots are reported, not made documents. The proposals are stored; nothing in the source changes.\nWith `accept_above`, the documents at least that sure are accepted as the run ends.",
+        "operationId": "start_find_documents_api_find_documents_runs_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindDocumentsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindDocumentsRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/find-documents/runs/{job_id}": {
+      "get": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "A Find the Documents run and its proposals",
+        "operationId": "find_documents_run_api_find_documents_runs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindDocumentsRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/find-documents/proposals": {
+      "get": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "Stored Find the Documents proposals",
+        "description": "Newest first; a proposal on a folder this caller may not read is left out and counted.",
+        "operationId": "list_find_documents_proposals_api_find_documents_proposals_get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Only this folder's proposals.",
+              "title": "Folder Id"
+            },
+            "description": "Only this folder's proposals."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentsProposalList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/find-documents/proposals/{proposal_id}": {
+      "get": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "One Find the Documents proposal",
+        "operationId": "get_find_documents_proposal_api_find_documents_proposals__proposal_id__get",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentsProposal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/find-documents/proposals/{proposal_id}/accept": {
+      "post": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "Accept proposed documents: group nodes with their prototypes, the canvas laid out",
+        "description": "Accept all the proposed documents, the ones named, or those at least `min_confidence` sure: each becomes a\ngroup node of its pages (a one-page document stays its page) with its proposed prototype (made if the project\nhas none of that name); a proposed group whose documents are all accepted becomes a group of them; the\nfolder's canvas is laid out in their order. One audited action: undoing it (its `audit_id`) restores all.",
+        "operationId": "accept_find_documents_proposal_api_find_documents_proposals__proposal_id__accept_post",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindDocumentsAcceptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindDocumentsAcceptResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/find-documents/proposals/{proposal_id}/reject": {
+      "post": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "Reject proposed documents (kept, for the project's own model to learn from)",
+        "operationId": "reject_find_documents_proposal_api_find_documents_proposals__proposal_id__reject_post",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindDocumentsRejectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentsProposal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/evaluation/runs": {
       "post": {
         "tags": [
@@ -47027,6 +47366,12 @@
             "type": "array",
             "title": "Layers",
             "description": "layers added beyond the purposes' (source.onboard.add-layer)"
+          },
+          "loose_pages": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Loose Pages",
+            "description": "the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open project holds a folder of loose page images (finddocs.recipe-step)"
           }
         },
         "additionalProperties": false,
@@ -56612,6 +56957,110 @@
         "title": "DocumentViewResponse",
         "description": "One document's whole neighbourhood: where it sits, what it holds,\nwhat hangs off it."
       },
+      "DocumentsProposal": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The artifact that holds it."
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id"
+          },
+          "page_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Page Ids",
+            "description": "The pages looked at, in the folder's order."
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "default": "rules-1"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id"
+          },
+          "leaves": {
+            "type": "integer",
+            "title": "Leaves",
+            "description": "Leaves the pages pair into (a written page and its blank verso are one).",
+            "default": 0
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedDocument"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/PageFinding"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "joins": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedJoin"
+            },
+            "type": "array",
+            "title": "Joins"
+          },
+          "created_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "page_ids"
+        ],
+        "title": "DocumentsProposal",
+        "description": "What one run of Find the Documents proposes for one folder's pages."
+      },
+      "DocumentsProposalList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentsProposal"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "withheld": {
+            "type": "integer",
+            "title": "Withheld",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "DocumentsProposalList"
+      },
       "DownloadStartedResponse": {
         "properties": {
           "status": {
@@ -59654,6 +60103,148 @@
         ],
         "title": "FileType",
         "description": "Type of source file."
+      },
+      "FindDocumentsAcceptRequest": {
+        "properties": {
+          "document_indexes": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Document Indexes",
+            "description": "The documents to accept; none with no `min_confidence` accepts them all."
+          },
+          "min_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Min Confidence",
+            "description": "Accept every document at least this confident."
+          },
+          "arrange": {
+            "type": "boolean",
+            "title": "Arrange",
+            "description": "Lay the folder's canvas out in the documents' order.",
+            "default": true
+          },
+          "groups": {
+            "type": "boolean",
+            "title": "Groups",
+            "description": "Also accept each proposed group whose documents are all accepted.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "FindDocumentsAcceptRequest"
+      },
+      "FindDocumentsAcceptResult": {
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/DocumentsProposal"
+          },
+          "accepted": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Accepted"
+          },
+          "groups_made": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Groups Made"
+          },
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id",
+            "description": "The accept's audit row: undoing it restores the folder as it was."
+          }
+        },
+        "type": "object",
+        "required": [
+          "proposal",
+          "accepted",
+          "groups_made",
+          "audit_id"
+        ],
+        "title": "FindDocumentsAcceptResult"
+      },
+      "FindDocumentsRejectRequest": {
+        "properties": {
+          "document_indexes": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Document Indexes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_indexes"
+        ],
+        "title": "FindDocumentsRejectRequest"
+      },
+      "FindDocumentsRequest": {
+        "properties": {
+          "scope_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Scope Ids",
+            "description": "Folders, or a selection of pages (each with its folder)."
+          },
+          "accept_above": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Accept Above",
+            "description": "Accept, as the run ends, every proposed document at least this confident; none leaves all for a person."
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_ids"
+        ],
+        "title": "FindDocumentsRequest"
+      },
+      "FindDocumentsRun": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "proposal_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Proposal Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "state"
+        ],
+        "title": "FindDocumentsRun"
       },
       "FlowCandidate": {
         "properties": {
@@ -70417,6 +71008,47 @@
         "title": "PageFailure",
         "description": "One page the run could not do, and why."
       },
+      "PageFinding": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "blank-verso",
+              "blank-page",
+              "duplicate-shot",
+              "no-reading"
+            ],
+            "title": "Kind"
+          },
+          "page_id": {
+            "type": "string",
+            "title": "Page Id"
+          },
+          "of_page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Of Page Id",
+            "description": "The recto of a verso, or the first shot of a duplicate."
+          },
+          "similarity": {
+            "type": "number",
+            "nullable": true,
+            "title": "Similarity"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "page_id",
+          "reason"
+        ],
+        "title": "PageFinding",
+        "description": "A page reported, not made a document: a blank verso, a blank page, a second shot of a leaf, a page unread."
+      },
       "PageNotConverted": {
         "properties": {
           "document_id": {
@@ -72334,6 +72966,153 @@
         "title": "PromptResponse",
         "description": "Response with built prompt."
       },
+      "ProposedDocument": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "page_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Page Ids",
+            "description": "Every page of the document in order, its blank versos and second shots too."
+          },
+          "first_position": {
+            "type": "integer",
+            "title": "First Position",
+            "description": "Where it starts in the folder's pages (0-based)."
+          },
+          "last_position": {
+            "type": "integer",
+            "title": "Last Position"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind",
+            "description": "The prototype its opening cues suggest (Sentencia, Carta, Cable \u2026)."
+          },
+          "prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype Key"
+          },
+          "date": {
+            "type": "string",
+            "nullable": true,
+            "title": "Date",
+            "description": "Its date as read from its place-and-date line (ISO), when it has one."
+          },
+          "parties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parties"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "description": "The least certain of its start, its end and the joins inside it."
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "accepted",
+              "rejected"
+            ],
+            "title": "State",
+            "default": "proposed"
+          },
+          "accepted_as": {
+            "type": "string",
+            "nullable": true,
+            "title": "Accepted As",
+            "description": "The group node (or the one page) it became."
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "name",
+          "page_ids",
+          "first_position",
+          "last_position",
+          "confidence"
+        ],
+        "title": "ProposedDocument"
+      },
+      "ProposedGroup": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "document_indexes": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Document Indexes"
+          },
+          "parties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parties"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "accepted",
+              "rejected"
+            ],
+            "title": "State",
+            "default": "proposed"
+          },
+          "accepted_as": {
+            "type": "string",
+            "nullable": true,
+            "title": "Accepted As"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "label",
+          "document_indexes"
+        ],
+        "title": "ProposedGroup",
+        "description": "Documents that belong together (a case, a correspondence), in order."
+      },
       "ProposedJobs": {
         "properties": {
           "layers": {
@@ -72363,6 +73142,39 @@
         ],
         "title": "ProposedJobs",
         "description": "What an added layer proposes for the material already in the project; nothing runs before Start."
+      },
+      "ProposedJoin": {
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "title": "Page Id",
+            "description": "The page after the join."
+          },
+          "previous_page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Previous Page Id"
+          },
+          "probability": {
+            "type": "number",
+            "title": "Probability",
+            "description": "That a new document starts at `page_id` (0 to 1)."
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/Signal"
+            },
+            "type": "array",
+            "title": "Signals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page_id",
+          "probability"
+        ],
+        "title": "ProposedJoin",
+        "description": "The join between two neighbouring written pages and the probability that a document starts at the second."
       },
       "ProposedStep": {
         "properties": {
@@ -80741,6 +81553,50 @@
           "picture_segment_id"
         ],
         "title": "SignWrite"
+      },
+      "Signal": {
+        "properties": {
+          "cue": {
+            "type": "string",
+            "title": "Cue",
+            "description": "The cue's id in the table (`finddocs/cues.py`), or a furniture or continuity signal."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "opening",
+              "closing",
+              "furniture",
+              "continuity",
+              "kind"
+            ],
+            "title": "Role"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight",
+            "description": "Its log-odds: above zero says a document starts here, below says it runs on."
+          },
+          "page_id": {
+            "type": "string",
+            "title": "Page Id"
+          },
+          "line": {
+            "type": "string",
+            "nullable": true,
+            "title": "Line",
+            "description": "The line it was read from, cut short."
+          }
+        },
+        "type": "object",
+        "required": [
+          "cue",
+          "role",
+          "weight",
+          "page_id"
+        ],
+        "title": "Signal",
+        "description": "One piece of evidence, named: a cue in the table, a page number, a sentence running over the break."
       },
       "SimilarEntity": {
         "properties": {

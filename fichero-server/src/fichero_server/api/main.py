@@ -2007,6 +2007,7 @@ async def get_knowledge_row_counts(db: Database = Depends(get_library_database))
 # Importing the nested module directly keeps exactly one entry per route.
 from fichero_server.api.routes import training as training_routes  # noqa: E402
 from fichero_server.api.routes import check as check_routes  # noqa: E402
+from fichero_server.api.routes import find_documents as find_documents_routes  # noqa: E402
 from fichero_server.api.routes import evaluation as evaluation_routes  # noqa: E402
 from fichero_server.api.routes import reading_at_scale as reading_at_scale_routes  # noqa: E402
 from fichero_server.api.routes import sync_folders as sync_folder_routes  # noqa: E402
@@ -2199,6 +2200,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # /api/training — train a reader as a job (#5398): Kraken on Hugging Face Jobs, landed as a card.
     (training_routes.router, "/api", ["training"]),
     (check_routes.router, "/api", ["check"]),
+    # /api/find-documents — where documents start and end in a box of loose pages (#5550).
+    (find_documents_routes.router, "/api", ["find-documents"]),
     # /api/evaluation — trained against out-of-the-box readers on held-out checked pages (#5441).
     (evaluation_routes.router, "/api", ["evaluation"]),
     (reading_at_scale_routes.router, "/api", ["reading-at-scale"]),

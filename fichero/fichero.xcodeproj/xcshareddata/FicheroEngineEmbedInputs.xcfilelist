@@ -95,6 +95,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/entity/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/entity/entities.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/entity/inspector.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/evaluation.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/find_documents.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/folders.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/ingest/core.py
@@ -251,6 +252,12 @@ $(SRCROOT)/../fichero-server/src/fichero_server/execution/jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/throttle.py
 $(SRCROOT)/../fichero-server/src/fichero_server/export_service.py
+$(SRCROOT)/../fichero-server/src/fichero_server/finddocs/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/finddocs/accept.py
+$(SRCROOT)/../fichero-server/src/fichero_server/finddocs/cues.py
+$(SRCROOT)/../fichero-server/src/fichero_server/finddocs/job.py
+$(SRCROOT)/../fichero-server/src/fichero_server/finddocs/propose.py
+$(SRCROOT)/../fichero-server/src/fichero_server/finddocs/store.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/alto.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/harness.py
@@ -397,6 +404,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/checking.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/compute_requests.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/editorial.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/found_documents.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/geo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/hermeneutics.py

@@ -856,6 +856,34 @@ The static site (`POST /api/export/eleventy-site`, and a recipe's `publish` step
 has run (`source.check.on-the-site`): under each statement on its page and in the claim index, and on each
 entity's page: the verdict, by whom (a person, or a model), why, and a correction's offered values.
 
+### Finding the documents in a box
+
+`specs/source/finding-documents.md` (`finddocs.*`, #5550). `POST /api/find-documents/runs` (`scope_ids`:
+folders, or a selection of pages, each found within its folder; optional `accept_above`) queues one
+`find-documents-in-a-folder` job through `finddocs.run`: each folder's loose pages (photographs, or the pages
+cut from them) in the folder's order are paired into leaves (a near-blank page after a written one is its
+verso; a page whose text nearly repeats one just before is a second shot), and a document boundary is
+proposed at each join whose evidence says so: opening cues at the head of the page (a court caption, a
+heading such as VISTOS or Demanda, a place-and-date line, a salutation), closing cues at the foot of the page
+before ("Cópiese, notifíquese", "(fdo)", "Atentamente"), folio numbers restarting or running on, and a
+sentence running over the break. The cues are one table (`finddocs/cues.py`; Spanish and English rows).
+Each document has its kind (a prototype name), its date, its parties and a confidence; documents sharing
+two parties are proposed as a group, in date order. The proposal is stored as a `grouping` artifact on the
+folder; nothing in the source changes. `GET /api/find-documents/runs/{job_id}` gives the run's state, words
+and `proposal_ids`; `GET /api/find-documents/proposals` (`folder_id`) and
+`GET /api/find-documents/proposals/{proposal_id}` read them (`documents`, `groups`, `findings`: blank
+versos, blank pages, duplicate shots, pages with no reading; `joins`: every join's probability and signals).
+
+`POST /api/find-documents/proposals/{proposal_id}/accept` (`document_indexes`, or `min_confidence`, or
+neither for all; `arrange`, `groups`) is one audited action, `finddocs.accept`: each document of two or more
+pages becomes a group node of its pages (the Group command's code), a one-page document stays its page; its
+prototype is assigned, made first when the project has none of that name; a proposed group whose documents
+are all accepted becomes a group of them; the folder's canvas is laid out in their order. The response's
+`audit_id` undoes all of it at once (`POST /api/actions/audit/{audit_id}/undo`, through
+`finddocs.unaccept`). `POST /api/find-documents/proposals/{proposal_id}/reject` (`document_indexes`) marks
+documents rejected (`finddocs.reject`), kept for the project's own model to learn from. A recipe's
+`find-documents-in-a-folder` step runs the same job, with the step's `accept_above` (default 0.95).
+
 ### Workflow run comparison
 
 `GET /api/workflow-execution/comparisons` diffs what two runs produced from

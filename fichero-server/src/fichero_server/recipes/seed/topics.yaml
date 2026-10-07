@@ -37,8 +37,12 @@ topics:
       Proposes which pages belong together as one document, such as a letter of three pages in an
       archive bundle, for you to confirm.
     long: >-
-      Nothing is grouped until you agree; a confirmed group becomes one document with its pages in
-      order.
+      It reads the text already there: a court's caption, a heading, a place and date, a greeting
+      open a document; a signature or "Cópiese, notifíquese" closes one; a sentence running over the
+      page joins two pages. Blank backs and pages photographed twice are reported, not made
+      documents. Each proposed document has its kind (Sentencia, Carta, Cable …) and how sure it is.
+      An accepted document becomes one document with its pages in order; by default only the
+      clearest are accepted by themselves and the rest wait for you, and one undo puts them back.
   - id: find-regions
     kind: job
     title: Find regions
