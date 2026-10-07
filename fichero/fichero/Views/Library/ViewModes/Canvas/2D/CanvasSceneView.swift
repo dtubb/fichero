@@ -362,20 +362,6 @@ struct CanvasSceneView: View {
         self.controller = controller
     }
 
-    /// Classify a drop target for `DropOutcome.classify`: canvas items are always
-    /// leaves (drop → link); a node is a container only if LibraryView said so.
-    private func targetKind(_ id: String) -> CanvasTargetKind {
-        if (itemStore?.items(for: scopeKey) ?? []).contains(where: { $0.id == id }) { return .leaf }
-        return containerIds.contains(id) ? .container : .leaf
-    }
-
-    /// The `CanvasDropTarget` (id + kind) under a drop world position, or nil for
-    /// empty space → a plain place.
-    func dropTarget(near world: SIMD3<Double>, dragged: String) -> CanvasDropTarget? {
-        renderer.dropTargetId(nearWorld: world, excluding: dragged)
-            .map { CanvasDropTarget(id: $0, kind: targetKind($0)) }
-    }
-
     /// Where double-click zoom returns to; nil = not zoomed into a node.
     @State var focusReturnSnapshot: (position: SIMD3<Float>, scale: Float)?
 
@@ -588,5 +574,23 @@ struct CanvasSceneView: View {
         }
         let scope = scopeKey
         Task { await layoutStore.saveLayout(folderId: scope, items: rows) }
+    }
+}
+
+// Drop targets, kept out of the struct body (type_body_length) but in this file so they keep
+// private access to `scopeKey` and the stores.
+extension CanvasSceneView {
+    /// Classify a drop target for `DropOutcome.classify`: canvas items are always
+    /// leaves (drop → link); a node is a container only if LibraryView said so.
+    private func targetKind(_ id: String) -> CanvasTargetKind {
+        if (itemStore?.items(for: scopeKey) ?? []).contains(where: { $0.id == id }) { return .leaf }
+        return containerIds.contains(id) ? .container : .leaf
+    }
+
+    /// The `CanvasDropTarget` (id + kind) under a drop world position, or nil for
+    /// empty space → a plain place.
+    func dropTarget(near world: SIMD3<Double>, dragged: String) -> CanvasDropTarget? {
+        renderer.dropTargetId(nearWorld: world, excluding: dragged)
+            .map { CanvasDropTarget(id: $0, kind: targetKind($0)) }
     }
 }
