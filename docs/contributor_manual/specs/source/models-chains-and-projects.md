@@ -1766,8 +1766,9 @@ importer; in a recipe it is the destination of an output step.
 Choosing a reader (or any step's model) chooses a pair: the model, and where it runs. This Mac first
 when the model fits its memory and has a local runtime. When it doesn't — too big for the Mac, or a kind
 Fichero can't run locally (PyLaia, TrOCR, a 32B vision model) — the plan says so plainly and offers where
-it can run instead: a Hugging Face Inference Endpoint or inference provider; OpenRouter when the same or
-an equivalent model is served there; ACENET/Alliance for batch reading at scale (#5566). Each offer states
+it can run instead: any provider in Fichero's provider catalogue that serves it or an equivalent (a Hugging
+Face Inference Endpoint or inference provider, OpenRouter, Gemini, Anthropic, OpenAI, Mistral, Ollama or LM
+Studio on another machine), and ACENET/Alliance for batch reading at scale (#5566), ranked by cost and fit. Each offer states
 the cost for the project's pages, the speed, that pages leave the Mac (the project's egress rule decides),
 and the account it needs, configured or not. The recipe picks the pair, Ready shows it, and a bake-off can
 score a candidate wherever it runs (#5533).
