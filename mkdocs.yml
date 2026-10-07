@@ -442,6 +442,7 @@ nav:
               - Cataloguing & Metadata: contributor_manual/specs/source/cataloguing.md
               - Image Preparation: contributor_manual/specs/source/image-preparation.md
               - Undeciphered Scripts: contributor_manual/specs/source/undeciphered-scripts.md
+              - Finding the Documents: contributor_manual/specs/source/finding-documents.md
               - Synced Folder: contributor_manual/specs/source/synced-folder.md
               - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
               - Build Notes (identity & storage): contributor_manual/specs/source/build-notes-identity-and-storage.md
