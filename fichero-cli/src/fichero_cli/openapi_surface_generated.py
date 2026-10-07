@@ -15601,6 +15601,34 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("documents-holding-the-same-file-of-a-synced-a-dry-run-nothing-changes")
+    def sync_folders_documents_holding_the_same_file_of_a_synced_a_dry_run_nothing_changes_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Documents holding the same file of a synced folder (a dry run: nothing changes) (GET /api/sync-folders/duplicates)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/sync-folders/duplicates"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("send-duplicates-of-a-synced-s-files-to-the-trash-undoable")
+    def sync_folders_send_duplicates_of_a_synced_s_files_to_the_trash_undoable_post(
+        ctx: typer.Context,
+        document_ids: str = typer.Option(..., "--document-ids", help="Request field: document_ids."),
+    ) -> None:
+        """Send duplicates of a synced folder's files to the trash (undoable) (POST /api/sync-folders/duplicates/remove)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/sync-folders/duplicates/remove"
+            params = None
+            payload = _build_json_payload({
+                "document_ids": document_ids,
+            }, {
+                "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Document Ids', 'description': 'documents to send to the trash, each one the dry run lists under `remove`', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("untie-a-synced-its-files-stay-on-disk")
     def sync_folders_untie_a_synced_its_files_stay_on_disk_delete(
         ctx: typer.Context,

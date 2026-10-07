@@ -6880,6 +6880,92 @@
         }
       }
     },
+    "/api/sync-folders/duplicates": {
+      "get": {
+        "tags": [
+          "sync-folders"
+        ],
+        "summary": "Documents holding the same file of a synced folder (a dry run: nothing changes)",
+        "description": "Each file in a synced folder that more than one document holds (as an engine restart once\ntook an Index folder's files in again, #5495): the document kept (the first made, in its\nfolder) and those the repair would send to the trash, each with the passes it carries.",
+        "operationId": "get_duplicates_api_sync_folders_duplicates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sync-folders/duplicates/remove": {
+      "post": {
+        "tags": [
+          "sync-folders"
+        ],
+        "summary": "Send duplicates of a synced folder's files to the trash (undoable)",
+        "description": "One audited, undoable action: the documents named, each one the dry run lists under `remove`,\ngo to the trash (nothing is deleted for good). Refused (409) in words if any is a kept document\nor no longer a duplicate; then nothing is removed.",
+        "operationId": "remove_duplicates_api_sync_folders_duplicates_remove_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveDuplicatesParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovedDuplicates"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sync-folders/{folder_id}/intake": {
       "get": {
         "tags": [
@@ -56244,6 +56330,88 @@
         "title": "DownloadStartedResponse",
         "description": "Confirmation that a model download has been queued."
       },
+      "DuplicateDocument": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "passes": {
+            "type": "integer",
+            "title": "Passes",
+            "description": "passes the document carries (work a removal would take to the trash)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "passes"
+        ],
+        "title": "DuplicateDocument",
+        "description": "One document holding a file that another document of the project holds too."
+      },
+      "DuplicateGroup": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "the file, on the engine's disk"
+          },
+          "keep": {
+            "$ref": "#/components/schemas/DuplicateDocument",
+            "description": "the document kept: the first made, in its folder"
+          },
+          "remove": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateDocument"
+            },
+            "type": "array",
+            "title": "Remove",
+            "description": "the documents the repair would send to the trash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "keep",
+          "remove"
+        ],
+        "title": "DuplicateGroup",
+        "description": "One file in a synced folder held by more than one document (#5495)."
+      },
+      "DuplicateReport": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          }
+        },
+        "type": "object",
+        "required": [
+          "groups"
+        ],
+        "title": "DuplicateReport",
+        "description": "The dry run of the duplicate repair: nothing is changed by asking."
+      },
       "EdgeDef": {
         "properties": {
           "id": {
@@ -74742,6 +74910,41 @@
         },
         "type": "object",
         "title": "RemoveBackgroundOperationRequest"
+      },
+      "RemoveDuplicatesParams": {
+        "properties": {
+          "document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Document Ids",
+            "description": "documents to send to the trash, each one the dry run lists under `remove`"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_ids"
+        ],
+        "title": "RemoveDuplicatesParams"
+      },
+      "RemovedDuplicates": {
+        "properties": {
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Removed",
+            "description": "documents sent to the trash (with anything under them)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "removed"
+        ],
+        "title": "RemovedDuplicates"
       },
       "RenameFolderRequest": {
         "properties": {

@@ -60,6 +60,14 @@ document's file went missing) and the project follows it (`follow_hand_moves`): 
 the new place, the document moves to the project folder of the same name (made if missing) and
 takes the file's new name, and it is marked as placed by hand.
 
+A file that is already a document's own file (live or in the trash) never arrives, whatever way the
+folder is kept: an Index import links its files but records rows only for the layout files it read,
+and before #5495 each start of the engine took every one of them in again at the project's root.
+A file that does arrive lands in the project folder of the folder it was put in (the one importing
+the folder made, then its subfolders by name). Documents duplicated by that defect are found by
+`duplicates` (the dry run: the same file held by two documents) and sent to the trash by the
+audited, undoable `sync.remove_duplicates`, only those the dry run lists, never automatically.
+
 Not built yet: running a subfolder's own recipe on what lands in it, settling a conflict, adopting
 a TEI file spanning several images, restricted material, Rebuild Folder, and a folder of part of a
 project. Keep arranged by date or by a written rule (spec open question 10), and moving a layout
@@ -599,6 +607,52 @@ def rescan(db: Any) -> None:
             elif _sha(path.read_bytes()) != sha:
                 db.execute("UPDATE sync_files SET state = 'changed-outside' WHERE folder_id = ? AND rel_path = ?",
                            [folder["id"], rel])
+
+
+def duplicates(db: Any) -> list[dict[str, Any]]:
+    """The dry run of the duplicate repair (#5495): each file in a tied folder that more than one live
+    document holds, the one kept (the first made: the one the folder's import put in its place)
+    and the ones the repair would send to the trash, each with how many passes it carries. Changes
+    nothing."""
+    from fichero_server.models import Document
+    from fichero_server.models.segments import SegmentPass
+
+    def summary(doc: Any) -> dict[str, Any]:
+        return {"id": doc.id, "name": doc.name, "parent_id": doc.parent_id, "created_at": doc.created_at,
+                "passes": len(db.query(SegmentPass, document_id=doc.id))}
+
+    groups, seen = [], set()
+    for folder in _folders(db):
+        root = Path(folder["path"])
+        by_file: dict[str, list[str]] = {}
+        for doc_id, rel in _documents_in(db, root):
+            by_file.setdefault(os.path.realpath(root / rel), []).append(doc_id)
+        for path, ids in sorted(by_file.items()):
+            if len(ids) < 2 or path in seen:
+                continue
+            seen.add(path)
+            docs = sorted((db.get(Document, i) for i in ids), key=lambda d: (d.created_at, d.id))
+            groups.append({"path": path, "keep": summary(docs[0]), "remove": [summary(d) for d in docs[1:]]})
+    return groups
+
+
+def remove_duplicates(db: Any, document_ids: list[str], actor: str) -> tuple[list[str], list[dict[str, Any]]]:
+    """Send these duplicates to the trash: each must be one the dry run lists to remove now (never a
+    kept one; refused otherwise, and then nothing is removed). Returns the ids removed and their
+    snapshots, for undo."""
+    from fichero_server.api.routes.document.documents import delete_document_impl
+
+    removable = {d["id"] for group in duplicates(db) for d in group["remove"]}
+    refused = [i for i in document_ids if i not in removable]
+    if refused:
+        raise ValueError(f"Not a duplicate the repair would remove now (a kept document, or no longer a "
+                         f"duplicate): {', '.join(refused)}. Nothing was removed.")
+    removed, snapshots = [], []
+    for doc_id in dict.fromkeys(document_ids):
+        ids, snaps = delete_document_impl(db, doc_id, actor=actor)
+        removed.extend(ids)
+        snapshots.extend(snaps)
+    return removed, snapshots
 
 
 def status(db: Any) -> list[dict[str, Any]]:

@@ -759,7 +759,18 @@ longer written. A folder imported with `mode: index` is adopted: kept in its own
 back in place. With intake on, the folder is watched while the engine runs: a file of Fichero's
 renamed or moved is matched by the lasting id it carries; new images, with any layout file beside
 them, come in through the same import a drop of files takes (listed under `taken_in`); any other
-file is listed under `not_read_back`. The preview counts new images under `images`.
+file is listed under `not_read_back`. The preview counts new images under `images`. A file that is
+already a document's own file (live or in the trash) never comes in again, so a restart takes in
+nothing the project holds; a new file lands in the project folder of the folder it was put in (#5495).
+
+`GET /api/sync-folders/duplicates` is the dry run of the duplicate repair (#5495): each file of a
+synced folder held by more than one live document (`path`), the document kept (`keep`: the first
+made, in its folder) and those that would go (`remove`), each with `id`, `name`, `parent_id`,
+`created_at` and `passes`; nothing changes. `POST /api/sync-folders/duplicates/remove` with
+`{"document_ids": [...]}` runs the audited, undoable `sync.remove_duplicates`: each named document,
+which must be one the dry run lists under `remove`, goes to the trash with anything under it, and
+`removed` lists them. A kept document, or one no longer a duplicate, is refused (409) in words and
+nothing is removed. Undoing the audit row restores them.
 
 A folder is kept as `index` (the default: files stay where they are) or `keep-arranged` (#5480,
 `specs/source/models-chains-and-projects.md` section 7b): `POST /api/sync-folders` takes `mode`,

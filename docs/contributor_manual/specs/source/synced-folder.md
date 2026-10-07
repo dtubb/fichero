@@ -116,7 +116,9 @@ never assumes it can see the same disk.
   written again on the next change to its source or on **Rebuild Folder**.
 - **After downtime.** Watchers miss events while the engine is off, so on start the folder is
   compared with the checksums Fichero recorded, and anything changed, added or removed meanwhile is
-  handled as though it had been seen live.
+  handled as though it had been seen live. A file the project already holds as a document's own
+  file never comes in again (#5495), and a new one lands in the project folder of the folder it
+  was put in.
 
 ### Conflicts are shown, not settled silently
 
@@ -193,7 +195,7 @@ In
   for each project and shows what it will bring in (counts by kind) before its first run.
 - `source.sync.one-import-path` — **[OK]** (#4952) *Built: files arriving in a folder with intake on are imported as one set through `import_file_set`, the path a drop of files takes (`POST /api/ingest/files`), so a layout file beside its image becomes its pass (`fichero-server/tests/unit/jobs/test_synced_folder_arrivals.py`).* files arriving through the synced folder go
   through the same import path as any other import.
-- `source.sync.new-images-come-in` — **[PARTIAL]** (#4952) *Built: with intake on, the folder is watched while the engine runs, and an image put in it becomes a source, linked where it was put, with the project's automatic work as any import has it; the recipe of the subfolder it lands in is not built (`fichero-server/tests/unit/jobs/test_synced_folder_arrivals.py`).* images added to the folder become sources and
+- `source.sync.new-images-come-in` — **[PARTIAL]** (#4952, #5495) *Built: with intake on, the folder is watched while the engine runs, and an image put in it becomes a source, linked where it was put, with the project's automatic work as any import has it. Built 2026-10-07 (#5495): it lands in the project folder of the folder it was put in (the one importing the folder made, then its subfolders by name, made where missing), not at the project's root; a made folder, which no project folder came from, still lands its arrivals where any import does. The recipe of the subfolder it lands in is not built (`fichero-server/tests/unit/jobs/test_synced_folder_arrivals.py`, `fichero-server/tests/unit/jobs/test_synced_folder_restart.py`).* images added to the folder become sources and
   run the recipe of the folder they land in.
 - `source.sync.read-back-formats` — **[PARTIAL]** (#4952) *Built: a file that arrives in another format is listed (`not_read_back`) and not taken in; a synced folder writes no out-only format yet, so "the next rewrite asks first" has nothing to ask about (`fichero-server/tests/unit/jobs/test_synced_folder_arrivals.py`).* only files in a format Fichero can import
   (PAGE, ALTO, TEI) are read back; a change to any other file is listed as "changed outside; not
@@ -207,9 +209,12 @@ In
 - `source.sync.deleted-outside` — **[PARTIAL]** (#4952) *Built: a deleted file deletes nothing, is listed, and is written again on the next change to its source; Rebuild Folder is not built (`fichero-server/tests/unit/jobs/test_synced_folder_intake.py`).* a file deleted in the folder deletes nothing in
   the project; it is listed, and written again on the next change to its source or on Rebuild
   Folder.
-- `source.sync.rescan-after-downtime` — **[PARTIAL]** (#4952) *Built: on library open, files changed or deleted while the engine was off are found and reported; with intake on they are handled as though seen live (an edit comes in as a pass); files added meanwhile are not taken in (`fichero-server/tests/unit/jobs/test_synced_folder.py`, `fichero-server/tests/unit/jobs/test_synced_folder_intake.py`).* on engine start the folder is compared
+- `source.sync.rescan-after-downtime` — **[OK]** (#4952, #5495) *Built: on library open, files changed or deleted while the engine was off are found and reported; with intake on they are handled as though seen live (an edit comes in as a pass). Fixed 2026-10-07 (#5495): a file that is already a document's own file (live, or in the trash) is never taken in again, however the folder is kept; before, an Index folder records rows only for the layout files it read, so every restart took each of its files in again as a new document at the project's root. A file added while the engine was off comes in once, in its folder (`fichero-server/tests/unit/jobs/test_synced_folder.py`, `fichero-server/tests/unit/jobs/test_synced_folder_intake.py`, `fichero-server/tests/unit/jobs/test_synced_folder_restart.py`).* on engine start the folder is compared
   with the recorded checksums, and changes made while the engine was off are handled as though
-  seen live.
+  seen live; nothing the project already holds comes in again.
+- `source.sync.duplicates-repair` — **[OK]** (#5495) *Built 2026-10-07: `GET /api/sync-folders/duplicates` is the dry run (each file of a synced folder held by more than one live document: the one kept, the first made, in its folder, and the ones that would go, each with its passes); `POST /api/sync-folders/duplicates/remove` is the audited, undoable `sync.remove_duplicates`, which sends to the trash only documents the dry run lists to remove (a kept one, or one no longer a duplicate, is refused with 409 and nothing moves); undo restores them (`fichero-server/tests/unit/jobs/test_synced_folder_restart.py`). Not built: the app's view of it, and the CLI and MCP verbs.* documents a
+  defect duplicated (the same file, two documents) can be found and removed by a person, after a
+  dry run that says what would go; nothing is removed automatically, and the removal is undoable.
 
 Ownership and layout
 - `source.sync.never-overwrites-a-stranger` — **[OK]** (#4952) *Built: a file Fichero did not write, or one changed since, is left and reported (`fichero-server/tests/unit/jobs/test_synced_folder.py`).* Fichero overwrites only files it
