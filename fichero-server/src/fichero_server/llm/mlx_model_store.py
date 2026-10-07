@@ -230,6 +230,23 @@ TRAINED_REVISION = "trained"
 TRAINED_CARD = "fichero-card.json"
 
 
+def run_model_choice(provider: str | None, model: str | None) -> tuple[str | None, str | None]:
+    """A run's provider/model choice with a trained model's id kept whole (#5567).
+
+    A trained model's id has a slash in it (`fichero-trained/<name>`), so a client that splits
+    `--model fichero-trained/<name>` on its first slash sends provider `fichero-trained`, which no
+    provider is. The id the app shows is accepted as it is: the provider is the local MLX server
+    (`omlx`) and the model the whole id. Any other choice is returned unchanged.
+    """
+    provider_text = (provider or "").strip()
+    model_text = (model or "").strip()
+    if provider_text == TRAINED_ORG and model_text:
+        return "omlx", f"{TRAINED_ORG}/{model_text}"
+    if not provider_text and model_text.startswith(f"{TRAINED_ORG}/"):
+        return "omlx", model_text
+    return provider, model
+
+
 def trained_base_spec(card: dict[str, Any]) -> ManagedModelSpec | None:
     """The catalogue model a trained model was trained from, by its card's `base`: the same
     repository, or the catalogue's MLX conversion of it (`Qwen/Qwen2.5-VL-3B-Instruct` is the

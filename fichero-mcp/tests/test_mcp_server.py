@@ -175,6 +175,41 @@ def test_page_import_posts_the_file_and_hands_back_what_landed(monkeypatch, tmp_
     assert out["pass_id"] == "p9"
 
 
+def test_use_library_takes_a_project_name_as_the_sidebar_shows_it(monkeypatch):
+    """#5567: an operator had to find the .fichero path; the name a person sees is enough. The
+    engine resolves it, and the session then sends that project's path with every call."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path == "/api/registry/resolve":
+            return httpx.Response(200, json={"path": "/Users/x/Istmina Full.fichero", "name": "Istmina Full"})
+        return httpx.Response(200, json=[])
+
+    seen: list[httpx.Request] = []
+    with _mock_client(monkeypatch, handler=handler):
+        out = mcp_server.fichero_use_library("Istmina Full")
+    assert out == {"library_path": "/Users/x/Istmina Full.fichero", "status": "selected"}
+    assert dict(seen[0].url.params) == {"name": "Istmina Full"}
+    assert seen[1].url.path == "/api/documents"
+    assert mcp_server._CONFIG["library_path"] == "/Users/x/Istmina Full.fichero"
+
+
+def test_use_library_refuses_an_unknown_name_with_the_engine_s_sentence(monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"detail": "No known project is called 'Istmina'. Known: ['Istmina Full']"})
+
+    with _mock_client(monkeypatch, handler=handler):
+        with pytest.raises(Exception, match="Istmina Full"):
+            mcp_server.fichero_use_library("Istmina")
+    assert mcp_server._CONFIG["library_path"] is None
+
+
+def test_use_library_still_takes_a_path_without_asking_the_registry(monkeypatch):
+    with _mock_client(monkeypatch, body=[]) as seen:
+        mcp_server.fichero_use_library("/tmp/Lib.fichero")
+    assert [r.url.path for r in seen] == ["/api/documents"]
+
+
 # -- error propagation -----------------------------------------------------
 def test_backend_error_propagates_not_swallowed(monkeypatch):
     """A non-2xx response must raise, not return a silent {"error": ...} dict."""

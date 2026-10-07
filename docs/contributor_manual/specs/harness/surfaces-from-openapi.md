@@ -57,9 +57,32 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   `fichero-mcp/tests/test_mcp_generated.py` and, against the real routes,
   `fichero-server/tests/unit/mcp/test_generated_mcp_tools_reach_the_engine.py`.
 - `openapi.mcp.toolsets-by-tag` **[OK]** (#5453) the MCP server starts with `--toolsets`, a list of
-  OpenAPI tags, and lists only those tags' tools. The default is the recipe golden path: recipes,
-  training, segments, documents, activity, local-models and hpc. `--toolsets all` lists every tool.
+  OpenAPI tags, and lists only those tags' tools. The default is the recipe golden path (recipes,
+  training, check, segments, documents, activity, local-models and hpc) plus what organising a
+  project needs (#5568): canvas and classifications. `--toolsets all` lists every tool.
   An unknown tag is refused, naming the known ones. Pinned by `fichero-mcp/tests/test_mcp_generated.py`.
+- `openapi.mcp.pictures-are-images` **[OK]** (#5568) a generated tool for a GET that answers a picture
+  (a 200 offering `image/*`: a folder's canvas, a segment, a thumbnail, a run's diagram) returns MCP
+  image content, so the agent sees the picture rather than a count of bytes; an answer that is not a
+  picture is returned parsed, and a refusal is the same typed error. Built: the generator emits
+  `_rt.image` for those routes (`generate_openapi_mcp.py`'s `image_routes`), which fetches the bytes
+  with `FicheroClient.get_bytes`. Pinned by `test_a_picture_route_answers_the_agent_with_an_image` in
+  `fichero-mcp/tests/test_mcp_generated.py`.
+- `openapi.mcp.organise-a-project` **[OK]** (#5568) an agent organises a project through the default
+  MCP surface as a historian does in the app: it groups pages into a document in their order
+  (`fichero_documents_create_group`, `_reorder`, `_move`; `_ungroup` undoes it), gives the document
+  a prototype (`fichero_classifications_list_values` / `_create_value` with `attributes`,
+  `fichero_documents_assign_prototype`) and attribute values (`fichero_documents_update` with
+  `attributes`; `_get_effective_attributes` reads them resolved), lays the folder's board out
+  (`fichero_canvas_get_folder_layout`, `_save_folder_layout`, `_arrange_folder_layout`), labels it
+  (`fichero_canvas_create_folder_item` and its update, delete and list), and LOOKS at it:
+  `fichero_canvas_get_folder_picture` returns the board as one PNG, drawn by the engine from the
+  saved layout and the stored thumbnails (`GET /api/canvas/folders/{id}/canvas-picture`: cards at
+  their saved centres labelled with name and id, groups outlined with their member count, notes as
+  yellow boxes, unplaced pages in a strip below, longest side bounded). Every tool is the route's
+  generated tool; the picture is the one new route. Pinned end to end through the MCP protocol
+  against the real routes by `fichero-server/tests/unit/mcp/test_mcp_organises_a_project.py`, and
+  the picture's pixels by `fichero-server/tests/unit/api/test_canvas_picture.py`.
 - `openapi.mcp.current-with-the-contract` **[OK]** (#5453) a guard regenerates the MCP module and fails
   if it differs from the committed one, as the CLI's does. A route added without regenerating
   fails the gate. Built: `scripts/check_mcp_generated_current.py` (run by
@@ -73,7 +96,8 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   names one covered route and is not in `KEPT_SINGLE_ROUTE`. Still partial: four stay on one route
   each for what the route does not do (`fichero_docs_list` and `fichero_workflow_list` answer lean
   summaries the routes have no view for; `fichero_page_import` sends the YOLO dataset file found
-  beside the labels; `fichero_use_library` sets the session's library), and `OPERATOR_ALIASES`
+  beside the labels; `fichero_use_library` sets the session's library, by its path or by the name
+  the sidebar shows, #5567), and `OPERATOR_ALIASES`
   keeps the old tool names an agent configuration still calls, pointing at the generated tools.
 - `openapi.mcp.mutations-act-as-the-agent` **[OK]** (#5453) a generated tool that changes data
   calls as the agent account (`_agent_client` in `fichero-mcp/src/fichero_mcp/server.py`), so the
@@ -91,6 +115,17 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
 
 - `openapi.cli.one-command-per-operation` **[OK]** `generate_openapi_cli.py` writes one command per
   operation, pinned by the `test_cli_generated_*` integration tests.
+- `openapi.cli.operator-rough-edges` **[OK]** (#5567) what an operator found running reads through the
+  CLI. A trained model's id is accepted as the app shows it: `--model fichero-trained/<name>` (or
+  the whole id with no provider) runs on the local MLX server with the whole id, because the engine's
+  execute request keeps a split trained id whole (`run_model_choice`), whichever client split it.
+  `workflow run <workflow> <doc>...` runs ONE run over several pages, as the Run menu runs a
+  selection. A project is opened by the name the sidebar shows as well as by its path: `--library`,
+  `library open` and MCP `fichero_use_library` resolve a name through `GET /api/registry/resolve`
+  (404 naming the known projects; 409 naming the paths when two share the name). Pinned by
+  `fichero-server/tests/unit/api/test_run_model_trained_id.py`,
+  `fichero-server/tests/unit/api/test_resolve_project_by_name.py`,
+  `fichero-server/tests/unit/cli/test_cli_commands.py` and `fichero-mcp/tests/test_mcp_server.py`.
 
 ### C. Driving the app: AppleScript and App Intents
 

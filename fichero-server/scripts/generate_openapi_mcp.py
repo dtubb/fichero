@@ -22,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from openapi_operations import (  # noqa: E402
+    OPENAPI,
     ROOT,
     Operation,
     RequestField,
@@ -43,6 +44,21 @@ _PY_TYPES = {
 }
 #: Names a generated function body uses itself, so a parameter may not take them.
 _RESERVED = {"Annotated", "Any", "Field", "Optional", "GeneratedTool"}
+
+
+def image_routes() -> set[tuple[str, str]]:
+    """``(METHOD, path)`` of every GET whose answer is a picture (a 200 offering ``image/*``).
+
+    Its tool returns MCP image content, so an agent SEES the picture (a folder's canvas, a
+    segment, a thumbnail) instead of being told how many bytes it was (#5568).
+    """
+    schema = json.loads(OPENAPI.read_text())
+    return {
+        ("GET", path)
+        for path, methods in schema.get("paths", {}).items()
+        if any(kind.startswith("image/") for kind in
+               (methods.get("get", {}).get("responses", {}).get("200", {}).get("content") or {}))
+    }
 
 
 def operations() -> list[Operation]:
@@ -102,7 +118,7 @@ def _docstring(op: Operation) -> str:
     return "\n\n".join(parts)
 
 
-def _emit_tool(op: Operation, name: str) -> list[str]:
+def _emit_tool(op: Operation, name: str, images: set[tuple[str, str]] = frozenset()) -> list[str]:
     used = set(_RESERVED)
     params: list[str] = []
     path_vars: dict[str, str] = {}
@@ -154,7 +170,8 @@ def _emit_tool(op: Operation, name: str) -> list[str]:
         args.append(f"json={body_var}")
     elif op.request_kind == "multipart":
         args.append(f"files=_rt.multipart({fields_var}, {uploads_var})")
-    lines.append(f"    return _rt.call({', '.join(args)})")
+    runtime = "image" if (op.method, op.path) in images else "call"
+    lines.append(f"    return _rt.{runtime}({', '.join(args)})")
     return lines
 
 
@@ -162,6 +179,7 @@ def render() -> str:
     """The generated module's full text."""
     seen: set[str] = set()
     named = [(tool_name(op, seen), op) for op in operations()]
+    images = image_routes()
     lines = [
         '"""Auto-generated MCP tools: one per operation in the engine\'s OpenAPI contract (#5453).',
         "",
@@ -179,7 +197,7 @@ def render() -> str:
     ]
     for name, op in named:
         lines.extend(["", ""])
-        lines.extend(_emit_tool(op, name))
+        lines.extend(_emit_tool(op, name, images))
     lines.extend(["", "", "TOOLS: tuple[GeneratedTool, ...] = ("])
     for name, op in named:
         lines.append(

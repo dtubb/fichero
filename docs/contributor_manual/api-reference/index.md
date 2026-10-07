@@ -313,6 +313,41 @@ them.
 - Audited as the `library.release` action. CLI: `fichero registry
   release-library --path …`; MCP: `fichero_library_release`.
 
+`GET /api/registry/resolve?name=…`
+
+- Purpose: find a known project by its name as the sidebar shows it (#5567),
+  so a client opens a project by the name a person sees rather than its
+  `.fichero` path. A registered path matches first; then the shown name (the
+  registered `name`, else the package name without `.fichero`), ignoring case.
+- Response: `200` `KnownLibrary` (its `path` is what the library header takes).
+- Refusals: `404` naming the known projects; `409` when two projects share the
+  name, naming their paths.
+- A read of the global registry. CLI: `--library <name>` and `library open
+  <name>` resolve through it; MCP: `fichero_use_library("<name>")`, and the
+  generated `fichero_library_resolve_known`.
+
+### A folder's canvas as a picture
+
+`GET /api/canvas/folders/{folder_id}/canvas-picture?max_size=1600`
+
+- Purpose: let an agent LOOK at a folder's 2D board while it organises a
+  project (#5568): lay out, look, adjust, without screen control.
+- Response: `200` `image/png`, drawn from the saved layout
+  (`GET …/canvas-layout`) and the stored thumbnails. Each card sits at its
+  saved centre (`w`/`h` if saved, else 120 x 150), shows its cached thumbnail
+  (a grey card when none is made yet; nothing is generated), and is labelled
+  with its name and the first 8 characters of its id. A group is outlined in
+  blue with its member count and shows its first member; canvas items (notes,
+  text) are yellow boxes with their text; links are lines. Children of the
+  folder with no saved position are drawn in a "not placed" strip below, in
+  folder order (at most 400 drawn, the rest counted).
+- `max_size` (256 to 4096, default 1600) bounds the longest side; out of range
+  is `422`.
+- A read under the library's read access; nothing is changed. MCP: the
+  generated `fichero_canvas_get_folder_picture` returns MCP image content (every
+  GET answering `image/*` does, #5568); CLI: `fichero canvas
+  get-folder-picture`.
+
 ### Reversible image regions and batches
 
 All routes below preserve the source document. Crop and split create derived

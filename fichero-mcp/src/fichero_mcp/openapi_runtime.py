@@ -74,6 +74,41 @@ def call(method: str, path: str, *, params: dict | None = None, json: Any = None
         raise EngineError(exc.status_code, _detail(exc), f"{method} {path}") from exc
 
 
+_IMAGE_SIGNATURES = (
+    (b"\x89PNG\r\n\x1a\n", "png"),
+    (b"\xff\xd8\xff", "jpeg"),
+    (b"GIF8", "gif"),
+)
+
+
+def image(method: str, path: str, *, params: dict | None = None) -> Any:
+    """GET a picture and return it as MCP image content, so the agent sees it (#5568).
+
+    The generator emits this for a GET whose answer is ``image/*`` (a folder's canvas, a segment,
+    a thumbnail). An answer that is not a picture (some of these routes answer JSON instead) is
+    returned parsed; a refusal raises :class:`EngineError` as :func:`call` does.
+    """
+    from mcp.server.fastmcp import Image
+
+    factory = _CLIENTS["read"]
+    if factory is None:
+        raise RuntimeError("fichero_mcp.openapi_runtime.configure() was never called")
+    try:
+        with factory() as client:
+            data = client.get_bytes(path, params=params)
+    except FicheroError as exc:
+        raise EngineError(exc.status_code, _detail(exc), f"{method} {path}") from exc
+    for signature, kind in _IMAGE_SIGNATURES:
+        if data.startswith(signature):
+            return Image(data=data, format=kind)
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return Image(data=data, format="webp")
+    try:
+        return json.loads(data)
+    except ValueError:
+        return {"content_type": "application/octet-stream", "bytes": len(data)}
+
+
 def body(values: dict[str, Any]) -> dict[str, Any] | None:
     """A JSON body from a tool's arguments: the fields the caller set, or no body at all."""
     payload = {key: value for key, value in values.items() if value is not None}

@@ -2319,6 +2319,21 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("get-folder-picture")
+    def canvas_get_folder_picture_get(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        max_size: Optional[int] = typer.Option(None, "--max-size", help="Query parameter: max_size."),
+    ) -> None:
+        """Get Folder Canvas Picture (GET /api/canvas/folders/{folder_id}/canvas-picture)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/canvas/folders/{folder_id}/canvas-picture"
+            params = {
+                "max_size": max_size,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('chains')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for chains endpoints.', no_args_is_help=True)
@@ -12851,6 +12866,20 @@ def register_generated_openapi_commands(
                 "path": {'type': 'string', 'title': 'Path', 'description': 'Absolute path to the .fichero package to release.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("resolve-known-library")
+    def registry_resolve_known_library_get(
+        ctx: typer.Context,
+        name: str = typer.Option(..., "--name", help="Query parameter: name."),
+    ) -> None:
+        """Resolve Known Library (GET /api/registry/resolve)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/registry/resolve"
+            params = {
+                "name": name,
+            }
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-unicode-library-collisions")

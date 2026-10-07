@@ -92,14 +92,51 @@ def test_a_tool_is_named_from_its_tag_and_its_handler():
 def test_each_generated_tool_is_one_engine_call_and_nothing_else():
     """WHY: a generated tool that held logic would be a second implementation beside the route,
     exactly what the generator exists to prevent. Every body is a docstring and one
-    `_rt.call(...)`."""
+    `_rt.call(...)`, or `_rt.image(...)` for a GET that answers a picture (#5568)."""
     tree = ast.parse(Path(generated.__file__).read_text())
     functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
     assert len(functions) == len(generated.TOOLS)
+    images = generator.image_routes()
+    by_name = {tool.name: tool for tool in generated.TOOLS}
     for fn in functions:
         doc, ret = fn.body
         assert isinstance(doc, ast.Expr) and isinstance(doc.value, ast.Constant), fn.name
-        assert isinstance(ret, ast.Return) and ast.unparse(ret.value.func) == "_rt.call", fn.name
+        tool = by_name[fn.name]
+        expected = "_rt.image" if (tool.method, tool.path) in images else "_rt.call"
+        assert isinstance(ret, ast.Return) and ast.unparse(ret.value.func) == expected, fn.name
+    assert ("GET", "/api/canvas/folders/{folder_id}/canvas-picture") in images
+
+
+def test_a_picture_route_answers_the_agent_with_an_image(monkeypatch):
+    """WHY (openapi.mcp.pictures-are-images, #5568): an agent organising a board must SEE it. A route answering image/png reaches the
+    agent as MCP image content, not as a count of bytes; a refusal is still a typed error."""
+    import base64
+    import io
+
+    from PIL import Image as PILImage
+
+    buffer = io.BytesIO()
+    PILImage.new("RGB", (4, 3), (200, 0, 0)).save(buffer, format="PNG")
+    png = buffer.getvalue()
+    seen: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path.endswith("/missing/canvas-picture"):
+            return httpx.Response(404, json={"detail": "no such folder"})
+        return httpx.Response(200, content=png, headers={"content-type": "image/png"})
+
+    monkeypatch.setattr(mcp_server, "_client", _transport_client(answer))
+    server = FastMCP("probe")
+    server.add_tool(generated.fichero_canvas_get_folder_picture, name="fichero_canvas_get_folder_picture")
+    result = asyncio.run(server.call_tool("fichero_canvas_get_folder_picture", {"folder_id": "f1", "max_size": 800}))
+    (block,) = result[0] if isinstance(result, tuple) else result
+    assert block.type == "image" and block.mimeType == "image/png"
+    assert base64.b64decode(block.data) == png
+    assert seen[0].url.path == "/api/canvas/folders/f1/canvas-picture"
+    assert seen[0].url.params["max_size"] == "800"
+    with pytest.raises(Exception, match="no such folder"):
+        asyncio.run(server.call_tool("fichero_canvas_get_folder_picture", {"folder_id": "missing"}))
 
 
 def test_description_and_parameter_docs_come_from_the_route():
@@ -150,6 +187,7 @@ def test_the_default_is_the_recipe_golden_path_and_all_is_every_tag():
     """WHY: with no flag the server is the recipe golden path the spec names; `all` is every tag."""
     assert mcp_server.DEFAULT_TOOLSETS == (
         "recipes", "training", "check", "segments", "documents", "activity", "local-models", "hpc",
+        "canvas", "classifications",
     )
     assert set(mcp_server.DEFAULT_TOOLSETS) <= set(generated.TAGS), "a default toolset is not a real tag"
     assert mcp_server.parse_toolsets("all") == (*generated.TAGS, "ui"), "every tag, and the app's UI verbs"

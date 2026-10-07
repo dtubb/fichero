@@ -259,7 +259,7 @@ def _configure(
         "--library",
         "-l",
         envvar="FICHERO_LIBRARY_PATH",
-        help="Path to the .fichero library package.",
+        help="The project: its .fichero package path, or its name as the sidebar shows it.",
     ),
     base_url: Optional[str] = typer.Option(
         None,
@@ -292,8 +292,29 @@ def _configure(
     }
 
 
+def _is_project_name(value: str) -> bool:
+    """A project's name as the sidebar shows it, not a path to its .fichero package (#5567)."""
+    text = value.strip()
+    return bool(text) and "/" not in text and not text.startswith("~") and not text.lower().endswith(".fichero")
+
+
+def _project_path(opts: dict, value: str) -> str:
+    """`value` as given when it is a path; a project's shown name resolved by the engine (#5567)."""
+    if not _is_project_name(value):
+        return value
+    kwargs: dict[str, Any] = {"base_url": opts["base_url"], "library_path": "", "token": opts["token"],
+                              "client_name": "fichero-cli"}
+    if opts.get("as_user"):
+        kwargs["as_user"] = opts["as_user"]
+    with FicheroClient(**kwargs) as client:
+        return str(client.request("GET", "/api/registry/resolve", params={"name": value.strip()})["path"])
+
+
 def _client(ctx: typer.Context) -> FicheroClient:
     opts = ctx.obj
+    if opts.get("library") and _is_project_name(opts["library"]):
+        # Resolved once per command: `--library "Istmina Full"` names the project the sidebar shows.
+        opts["library"] = _project_path(opts, opts["library"])
     kwargs = {
         "base_url": opts["base_url"],
         "library_path": opts["library"],
@@ -2491,7 +2512,9 @@ def _merge_terminal_payload(
 def workflow_run(
     ctx: typer.Context,
     name: str = typer.Argument(..., help="Workflow name or ID."),
-    doc_id: str = typer.Argument(..., help="Document ID to run the workflow on."),
+    doc_ids: list[str] = typer.Argument(
+        ..., help="The documents (pages) to run it on: one ID or several, as the Run menu runs a selection.",
+    ),
     wait: bool = typer.Option(
         False, "--wait", help="Poll until the run completes or fails."
     ),
@@ -2503,10 +2526,11 @@ def workflow_run(
     model: Optional[str] = typer.Option(
         None, "--model",
         help="Run its AI steps with this model, as provider/model (e.g. omlx/Qwen2.5-VL-3B, "
-        "openrouter/google/gemini-3-flash-preview): the same choice as the app's Run menu.",
+        "openrouter/google/gemini-3-flash-preview), or a trained model's id as the app shows it "
+        "(fichero-trained/<name>): the same choice as the app's Run menu.",
     ),
 ) -> None:
-    """Run a workflow on a document."""
+    """Run a workflow on one document or several (one run over the selection, as the Run menu does)."""
     provider_override = model_override = None
     if model:
         provider_override, _, model_override = model.partition("/")
@@ -2523,7 +2547,7 @@ def workflow_run(
             # CLI runs don't have. `selected_doc_ids` is the Priority 2 path
             # the Files-source node reads from state.
             result = client.run_workflow(
-                workflow_id, {"selected_doc_ids": [doc_id]},
+                workflow_id, {"selected_doc_ids": list(dict.fromkeys(doc_ids))},
                 provider_override=provider_override, model_override=model_override,
             )
             # run_workflow now returns a typed ExecuteAcceptedResponse; the
@@ -3154,7 +3178,7 @@ def library_open(
     ctx: typer.Context,
     path: str = typer.Argument(
         ...,
-        help="Path to the library to activate.",
+        help="The project to activate: its .fichero path, or its name as the sidebar shows it.",
     ),
 ) -> None:
     """Mark library as active (updates last_accessed).
@@ -3162,9 +3186,9 @@ def library_open(
     For future: CLI will use this to switch active library context.
     Output: "Activated: {path}"
     """
-    expanded = str(Path(path).expanduser())
 
     def op(c: FicheroClient) -> dict:
+        expanded = str(Path(_project_path(ctx.obj, path)).expanduser())
         c.update_library_access(expanded)
         return {"status": f"Activated: {expanded}"}
 

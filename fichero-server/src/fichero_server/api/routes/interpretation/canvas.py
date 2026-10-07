@@ -1,15 +1,20 @@
 """Canvas routes."""
 
 from fichero_server.core.timeutil import utc_now
+import asyncio
 import logging
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
+from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.canvas_picture import MAX_SIZE, MIN_SIZE, render_canvas_picture
 from fichero_server.db import Database
 from fichero_server.models import CanvasDeletedResponse, CanvasListResponse, Document
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
@@ -204,6 +209,42 @@ async def get_folder_canvas_layout(
 ) -> CanvasListResponse:
     rows = _load_canvas_layout(db, folder_id)
     return CanvasListResponse(items=rows, count=len(rows))
+
+
+@router.get(
+    "/folders/{folder_id}/canvas-picture",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}},
+            "description": "The folder's board as one PNG",
+        },
+    },
+    summary="Get Folder Canvas Picture",
+)
+async def get_folder_canvas_picture(
+    folder_id: str,
+    max_size: int = Query(1600, ge=MIN_SIZE, le=MAX_SIZE, description="Longest side of the picture, in pixels"),
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> Response:
+    """Draw the folder's board from the stored thumbnails and the saved layout, so an agent can
+    lay pages out, look, and adjust without screen control (#5568).
+
+    Each card is labelled with its name and the first 8 characters of its id; a group has a blue
+    outline and its member count; notes are yellow boxes; children with no saved position are
+    drawn in a "not placed" strip below. A read: nothing is generated or changed.
+    """
+    rows = await asyncio.to_thread(_load_canvas_layout, db, folder_id)
+    png = await asyncio.to_thread(
+        render_canvas_picture,
+        db,
+        folder_id,
+        rows,
+        package_path=Path(x_fichero_library_path),
+        max_size=max_size,
+    )
+    return Response(content=png, media_type="image/png")
 
 
 def save_canvas_layout_impl(

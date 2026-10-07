@@ -85,6 +85,16 @@ class ExecuteWorkflowRequest(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _keep_a_trained_model_id_whole(self) -> "ExecuteWorkflowRequest":
+        """`fichero-trained/<name>` split on its slash is the local model, not a provider (#5567)."""
+        from fichero_server.llm.mlx_model_store import run_model_choice  # noqa: PLC0415
+
+        self.provider_override, self.model_override = run_model_choice(
+            self.provider_override, self.model_override
+        )
+        return self
+
+    @model_validator(mode="after")
     def _reject_unread_target_keys(self) -> "ExecuteWorkflowRequest":
         """Fail loudly when doc targets ride under a key nothing reads (#4467).
 
