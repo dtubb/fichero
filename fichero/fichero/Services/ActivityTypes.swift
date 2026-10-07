@@ -338,6 +338,11 @@ struct ActivityJobNode: Identifiable, Equatable {
     let costUsd: Double?
     /// A workflow run's account (#5555); `nil` on steps, pages and other jobs.
     let account: ActivityRunAccount?
+    /// A recipe run's stages in order (#5576), those not started and not run
+    /// included; empty on any other job.
+    let stages: [ActivityRecipeStage]
+    /// What a recipe run made, once it has ended (#5577); `nil` otherwise.
+    let summary: Components.Schemas.RecipeRunSummary?
     var children: [ActivityJobNode]
 
     init(_ tree: Components.Schemas.JobTree) {
@@ -362,6 +367,8 @@ struct ActivityJobNode: Identifiable, Equatable {
         tokens = tree.tokens ?? 0
         costUsd = tree.costUsd
         account = tree.account.map(ActivityRunAccount.init)
+        stages = (tree.stages ?? []).map(ActivityRecipeStage.init)
+        summary = tree.summary
         children = (tree.children ?? []).map(ActivityJobNode.init)
     }
 
@@ -396,6 +403,8 @@ struct ActivityJobNode: Identifiable, Equatable {
         tokens = 0
         costUsd = nil
         account = nil
+        stages = []
+        summary = nil
         children = []
     }
 
@@ -429,6 +438,31 @@ struct ActivityJobNode: Identifiable, Equatable {
             }
         }
         return nil
+    }
+}
+
+/// One stage of a recipe run (#5576): the card that carries one or more of its
+/// steps, its state and why, and, for a workflow stage that has started, its
+/// run's account: the same one that run's own row shows.
+struct ActivityRecipeStage: Equatable, Identifiable {
+    let steps: [String]
+    let card: String
+    let job: String?
+    let state: String
+    let why: String?
+    let childId: String?
+    let account: ActivityRunAccount?
+
+    var id: String { steps.joined(separator: ",") }
+
+    init(_ step: Components.Schemas.RecipeRunStep) {
+        steps = step.steps
+        card = step.card
+        job = step.job
+        state = step.state
+        why = step.why
+        childId = step.childId
+        account = step.account.map(ActivityRunAccount.init)
     }
 }
 

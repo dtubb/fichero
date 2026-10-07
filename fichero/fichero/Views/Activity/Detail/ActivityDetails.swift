@@ -17,6 +17,10 @@ struct ActivityDetails: Equatable {
         case openPage(documentId: String)
         case showPages(documentIds: [String])
         case showTrace(threadId: String)
+        /// A recipe run's stage's failed pages, read again (#5577): that stage's run's offer.
+        case readStageAgain(threadId: String, label: String)
+        /// A skipped step's fix: the project's setup, whose Ready shows the plan with each fix (#5577).
+        case openSetUp
     }
 
     struct FailedPage: Equatable, Identifiable {
@@ -63,6 +67,10 @@ struct ActivityDetails: Equatable {
     let failedCount: Int
     let resources: [Resource]
     let actions: [Action]
+    /// A recipe run's stages in order (#5576); empty for any other row.
+    let stages: [Stage]
+    /// What a recipe run made, once it has ended (#5577); nil otherwise.
+    let summary: Summary?
 
     /// The job the details read and the log is keyed by.
     var jobId: String { row.detailsJobId ?? node?.id ?? row.id }
@@ -139,8 +147,9 @@ extension ActivityDetails {
         stateText = row.stateText
         machineText = row.phase == .waiting || row.stateText.hasPrefix("Waiting") ? machine?.words : nil
 
-        // Progress: a row with pages counts them; a page, or a job with no total, does not.
-        if row.kind != .page, row.total > 0 {
+        // Progress: a row with pages counts them; a page, or a job with no total, does not. A recipe run
+        // counts its pages stage by stage (`stages`), never summed across stages.
+        if row.kind != .page, row.total > 0, node?.stages.isEmpty ?? true {
             let failed = node?.failed ?? row.errors
             counts = Counts(done: row.done, failed: failed, left: max(0, row.total - row.done - failed),
                             total: row.total, timeLeft: row.remainingSeconds.map(ActivityMonitorRow.duration))
@@ -205,6 +214,8 @@ extension ActivityDetails {
             actions.append(.showTrace(threadId: threadId))
         }
         self.actions = actions
+        stages = Self.stages(of: node)
+        summary = Self.summary(of: node)
     }
 
     static let runKinds: Set<String> = ["workflow", "workflow-step", "batch"]

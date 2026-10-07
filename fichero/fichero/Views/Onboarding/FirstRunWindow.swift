@@ -18,6 +18,7 @@ struct FirstRunWindow: View {
 
     @Environment(AppState.self) var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openWindow) private var openWindow
     private let featureManager = FeatureManager.shared
     @State private var libraryManager = LibraryManager.shared
 
@@ -93,7 +94,10 @@ struct FirstRunWindow: View {
             Task {
                 isSaving = true
                 defer { isSaving = false }
-                if await RecipeReadyFields.start(store: store, keptExports: project?.keptExportStore) { finish() }
+                if await RecipeReadyFields.start(store: store, keptExports: project?.keptExportStore) {
+                    showStartedRun(store)
+                    finish()
+                }
             }
             return
         }
@@ -351,6 +355,23 @@ extension FirstRunWindow {
         // iOS: document picker / sandbox access would go here.
         documentsPermission = true
         #endif
+    }
+
+    /// Start closes setup onto the run it queued (#5576, `source.onboard.auto.lands-on-the-run`):
+    /// the Activity details of the recipe run, the one view of a run, its stages, pages done and
+    /// left, time left and what it waits for; and, when it ends, what it made (#5577).
+    private func showStartedRun(_ store: RecipeSetupStore) {
+        #if os(macOS)
+        guard let selection = Self.startedRunSelection(jobId: store.startedRunJobId, projectId: project?.id) else { return }
+        ActivityWindowSelectionState.shared.select(selection)
+        openWindow(id: ActivityWindowSelectionState.detailWindowID)
+        #endif
+    }
+
+    /// The Activity row Start lands on: the recipe run in its project; nil before the engine kept Start.
+    static func startedRunSelection(jobId: String?, projectId: UUID?) -> ActivitySelection? {
+        guard let jobId, let projectId else { return nil }
+        return ActivitySelection(jobId: jobId, libraryId: projectId)
     }
 
     /// #2718 — When the person chose a provider, finishing hands off to the

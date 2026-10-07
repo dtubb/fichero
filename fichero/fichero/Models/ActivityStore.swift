@@ -183,6 +183,12 @@ final class ActivityStore: ChangeEventConsumer {
                 for job in snapshot.jobs where runTrees[job.id] != nil && before[job.id] != job {
                     scheduleTreeRead(threadId: job.id)
                 }
+                // One that left the list has ended (done is not listed): its tree is read once more,
+                // so its details say how it ended (a recipe run's summary, #5577).
+                let listed = Set(snapshot.jobs.map(\.id))
+                for id in before.keys where runTrees[id] != nil && !listed.contains(id) {
+                    scheduleTreeRead(threadId: id)
+                }
                 backgroundJobs = snapshot.jobs
             }
             if processCpuPercent != snapshot.processCpuPercent { processCpuPercent = snapshot.processCpuPercent }
@@ -464,9 +470,12 @@ final class ActivityStore: ChangeEventConsumer {
             return
         }
         // The Activity table's row for this run (#5415): re-read ITS tree only,
-        // once the burst settles — one row updated in place, no list reload.
-        if let threadId = activity.threadId, runTrees[threadId] != nil {
-            scheduleTreeRead(threadId: threadId)
+        // once the burst settles — one row updated in place, no list reload. A
+        // run that is a stage of a recipe run (#5576) re-reads the recipe run's
+        // tree, which holds it: the stage's pages done and left follow live.
+        if let threadId = activity.threadId {
+            if runTrees[threadId] != nil { scheduleTreeRead(threadId: threadId) }
+            for key in recipeRunTrees(holdingStage: threadId) { scheduleTreeRead(threadId: key) }
         }
         // Debounced (perf audit 2026-08-19): a running workflow emits several
         // activity frames per second, and every refreshToken bump used to fan
@@ -600,6 +609,15 @@ extension ActivityStore {
             if let found = root.node(withId: jobId) { return found }
         }
         return backgroundJobs.first { $0.id == jobId }.map(ActivityJobNode.init(job:))
+    }
+
+    /// The recipe runs (#5576) whose stages include the run `threadId`: their
+    /// trees are read again when that run changes, so a stage's pages done and
+    /// left follow live in the recipe run's details.
+    func recipeRunTrees(holdingStage threadId: String) -> [String] {
+        runTrees.compactMap { key, tree in
+            tree.kind == "run-a-recipe" && tree.children.contains { $0.id == threadId } ? key : nil
+        }
     }
 
     /// The key of the tree that holds `jobId`: its run's thread id, or the

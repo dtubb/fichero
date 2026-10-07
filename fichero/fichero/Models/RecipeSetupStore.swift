@@ -292,6 +292,50 @@ final class RecipeSetupStore {
         return false
     }
 
+    /// The recipe run Start queued (`run-a-recipe`), once the engine has kept the first yes: setup
+    /// closes onto it (#5576, `source.onboard.auto.lands-on-the-run`).
+    var startedRunJobId: String? { startPlan?.started?.jobId }
+
+    // MARK: What will not run (#5573, `source.onboard.auto.plan-shows-what-will-not-run`)
+
+    /// The steps Start skips, each with the engine's why and its fix (`fix`), as the plan has them.
+    var skippedSteps: [Components.Schemas.SkippedStep] { startPlan?.skipped ?? [] }
+
+    /// The models the plan's steps need that are not on this Mac, each with its size and the download.
+    var downloads: [Components.Schemas.StartDownload] { startPlan?.downloads ?? [] }
+
+    /// The downloads asked for here, by model, while the engine fetches them (a `download-model` job).
+    private(set) var downloading: Set<String> = []
+
+    /// A skipped step by its title in the recipe ("Find names"), else by its id.
+    func title(ofStepId step: String) -> String {
+        guard let found = recipe?.steps.first(where: { $0.id == step }) else { return step }
+        return title(of: found)
+    }
+
+    /// Fetch a model the plan needs, through the one download route
+    /// (`POST /api/local-models/download/{runtime}/{model}`), then read the plan again: the step
+    /// stays refused until the download has finished, and the plan says so.
+    func download(_ download: Components.Schemas.StartDownload) async {
+        do {
+            let response = try await client.api.downloadModelApiLocalModelsDownloadModelTypeModelIdPost(
+                path: .init(modelType: download.runtime, modelId: download.model)
+            )
+            switch response {
+            case .ok:
+                downloading.insert(download.model)
+                await loadStartPlan()
+            case .unprocessableContent:
+                errorMessage = "Could not download \(download.model)."
+            case .undocumented(let code, _):
+                errorMessage = "Could not download \(download.model) (HTTP \(code))."
+            }
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not download \(download.model): \(error.localizedDescription)"
+        }
+    }
+
     // MARK: What the engine wrote on the recipe (Use This, #4951)
 
     /// The recipe's `overrides` as the engine last saved them (Use This writes them,

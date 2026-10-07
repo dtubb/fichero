@@ -159,11 +159,15 @@ struct RecipeAutomaticFields: View {
     }
 }
 
-/// What Start would cost and any step the engine refuses, by name
-/// (`source.project.automatic-after-first-yes`, `source.onboard.estimate-before-start`). The
-/// engine plans; this only shows the plan's estimate (its steps are the list above it).
+/// What Start would cost, any step the engine refuses, by name, every step Start will skip with
+/// why and its fix, and every model to fetch first with its size and Download
+/// (`source.project.automatic-after-first-yes`, `source.onboard.estimate-before-start`,
+/// `source.onboard.auto.plan-shows-what-will-not-run`, #5573). The engine plans; this only shows
+/// the plan (its steps are the list above it).
 struct RecipeStartFields: View {
     let store: RecipeSetupStore
+    /// A skipped step's fix was pressed (its `fix`: choose-model, allow-cloud).
+    var onFix: (String) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -175,6 +179,8 @@ struct RecipeStartFields: View {
                         .font(.callout)
                         .foregroundStyle(.orange)
                 }
+                RecipeDownloadRows(store: store)
+                RecipeSkippedRows(store: store, onFix: onFix)
             } else if store.recipe != nil, store.errorMessage == nil {
                 ProgressView("Planning what Start would run…").controlSize(.small)
             }
@@ -185,6 +191,65 @@ struct RecipeStartFields: View {
     static func cost(_ value: Double?) -> String {
         guard let value else { return "price unknown" }
         return value == 0 ? "free, runs on this Mac" : value.formatted(.currency(code: "USD"))
+    }
+}
+
+/// The models the plan needs that are not on this Mac (#5573): each by name, its size and the
+/// steps it serves, with Download (the one download route); Start waits until they are here.
+struct RecipeDownloadRows: View {
+    let store: RecipeSetupStore
+
+    var body: some View {
+        if !store.downloads.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("To download first").font(.subheadline.weight(.semibold))
+                ForEach(store.downloads, id: \.model) { download in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(Self.words(download, store: store)).font(.callout)
+                        Spacer()
+                        if store.downloading.contains(download.model) {
+                            Text("Downloading…").font(.callout).foregroundStyle(.secondary)
+                        } else {
+                            Button("Download") { Task { await store.download(download) } }
+                                .controlSize(.small)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// "spaCy model es_core_news_sm · 13 MB · for Find names".
+    static func words(_ download: Components.Schemas.StartDownload, store: RecipeSetupStore) -> String {
+        let runtime = download.runtime == "spacy" ? "spaCy" : download.runtime
+        let size = download.sizeMb.map { " · \($0) MB" } ?? ""
+        let steps = download.steps.map { store.title(ofStepId: $0) }.joined(separator: ", ")
+        return "\(runtime) model \(download.model)\(size) · for \(steps)"
+    }
+}
+
+/// The steps Start will skip (#5573): each by title, the engine's why, and its fix as a button
+/// when setup has one; the other steps still run.
+struct RecipeSkippedRows: View {
+    let store: RecipeSetupStore
+    let onFix: (String) -> Void
+
+    var body: some View {
+        if !store.skippedSteps.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Will not run").font(.subheadline.weight(.semibold))
+                ForEach(store.skippedSteps, id: \.step) { skipped in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(store.title(ofStepId: skipped.step)).font(.callout.weight(.medium))
+                        Text(skipped.why).font(.callout).foregroundStyle(.secondary)
+                        if let fix = skipped.fix {
+                            Button(RecipeStepRow.fixTitle(fix)) { onFix(fix) }
+                                .controlSize(.small)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -242,7 +307,7 @@ struct RecipeReadyFields: View {
         switch row {
         case .plan:
             RecipeProposalFields(store: store, onFix: onFix)
-            RecipeStartFields(store: store)
+            RecipeStartFields(store: store, onFix: onFix)
         case .runsByItself:
             RecipeAutomaticFields(store: store)
         case .checkOnYourPages:
