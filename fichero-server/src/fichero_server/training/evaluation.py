@@ -104,6 +104,23 @@ def model_evaluations(model: str, reader: str) -> list[dict[str, Any]]:
         return []
 
 
+def measured_here(db: Any, model: str, reader: str) -> float | None:
+    """The reader's CER on THIS project (#5558, the counting rule's measured score): the newest evaluation
+    on its card whose pages are this project's documents and which measured it (`judged`, the bake-off's
+    own rule), under the default policy. None when it was never measured here: a score is never invented."""
+    from fichero_server.models import Document
+    from fichero_server.workflows.transcription_accuracy import DEFAULT_POLICY_NAME
+
+    for entry in reversed(model_evaluations(model, reader)):
+        pages = [p for p in entry.get("pages") or [] if isinstance(p, str)]
+        if not pages or not db.query_in(Document, "id", pages):
+            continue
+        j = judged(entry.get("per_page") or [], len(pages))
+        if j["measured"]:
+            return j["scores"][DEFAULT_POLICY_NAME]["cer"]
+    return None
+
+
 def record_on_card(model: str, reader: str, entry: dict[str, Any]) -> None:
     """Append one evaluation to the model's card; earlier ones are kept."""
     path = card_path(model, reader)

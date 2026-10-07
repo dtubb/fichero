@@ -98,7 +98,9 @@ export writes. How it comes to be chosen is **the project's rule** (ruled 2026-0
 has, the Reader shows the newest reading and **labels it plainly as a machine's and
 unchosen**; search still finds it; an export marks it as machine-made in its loss report. In
 a *relaxed* project (a searchable archive, say) the newest reading counts, and a person's
-always outranks a machine's. Either way a machine reading is always *shown* as a machine's. Whether a reading was made by a person or a machine is set by the engine from how it
+always outranks a machine's. Among machines' readings, an older one never counts while a better one
+exists: a reading a person checked comes first, then the one whose reader measured better on this
+project, then the newest; the date only breaks ties (#5558). Either way a machine reading is always *shown* as a machine's. Whether a reading was made by a person or a machine is set by the engine from how it
 arrived, never claimed by the sender. The choice is itself recorded, with who and when, and
 changing it rewrites nothing.
 
@@ -258,6 +260,7 @@ Readings
 - `source.reading.chosen-follows-project-rule` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestRelaxedProject::test_the_newest_of_several_peoples_readings_counts`) in a strict project only a person chooses the
   reading that counts; in a relaxed project the newest counts and a person's outranks a
   machine's; a new project is strict; the choice is recorded and changing it rewrites nothing.
+- `source.reading.machine-ranked-by-measure` — **[PARTIAL]** (#5558; pinned by `tests/unit/check/test_which_reading_counts_after_the_tie.py`) *Built 2026-10-06: `resolve_counting` ranks machine readings (`readings._best_machines_first`) with what `segment_readings.ReadingMeasures` looks up where a kind has two or more machine readings: checked (the person's newest `check.verdict` on the reading is a confirm, or the reading was made from a page reading, `derived_from_artifact_id`, a person confirmed or marked reviewed, unless the reading's own newest verdict is a reject), then the reader's measured CER on this project (`evaluation.measured_here`: the newest evaluation on the model's card scored on this project's pages, the bake-off's own judgement; within one point of CER is a tie, as in the bake-off), then the newest. Only measured readers are compared; a score is never invented, and with no scores the newest counts as before. The page's text, segment lists, the PAGE export and the training set all read it through `counting_by_kind`. Not built: a cloud reader is never measured (the evaluation has no remote target yet, #5533), so between a cloud reading nobody checked and a newer measured re-read the date still decides.* among machines' readings, a checked one counts first, then the one whose reader measured better on this project, then the newest; the date only breaks ties. A person's reading still outranks every machine's.
 - `source.reading.machine-is-labelled` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestALiveHumanChoiceWinsInAnyProject::test_choosing_a_machines_reading_does_not_make_it_a_persons`) a machine's reading is always shown as a machine's,
   and in a strict project as unchosen; exports mark it machine-made.
 - `source.reading.maker-set-by-engine` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_the_maker_is_the_engines_answer_not_the_callers`) whether a person or a machine made a reading or a pass

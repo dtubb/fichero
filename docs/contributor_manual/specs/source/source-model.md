@@ -269,7 +269,7 @@ the page, (4) a loose artifact, (5) nothing kept.
 | File import (PAGE, ALTO, hOCR, TEI, plain, YOLO, IIIF) | 1 + 2, full hierarchy, letters from PAGE Glyph | TEI names do not become names | — |
 | Line finding (Kraken, Apple, VLM boxes) | 1; Kraken's lines nested in its regions (#5487, 2026-10-06), the others flat | no nesting for Apple and VLM boxes | #5489 |
 | Reading lines (Kraken reader, line reader) | 2, readings on the working pass's lines (#5487, 2026-10-06); 1 + 2 only on a page with no lines | none | — |
-| Reading a page (LLM Transcribe) | 4, page text; tied onto the lines by the `tie-text-to-lines` card (#5444, 2026-10-06) | the tie is a step a recipe names, not run after every page reading | #5444 |
+| Reading a page (LLM Transcribe) | 4, page text; tied onto the lines by the `tie-text-to-lines` job, queued after every page reading on a page with lines (#5444, #5558, 2026-10-06) | the cluster reader drops Kraken's regions; older tie passes stay | #5558 |
 | Correcting (Paleographer Review) | 4, page-level, overwrites page text | corrections never become readings on lines | #5486 |
 | Checking | 2, verdicts and corrections on segments | none: the model for the rest | — |
 | Names | 3, tied to the document only | spans discarded; no mention on a segment | #5488 |

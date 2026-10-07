@@ -18,7 +18,7 @@ from tests.unit.training.test_kraken_training_set import TEACHER, _page
 
 
 @pytest.fixture
-def two_pages(db, tmp_path):
+def two_pages(db, tmp_path, jobs_run_by_the_test):
     folder = Document(name="SM_NPQ_C01", doc_type=DocType.folder)
     db.save(folder)
     pages = [_page(db, tmp_path, f"SM_NPQ_C01_00{i}", folder, size=SIZE) for i in (1, 2)]
@@ -45,7 +45,6 @@ def test_a_check_stopped_for_memory_carries_on_without_a_second_verdict(client, 
 
     monkeypatch.setattr(kraken_runtime, "read_given_lines", rough_read)
     monkeypatch.setattr(kraken_runtime, "resolve_recognition_model", lambda ref: ("/models/mccatmus.mlmodel", ref))
-    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
     r = client.post("/api/check/runs", json={"check": "line-against-page", "provider": "kraken", "model": READER,
                                              "layer": "readings", "scope_ids": [folder.id], "pass_model": TEACHER})
     assert r.status_code == 200, r.text

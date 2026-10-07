@@ -20,8 +20,13 @@ the text). One line pass per page, read many times (#5487, ruled 2026-10-05, #54
 of the page's working pass (`llm.working_lines`); a page with none has them found by Kraken first, its
 regions kept as the lines' parents, through the same save and conversion as Find Lines. No second pass is
 made. A page already tied to that page reading is not tied again; a line given no stretch is left untied
-and counted. Which reading of a line counts is the counting rule's (`resolve_counting`): the tied stretch
-is the line's newest machine reading, so an older machine reading of it stays as history.
+and counted. Which reading of a line counts is the counting rule's (`resolve_counting`, #5558): a checked
+machine reading (a tied stretch whose page reading a person confirmed or marked reviewed is one), then the
+better reader measured on this project, then the newest; so a rough re-read after the tie does not
+displace a better tied stretch, and an older machine reading stays as history.
+
+The tie runs by itself after a page reading is saved (`after_page_reading`, #5558): one waiting job per
+page with lines, on the local model lane; no recipe step needs to name it.
 
 The page's reading is ranked (`page_reading`): a person's, then a checked model reading, then the newest
 model transcription; never a flagged read, and never a reading that is the lines' own text (a reader's
@@ -159,6 +164,59 @@ def start(db: Any, request: CheckRunRequest, *, started_by: str) -> dict[str, st
     job_id = jobs.enqueue(db, KIND, f"{KIND}:{uuid.uuid4()}", started_by=started_by, watched=True,
                           detail=json.dumps({"request": request.model_dump()}))
     return {"job_id": job_id}
+
+
+#: Who queues the tie when a page reading lands (#5558): nobody pressed anything.
+AUTOMATIC = "automatic"
+
+
+def rough_reader(db: Any) -> str | None:
+    """The Kraken reader an automatic tie reads the lines with: the project recipe's own (its tie step's
+    reader, else its line reader's, when that is a Kraken reader on this Mac), else the first reader of
+    Kraken's catalogue on this Mac; None when this Mac has none (the tie cannot read the lines)."""
+    from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS, is_recognition_model_installed
+    from fichero_server.recipes.cards import kraken_reader_for
+    from fichero_server.recipes.project import read_project_setup
+
+    try:
+        recipe = read_project_setup(Path(db.path).parent).get("recipe") or {}
+    except (OSError, ValueError):
+        recipe = {}
+    steps = sorted((s for s in recipe.get("steps") or [] if s.get("job") in (KIND, "read-a-line")),
+                   key=lambda s: s.get("job") != KIND)
+    named = [kraken_reader_for(s.get("model") or {}) for s in steps]
+    for reader in [*named, *KRAKEN_RECOGNITION_MODELS]:
+        if reader and is_recognition_model_installed(reader):
+            return reader
+    return None
+
+
+def after_page_reading(db: Any, artifact: Any) -> str | None:
+    """Queue the tie for a page reading just saved (#5558, source-model.md "Every output comes into the
+    page"): no recipe step needs to name it. Only for a reading of the whole page (a transcription with no
+    lines of its own, not flagged, not the lines' own text) on a page that HAS lines: a page without lines
+    gets them from its reading step, and a result with boxes becomes its own pass. Background work: one
+    waiting job per page on the local model lane (many readings of a page make one tie), never run inline.
+    Returns the job id, or None when nothing is queued."""
+    from fichero_server.llm.read_guard import read_flag_of
+    from fichero_server.llm.working_lines import working_lines
+
+    if artifact.artifact_type != "transcription" or not (artifact.content or "").strip():
+        return None
+    if artifact.ocr_geometry is not None and artifact.ocr_geometry.boxes:  # raw-geometry-ok: has it lines?
+        return None
+    if read_flag_of(artifact) is not None or _read_from_lines(artifact):
+        return None
+    if working_lines(db, artifact.document_id) is None:
+        return None
+    reader = rough_reader(db)
+    if reader is None:
+        return None
+    register_job_kinds()
+    request = CheckRunRequest(layer="readings", scope_ids=[artifact.document_id], provider="kraken", model=reader,
+                              check=KIND)
+    return jobs.enqueue(db, KIND, f"{KIND}:after-reading:{artifact.document_id}", started_by=AUTOMATIC,
+                        detail=json.dumps({"request": request.model_dump()}))
 
 
 def _read_from_lines(artifact: Any) -> bool:

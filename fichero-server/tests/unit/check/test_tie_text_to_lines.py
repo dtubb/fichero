@@ -52,11 +52,10 @@ class RoughReader:
 
 
 @pytest.fixture
-def reader(db, monkeypatch):
+def reader(db, monkeypatch, jobs_run_by_the_test):
     fake = RoughReader(db)
     monkeypatch.setattr(kraken_runtime, "read_given_lines", fake)
     monkeypatch.setattr(kraken_runtime, "resolve_recognition_model", lambda ref: ("/models/mccatmus.mlmodel", ref))
-    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)  # the test runs the job itself
     return fake
 
 
@@ -67,7 +66,7 @@ def _lines(db, pass_id):
 
 
 @pytest.fixture
-def page(db, tmp_path):
+def page(db, tmp_path, jobs_run_by_the_test):
     """A page whose lines Kraken found (the imported pass, marked as Kraken's) and whose text the teacher
     read whole: the page reading is the lines' texts, one after another, as one transcription."""
     folder = Document(name="SM_NPQ_C01", doc_type=DocType.folder)

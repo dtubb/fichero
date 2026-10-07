@@ -1677,16 +1677,27 @@ Jobs and chains
   score), so the training set leaves it out until a person confirms it; the training set finds the
   teacher's readings on the page's lines (`training/kraken_set.teacher_pass`). A page whose lines already
   carry that page reading is not tied again; `GET /api/check/runs/{id}` gives the counts and each doubtful
-  line. The tied stretch is the line's newest machine reading, so by the counting rule
-  (`resolve_counting`) it counts over the older machine readings, which stay as history. A recipe card
-  runs it (`recipes/start.py`: a `check` card with `check: tie-text-to-lines` and the step's Kraken reader,
-  which the three Kraken reader cards offer). Default taken 2026-10-05 (design lead), awaiting the
-  maintainer's ruling: the match threshold is 0.30, the line check's own-score floor. Tested in
-  `fichero-server/tests/unit/check/test_tie_text_to_lines.py` and
-  `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`. Not built: a machine reading made
-  AFTER the tie (a Kraken re-read) is then the newest and counts over the tied stretch, because the
-  counting rule ranks machine readings by date only; the tie runs as a step a recipe names, not
-  automatically after every page reading.* a page's reading is tied to its lines for free, on
+  line. Which reading of a line counts is the counting rule's (`resolve_counting`, ranking machine readings
+  by `source.reading.machine-ranked-by-measure`, #5558): a checked reading, then the better reader measured
+  on this project, then the newest; so a rough Kraken re-read made after the tie does not displace a tied
+  stretch whose page reading a person checked, or whose reader measured better here, and the training set
+  carries the teacher's reading because it counts. A recipe card runs it (`recipes/start.py`: a `check`
+  card with `check: tie-text-to-lines` and the step's Kraken reader, which the three Kraken reader cards
+  offer), and since 2026-10-06 (#5558) it runs without one: a page reading saved through the one artifact
+  save (`llm_base._save_artifact_sync`: a transcription with no lines of its own, not flagged, not the
+  lines' own text) on a page that has lines queues one waiting tie job for that page
+  (`tie_text.after_page_reading`, started by `automatic`, on the local model lane, never run inline),
+  read with the project recipe's Kraken reader, else the first catalogue reader on this Mac; a page
+  without lines, or a Mac with no Kraken reader, queues none. Default taken 2026-10-05 (design lead),
+  awaiting the maintainer's ruling: the match threshold is 0.30, the line check's own-score floor. Tested
+  in `fichero-server/tests/unit/check/test_tie_text_to_lines.py`,
+  `fichero-server/tests/unit/check/test_which_reading_counts_after_the_tie.py` and
+  `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`. Not built: the cluster reader
+  (`remote_read/runner.py`) still drops Kraken's regions, and a whole-PDF Kraken read without per-page
+  fan-out still makes its own pass; older projects' "Page reading tied to Kraken's lines" passes stay as
+  they are (no migration; folding them into the page's lines waits on #5222's conversion rules); a cloud
+  reader is never measured, so a cloud tie that nobody checked still gives way to a newer re-read (the
+  evaluation has no remote target, #5533).* a page's reading is tied to its lines for free, on
   this Mac: Kraken finds the lines, a Kraken reader reads each roughly, and the page's best reading is
   aligned to them in order by the characters they share (a monotonic alignment; no line takes text
   from beyond its neighbours'). Each line gets the stretch of the page reading it matches, automatically,

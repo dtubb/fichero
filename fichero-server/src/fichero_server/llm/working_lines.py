@@ -4,8 +4,9 @@ A page has one canonical set of lines: those of its working pass (`segment_readi
 ranking every surface reads). Finding lines makes that pass; every reader afterwards (a Kraken reader, a
 vision model reading line by line, the page text tied to the lines, #5444) reads THOSE lines and adds its
 words to them as readings (`representation.create`), never as a second pass of the same lines. Which reading
-of a line counts is the counting rule's (`models.readings.resolve_counting`), not this module's: a later
-machine reading is the newest, and a person's reading still outranks every machine's.
+of a line counts is the counting rule's (`models.readings.resolve_counting`), not this module's: among
+machine readings a checked one, then the better reader measured on the project, then the newest (#5558),
+and a person's reading still outranks every machine's.
 
 Here: the working pass's lines (`working_lines`), their outline and baseline in an image's pixels
 (`in_pixels`, `as_geometry`, what a reader is handed), and the readings written onto them

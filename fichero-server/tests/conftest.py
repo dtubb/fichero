@@ -873,6 +873,19 @@ def db(test_package):
 
 
 @pytest.fixture
+def jobs_run_by_the_test(monkeypatch):
+    """The test runs its jobs itself (`jobs.KINDS[kind].run`): no job thread is woken for its library.
+
+    Request it BEFORE any fixture that writes to the library: an import queues work (a vector, a
+    derivative), and that enqueue wakes every lane, so a lane thread is already looking at the library
+    when the test later queues the job it runs by hand. That thread then runs the same job beside the
+    test (two runs, two verdicts for one line), a race only a loaded machine loses."""
+    from fichero_server.execution import jobs
+
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+
+
+@pytest.fixture
 def mock_db(monkeypatch):
     """
     Mock package database used by API route tests.
