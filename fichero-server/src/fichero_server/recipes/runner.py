@@ -37,6 +37,8 @@ KIND = "run-a-recipe"
 #: Purposes that run by themselves after Start (the "just do it" ones; `recipes/assemble.PURPOSES`).
 AUTOMATIC_PURPOSES = frozenset(PURPOSES) - TOOL_PURPOSES
 _CHECK_POLL_SECONDS = 0.5
+#: Cards that line or read pages: a blank verso is left out of them (#5579).
+_NOT_ON_BLANK_VERSOS = frozenset({"find-lines", "read-a-line", "read-a-page"})
 
 
 def _library(db: Any) -> Path:
@@ -209,6 +211,14 @@ def run(db: Any, subject: str) -> dict[str, Any]:
         if not redo.intersection(card["steps"]):
             documents, done = split_done(db, card, documents)
             step["already_done"] = done
+        if card.get("job") in _NOT_ON_BLANK_VERSOS and documents:
+            # The backs of leaves, blank as their images show, are not lined or read (#5579).
+            from fichero_server.finddocs.job import blank_versos
+
+            versos = blank_versos(db, documents)
+            if versos:
+                documents = [d for d in documents if d not in versos]
+                step["blank_versos"] = len(versos)
         if not documents:
             step.update(state="done", child_id=None, why="already done on every page")
             continue

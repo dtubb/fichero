@@ -134,6 +134,45 @@ def _names(db: Any, page_ids: list[str]) -> dict[str, list[str]]:
     return out
 
 
+#: Before reading, a page this empty of ink, right after a page with ink, is a blank verso and is not read (#5579).
+#: Lower than the proposer's blank (`propose.BLANK_INK`): a faint page is read rather than lost unread.
+UNREAD_BELOW_INK = 0.003
+
+
+def blank_versos(db: Any, page_ids: list[str]) -> set[str]:
+    """Of `page_ids`, the blank versos as their images show them before anything is read (`finddocs.leaves-first`,
+    #5579): a page with almost no ink right after a written page of its folder. The first page of a folder, and a
+    blank after a blank, are read as usual: only a back of a leaf is skipped."""
+    from fichero_server.models import Document
+
+    wanted = set(page_ids)
+    folders: set[str | None] = set()
+    for page_id in page_ids:
+        doc = db.get(Document, page_id)
+        if doc is not None and _kind(doc) == "file" and _file_type(doc) == "image":
+            folders.add(doc.parent_id)
+    out: set[str] = set()
+    for folder_id in folders:
+        if folder_id is not None and (folder := db.get(Document, folder_id)) is not None and _kind(folder) != "folder":
+            continue
+        pages = loose_pages(db, folder_id)
+        inks: dict[int, float | None] = {}
+
+        def ink(i: int) -> float | None:
+            if i not in inks:
+                inks[i] = _look(pages[i].path)[0]
+            return inks[i]
+
+        for i, page in enumerate(pages):
+            if i == 0 or page.id not in wanted:
+                continue
+            mine = ink(i)
+            if mine is not None and mine < UNREAD_BELOW_INK and (before := ink(i - 1)) is not None \
+                    and before >= UNREAD_BELOW_INK:
+                out.add(page.id)
+    return out
+
+
 def page_inputs(db: Any, pages: list[Any]) -> list[PageInput]:
     names = _names(db, [p.id for p in pages])
     out = []

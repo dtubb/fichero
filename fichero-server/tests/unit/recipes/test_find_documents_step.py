@@ -89,3 +89,38 @@ def test_a_recipe_run_finds_the_documents_under_its_row(client, db, tmp_path, jo
     assert [d.page_ids for d in proposal.documents] == [[ids[p] for p in doc] for doc in truth]
     accepted = [d.index for d in proposal.documents if d.state == "accepted"]
     assert accepted == [d.index for d in proposal.documents if d.confidence >= AUTO_ACCEPT_ABOVE]
+
+
+def test_on_by_default_for_a_project_holding_loose_pages(client, db, tmp_path, jobs_run_by_the_test):
+    """§7b "Everything automatic after Start": a box of loose page images is organised as a stage of the run, unless
+    the answers say it is not loose pages."""
+    assert "find-documents-in-a-folder" not in [s["job"] for s in _assemble(client, purposes=["transcribe"])["steps"]]
+    pages, _truth, _groups = correspondence_box()
+    _project(db, tmp_path, pages)
+    assert "find-documents-in-a-folder" in [s["job"] for s in _assemble(client, purposes=["transcribe"])["steps"]]
+    off = _assemble(client, purposes=["transcribe"], loose_pages=False)
+    assert "find-documents-in-a-folder" not in [s["job"] for s in off["steps"]]
+
+
+def test_blank_versos_are_not_read(client, db, tmp_path, jobs_run_by_the_test, monkeypatch):
+    """#5579: the backs of leaves, blank as their images show before anything is read, are left out of the cards
+    that line and read pages; the first page and the written pages are read."""
+    from tests.unit.finddocs.boxes import istmina_box
+
+    pages = istmina_box()[0][:12]
+    _folder, ids = _project(db, tmp_path, pages)
+    versos = {ids[p.id] for p in pages if p.blank}
+    assert finddocs_job.blank_versos(db, list(ids.values())) == versos
+    seen: list[list[str]] = []
+
+    def workflow(db_, card, documents, parent):
+        seen.append(documents)
+        return "thread", "done", None
+
+    monkeypatch.setattr(runner, "_run_workflow", workflow)
+    card = {"steps": ["read"], "job": "read-a-line", "card": "workflow", "workflow": "w", "workflow_id": "w",
+            "provider_override": None, "model_override": None, "takes": ["lines"], "gives": ["line_readings"]}
+    job_id = runner.enqueue(db, {"runs": [card], "skipped": []}, documents=list(ids.values()), started_by="owner")
+    _kind, subject = db.execute_fetchone("SELECT kind, subject FROM jobs WHERE id = ?", [job_id])
+    (step,) = runner.run(db, subject)["steps"]
+    assert seen == [[ids[p.id] for p in pages if not p.blank]] and step["blank_versos"] == len(versos)
