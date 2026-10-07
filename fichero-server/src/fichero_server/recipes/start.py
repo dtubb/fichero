@@ -37,9 +37,11 @@ _OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "f
 #: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`), the page text tied to
 #: its lines (a check run of kind `tie-text-to-lines`, #5444: free, on this Mac, with a Kraken reader) and the
 #: project's synced folder (`source.sync.*`).
-OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export", "publish": "publish"}
+OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export", "publish": "publish",
+               # Find the Documents: Fichero's own rules over the text already read (`finddocs.recipe-step`).
+               "find-documents-in-a-folder": "find-documents"}
 #: Jobs that need no model.
-_NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates"})
+_NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates", "find-documents-in-a-folder"})
 #: Per-page token assumptions: the same ones the workflow cost estimate prices with (runner.py).
 _TOKENS_IN, _TOKENS_OUT = 1200, 300
 
@@ -143,6 +145,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                     continue
                 entry.update(layer=settings.get("layer", "readings"), provider=override[0], model=override[1],
                              prompt=step.get("prompt"))
+            elif job == "find-documents-in-a-folder":
+                # The project's setting: None leaves every proposal for the person.
+                entry.update(accept_above=settings.get("accept_above"))
             elif job == "publish":
                 if not settings.get("where"):
                     skip(sid, f"{label} names no folder (`where`) to publish the site into")

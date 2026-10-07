@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from fichero_server.finddocs import AUTO_ACCEPT_ABOVE
+
 _TRANSCRIBE = ("find-lines", "read-a-line", "correct")
 
 #: Purpose -> the jobs it runs (section 7b, screen 2). A project ticks any combination; its recipe is
@@ -62,6 +64,8 @@ TOOL_PURPOSES = frozenset({"edit-corpus", "decipher", "not-sure"})
 MATERIALS: tuple[str, ...] = ("handwriting", "print", "typescript")
 #: Jobs that read the material: they get one reader per kind of material ticked.
 READING_JOBS = frozenset({"read-a-line", "read-a-page"})
+#: Finding the documents in a box of loose pages, after reading (`finddocs.recipe-step`, #5550).
+FIND_DOCUMENTS = "find-documents-in-a-folder"
 
 #: Jobs whose model must know the project's language (section 8, rule 3).
 LANGUAGE_JOBS = frozenset({"correct", "translate-transliterate-normalise", "find-names-tag-words",
@@ -78,9 +82,10 @@ MEMORY_HEADROOM_GB = 2.0
 #: purpose's jobs, and any job ticked on its own, are sorted by it. A test pins that it covers the
 #: whole job registry, so a new job cannot be ticked without a place in the order.
 STEP_ORDER: tuple[str, ...] = (
-    "prepare-the-image", "split-pages", "find-documents-in-a-folder", "find-regions", "find-lines",
+    "prepare-the-image", "split-pages", "find-regions", "find-lines",
     "put-in-order", "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
-    "tie-text-to-lines", "transcribe-speech", "correct", "trace-a-drawing", "identify-signs",
+    "tie-text-to-lines", "transcribe-speech", "correct", "find-documents-in-a-folder", "trace-a-drawing",
+    "identify-signs",
     "translate-transliterate-normalise", "split-into-entries", "find-names-tag-words", "work-out-dates",
     "find-statements", "link-to-authorities", "place-in-a-gazetteer", "pull-out-passages",
     "describe-for-the-catalogue", "extract-to-a-table", "make-a-vector", "train-a-model", "check",
@@ -161,6 +166,9 @@ class Answers:
     materials: tuple[str, ...] = ()
     #: Jobs ticked on their own, beyond the purposes' (section 7b: every job is a checkbox).
     jobs: tuple[str, ...] = ()
+    #: The material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them
+    #: then finds the documents among them (`finddocs.recipe-step`, #5550).
+    loose_pages: bool = False
 
     def __post_init__(self) -> None:
         # In the order setup offers them, so the same purposes ticked in any order give the same recipe.
@@ -352,6 +360,8 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
     jobs = set(purpose_jobs(a.purposes))
     jobs |= {j for layer in a.layers for j in layer_jobs(layer)}
     jobs |= {j for j in a.jobs if j in STEP_ORDER}
+    if a.loose_pages and jobs & READING_JOBS:
+        jobs.add(FIND_DOCUMENTS)
     train_ticked = "train-a-model" in jobs
     jobs.discard("train-a-model")
     jobs_in_order = sorted(jobs, key=STEP_ORDER.index)
@@ -367,6 +377,15 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
             steps.append({"id": job, "job": job, "layer": "train", **_topic(job),
                           "offered_when": {"corrected_lines_at_least": 2000},
                           "settings": {"base": "read-a-line"}, "runs_on": "cluster", "reasons": [why]})
+            continue
+        if job == FIND_DOCUMENTS:
+            # Fichero's own rules, no model to choose: every project can run it (`finddocs.recipe-step`).
+            steps.append({"id": job, "job": job, **_topic(job), "model": {"builtin": "document-finder"},
+                          "runs_on": "this-mac", "uses_cloud": False,
+                          "settings": {"accept_above": AUTO_ACCEPT_ABOVE},
+                          "reasons": ["reads the text already there and the pages' thumbnails, on this Mac, free",
+                                      f"proposes; accepts by itself only a document at least "
+                                      f"{AUTO_ACCEPT_ABOVE:.0%} sure (one undo restores)"]})
             continue
         choice = _choose(job, cards, a)
         step: dict[str, Any] = {"id": job, "job": job, **_topic(job)}

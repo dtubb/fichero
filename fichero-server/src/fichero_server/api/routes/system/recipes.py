@@ -111,6 +111,9 @@ class AssembleRequest(BaseModel):
     mac_memory_gb: Optional[float] = Field(default=None, description="defaults to this machine's memory")
     layers: list[str] = Field(default_factory=list, description="layers added beyond the purposes' "
                               "(source.onboard.add-layer)")
+    loose_pages: bool = Field(default=False, description=(
+        "the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them "
+        "then finds the documents among them, accepting by itself only the clearest (finddocs.recipe-step)"))
 
 
 class RecipeCard(BaseModel):
@@ -436,7 +439,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
         jobs=tuple(a.get("jobs") or ()),
         pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
-        layers=frozenset(a.get("layers") or ()),
+        layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
     )
 
 

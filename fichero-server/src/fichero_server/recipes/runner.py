@@ -8,6 +8,8 @@ page, and every file that has no pages), or, after an import, over the pages tha
   (`api/routes/workflow/chains.py`), so a run is the one job tree the activity spec draws (a `workflow` row,
   its steps and pages beneath it);
 * a **check** card is a check run (`checking/job.py`);
+* a **find-documents** card is a Find the Documents run (`finddocs/job.py`) over the pages' folders, accepting by
+  itself only what the step's `accept_above` allows;
 * an **export** card is the project's synced folder (`sync_folder.py`): the folder the step names is tied
   (once) and the pages are written, or a folder already tied rewrites them.
 
@@ -132,6 +134,24 @@ def _run_check(db: Any, card: dict[str, Any], documents: list[str], parent: str,
                                                 model=card["model"], prompt_file=card.get("prompt"),
                                                 check=card.get("check", "model")),
                             started_by=started_by)["job_id"]
+    return _wait(db, child, parent)
+
+
+def _run_find_documents(db: Any, card: dict[str, Any], documents: list[str], parent: str,
+                        started_by: str) -> tuple[str, str, str | None]:
+    """Find the Documents over the step's pages (each with its folder), accepting by itself only what the project's
+    setting allows (`finddocs.recipe-step`, #5550)."""
+    from fichero_server.finddocs import job as finddocs_job
+    from fichero_server.models.found_documents import FindDocumentsRequest
+
+    finddocs_job.register_job_kinds()
+    child = finddocs_job.start(db, FindDocumentsRequest(scope_ids=documents, accept_above=card.get("accept_above")),
+                               started_by=started_by, watched=False)
+    return _wait(db, child, parent)
+
+
+def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
+    """The card's own job, a child of the recipe's row, waited on until it ends."""
     jobs.set_parent(db, child, parent)
     while True:
         row = jobs.read_job(db, child)
@@ -198,6 +218,8 @@ def run(db: Any, subject: str) -> dict[str, Any]:
             child, state, why = _run_workflow(db, card, documents, job_id)
         elif card["card"] == "check":
             child, state, why = _run_check(db, card, documents, job_id, started_by)
+        elif card["card"] == "find-documents":
+            child, state, why = _run_find_documents(db, card, documents, job_id, started_by)
         elif card["card"] == "publish":
             child, state, why = _run_publish(db, card)
         else:
