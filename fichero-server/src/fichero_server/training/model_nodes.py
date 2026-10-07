@@ -11,6 +11,10 @@ A model downloaded or imported (a Kraken reader by DOI, a vision model from the 
 card and is not listed: it lives in Settings. Fields a card does not carry are None, never guessed:
 a Kraken reader's card names no licence, nor a cluster build.
 
+Since #5539 (ruled 2026-10-06) a model trained for a project lands INSIDE it (`training.project_models`:
+`<package>/models/`), and every model there is the project's. A model landed earlier lives in the
+engine's global store and shows by its card, as follows.
+
 A model shows only in the project it was trained in (#5483). Cards live on this engine, not in a
 library, so the training job writes the project on the card (`project_of`: the library's path,
 normalised as the security layer keys it, and its stable library id) and `belongs_to` is the one test
@@ -110,13 +114,13 @@ def _node(model_id: str, kind: str, card: dict[str, Any], *, size_bytes: int | N
     }
 
 
-def _kraken_nodes(project: dict[str, Any], with_card: bool) -> list[dict[str, Any]]:
+def _kraken_nodes(project: dict[str, Any], with_card: bool, held: set[str] = frozenset()) -> list[dict[str, Any]]:
     from fichero_server.llm import kraken_runtime as kr
     from fichero_server.training.evaluation import model_evaluations
 
     out = []
     for model_id, card in kr.trained_readers():
-        if not belongs_to(card, project):
+        if not (belongs_to(card, project) or model_id in held):
             continue
         node = _node(model_id, KRAKEN, card, size_bytes=_reader_bytes(model_id),
                      runs_on=[{"build": "kraken", "runs_on": "this Mac", "here": True}],
@@ -125,7 +129,7 @@ def _kraken_nodes(project: dict[str, Any], with_card: bool) -> list[dict[str, An
     return out
 
 
-def _vision_nodes(project: dict[str, Any], with_card: bool) -> list[dict[str, Any]]:
+def _vision_nodes(project: dict[str, Any], with_card: bool, held: set[str] = frozenset()) -> list[dict[str, Any]]:
     from fichero_server.llm.mlx_model_store import get_mlx_model_store
     from fichero_server.training.evaluation import model_evaluations
 
@@ -133,11 +137,12 @@ def _vision_nodes(project: dict[str, Any], with_card: bool) -> list[dict[str, An
     out = []
     for model_id in store.trained_model_ids():
         card = store.trained_card(model_id) or {}
-        if not belongs_to(card, project):
+        if not (belongs_to(card, project) or model_id in held):
             continue
         builds = card.get("builds") if isinstance(card.get("builds"), dict) else {}
+        folder = store.trained_dir(model_id).parent  # a card in a project names paths relative to its folder
         runs_on = [{"build": name, "runs_on": b.get("runs_on"),
-                    "here": bool(b.get("merged_here")) if name == "hf" else Path(str(b.get("path") or "")).is_dir()}
+                    "here": bool(b.get("merged_here")) if name == "hf" else bool(b.get("path")) and (folder / str(b["path"])).is_dir()}
                    for name, b in builds.items() if isinstance(b, dict)]
         node = _node(model_id, VISION, card, size_bytes=_student_bytes(store.trained_dir(model_id)),
                      runs_on=runs_on, evaluations=(evals := model_evaluations(model_id, "vision")))
@@ -145,18 +150,31 @@ def _vision_nodes(project: dict[str, Any], with_card: bool) -> list[dict[str, An
     return out
 
 
+def _nodes(db: Any, with_card: bool) -> list[dict[str, Any]]:
+    """The project's models: those inside its package (#5539) and those in the global store whose card
+    names it. `lives` says where: `project`, `global`, or `both` once a project's model was made global."""
+    from fichero_server.llm.kraken_runtime import _global_marker_path
+    from fichero_server.llm.mlx_model_store import TRAINED_CARD, get_mlx_model_store
+    from fichero_server.training import project_models as pm
+
+    package = Path(db.path).parent
+    held = set(pm.kraken_ids(package) + pm.mlx_ids(package))
+    project = project_of(db)
+    store = get_mlx_model_store()
+    nodes = _kraken_nodes(project, with_card, held) + _vision_nodes(project, with_card, held)
+    for node in nodes:
+        is_global = (_global_marker_path(node["id"]).exists() if node["kind"] == KRAKEN
+                     else (store.global_trained_dir(node["id"]) / TRAINED_CARD).is_file())
+        node["lives"] = "both" if is_global and node["id"] in held else "project" if node["id"] in held else "global"
+    return nodes
+
+
 def model_nodes(db: Any) -> list[dict[str, Any]]:
     """Every model Fichero trained or fine-tuned in this library's project, newest first."""
-    project = project_of(db)
-    nodes = _kraken_nodes(project, False) + _vision_nodes(project, False)
-    return sorted(nodes, key=lambda n: str(n.get("trained_at") or ""), reverse=True)
+    return sorted(_nodes(db, False), key=lambda n: str(n.get("trained_at") or ""), reverse=True)
 
 
 def model_node(db: Any, model_id: str) -> dict[str, Any] | None:
     """One trained model's inspector facts (its whole card and every evaluation), or None when this
     project did not train it."""
-    project = project_of(db)
-    for node in _kraken_nodes(project, True) + _vision_nodes(project, True):
-        if node["id"] == model_id:
-            return node
-    return None
+    return next((node for node in _nodes(db, True) if node["id"] == model_id), None)

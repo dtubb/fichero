@@ -169,8 +169,19 @@ def recognition_data_home(home: Path | None = None) -> Path:
     return _kraken_data_dir(home) / "htr-data"
 
 
-def _marker_path(model_id: str, home: Path | None = None) -> Path:
+def _global_marker_path(model_id: str, home: Path | None = None) -> Path:
     return recognition_model_dir(home) / f"{model_id}.installed"
+
+
+def _marker_path(model_id: str, home: Path | None = None) -> Path:
+    """A reader's record: the global store's marker, else, for a reader Fichero trained, its record
+    inside an open project (#5539; `training.project_models`), else the global path (not there)."""
+    marker = _global_marker_path(model_id, home)
+    if not marker.exists() and model_id.startswith(TRAINED_READER_PREFIX):
+        from fichero_server.training.project_models import find_kraken_record
+
+        return find_kraken_record(model_id) or marker
+    return marker
 
 
 def is_recognition_model_installed(model_id: str, home: Path | None = None) -> bool:
@@ -193,7 +204,8 @@ def recognition_model_path(model_id: str, home: Path | None = None) -> str | Non
     except Exception:
         return None
     path = data.get("model_path")
-    return str(path) if path else None
+    # A record inside a project names its file relative to itself, so a moved project still finds it.
+    return str(marker.parent / path) if path else None
 
 
 #: A Kraken reader named by its record in Kraken's model repository (HTRMoPo, on Zenodo), not only
@@ -225,9 +237,11 @@ def trained_reader_card(model_id: str | None, home: Path | None = None) -> dict[
 
 def trained_readers(home: Path | None = None) -> list[tuple[str, dict[str, object]]]:
     """Every landed trained reader, (model id, card), newest first."""
+    from fichero_server.training.project_models import open_project_kraken_ids
+
     found = []
-    for marker in recognition_model_dir(home).glob(f"{TRAINED_READER_PREFIX}*.installed"):
-        model_id = marker.name[: -len(".installed")]
+    ids = [m.name[: -len(".installed")] for m in recognition_model_dir(home).glob(f"{TRAINED_READER_PREFIX}*.installed")]
+    for model_id in dict.fromkeys(ids + open_project_kraken_ids()):  # the global copy first, then open projects'
         card = trained_reader_card(model_id, home)
         if card is not None:
             found.append((model_id, card))

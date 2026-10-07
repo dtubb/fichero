@@ -682,7 +682,16 @@ evaluation), `size_bytes`, `runs_on` (each build and whether it is here), `licen
 for a Kraken reader, whose card names none) and `may_publish` (true only when the card says
 `not_for_release: false`). A downloaded or imported model is not listed. `GET /api/training/model?model=…`
 gives one model's Inspector facts: the same, plus its whole `card` and every evaluation
-(`evaluation_history`); 404 for a model Fichero did not train.
+(`evaluation_history`); 404 for a model Fichero did not train. Each also says where it `lives` (#5539):
+`project` (inside this project's package, `models/`), `global` (the engine's store) or `both`.
+
+`POST /api/training/models/make-global` with `{"model": …}` (a `kraken-trained-<job>` or
+`fichero-trained/<name>` id) copies a model trained in this project, card and weights, from the
+project's `models/` folder into the engine's global store, so every project can use it (#5539,
+`compute.model.make-global`). The project keeps its copy; the card goes unchanged, `not_for_release`
+included. One audited action (`training.make_model_global`); returns `model_id`, `global_path` and
+`may_publish`. 404 when the project holds no such model; 409 when the global store already has one by
+that id (never overwritten). MCP: `fichero_training_make_trained_model_global`.
 
 ### Evaluation (#5441)
 

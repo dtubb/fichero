@@ -187,7 +187,8 @@ entities, claims.
   making the Mac unusable). When the person is happy, the same recipe reads the whole archive on
   Hugging Face Jobs or a cluster: sharded, failed shards resent, landing idempotent. A trained
   model lands in a portable form (Hugging Face / PyTorch) as well as for MLX, since MLX runs only
-  on Macs.
+  on Macs, and it lands inside its project, card and weights (ruled 2026-10-06, #5539;
+  `compute.model.lives-in-project` in `compute/jobs-and-fine-tuning.md`).
 - **IIIF by reference.** An archive served over IIIF (for example the British Library's
   Endangered Archives Programme) imports without downloading its images; the remote job fetches
   each image from the Image API at the size its reader needs, politely, and results map back onto
@@ -362,7 +363,8 @@ Tests for `distill.reasoning.*` and `distill.set.keeps-reasons`:
   claims made in ordinary use reach the next training set through the episode ledger.
 - `distill.scale.local-first-then-remote` — **[GAP]** (#5404) the same recipe that read a sample on
   this Mac reads a whole archive on Hugging Face Jobs or a cluster, sharded, resending only failed
-  shards, landing idempotently; trained students land in a portable form as well as MLX.
+  shards, landing idempotently; trained students land in a portable form as well as MLX, inside their project
+  (#5539, `compute.model.lives-in-project`).
 - `distill.scale.iiif-by-reference` — **[GAP]** (#5404) a remote IIIF manifest imports without its
   images; remote reading fetches from the Image API at the reader's size and maps results to canvas
   coordinates.

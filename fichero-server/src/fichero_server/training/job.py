@@ -278,8 +278,9 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     else:
         from fichero_server.training.landing import land_trained_reader
 
-        _save(db, job_id, detail, phase="landing", reason="Adding the reader to this Mac's Kraken readers")
-        model_id = land_trained_reader(out, job_id=job_id, model_name=request.name, card={**card, "base": request.base})
+        _save(db, job_id, detail, phase="landing", reason="Adding the reader to this project's models")
+        model_id = land_trained_reader(out, job_id=job_id, model_name=request.name, card={**card, "base": request.base},
+                                        project=Path(db.path).parent)  # lands inside the project (#5539)
         detail["reader_id"] = model_id
     _save(db, job_id, detail, phase="done", reason=f"Done: {model_id} is ready to read with")
     return model_id
@@ -315,7 +316,7 @@ def _land_vision(db: Any, job_id: str, out: Path, request: TrainVisionLoraReques
     return jobs.run_on_lane_blocking(
         str(Path(db.path).parent), CONVERT_KIND, job_id, model=CONVERT_MODEL,
         fn=lambda: land_vision_student(out, job_id=job_id, name=request.name, card=student, hf_build=hf_build,
-                                       keep_merged=request.keep_merged_here))
+                                       keep_merged=request.keep_merged_here, project=Path(db.path).parent))
 
 
 def register_job_kinds() -> None:

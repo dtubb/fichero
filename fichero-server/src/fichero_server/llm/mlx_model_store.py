@@ -464,9 +464,19 @@ class MLXModelStore:
             page_memory_bytes=card.get("page_memory_bytes") or (base.page_memory_bytes if base else None),
         )
 
-    def trained_dir(self, model_id: str) -> Path:
-        """Where a trained model's MLX weights and card live."""
+    def global_trained_dir(self, model_id: str) -> Path:
+        """Where a trained model's MLX weights and card live in this engine's global store."""
         return self.cache_dir / f"models--{model_id.replace('/', '--')}" / "snapshots" / TRAINED_REVISION
+
+    def trained_dir(self, model_id: str) -> Path:
+        """Where a trained model's MLX weights and card live: the global store's copy when it has one,
+        else its build inside an open project (#5539, `training.project_models`), else the global path."""
+        here = self.global_trained_dir(model_id)
+        if (here / TRAINED_CARD).is_file() or not model_id.startswith(f"{TRAINED_ORG}/"):
+            return here
+        from fichero_server.training.project_models import find_mlx_dir
+
+        return find_mlx_dir(model_id) or here
 
     def trained_card(self, model_id: str) -> dict[str, Any] | None:
         """The card of a model Fichero trained, or None for any other id."""
@@ -481,11 +491,11 @@ class MLXModelStore:
         return card if isinstance(card, dict) else None
 
     def trained_model_ids(self) -> list[str]:
+        from fichero_server.training.project_models import open_project_mlx_ids
+
         prefix = f"models--{TRAINED_ORG}--"
-        if not self.cache_dir.exists():
-            return []
         found = [f"{TRAINED_ORG}/{p.name[len(prefix):]}" for p in self.cache_dir.glob(f"{prefix}*") if p.is_dir()]
-        return sorted(m for m in found if self.trained_card(m) is not None)
+        return sorted(m for m in set(found + open_project_mlx_ids()) if self.trained_card(m) is not None)
 
     def require_supported(self, spec: ManagedModelSpec) -> None:
         from fichero_server.llm.local_inference import LocalModelHardwareError, check_local_model_hardware
@@ -498,6 +508,8 @@ class MLXModelStore:
             raise LocalModelHardwareError(unsupported_reason or f"{spec.display_name} is unsupported on this Mac")
 
     def snapshot_path(self, spec: ManagedModelSpec) -> Path:
+        if spec.revision == TRAINED_REVISION and spec.repo_id.startswith(f"{TRAINED_ORG}/"):
+            return self.trained_dir(spec.repo_id)  # the global store's copy, or its project's (#5539)
         return self.cache_dir / f"models--{spec.repo_id.replace('/', '--')}" / "snapshots" / spec.revision
 
     def is_complete(self, spec: ManagedModelSpec) -> bool:

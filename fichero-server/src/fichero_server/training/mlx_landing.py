@@ -64,12 +64,17 @@ def model_id_for(name: str) -> str:
 
 def land_vision_student(out_dir: str | Path, *, job_id: str, name: str, card: dict[str, Any],
                         convert: Callable[[Path, Path], None] | None = None, keep_merged: bool = False,
-                        hf_build: dict[str, Any] | None = None) -> str:
+                        hf_build: dict[str, Any] | None = None, project: str | Path | None = None) -> str:
     """Install the trained student; returns its model id.
 
     One card, two builds (`compute.engine.same-card-resolves-by-platform`): `hf`, the merged weights
     and the adapter in standard Hugging Face form, run by transformers or vLLM on a Linux GPU (kept in
     the job's bucket, and here too when `keep_merged`), and `mlx`, the 4-bit conversion this Mac runs.
+
+    With `project` (the package it was trained for) it lands inside it (#5539,
+    `training.project_models`): `models/fichero-trained--<name>/` holds `mlx/` (with the card),
+    `adapter/` and, when kept, `hf/`; the card names them relative to that folder. Without, it lands
+    in the engine's global store as before.
     """
     from fichero_server.llm.mlx_model_store import TRAINED_CARD, get_mlx_model_store
 
@@ -81,25 +86,37 @@ def land_vision_student(out_dir: str | Path, *, job_id: str, name: str, card: di
         raise ConversionFailed("the Job returned no merged model to convert for MLX")
     store = get_mlx_model_store()
     model_id = model_id_for(name)
-    dest = store.trained_dir(model_id)
+    if project is not None:
+        from fichero_server.training import project_models as pm
+
+        home = pm.model_folder(project, model_id)
+        dest, adapters, here = home / pm.MLX_BUILD, home / pm.ADAPTER, home / pm.MERGED
+
+        def shown(p: Path) -> str:
+            return p.relative_to(home).as_posix()
+    else:
+        dest = store.global_trained_dir(model_id)
+        adapters = store.root / "adapters" / model_id.split("/", 1)[1]
+        here = store.root / "hf" / model_id.split("/", 1)[1]
+
+        def shown(p: Path) -> str:
+            return str(p)
     dest.parent.mkdir(parents=True, exist_ok=True)
     (convert or convert_for_mlx)(merged, dest)
-    adapters = store.root / "adapters" / model_id.split("/", 1)[1]
     if adapters.exists():
         shutil.rmtree(adapters)
     shutil.copytree(adapter, adapters)
-    hf = {**(hf_build or {}), "format": "huggingface (safetensors, bf16)", "adapter_here": str(adapters)}
+    hf = {**(hf_build or {}), "format": "huggingface (safetensors, bf16)", "adapter_here": shown(adapters)}
     if keep_merged:
-        here = store.root / "hf" / model_id.split("/", 1)[1]
         if here.exists():
             shutil.rmtree(here)
         shutil.move(str(merged), str(here))
-        hf["merged_here"] = str(here)
+        hf["merged_here"] = shown(here)
     else:
         shutil.rmtree(merged)
     full = {**card, "job_id": job_id, "lines_per_call": 1, "quantised_bits": Q_BITS,
-            "adapter_path": str(adapters), "trained_at": datetime.now(timezone.utc).isoformat(),
-            "builds": {"mlx": {"model_id": model_id, "path": str(dest), "bits": Q_BITS, "runs_on": "Apple silicon"},
+            "adapter_path": shown(adapters), "trained_at": datetime.now(timezone.utc).isoformat(),
+            "builds": {"mlx": {"model_id": model_id, "path": shown(dest), "bits": Q_BITS, "runs_on": "Apple silicon"},
                        "hf": {**hf, "runs_on": "Linux GPU (transformers, vLLM)"}}}
     (dest / TRAINED_CARD).write_text(json.dumps(full, indent=1), encoding="utf-8")
     return model_id

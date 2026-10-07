@@ -46,6 +46,46 @@ def _dir_size(path: Path) -> int:
     return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
 
 
+def _copy_model_file(src: str, dst: str) -> str:
+    """Copy one file of a project's `models/` into a snapshot (#5539).
+
+    Weights are written once when a model lands and never rewritten, so a hard link holds them
+    at no disk cost (and survives the original's deletion); a card or any other JSON is rewritten
+    in place (evaluations are added to it), so it is copied. A link that cannot be made (another
+    volume) falls back to a copy.
+    """
+    if not src.endswith(".json"):
+        try:
+            os.link(src, dst)
+            return dst
+        except OSError:
+            pass
+    return shutil.copy2(src, dst)
+
+
+def _restore_models(models_src: Path, lib_path: Path) -> list[str]:
+    """Bring back every model the snapshot holds that the project no longer has (#5539).
+
+    Never overwrites or removes: a model trained after the snapshot stays, and a model present in
+    both is the same model (its id names its training job), so the project's copy is kept.
+    """
+    restored: list[str] = []
+    if not models_src.is_dir():
+        return restored
+    target = lib_path / "models"
+    for folder in sorted(models_src.iterdir()):
+        dest = target / folder.name
+        if dest.exists():
+            continue
+        target.mkdir(parents=True, exist_ok=True)
+        if folder.is_dir():
+            shutil.copytree(folder, dest)
+        else:
+            shutil.copy2(folder, dest)
+        restored.append(folder.name)
+    return restored
+
+
 def _write_manifest(snapshot_root: Path, manifest: dict) -> None:
     (snapshot_root / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True),
@@ -194,6 +234,7 @@ def snapshot_library(
     vectors_copy_dir = snapshot_root / "vectors_copy"
     lance_copy_dir = snapshot_root / "lance_copy"
     files_copy_dir = snapshot_root / "files_copy"
+    models_copy_dir = snapshot_root / "models_copy"
 
     snapshot_root.mkdir(parents=True, exist_ok=True)
     duckdb_export_dir.mkdir(parents=True, exist_ok=True)
@@ -326,6 +367,20 @@ def snapshot_library(
         files_size = _dir_size(files_copy_dir)
         files_path = str(files_copy_dir.relative_to(settings.snapshots_dir))
 
+    # 3. The project's trained models, card and weights (#5539): a model lives inside its
+    # project, so a snapshot that left `models/` out would lose it. Always taken, not opt-in.
+    models_path = None
+    models_size = 0
+    models_src = library_path_p / "models"
+    if models_src.is_dir():
+        try:
+            shutil.copytree(models_src, models_copy_dir, copy_function=_copy_model_file)
+        except Exception as e:
+            _discard(snapshot_root)
+            raise RuntimeError(f"models copy failed: {e}") from e
+        models_size = _dir_size(models_copy_dir)
+        models_path = str(models_copy_dir.relative_to(settings.snapshots_dir))
+
     # Count files
     file_count = sum(1 for _ in snapshot_root.rglob("*") if _.is_file())
 
@@ -370,13 +425,15 @@ def snapshot_library(
             "duckdb_export": str(duckdb_export_dir.relative_to(settings.snapshots_dir)),
             "embeddings": copied_embeddings,
             "files": files_path,
+            "models": models_path,
             "offsite": None,
         },
         "sizes": {
             "duckdb_size_bytes": duckdb_size,
             "lance_size_bytes": lance_size,
             "files_size_bytes": files_size,
-            "total_size_bytes": duckdb_size + lance_size + files_size,
+            "models_size_bytes": models_size,
+            "total_size_bytes": duckdb_size + lance_size + files_size + models_size,
         },
         "includes_files": include_files,
         "file_count": file_count,
@@ -598,6 +655,8 @@ def restore_snapshot(snapshot_id: str) -> dict:
             os.replace(files_backup_path, current_files_path)
         raise
 
+    models_restored = _restore_models(Path(snapshot.snapshot_path) / "models_copy", lib_path)
+
     return {
         "snapshot_id": snapshot_id,
         "library_path": snapshot.library_path,
@@ -609,6 +668,7 @@ def restore_snapshot(snapshot_id: str) -> dict:
         "lance_backup_path": str(lance_backup_path) if lance_backup_path else None,
         "files_restored_path": str(restored_files_path) if restored_files_path else None,
         "files_backup_path": str(files_backup_path) if files_backup_path else None,
+        "models_restored": models_restored,
         "note": "Restored snapshot into the library package. Pre-restore files were kept with .pre-restore suffixes.",
     }
 

@@ -16094,6 +16094,23 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("make-a-project-s-trained-model-global-usable-in-every-project")
+    def training_make_a_project_s_trained_model_global_usable_in_every_project_post(
+        ctx: typer.Context,
+        model: str = typer.Option(..., "--model", help="Request field: model."),
+    ) -> None:
+        """Make a project's trained model global (usable in every project) (POST /api/training/models/make-global)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/models/make-global"
+            params = None
+            payload = _build_json_payload({
+                "model": model,
+            }, {
+                "model": {'type': 'string', 'title': 'Model', 'description': "The project's model: kraken-trained-<job> or fichero-trained/<name>.", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("ask-a-palaeographer-for-its-reasons-or-review-on-each-checked-line")
     def training_ask_a_palaeographer_for_its_reasons_or_review_on_each_checked_line_post(
         ctx: typer.Context,
