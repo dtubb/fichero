@@ -10,6 +10,7 @@ page, and every file that has no pages), or, after an import, over the pages tha
 * a **check** card is a check run (`checking/job.py`);
 * a **find-documents** card is a Find the Documents run (`finddocs/job.py`) over the pages' folders, accepting by
   itself only what the step's `accept_above` allows;
+* an **embed** card (search) queues the embed job (`make-a-vector`) for each page and waits for them;
 * an **export** card is the project's synced folder (`sync_folder.py`): the folder the step names is tied
   (once) and the pages are written, or a folder already tied rewrites them.
 
@@ -50,8 +51,11 @@ def _plan(db: Any) -> dict[str, Any]:
     from fichero_server.recipes.start import plan_start
 
     setup = read_project_setup(_library(db))
-    stays_local = not (setup["answers"] or {}).get("cloud_allowed", False)
-    return plan_start(setup["recipe"], stays_local=stays_local)
+    answers = setup["answers"] or {}
+    stays_local = not answers.get("cloud_allowed", False)
+    # New material runs only what What runs by itself ticks; with Nothing runs automatically, nothing (#5478).
+    return plan_start(setup["recipe"], stays_local=stays_local, automatic=answers.get("automatic"),
+                      job_answers=answers.get("job_answers"))
 
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
@@ -75,8 +79,12 @@ def material_arrived(db: Any, document_ids: list[str]) -> str | None:
     library = _library(db)
     if read_start(library) is None:
         return None
+    answers = read_project_setup(library)["answers"] or {}
     # Any ticked "just do it" purpose runs the recipe over what the import brought.
-    if AUTOMATIC_PURPOSES.isdisjoint((read_project_setup(library)["answers"] or {}).get("purposes") or ()):
+    if AUTOMATIC_PURPOSES.isdisjoint(answers.get("purposes") or ()):
+        return None
+    # Nothing runs automatically is the person's choice, not a refusal: no row at all (#5478, #5575).
+    if not (answers.get("automatic") or {}).get("runs", True):
         return None
     plan = _plan(db)
     if plan["refusals"] or not plan["runs"]:
@@ -118,6 +126,11 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     if workflow is None:
         return thread_id, "failed", (f"the shipped workflow {card['workflow']!r} is in neither this project nor "
                                      "the shipped defaults")
+    if card.get("tool_config"):
+        # The step's settings from setup's answers (which kinds of names, #5478), on this run's copy only.
+        workflow = workflow.model_copy(deep=True)
+        for node in workflow.nodes:
+            node["config"] = {**(node.get("config") or {}), **(card["tool_config"].get(node.get("tool")) or {})}
     # Registered up front, as a chain's steps are, so the run's stream and status know the thread.
     _set_workflow_state(thread_id, {"workflow_id": workflow.id, "workflow_name": workflow.name,
                                     "status": "accepted", "events": WorkflowEventHub(), "error": None,
@@ -173,6 +186,25 @@ def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
         row = jobs.read_job(db, child)
         if row["state"] in ("done", "failed", "cancelled"):
             return child, row["state"], row["reason"] if row["state"] != "done" else None
+        time.sleep(_CHECK_POLL_SECONDS)
+
+
+def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> tuple[str | None, str, str | None]:
+    """Search: the embed job (`make-a-vector`, the one that follows every correction) queued for each page, as a
+    child of the recipe's row, and waited for (#5574). A page already waiting to be embedded keeps its job."""
+    from fichero_server.actions.page_text_cache import REEMBED_KIND
+
+    children = [jobs.enqueue(db, REEMBED_KIND, doc_id, started_by=started_by) for doc_id in documents]
+    for child in children:
+        jobs.set_parent(db, child, parent)
+    while True:
+        rows = [jobs.read_job(db, child) for child in children]
+        if all(r["state"] in ("done", "failed", "cancelled") for r in rows):
+            failed = [r for r in rows if r["state"] != "done"]
+            if not failed:
+                return None, "done", None
+            return None, "failed", (f"{len(failed)} of {len(rows)} pages were not embedded: "
+                                    f"{failed[0]['reason'] or failed[0]['state']}")
         time.sleep(_CHECK_POLL_SECONDS)
 
 
@@ -246,6 +278,8 @@ def run(db: Any, subject: str) -> dict[str, Any]:
             child, state, why = _run_find_documents(db, card, documents, job_id, started_by)
         elif card["card"] == "publish":
             child, state, why = _run_publish(db, card)
+        elif card["card"] == "embed":
+            child, state, why = _run_embed(db, documents, job_id, started_by)
         else:
             child, state, why = _run_export(db, card, documents)
         step.update(state=state, child_id=child, why=why)

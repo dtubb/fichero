@@ -67,13 +67,14 @@ def test_source_onboard_auto_plan_shows_what_will_not_run(client, db, pages, tmp
     steps = _steps(tmp_path)
     steps[4] = {"id": "names", "job": "find-names-tag-words", "model": SPACY}
     steps.append({"id": "nameless", "job": "correct"})
+    steps.append({"id": "authorities", "job": "link-to-authorities"})
     _save(client, _recipe(tmp_path, *steps), cloud_allowed=False)
     plan = client.get("/api/recipes/project/start").json()
 
     fix = {s["step"]: s["fix"] for s in plan["skipped"]}
     assert fix["check"] == "allow-cloud", "a cloud step in a project that keeps its pages here: let them leave"
     assert fix["nameless"] == "choose-model", "a step with no model: choose one"
-    assert fix["groups"] is None, "no card runs it yet: nothing in setup fixes it"
+    assert fix["authorities"] is None, "no card runs it yet: nothing in setup fixes it, the why says what does"
     assert all(s["why"] for s in plan["skipped"])
     download = next(d for d in plan["downloads"] if d["model"] == "es_core_news_sm")
     assert download["runtime"] == "spacy" and download["steps"] == ["names"]

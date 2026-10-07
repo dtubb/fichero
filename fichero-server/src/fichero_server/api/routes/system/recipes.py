@@ -17,6 +17,7 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
+from fichero_server.db.embeddings import search_embedder
 
 from fichero_server.recipes.assemble import PURPOSE_STEPS, PURPOSES, Answers, assemble
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, SkippedStep
@@ -118,6 +119,9 @@ class AssembleRequest(BaseModel):
         "the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them "
         "then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open "
         "project holds a folder of loose page images (finddocs.recipe-step)"))
+    job_answers: dict[str, Any] = Field(default_factory=dict, description=(
+        "the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the "
+        "step it configures (source.onboard.auto.job-answers-read)"))
 
 
 class RecipeCard(BaseModel):
@@ -183,6 +187,15 @@ class RecipeStep(BaseModel):
     settings: Optional[dict[str, Any]] = None
 
 
+class ByHandJob(BaseModel):
+    """A job the answers bring that Start cannot run by itself: never a step, said with why and the fix."""
+
+    job: str
+    title: str
+    why: str
+    fix: str = Field(description="what does it by hand instead, in words")
+
+
 class AssembledRecipe(BaseModel):
     # Optional so older clients keep decoding; present so a recipe saved from this answer is a
     # whole recipe.yaml that passes the check (`source.recipe.is-a-file`).
@@ -194,6 +207,9 @@ class AssembledRecipe(BaseModel):
     purposes: list[str]
     steps: list[RecipeStep]
     gaps: list[str]
+    by_hand: list[ByHandJob] = Field(default_factory=list, description=(
+        "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that "
+        "does it by hand (source.onboard.auto.every-proposed-step-runs)"))
     cloud_options: list[str] = Field(
         default_factory=list,
         description="jobs a cloud model would also fit if pages could leave this Mac; "
@@ -466,6 +482,8 @@ def _answers(answers: dict[str, Any]) -> Answers:
         pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
+        job_answers=dict(a.get("job_answers") or {}),
+        search_embedder=search_embedder(),
     )
 
 
@@ -486,7 +504,7 @@ async def assemble_recipe(
     return AssembledRecipe(
         fichero_recipe=recipe["fichero_recipe"], version=recipe["version"], suits=recipe["suits"],
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
-        steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"],
+        steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
         cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
     )
 
@@ -722,7 +740,7 @@ class StartRun(BaseModel):
 
     steps: list[str]
     job: str
-    card: str = Field(description="workflow, check or export")
+    card: str = Field(description="workflow, check, embed (search: the embed job for each page), export or publish")
     runs_on: str
     workflow: Optional[str] = None
     workflow_id: Optional[str] = None
@@ -749,6 +767,8 @@ class StartRun(BaseModel):
         "the kinds of thing it needs from the steps before it (the job registry's; 'a|b': either); it waits "
         "only when every earlier step that gives one failed"))
     gives: list[str] = Field(default_factory=list, description="the kinds of thing it gives the steps after it")
+    tool_config: Optional[dict[str, dict[str, Any]]] = Field(default=None, description=(
+        "settings from setup's answers this run gives its workflow's tools, by tool (which kinds of names)"))
 
 
 class StartDownload(BaseModel):
@@ -817,7 +837,8 @@ def _start_plan(db: Database) -> dict[str, Any]:
     # Before the first yes Start runs the whole recipe, the added layer with it; after it, only what an
     # added layer proposes for the material already there, and what did not finish.
     only = set(proposal["steps"]) | set(unfinished) if started and proposal else None
-    plan = plan_start(setup["recipe"], stays_local=stays_local, only=only)
+    plan = plan_start(setup["recipe"], stays_local=stays_local, only=only,
+                      job_answers=(setup["answers"] or {}).get("job_answers"))
     pages = material(db)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])
     plan["estimate"]["counted"] = pages["sentence"]

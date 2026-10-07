@@ -12274,6 +12274,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         cloud_allowed: Optional[bool] = typer.Option(None, "--cloud-allowed/--no-cloud-allowed", help="Request field: cloud_allowed."),
         directions: Optional[str] = typer.Option(None, "--directions", help="Request field: directions."),
+        job_answers: Optional[str] = typer.Option(None, "--job-answers", help="Request field: job_answers."),
         jobs: Optional[str] = typer.Option(None, "--jobs", help="Request field: jobs."),
         languages: str = typer.Option(..., "--languages", help="Request field: languages."),
         layers: Optional[str] = typer.Option(None, "--layers", help="Request field: layers."),
@@ -12293,6 +12294,7 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "cloud_allowed": cloud_allowed,
                 "directions": directions,
+                "job_answers": job_answers,
                 "jobs": jobs,
                 "languages": languages,
                 "layers": layers,
@@ -12307,6 +12309,7 @@ def register_generated_openapi_commands(
             }, {
                 "cloud_allowed": {'type': 'boolean', 'title': 'Cloud Allowed', 'default': False, 'x-cli-required': False},
                 "directions": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'title': 'Directions', 'description': 'script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen)', 'x-cli-required': False},
+                "job_answers": {'additionalProperties': True, 'type': 'object', 'title': 'Job Answers', 'description': 'the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the step it configures (source.onboard.auto.job-answers-read)', 'x-cli-required': False},
                 "jobs": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Jobs', 'description': "jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)", 'x-cli-required': False},
                 "languages": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Languages', 'description': "BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag)", 'x-cli-required': True},
                 "layers": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Layers', 'description': "layers added beyond the purposes' (source.onboard.add-layer)", 'x-cli-required': False},

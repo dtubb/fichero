@@ -32,10 +32,12 @@ def _jobs(recipe: dict) -> list[str]:
 def test_several_purposes_give_the_union_of_their_jobs_each_once_in_step_order(client):
     """WHY: a project can be for any combination of purposes; if the union repeated a job, Start would
     read every page twice, and if the order followed the ticking, the same answers would give two
-    recipes (the spec's own test case: transcribe, map places, search)."""
+    recipes (the spec's own test case: transcribe, map places, search). Placing in a gazetteer has no card
+    Start runs, so it is never a step: it is said under `by_hand` (#5574)."""
     r = _assemble(client, purposes=["transcribe", "map-places", "search"])
     assert r.status_code == 200, r.text
-    assert _jobs(r.json()) == [*TRANSCRIBE, "find-names-tag-words", "place-in-a-gazetteer", "make-a-vector"]
+    assert _jobs(r.json()) == [*TRANSCRIBE, "find-names-tag-words", "make-a-vector"]
+    assert [j["job"] for j in r.json()["by_hand"]] == ["place-in-a-gazetteer"]
     again = _assemble(client, purposes=["search", "map-places", "transcribe"]).json()
     assert again["steps"] == r.json()["steps"] and again["id"] == r.json()["id"]
     assert r.json()["purposes"] == ["transcribe", "search", "map-places"]  # in the order setup offers them
@@ -69,8 +71,10 @@ def test_every_registered_job_can_be_ticked_on_its_own_and_takes_its_place_in_th
     from fichero_server.recipes.jobs import all_jobs
 
     assert sorted(STEP_ORDER) == sorted(j.id for j in all_jobs())
-    r = _assemble(client, purposes=["transcribe"], jobs=["export", "put-in-order", "correct"])
-    assert _jobs(r.json()) == ["find-lines", "put-in-order", "read-a-line", "correct", "export"]
+    r = _assemble(client, purposes=["transcribe"], jobs=["export", "split-pages", "put-in-order", "correct"])
+    assert _jobs(r.json()) == ["split-pages", "find-lines", "read-a-line", "correct", "export"]
+    # Start has no card for putting lines in order: ticked, it is said under `by_hand`, never a step (#5574).
+    assert [j["job"] for j in r.json()["by_hand"]] == ["put-in-order"]
     refused = _assemble(client, purposes=["transcribe"], jobs=["tell-hands-apart"])
     assert refused.status_code == 422 and "no job 'tell-hands-apart'" in refused.text
 
