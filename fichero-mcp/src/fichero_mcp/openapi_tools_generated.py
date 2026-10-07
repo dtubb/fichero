@@ -5960,7 +5960,7 @@ def fichero_recipes_change_project_layers(
 
 def fichero_recipes_runs(
 ) -> Any:
-    "Recipe Runs\n\nThe project's recipe runs, newest first: Start's, and one for each import after it.\n\nRoute: GET /api/recipes/project/runs (toolset `recipes`; reads)."
+    "Recipe Runs\n\nThe project's recipe runs, newest first: Start's, and one for each import after it. Each stage that is a\nworkflow run carries its run account (pages done, failed and left, time left, what it waits for; #5576).\n\nRoute: GET /api/recipes/project/runs (toolset `recipes`; reads)."
     return _rt.call("GET", "/api/recipes/project/runs")
 
 
@@ -5968,8 +5968,16 @@ def fichero_recipes_run_status(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
 ) -> Any:
-    "Recipe Run Status\n\nA started recipe's run: each card's state and its own job, and the steps it skipped, with why.\n\nRoute: GET /api/recipes/project/runs/{job_id} (toolset `recipes`; reads)."
+    "Recipe Run Status\n\nA started recipe's run: each card's state and its own job (a workflow stage with its run account), the\nsteps it skipped with why and their fixes, and what it waits for now (#5576).\n\nRoute: GET /api/recipes/project/runs/{job_id} (toolset `recipes`; reads)."
     return _rt.call("GET", f"/api/recipes/project/runs/{job_id}")
+
+
+def fichero_recipes_run_summary(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    "Recipe Run Summary\n\nWhat a recipe run made, over the pages it ran on (`source.onboard.auto.results-summary`, #5577): pages\nwith a reading, names by kind and dates (the document knowledge graph's grouping), statements, each stage's\nfailed pages with the offer to read them again (its run account's), and the skipped steps with their fixes.\nWhile the run goes on, the figures are what is there so far (`finished` false).\n\nRoute: GET /api/recipes/project/runs/{job_id}/summary (toolset `recipes`; reads)."
+    return _rt.call("GET", f"/api/recipes/project/runs/{job_id}/summary")
 
 
 def fichero_recipes_get_start_plan(
@@ -8965,6 +8973,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_change_project_layers", "recipes", "POST", "/api/recipes/project/layers", fichero_recipes_change_project_layers),
     GeneratedTool("fichero_recipes_runs", "recipes", "GET", "/api/recipes/project/runs", fichero_recipes_runs),
     GeneratedTool("fichero_recipes_run_status", "recipes", "GET", "/api/recipes/project/runs/{job_id}", fichero_recipes_run_status),
+    GeneratedTool("fichero_recipes_run_summary", "recipes", "GET", "/api/recipes/project/runs/{job_id}/summary", fichero_recipes_run_summary),
     GeneratedTool("fichero_recipes_get_start_plan", "recipes", "GET", "/api/recipes/project/start", fichero_recipes_get_start_plan),
     GeneratedTool("fichero_recipes_start_project", "recipes", "POST", "/api/recipes/project/start", fichero_recipes_start_project),
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
