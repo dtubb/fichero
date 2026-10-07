@@ -17,7 +17,12 @@ from PIL import Image
 from fichero_server.loaders.base import MediaContent, MediaLoader
 
 logger = logging.getLogger(__name__)
-_MAX_IMAGE_PIXELS = 50_000_000
+# The ingest limit is 200 megapixels (ruled 2026-09-28, #5183/#5515): large archival scans and
+# stitched spreads are real material. PIL's own decompression-bomb guard (warns above
+# Image.MAX_IMAGE_PIXELS, ~89 MP by default) must move with it, or open_image_checked's
+# warning-as-error still refuses 90-200 MP images.
+_MAX_IMAGE_PIXELS = 200_000_000
+Image.MAX_IMAGE_PIXELS = _MAX_IMAGE_PIXELS
 
 # Standard formats PIL can handle directly
 PIL_FORMATS = {
