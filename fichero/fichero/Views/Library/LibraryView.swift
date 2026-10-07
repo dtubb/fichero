@@ -150,7 +150,7 @@ struct LibraryView: View {
     /// them, so without this guard the search field looked dead (2026-08-11:
     /// "it won't even let me search by typing into search box").
     @FocusState var searchFieldFocused: Bool
-    @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
+    @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.filedOrder, order: .forward)]  // As Filed, the default (#5570)
     // Per pane (#5280): two Library panes in one window used to share the window's sort.
     @PaneStorage("library.sortFieldsByFolder") var sortFieldsByFolderJSON: String = "{}"
     @PaneStorage("library.sortAscendingByFolder") var sortAscendingByFolderJSON: String = "{}"

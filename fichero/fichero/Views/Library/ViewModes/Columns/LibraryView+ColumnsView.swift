@@ -30,7 +30,8 @@ extension LibraryView {
     private func columnsResolveFolder(_ id: String) -> Document? {
         let doc = filteredDocuments.first { $0.id == id }
             ?? columnsChildren.values.lazy.compactMap({ $0.first { $0.id == id } }).first
-        return doc?.docType == .folder ? doc : nil
+        // A group opens the next column like a folder (#5570): its pages, in order.
+        return doc?.isFolderLike == true ? doc : nil
     }
 
     /// The documents of column `depth`: 0 = the browsed set, deeper = the
@@ -59,7 +60,7 @@ extension LibraryView {
         guard selection.count == 1,
               let id = orderedPrimarySelectionId,
               let doc = navigableDocument(for: id),
-              doc.docType != .folder else { return nil }
+              !doc.isFolderLike else { return nil }
         return doc
     }
 
@@ -255,7 +256,7 @@ extension LibraryView {
                     .help(DocumentTitle.displayName(for: doc))
             }
             Spacer(minLength: 0)
-            if doc.docType == .folder {
+            if doc.isFolderLike {
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -312,7 +313,7 @@ extension LibraryView {
             handleTap(doc)
             return
         }
-        if doc.docType == .folder {
+        if doc.isFolderLike {
             columnsPath = MillerColumnModel.descend(path: columnsLivePath, atDepth: depth, into: doc.id)
         } else {
             columnsPath = MillerColumnModel.truncate(path: columnsLivePath, forSelectionAtDepth: depth)
@@ -359,7 +360,7 @@ extension LibraryView {
         case .right:
             guard let primaryId = orderedPrimarySelectionId,
                   let doc = columnsActiveDocuments.first(where: { $0.id == primaryId }),
-                  doc.docType == .folder else { return .handled }
+                  doc.isFolderLike else { return .handled }
             columnsPath = MillerColumnModel.descend(path: path, atDepth: depth, into: doc.id)
             columnsActiveDepth = depth + 1
             if let firstChild = columnsChildren[doc.id]?.first {

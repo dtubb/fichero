@@ -2,6 +2,17 @@ import SwiftUI
 
 // MARK: - Sort Field
 
+/// A position in a folder: sort order first, then name in natural (Finder) order.
+nonisolated struct FiledOrder: Comparable, Hashable {
+    let position: Int
+    let name: String
+
+    static func < (lhs: FiledOrder, rhs: FiledOrder) -> Bool {
+        if lhs.position != rhs.position { return lhs.position < rhs.position }
+        return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+    }
+}
+
 /// Sortable fields for library documents
 enum LibrarySortField: String, CaseIterable, Identifiable {
     /// The ENGINE's ranking — the default while search results are showing,
@@ -15,6 +26,11 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
     /// mid-search was a one-way door: nothing could put the ranking back
     /// short of running the search again.
     case relevance = "Relevance"
+    /// The folder's own order (#5570, `library.group.sorts-by-order`): sort order, then name in
+    /// natural order, which is the order the engine lists a folder in. A new group takes its first
+    /// page's place in it; under Name it listed by its own name instead. The default for a folder
+    /// with no saved sort.
+    case asFiled = "As Filed"
     case name = "Name"
     case createdAt = "Date Created"
     case updatedAt = "Date Modified"
@@ -27,9 +43,13 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// The sort a folder opens in until one is chosen for it: its own order (#5570).
+    static let defaultField = LibrarySortField.asFiled
+
     var icon: String {
         switch self {
         case .relevance: return "sparkle.magnifyingglass"
+        case .asFiled: return "list.number"
         case .name: return "textformat"
         case .createdAt: return "calendar.badge.plus"
         case .updatedAt: return "calendar.badge.clock"
@@ -146,7 +166,7 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         forFolder id: String?, fieldsJSON: String, ascendingJSON: String
     ) -> (field: LibrarySortField, ascending: Bool) {
         let key = id ?? "__root__"
-        var field = LibrarySortField.name
+        var field = LibrarySortField.defaultField
         if let data = fieldsJSON.data(using: .utf8),
            let fields = try? JSONDecoder().decode([String: String].self, from: data),
            let saved = fields[key].flatMap(LibrarySortField.init(rawValue:)) {
@@ -170,6 +190,7 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         // it as their order. Name keeps the Table's sort-descriptor bridge
         // resolvable (#4282).
         case .relevance: return [.init(\.name, order: order)]
+        case .asFiled: return [.init(\.filedOrder, order: order)]
         case .name: return [.init(\.name, order: order)]
         case .createdAt: return [.init(\.createdAt, order: order)]
         case .updatedAt: return [.init(\.updatedAt, order: order)]
@@ -189,6 +210,7 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
     /// no-op — never half-apply (flip direction without a field) — that
     /// inconsistency is the #4282 defect class.
     static func field(forDocumentKeyPath keyPath: PartialKeyPath<Document>) -> LibrarySortField? {
+        if keyPath == \Document.filedOrder { return .asFiled }
         if keyPath == \Document.name { return .name }
         if keyPath == \Document.createdAt { return .createdAt }
         if keyPath == \Document.updatedAt { return .updatedAt }
@@ -233,7 +255,7 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         // one `updatedAt`/`fileType` give. Status lost its column in #5296: a
         // folder still sorted by Status (the sort menu offers it) must hand
         // the table NO comparator, or it is the #4282 crash.
-        case .relevance, .updatedAt, .fileType, .status: return nil
+        case .relevance, .asFiled, .updatedAt, .fileType, .status: return nil
         }
     }
 }
@@ -244,14 +266,14 @@ extension LibraryView {
 
     /// Sync the sortOrder comparator from the raw persisted values
     func syncSortOrder() {
-        let field = LibrarySortField(rawValue: sortFieldRaw) ?? .name
+        let field = LibrarySortField(rawValue: sortFieldRaw) ?? .defaultField
         sortOrder = field.comparator(ascending: sortAscending)
     }
 
     // MARK: - The "No date" section (#3322)
 
     var activeSortField: LibrarySortField {
-        LibrarySortField(rawValue: sortFieldRaw) ?? .name
+        LibrarySortField(rawValue: sortFieldRaw) ?? .defaultField
     }
 
     /// Whether to split the undated rows into their own section. Both view
@@ -297,7 +319,7 @@ extension LibraryView {
         // secondary reads the primary's listing instead. Foundation for restoring the two-library
         // Compare (#4663); inert for every current workspace (all single-library = primary).
         guard !isSecondarySplitPane else { return }
-        let field = LibrarySortField(rawValue: sortFieldRaw) ?? .name
+        let field = LibrarySortField(rawValue: sortFieldRaw) ?? .defaultField
         let sort = ListingSort.forLibrarySort(field: field, ascending: sortAscending)
         Task { await documentStore.setListingSort(sort) }
     }

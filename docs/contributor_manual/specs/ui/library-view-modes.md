@@ -422,9 +422,94 @@ homeless until a map-view UI spec exists (#5128).
   where it was. The node already existed: `DocType.group` ("logical document: a letter = multiple
   pages"), made by the library's context-menu **Group as Stack** through `POST /api/documents/groups`
   and undone by `…/groups/{id}/ungroup`, which records every member's old place. The menu items and the
-  canvas selection are new (2026-09-30). Still to design: how a group's card looks on the canvas (a
-  stack of its first pages), what double-click opens, whether the Reader reads the pages as one
-  document, and making group/ungroup audited actions so ⌘Z undoes them.
+  canvas selection are new (2026-09-30). How a group then shows everywhere is designed below
+  (**Groups are containers**, #5570).
+
+**Groups are containers (2026-10-07, #5570, #5569).** A group is a document made of pages: a letter,
+a judgment, a register entry. It was made by Group as Stack and then drawn as a broken image
+("Preview unavailable — Source file not available"), hidden from the sidebar, with its pages out of
+sight and its place lost to the name sort. The case that showed it: Istmina Full's '1948 Sentencias',
+203 loose pages organised through the engine into 8 judgments of 6 to 62 pages each. The design, in
+one sentence: a group is a folder whose order matters and whose pages read as one document. Every
+surface that decides how a node renders by its type treats `DocType.group` as a container, never as
+a file.
+- `library.group.lists-as-a-container` — **[PARTIAL]** (#5570; built 2026-10-07, not yet seen in the
+  app) in the sidebar, the list, the table and the columns a group shows as a group: its picture is
+  its first page with the stack symbol (`rectangle.stack`) and its page count beside it, it carries a
+  disclosure triangle, and it expands to its pages in their order (sort order, never name). The
+  sidebar used to drop groups (and with them their pages) because only folders and PDFs counted as
+  containers; `Document.isNavigableContainer` now includes groups, so the sidebar, the table outline,
+  the selection's child load and double-click all answer from the one predicate. Tested in
+  `fichero/Tests/Unit/general/Views/Library/GroupsAreContainersTests.swift` (the sidebar's tree
+  builder, the thumbnail classifier, the table outline).
+- `library.group.double-click-opens-its-pages` — **[PARTIAL]** (#5570) double-clicking a group opens
+  it as a folder-like scope: the Library pane lists its pages, in their order, in that pane's view
+  mode, and the crumbs name the group. In Columns a group opens the next column like a folder.
+- `library.group.previews-as-its-pages` — **[PARTIAL]** (#5570) a selected group shows in the Preview
+  as its pages, on the group's own canvas (the same board as
+  `library.canvas.a-folder-previews-as-its-canvas`, one layout per group): its saved layout when it
+  has one (each Istmina group holds an 8-column grid), else the default grid in page order. A click
+  on a page selects it; a double-click shows that page. Never a missing-file message. Tested by
+  `GroupsAreContainersTests.groupPreviewsAsItsCanvas` (the Preview's route).
+- `library.group.cover-is-its-first-page` — **[PARTIAL]** (#5570) the engine answers a group's
+  thumbnail and display image with its first page's (lowest sort order), so every surface that draws
+  a picture for a node draws one for a group without knowing what a group is. Pinned by
+  `test_a_groups_picture_is_its_first_page` (engine, real routes).
+- `library.group.reads-as-one-document` — **[PARTIAL]** (#5570) the Reader reads a group's pages as
+  one document: the engine's transcript view assembles a group's pages (its children in their order)
+  as it assembles a PDF's pages, with a page anchor each, so a judgment of 12 photographed leaves
+  reads top to bottom. A folder still reads as itself (`ReaderFolderProxy`); a group is not a
+  folder. Pinned by `test_the_reader_reads_a_groups_pages_as_one_document`.
+- `library.group.takes-its-first-pages-place` — **[PARTIAL]** (#5569 item 1) a new group takes the
+  place of its first page in the folder. A folder nobody had reordered held every item at sort
+  order 0 and listed by name, so the group had no place to take; the engine now first gives that
+  folder an explicit order (each item its listed position) and the group takes its first page's
+  slot. The other members leave gaps, which Ungroup fills again, so Ungroup puts every page back
+  where it was. Inside the group the pages keep the order they were grouped in. A folder already in
+  a strict order is left as it is. Pinned by
+  `test_a_new_group_takes_its_first_pages_place_in_an_unordered_folder`,
+  `test_ungroup_puts_every_page_back_in_its_place`.
+- `library.group.sorts-by-order` — **[PARTIAL]** (#5570) the library's sort menu has **As Filed**
+  (the folder's sort order, then name in natural order), and it is the default for a folder with no
+  saved sort, so groups and pages appear in their order, not alphabetically. Name and the other
+  sorts remain; a folder's chosen sort is still remembered. Tested by
+  `GroupsAreContainersTests.asFiledOrdersBySortOrder`.
+- `library.group.dated-by-its-pages` — **[PARTIAL]** (#5569 item 2) a group carries a date: its own
+  when one is given to it (a judgment's date), else the range of its pages' dates ("2 March 1948 –
+  15 March 1948"), through the ordinary date fields (`date_jdn`, `date_jdn_end`, `date_meta` with
+  source `pages`), so the Date column, the date sort and the timeline show it with no special case.
+  A pages' range is re-read from the pages on every listing, so a group made from undated pages
+  shows their date once they are dated. Pinned by `test_a_group_of_dated_pages_carries_their_range`,
+  `test_a_group_made_before_its_pages_were_dated_reads_their_date`,
+  `test_a_group_with_its_own_date_keeps_it`.
+- `library.group.answers-its-size` — **[PARTIAL]** (#5569 item 3) creating a group answers its true
+  `child_count`, and fetching one document answers its child count too. Pinned by
+  `test_create_group_answers_how_many_pages_it_holds`.
+- `library.canvas.a-group-is-a-container-card` — **[PARTIAL]** (#5570; built, not yet seen in the app)
+  on the Canvas a group is drawn as a container: a framed card with its pages laid out inside it, in
+  the group's own saved layout (scaled into the frame) or else a grid in page order. A whole box (8
+  groups and their 203 pages) is therefore one board: zoomed out the groups read as framed tiles,
+  zoomed in the pages read as pages. The frame has the size of one card unless it was resized; a
+  resized group keeps its size, and its pages scale with it. Pressing a group or any page inside it
+  and dragging moves the group and its pages together, saved as ONE move of the group (the pages'
+  places inside it are the group's own layout, never rows on the parent board, and *Arrange by*
+  leaves them out). On the parent board a page is part of its group's card: a click, a drag or a
+  rubber band over a page acts on the group, and a double-click opens the group, whose own board
+  (the Library inside it, or its Preview) shows each page as a card of its own. The frame is a
+  light wash drawn behind its pages and is never coloured by *Colour by*. Tested in
+  `fichero/Tests/Unit/general/Views/Library/CanvasGroupNestingTests.swift` (the real scene
+  resolution and nesting), not yet seen in the app.
+  - Not yet: dragging a page OUT of a group to ungroup it, selecting a single page on the parent
+    board, pages scaling live during a resize (they follow on release), and the 3D Space renderer
+    (it still draws a group as one card showing its first page).
+- `library.group.undo` — **[PARTIAL]** (#5303) Group and Ungroup are the engine's audited
+  `document.group` / `document.ungroup` actions, each the inverse of the other (an Ungroup undone
+  re-groups the same pages under the SAME id), so the history and ⌘Z can reverse them. Not yet seen
+  end to end from the app's ⌘Z.
+- Next slice — **[GAP]** (#5570, `specs/source/finding-documents.md`) prototypes and attributes on
+  groups: a group can be given a kind (Sentencia) whose attributes (juez, fecha, partes, resultado)
+  it carries and the Inspector, the table's columns and the canvas card show; the group's own date
+  then comes from its `fecha`.
 - `library.rotate.command-r-and-l` — **[PARTIAL]** (#5304; built, not yet seen in the app) ⌘R / ⌘L rotate the selected images 90°
   right / left in the library (every mode), the Preview and the canvas, through the image editor's
   one rotate action.

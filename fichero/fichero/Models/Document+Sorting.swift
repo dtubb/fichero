@@ -27,4 +27,11 @@ extension Document {
     var dateHeaderSortKey: Int {
         dateJdn ?? Int.min
     }
+
+    /// The folder's own order as one sortable value (#5570, `LibrarySortField.asFiled`): the
+    /// engine's `sort_order`, ties broken by name in natural order ("p2" before "p10"), the same
+    /// key the engine lists a folder by (`_ordered_by_sort_order`).
+    var filedOrder: FiledOrder {
+        FiledOrder(position: sortOrder, name: name)
+    }
 }

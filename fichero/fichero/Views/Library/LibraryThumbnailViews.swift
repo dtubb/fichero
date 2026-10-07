@@ -171,7 +171,8 @@ struct DocumentThumbnailView: View {
                         // bigger documents ("a 500 page pdf is larger than
                         // a 2 page pdf").
                         .background {
-                            if document.fileType == .pdf, document.docType != .page,
+                            // A group of pages stacks like a PDF of pages (#5570).
+                            if document.fileType == .pdf || document.isGroup, document.docType != .page,
                                stackSheetCount(forChildCount: document.childCount) > 0 {
                                 PDFStackSheets(
                                     scale: scale,
@@ -194,6 +195,7 @@ struct DocumentThumbnailView: View {
                             x: -1.5 * CGFloat(stackSheetCount(forChildCount: document.childCount)) * scale,
                             y: 1.5 * CGFloat(stackSheetCount(forChildCount: document.childCount)) * scale
                         )
+                        .groupStackBadge(for: document)
                 }
 
                 VStack {
@@ -300,6 +302,7 @@ struct DocumentThumbnailView: View {
         // the same tile is worse than one wrong one.
         let name = DocumentTitle.displayName(for: document)
         if document.docType == .folder { return "\(name), folder" }
+        if document.isGroup { return "\(name), \(GroupStackBadge.label(pageCount: document.childCount))" }
         if let fileType = document.fileType { return "\(name), \(fileType.rawValue)" }
         return name
     }

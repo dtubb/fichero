@@ -86,6 +86,7 @@ extension SidebarItemRow {
     private var accessibilityLabel: String {
         switch item.itemType {
         case .document(let doc):
+            if doc.isGroup { return "\(item.name), \(GroupStackBadge.label(pageCount: doc.childCount))" }
             return doc.docType == .folder
                 ? "\(item.name), folder"
                 : "\(item.name), \(doc.fileType?.rawValue ?? "file")"

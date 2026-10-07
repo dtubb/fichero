@@ -381,6 +381,71 @@ def _with_child_counts(db: Database, items: list[Document]) -> list[Document]:
     counts = db.child_counts([item.id for item in items])
     for item in items:
         item.child_count = counts.get(item.id, 0)
+    return _with_group_dates(db, items)
+
+
+# A group's date when it has none of its own is the range of its pages'
+# dates (#5569.2). Marked source "pages" so it is re-read from the pages on
+# every listing and never taken for a date someone gave the group.
+_PAGES_DATE_SOURCE = "pages"
+
+
+def _group_has_own_date(group: Document) -> bool:
+    meta = group.date_meta or {}
+    if meta.get("source") == _PAGES_DATE_SOURCE:
+        return False
+    return meta.get("status") in ("dated", "undated_explicit")
+
+
+def _apply_pages_date(group: Document, pages: list[Document]) -> None:
+    """Set a group's date fields to the range of its dated pages, unless it has its own date."""
+    if _group_has_own_date(group):
+        return
+    dated = [page for page in pages if page.date_jdn is not None]
+    if not dated:
+        if (group.date_meta or {}).get("source") == _PAGES_DATE_SOURCE:
+            group.date_original = None
+            group.date_jdn = None
+            group.date_jdn_end = None
+            group.date_meta = None
+        return
+    first = min(dated, key=lambda page: page.date_jdn)
+    last = max(dated, key=lambda page: page.date_jdn_end or page.date_jdn)
+    start, end = first.date_jdn, last.date_jdn_end or last.date_jdn
+
+    def shown(page: Document) -> str:
+        return str((page.date_meta or {}).get("display") or page.date_original or "")
+
+    first_shown, last_shown = shown(first), shown(last)
+    display = first_shown if first_shown == last_shown else f"{first_shown} – {last_shown}"
+    group.date_original = display
+    group.date_jdn = start
+    group.date_jdn_end = end
+    group.date_meta = {
+        "status": "dated",
+        "source": _PAGES_DATE_SOURCE,
+        "precision": "range" if start != end else (first.date_meta or {}).get("precision", "day"),
+        "calendar_system": (first.date_meta or {}).get("calendar_system", "gregorian"),
+        "display": display,
+        "dated_pages": len(dated),
+    }
+
+
+def _with_group_dates(db: Database, items: list[Document]) -> list[Document]:
+    """Fill each listed group's date from its pages when it has none of its own (#5569.2).
+
+    One IN-query for all listed groups' pages; nothing at all when the page of
+    results holds no group, so a plain folder listing costs nothing more.
+    """
+    groups = [item for item in items if item.doc_type == DocType.group and not _group_has_own_date(item)]
+    if not groups:
+        return items
+    pages_by_group: dict[str, list[Document]] = {group.id: [] for group in groups}
+    for page in db.query_in_committed(Document, "parent_id", list(pages_by_group)):
+        if page.deleted_at is None and page.parent_id in pages_by_group:
+            pages_by_group[page.parent_id].append(page)
+    for group in groups:
+        _apply_pages_date(group, pages_by_group[group.id])
     return items
 
 
@@ -771,7 +836,8 @@ async def get_document(
     doc_id: str, db: Database = Depends(get_library_database)
 ) -> Document:
     """Get a single document by ID."""
-    return _document_or_404(db, doc_id)
+    # With its child count, and a group's pages' date when it has none of its own (#5569).
+    return _with_child_counts(db, [_document_or_404(db, doc_id)])[0]
 
 
 class DocGeoPoint(BaseModel):
@@ -3779,6 +3845,7 @@ def group_documents_impl(db: Database, params: DocumentGroupParams) -> Document:
     children = [db.get(Document, child_id) for child_id in child_ids]
     if any(child is None for child in children):
         raise HTTPException(status_code=404, detail="One or more group children were not found")
+    _settle_sibling_order(db, children[0].parent_id, children)
     group = Document(
         **({"id": params.group_id} if params.group_id else {}),
         name=params.name,
@@ -3797,11 +3864,42 @@ def group_documents_impl(db: Database, params: DocumentGroupParams) -> Document:
             ]
         },
     )
+    # The group's date is its pages' range until it is given one of its own (#5569.2).
+    _apply_pages_date(group, children)
     db.save(group)
-    for child in children:
+    # Inside the group the pages keep the order they were given in (#5570): the
+    # group is read first page to last, never by name.
+    for index, child in enumerate(children):
         child.parent_id = group.id
+        child.sort_order = index
         db.save(child)
+    # The answer says what the group now holds (#5569.3): it answered 0 while
+    # the pages had already moved in.
+    group.child_count = len(children)
     return group
+
+
+def _settle_sibling_order(db: Database, parent_id: str | None, members: list[Document]) -> None:
+    """Give the first member's folder an explicit order before a group takes a place in it (#5569.1).
+
+    A folder nobody has reordered holds every item at sort_order 0 and lists by
+    name, so "the first page's place" was no place at all: the new group tied at
+    0 and listed by its own name. When the folder's order has ties, every item
+    is given its current listed position (sort_order ASC, then name), so the
+    group can take the first page's slot and the other members leave gaps that
+    ungroup fills again. A folder already in a strict order is left alone.
+    """
+    siblings = _ordered_by_sort_order(_list_documents(db, parent_id=parent_id))
+    orders = [sibling.sort_order for sibling in siblings]
+    if len(set(orders)) == len(orders):
+        return
+    by_id = {member.id: member for member in members}
+    for position, sibling in enumerate(siblings):
+        target = by_id.get(sibling.id, sibling)
+        if target.sort_order != position:
+            target.sort_order = position
+            if target is sibling:
+                db.save(sibling)
 
 
 def ungroup_document_impl(db: Database, group_id: str) -> tuple[Document, list[Document]]:

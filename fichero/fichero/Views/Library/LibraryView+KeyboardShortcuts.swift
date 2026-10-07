@@ -202,7 +202,7 @@ extension LibraryView {
         guard !isShowingEntitiesCollection,
               let primaryId = orderedPrimarySelectionId,
               let doc = navigableDocument(for: primaryId),
-              doc.docType != .folder else { return .ignored }
+              !doc.isFolderLike else { return .ignored }  // a group has no file to Quick Look (#5570)
         quickLook(doc)
         return .handled
     }

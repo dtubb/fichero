@@ -285,6 +285,10 @@ struct MailStyleRow: View {
                                 Text("Folder")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                            } else if document.isGroup {
+                                Text(GroupStackBadge.label(pageCount: document.childCount))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             } else if let fileType = document.fileType {
                                 Text(fileType.rawValue.capitalized)
                                     .font(.caption)
@@ -354,6 +358,7 @@ struct MailStyleRow: View {
     private var rowAccessibilityLabel: String {
         let name = displayName  // #4416: `?? name` spoke a storage name
         if document.docType == .folder { return "\(name), folder" }
+        if document.isGroup { return "\(name), \(GroupStackBadge.label(pageCount: document.childCount))" }
         if let fileType = document.fileType { return "\(name), \(fileType.rawValue)" }
         return name
     }

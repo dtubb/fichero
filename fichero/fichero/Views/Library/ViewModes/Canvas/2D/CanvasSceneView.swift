@@ -59,6 +59,17 @@ struct CanvasSceneView: View {
     /// channel, produced by the host from document attributes.
     var tint: CanvasTint = .neutral
 
+    /// The board's groups (`doc:<groupId>`), drawn as frames holding their pages (#5570). Known
+    /// from the listed documents, so a group is a frame from its first frame on.
+    var groupNodeIds: Set<String> = []
+    /// A group's pages, in order, as page nodes; nil draws groups as empty frames.
+    var pagesOfGroup: ((String) async -> [SpatialNode])?
+    /// Each loaded group's pages, keyed by group node id (`CanvasSceneView+Groups.swift`).
+    @State var groupPages: [String: [SpatialNode]] = [:]
+    /// The pages a dragged group carries, with where each started. Moved live, never saved: they
+    /// follow their group's saved place.
+    @State var nestedDragOrigins: [String: SIMD3<Double>] = [:]
+
     // These three are internal, not private, for the same reason as the resize
     // state above: `CanvasSceneView+Resize.swift` needs them and `private` is
     // FILE-scoped in Swift.
@@ -160,6 +171,7 @@ struct CanvasSceneView: View {
             gridCell: gridCell,
             arrangement: CanvasArrangement.stored(arrangementRaw)
         )
+        state = CanvasGroupNesting.nest(state, groupNodeIds: groupNodeIds, contents: groupContents)
         state.selection = selectedNodeIds
         state.emphasis = emphasis
         state.tint = tint
@@ -309,7 +321,8 @@ struct CanvasSceneView: View {
             .onChange(of: arrangementRaw) { _, raw in
                 guard CanvasArrangement.stored(raw) != .free, let layoutStore else { return }
                 let rows = CanvasArrangement.rowsPinning(
-                    resolvedState(in: geo.size, savedRows: []).placeables,
+                    // A page inside a group follows its group; it is never a row on this board.
+                    resolvedState(in: geo.size, savedRows: []).placeables.filter { $0.containerId == nil },
                     keeping: layoutStore.layout(for: scopeKey)
                 )
                 let scope = scopeKey
@@ -326,6 +339,7 @@ struct CanvasSceneView: View {
                 await layoutStore?.loadLayout(folderId: folderId)
                 await itemStore?.loadItems(folderId: folderId)
             }
+            .task(id: groupNodeIds) { await loadGroupPages() }
         }
     }
 
@@ -459,7 +473,7 @@ struct CanvasSceneView: View {
                     // (#4436) — read at .onEnded, the moment the marquee
                     // commits, exactly as the tap path reads them.
                     controller?.dispatch(.marquee(
-                        ids: renderer.placeableIds(inScreenRect: rect, viewSize: size),
+                        ids: Set(renderer.placeableIds(inScreenRect: rect, viewSize: size).map { owningCardId(of: $0) }),
                         modifiers: CanvasInteractionController.liveSelectionModifiers()
                     ))
                 }
@@ -472,6 +486,8 @@ struct CanvasSceneView: View {
     /// A click on a card, or on the board (`id` nil): select it, or zoom on a double-click, exactly
     /// as the entity-targeted `tapSelect` did.
     private func pointTap(on id: String?) {
+        // A page inside a group is part of the group's card here (#5570).
+        let id = id.map { owningCardId(of: $0) }
         let now = Date()
         if let id, lastTapNodeId == id, now.timeIntervalSince(lastTapAt) < 0.35 {
             lastTapNodeId = nil
@@ -490,7 +506,8 @@ struct CanvasSceneView: View {
     /// Start or continue a drag that began on a card. True when this drag belongs to a card.
     private func pressMovesCard(_ value: DragGesture.Value, in size: CGSize) -> Bool {
         if !pressDragging {
-            guard let id = renderer.placeableId(atScreenPoint: value.startLocation, viewSize: size),
+            guard let id = renderer.placeableId(atScreenPoint: value.startLocation, viewSize: size)
+                .map({ owningCardId(of: $0) }),
                   let world = renderer.worldPosition(of: id) else { return false }
             pressDragging = true
             draggingNodeId = id
@@ -508,6 +525,7 @@ struct CanvasSceneView: View {
                 // the end (`saveGroupMove`), so the controller never holds a half-finished drag.
                 controller?.dispatch(.dragBegan(id: id))
             }
+            beginCarryingNestedPages(of: [id] + Array(groupDragOrigins.keys))
         }
         guard let id = draggingNodeId, let start = dragStartScene else { return true }
         let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)
@@ -515,6 +533,9 @@ struct CanvasSceneView: View {
         if let origin = dragOriginWorld {
             for (other, otherOrigin) in groupDragOrigins {
                 renderer.liveMove(id: other, toWorld: otherOrigin + (world - origin))
+            }
+            for (page, pageOrigin) in nestedDragOrigins {
+                renderer.liveMove(id: page, toWorld: pageOrigin + (world - origin))
             }
         }
         renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
@@ -530,6 +551,7 @@ struct CanvasSceneView: View {
             dragStartScene = nil
             dragOriginWorld = nil
             groupDragOrigins = [:]
+            nestedDragOrigins = [:]
             renderer.setGroupDragging(false)
         }
         guard let id = draggingNodeId, let start = dragStartScene else { return }

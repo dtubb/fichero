@@ -281,7 +281,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         // moved card widened the board's bounds, `reconcile` re-fitted, and every other card
         // jumped on screen: one move looked like the whole board re-laying out.
         cameraIsAutoFit = false
-        placeablesRoot.findEntity(named: id)?.position = Canvas2DProjection.scenePosition(world)
+        if let entity = placeablesRoot.findEntity(named: id) {
+            entity.position = scenePosition(world, keepingDepthOf: entity)
+        }
         // The frame belongs to the card, so it travels with it mid-drag —
         // otherwise dragging a selected card leaves its selection behind,
         // which reads as the selection having been lost. Not during a GROUP
@@ -308,7 +310,10 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     func dropTargetId(nearWorld world: SIMD3<Double>, excluding: String) -> String? {
         CanvasDropResolver.nearestId(
             to: world,
-            among: placeablesById.map { (id: $0.key, position: $0.value.position) },
+            // A page drawn inside a group is part of that group's card, never a drop target of
+            // its own: dragging a group would otherwise drop it onto its own pages (#5570).
+            among: placeablesById.filter { $0.value.containerId == nil }
+                .map { (id: $0.key, position: $0.value.position) },
             excluding: excluding
         )
     }
@@ -360,9 +365,12 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
         let (width, height) = cardDimensions(placeable)
         let mesh = MeshResource.generatePlane(width: width, height: height, cornerRadius: min(width, height) * 0.08)
-        let entity = ModelEntity(mesh: mesh, materials: [UnlitMaterial(color: cardColor(for: placeable))])
+        let entity = ModelEntity(mesh: mesh, materials: [cardMaterial(for: placeable)])
         entity.name = placeable.id
         entity.position = Canvas2DProjection.scenePosition(placeable.position)
+        // A group's frame sits behind the pages drawn inside it (#5570). `applyMove`/`liveMove`
+        // keep each card's own depth, so this survives every move.
+        entity.position.z = Self.cardDepth(for: placeable)
         entity.components.set(InputTargetComponent())
         entity.components.set(CollisionComponent(shapes: [.generateBox(size: SIMD3<Float>(width, height, 0.02))]))
         entity.components.set(HoverEffectComponent())
@@ -371,9 +379,8 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         // it is selected must be rebuilt when that changes, and rebuilding a
         // textured card is #4409's blue flash. `CanvasSelectionVisualGuardTests`
         // pins this absence.
-        if case .node(let node) = placeable.content,
-           let sourceId = node.sourceId, !sourceId.isEmpty,
-           node.nodeType == .source, detailTier >= .thumbnail {
+        // `sourceId(of:)` is nil for a group's frame: it has no picture, its pages do.
+        if let sourceId = sourceId(of: placeable), detailTier >= .thumbnail {
             loadThumbnail(sourceId: sourceId, into: entity)
         }
         return entity
@@ -383,7 +390,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     // FILE-scoped, so a type split across sibling files loses access.
     /// The page-image source id for a source-node placeable, nil otherwise.
     func sourceId(of placeable: CanvasPlaceable) -> String? {
-        guard case .node(let node) = placeable.content,
+        guard !placeable.isContainer, case .node(let node) = placeable.content,
               node.nodeType == .source,
               let sourceId = node.sourceId, !sourceId.isEmpty else { return nil }
         return sourceId
