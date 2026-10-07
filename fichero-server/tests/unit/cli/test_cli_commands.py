@@ -1023,6 +1023,61 @@ def test_workflow_run_passes_the_chosen_model():
     assert bad.exit_code != 0
 
 
+def test_workflow_run_runs_once_over_several_pages():
+    """#5567: running over pages needed `workflow threads execute --inputs selected_doc_ids`. One
+    command runs one workflow over the selection, as the Run menu does: ONE run, every page."""
+    result = runner.invoke(cli.app, ["workflow", "run", "Catalogue", "p1", "p2", "p3", "p2"])
+    assert result.exit_code == 0, result.output
+    runs = [c for c in _last_client().calls if c[0] == "run_workflow"]
+    assert len(runs) == 1
+    assert runs[0][2] == {"selected_doc_ids": ["p1", "p2", "p3"]}
+
+
+def test_workflow_run_takes_a_trained_model_id_as_the_app_shows_it():
+    """#5567: `--model fichero-trained/<name>` was refused as provider `fichero-trained`. The CLI
+    sends it; the engine's execute request keeps the trained id whole (pinned engine-side in
+    test_run_model_trained_id.py)."""
+    result = runner.invoke(cli.app, ["workflow", "run", "Catalogue", "doc-7",
+                                     "--model", "fichero-trained/mosquera-qwen25vl3b"])
+    assert result.exit_code == 0, result.output
+    run_call = next(c for c in _last_client().calls if c[0] == "run_workflow")
+    from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest
+
+    sent = ExecuteWorkflowRequest(workflow_id="wf-1", provider_override=run_call[3]["provider_override"],
+                                  model_override=run_call[3]["model_override"])
+    assert (sent.provider_override, sent.model_override) == ("omlx", "fichero-trained/mosquera-qwen25vl3b")
+
+
+def test_library_option_takes_the_project_name_the_sidebar_shows(monkeypatch):
+    """#5567: opening a project needed its .fichero path. `--library "Istmina Full"` is resolved by
+    the engine (GET /api/registry/resolve) and every call then names that project's path."""
+    real_request = FakeClient.request
+
+    def request(self, method, path, *, params=None, json=None, files=None):
+        if path == "/api/registry/resolve":
+            self.calls.append(("request", method, path, {"params": params}))
+            return {"path": "/Users/x/Istmina Full.fichero", "name": "Istmina Full"}
+        return real_request(self, method, path, params=params, json=json, files=files)
+
+    monkeypatch.setattr(FakeClient, "request", request)
+    result = runner.invoke(cli.app, ["--library", "Istmina Full", "docs", "get", "d1"])
+    assert result.exit_code == 0, result.output
+    resolver, user = FakeClient.instances[0], FakeClient.instances[-1]
+    assert resolver.calls == [("request", "GET", "/api/registry/resolve", {"params": {"name": "Istmina Full"}})]
+    assert user.kwargs["library_path"] == "/Users/x/Istmina Full.fichero"
+
+    FakeClient.instances = []
+    result = runner.invoke(cli.app, ["library", "open", "Istmina Full"])
+    assert result.exit_code == 0, result.output
+    assert "Activated: /Users/x/Istmina Full.fichero" in result.output
+
+    FakeClient.instances = []
+    result = runner.invoke(cli.app, ["--library", "/tmp/Lib.fichero", "docs", "get", "d1"])
+    assert result.exit_code == 0, result.output
+    assert len(FakeClient.instances) == 1, "a path is used as given, the registry is not asked"
+    assert FakeClient.instances[0].kwargs["library_path"] == "/tmp/Lib.fichero"
+
+
 def test_workflow_run_unknown_name_errors():
     result = runner.invoke(cli.app, ["workflow", "run", "Nope", "doc-7"])
     assert result.exit_code == 1
