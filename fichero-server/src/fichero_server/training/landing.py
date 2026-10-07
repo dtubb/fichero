@@ -51,12 +51,27 @@ def reader_id_for_job(job_id: str) -> str:
 
 
 def land_trained_reader(out_dir: str | Path, *, job_id: str, model_name: str, card: dict[str, Any],
-                        home: Path | None = None) -> str:
-    """Install the trained model as a reader; returns its model id."""
+                        home: Path | None = None, project: str | Path | None = None) -> str:
+    """Install the trained model as a reader; returns its model id.
+
+    With `project` (the package it was trained for) the reader lands inside it (#5539,
+    `training.project_models`): `models/<reader id>/` holds the model file and its record, the file
+    named relative to the record. Without, it lands in the engine's global store as before."""
     from fichero_server.llm.kraken_runtime import _marker_path, recognition_data_home, recognition_model_dir
 
     source = best_model_file(out_dir, model_name)
     reader_id = reader_id_for_job(job_id)
+    if project is not None:
+        from fichero_server.training.project_models import kraken_record
+
+        record = kraken_record(project, reader_id)
+        record.parent.mkdir(parents=True, exist_ok=True)
+        target = record.parent / f"{model_name}{source.suffix}"
+        shutil.copy2(source, target)
+        full_card = {**card, "job_id": job_id, "model_file": target.name, "size_bytes": target.stat().st_size,
+                     "trained_at": datetime.now(timezone.utc).isoformat()}
+        record.write_text(json.dumps({"model_path": target.name, "trained": full_card}, indent=1), encoding="utf-8")
+        return reader_id
     folder = recognition_data_home(home) / reader_id
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / f"{model_name}{source.suffix}"

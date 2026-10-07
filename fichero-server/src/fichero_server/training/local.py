@@ -247,7 +247,7 @@ def run(db: Any, subject: str) -> str:
     gentle.record(time.monotonic() - started)
     gc.collect()
 
-    remote_job._save(db, job_id, detail, phase="landing", reason="Adding the reader to this Mac's Kraken readers")
+    remote_job._save(db, job_id, detail, phase="landing", reason="Adding the reader to this project's models")
     ts = detail["training_set"]
     card = {
         "display_name": request.display_name or f"{request.name} (taught by {request.teacher}, on this Mac)",
@@ -259,7 +259,8 @@ def run(db: Any, subject: str) -> str:
         "release_note": request.release_note or (remote_job.NOT_FOR_RELEASE_NOTE if request.not_for_release else None),
         "project": project_of(db),  # the reader shows only in this project's training node (#5483)
     }
-    reader_id = land_trained_reader(out, job_id=job_id, model_name=request.name, card=card)
+    reader_id = land_trained_reader(out, job_id=job_id, model_name=request.name, card=card,
+                                     project=Path(db.path).parent)  # lands inside the project (#5539)
     detail["reader_id"] = reader_id
     remote_job._save(db, job_id, detail, phase="done", reason=f"Done: {reader_id} is ready to read with")
     return reader_id
