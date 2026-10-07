@@ -928,6 +928,19 @@ and node, not by job); a retry action for failed pages.
   (`fichero-server/tests/unit/jobs/test_job_queue.py`); a workflow's Kraken pages are on the same lane, and a vision
   model reading Kraken's lines waits on the network off it (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap:
   measuring, and co-running when both fit.
+- `activity.lane.thumbnails-first` — **[PARTIAL]** (#5585) a new import's thumbnails are made before
+  heavy local work queued after them: they are cheap, and they are what the person sees. The local
+  ML lane takes no job of a library while a thumbnail job of that library queued at or before it is
+  still waiting or running, so a reading started on a new box and the import's own embeds wait for
+  the box's thumbnails; work queued earlier keeps its place. While Background Work is paused the hold
+  is off (paused thumbnails never run, and a page a person waits for still does). A held row says
+  "Waiting: thumbnails are made first". Built as the smallest change on the existing lanes: the
+  thumbnail kind is `first` (`execution/jobs.py` `Kind.first`); thumbnails already had their own
+  images lane, but nothing ordered the heavy lane behind them, and the reading took the Mac while
+  the box stayed blank (2026-10-07, 100 of 251 after 30 minutes). Tested through the real
+  `import.folder` action, thumbnail stage and lanes (`fichero-server/tests/unit/jobs/test_thumbnails_first.py`);
+  not yet seen in the app. Still a gap: a reading on a cloud model (the network lane) is not held,
+  and the small display image is made on first view, not at import.
 - `activity.lane.measures-processors` — **[GAP]** (#5358) each job's row shows what it uses (CPU, GPU, Neural
   Engine, memory), measured by the engine.
 - `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound

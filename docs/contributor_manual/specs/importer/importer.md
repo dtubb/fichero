@@ -110,6 +110,10 @@ in the file's own status), never a silent nothing.
   gets a thumbnail derivative queued, and a failure in that stage is visible, never silent.
   Pinned: `test_post_ingest_derivatives.py::TestTheStageProducesADerivative`,
   `::TestFailureIsVisibleNotSilent`.
+  The thumbnails are made before heavy local work queued after them (#5585,
+  `activity.lane.thumbnails-first` in `ui/activity-and-automatic-work.md`), and a folder the import
+  fills is laid out on its canvas as filed (#5585, `library.canvas.arranged-at-import` in
+  `ui/library-view-modes.md`).
 - `importer.embeddings-auto-at-import` — **[OK]**
   a document with text is embedded automatically after import, no opt-in needed. The
   `auto_embed` request flag defaults `False`, but that flag means "embed INLINE, blocking
