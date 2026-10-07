@@ -439,7 +439,9 @@ a file.
   disclosure triangle, and it expands to its pages in their order (sort order, never name). The
   sidebar used to drop groups (and with them their pages) because only folders and PDFs counted as
   containers; `Document.isNavigableContainer` now includes groups, so the sidebar, the table outline,
-  the selection's child load and double-click all answer from the one predicate.
+  the selection's child load and double-click all answer from the one predicate. Tested in
+  `fichero/Tests/Unit/general/Views/Library/GroupsAreContainersTests.swift` (the sidebar's tree
+  builder, the thumbnail classifier, the table outline).
 - `library.group.double-click-opens-its-pages` — **[PARTIAL]** (#5570) double-clicking a group opens
   it as a folder-like scope: the Library pane lists its pages, in their order, in that pane's view
   mode, and the crumbs name the group. In Columns a group opens the next column like a folder.
@@ -447,7 +449,8 @@ a file.
   as its pages, on the group's own canvas (the same board as
   `library.canvas.a-folder-previews-as-its-canvas`, one layout per group): its saved layout when it
   has one (each Istmina group holds an 8-column grid), else the default grid in page order. A click
-  on a page selects it; a double-click shows that page. Never a missing-file message.
+  on a page selects it; a double-click shows that page. Never a missing-file message. Tested by
+  `GroupsAreContainersTests.groupPreviewsAsItsCanvas` (the Preview's route).
 - `library.group.cover-is-its-first-page` — **[PARTIAL]** (#5570) the engine answers a group's
   thumbnail and display image with its first page's (lowest sort order), so every surface that draws
   a picture for a node draws one for a group without knowing what a group is. Pinned by
@@ -469,7 +472,8 @@ a file.
 - `library.group.sorts-by-order` — **[PARTIAL]** (#5570) the library's sort menu has **As Filed**
   (the folder's sort order, then name in natural order), and it is the default for a folder with no
   saved sort, so groups and pages appear in their order, not alphabetically. Name and the other
-  sorts remain; a folder's chosen sort is still remembered.
+  sorts remain; a folder's chosen sort is still remembered. Tested by
+  `GroupsAreContainersTests.asFiledOrdersBySortOrder`.
 - `library.group.dated-by-its-pages` — **[PARTIAL]** (#5569 item 2) a group carries a date: its own
   when one is given to it (a judgment's date), else the range of its pages' dates ("2 March 1948 –
   15 March 1948"), through the ordinary date fields (`date_jdn`, `date_jdn_end`, `date_meta` with
@@ -488,11 +492,16 @@ a file.
   zoomed in the pages read as pages. The frame has the size of one card unless it was resized; a
   resized group keeps its size, and its pages scale with it. Pressing a group or any page inside it
   and dragging moves the group and its pages together, saved as ONE move of the group (the pages'
-  places inside it are the group's own layout, never rows on the parent board). Clicking a page
-  selects that page; double-clicking a page opens it; double-clicking the frame opens the group.
-  - Not yet: dragging a page OUT of a group to ungroup it, rearranging pages inside the frame on the
-    parent board (they are arranged on the group's own board, in its Preview), and the 3D Space
-    renderer (it still draws a group as one card with its first page).
+  places inside it are the group's own layout, never rows on the parent board, and *Arrange by*
+  leaves them out). On the parent board a page is part of its group's card: a click, a drag or a
+  rubber band over a page acts on the group, and a double-click opens the group, whose own board
+  (the Library inside it, or its Preview) shows each page as a card of its own. The frame is a
+  light wash drawn behind its pages and is never coloured by *Colour by*. Tested in
+  `fichero/Tests/Unit/general/Views/Library/CanvasGroupNestingTests.swift` (the real scene
+  resolution and nesting), not yet seen in the app.
+  - Not yet: dragging a page OUT of a group to ungroup it, selecting a single page on the parent
+    board, pages scaling live during a resize (they follow on release), and the 3D Space renderer
+    (it still draws a group as one card showing its first page).
 - `library.group.undo` — **[PARTIAL]** (#5303) Group and Ungroup are the engine's audited
   `document.group` / `document.ungroup` actions, each the inverse of the other (an Ungroup undone
   re-groups the same pages under the SAME id), so the history and ⌘Z can reverse them. Not yet seen
