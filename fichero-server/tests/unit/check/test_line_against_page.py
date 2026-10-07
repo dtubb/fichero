@@ -40,16 +40,15 @@ class RoughReader:
 
 
 @pytest.fixture
-def reader(monkeypatch):
+def reader(monkeypatch, jobs_run_by_the_test):
     fake = RoughReader()
     monkeypatch.setattr(kraken_runtime, "read_given_lines", fake)
     monkeypatch.setattr(kraken_runtime, "resolve_recognition_model", lambda ref: ("/models/mccatmus.mlmodel", ref))
-    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)  # the test runs the job itself
     return fake
 
 
 @pytest.fixture
-def folder(db, tmp_path):
+def folder(db, tmp_path, jobs_run_by_the_test):
     made = Document(name="SM_NPQ_C01", doc_type=DocType.folder)
     db.save(made)
     doc = _page(db, tmp_path, "SM_NPQ_C01_001", made, size=SIZE)
