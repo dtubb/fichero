@@ -18,6 +18,12 @@ needs, each lane with its own threads:
 * **The images lane runs two at a time** (thumbnails): more concurrent texture decodes once
   destabilised the window server (#1400).
   ponytail: two lanes; network and database lanes are added when their first kind moves here.
+* **Thumbnails first** (#5585, `activity.lane.thumbnails-first`). A kind marked `first` (the
+  thumbnail: cheap, and what a person sees) is made before heavy local work queued after it: the
+  local ML lane takes no job of a library while a `first` job of that library queued at or before
+  it is still waiting or running, so a reading or an embed of a new import waits for its pages'
+  thumbnails, not the other way round. Not while paused (a person's page must not wait on a
+  paused thumbnail).
 * **Grouped by model.** The next job is one for the model already loaded, if any is waiting;
   only then the oldest job for another model. Loading a model once and using it fully is the
   point (#5370).
@@ -152,6 +158,8 @@ class Kind:
     #: How to pause or resume one of these when the generic way cannot (a workflow run pauses at
     #: its own next boundary): `(db, job_id, paused) -> state after the request`.
     pause: Callable[["Database", str, bool], str] | None = None
+    #: Made before heavy local work queued after it (`activity.lane.thumbnails-first`, #5585).
+    first: bool = False
 
 
 KINDS: dict[str, Kind] = {}
@@ -160,10 +168,11 @@ KINDS: dict[str, Kind] = {}
 def register_kind(kind: str, run: Callable[["Database", str], Any] | None, *, model: str | None,
                   qos: Callable[[], None] = set_background_qos, lane: str = "local-ml",
                   name: str | None = None, cancel: Callable[["Database", str], str] | None = None,
-                  pause: Callable[["Database", str, bool], str] | None = None) -> None:
+                  pause: Callable[["Database", str, bool], str] | None = None, first: bool = False) -> None:
     if lane not in LANES:
         raise ValueError(f"no lane {lane!r}")
-    KINDS[kind] = Kind(run=run, model=model, qos=qos, lane=lane, name=name, cancel=cancel, pause=pause)
+    KINDS[kind] = Kind(run=run, model=model, qos=qos, lane=lane, name=name, cancel=cancel, pause=pause,
+                       first=first)
 
 
 def kind_name(kind: str) -> str:
@@ -741,6 +750,11 @@ def _pause_requested(run_id: str) -> bool:
 
     return pause_requested(run_id)
 
+
+#: What a local ML job held behind thumbnails says (`activity.lane.thumbnails-first`, #5585).
+FIRST_REASON = "Waiting: thumbnails are made first"
+#: How soon the local ML lane looks again at work held behind thumbnails (each takes well under this).
+FIRST_LOOK_AGAIN_SECONDS = 0.5
 
 #: How soon the model lane looks again at a job held by the throttle.
 THROTTLE_LOOK_AGAIN_SECONDS = 5.0
@@ -1391,6 +1405,17 @@ class _Scheduler:
         ]))
         where, params = f"({where})", [*stored, *attached]
         held_back = False
+        # Thumbnails first (`activity.lane.thumbnails-first`, #5585): heavy local work waits for the
+        # `first` jobs queued at or before it. Not while paused: those would never run.
+        first_kinds = [name for name, kind in KINDS.items() if kind.first] if lane.name == "local-ml" else []
+        first_clause = ""
+        if first_kinds and not is_paused():
+            marks = ", ".join("?" for _ in first_kinds)
+            first_clause = (f"EXISTS (SELECT 1 FROM jobs AS f WHERE f.kind IN ({marks}) "
+                            f"AND f.state IN ('waiting', 'running') AND f.created_at <= jobs.created_at)")
+            waiting_on_first = (f"{where} AND {first_clause}", [*params, *first_kinds])
+            where += f" AND NOT {first_clause}"
+            params += first_kinds
         # One provider's calls never take the whole network lane while another provider's call is
         # waiting (`activity.run.lane-cap-per-mac`, the cap per provider): a provider stuck on a rate
         # limit leaves a slot for the others. Work-conserving: with no other provider's call waiting,
@@ -1472,9 +1497,17 @@ class _Scheduler:
 
                 due = time.monotonic() + max(0.0, (ensure_utc(later) - ensure_utc(now)).total_seconds())
                 lane.look_again_at = min(lane.look_again_at or due, due)
+            held_by_first = bool(first_clause) and db.execute_fetchone(
+                f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]} LIMIT 1",
+                waiting_on_first[1]) is not None
+            if held_by_first:  # each held row says why, and the lane looks again soon (not idle)
+                db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {waiting_on_first[0]} "
+                           f"AND reason IS DISTINCT FROM ?", [FIRST_REASON, *waiting_on_first[1], FIRST_REASON])
+                due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
+                lane.look_again_at = min(lane.look_again_at or due, due)
             if row:
                 candidates.append((key, db, row, spare))
-            elif later is None and not held_back:
+            elif later is None and not held_back and not held_by_first:
                 idle.append(key)
         if full_scan:
             with self._lock:
