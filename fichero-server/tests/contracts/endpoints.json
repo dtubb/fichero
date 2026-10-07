@@ -4058,6 +4058,82 @@
         "response_model": "WordExportResponse"
       }
     ],
+    "find-documents": [
+      {
+        "method": "GET",
+        "path": "/find-documents/proposals",
+        "operation_id": "list_find_documents_proposals_api_find_documents_proposals_get",
+        "summary": "Stored Find the Documents proposals",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "folder_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "DocumentsProposalList"
+      },
+      {
+        "method": "GET",
+        "path": "/find-documents/proposals/{proposal_id}",
+        "operation_id": "get_find_documents_proposal_api_find_documents_proposals__proposal_id__get",
+        "summary": "One Find the Documents proposal",
+        "path_params": [
+          "proposal_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DocumentsProposal"
+      },
+      {
+        "method": "POST",
+        "path": "/find-documents/proposals/{proposal_id}/accept",
+        "operation_id": "accept_find_documents_proposal_api_find_documents_proposals__proposal_id__accept_post",
+        "summary": "Accept proposed documents: group nodes with their prototypes, the canvas laid out",
+        "path_params": [
+          "proposal_id"
+        ],
+        "query_params": [],
+        "request_model": "FindDocumentsAcceptRequest",
+        "response_model": "FindDocumentsAcceptResult"
+      },
+      {
+        "method": "POST",
+        "path": "/find-documents/proposals/{proposal_id}/reject",
+        "operation_id": "reject_find_documents_proposal_api_find_documents_proposals__proposal_id__reject_post",
+        "summary": "Reject proposed documents (kept, for the project's own model to learn from)",
+        "path_params": [
+          "proposal_id"
+        ],
+        "query_params": [],
+        "request_model": "FindDocumentsRejectRequest",
+        "response_model": "DocumentsProposal"
+      },
+      {
+        "method": "POST",
+        "path": "/find-documents/runs",
+        "operation_id": "start_find_documents_api_find_documents_runs_post",
+        "summary": "Find the documents in folders or a selection of pages",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FindDocumentsRequest",
+        "response_model": "FindDocumentsRun"
+      },
+      {
+        "method": "GET",
+        "path": "/find-documents/runs/{job_id}",
+        "operation_id": "find_documents_run_api_find_documents_runs__job_id__get",
+        "summary": "A Find the Documents run and its proposals",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "FindDocumentsRun"
+      }
+    ],
     "folders": [
       {
         "method": "DELETE",

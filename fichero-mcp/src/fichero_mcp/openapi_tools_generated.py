@@ -2755,6 +2755,60 @@ def fichero_export_word_route(
     return _rt.call("POST", "/api/export/word", json=_rt.body({"include_knowledge_graph": include_knowledge_graph, "output_path": output_path, "overwrite": overwrite, "recursive": recursive, "target_id": target_id}))
 
 
+def fichero_find_documents_list_proposals(
+    *,
+    folder_id: Annotated[Optional[str], Field(description="Only this folder's proposals.")] = None,
+) -> Any:
+    'Stored Find the Documents proposals\n\nNewest first; a proposal on a folder this caller may not read is left out and counted.\n\nRoute: GET /api/find-documents/proposals (toolset `find-documents`; reads).'
+    return _rt.call("GET", "/api/find-documents/proposals", params={"folder_id": folder_id})
+
+
+def fichero_find_documents_get_proposal(
+    *,
+    proposal_id: Annotated[str, Field(description='Proposal Id')],
+) -> Any:
+    'One Find the Documents proposal\n\nRoute: GET /api/find-documents/proposals/{proposal_id} (toolset `find-documents`; reads).'
+    return _rt.call("GET", f"/api/find-documents/proposals/{proposal_id}")
+
+
+def fichero_find_documents_accept_proposal(
+    *,
+    proposal_id: Annotated[str, Field(description='Proposal Id')],
+    arrange: Annotated[Optional[bool], Field(description="Lay the folder's canvas out in the documents' order. Default: true.")] = None,
+    document_indexes: Annotated[Optional[list[Any]], Field(description='The documents to accept; none with no `min_confidence` accepts them all.')] = None,
+    groups: Annotated[Optional[bool], Field(description='Also accept each proposed group whose documents are all accepted. Default: true.')] = None,
+    min_confidence: Annotated[Optional[float], Field(description='Accept every document at least this confident.')] = None,
+) -> Any:
+    "Accept proposed documents: group nodes with their prototypes, the canvas laid out\n\nAccept all the proposed documents, the ones named, or those at least `min_confidence` sure: each becomes a\ngroup node of its pages (a one-page document stays its page) with its proposed prototype (made if the project\nhas none of that name); a proposed group whose documents are all accepted becomes a group of them; the\nfolder's canvas is laid out in their order. One audited action: undoing it (its `audit_id`) restores all.\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/accept (toolset `find-documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/accept", json=_rt.body({"arrange": arrange, "document_indexes": document_indexes, "groups": groups, "min_confidence": min_confidence}))
+
+
+def fichero_find_documents_reject_proposal(
+    *,
+    proposal_id: Annotated[str, Field(description='Proposal Id')],
+    document_indexes: Annotated[list[Any], Field(description='Document Indexes.')],
+) -> Any:
+    "Reject proposed documents (kept, for the project's own model to learn from)\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/reject (toolset `find-documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/reject", json=_rt.body({"document_indexes": document_indexes}))
+
+
+def fichero_find_documents_start(
+    *,
+    accept_above: Annotated[Optional[float], Field(description='Accept, as the run ends, every proposed document at least this confident; none leaves all for a person.')] = None,
+    scope_ids: Annotated[list[Any], Field(description='Folders, or a selection of pages (each with its folder).')],
+) -> Any:
+    "Find the documents in folders or a selection of pages\n\nQueue one background job: each folder's loose pages are paired into leaves, and documents, their kinds\nand their groups are proposed from the text already read, with evidence and a confidence; blank versos and\nsecond shots are reported, not made documents. The proposals are stored; nothing in the source changes.\nWith `accept_above`, the documents at least that sure are accepted as the run ends.\n\nRoute: POST /api/find-documents/runs (toolset `find-documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/find-documents/runs", json=_rt.body({"accept_above": accept_above, "scope_ids": scope_ids}))
+
+
+def fichero_find_documents_run(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    'A Find the Documents run and its proposals\n\nRoute: GET /api/find-documents/runs/{job_id} (toolset `find-documents`; reads).'
+    return _rt.call("GET", f"/api/find-documents/runs/{job_id}")
+
+
 def fichero_folders_delete(
     *,
     entity_type: Annotated[str, Field(description='Path parameter entity_type.')],
@@ -5843,6 +5897,7 @@ def fichero_recipes_assemble(
     jobs: Annotated[Optional[list[Any]], Field(description="jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)")] = None,
     languages: Annotated[list[Any], Field(description="BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag)")],
     layers: Annotated[Optional[list[Any]], Field(description="layers added beyond the purposes' (source.onboard.add-layer)")] = None,
+    loose_pages: Annotated[Optional[bool], Field(description='the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open project holds a folder of loose page images (finddocs.recipe-step)')] = None,
     mac_memory_gb: Annotated[Optional[float], Field(description="defaults to this machine's memory.")] = None,
     material: Annotated[Optional[str], Field(description='a single material, as before 2026-10-05.')] = None,
     materials: Annotated[Optional[list[Any]], Field(description='handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader per kind (source.onboard.material-any-mix)')] = None,
@@ -5852,7 +5907,7 @@ def fichero_recipes_assemble(
     scripts: Annotated[list[Any], Field(description="ISO 15924 script codes (or a script's English name)")],
 ) -> Any:
     "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "jobs": jobs, "languages": languages, "layers": layers, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "scripts": scripts}))
+    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "scripts": scripts}))
 
 
 def fichero_recipes_check(
@@ -8596,6 +8651,12 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_export_parquet_route", "export", "POST", "/api/export/parquet", fichero_export_parquet_route),
     GeneratedTool("fichero_export_training_route", "export", "POST", "/api/export/training", fichero_export_training_route),
     GeneratedTool("fichero_export_word_route", "export", "POST", "/api/export/word", fichero_export_word_route),
+    GeneratedTool("fichero_find_documents_list_proposals", "find-documents", "GET", "/api/find-documents/proposals", fichero_find_documents_list_proposals),
+    GeneratedTool("fichero_find_documents_get_proposal", "find-documents", "GET", "/api/find-documents/proposals/{proposal_id}", fichero_find_documents_get_proposal),
+    GeneratedTool("fichero_find_documents_accept_proposal", "find-documents", "POST", "/api/find-documents/proposals/{proposal_id}/accept", fichero_find_documents_accept_proposal),
+    GeneratedTool("fichero_find_documents_reject_proposal", "find-documents", "POST", "/api/find-documents/proposals/{proposal_id}/reject", fichero_find_documents_reject_proposal),
+    GeneratedTool("fichero_find_documents_start", "find-documents", "POST", "/api/find-documents/runs", fichero_find_documents_start),
+    GeneratedTool("fichero_find_documents_run", "find-documents", "GET", "/api/find-documents/runs/{job_id}", fichero_find_documents_run),
     GeneratedTool("fichero_folders_delete", "folders", "DELETE", "/api/folders/{entity_type}/folders", fichero_folders_delete),
     GeneratedTool("fichero_folders_list", "folders", "GET", "/api/folders/{entity_type}/folders", fichero_folders_list),
     GeneratedTool("fichero_folders_create", "folders", "POST", "/api/folders/{entity_type}/folders", fichero_folders_create),
@@ -9178,4 +9239,4 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_views_document", "views", "GET", "/view/document/{doc_id}", fichero_views_document),
     GeneratedTool("fichero_views_global_kg", "views", "GET", "/view/kg/global", fichero_views_global_kg),
 )
-TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workflow-execution", "workflows",)
+TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "find-documents", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workflow-execution", "workflows",)

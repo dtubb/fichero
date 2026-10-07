@@ -187,7 +187,7 @@ def test_the_default_is_the_recipe_golden_path_and_all_is_every_tag():
     """WHY: with no flag the server is the recipe golden path the spec names; `all` is every tag."""
     assert mcp_server.DEFAULT_TOOLSETS == (
         "recipes", "training", "check", "segments", "documents", "activity", "local-models", "hpc",
-        "canvas", "classifications",
+        "canvas", "classifications", "find-documents",
     )
     assert set(mcp_server.DEFAULT_TOOLSETS) <= set(generated.TAGS), "a default toolset is not a real tag"
     assert mcp_server.parse_toolsets("all") == (*generated.TAGS, "ui"), "every tag, and the app's UI verbs"

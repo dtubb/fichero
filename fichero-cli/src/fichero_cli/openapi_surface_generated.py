@@ -5810,6 +5810,115 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('find-documents')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for find-documents endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='find-documents')
+        existing_apps['find-documents'] = target_app
+
+    @target_app.command("stored-the-proposals")
+    def find_documents_stored_the_proposals_get(
+        ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Query parameter: folder_id."),
+    ) -> None:
+        """Stored Find the Documents proposals (GET /api/find-documents/proposals)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/find-documents/proposals"
+            params = {
+                "folder_id": folder_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("one-the-proposal")
+    def find_documents_one_the_proposal_get(
+        ctx: typer.Context,
+        proposal_id: str = typer.Argument(..., help="Path parameter: proposal_id."),
+    ) -> None:
+        """One Find the Documents proposal (GET /api/find-documents/proposals/{proposal_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/find-documents/proposals/{proposal_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("accept-proposed-group-nodes-with-their-prototypes-the-canvas-laid-out")
+    def find_documents_accept_proposed_group_nodes_with_their_prototypes_the_canvas_laid_out_post(
+        ctx: typer.Context,
+        proposal_id: str = typer.Argument(..., help="Path parameter: proposal_id."),
+        arrange: Optional[bool] = typer.Option(None, "--arrange/--no-arrange", help="Request field: arrange."),
+        document_indexes: Optional[str] = typer.Option(None, "--document-indexes", help="Request field: document_indexes."),
+        groups: Optional[bool] = typer.Option(None, "--groups/--no-groups", help="Request field: groups."),
+        min_confidence: Optional[float] = typer.Option(None, "--min-confidence", help="Request field: min_confidence."),
+    ) -> None:
+        """Accept proposed documents: group nodes with their prototypes, the canvas laid out (POST /api/find-documents/proposals/{proposal_id}/accept)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/find-documents/proposals/{proposal_id}/accept"
+            params = None
+            payload = _build_json_payload({
+                "arrange": arrange,
+                "document_indexes": document_indexes,
+                "groups": groups,
+                "min_confidence": min_confidence,
+            }, {
+                "arrange": {'type': 'boolean', 'title': 'Arrange', 'description': "Lay the folder's canvas out in the documents' order.", 'default': True, 'x-cli-required': False},
+                "document_indexes": {'items': {'type': 'integer'}, 'type': 'array', 'nullable': True, 'title': 'Document Indexes', 'description': 'The documents to accept; none with no `min_confidence` accepts them all.', 'x-cli-required': False},
+                "groups": {'type': 'boolean', 'title': 'Groups', 'description': 'Also accept each proposed group whose documents are all accepted.', 'default': True, 'x-cli-required': False},
+                "min_confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Min Confidence', 'description': 'Accept every document at least this confident.', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("reject-proposed-kept-for-the-project-s-own-model-to-learn-from")
+    def find_documents_reject_proposed_kept_for_the_project_s_own_model_to_learn_from_post(
+        ctx: typer.Context,
+        proposal_id: str = typer.Argument(..., help="Path parameter: proposal_id."),
+        document_indexes: str = typer.Option(..., "--document-indexes", help="Request field: document_indexes."),
+    ) -> None:
+        """Reject proposed documents (kept, for the project's own model to learn from) (POST /api/find-documents/proposals/{proposal_id}/reject)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/find-documents/proposals/{proposal_id}/reject"
+            params = None
+            payload = _build_json_payload({
+                "document_indexes": document_indexes,
+            }, {
+                "document_indexes": {'items': {'type': 'integer'}, 'type': 'array', 'minItems': 1, 'title': 'Document Indexes', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("the-in-folders-or-a-selection-of-pages")
+    def find_documents_the_in_folders_or_a_selection_of_pages_post(
+        ctx: typer.Context,
+        accept_above: Optional[float] = typer.Option(None, "--accept-above", help="Request field: accept_above."),
+        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+    ) -> None:
+        """Find the documents in folders or a selection of pages (POST /api/find-documents/runs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/find-documents/runs"
+            params = None
+            payload = _build_json_payload({
+                "accept_above": accept_above,
+                "scope_ids": scope_ids,
+            }, {
+                "accept_above": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Accept Above', 'description': 'Accept, as the run ends, every proposed document at least this confident; none leaves all for a person.', 'x-cli-required': False},
+                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Scope Ids', 'description': 'Folders, or a selection of pages (each with its folder).', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("a-the-run-and-its-proposals")
+    def find_documents_a_the_run_and_its_proposals_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """A Find the Documents run and its proposals (GET /api/find-documents/runs/{job_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/find-documents/runs/{job_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('folders')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for folders endpoints.', no_args_is_help=True)
@@ -12168,6 +12277,7 @@ def register_generated_openapi_commands(
         jobs: Optional[str] = typer.Option(None, "--jobs", help="Request field: jobs."),
         languages: str = typer.Option(..., "--languages", help="Request field: languages."),
         layers: Optional[str] = typer.Option(None, "--layers", help="Request field: layers."),
+        loose_pages: Optional[bool] = typer.Option(None, "--loose-pages/--no-loose-pages", help="Request field: loose_pages."),
         mac_memory_gb: Optional[float] = typer.Option(None, "--mac-memory-gb", help="Request field: mac_memory_gb."),
         material: Optional[str] = typer.Option(None, "--material", help="Request field: material."),
         materials: Optional[str] = typer.Option(None, "--materials", help="Request field: materials."),
@@ -12186,6 +12296,7 @@ def register_generated_openapi_commands(
                 "jobs": jobs,
                 "languages": languages,
                 "layers": layers,
+                "loose_pages": loose_pages,
                 "mac_memory_gb": mac_memory_gb,
                 "material": material,
                 "materials": materials,
@@ -12199,6 +12310,7 @@ def register_generated_openapi_commands(
                 "jobs": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Jobs', 'description': "jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)", 'x-cli-required': False},
                 "languages": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Languages', 'description': "BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag)", 'x-cli-required': True},
                 "layers": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Layers', 'description': "layers added beyond the purposes' (source.onboard.add-layer)", 'x-cli-required': False},
+                "loose_pages": {'type': 'boolean', 'nullable': True, 'title': 'Loose Pages', 'description': 'the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open project holds a folder of loose page images (finddocs.recipe-step)', 'x-cli-required': False},
                 "mac_memory_gb": {'type': 'number', 'nullable': True, 'title': 'Mac Memory Gb', 'description': "defaults to this machine's memory", 'x-cli-required': False},
                 "material": {'type': 'string', 'nullable': True, 'title': 'Material', 'description': 'a single material, as before 2026-10-05', 'x-cli-required': False},
                 "materials": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Materials', 'description': 'handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader per kind (source.onboard.material-any-mix)', 'x-cli-required': False},
