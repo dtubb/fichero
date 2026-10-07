@@ -1627,7 +1627,7 @@
         "method": "GET",
         "path": "/canvas/folders/{folder_id}/canvas-picture",
         "operation_id": "get_folder_canvas_picture_api_canvas_folders__folder_id__canvas_picture_get",
-        "summary": "A picture of a folder's canvas: its cards' thumbnails at their saved positions",
+        "summary": "Get Folder Canvas Picture",
         "path_params": [
           "folder_id"
         ],
@@ -8998,7 +8998,7 @@
         "method": "GET",
         "path": "/registry/resolve",
         "operation_id": "resolve_known_library_api_registry_resolve_get",
-        "summary": "Find a known project by its name as the sidebar shows it (or by its path)",
+        "summary": "Resolve Known Library",
         "path_params": [],
         "query_params": [
           {

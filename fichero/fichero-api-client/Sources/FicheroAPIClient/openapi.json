@@ -21895,7 +21895,7 @@
         "tags": [
           "library"
         ],
-        "summary": "Find a known project by its name as the sidebar shows it (or by its path)",
+        "summary": "Resolve Known Library",
         "description": "The one known project called `name`, so a client can open a project by the name a person sees\nrather than its .fichero path (#5567).\n\nMatches a registered path exactly first, then the shown name ignoring case. No match is a 404\nnaming the known projects; two projects with that name is a 409 naming their paths.",
         "operationId": "resolve_known_library_api_registry_resolve_get",
         "parameters": [
@@ -36981,7 +36981,7 @@
         "tags": [
           "canvas"
         ],
-        "summary": "A picture of a folder's canvas: its cards' thumbnails at their saved positions",
+        "summary": "Get Folder Canvas Picture",
         "description": "Draw the folder's board from the stored thumbnails and the saved layout, so an agent can\nlay pages out, look, and adjust without screen control (#5568).\n\nEach card is labelled with its name and the first 8 characters of its id; a group has a blue\noutline and its member count; notes are yellow boxes; children with no saved position are\ndrawn in a \"not placed\" strip below. A read: nothing is generated or changed.",
         "operationId": "get_folder_canvas_picture_api_canvas_folders__folder_id__canvas_picture_get",
         "parameters": [

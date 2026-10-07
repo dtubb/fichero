@@ -1020,7 +1020,7 @@ def _library_display_name(library: KnownLibrary) -> str:
 @router.get(
     "/registry/resolve",
     response_model=KnownLibrary,
-    summary="Find a known project by its name as the sidebar shows it (or by its path)",
+    summary="Resolve Known Library",
 )
 def resolve_known_library(
     name: str,

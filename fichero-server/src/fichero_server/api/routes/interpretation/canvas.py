@@ -220,7 +220,7 @@ async def get_folder_canvas_layout(
             "description": "The folder's board as one PNG",
         },
     },
-    summary="A picture of a folder's canvas: its cards' thumbnails at their saved positions",
+    summary="Get Folder Canvas Picture",
 )
 async def get_folder_canvas_picture(
     folder_id: str,

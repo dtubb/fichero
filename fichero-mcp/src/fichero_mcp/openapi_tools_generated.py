@@ -1090,7 +1090,7 @@ def fichero_canvas_get_folder_picture(
     folder_id: Annotated[str, Field(description='Folder Id')],
     max_size: Annotated[Optional[int], Field(description='Longest side of the picture, in pixels')] = None,
 ) -> Any:
-    'A picture of a folder\'s canvas: its cards\' thumbnails at their saved positions\n\nDraw the folder\'s board from the stored thumbnails and the saved layout, so an agent can\nlay pages out, look, and adjust without screen control (#5568).\n\nEach card is labelled with its name and the first 8 characters of its id; a group has a blue\noutline and its member count; notes are yellow boxes; children with no saved position are\ndrawn in a "not placed" strip below. A read: nothing is generated or changed.\n\nRoute: GET /api/canvas/folders/{folder_id}/canvas-picture (toolset `canvas`; reads).'
+    'Get Folder Canvas Picture\n\nDraw the folder\'s board from the stored thumbnails and the saved layout, so an agent can\nlay pages out, look, and adjust without screen control (#5568).\n\nEach card is labelled with its name and the first 8 characters of its id; a group has a blue\noutline and its member count; notes are yellow boxes; children with no saved position are\ndrawn in a "not placed" strip below. A read: nothing is generated or changed.\n\nRoute: GET /api/canvas/folders/{folder_id}/canvas-picture (toolset `canvas`; reads).'
     return _rt.image("GET", f"/api/canvas/folders/{folder_id}/canvas-picture", params={"max_size": max_size})
 
 
@@ -6172,7 +6172,7 @@ def fichero_library_resolve_known(
     *,
     name: Annotated[str, Field(description='Name')],
 ) -> Any:
-    'Find a known project by its name as the sidebar shows it (or by its path)\n\nThe one known project called `name`, so a client can open a project by the name a person sees\nrather than its .fichero path (#5567).\n\nMatches a registered path exactly first, then the shown name ignoring case. No match is a 404\nnaming the known projects; two projects with that name is a 409 naming their paths.\n\nRoute: GET /api/registry/resolve (toolset `library`; reads).'
+    'Resolve Known Library\n\nThe one known project called `name`, so a client can open a project by the name a person sees\nrather than its .fichero path (#5567).\n\nMatches a registered path exactly first, then the shown name ignoring case. No match is a 404\nnaming the known projects; two projects with that name is a 409 naming their paths.\n\nRoute: GET /api/registry/resolve (toolset `library`; reads).'
     return _rt.call("GET", "/api/registry/resolve", params={"name": name})
 
 
