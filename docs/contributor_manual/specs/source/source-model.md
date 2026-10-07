@@ -297,6 +297,223 @@ Not built: every row with an issue above. The order proposed: #5487 and #5444 (o
 text onto lines; built 2026-10-06 for the readers and the tie, see `source.model.one-line-pass`), then
 #5486, then #5489, then #5488 and #4932, then #5490.
 
+### Extracted data, integrated (review 2026-10-07)
+
+**What the maintainer saw (paraphrased).** What Fichero pulls out of a source (a diary's entries and
+their dates, names of people, places and things, statements, quotations, tables, catalogue fields,
+the attributes of a judgment such as its court, judge, parties, date and ruling, and the kinds and
+groups Find the Documents proposes) does not yet belong to the archive model, the page model or the
+Preview. It sits beside them. The ruling above (#5467) already says where it must go: into the one
+page, tied to its segments, so a person can see it where it came from, correct it there and cite it.
+He widened the review the same day to every output of every shipped workflow, and to the question of
+what level of the archive a workflow can run on.
+
+Read on disk 2026-10-07 in the `harden` worktree (paths under `fichero-server/src/fichero_server/`
+unless they start `fichero/`). The overlay inventory in `ui/layers-on-the-source.md` ("What each
+layer is anchored to today") is the companion of this table and is not repeated.
+
+#### Each kind of extracted data today
+
+Columns: **stored as** (the record); **tied to** (the finest place it points at); **Preview** (drawn on
+the page as a layer); **Inspector** (shown with its source); **corrected** (by a person, audited and
+undoable, in place); **exported** (in the record stream, PAGE/ALTO/TEI, IIIF/W3C); **searched**;
+**views** (timeline, table, map).
+
+| Data | Stored as | Tied to | Preview | Inspector | Corrected | Exported | Searched | Views |
+|---|---|---|---|---|---|---|---|---|
+| Page date (Work Out Dates) | `Document.date_original/date_jdn/date_jdn_end/date_meta` (`workflows/tools/date_extract.py:457-461`) **and** a `dates` artifact with the same record (`:502-510`) | the document; the heading's words are kept in `date_meta["heading"]` (`histdate.py:969`), not its line | no | Info tab, from the columns | yes, `document.set_date` (audited; `api/routes/document/documents.py:3156`), and a later run records a conflict, not an overwrite (`date_extract.py:386-456`) | **no**: the record stream's document row has no date (`export_service.py:139-156`) | filter and sort by `date_jdn` (`api/routes/search/core.py:765`) | dataset grid; time view |
+| Diary entry and its date | a child `Document` with `node_kind="entry"`, its own **copy** of the text (`page_content=body`), `attributes={"date": iso}`, `metadata.date_text`, a rectangle `region_in_parent` (`workflows/tools/diary_entries.py:580-604`) | a rectangle unioned from the page's boxes, `bbox_basis` noted; not the lines it covers; no `date_jdn` on the entry | the region, as a box | as a node | name, text and region as a node; the date only as a raw attribute | as a document, without the date | as a document | the entry's date is not on the time view's axis (it reads `date_jdn`) |
+| Dated line items on account pages (#5559) | nothing: the page is ruled not an entry and left undated (`histdate.py:1296`) | — | — | — | — | — | — | — |
+| Names (people, places, organisations, events, keywords) | `KnowledgeEntity` with `source_document_ids` (`models/knowledge.py:866`) **and** per-section artifacts (`people`, `places`, `rivers`… `workflows/tools/extractors.py:1212`, `:1255`, `:1520`, `:1541`) | the document only; spaCy's spans are thrown away (`workflows/tools/extract_entities_only.py:411-425`, then `upsert_entity(source_document_id=…)` `:465-472`) | no (#1659) | entity inspector, "appears in" pages; the per-segment read finds none, since no writer names a segment (`api/routes/document/segment_readings.py:1759-1768`) | `entity.update` (audited) on the entity; the artifact copy is untouched | entities as rows with document ids only (`export_service.py:161-181`); not as `persName`/`placeName` in TEI | `people:X` reads the **artifact JSON**, not the entity (`api/routes/search/core.py:611-634`) | networks, from entities |
+| Places with coordinates | a `geo` artifact **and** `metadata["geo_points"]` on the document (`workflows/tools/geo_extract.py:41-46`) **and**, separately, `place_values` on entities and claims (`workflows/tools/_entity_writer.py:1050-1068`) | the document | no | as an artifact | `artifact.update` on the artifact only | no | no | map reads `geo_points` |
+| Statements (claims) | `KnowledgeClaim`, character offsets into the page text the extractor saw and an optional rectangle with an unstated space (`workflows/tools/extractors.py:2728-2757`, `:2735-2746`) | a page-text span; no segment, no reading id (#4932) | no | statements section on a segment (`fichero/fichero/Views/Inspector/Source/InspectorStatementsSection.swift`), empty for extracted claims for the reason above; the claim inspector shows the excerpt | `claim.patch`, `claim.transition` (audited) | record stream without offsets, anchor or time (`export_service.py:198-214`); site export as text; no W3C annotation (`api/routes/ingest/iiif.py:158-209` serves annotations only) | yes, as claims | readable paragraph; time view from `time_start` |
+| Quotations | a claim (speaker, "said", the quote as object) **and** a `quotes` artifact (`workflows/tools/extractors.py:420-449`) | the surrounding sentence's offsets, not the quoted words | no | as a claim | as a claim | as a claim | as a claim | — |
+| Catalogue fields (Archival Summary) | `catalogue.narrative`, `catalogue.timeline`, `catalogue.keywords`, `catalogue.chunk` artifacts on a folder chosen by a heuristic (`workflows/tools/catalogue.py:289-348`, `:786-804`), and the narrative **written into the folder's `page_content`** (`:829`); the fields are rebuilt from claims each run (`:1028-1148`) | the folder; no field cites a page | no | as artifacts | `artifact.update`; a corrected artifact survives a re-run (`:713-751`) | site export prints artifacts as text (`export_service.py:938-944`) | artifact search | the catalogue timeline is a markdown artifact, not the time view |
+| Tables (Extract Table, Extract Accounts) | a `table` artifact (`workflows/tools/table_extract.py:33`) | the document; no cell names its line or region (#5490) | no | as an artifact | `artifact.update` | as text | artifact search | not the table view |
+| Translation, modernisation, regest | `translation` artifacts (`workflows/tools/text_translate.py:54`, `translate.py:25`); the historical presets (`paleo_translate_english`, `paleo_modernizacion`, `paleo_regesto`) run `analyze` and land as an **`analysis`** artifact plus `metadata["analysis"]` (`workflows/tools/analyze.py:31-36`) | the document; a line can hold a translation reading but no tool writes one (#3325) | the document translation in the immersive view only (`layers.translation.document-artifacts-still-shown`) | as artifacts | `artifact.update` | as text | translation artifacts searched | — |
+| Kinds and attributes (Find the Documents, prototypes) | `Document.prototype_key` and `attributes`, a plain dictionary (`models/__init__.py:308`, `:323-329`); only the diary tool sets them (`diary_entries.py:591-592`); `classify` writes a `classification` artifact and never a prototype (`workflows/tools/classify.py:32`) | the node; an attribute value cites nothing | no | effective attributes (`documents.py:1250-1281`) | through the node's attributes | **no**: the record stream omits `attributes` and `prototype_key` | no | dataset grid columns |
+| Groups of documents (Find the Documents, Group Same Documents) | group nodes (#5303); proposals are not stored yet (#5550) | pages, by membership | canvas | as nodes | Group / Ungroup (audited) | as the tree | as nodes | canvas |
+
+**Every other shipped output.** The 58 default workflows (`resources/default_workflows/`) and their
+tools reach the page model in one of five ways:
+
+| Reaches the page as | Workflows (tool) |
+|---|---|
+| a pass of segments, readings on lines | Detect Regions (Kraken, VLM, Apple), Read Lines Kraken + Vision, Transcribe Kraken / HTR, Backfill Text Geometry (`detect_regions`, `merge_geometry`), Recombine Segments |
+| page text, then tied to lines (#5444) | every Transcribe preset, Capture–OCR–Transcribe, Transcribe Auto-detect (`transcribe`, `update_page_content=True`, `workflows/tools/transcribe.py:42`) |
+| page text over the top, never tied | Paleographer Review, Review Pipeline, Economy HTR (`transcribe_review`, `economy_htr`; #5486) |
+| nodes (children of the page or folder) | Split Diary Entries (entry nodes), Split Pages, Split Images, Split Chapters, Segment Images, Group Same Documents |
+| document fields | Work Out Dates (date columns), Extract Geo (`geo_points`) |
+| KG rows tied to the document | Catalogue stages 2–5, NER per page, Extract Events Timeline |
+| a document-level artifact only | Archival Summary, Extract Table, Extract Accounts CSV, Translate / DeepL / Translate Review, Translate Reviewed Transcription, Translate to English (Historical), Modernización, Regesto, Clean Up Text, Describe Visual, Convert to Markdown / HTML / SVG, Transcribe Auto-detect's script class |
+| image renditions (correctly: an image is the output) | Prepare / Enhance / Fuzzy-clean / Remove Background / Rotate images |
+
+So the onboarding operator's remark holds: outside reading and line finding, results land as
+artifacts on a document, not on the page.
+
+**What level a workflow can run on.** A run takes a typed selection of three kinds only, `documents`,
+`folder` and `collection` (`workflows/selection.py:31-45`, `api/routes/workflow_execution/schemas.py:60`).
+A region promoted to a node (a diary entry, a drawn crop) runs as a document and gets its own pixels
+(`media/region_crops.py:1-15`). Nothing else does: no selection of segments (these three lines, a word,
+a sign), no group of documents as a case (it runs as a folder), no character. Inside a run, a node is
+given a page image or a region node's crop (`files`), or the page's text (`text`, `page_content`); only
+the line readers take each line's crop (`llm/working_lines.py`). No node is given a segment's reading,
+and an artifact can only name a document (`Artifact.document_id`, `models/__init__.py:800`), so a
+result cannot attach below the document even when it was made from a line.
+
+#### The problems, ranked
+
+1. **A fact has several homes, and they disagree after a correction.** A page's date is in the
+   document's columns, in a `dates` artifact, and for a diary also in the entry's `attributes.date`
+   and `metadata.date_text`, the catalogue's `dates` section and its `catalogue.timeline` artifact
+   (`date_extract.py:457-510`, `diary_entries.py:592-597`, `catalogue.py:1110-1119`, `:1478-1531`).
+   A name is an entity and a row in a `people` artifact (`extractors.py:1212` and `:3052`); a place is
+   an entity's `place_values`, a `geo` artifact and `metadata.geo_points`. Correcting the entity leaves
+   the artifact; and search's `people:` scope reads the artifact (`search/core.py:611-634`), so a
+   corrected name is still found under its old spelling.
+2. **Names and statements float free of the page.** Names keep only the document
+   (`extract_entities_only.py:423-425`); statements keep offsets into page text that a later reading
+   changes (`extractors.py:2752-2757`); the per-segment read exists and finds nothing because no writer
+   names a segment (`segment_readings.py:1730-1772`). Quotations are anchored by their surrounding
+   sentence, not the quoted words.
+3. **Text-shaped outputs are not readings.** A translation, a modernisation and a regest are
+   artifacts; the three historical presets even file a translation as `analysis` (`analyze.py:32`), so
+   nothing that looks for a translation finds it. #3325 has the reading kind and no writer.
+4. **Attributes cite nothing.** `Document.attributes` is a plain dictionary; a judgment's judge,
+   parties and date (Istmina) or a catalogue field could be filled, but not tied to the words that say
+   so, and the catalogue writes its narrative over the folder's own text (`catalogue.py:829`).
+5. **Nothing extracted is drawn on the page.** The Preview draws boxes, regions, marks and inline text
+   (`layers.preview.draws-today`); names, statements, dates, entries' headings and table cells have no
+   layer (#1659, #5418), so the Inspector cannot lead from a fact to its ink or back.
+6. **Export drops what was extracted.** The record stream's document row has no date, attributes or
+   prototype; claims leave without offsets, anchor or time; entities without mentions
+   (`export_service.py:139-214`). TEI does not write `persName`, `placeName` or `date` in the lines;
+   W3C annotations are made for a person's marks only.
+7. **Diary entries copy the page.** An entry holds its own copy of the text and a rectangle; it is not
+   the set of lines it covers, so a corrected line does not reach the entry and the entry's date is
+   not on the timeline (`diary_entries.py:580-604`). Account pages' dated items are dropped (#5559).
+8. **A run cannot be aimed below the document, and its output cannot attach there.** Three selection
+   kinds (`selection.py:31-45`); `Artifact` names a document only.
+9. **Machine writes to document fields are plain saves.** Work Out Dates saves the columns with
+   `db.save` (`date_extract.py:490`), so the date a run set is undone only by a person's own edit,
+   not by taking the run back (`safety/run-take-back.md`).
+
+#### The target
+
+Every extracted fact is **one typed record**, tied to the **segment span** it came from (a segment
+and a stretch of one of its readings, or a set of segments), **shown as a layer** on the page,
+**corrected in place** through one audited, undoable action, and **read by every view and export**
+from that one record. Anything else (a document's date column, an entry's date, a catalogue's
+people list, a map point, a grid cell) is worked out from it, never stored beside it. The record
+kinds are the ones the model already has: a **reading** (text about a segment: transcription,
+translation, normalisation, regest), a **mention** (a name or a date at a span), a **statement**
+(resting on mentions), a **logical unit** (an entry, a document inside a document, a table row: a
+named set of segments), and an **attribute value** (a field of a prototype, whose value cites a
+mention or a span). A run can be aimed at any level of the ladder, and its output attaches at the
+level it was made for.
+
+#### Behaviours
+
+- `source.extract.one-fact-one-home` — **[BROKEN]** (#5467; #5597) a fact is stored once; a
+  document's date, an entry's date, a catalogue's lists, map points and per-section artifacts are
+  read from the mentions, statements and attribute values, never written beside them. Today a date has
+  up to six homes and a name two (problem 1).
+- `source.extract.names-as-mentions` — **[GAP]** (#5488, #4932) a name found is a mention: a segment,
+  a reading and a character span, joined to its entity; a spaCy span is kept, a model's name is found
+  in the reading and tied the same way, and an unfound name is kept as unanchored and says so.
+- `source.extract.statements-on-segments` — **[PARTIAL]** (#4932) *Built: the read from a segment
+  (`GET /api/segments/{id}/statements`) and the Inspector section. Not built: an extractor filling
+  `segment_id` and `representation_id` on the claim's anchor.* A statement rests on the mentions it
+  joins and on the segment span of its evidence.
+- `source.extract.quotes-on-their-words` — **[GAP]** (#5598) a quotation is a span on the
+  quoted words themselves, with its speaker as a mention; the surrounding sentence is context, not
+  the anchor.
+- `source.extract.date-on-its-heading` — **[PARTIAL]** (#5518, #5557) *Built: a page's date is read
+  from its heading, recorded with its status and conflicts. Not built: the heading as a date mention
+  on its line.* The page's date is a date mention on the heading's line, and the document's date
+  columns are worked out from it.
+- `source.extract.date-run-taken-back` — **[GAP]** (#5597) a run's writes to a document's date
+  are recorded under the run and undone when the run is taken back, as its readings are.
+- `source.extract.entries-are-units` — **[PARTIAL]** (#5467; #5601) *Built: entry nodes with a
+  date, a region and a prototype.* An entry is a logical unit over the lines it covers; its text is
+  read from those lines, its date is the mention on its heading, and it sits on the timeline.
+- `source.extract.account-lines-are-rows` — **[GAP]** (#5559, #5490) the dated items of an account
+  page become table rows on their lines, each date a mention.
+- `source.extract.tables-on-cells` — **[GAP]** (#5490) a table is a logical unit; each row and cell
+  names its segments; the table view and the CSV are read from it.
+- `source.extract.text-outputs-are-readings` — **[BROKEN]** (#3325, #5490; #5599 for the
+  `analysis` presets) a translation, modernisation or regest is a reading of its kind on the lines
+  (or on the page when it has no lines), never an artifact; the historical presets stop filing a
+  translation as `analysis`.
+- `source.extract.places-one-home` — **[BROKEN]** (#5597) a place's coordinates live on its
+  entity; a document's map points are worked out from its place mentions; the `geo` artifact and
+  `metadata.geo_points` are retired.
+- `source.extract.attributes-cite` — **[GAP]** (#5365, #5550; #5600) a prototype attribute's
+  value (a judgment's judge, parties, date, ruling; a catalogue field) is a typed value that cites
+  the mention or span it was read from; a person's value cites nothing and outranks a machine's.
+- `source.extract.kinds-proposed-as-prototypes` — **[GAP]** (#5550) a document's kind, whether from
+  Find the Documents or `classify`, is a proposed prototype on the node, accepted by a person, not a
+  `classification` artifact.
+- `source.extract.catalogue-never-overwrites-text` — **[BROKEN]** (#5365; #5599) the catalogue's
+  narrative is a reading of kind description on the folder, never written into its `page_content`.
+- `source.extract.shown-as-layers` — **[GAP]** (#1659, #5418) names, statements, quotations, dates,
+  entries and table cells each have a layer in the Preview, drawn on their segments, with the empty
+  case said.
+- `source.extract.inspector-leads-to-ink` — **[PARTIAL]** (#4932) *Built: the statements section on
+  a segment.* Selecting any extracted fact shows its source span and selects it on the page; selecting
+  a segment lists every fact resting on it.
+- `source.extract.corrected-in-place` — **[PARTIAL]** (#4834; #5602) *Built: `claim.patch`,
+  `entity.update`, `document.set_date`, `artifact.update` are audited.* A person corrects a fact from
+  its mark on the page or from the Inspector, through the one action for its record, and every view
+  shows the correction at once because none holds a copy.
+- `source.extract.search-reads-the-record` — **[BROKEN]** (#5597) a scoped search (`people:`,
+  `places:`…) reads entities and mentions and lands on the segment, not on artifact JSON and a page.
+- `source.extract.exported` — **[GAP]** (#5490; #5603) the record stream carries dates,
+  prototypes, attributes with their citations, mentions with their spans, and claims with their
+  anchors; TEI writes names and dates inline in the lines; W3C/IIIF writes mentions and statements as
+  annotations with segment and text selectors.
+- `source.extract.views-read-the-record` — **[PARTIAL]** (#5603) the time view, the map, the
+  table view and the dataset grid read the same records (date mentions, place entities, logical units,
+  attribute values); the catalogue's markdown timeline is retired into the time view.
+- `source.extract.run-on-any-level` — **[PARTIAL]** (#4949; #5604) *Built: documents, a folder,
+  a collection, and a region node with its own crop.* A run's selection can also be a set of segments
+  at any level (regions, lines, words, signs), a group of documents (a case), or a logical unit; the
+  server resolves it, and each node is given what it needs for that level: the segment's picture cut
+  to its shape, its chosen reading, or both (`source.chain.segments-to-any-reader`).
+- `source.extract.outputs-attach-at-their-level` — **[GAP]** (#5490; #5604) a result made from a
+  segment attaches to that segment (a reading, a mention); one made from a document or group attaches
+  there (an attribute value, a description reading); `Artifact` is kept as the record of a run, not as
+  the home of what it found.
+- `source.extract.every-output-declares-its-anchor` — **[GAP]** (#5490; #5596) every registered
+  tool declares which record kinds it writes (pass, reading, mention, statement, unit, attribute,
+  node, rendition); a guard fails a tool that writes only a document artifact without a recorded
+  reason, and the table above is generated from the declarations.
+
+#### Build order (slices, ranked)
+
+1. **Declare every output** (`every-output-declares-its-anchor`): registry metadata and the guard,
+   with today's artifact-only tools listed as known gaps. Cheap, and it turns this review into a
+   checked list.
+2. **Names and statements on segments** (`names-as-mentions`, `statements-on-segments`,
+   `quotes-on-their-words`; #5488, #4932): keep spans, resolve them through the page's working lines
+   (the tie seam, `checking/tie_text.py`), write segment and reading on each anchor.
+3. **One home for each fact** (`one-fact-one-home`, `search-reads-the-record`, `places-one-home`,
+   `date-on-its-heading`, `date-run-taken-back`): date mentions on headings with the columns derived;
+   per-section artifacts and `geo_points` derived or retired; scoped search on entities.
+4. **Text outputs as readings** (`text-outputs-are-readings`, `catalogue-never-overwrites-text`;
+   #3325): translation, modernisation, regest and catalogue narrative become readings; the `analysis`
+   misfiling ends.
+5. **Layers and the Inspector** (`shown-as-layers`, `inspector-leads-to-ink`, `corrected-in-place`;
+   #1659, #5418): needs 2 and 3.
+6. **Attributes that cite** (`attributes-cite`, `kinds-proposed-as-prototypes`; #5365, #5550): the
+   judgment's fields for Istmina, the catalogue's fields, Find the Documents' kinds.
+7. **Units over segments** (`entries-are-units`, `account-lines-are-rows`, `tables-on-cells`; #5559,
+   #5490): entries, inserted documents (`finddocs.inserts-are-ranges`) and table rows as logical units.
+8. **Run on any level, attach at that level** (`run-on-any-level`, `outputs-attach-at-their-level`;
+   #4949): a `segments` and a `group` selection kind, node inputs by level.
+9. **Export and views** (`exported`, `views-read-the-record`; #5490): the record stream, TEI inline
+   names and dates, W3C annotations, the time view and map on the one record.
+
 ## What exists today (read on disk 2026-09-19; corrected the same night after an independent check of every claim against the code)
 
 Citations are to `fichero-server/src/fichero_server/` (engine) and `fichero/fichero/` (app).
