@@ -1433,6 +1433,9 @@ class _Scheduler:
                 where += f" AND NOT ({held})"
                 params += held_params
             lane.look_again_at = quiet_from  # look again when the spell ends
+            # Held jobs are waiting, not absent: the library stays on the lane so its thread is still
+            # there to look again when the spell ends (else it retired, and the held job sat unrun).
+            held_back = True
         # Work a person is waiting for goes first (`activity.throttle.watched-first`): a long
         # background job that stepped aside for it must not take the lane straight back.
         attached_first = f"(id IN ({', '.join('?' for _ in attached)})) DESC, " if attached else ""
