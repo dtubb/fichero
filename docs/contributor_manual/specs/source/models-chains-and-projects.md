@@ -1761,6 +1761,22 @@ Specified in its own file, `synced-folder.md`: watching a folder, matching files
 outside edits in, keeping outputs current. It belongs half to the exporter and half to the
 importer; in a recipe it is the destination of an output step.
 
+### The best model, and the best place to run it (2026-10-07, #5582)
+
+Choosing a reader (or any step's model) chooses a pair: the model, and where it runs. This Mac first
+when the model fits its memory and has a local runtime. When it doesn't — too big for the Mac, or a kind
+Fichero can't run locally (PyLaia, TrOCR, a 32B vision model) — the plan says so plainly and offers where
+it can run instead: a Hugging Face Inference Endpoint or inference provider; OpenRouter when the same or
+an equivalent model is served there; ACENET/Alliance for batch reading at scale (#5566). Each offer states
+the cost for the project's pages, the speed, that pages leave the Mac (the project's egress rule decides),
+and the account it needs, configured or not. The recipe picks the pair, Ready shows it, and a bake-off can
+score a candidate wherever it runs (#5533).
+
+- `source.find.model-and-where-it-runs` — **[GAP]** (#5582) every chosen or offered model carries where it
+  runs (this Mac, Hugging Face endpoint, OpenRouter, ACENET) with cost, speed, egress and account status;
+  a model that can't run here is never chosen silently and never dropped silently — the plan names the
+  places it can run.
+
 ## Behaviors (each with its state tag; each cites its issue on milestone `source-model`, 322)
 
 Model cards
