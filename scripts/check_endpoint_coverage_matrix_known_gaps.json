@@ -1,4 +1,6 @@
 {
+  "GET /api/sync-folders/duplicates": "the dry run of the duplicate repair (#5495): engine first, reached through the generated CLI and MCP; the app's view of it is not built",
+  "POST /api/sync-folders/duplicates/remove": "the duplicate repair (sync.remove_duplicates, #5495): engine first, reached through the generated CLI and MCP; the app's view of it is not built",
   "GET /api/iiif/iiif/lines/{document_id}": "served to IIIF viewers through a manifest's canvas annotations, not called by the app (#5326)",
   "GET /api/activity/jobs/{job_id}": "a job and everything under it (a run, its steps, their pages, #5353): engine and CLI first; the Activity window's table with disclosure rows is the app half (#5354)",
   "POST /api/training/kraken/here": "training on this Mac (#5397): engine, CLI and MCP (fichero_train_kraken_here) first; the app's Train a Reader sheet is not built yet",

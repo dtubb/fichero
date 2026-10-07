@@ -1,4 +1,5 @@
 {
+  "POST /api/sync-folders/duplicates/remove": "undoable in the engine (sync.remove_duplicates, audited with an inverse: document.restore), undone from the audit; the app has no view of the repair yet to register it (#5495)",
   "POST /api/export/kept": "not undoable by design (export.keep, audited): the files it wrote stay; removing it (DELETE) stops it and leaves them, which is the inverse a person wants (#5485)",
   "DELETE /api/export/kept/{export_id}": "not undoable by design (export.unkeep, audited): keeping it again is a new export and rewrites its files (#5485)",
   "POST /api/export/kept/{export_id}/write": "queues a background write of the export's own files (one-way; a job in Activity, cancellable there); nothing in the project changes (#5485)",
