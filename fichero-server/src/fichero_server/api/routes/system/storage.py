@@ -107,6 +107,31 @@ def _document_or_404(db: Database, doc_id: str) -> Document:
     return doc
 
 
+def _picture_document_or_404(db: Database, doc_id: str) -> Document:
+    """The document whose picture stands for ``doc_id``: itself, or a group's first page (#5570).
+
+    A group (``DocType.group``, a letter of several pages) has no file of its own, so its
+    thumbnail and display image 404'd and every surface drew a broken image. Its picture is its
+    first page, by the group's order (sort_order, then name), followed down through nested groups.
+    """
+    from fichero_server.models import DocType
+    from fichero_server.core.naturalsort import natural_key
+
+    doc = _document_or_404(db, doc_id)
+    seen = {doc.id}
+    while doc.doc_type == DocType.group:
+        pages = [
+            page
+            for page in db.query_committed(Document, parent_id=doc.id)
+            if page.deleted_at is None and page.id not in seen
+        ]
+        if not pages:
+            break
+        doc = min(pages, key=lambda page: (page.sort_order, natural_key(page.name)))
+        seen.add(doc.id)
+    return doc
+
+
 #: Permits for generate-on-miss thumbnail work on request threads. Two keeps
 #: interactive single requests instant while an import's miss-storm is shed to
 #: the derivative stage (perf audit 2026-08-19).
@@ -158,7 +183,7 @@ async def get_thumbnail(
         # and a blocked loop stops /api/ingest/status (which touches no DB)
         # from answering at all. The measured 'engine frozen during import'
         # was THIS await-less read, not the ingest itself.
-        doc = await asyncio.to_thread(_document_or_404, db, doc_id)
+        doc = await asyncio.to_thread(_picture_document_or_404, db, doc_id)
 
         from fichero_server.db.storage import get_thumbnail, ensure_thumbnail, get_display, ensure_display
 
@@ -234,7 +259,7 @@ async def get_display_image(
     """
     package_path = Path(x_fichero_library_path)
     # OFF THE LOOP — same event-loop-blocking read as the thumbnail route.
-    doc = await asyncio.to_thread(_document_or_404, db, doc_id)
+    doc = await asyncio.to_thread(_picture_document_or_404, db, doc_id)
 
     from fichero_server.db.storage import get_display, ensure_display, get_thumbnail, ensure_thumbnail
 

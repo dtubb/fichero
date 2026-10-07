@@ -61,7 +61,18 @@ def _page_number(page_label: str | None) -> int | None:
 
 
 def _page_children(db: Database, document: Document) -> list[Document]:
-    """This document's page children in their real sequence."""
+    """This document's page children in their real sequence.
+
+    A group's pages are its children whatever their kind (photographed leaves are image files,
+    not PDF pages), in the group's own order: the Reader reads a group as one document (#5570).
+    """
+    if document.doc_type == DocType.group:
+        from fichero_server.core.naturalsort import natural_key
+
+        members = [
+            child for child in db.query(Document, parent_id=document.id) if child.deleted_at is None
+        ]
+        return sorted(members, key=lambda child: (child.sort_order, natural_key(child.name)))
     child_pages = db.query(Document, parent_id=document.id, doc_type=DocType.page)
     child_pages.sort(key=lambda doc: (doc.sequence or 0, doc.name))
     return child_pages
