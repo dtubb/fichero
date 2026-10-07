@@ -378,6 +378,19 @@ homeless until a map-view UI spec exists (#5128).
     app does not treat a skipped card as saved.
   - Pinned by `test_the_apps_own_card_ids_are_saved_and_read_back` (engine, real `doc:` ids through
     the real route).
+- `library.canvas.arranged-at-import` — **[PARTIAL]** (#5585) a folder an import fills (folder ingest,
+  any mode: link, copy, move, index) opens on its canvas with every item placed, as filed: the import
+  runs the one arrange action (`canvas.arrange`) for each folder it filled that has no saved layout,
+  laying its children out in folder order on a grid under the app's card ids (`doc:<id>`). A folder
+  with a saved layout (someone laid it out, or an earlier import did) is never touched; items a later
+  import adds to it stay "not placed" until someone arranges it. The destination folder the import
+  lands in is not new and is left alone. An arrangement that fails does not fail the import (the
+  files are in); the action's result names each folder not arranged and why (`not_arranged`).
+  - **Why (2026-10-07):** after linking a 203-page box, the canvas picture showed all 203 pages
+    "not placed": nothing had ever saved a place for them.
+  - Tested through the real `import.folder` action and canvas-layout route
+    (`fichero-server/tests/unit/importers/test_a_new_folder_is_arranged_as_filed.py`), not yet seen in the app.
+    Not covered: a corpus (`manifest.jsonl`) or 1.0-archive folder, which take the manifest importer.
 - `library.canvas.arrange-is-an-action` — **[MISSING]** (#5302) choosing *Arrange by* (As Filed, Name,
   Type, Date) lays EVERY card of the board out in that order and saves those places, as Finder's
   *Clean Up By* does; after that each card can be dragged anywhere and stays there. Today an

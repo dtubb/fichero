@@ -938,7 +938,10 @@ def register_job_kinds() -> None:
     from fichero_server.execution import jobs
 
     jobs.register_kind(THUMBNAIL_KIND, lambda db, doc_id: _thumbnail_stage(doc_id, _library_of(db)),
-                       model=None, lane="images", name="Make thumbnails")
+                       model=None, lane="images", name="Make thumbnails",
+                       # Cheap, and what the person sees: made before the heavy local work queued
+                       # after them (`activity.lane.thumbnails-first`, #5585).
+                       first=True)
     jobs.register_kind(EMBED_KIND, lambda db, doc_id: _embed_stage(doc_id, _library_of(db)),
                        model="embedder", name="Embed for search")
     jobs.register_kind(NLP_KIND, lambda db, doc_id: _nlp_stage(doc_id, _library_of(db)),
