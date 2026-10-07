@@ -835,7 +835,8 @@ async def list_deleted_documents(
 async def get_document(
     doc_id: str, db: Database = Depends(get_library_database)
 ) -> Document:
-    """Get a single document by ID, with its child count (and a group's pages' date, #5569)."""
+    """Get a single document by ID."""
+    # With its child count, and a group's pages' date when it has none of its own (#5569).
     return _with_child_counts(db, [_document_or_404(db, doc_id)])[0]
 
 
