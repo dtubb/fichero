@@ -2851,6 +2851,11 @@ Finding models
   else its downloaded file's, never 0. Read from the repository listing discovery kept (no network); with no
   listing kept, it is named by its DOI and its note says the record has not been read. A repository candidate's
   reason (`GET /api/recipes/candidates`) carries the same words.
+- `source.find.reader-size-real` — **[OK]** (#5617; built 2026-10-08: the shortlist readers in
+  `llm/local_model_catalog.py`; pinned by `fichero-server/tests/unit/recipes/test_reader_cards_5617.py`) an
+  installed Kraken reader of the catalogue's shortlist (McCATMuS, CATMuS Medieval) lists its size on disk as its
+  downloaded file's (`size_bytes`; its record's when the file cannot be read) and its download size as its
+  record's (`expected_size_mb`), never 0.
 - `source.find.installed-count` — **[OK]** (#5519) every complete MLX vision model in this engine's
   model store that no shipped card pins (a catalogue model, one Fichero trained, one found in the
   store) is a reader candidate with a card made from its own metadata: its config says it reads

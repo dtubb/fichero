@@ -124,7 +124,9 @@ def kraken_catalog_entries() -> list[Any]:
                 capabilities=["recognition"],
                 installed=model_installed,
                 download_size_bytes=int(spec["size_bytes"]),
-                disk_usage_bytes=0,
+                # Its file's size once downloaded, else its record's: never 0 for a reader on this Mac (#5617).
+                disk_usage_bytes=(kr.recognition_model_bytes(model_id) or int(spec["size_bytes"]))
+                if model_installed else 0,
                 min_memory_bytes=None,
                 memory_class=None,
                 supported=True,

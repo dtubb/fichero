@@ -78,3 +78,20 @@ def test_source_find_repository_reader_named(client, here):
     card = next(c for c in items if c["source"] == "kraken-repository")
     assert card["name"] == RECORD["summary"] and card["size_gb"] == pytest.approx(0.0163)
     assert "German, Latin script, print, 19th century" in card["offered_because"], card["offered_because"]
+
+
+# -- source.find.reader-size-real -----------------------------------------------------------------------------
+
+
+def test_source_find_reader_size_real(client, here):
+    """source.find.reader-size-real: "an installed Kraken reader of the catalogue's shortlist (McCATMuS, CATMuS
+    Medieval) lists its size on disk as its downloaded file's (`size_bytes`; its record's when the file cannot be
+    read) and its download size as its record's (`expected_size_mb`), never 0.\""""
+    _install(here, "kraken-mccatmus", 8192)
+    (here / "kraken-catmus-medieval.installed").write_text("{}")  # a marker naming no file
+
+    rows = _kraken(client)
+    assert rows["kraken-mccatmus"]["size_bytes"] == 8192
+    assert rows["kraken-mccatmus"]["expected_size_mb"] == 16
+    assert rows["kraken-catmus-medieval"]["size_bytes"] == 16_332_989
+    assert rows["kraken-catmus-medieval"]["expected_size_mb"] == 16
