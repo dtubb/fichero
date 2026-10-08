@@ -55,6 +55,9 @@ TOOL_CONFIG = LLMToolConfig(
     update_page_content=False,
     trigger_embedding=False,
     metadata_field="clean_text",
+    # The text cleaned (OCR slips, whitespace, hyphenation, headers): a normalised text, beside the
+    # transcription, never over it (#5599).
+    reading_kind="normalized_text",
 )
 
 CLEAN_TEXT_CONFIG = {

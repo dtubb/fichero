@@ -73,6 +73,9 @@ BUILTIN_READING_KINDS: tuple[tuple[str, str], ...] = (
     # An archivist's calendar entry for a document (the Regesto preset, #5599): a reading of the
     # whole document, beside its transcription, never over it. Seeded on open like the rest.
     ("regest", "Regest"),
+    # The text said again in another style (the Rewrite tool, #5599): concise, formal, simplified. Not
+    # a normalised text (that keeps the words and modernises their form) and not a translation.
+    ("paraphrase", "Paraphrase"),
 )
 
 #: The levels that ship (`source.reading.level-recorded`). An OPEN list, and

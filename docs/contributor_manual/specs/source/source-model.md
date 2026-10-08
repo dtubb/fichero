@@ -448,10 +448,18 @@ level it was made for.
   Translate Text and Translate Review write a `translation` reading; the three historical presets name
   theirs on the Analyze step (`translation`, `normalized_text`, and a new seeded kind `regest`), file
   their artifact under that kind instead of `analysis`, and no longer copy it into
-  `metadata["analysis"]`. Pinned by `fichero-server/tests/unit/workflows/
-  test_text_outputs_are_readings.py` (each preset through the real runner, read back through
-  `GET /api/content-representations/document/{id}`). Not built: the reading on the page's lines
-  rather than on the page (#3325); the run's artifact is still saved beside it as its record.* A
+  `metadata["analysis"]`. The same seam for the other text tools: Describe and Caption write a
+  `description` reading of the page; Summarize, Summarize File, Summarize Folder and Summarize
+  Collection a `description` reading of what they summarise; Clean Up Text a `normalized_text`
+  reading; Rewrite a `paraphrase` reading (a new seeded kind), or a `translation` when it names a
+  target language; AI Convert a `markdown`, `html` or `svg` reading (LaTeX and CSV have no kind and
+  stay the artifact). A read the read guard flags writes no reading. Pinned by
+  `fichero-server/tests/unit/workflows/test_text_outputs_are_readings.py` (each preset and each tool
+  through the real runner, read back through `GET /api/content-representations/document/{id}`). Not
+  built: the reading on the page's lines rather than on the page (#3325); the run's artifact is still
+  saved beside it as its record. Not readings, left in the guard's baseline with their reason: Scene
+  (a classification, an attribute), Diagram (a parsed structure), Questions (generated questions), and
+  Import Artifacts (it copies the page's own imported text, which is already the page's text).* A
   translation, modernisation or regest is a reading of its kind on the lines (or on the page when it
   has no lines), never an artifact; the historical presets stop filing a translation as `analysis`.
 - `source.extract.places-one-home` — **[BROKEN]** (#5597) a place's coordinates live on its

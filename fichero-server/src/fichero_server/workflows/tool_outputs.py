@@ -145,14 +145,24 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     # the historical presets name their reading kind (translation, normalized_text, regest); an
     # analyze node that names none still writes only an 'analysis' artifact
     "analyze": _d("page", "reading", "artifact"),
+    # descriptions: a caption or a description of the page is a `description` reading of it
+    "caption": _d("page", "reading", "artifact"),
+    "describe": _d("page", "reading", "artifact"),
+    # a summary is a `description` reading on what it summarises (`summarize` runs summarize_file)
+    "summarize": _d("document", "reading", "artifact"),
+    "summarize_file": _d("document", "reading", "artifact"),
+    "summarize_folder": _d("group", "reading", "artifact"),
+    "summarize_collection": _d("group", "reading", "artifact"),
+    # the cleaned text is `normalized_text`; a rewrite is a `paraphrase` (a `translation` when it
+    # names a target language)
+    "clean_text": _d("document", "reading", "artifact"),
+    "rewrite": _d("document", "reading", "artifact"),
+    # Markdown / HTML / SVG are readings of those kinds; LaTeX and CSV write only the artifact
+    "convert": _d("page", "reading", "artifact"),
     # ── a document-level artifact only (known gaps, each naming its slice) ────
     "timeline": _ARTIFACT,
     "key_people": _ARTIFACT,
-    "rewrite": _ARTIFACT,
-    "caption": _ARTIFACT,
-    "describe": _ARTIFACT,
     "sentiment": _ARTIFACT,
-    "clean_text": _ARTIFACT,
     "keywords": _ARTIFACT,
     "tags": _ARTIFACT,
     "classify": _ARTIFACT,
@@ -171,14 +181,9 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     "colors": _ARTIFACT,
     "language_identification": _ARTIFACT,
     "compare": _ARTIFACT,
-    "convert": _ARTIFACT,
     "table_extract": _ARTIFACT,
     "extract_entities": _ARTIFACT,
     "import_artifacts": _ARTIFACT,
-    "summarize": _ARTIFACT,
-    "summarize_file": _ARTIFACT,
-    "summarize_folder": _d("group", "artifact"),
-    "summarize_collection": _d("group", "artifact"),
     "similarity": _d("group", "artifact"),
     # ── images: the output is an image ────────────────────────────────────────
     "rotate_images": _RENDITION,

@@ -39,6 +39,8 @@ TOOL_CONFIG = LLMToolConfig(
     update_page_content=False,
     trigger_embedding=False,
     metadata_field="summary",
+    # A summary is a description reading on what it summarises: the file, the folder, the collection (#5599).
+    reading_kind="description",
 )
 
 # Summarize-specific config (added to BASE_CONFIG_SCHEMA)
@@ -150,6 +152,7 @@ async def summarize_file(
         update_page_content=False,
         trigger_embedding=False,
         metadata_field="summary",
+        reading_kind="description",
     )
 
     # Process with shared logic
@@ -299,6 +302,7 @@ async def summarize_folder(
         update_page_content=False,
         trigger_embedding=False,
         metadata_field="summary",
+        reading_kind="description",
     )
 
     # Process with shared logic
@@ -466,6 +470,7 @@ Maximum length: {max_length} words.
         update_page_content=False,
         trigger_embedding=False,
         metadata_field="summary",
+        reading_kind="description",
     )
 
     # Process with shared logic

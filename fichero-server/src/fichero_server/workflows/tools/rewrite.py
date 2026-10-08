@@ -8,6 +8,7 @@ Inherits from llm_base.py - transforms input text.
 from __future__ import annotations
 
 import logging
+import dataclasses
 from typing import Any
 
 from fichero_server.workflows.types import State, PortDef, DataType
@@ -35,6 +36,7 @@ TOOL_CONFIG = LLMToolConfig(
     update_page_content=False,
     trigger_embedding=False,
     metadata_field="rewrite",
+    reading_kind="paraphrase",  # the text in another style (#5599); in another language, a translation
 )
 
 REWRITE_CONFIG = {
@@ -157,7 +159,9 @@ async def rewrite(
         llm_config=llm_config,
         library_path=state.get("library_path", ""),
         task_id=state.get("task_id"),
-        tool_config=TOOL_CONFIG,
+        tool_config=(
+            dataclasses.replace(TOOL_CONFIG, reading_kind="translation") if target_language else TOOL_CONFIG
+        ),
         documents=documents,
         temperature=inputs.get("temperature", 0.5),
         max_tokens=inputs.get("max_tokens", 4096),

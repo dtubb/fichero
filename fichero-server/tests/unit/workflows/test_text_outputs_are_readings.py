@@ -312,3 +312,146 @@ def test_text_translate_writes_a_translation_reading(one_page_library, monkeypat
     readings = _live(_readings(library_path, "folio-1"), "translation")
     assert [r.content for r in readings] == ["In the town of Madrid on the twentieth day"]
     assert readings[0].producer_run_id == "translate-run"
+
+
+# ── the remaining text tools (#5599, slice 2): each writes a reading of its kind ──
+
+PAGE_TEXT = "En la villa de madrid a veynte dias"
+SVG = '<svg xmlns="http://www.w3.org/2000/svg"><text x="1" y="9">En la villa</text></svg>'
+GENERATIVE = {"provider_name": "openrouter", "model_name": "google/gemini-3.1-flash-lite"}
+
+TEXT_TOOLS = [
+    # (tool, node config, the document it lands on, artifact type, reading kind, the model's answer).
+    # Vision tools read the page image (`llm.vision` stubbed); text tools call `llm.chat` (stubbed) on
+    # the text in the node's config, which the builder spreads into the tool's inputs.
+    ("describe", {"vision_mode": "llm"}, "folio-1", "description", "description",
+     "A single folio in an italic hand, ink faded at the foot."),
+    ("caption", {}, "folio-1", "caption", "description", "A notarial folio dated in Madrid"),
+    ("convert", {"target_format": "markdown"}, "folio-1", "conversion", "markdown",
+     "# Escritura\n\nEn la villa de Madrid"),
+    ("convert", {"target_format": "html"}, "folio-1", "conversion", "html", "<h1>Escritura</h1><p>En la villa</p>"),
+    ("convert", {"target_format": "svg"}, "folio-1", "conversion", "svg", SVG),
+    ("summarize_file", {"text": PAGE_TEXT}, "folio-1", "summary_file", "description",
+     "A deed of sale made in Madrid."),
+    ("summarize", {"text": PAGE_TEXT}, "folio-1", "summary_file", "description", "A deed made in Madrid."),
+    ("summarize_folder", {"texts": [PAGE_TEXT, "Otro folio"], "folder_id": "caja-1"}, "caja-1",
+     "summary_folder", "description", "Two deeds of the Madrid notaries."),
+    ("summarize_collection", {"texts": [PAGE_TEXT], "collection_id": "caja-1"}, "caja-1",
+     "summary_collection", "description", "A collection of Madrid deeds."),
+    ("rewrite", {"text": PAGE_TEXT, "style": "formal"}, "folio-1", "rewrite", "paraphrase",
+     "In the town of Madrid, on the twentieth day."),
+    ("rewrite", {"text": PAGE_TEXT, "target_language": "English"}, "folio-1", "rewrite", "translation",
+     "In the town of Madrid on the twentieth day"),
+    # Programmatic by default: no model; the reading is the cleaner's own output.
+    ("clean_text", {"text": "En  la villa de ma-\ndrid a veynte dias"}, "folio-1", "clean_text",
+     "normalized_text", None),
+]
+
+
+@pytest.fixture
+def page_in_a_folder(one_page_library):
+    library_path, db = one_page_library
+    db.save(Document(id="caja-1", name="Caja 1", doc_type=DocType.folder))
+    page = db.get(Document, "folio-1")
+    db.save(page.model_copy(update={"parent_id": "caja-1"}))
+    return library_path, db
+
+
+def _run_one_tool(library_path: Path, thread_id: str, tool: str, config: dict) -> None:
+    """A two-node workflow (the Files source, then the tool), run by the real background runner."""
+    workflow = Workflow(
+        id=f"wf-{thread_id}",
+        name=f"one {tool}",
+        nodes=[
+            {"id": "files-source", "tool": "files", "label": "Files", "inputs": {}, "config": {}},
+            {"id": "step", "tool": tool, "label": tool, "inputs": {}, "config": {**GENERATIVE, **config}},
+        ],
+        edges=[
+            {"id": "f", "source": "files-source", "target": "step", "source_port": "files", "target_port": "files"},
+            {"id": "d", "source": "files-source", "target": "step", "source_port": "documents",
+             "target_port": "documents"},
+        ],
+    )
+    runner._set_workflow_state(
+        thread_id,
+        {
+            "workflow_id": workflow.id,
+            "workflow_name": workflow.name,
+            "status": "accepted",
+            "events": runner.WorkflowEventHub(),
+            "error": None,
+            "final_state": None,
+        },
+    )
+    request = ExecuteWorkflowRequest(
+        workflow_id=workflow.id,
+        inputs={},
+        thread_id=thread_id,
+        selection=WorkflowSelection(kind=SelectionKind.documents, ids=["folio-1"]),
+        skip_cache=True,
+    )
+    db = db_manager.get_database(library_path)
+    try:
+        asyncio.run(runner._run_workflow_in_background(thread_id, workflow, request, db))
+    finally:
+        runner._remove_workflow_state(thread_id)
+
+
+@pytest.mark.parametrize(
+    ("tool", "config", "target", "artifact_type", "kind", "answer"),
+    TEXT_TOOLS,
+    ids=[f"{t[0]}-{t[4]}" for t in TEXT_TOOLS],
+)
+def test_a_text_tool_saves_a_reading_of_its_kind(
+    page_in_a_folder, monkeypatch, tool, config, target, artifact_type, kind, answer
+):
+    _install_deterministic_workflow_stubs(monkeypatch)
+    library_path, _db = page_in_a_folder
+
+    async def fake_vision(*, images, prompt, config, language=None, **kwargs):
+        return answer
+
+    async def fake_chat(*args, **kwargs):
+        return answer
+
+    monkeypatch.setattr(llm_module, "vision", fake_vision)
+    monkeypatch.setattr(llm_module, "chat", fake_chat)
+    thread_id = f"text-tool-{tool}-{kind}"
+
+    _run_one_tool(library_path, thread_id, tool, config)
+
+    db = db_manager.get_database(library_path)
+    made = [a for a in db.query(Artifact, document_id=target) if a.artifact_type == artifact_type]
+    assert len(made) == 1, f"{tool} saved {len(made)} '{artifact_type}' artifacts on {target}"
+    record = made[0]
+    if answer is not None:
+        assert record.content.strip() == answer.strip()
+    readings = _live(_readings(library_path, target), kind)
+    assert [r.content for r in readings] == [record.content.strip()], (
+        f"{tool} left no {kind} reading on {target}; found {_readings(library_path, target)!r}"
+    )
+    reading = readings[0]
+    assert reading.segment_id is None
+    assert reading.derived_from_artifact_id == record.id
+    assert reading.producer_run_id.startswith(thread_id)
+    assert reading.provenance_kind is ProvenanceKind.workflow, "a machine's reading, never a person's"
+    page = db.get(Document, "folio-1")
+    assert page.page_content == PAGE_TEXT, "the page's own text is untouched"
+
+
+def test_convert_to_csv_writes_no_reading(page_in_a_folder, monkeypatch):
+    """CSV (and LaTeX) are not kinds of reading: the run's artifact is all it writes."""
+    _install_deterministic_workflow_stubs(monkeypatch)
+    library_path, _db = page_in_a_folder
+
+    async def fake_vision(*, images, prompt, config, language=None, **kwargs):
+        return "fecha,lugar\n1601,Madrid"
+
+    monkeypatch.setattr(llm_module, "vision", fake_vision)
+    _run_one_tool(library_path, "convert-csv", "convert", {"target_format": "csv"})
+
+    db = db_manager.get_database(library_path)
+    assert [a.content for a in db.query(Artifact, document_id="folio-1", artifact_type="conversion")] == [
+        "fecha,lugar\n1601,Madrid"
+    ]
+    assert not [r for r in _readings(library_path, "folio-1") if r.retracted_at is None]

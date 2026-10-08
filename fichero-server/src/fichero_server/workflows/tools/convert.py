@@ -7,6 +7,7 @@ Inherits from vision_base.py - excellent for recreating document content.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import re
 from typing import Any
@@ -36,6 +37,9 @@ TOOL_CONFIG = VisionToolConfig(
     trigger_embedding=False,
     supports_apple_vision=False,
 )
+# The formats that are kinds of reading (#5599): the model's Markdown / HTML / SVG reading of the page.
+# LaTeX and CSV have no reading kind; they stay the run's artifact.
+_READING_FORMATS = frozenset({"markdown", "html", "svg"})
 
 CONVERT_CONFIG = {
     "target_format": {
@@ -246,7 +250,9 @@ async def convert(
         llm_config=llm_config,
         library_path=state.get("library_path", ""),
         task_id=state.get("task_id"),
-        tool_config=TOOL_CONFIG,
+        tool_config=dataclasses.replace(
+            TOOL_CONFIG, reading_kind=target_format if target_format in _READING_FORMATS else None
+        ),
         # Vision-specific
         vision_mode="llm",
         # #4329: a rendition is GENERATED from the page image by the model —
