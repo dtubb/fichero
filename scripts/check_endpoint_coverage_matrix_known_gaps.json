@@ -272,7 +272,6 @@
   "GET /api/evaluation/runs/{job_id}": "the evaluation job (#5441): engine, API, CLI client and MCP tools first (operator and agents); the model node (#5439) shows its scores later",
   "GET /api/evaluation/scores": "the evaluation job (#5441): a model's held-out scores read from its card; the model node's Inspector (#5439) shows them later",
   "POST /api/mcp/tools/check/verdicts": "the check job (#5404): engine, API, CLI client and MCP tools first; the app's check review surface and its Activity row are not built yet",
-  "GET /api/recipes/project/runs": "recipe execution (#5390): engine and API first; the app's Start screen shows the plan, but its run's own view is not built yet",
   "GET /api/recipes/project/runs/{job_id}": "recipe execution (#5390): engine and API first; the app's Start screen shows the plan, but its run's own view is not built yet",
   "GET /api/training/set": "previews a training set before it is sent (#5446): for the operator through the MCP (fichero_training_preview_set); the app shows a set's counts on the model's training card when that is built (#5439)",
   "PUT /api/segments/passes/{pass_id}/ground-truth": "Mark as Ground Truth (#5513): engine, CLI and MCP first; the app's Mark as Ground Truth on a pass is not built yet",
