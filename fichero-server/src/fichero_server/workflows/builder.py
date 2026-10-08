@@ -195,6 +195,16 @@ def _required_llm_capability_for_category(category: str | None) -> str:
     return "text"
 
 
+def _reads_without_a_model(config: dict) -> bool:
+    """A reading node set to Apple Vision, or to Kraken reading its own lines, calls no model: it needs
+    none, so it is never refused for lacking one (`ai.where.no-first-provider-fallback`, #5368). Kraken
+    asks for a model only when a vision model reads the lines it found and no Kraken reader is named."""
+    mode = config.get("vision_mode")
+    if mode == "apple":
+        return True
+    return mode == "kraken" and not (config.get("lines_read_by") == "model" and not config.get("kraken_model"))
+
+
 def _resolve_node_llm_config(
     node_def: NodeDef, workflow_llm_config: LLMConfig
 ) -> LLMConfig:
@@ -272,7 +282,7 @@ def _resolve_node_llm_config_inner(
         )
         return LLMConfig(provider=provider, model=model)
 
-    if not (tool_def and tool_def.uses_llm):
+    if not (tool_def and tool_def.uses_llm) or _reads_without_a_model(node_def.config):
         return workflow_llm_config
 
     try:

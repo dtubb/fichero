@@ -261,6 +261,23 @@ def test_no_model_anywhere_refuses_rather_than_take_the_first_provider(monkeypat
         _resolve_node_llm_config(node, workflow_cfg)
 
 
+def test_a_reader_that_calls_no_model_is_not_refused_for_lacking_one(monkeypatch):
+    """`ai.where.no-first-provider-fallback` (#5368): only a step that calls a model is refused for having none.
+    Transcribe set to Apple Vision, or to Kraken reading its own lines, runs with no model anywhere; Kraken
+    with a vision model reading its lines and no Kraken reader still asks for one."""
+    import pytest
+
+    fake_db = SimpleNamespace(get_default_model_for_category=lambda _c: None, get_default_model=lambda: None)
+    monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: fake_db)
+    workflow_cfg = LLMConfig(provider="", model="")
+    for config in ({"vision_mode": "apple"}, {"vision_mode": "kraken", "kraken_model": "kraken-mccatmus"},
+                   {"vision_mode": "kraken"}):
+        assert _resolve_node_llm_config(NodeDef(id="n1", tool="transcribe", config=config), workflow_cfg) is workflow_cfg
+    model_reads = NodeDef(id="n1", tool="transcribe", config={"vision_mode": "kraken", "lines_read_by": "model"})
+    with pytest.raises(ValueError, match="No model is set for this step"):
+        _resolve_node_llm_config(model_reads, workflow_cfg)
+
+
 def test_non_llm_tool_keeps_workflow_config(monkeypatch):
     node = NodeDef(id="n1", tool="files", config={})
     workflow_cfg = LLMConfig(provider="openai", model="gpt-4o-mini")

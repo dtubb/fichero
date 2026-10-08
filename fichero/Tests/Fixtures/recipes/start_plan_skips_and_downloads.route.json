@@ -34,7 +34,8 @@
     "gives": [
      "line_readings",
      "lines"
-    ]
+    ],
+    "tool_config": null
    },
    {
     "steps": [
@@ -64,7 +65,8 @@
     ],
     "gives": [
      "mentions"
-    ]
+    ],
+    "tool_config": null
    },
    {
     "steps": [
@@ -82,7 +84,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-122/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-211/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -96,7 +98,8 @@
     ],
     "gives": [
      "files"
-    ]
+    ],
+    "tool_config": null
    }
   ],
   "workflows": [
@@ -126,8 +129,8 @@
   ],
   "skipped": [
    {
-    "step": "groups",
-    "why": "step groups: no card runs the job 'find-documents-in-a-folder' yet",
+    "step": "signs",
+    "why": "step signs: no card runs the job 'find-signs' yet: Start cannot run \u201cFind signs\u201d by itself; nothing in Fichero does this yet, by hand or by itself",
     "fix": null
    },
    {
@@ -139,6 +142,11 @@
     "step": "nameless",
     "why": "step nameless has no model: none is named",
     "fix": "choose-model"
+   },
+   {
+    "step": "authorities",
+    "why": "step authorities: no card runs the job 'link-to-authorities' yet: Start cannot run \u201cLink to authorities\u201d by itself; link each name to an authority from its Inspector",
+    "fix": null
    }
   ],
   "offered": [],
@@ -157,7 +165,9 @@
     "params": {
      "runtime": "spacy",
      "model": "es_core_news_sm"
-    }
+    },
+    "name": null,
+    "instead": []
    }
   ],
   "estimate": {
@@ -192,7 +202,6 @@
   "addable": [
    "entities",
    "graph",
-   "places",
    "vectors"
   ]
  }
