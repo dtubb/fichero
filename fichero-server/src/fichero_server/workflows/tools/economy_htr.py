@@ -234,10 +234,12 @@ def economy_htr_file(
             return {"source": str(source), "text": text, "lines": [], "backend": backend, "error": None}
 
         from fichero_server.workflows.tools.vision_base import (
+            _apple_vision_call_sync,
             apple_vision_ocr_with_geometry,
         )
 
-        geometry = apple_vision_ocr_with_geometry(str(source), language)
+        # The engine-wide Apple Vision gate and deadline (#5392): a stuck page fails by name.
+        geometry = _apple_vision_call_sync(apple_vision_ocr_with_geometry, str(source), language)
         line_boxes = [
             box
             for box in geometry.line_boxes

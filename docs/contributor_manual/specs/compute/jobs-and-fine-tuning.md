@@ -363,6 +363,22 @@ What the memory check does for a local model's load (#5537), each pinned in
   four batches, ran the server out of memory mid-read. Pinned in
   `fichero-server/tests/unit/llm/test_reads_follow_memory_5537.py` with injected memory. The rule is
   set from that evidence, not a profile; the run's peak memory is how it is re-measured.
+- `compute.apple-vision.bounded-and-deadlined` — **[OK]** (#5392, #5537) every Apple Vision call in
+  the engine (a Transcribe page, a PDF page, a node on the apple provider through `llm.vision`, Economy
+  HTR, the page splitter's outline) passes one engine-wide gate (`vision_base._apple_vision_call`, and
+  `_apple_vision_call_sync` off the event loop): at most the smaller of two pages at once (the bound
+  for correctness) and what memory allows — one at a time while `throttle.memory_short` finds less
+  than the 1 GB per-read margin free or pressure critical, asked again while a page waits. Each call
+  has a deadline (300 s, `FICHERO_APPLE_VISION_TIMEOUT`) that also covers waiting for the gate; a page
+  stuck in Apple's recogniser fails "Apple Vision did not finish this page within … s" and the run goes
+  on; a page whose deadline or Stop came before its turn never starts. Evidence (2026-10-03, 104
+  notebook photos): the fan-out started all 104 at once and four threads deadlocked in
+  `VNRecognizeTextRequest` (0% CPU, the run "running" forever). The first gate (30e7038a6) missed
+  the apple-provider route, Economy HTR and the splitter's own detection. Pinned through the real
+  fan-out (`process_vision`, every file at once) with a stub that deadlocks when entered beyond the
+  bound, memory short → one at a time, a stuck page failing by name, in
+  `fichero-server/tests/unit/workflows/test_apple_vision_is_gated.py`. Stop ending a run whose page
+  is inside a native call is `activity.run.stop-reaches-in-flight-calls` (#4402).
 - `compute.memory.server-death-said` — **[OK]** (#5537) when the engine's model server dies under a
   request, the page's cause is "The local model server stopped while reading: <its last output>" (e.g.
   Metal's "Insufficient Memory"), never "An error occurred during streaming"; the server's last output
