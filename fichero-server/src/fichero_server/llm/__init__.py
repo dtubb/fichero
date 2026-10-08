@@ -1490,9 +1490,11 @@ def _is_transport_failure(exc: BaseException) -> bool:
 
 
 async def _local_server_stopped(exc: BaseException) -> Exception | None:
-    """The page's cause when the engine's model server died under this request (#5537): "The local
-    model server stopped while reading: <its last output>", never "An error occurred during
-    streaming". None when the server is still up (the failure is the request's own)."""
+    """The page's cause when the engine's model server died under this request (#5537), in words
+    (#5606): "Stopped: the engine was shutting down" when the engine stopped it as it ended, else "The
+    local model server stopped while reading this page"; never "An error occurred during streaming",
+    and never the server's own output, which goes to the job's log (`jobs.note_call_log`) and the
+    engine's. None when the server is still up (the failure is the request's own)."""
     import time
 
     if not _is_transport_failure(exc):
@@ -1510,8 +1512,20 @@ async def _local_server_stopped(exc: BaseException) -> Exception | None:
     if not gone:
         return None
     process = gone[0]
-    said = process.output_tail(lines=3) or process.last_error or "it left no output"
-    return LocalModelServerStoppedError(f"The local model server stopped while reading: {said}")
+    from fichero_server.execution import jobs
+
+    said = process.output_tail(lines=_SERVER_LOG_LINES) or process.last_error or "it left no output"
+    jobs.note_call_log(f"The local model server's last output: {said}", level="warning")
+    if getattr(process, "stopped_for_shutdown", False):
+        return LocalModelServerStoppedError(ENGINE_SHUTDOWN_REASON)
+    return LocalModelServerStoppedError(SERVER_STOPPED_REASON)
+
+
+#: A page's reason when its model server stopped under it (#5606): in words; its output is in the job's log.
+SERVER_STOPPED_REASON = "The local model server stopped while reading this page"
+ENGINE_SHUTDOWN_REASON = "Stopped: the engine was shutting down"
+#: How many of the server's last lines of output the job's log keeps.
+_SERVER_LOG_LINES = 20
 
 
 @contextlib.asynccontextmanager

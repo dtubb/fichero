@@ -458,18 +458,28 @@ async def list_background_jobs(
     # many wait) and recently failed, with why.
     from fichero_server.execution import jobs as job_queue
 
+    from fichero_server.recipes.runner import KIND as RECIPE_KIND
+
     for row in job_queue.snapshot(db):
+        state, reason = row["state"], row["reason"]
+        if row["kind"] == RECIPE_KIND and row["count"] == 1:
+            # A recipe run's row says what its tree says, from the one place (#5606). A run whose stages
+            # cannot be read still shows, with its row's own state and reason (FIX 3).
+            try:
+                state, reason, _status = await _recipe_state(db, row["id"])
+            except Exception as exc:  # noqa: BLE001 -- the row stands; said in the log
+                logger.warning("list_background_jobs: no status for recipe run %s: %s", row["id"], exc)
         jobs.append(
             BackgroundJob(
                 id=row["id"],
                 task_type=row["kind"],
                 name=job_queue.kind_name(row["kind"]),
                 library=library,
-                current=1 if row["state"] == "failed" else 0,
+                current=1 if state == "failed" else 0,
                 total=row["count"],
-                percent=100.0 if row["state"] == "failed" else 0.0,
-                state=row["state"],
-                reason=row["reason"],
+                percent=100.0 if state == "failed" else 0.0,
+                state=state,
+                reason=reason,
                 parent_id=row.get("parent_id"),
             )
         )
@@ -520,6 +530,13 @@ async def get_job_tree(
         await _recipe_run(db, found)
     if depth is not None:
         _cut(found, depth)
+    # A waiting job under it says what the list says it waits for, from the one place (#5606), never the
+    # reason an earlier scan left on its row. Only the rows returned are asked.
+    for node in _walk(found):
+        if node["state"] == "waiting" and node["kind"] not in job_queue.RUN_KINDS and node["kind"] != "run-a-recipe":
+            now = job_queue.state_and_reason(db, node["id"])
+            if now is not None:
+                node["reason"] = now[1]
     return JobTree.model_validate(found)
 
 
@@ -532,13 +549,27 @@ def _cut(node: dict[str, Any], depth: int) -> None:
         _cut(child, depth - 1)
 
 
-async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
-    """A recipe run's node (#5576, #5577): its stages in order, each workflow stage with its run's account (the
-    one that run's own node shows), what it waits for now as its reason while it runs, and, once it has ended,
-    what it made."""
+async def _recipe_state(db: Database, job_id: str) -> tuple[str, Optional[str], dict[str, Any]]:
+    """A recipe run's state and reason, THE one derivation its row in the list and its tree both show (#5606):
+    the row's own (`jobs.state_and_reason`: a waiting run says what it waits for as every waiting row does),
+    and, while it runs, what its running stage waits for. Also its status with the stages' accounts."""
+    from fichero_server.execution import jobs as job_queue
     from fichero_server.recipes import run_view, runner
 
-    status = await run_view.with_accounts(db, runner.status(db, found["id"]))
+    status = await run_view.with_accounts(db, runner.status(db, job_id))
+    state, reason = job_queue.state_and_reason(db, job_id) or (status["state"], status["reason"])
+    if state == "running" and status["waiting_for"]:
+        reason = status["waiting_for"]
+    return state, reason, status
+
+
+async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
+    """A recipe run's node (#5576, #5577): its stages in order, each workflow stage with its run's account (the
+    one that run's own node shows), its state and reason as its row in the list has them (`_recipe_state`),
+    and, once it has ended, what it made."""
+    from fichero_server.recipes import run_view
+
+    found["state"], found["reason"], status = await _recipe_state(db, found["id"])
     found["stages"] = status["steps"]
     accounts = {s["child_id"]: s["account"] for s in status["steps"] if s.get("account") is not None}
     for child in found["children"]:
@@ -550,8 +581,6 @@ async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
     if found["children"]:  # the roll-up, again, over the stages' own counts
         for key in ("done", "total", "failed"):
             found[key] = sum(c[key] for c in found["children"])
-    if status["waiting_for"] and found["state"] in ("running", "waiting"):
-        found["reason"] = status["waiting_for"]
     if found["state"] in ("done", "failed", "cancelled"):
         found["summary"] = await run_view.summary(db, found["id"])
 
@@ -645,6 +674,10 @@ async def get_job_log(job_id: str, db: Database = Depends(get_library_database))
                 timestamp=when.isoformat(), level=level, message=event.message + error,
                 # A node with no row of its own (the builder's routing) is the run's line.
                 job_id=row if (row := job_queue.step_id(thread, event.node_id or "")) in rows else thread))
+
+    for row, entry in job_queue.logged_lines(db, list(rows)):  # what a row's work kept (a server's output)
+        lines.append(JobLogLine(timestamp=entry.get("at"), level=str(entry.get("level") or "info"),
+                                message=str(entry["message"]), job_id=row))
 
     def order(line: JobLogLine) -> tuple[int, datetime]:
         # A line with no time (what a row waits for now) is the newest.

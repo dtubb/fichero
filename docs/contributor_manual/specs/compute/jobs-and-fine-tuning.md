@@ -370,12 +370,17 @@ What the memory check does for a local model's load (#5537), each pinned in
   run's event loop has ended, found by its pid); and the page counts as a passing failure, read once
   more after the server restarts (`page_retry`, #5555). Pinned with a real server process that dies
   mid-answer.
-  **[GAP]** (#5606) the reason is words, never the server's own output: "The local model server
+  **[OK]** (#5606) the reason is words, never the server's own output: "The local model server
   stopped while reading this page" when it died on its own, "Stopped: the engine was shutting down"
   when the engine stopped it as it ended; the server's last output goes to the job's log
   (`GET /api/activity/jobs/{id}/log`, on the page's model-call row). Before: a page's reason was the
   MLX server's log ("The local model server stopped while reading: 2026-10-07 23:47:43,151 - INFO -
-  Decode progress: …"), though the engine had stopped the server as it shut down.
+  Decode progress: …"), though the engine had stopped the server as it shut down. Built: the engine
+  marks the servers it stops as it ends (`shutdown_managed_local_inference_services`), and
+  `llm._local_server_stopped` words the reason and keeps the output on the call's row
+  (`jobs.note_call_log`), which the job log reads (`jobs.logged_lines`). Tested through the tree and
+  the log routes with a real model-lane slot under a real run (`fichero-server/tests/unit/jobs/test_activity_one_truth_5606.py`); the real dying server's
+  reason in `fichero-server/tests/unit/llm/test_reads_follow_memory_5537.py`.
 - `compute.memory.local-call-judged-by-progress` — **[OK]** (#5537) a call to a model served on this
   Mac (the engine's MLX server, Ollama, LM Studio; vision, chat, structured and batch alike) streams its
   answer and is judged by progress, not wall time: while tokens arrive it runs on (the answer's length
