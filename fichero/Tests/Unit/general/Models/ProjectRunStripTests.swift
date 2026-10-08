@@ -239,7 +239,9 @@ final class ProjectRunStripTests: XCTestCase {
 
         // It ends: it leaves the jobs list, and its tree, read once more, carries what it made.
         let failed = try Self.failedTree()
-        let threadId = "thread-81a23c3f9533"
+        // The failed stage's run, as the recorded summary names it (re-recorded fixtures get new ids).
+        let threadId = try XCTUnwrap(((failed["summary"] as? [String: Any])?["failed"] as? [[String: Any]])?
+            .first?["thread_id"] as? String)
         MockTransportURLProtocol.reset([
             Stub(path: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsList("")),
             Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(failed)),
