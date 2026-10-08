@@ -24,13 +24,13 @@ final class ModelFinderStore {
 
     /// The jobs the engine's finder answers for (`recipes/assemble.READING_JOBS`); any other job is
     /// refused (422) in the engine's words. Setup offers Find a Reader… only on these steps.
-    static let readerJobs: Set<String> = ["read-a-line", "read-a-page"]
-    static let readingJob = "read-a-line"
+    nonisolated static let readerJobs: Set<String> = ["read-a-line", "read-a-page"]
+    nonisolated static let readingJob = "read-a-line"
     /// The online search's job kind (`recipes/discovery.SEARCH_KIND`), as Activity lists it.
-    static let searchKind = "find-models"
+    nonisolated static let searchKind = "find-models"
     /// Activity snapshots a running search may be missing from before the finder reads again once
     /// (a search that ended between two polls is never listed): the bounded fallback.
-    static let unseenLimit = 3
+    nonisolated static let unseenLimit = 3
 
     private(set) var query: Query?
     private(set) var candidates: [Components.Schemas.ModelCandidate] = []
