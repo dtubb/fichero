@@ -370,6 +370,21 @@ What the memory check does for a local model's load (#5537), each pinned in
   run's event loop has ended, found by its pid); and the page counts as a passing failure, read once
   more after the server restarts (`page_retry`, #5555). Pinned with a real server process that dies
   mid-answer.
+- `compute.memory.local-call-judged-by-progress` — **[OK]** (#5537) a call to a model served on this
+  Mac (the engine's MLX server, Ollama, LM Studio; vision, chat, structured and batch alike) streams its
+  answer and is judged by progress, not wall time: while tokens arrive it runs on (the answer's length
+  is bounded by its token ceiling), and it fails only when nothing new has arrived for the no-progress
+  window (`local_inference.LOCAL_NO_PROGRESS_SECONDS`, 120 s, which also covers reading the prompt
+  before the first token), with the cause "the model stopped answering for 120 s" — never a bare
+  "ReadTimeout" or "exceeded 75.0s — provider hang". That cause is a passing one: the page is read once
+  more (`page_retry`) before it fails. Cloud calls keep their wall-clock cap. Evidence: 16 GB MBP,
+  2026-10-07, the Paleographer Review's long prompt failed 9 pages "ReadTimeout" under normal memory
+  pressure; the 8 GB Air failed slow pages "vision exceeded 75.0s — provider hang" while swapping.
+  Pinned against a stub OpenAI-shaped server on 127.0.0.1 (a steady answer past the old cap succeeds,
+  a quiet one fails after the window with the worded cause, a quiet answer then a good one) in
+  `fichero-server/tests/unit/llm/test_local_no_progress_5537.py`, and the page's one retry through a
+  real run in `fichero-server/tests/unit/jobs/test_local_no_progress_retry_5537.py`. Not yet seen on a
+  real MLX server; the 120 s window is a choice, not a measurement.
 - `compute.memory.plan-states-need` — **[PARTIAL]** (#5537, rule 8) the start plan's estimate states,
   for each run pinned to a model on this Mac's model server, the model's need, how many pages at once
   it reads on this Mac and the peak that comes to ("… needs about 3.9 GB; on this Mac (8.0 GB) it reads
