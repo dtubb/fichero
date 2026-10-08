@@ -29,6 +29,7 @@ from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import EntityType
 
 import asyncio
+import dataclasses
 import difflib
 import json
 import logging
@@ -425,6 +426,8 @@ _SECTIONS: list[dict[str, Any]] = [
         "color": "purple",
         "schema_key": "quotes",
         "allow_null_subject": True,
+        # A quotation is anchored on the quoted words, its speaker a mention (#5598).
+        "anchor_on_quoted_words": True,
         "item_shape": (
             '{"name": "Speaker name or null", '
             '"verb": "said|argued|wrote|testified", '
@@ -2233,6 +2236,142 @@ def _fuzzy_anchor(
     return page_words[first_page_word][0], page_words[last_page_word][1]
 
 
+# A quotation on its own words (`source.extract.quotes-on-their-words`, #5598). The model gives the
+# quoted words (`object`), the speaker (`name`) and the sentence that holds both (`source_text`). The
+# quotation's anchor is the quoted words' span in the page text, never the sentence; the sentence is kept
+# as context. When the page text is tied to its lines (`checking.tie_text.line_spans`, the tie seam names
+# and statements use too, #4932), the anchor names the line the words start on and the reading measured
+# (and every line they cover in `metadata["quote_lines"]`). The speaker is a mention where the speaker's
+# name is written in that sentence (a supporting source on the entity, on its line); a speaker not
+# written there is left without a mention and says so, never placed on a guess.
+_QUOTE_MARKS = "\"'\u201c\u201d\u2018\u2019\u00ab\u00bb\u201e\u201a\u2039\u203a"
+
+
+@dataclasses.dataclass
+class _QuoteAnchor:
+    text: str  # the page text the offsets are in
+    start: int | None = None
+    end: int | None = None
+    sentence: tuple[int, int] | None = None
+    lines: list[Any] = dataclasses.field(default_factory=list)  # tie_text.LineSpan
+    meta: dict[str, Any] = dataclasses.field(default_factory=dict)
+
+    def anchor_for(self, document_id: str, start: int, end: int) -> SourceAnchor | None:
+        """The line the span starts on, the reading measured, the span within that reading."""
+        from fichero_server.checking.tie_text import lines_under
+
+        under = lines_under(self.lines, start, end)
+        if not under:
+            return None
+        first = under[0]
+        return SourceAnchor(document_id=document_id, segment_id=first.segment_id,
+                            representation_id=first.representation_id,
+                            char_start=max(start, first.start) - first.start,
+                            char_end=min(end, first.end) - first.start)
+
+
+def _anchor_quotation(
+    db: Any,
+    item: dict[str, Any],
+    document_id: str,
+    page_excerpt: str | None,
+    grounding_text: str | None,
+) -> _QuoteAnchor | None:
+    """Where a quotation's words are on the page (#5598), or None when there is no page text to look in.
+
+    The text looked in is the whole chunk (`grounding_text`) when the stored excerpt is its head, so offsets
+    agree with every other claim of the page; the quoted words are looked for inside the sentence first
+    (the same words elsewhere on the page are another place), then anywhere, then the closest real span
+    (`_fuzzy_anchor`, labelled). Not found: the quotation has no anchor and says why."""
+    text = page_excerpt or ""
+    if grounding_text and (not page_excerpt or grounding_text.startswith(page_excerpt)):
+        text = grounding_text
+    if not text:
+        return None
+    found = _QuoteAnchor(text=text)
+    sentence = to_plain_text(str(item.get("source_text") or "")).strip()
+    if sentence:
+        idx = text.find(sentence)
+        span = (idx, idx + len(sentence)) if idx >= 0 else _fuzzy_anchor(text, sentence)
+        if span is not None:
+            found.sentence = span
+            found.meta["quote_context"] = text[span[0]:span[1]]
+            found.meta["quote_context_char_start"], found.meta["quote_context_char_end"] = span
+    words = to_plain_text(str(item.get("object") or "")).strip().strip(_QUOTE_MARKS).strip()
+    span = None
+    if words:
+        lo, hi = found.sentence or (0, len(text))
+        idx = text.find(words, lo, hi)
+        if idx < 0:
+            idx = text.find(words)
+        if idx >= 0:
+            span = (idx, idx + len(words))
+        else:
+            span = _fuzzy_anchor(text[lo:hi], words) if found.sentence else None
+            span = (span[0] + lo, span[1] + lo) if span else _fuzzy_anchor(text, words)
+            if span is not None:
+                found.meta["quote_anchor"] = "fuzzy"
+                found.meta["model_quote"] = words
+    if span is None:
+        found.meta["quote_unanchored_reason"] = "the quoted words are not in the page text"
+        return found
+    found.start, found.end = span
+    found.meta["quote_text"] = text[span[0]:span[1]]
+    from fichero_server.checking.tie_text import line_spans, lines_under
+
+    found.lines = line_spans(db, document_id, text)
+    under = lines_under(found.lines, *span)
+    if under:
+        found.meta["quote_lines"] = [
+            {"segment_id": line.segment_id, "representation_id": line.representation_id,
+             "char_start": max(span[0], line.start) - line.start,
+             "char_end": min(span[1], line.end) - line.start}
+            for line in under
+        ]
+    return found
+
+
+def _speaker_mention(
+    db: Any,
+    quote: _QuoteAnchor,
+    entity_id: str,
+    name: str,
+    document_id: str,
+    page_label: str | None,
+) -> dict[str, Any]:
+    """The speaker's name where the sentence writes it, as a mention of the entity (#5598): a supporting
+    source on the entity with the name's span, and its line when the page is tied. Outside the quoted
+    words only (a name inside the quotation is said, not saying). Returns what the claim records."""
+    from fichero_server.models.knowledge import KnowledgeEntity, SourceSupport
+
+    if quote.sentence is None or not name:
+        return {"speaker_unanchored_reason": "the sentence attributing the quotation is not in the page text"}
+    lo, hi = quote.sentence
+    at = lo
+    while True:
+        idx = quote.text.find(name, at, hi)
+        if idx < 0:
+            return {"speaker_unanchored_reason": "the speaker's name is not written in the attributing sentence"}
+        end = idx + len(name)
+        if quote.start is None or end <= quote.start or idx >= quote.end:
+            break
+        at = idx + 1
+    support = SourceSupport(source_document_id=document_id, source_page_label=page_label, source_excerpt=name,
+                            source_char_start=idx, source_char_end=end,
+                            source_anchor=quote.anchor_for(document_id, idx, end))
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is not None and not any(
+        (s.source_document_id, s.source_char_start, s.source_char_end) == (document_id, idx, end)
+        for s in entity.source_supports
+    ):
+        entity.source_supports = [*entity.source_supports, support]
+        db.save(entity)
+    said = {"speaker_char_start": idx, "speaker_char_end": end}
+    if support.source_anchor is not None:
+        said["speaker_segment_id"] = support.source_anchor.segment_id
+    return said
+
+
 def _write_kg_rows(
     db,
     section: dict[str, Any],
@@ -2832,6 +2971,41 @@ def _write_kg_rows(
                 else "no page text available to verify the quote against"
             )
 
+        # A quotation is anchored on its own words, not the sentence (#5598,
+        # `source.extract.quotes-on-their-words`): the sentence stays as
+        # context, the offsets and the anchor are the quoted words', and the
+        # line they are on when the page is tied. The model's speaker is the
+        # only speaker (`quote_kw`): none is guessed from the excerpt.
+        quote = None
+        quote_kw: dict[str, Any] = {}
+        if section.get("anchor_on_quoted_words"):
+            quote = _anchor_quotation(db, item, container_id, page_excerpt, grounding_text)
+            from fichero_server.models.knowledge import QuotationKind
+
+            quote_kw = {"quotation_kind": QuotationKind.verbatim, "detect_speaker": False}
+        if quote is not None:
+            for key in ("source_text", "source_text_anchor", "source_text_anchor_reason",
+                        "model_paraphrase", "source_text_rejected_reason"):
+                meta.pop(key, None)
+            meta.update(quote.meta)
+            char_start, char_end = quote.start, quote.end
+            if quote.start is not None:
+                meta["source_text"] = meta["quote_text"]
+                excerpt = meta["quote_text"]
+                on_line = quote.anchor_for(container_id, quote.start, quote.end)
+                if on_line is not None:
+                    source_anchor = (
+                        source_anchor.model_copy(update={
+                            "segment_id": on_line.segment_id,
+                            "representation_id": on_line.representation_id,
+                            "char_start": on_line.char_start,
+                            "char_end": on_line.char_end,
+                        })
+                        if source_anchor is not None else on_line
+                    )
+            else:
+                excerpt = meta.get("quote_context") or excerpt
+
         # Two-axis classification on every claim:
         #   epistemic_status — how firmly asserted (tentative/confirmed/rejected)
         #   claim_type        — ontological status (fact/analysis/.../theory)
@@ -2999,6 +3173,7 @@ def _write_kg_rows(
                     claim_type=ctype or ClaimType.fact,
                     metadata=meta,
                     epistemic_status=epistemic,
+                    source_anchor=source_anchor,
                     subject_canonical=None,
                     predicate_verb=verb or None,
                     object_phrase=obj or None,
@@ -3013,6 +3188,7 @@ def _write_kg_rows(
                     source_language=detected_language,
                     confidence_origin=("heuristic" if svo_synthesised else "llm"),
                     claim_recorded_at=doc_date,
+                    **quote_kw,
                 )
                 if claim_id is not None:
                     claims_written += 1
@@ -3068,6 +3244,9 @@ def _write_kg_rows(
         if entity_id is None:
             continue
         written_entity_ids.append(entity_id)
+        if quote is not None:
+            meta.update(_speaker_mention(db, quote, entity_id, canonical, container_id, page_label))
+            quote_kw["speaker_name"] = canonical
         # #1119 — reverse alias scan over claim text + predicate + excerpt.
         # Subject entity is already in entity_ids; the scan extends with
         # any OTHER known entities mentioned. Example: "Chocó is part of
@@ -3164,6 +3343,7 @@ def _write_kg_rows(
                 "heuristic" if svo_synthesised else "llm"
             ),
             claim_recorded_at=doc_date,
+            **quote_kw,
         )
         entities_written += 1
         if claim_id is not None:

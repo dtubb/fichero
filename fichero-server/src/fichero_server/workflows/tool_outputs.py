@@ -104,7 +104,8 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     # `metadata["geo_points"]`, the `geo` artifact, and place values on the claims
     "extract_geo": _d("document", "attribute", "statement", "artifact"),
     # ── knowledge graph rows tied to the document ─────────────────────────────
-    "extract_all": _KG_AND_ARTIFACT,
+    # its quotations go through the quotes section's writer, so they sit on their lines too (#5598)
+    "extract_all": _d("segment", "mention", "statement", "artifact"),
     "people_extract": _KG_AND_ARTIFACT,
     "places_extract": _KG_AND_ARTIFACT,
     "organizations_extract": _KG_AND_ARTIFACT,
@@ -115,7 +116,9 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     "legal_references_extract": _KG_AND_ARTIFACT,
     "citation_usage_extract": _KG_AND_ARTIFACT,
     "hermeneutics_extract": _KG_AND_ARTIFACT,
-    "quotes_extract": _KG_AND_ARTIFACT,
+    # a quotation is a statement on the quoted words' span and, where the page text is tied to its lines,
+    # on the line they start on; its speaker a mention on the name's span (#5598)
+    "quotes_extract": _d("segment", "mention", "statement", "artifact"),
     "keywords_extract": _KG_AND_ARTIFACT,
     "dates_extract": _d("document", "statement", "artifact"),  # dates are claims, no entity
     "book_index_extract": _KG_AND_ARTIFACT,
