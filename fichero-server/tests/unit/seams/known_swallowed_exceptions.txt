@@ -36,7 +36,6 @@ api/routes/kg/nlp_draft_purge.py::_action_purge_nlp_draft 2
 api/routes/kg/nlp_draft_purge.py::_emit_purge_changes 2
 api/routes/kg/predictions.py::apply_prediction_run 1
 api/routes/kg/review.py::_maybe_trigger_retrain 1
-api/routes/kg/review.py::_run_retrain 1
 api/routes/kg/review.py::accept_pair_impl 1
 api/routes/library/core.py::_register_known_library 1
 api/routes/library/core.py::create_library 2
@@ -46,7 +45,6 @@ api/routes/search/core.py::_enrich_page_results_with_parent_info 1
 api/routes/search/core.py::_run_claim_semantic_queries 1
 api/routes/search/core.py::_run_entity_semantic_queries 1
 api/routes/search/core.py::enhanced_search 3
-api/routes/search/core.py::reindex_all.do_reindex 1
 api/routes/system/activity.py::list_background_jobs 1
 api/routes/workflow_execution/threads.py::_cancel_settled_run 1
 api/routes/workflow_execution/threads.py::cancel_workflow 1
@@ -68,7 +66,9 @@ db/embeddings.py::DatabaseEmbeddingMixin.flush_deferred_embeddings._flush 1
 db/embeddings.py::DatabaseEmbeddingMixin.migrate_embedding_space 1
 # #5464/#5480: giving a project its Sources folder at open is best-effort, like the steps beside it;
 # #5555: so is marking its unfinished runs interrupted (a failure leaves the older sweep to do it).
-db/manager.py::DatabaseManager.get_database 5
+# #5599: the catalogue-narrative migration runs on every open; a failure is logged and the project still
+# opens (the migration is idempotent and runs again next open), so the open never fails over it.
+db/manager.py::DatabaseManager.get_database 6
 db/migrations/schema.py::migrate_knowledge_indices 2
 db/migrations/schema.py::migrate_segment_indices 1
 db/storage.py::_generate_image 1
