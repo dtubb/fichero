@@ -99,7 +99,7 @@ parallel pattern to keep.
   `::test_invoke_validates_params`, `::test_invoke_unknown_action_raises`,
   `::TestActionsRegistryRoute::test_invoke_via_route_writes_audit`,
   `::TestEntityMergeAction::test_merge_via_registry_effect_and_audit`.
-- `audit.actor-cannot-be-forged` — **[PARTIAL]** (#3129, #2980, #4844, fixed for #4843's specific finding by
+- `audit.actor-cannot-be-forged` — **[OK]** (#3129, #2980, #4844, fixed for #4843's specific finding by
   8aa6c8e12) `POST /api/actions/invoke` rejects a request body that sets `actor`/
   `origin_window` directly (`InvokeActionRequest.reject_deprecated_fields`, → #3285); the real
   actor is derived exclusively from authenticated request state (`action_context()` →
@@ -109,10 +109,12 @@ parallel pattern to keep.
   .updated_by` field stays on the request model for compatibility, but its value is now
   IGNORED — the route stores `updated_by=actor` (`inclusion.py:63,71`), never
   `request.updated_by`; a test sends a forged name and reads the real actor back from the
-  stored row. Verified at HEAD: no code path reads `request.updated_by` for the write. Still
-  PARTIAL, not OK: the `POST /api/actions/invoke` guard itself remains untested — no test
-  drives the route with a forged `actor` and asserts the rejection; that half is still filed
-  as #4844. Pinned: `test_routes_kg_inclusion.py::test_forged_updated_by_is_ignored`.
+  stored row. Verified at HEAD: no code path reads `request.updated_by` for the write. The
+  `POST /api/actions/invoke` guard is now driven through the route too (#4844): a body naming
+  `actor` or `origin_window` gets a 422, the action never runs and no audit row is written;
+  the same call without the field runs under the request's actor. Pinned:
+  `test_routes_kg_inclusion.py::test_forged_updated_by_is_ignored`,
+  `security/test_invoke_actor_cannot_be_forged.py`.
 - `audit.undo-redo-is-generic` — **[OK]** one endpoint (`POST
   /api/actions/audit/{audit_id}/undo`) reverses any undoable action via its own declared
   `invert()`, and redoes an inverse by replaying the ORIGINAL forward action's recorded
