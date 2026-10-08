@@ -878,8 +878,8 @@ class StartPlaceInstead(BaseModel):
     place: str = Field(description="where the place keeps the pages: own_machine or provider (llm/places.py)")
     model: str = Field(description="the model's id at the place")
     name: str = Field(description="its name, as people read it")
-    free: bool = Field(description="always True: only a place the price list says costs nothing is offered "
-                       "(ai.where.fallback-free-and-asked)")
+    free: bool = Field(description="always True: only a free place is offered, the person's own machine or one the "
+                       "price list says costs nothing (ai.where.fallback-free-and-asked)")
 
 
 class StartElsewhere(BaseModel):

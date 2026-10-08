@@ -440,10 +440,13 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   (`POST /api/recipes/project/start/use-instead` with `provider`), which keeps it as a
   project-scope override said "chosen by you" (as `source.onboard.auto.installed-model-first`
   does). A place is one of the person's enabled provider rows off this Mac that lists the model by
-  the same id; it is free only when the price list says its input and output cost 0
-  (`llm/usage.py`). A paid place, or one the price list does not price, is never offered (the
-  refusal names it and says why); a project that keeps its pages on this Mac is offered no other
-  place. Built: `recipes/start.py` (`places_elsewhere`, `use_place_instead`). *Test:*
+  the same id. It is free when it is the person's own machine (`own_machine`, `llm/places.py`;
+  ruled 2026-10-08: it costs nothing, though a call there stays unpriced in the account), or when
+  the price list says its input and output cost 0 (`llm/usage.py`). Any other place, paid or not
+  priced, is never offered (the refusal names it and says why); a project that keeps its pages on
+  this Mac is offered no other place, its own machine included. Setup's Ready shows each offer
+  under its step, "Can't run on this Mac (why)" and a "Run it free at <name>" button that posts
+  use-instead (`RecipeSetupStore.useFreePlace`). Built: `recipes/start.py` (`places_elsewhere`, `use_place_instead`). *Test:*
   `fichero-server/tests/unit/recipes/test_fallback_free_and_asked.py`.
 - `ai.where.fallback-across-places` — **[GAP]** (#5592) when a step's place fails during a run
   for a reason of the place (server down, quota, key missing), its page runs at the step's next

@@ -304,6 +304,10 @@ final class RecipeSetupStore {
     /// The models the plan's steps need that are not on this Mac, each with its size and the download.
     var downloads: [Components.Schemas.StartDownload] { startPlan?.downloads ?? [] }
 
+    /// The models the plan's steps are pinned to that this Mac cannot run, each with the free places offered
+    /// instead (#5592, `ai.where.fallback-free-and-asked`).
+    var elsewhere: [Components.Schemas.StartElsewhere] { startPlan?.elsewhere ?? [] }
+
     /// The downloads asked for here, by model, while the engine fetches them (a `download-model` job).
     private(set) var downloading: Set<String> = []
 
@@ -358,6 +362,32 @@ final class RecipeSetupStore {
         } catch {
             if error.isCancellationError { return }
             errorMessage = "Could not use \(installed.name): \(error.localizedDescription)"
+        }
+    }
+
+    /// Run the model this Mac cannot run at the free place the plan offers (#5592,
+    /// `ai.where.fallback-free-and-asked`): only on this press, the engine sets the same model at that
+    /// place on the steps and saves the recipe; the changed steps replace theirs in place, and Ready
+    /// reads the plan again because the recipe changed.
+    func useFreePlace(_ entry: Components.Schemas.StartElsewhere,
+                      _ place: Components.Schemas.StartPlaceInstead) async {
+        do {
+            switch try await client.api.useInstalledInsteadApiRecipesProjectStartUseInsteadPost(
+                body: .json(.init(model: entry.model, provider: place.provider))
+            ) {
+            case .ok(let success):
+                if let recipe = try success.body.json.recipe {
+                    adoptEngineRecipe(try JSONEncoder().encode(recipe))
+                }
+            case .unprocessableContent(let error):
+                errorMessage = (try? error.body.json)?.detail?.description
+                    ?? "The engine would not run \(entry.name) at \(place.providerName)."
+            case .undocumented(let code, _):
+                errorMessage = "Could not run \(entry.name) at \(place.providerName) (HTTP \(code))."
+            }
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not run \(entry.name) at \(place.providerName): \(error.localizedDescription)"
         }
     }
 

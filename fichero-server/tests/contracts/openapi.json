@@ -83619,7 +83619,7 @@
           "free": {
             "type": "boolean",
             "title": "Free",
-            "description": "always True: only a place the price list says costs nothing is offered (ai.where.fallback-free-and-asked)"
+            "description": "always True: only a free place is offered, the person's own machine or one the price list says costs nothing (ai.where.fallback-free-and-asked)"
           }
         },
         "type": "object",

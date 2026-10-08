@@ -109,6 +109,32 @@ def test_a_local_only_project_is_offered_no_place_off_this_mac(client, db, pages
     assert r.status_code == 422
 
 
+@pytest.mark.parametrize("cloud_allowed", [True, False], ids=["pages-may-leave", "local-only"])
+def test_the_persons_own_machine_is_a_free_place(client, db, pages, mac, app_db, monkeypatch, cloud_allowed):
+    """ai.where.fallback-free-and-asked: the person's own machine (a model server at an address off this Mac) costs
+    nothing, so it is offered like a $0 place, whatever the price list says (here it prices nothing); still never
+    applied without the press, and never in a project that keeps its pages on this Mac."""
+    monkeypatch.setattr("fichero_server.llm.usage._registry_entry", lambda model, provider="": None)
+    row = app_db.save_provider(Provider(name="Studio Mac", provider_type=ProviderType.ollama,
+                                        api_base="http://10.0.0.5:11434"))
+    app_db.save_model(Model(provider_id=row.id, name="Qwen3-VL 8B", model_id=EIGHT))
+    _save(client, _recipe(None, LINES, READ, CORRECT), cloud_allowed=cloud_allowed)
+    plan = client.get("/api/recipes/project/start").json()
+
+    entry = _elsewhere(plan)
+    run = next(w for w in plan["workflows"] if w["steps"] == ["correct"])
+    assert run["provider_override"] == "omlx", "offered, never applied without the press"
+    if not cloud_allowed:
+        assert entry["instead"] == []
+        return
+    [offer] = entry["instead"]
+    assert offer["provider"] == row.id and offer["place"] == "own_machine" and offer["free"] is True
+    used = client.post("/api/recipes/project/start/use-instead", json={"model": entry["model"], "provider": row.id})
+    assert used.status_code == 200, used.text
+    step = next(s for s in used.json()["recipe"]["steps"] if s["id"] == "correct")
+    assert step["model"] == {"cloud": "ollama", "model": EIGHT}
+
+
 def test_use_instead_takes_a_card_or_a_place_never_both(client, db, pages, mac, place):
     _save(client, _recipe(None, LINES, READ, CORRECT), cloud_allowed=True)
     r = client.post("/api/recipes/project/start/use-instead",

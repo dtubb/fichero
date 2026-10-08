@@ -543,8 +543,8 @@ def places_elsewhere(runs: list[dict[str, Any]], *, stays_local: bool) -> list[d
     """For each local model this Mac cannot run (its card says this Mac's memory cannot), the other places that
     run the same model and cost nothing, each offered in `instead` to choose in one press (`use_place_instead`),
     never used without it (`ai.where.fallback-free-and-asked`, #5592). A place is one of the person's provider
-    rows, enabled, off this Mac, that lists the model by the same id; it is free only when the price list says its
-    input and output cost nothing. A paid place, or one whose price is not known, is never offered; a project that
+    rows, enabled, off this Mac, that lists the model by the same id; it is free when it is the person's own machine,
+    or when the price list says its input and output cost nothing. A paid place, or one whose price is not known, is never offered; a project that
     keeps its pages on this Mac is offered no other place. `said` is the sentence its refusal adds."""
     from fichero_server.llm import local_model_choice
 
@@ -580,11 +580,12 @@ def places_elsewhere(runs: list[dict[str, Any]], *, stays_local: bool) -> list[d
 
 def _places_running(ids: set[str]) -> tuple[list[dict[str, Any]], list[str]]:
     """(the free places, the names of the paid or unpriced ones) among the person's enabled provider rows off this
-    Mac that list the model by one of `ids`. Free is the price list's word (input and output cost 0), never a
-    guess: a row's own stated cost, or no price at all, is not free."""
+    Mac that list the model by one of `ids`. The person's own machine (`own_machine`) is free; any other place is
+    free only by the price list's word (input and output cost 0), never a guess: a row's own stated cost, or no
+    price at all, is not free."""
     from fichero_server.db.app import get_app_db
     from fichero_server.llm import LLMConfig, usage
-    from fichero_server.llm.places import THIS_MAC, place_of
+    from fichero_server.llm.places import OWN_MACHINE, THIS_MAC, place_of
 
     app_db = get_app_db()
     free, paid = [], []
@@ -597,7 +598,9 @@ def _places_running(ids: set[str]) -> tuple[list[dict[str, Any]], list[str]]:
         if listed is None:
             continue
         price = usage._registry_entry(listed.model_id, ptype) or {}
-        if price.get("input_cost_per_token") == 0 and price.get("output_cost_per_token") == 0:
+        # The person's own machine costs nothing (ruled 2026-10-08); a company's place is free only at $0 listed.
+        if place == OWN_MACHINE or (price.get("input_cost_per_token") == 0
+                                    and price.get("output_cost_per_token") == 0):
             free.append({"model": listed.model_id, "name": listed.name or listed.model_id, "provider": row.id, "provider_name": row.name, "provider_type": ptype, "place": place,
                          "free": True})
         else:

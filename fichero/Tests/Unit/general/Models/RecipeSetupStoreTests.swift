@@ -426,6 +426,49 @@ struct RecipeSetupStoreTests {
         #expect(await store.start() == false)
         #expect(store.errorMessage != nil)
     }
+
+    /// WHY (`ai.where.fallback-free-and-asked`, #5592): a step whose model this Mac cannot run moves to
+    /// another place only when that place is free and only on the person's press. Ready reads the plan's
+    /// `elsewhere` offers, and "Run it free at <name>" sends exactly that offer (the model and the place's
+    /// provider) to use-instead, setup's one code path; nothing is sent before the press.
+    @Test("Run it free at a place posts the plan's offer to use-instead")
+    func runItFreeAtAPlacePostsTheOffer() async throws {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let plan = """
+        {"runs":[],"skipped":[],"workflows":[],"offered":[],
+         "refusals":["steps correct cannot run on this Mac: needs 24 GB. Or run it free at Studio Mac instead"],
+         "elsewhere":[{"runtime":"mlx","model":"mlx-community/Qwen3-VL-8B","name":"Qwen3-VL 8B","steps":["correct"],
+           "why":"needs 24 GB","said":"Or run it free at Studio Mac instead",
+           "instead":[{"provider":"row-1","provider_name":"Studio Mac","provider_type":"ollama","place":"own_machine",
+             "model":"mlx-community/Qwen3-VL-8B","name":"Qwen3-VL 8B","free":true}]}],
+         "estimate":{"pages":2,"runs":[],"total_cost_usd":0}}
+        """
+        let store = makeStore { request in
+            if request.url?.path == "/api/recipes/project/start/use-instead" {
+                RecipesMockURLProtocol.calls += 1
+                RecipesMockURLProtocol.bodies["/api/recipes/project/start/use-instead"] =
+                    (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:]
+                return Self.reply(request, 200, #"{"answers":null,"recipe":null}"#)
+            }
+            return Self.reply(request, 200, plan)
+        }
+        await store.loadStartPlan()
+        let entry = try #require(store.elsewhere.first)
+        let place = try #require(entry.instead?.first)
+        #expect(place.free)
+        #expect(RecipeElsewhereRows.buttonTitle(place) == "Run it free at Studio Mac")
+        #expect(RecipesMockURLProtocol.calls == 0, "offered, never applied without the press")
+        #expect(store.canStart == false)
+
+        await store.useFreePlace(entry, place)
+
+        let sent = RecipesMockURLProtocol.bodies["/api/recipes/project/start/use-instead"] ?? [:]
+        #expect(RecipesMockURLProtocol.calls == 1)
+        #expect(sent["model"] as? String == "mlx-community/Qwen3-VL-8B")
+        #expect(sent["provider"] as? String == "row-1")
+        #expect(sent["card"] == nil)
+        #expect(store.errorMessage == nil)
+    }
 }
 
 /// `URLRequest.httpBody` is nil once the request has gone through
