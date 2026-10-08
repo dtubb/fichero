@@ -216,3 +216,6 @@ api/routes/library/registry.py::_persist_owner_opened_package 1
 api/routes/library/registry.py::persist_owner_granted_folder 1
 importers/sources_folder.py::import_parent_id 1
 security/path_security.py::_load_owner_grants 1
+# #5608: closing a project stops its runs in flight best-effort; the project is going away and the
+# next open marks any run left behind interrupted (mark_interrupted_runs), so nothing downstream can act on it.
+db/manager.py::_stop_jobs 1

@@ -467,8 +467,9 @@ async def list_background_jobs(
             # cannot be read still shows, with its row's own state and reason (FIX 3).
             try:
                 state, reason, _status = await _recipe_state(db, row["id"])
-            except Exception as exc:  # noqa: BLE001 -- the row stands; said in the log
+            except Exception as exc:  # noqa: BLE001 -- the row stands, and says its stages could not be read
                 logger.warning("list_background_jobs: no status for recipe run %s: %s", row["id"], exc)
+                reason = f"{reason or state}; its stages could not be read: {exc}"
         jobs.append(
             BackgroundJob(
                 id=row["id"],
