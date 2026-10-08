@@ -350,6 +350,8 @@ class LibraryManager {
             stream.register(self.knowledgeRowCountsStore)
             stream.register(self.canvasLayoutStore)
             stream.register(self.canvasItemStore)
+            // A finished model download (`model.installed`, #5583) reads setup's Start plan again.
+            stream.register(self.recipeSetupStore)
             // Remote hosts: the dedicated /changes/stream can drop over the
             // tailnet (#2479), so mutations also ride the ACL-scoped activity
             // stream (#3159). Bridge those folded change frames into the same

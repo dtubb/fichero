@@ -427,6 +427,44 @@ struct RecipeSetupStoreTests {
         #expect(store.errorMessage != nil)
     }
 
+    /// WHY (#5583, `source.onboard.auto.installed-model-first`): a step waiting for a model download
+    /// stayed refused after the download finished until setup was opened again. The engine now says
+    /// `model.installed` on the change stream; the store reads the shown plan again on it, and a
+    /// store that never showed a plan asks nothing.
+    @Test("model.installed reads the shown Start plan again; nothing else does")
+    func modelInstalledReadsThePlanAgain() async throws {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            RecipesMockURLProtocol.calls += 1
+            let refusals = RecipesMockURLProtocol.calls == 1 ? "\"read-a-line: waits for the download of blla\"" : ""
+            return Self.reply(request, 200, Self.planJSON(refusals: refusals))
+        }
+        let installed = try JSONDecoder().decode(ChangeEvent.self, from: Data(
+            #"{"type":"model.installed","actor":"system"}"#.utf8))
+        let other = try JSONDecoder().decode(ChangeEvent.self, from: Data(
+            #"{"type":"model.deleted","actor":"system"}"#.utf8))
+
+        store.apply(installed)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(RecipesMockURLProtocol.calls == 0, "no plan shown, nothing to read again")
+
+        await store.loadStartPlan()
+        #expect(store.canStart == false)
+        #expect(store.changeDomains == ["model"])
+
+        store.apply(other)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(RecipesMockURLProtocol.calls == 1, "only model.installed reads the plan again")
+
+        store.apply(installed)
+        let deadline = Date().addingTimeInterval(5)
+        while !store.canStart, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(RecipesMockURLProtocol.calls == 2)
+        #expect(store.canStart, "the step that waited for the model no longer waits")
+    }
+
     /// WHY (`ai.where.fallback-free-and-asked`, #5592): a step whose model this Mac cannot run moves to
     /// another place only when that place is free and only on the person's press. Ready reads the plan's
     /// `elsewhere` offers, and "Run it free at <name>" sends exactly that offer (the model and the place's

@@ -272,6 +272,15 @@ final class RecipeSetupStore {
         }
     }
 
+    /// A download that finished (#5583, `source.onboard.auto.installed-model-first`): the engine says
+    /// `model.installed` on the project's change stream, and the plan on screen is read again, so the
+    /// step that waited for that model stops waiting without a press. Only a plan already shown is
+    /// read again; a store that never showed one has nothing waiting.
+    func modelInstalled() {
+        guard startPlan != nil else { return }
+        Task { await loadStartPlan() }
+    }
+
     /// Record the first yes. Returns whether the engine kept it. The refused steps are
     /// already on screen (the plan loads with the step), so a refusal only says so.
     func start() async -> Bool {
@@ -319,7 +328,7 @@ final class RecipeSetupStore {
 
     /// Fetch a model the plan needs, through the one download route
     /// (`POST /api/local-models/download/{runtime}/{model}`); the row says Downloading…. The step
-    /// stays refused until the download has finished; Ready reads the plan again when it changes.
+    /// stays refused until the download has finished; the engine then says `model.installed` and the plan is read again (`modelInstalled()`).
     func download(_ download: Components.Schemas.StartDownload) async {
         do {
             let response = try await client.api.downloadModelApiLocalModelsDownloadModelTypeModelIdPost(
@@ -1015,5 +1024,22 @@ struct RecipeSetupAnswers: Codable, Equatable {
         case cloudAllowed = "cloud_allowed"
         case ingestMode = "ingest_mode"
         case jobAnswers = "job_answers"
+    }
+}
+
+// MARK: - ChangeEventConsumer (#5583)
+
+/// Registered on the project's change stream (`LibraryReference.changeStream`) beside the other stores.
+extension RecipeSetupStore: ChangeEventConsumer {
+    nonisolated var changeDomains: Set<String> { ["model"] }
+
+    func apply(_ event: ChangeEvent) {
+        if event.type == "model.installed" { modelInstalled() }
+    }
+
+    /// Events missed while the stream was down may include a finished download: read a shown plan again.
+    func resync() async {
+        guard startPlan != nil else { return }
+        await loadStartPlan()
     }
 }

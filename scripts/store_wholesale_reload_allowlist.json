@@ -299,5 +299,11 @@
     "method": "resync",
     "class": "by-design",
     "reason": "by-design 2026-10-05: an explicit RESYNC after a reconnect re-reads every knowledge count, since events were missed while the stream was down (#5413); same case as SearchStore.resync"
+  },
+  {
+    "file": "fichero/fichero/Models/RecipeSetupStore.swift",
+    "method": "modelInstalled",
+    "class": "by-design",
+    "reason": "by-design 2026-10-08 (#5583): the Start plan is one engine-computed value, not a list of rows; the engine works it out afresh from what is on this Mac, so a finished download (model.installed) can only be shown by reading the plan again"
   }
 ]
