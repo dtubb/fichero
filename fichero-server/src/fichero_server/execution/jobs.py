@@ -461,13 +461,19 @@ def _run_kind_name(node: dict[str, Any]) -> str | None:
 
 
 def waiting_reason_under(db: "Database", run_id: str) -> str | None:
-    """What a page of this run is waiting for, from its row (a memory wait says so there, #5537, #5555)."""
+    """What a page of this run is waiting for: a waiting page's reason as `waiting_reason` decides it
+    (#5606), or a running slot's own wait from its row (a memory wait says so there, #5537, #5555)."""
     _ensure(db)
     row = db.execute_fetchone(
-        "SELECT reason FROM jobs WHERE (parent_id = ? OR parent_id LIKE ?) AND reason IS NOT NULL "
+        "SELECT id, kind, state, reason, created_at, run_after FROM jobs WHERE (parent_id = ? OR parent_id LIKE ?) "
         "AND (state = 'waiting' OR (state = 'running' AND reason LIKE 'Waiting%')) ORDER BY created_at LIMIT 1",
         [run_id, f"{run_id}:%"])
-    return row[0] if row else None
+    if row is None:
+        return None
+    job_id, kind, state, reason, created_at, run_after = row
+    if state != "waiting":
+        return reason
+    return waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
 
 
 def last_heard(db: "Database", run_id: str) -> Any:
@@ -1057,9 +1063,8 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     than one waits, with `count`: an import queues thousands), and the most recent failures, each
     with the reason in words. Read by `/api/activity/jobs`."""
     _ensure(db)
-    paused = is_paused()
     rows = db.execute_fetchall(
-        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id FROM ("
+        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after FROM ("
         " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused') AND kind NOT IN ('workflow', 'workflow-step')"
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
@@ -1072,20 +1077,118 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     waiting: dict[str, dict[str, Any]] = {}
     # Runs and their steps are listed from the run record (`/api/activity/jobs` merges them); their rows
     # are read as a tree with `tree()`. Pages carry their step as `parent_id`.
-    for job_id, kind, subject, state, reason, attempts, created_at, parent_id in rows:
-        if state == "waiting" and paused and not _is_attached(kind):
-            reason = "Paused by you"
-        row = {"id": job_id, "kind": kind, "subject": subject, "state": state, "reason": reason,
-               "attempts": attempts, "created_at": created_at, "count": 1, "parent_id": parent_id}
-        if state != "waiting":
-            out.append(row)
-        elif kind in waiting:  # the first (oldest) row of a kind stands for all of them
+    for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after in rows:
+        if state == "waiting" and kind in waiting:  # the first (oldest) row of a kind stands for all of them
             waiting[kind]["count"] += 1
             waiting[kind]["id"] = f"waiting:{kind}"
-        else:
+            continue
+        if state == "waiting":
+            reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
+        row = {"id": job_id, "kind": kind, "subject": subject, "state": state, "reason": reason,
+               "attempts": attempts, "created_at": created_at, "count": 1, "parent_id": parent_id}
+        if state == "waiting":
             waiting[kind] = row
-            out.append(row)
+        out.append(row)
     return out
+
+
+#: What a waiting row calls the lane it waits for (`activity.waiting-says-why`, #5606).
+LANE_WORDS = {"local-ml": "the model lane", "images": "the thumbnail lane", "remote": "the remote lane",
+              "database": "the database lane", "network": "the network lane", "recipes": "the recipe lane"}
+#: Lane work that reads for a run: its holder "is reading".
+_READING_KINDS = frozenset({"find-lines", "read-a-line", "read-a-page", "ask-a-model"})
+PAUSED_REASON = "Paused by you"
+
+
+def _decided_here(reason: str) -> bool:
+    """A reason this function decides afresh each time it is asked (the throttle's, thumbnails first,
+    the pause): one stored on the row by an earlier scan says what held the job THEN, not now (#5606:
+    "you're using the Mac" was still shown long after the Mac was idle)."""
+    return reason.startswith("Waiting: ") or reason == PAUSED_REASON
+
+
+def _lane_of(job_id: str, kind: str) -> str:
+    entry = _scheduler._attached.get(job_id)
+    if entry is not None:
+        return entry[2]
+    registered = KINDS.get(kind)
+    return registered.lane if registered else "local-ml"
+
+
+def _holder_words(db: "Database", job_id: str) -> str:
+    """What a running job is, in words: the run it reads for ("Paleographer Review is reading"),
+    else its kind ("Embed for search is running")."""
+    row = db.execute_fetchone("SELECT kind, parent_id FROM jobs WHERE id = ?", [job_id])
+    if row is None:
+        return "work in another project is running"
+    kind, parent = row
+    seen: set[str] = set()
+    while parent and parent not in seen:  # the nearest named run above it (a sub-workflow's own name)
+        seen.add(parent)
+        up = db.execute_fetchone("SELECT kind, parent_id, detail FROM jobs WHERE id = ?", [parent])
+        if up is None:
+            break
+        if up[0] == "workflow":
+            name = _run_kind_name({"kind": up[0], "subject": parent, "detail": up[2]})
+            if name:
+                return f"{name} is {'reading' if kind in _READING_KINDS else 'running'}"
+        parent = up[1]
+    return f"{kind_name(kind)} is running"
+
+
+def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None = None,
+                   created_at: Any = None, run_after: Any = None) -> str:
+    """THE one place a waiting row's reason is decided (`activity.waiting-says-why`, #5606): what it
+    truly waits for now, never None. In order: paused by you (not work a person waits for); the
+    throttle's reason, only while the throttle gives one now (so "you're using the Mac" only while
+    the Mac is in use); thumbnails made first (#5585); the lane full, naming what holds it ("Waiting
+    for the model lane: Paleographer Review is reading"); a reason the job recorded itself; a quiet
+    spell after a change; else its turn on its lane."""
+    attached = _is_attached(kind)
+    paused = is_paused()
+    if paused and not attached:
+        return PAUSED_REASON
+    lane_name = _lane_of(job_id, kind)
+    if lane_name == "local-ml":
+        from fichero_server.execution.throttle import why_wait
+
+        held = why_wait(person_waiting=attached)
+        if held:
+            return held
+        first_kinds = [name for name, k in KINDS.items() if k.first]
+        if first_kinds and not paused and created_at is not None and db.execute_fetchone(
+                f"SELECT 1 FROM jobs WHERE kind IN ({', '.join('?' for _ in first_kinds)}) "
+                f"AND state IN ('waiting', 'running') AND created_at <= ? LIMIT 1",
+                [*first_kinds, created_at]) is not None:
+            return FIRST_REASON
+    lane = _scheduler.lanes.get(lane_name)
+    words = LANE_WORDS.get(lane_name, f"the {lane_name} lane")
+    running = [r for r in list(lane.running) if r != job_id] if lane is not None else []
+    if lane is not None and len(running) >= lane.slots:
+        return f"Waiting for {words}: {_holder_words(db, running[0])}"
+    if stored and not _decided_here(stored):
+        return stored
+    if run_after is not None and ensure_utc(run_after) > ensure_utc(utc_now()):
+        return "Waiting a moment after the last change"
+    return f"Waiting for its turn on {words}"
+
+
+def waiting_reason_of(db: "Database", kinds: list[str]) -> str | None:
+    """Why work of these kinds is not moving: None while one of them runs or none waits, else the
+    oldest waiting one's reason as `waiting_reason` decides it (the import's "Processing imported
+    pages" row, #5606)."""
+    _ensure(db)
+    if not kinds:
+        return None
+    marks = ", ".join("?" for _ in kinds)
+    if db.execute_fetchone(f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'running' LIMIT 1", kinds):
+        return None
+    row = db.execute_fetchone(
+        f"SELECT id, kind, reason, created_at, run_after FROM jobs WHERE kind IN ({marks}) AND state = 'waiting' "
+        f"ORDER BY created_at, rowid LIMIT 1", kinds)
+    if row is None:
+        return None
+    return waiting_reason(db, row[0], row[1], stored=row[2], created_at=row[3], run_after=row[4])
 
 
 _current = threading.local()

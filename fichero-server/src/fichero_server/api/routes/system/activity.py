@@ -395,10 +395,21 @@ async def list_background_jobs(
 
     from fichero_server.core.background_compute import cpu_count, process_cpu_percent
     from fichero_server.execution import throttle
+    from fichero_server.importers import derivatives
     from fichero_server.importers.derivatives import background_jobs_snapshot
 
     library = str(_Path(db.path).parent)
     jobs = [BackgroundJob(**job) for job in background_jobs_snapshot(library)]
+    if jobs:
+        # The import's progress row waits when none of its stages runs, and says for what, as any
+        # waiting row does (`activity.waiting-says-why`, #5606: it sat at 100 of 406 with no reason).
+        from fichero_server.execution import jobs as job_queue
+
+        held = job_queue.waiting_reason_of(
+            db, [derivatives.THUMBNAIL_KIND, derivatives.EMBED_KIND, derivatives.NLP_KIND])
+        if held:
+            for job in jobs:
+                job.state, job.reason = "waiting", held
 
     # Workflow runs that are running or recently failed. A completed run is not a
     # "job" the user needs to watch; a running or failed one is.
