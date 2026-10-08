@@ -152,10 +152,10 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
         await _record_step_run_accepted(db, thread_id, workflow, request)
         jobs.set_parent(db, thread_id, parent)
         return await _until_ended(db, thread_id, asyncio.ensure_future(
-            _run_step_workflow(thread_id=thread_id, workflow=workflow, request=request, db=db)))
+            _run_step_workflow(thread_id=thread_id, workflow=workflow, request=request, db=db)), parent)
 
     dead = asyncio.run(go())
-    _closed_stops_the_recipe(db, thread_id)
+    _closed_stops_the_recipe(db, thread_id, parent)
     if dead is not None:  # the run's row ended and the run never came back: its row says how
         return thread_id, ("done" if dead["state"] == "done" else "failed"), dead["reason"] or dead["state"]
     status, error = _step_run_outcome(thread_id)
@@ -167,15 +167,19 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
 _DEAD_CHILD_GRACE_SECONDS = 30.0
 
 
-async def _until_ended(db: Any, child: str, run: "asyncio.Future") -> dict[str, Any] | None:
+async def _until_ended(db: Any, child: str, run: "asyncio.Future", parent: str | None = None) -> dict[str, Any] | None:
     """Wait for a step's run, never on a dead one (#5608): None when the run returns; its row when the row ended
-    (done, failed, cancelled) or its project closed, and the run did not return within the grace after."""
+    (done, failed, cancelled) or its project closed, and the run did not return within the grace after. Stop on the
+    recipe's row (`parent`) stops the run through its own Stop and waits for it to wind down (#5609)."""
     ended_at: float | None = None
+    stopping = False
     while True:
         done, _ = await asyncio.wait({run}, timeout=_CHECK_POLL_SECONDS)
         if done:
             run.result()
             return None
+        if not stopping:
+            stopping = _stop_child_if_asked(db, parent, child)
         row = jobs.read_job(db, child) if jobs._still_open(db) else {"state": "cancelled",
                                                                       "reason": jobs.CLOSED_BEFORE_RUN}
         if row is None or row["state"] not in ("done", "failed", "cancelled"):
@@ -186,13 +190,52 @@ async def _until_ended(db: Any, child: str, run: "asyncio.Future") -> dict[str, 
             return row
 
 
-def _closed_stops_the_recipe(db: Any, child: str | None = None) -> None:
+def request_cancel(db: Any, job_id: str) -> str:
+    """Stop on a recipe run's row (#5609, `activity.jobs-are-a-tree`): a waiting or paused run ends cancelled now;
+    a running one is asked to stop: the step it is running is stopped through that step's own Stop and every step
+    after it is not run; the row says it is stopping until then (and a run stopping when the engine went away is
+    not taken up again, `jobs.resume`). Returns `cancelled`, or `stopping` while the running step winds down."""
+    from fichero_server.execution.cancellation import request_cancellation
+
+    state = jobs._job_row(db, job_id)[1]
+    if state in ("waiting", "paused"):
+        jobs.cancel_waiting(db, job_id)
+        return "cancelled"
+    if state != "running":
+        return state
+    request_cancellation(job_id)
+    db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [jobs.STOPPING, job_id])
+    return "stopping"
+
+
+def _stop_asked(job_id: str | None) -> bool:
+    from fichero_server.execution.cancellation import cancellation_requested
+
+    return cancellation_requested(job_id)
+
+
+def _stop_child_if_asked(db: Any, parent: str | None, child: str) -> bool:
+    """The recipe run was stopped: its running step's job is stopped through the one job Stop (`jobs.cancel_job`).
+    True once asked (asked once)."""
+    if not _stop_asked(parent) or not jobs._still_open(db):
+        return False
+    try:
+        jobs.cancel_job(db, child)
+    except KeyError:  # its row is not written yet: asked again at the next look
+        return False
+    return True
+
+
+def _closed_stops_the_recipe(db: Any, child: str | None = None, parent: str | None = None) -> None:
     """A step ended because its project closed or is closing (#5608): the recipe run stops here, its row left
     running (not failed: nothing it did failed), and the project's next open carries it on (`jobs.resume`,
-    "Interrupted; carries on"); no step runs on a closed project."""
+    "Interrupted; carries on"); no step runs on a closed project. A run a person stopped (`parent`) ends stopped
+    instead, and is not carried on (#5609)."""
     from fichero_server.workflows.run_account import closed_mid_run
 
     if not jobs._still_open(db) or (child is not None and closed_mid_run(child)):
+        if _stop_asked(parent):
+            raise jobs.JobCancelled("Stopped by you; the project was closed as the run stopped")
         raise jobs.JobOutOfReach("Interrupted: the project was closed; carries on when it opens again")
 
 
@@ -207,6 +250,8 @@ def _run_by_reader(db: Any, card: dict[str, Any], documents: list[str], kinds: d
         groups.setdefault(kind if kind in card["readers"] else None, []).append(doc_id)
     ran = []
     for kind, pages in groups.items():
+        if _stop_asked(parent) and ran:  # stopped: the readers after the one stopped do not run (#5609)
+            break
         child, state, why = _run_workflow(db, {**card, **card["readers"][kind]} if kind else card, pages, parent)
         ran.append({"material": kind, "pages": len(pages), "model": (card["readers"][kind] if kind else card)
                     ["model_override"], "child_id": child, "state": state, "why": why})
@@ -280,8 +325,11 @@ def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
     """The card's own job, a child of the recipe's row, waited on until it ends (any end), or until its project
     closes (#5608)."""
     jobs.set_parent(db, child, parent)
+    stopping = False
     while True:
-        _closed_stops_the_recipe(db)
+        _closed_stops_the_recipe(db, parent=parent)
+        if not stopping:
+            stopping = _stop_child_if_asked(db, parent, child)
         row = jobs.read_job(db, child)
         if row["state"] in ("done", "failed", "cancelled"):
             return child, row["state"], row["reason"] if row["state"] != "done" else None
@@ -297,6 +345,8 @@ def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> t
     for child in children:
         jobs.set_parent(db, child, parent)
     while True:
+        if _stop_asked(parent):  # stopped (#5609): the run stops waiting; a page's embed job, which a correction
+            return None, "cancelled", "Stopped by you"  # may share, is left to finish (it is cheap and kept)
         rows = [jobs.read_job(db, child) for child in children]
         if all(r["state"] in ("done", "failed", "cancelled") for r in rows):
             failed = [r for r in rows if r["state"] != "done"]
@@ -330,9 +380,22 @@ def _run_publish(db: Any, card: dict[str, Any]) -> tuple[str | None, str, str | 
 
 
 def run(db: Any, subject: str) -> dict[str, Any]:
-    from fichero_server.recipes.start import count_pages  # noqa: F401  (the same material Start counts)
+    from fichero_server.execution.cancellation import clear_cancellation
 
     job_id = jobs.job_id_for(db, KIND, subject)
+    try:
+        return _run(db, job_id)
+    finally:
+        clear_cancellation(job_id)
+
+
+#: Why the steps after a stopped one do not run (#5609).
+STOPPED_BEFORE = "the run was stopped before this step"
+
+
+def _run(db: Any, job_id: str) -> dict[str, Any]:
+    from fichero_server.recipes.start import count_pages  # noqa: F401  (the same material Start counts)
+
     row = jobs.read_job(db, job_id)
     detail = json.loads(row["detail"] or "{}")
     started_by = row["started_by"] or "owner"
@@ -346,6 +409,9 @@ def run(db: Any, subject: str) -> dict[str, Any]:
     problems: list[str] = []
     for index, (card, step) in enumerate(zip(detail["runs"], steps)):
         named = ", ".join(card["steps"])
+        if _stop_asked(job_id):  # Stop on the run's row: no step after the stopped one runs (#5609)
+            step.update(state="not run", why=STOPPED_BEFORE)
+            continue
         blocked = _blocked(detail["runs"], steps, index)
         if blocked:
             step.update(state="not run", why=blocked)
@@ -373,7 +439,8 @@ def run(db: Any, subject: str) -> dict[str, Any]:
             step.update(state="done", child_id=None, why="already done on every page")
             continue
         step["state"] = "running"
-        jobs.save_detail(db, job_id, json.dumps(detail), reason=f"Running step {named}")
+        jobs.save_detail(db, job_id, json.dumps(detail),
+                         reason=jobs.STOPPING if _stop_asked(job_id) else f"Running step {named}")
         if card["card"] == "workflow" and card.get("readers"):
             child, state, why = _run_by_reader(db, card, documents, kinds, job_id, step)
         elif card["card"] == "workflow":
@@ -392,15 +459,22 @@ def run(db: Any, subject: str) -> dict[str, Any]:
             child, state, why = _run_embed(db, documents, job_id, started_by)
         else:
             child, state, why = _run_export(db, card, documents)
+        if state != "done" and _stop_asked(job_id):  # it was stopped with the run (#5609)
+            state, why = "cancelled", "Stopped by you"
         step.update(state=state, child_id=child, why=why)
         if card["card"] == "workflow" and state == "done":
             # The step changed these pages' work: every kept export rewrites them (#5485).
             from fichero_server import kept_export
 
             kept_export.queue_rewrites(db, documents)
-        if state != "done":
+        if state not in ("done", "cancelled"):
             problems.append(f"step {named} {state}: {why or 'no reason given'}")
     finished = sum(1 for s in steps if s["state"] == "done")
+    if _stop_asked(job_id):  # the row ends cancelled, saying who stopped it and what was done (#5609)
+        words = f"Stopped by you; {finished} of {len(steps)} steps done" + (
+            f" ({'; '.join(problems)})" if problems else "")
+        jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
+        raise jobs.JobCancelled(words)
     words = (f"Stopped: {'; '.join(problems)}; {finished} of {len(steps)} steps done" if problems else
              f"Done: {len(steps)} steps run" + (f", {len(detail['skipped'])} skipped (see why)"
                                                  if detail["skipped"] else ""))
@@ -491,4 +565,5 @@ def register_job_kinds() -> None:
 
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="recipes",
-                           qos=set_utility_qos, name="Run the recipe")
+                           qos=set_utility_qos, name="Run the recipe",
+                           cancel=request_cancel)
