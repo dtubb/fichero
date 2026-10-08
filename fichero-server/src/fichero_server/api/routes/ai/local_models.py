@@ -113,12 +113,40 @@ async def remove_kraken() -> KrakenRuntimeStatusResponse:
 # =============================================================================
 
 
+#: The readers installed on this Mac, by the `model_type` this list gives them: the local catalogue's
+#: provider and the capability that makes one a reader (`source.find.installed-readers-listed`, #5584).
+_READERS = {"mlx": ("omlx", "vision"), "kraken": ("kraken", "recognition")}
+
+
+def installed_readers(model_type: str) -> list[LocalModelInfoResponse]:
+    """The readers of one runtime installed on this Mac, read from the one local catalogue Settings lists
+    (`local_inference.installed_local_model_entries`): MLX vision models, or Kraken readers downloaded or
+    trained. Only installed ones: a reader not yet here is a download a Start plan or Settings offers."""
+    from fichero_server.api.routes.ai.local_inference import installed_local_model_entries
+
+    provider, capability = _READERS[model_type]
+    return [
+        LocalModelInfoResponse(
+            model_id=e.model_id, model_type=model_type, display_name=e.display_name,
+            size_bytes=e.disk_usage_bytes or 0, is_downloaded=True,
+            expected_size_mb=round((e.download_size_bytes or 0) / 1_000_000), path=None,
+            metadata={"capabilities": list(e.capabilities), "tested_status": e.tested_status,
+                      "license": e.license_label},
+            note=e.note, available=e.supported, unavailable_reason=e.unsupported_reason,
+            download_state="installed",
+        )
+        for e in installed_local_model_entries(provider)
+        if capability in e.capabilities
+    ]
+
+
 @router.get("", response_model=LocalModelListResponse)
 def list_local_models(model_type: str | None = None) -> LocalModelListResponse:
-    """List all local models, optionally filtered by type.
+    """List the local models, optionally of one type: whisper, embeddings, spacy, mlx or kraken.
 
-    Query params:
-        model_type: "whisper" or "embeddings" (optional, lists all if omitted)
+    Whisper, embeddings and spaCy list every model, downloaded or not. mlx and kraken list the readers
+    installed on this Mac: every complete MLX vision model in the model store, and every Kraken reader
+    downloaded or trained (`source.find.installed-readers-listed`). Omitted, all of them.
     """
     from fichero_server.llm.local_models import LocalModelManager
 
@@ -128,12 +156,17 @@ def list_local_models(model_type: str | None = None) -> LocalModelListResponse:
         models = mgr.list_whisper_models()
     elif model_type == "embeddings":
         models = mgr.list_embeddings_models()
+    elif model_type == "spacy":
+        models = mgr.list_spacy_models()
+    elif model_type in _READERS:
+        return LocalModelListResponse(models=installed_readers(model_type))
     else:
         models = mgr.list_all()
 
-    return LocalModelListResponse(
-        models=[LocalModelInfoResponse(**m.to_dict()) for m in models]
-    )
+    rows = [LocalModelInfoResponse(**m.to_dict()) for m in models]
+    if model_type is None:
+        rows += [row for kind in _READERS for row in installed_readers(kind)]
+    return LocalModelListResponse(models=rows)
 
 
 @router.get("/disk-usage", response_model=DiskUsageResponse)

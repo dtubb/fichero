@@ -13,7 +13,7 @@ from typing import Literal, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import (
@@ -178,6 +178,10 @@ class IngestTaskStatus(BaseModel):
     imported_as_passes: list[str] = []
     not_imported: dict[str, str] = {}
     unpaired: dict[str, str] = {}
+    folder_id: Optional[str] = Field(default=None, description=(
+        "the folder document the import made (or found already there) for the folder dropped, once it "
+        "has finished; null while it runs and for an import that made no one folder "
+        "(`importer.folder-status-names-its-folder`, #5584)"))
 
 
 class IngestCancelResponse(BaseModel):
@@ -981,6 +985,7 @@ async def ingest_folder(
         "imported_as_passes": [],
         "not_imported": {},
         "unpaired": {},
+        "folder_id": None,
         "cancel_requested": False,
         "library_path": x_fichero_library_path,
     }
@@ -1071,6 +1076,7 @@ async def ingest_folder(
                 ),
             )
             doc_ids = result.result["document_ids"]
+            _tasks[task_id]["folder_id"] = result.result.get("folder_id")
             interchange = result.result.get("interchange") or {}
             for key in ("imported_as_passes", "not_imported", "unpaired"):
                 if interchange.get(key):
@@ -1266,6 +1272,7 @@ async def get_ingest_status(
         imported_as_passes=task.get("imported_as_passes", []),
         not_imported=task.get("not_imported", {}),
         unpaired=task.get("unpaired", {}),
+        folder_id=task.get("folder_id"),
     )
 
 
@@ -1452,6 +1459,7 @@ def _action_import_folder(
     _upsert_sidecar_entities(db, docs, ctx)
     _apply_sidecar_renditions(db, docs, package_path)
     doc_ids = [d.id for d in docs]
+    folder_id = _made_folder_id(db, docs, import_parent_id(db, params.parent_id), Path(params.path))
     spec = ChangeSpec(
         domains=["document"],
         target_ids=doc_ids,
@@ -1469,8 +1477,43 @@ def _action_import_folder(
     return {
         "document_ids": doc_ids,
         "count": len(doc_ids),
+        "folder_id": folder_id,
         **({"interchange": interchange} if any(interchange.values()) else {}),
     }, spec
+
+
+def _made_folder_id(db: Database, docs: list[Document], destination_id: str, path: Path) -> str | None:
+    """The one folder document a folder import made, or found already there, for the folder dropped
+    (#5584): the top of every imported document's chain of parents below the destination; for a folder
+    that held nothing to import, the folder row for its path. None when there is no one such folder."""
+    top_of: dict[str, str | None] = {}
+
+    def top(doc: Document | None) -> str | None:
+        chain: list[str] = []
+        found: str | None = None
+        while doc is not None and doc.id not in chain:
+            if doc.id in top_of:
+                found = top_of[doc.id]
+                break
+            chain.append(doc.id)
+            if doc.parent_id == destination_id:
+                found = doc.id
+                break
+            doc = db.get(Document, doc.parent_id) if doc.parent_id else None
+        for doc_id in chain:
+            top_of[doc_id] = found
+        return found
+
+    tops = {top(d) for d in docs}
+    if not docs:
+        resolved = str(path.resolve())
+        tops = {d.id for d in db.query(Document, parent_id=destination_id)
+                if not d.deleted_at and d.path == resolved}
+    if len(tops) != 1 or None in tops:
+        return None
+    folder = db.get(Document, next(iter(tops)))
+    is_folder = folder is not None and getattr(folder.doc_type, "value", folder.doc_type) == "folder"
+    return folder.id if is_folder else None
 
 
 @action(

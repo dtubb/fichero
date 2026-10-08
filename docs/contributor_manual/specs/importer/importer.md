@@ -144,7 +144,9 @@ in the file's own status), never a silent nothing.
   coalescing itself. Not verified this pass: whether the specific 100,000-document scale
   target in #4203 (live toolbar progress, non-blocking at that scale) is actually met —
   the two issues describe a scale target beyond what this pass traced end-to-end.
-- `importer.folder-status-names-its-folder` — **[GAP]** (#5584) a folder import's status
+- `importer.folder-status-names-its-folder` — **[OK]** (#5584; built: `_made_folder_id` in
+  `api/routes/ingest/core.py`, the `import.folder` action's `folder_id`; tested in
+  `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py`) a folder import's status
   (`GET /api/ingest/status/{task_id}`, MCP `fichero_ingest_get_status`) names the folder document
   the import made for the folder dropped (`folder_id`), so a caller can open, organise or run on it
   without searching for it by name. Null while it runs, and for an import that made no one folder.

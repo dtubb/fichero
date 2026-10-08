@@ -60,6 +60,8 @@ class Operation:
     description: str = ""
     function_name: str = ""
     path_param_descriptions: tuple[str, ...] = ()
+    #: The route writes nothing though it is not a GET: `x-fichero-reads: true` in the contract (#5584).
+    reads: bool = False
 
 
 def _is_event_stream(op: Operation) -> bool:
@@ -177,11 +179,9 @@ def _build_operations(openapi: dict | None = None) -> list[Operation]:
                             description=_param_description(param),
                         )
                     )
-            path_params = tuple(
-                part[1:-1]
-                for part in path.split("/")
-                if part.startswith("{") and part.endswith("}")
-            )
+            # Every `{name}` in the path, a whole segment or not (`{document_id}.bib`): each is a positional
+            # argument of its command (`openapi.cli.path-ids-positional`, #5584).
+            path_params = tuple(re.findall(r"{([^{}/]+)}", path))
             declared = {p.get("name"): p for p in parameters if p.get("in") == "path"}
             request_kind, request_required = _request_kind(details)
             operation_id = details.get("operationId") or _slug(f"{method}-{path}")
@@ -203,6 +203,7 @@ def _build_operations(openapi: dict | None = None) -> list[Operation]:
                     path_param_descriptions=tuple(
                         _param_description(declared.get(name, {})) for name in path_params
                     ),
+                    reads=method.upper() == "GET" or bool(details.get("x-fichero-reads")),
                 )
             )
     return operations

@@ -10,7 +10,10 @@ redo the step:
 * reading lines (with or without finding lines first): a page with a live pass, read by the step's own model,
   that has lines;
 * reading a page: a page with a transcription saved by the step's own model;
-* preparing the image: a page with a prepared rendition.
+* preparing the image: a page with a prepared rendition;
+* correcting: a page with a reviewed transcription (the paleographer's review) saved by the step's own model;
+* finding names: a page some entity names as a page it was found on (#5584). A page whose text names no one
+  leaves no trace, so it is looked at again.
 
 Every other card cannot tell, and runs on every page.
 """
@@ -19,7 +22,10 @@ from __future__ import annotations
 from typing import Any
 
 #: Jobs whose output a page can be seen to have.
-KNOWS_DONE = frozenset({"split-pages", "find-lines", "read-a-line", "read-a-page", "prepare-the-image"})
+KNOWS_DONE = frozenset({"split-pages", "find-lines", "read-a-line", "read-a-page", "prepare-the-image",
+                        "correct", "find-names-tag-words"})
+#: What the correcting step's workflow (the paleographer's review, `transcribe_review`) saves on a page.
+REVIEWED = "transcription_review"
 
 
 def _children(db: Any, doc_id: str) -> list[Any]:
@@ -165,6 +171,22 @@ def _has_page_reading(db: Any, doc_id: str, model: str | None) -> bool:
                for a in db.query(Artifact, document_id=doc_id))
 
 
+def _has_review(db: Any, doc_id: str, model: str | None) -> bool:
+    """A reviewed transcription the model saved (the correcting step's output)."""
+    from fichero_server.models import Artifact
+
+    return any(a.artifact_type == REVIEWED and (model is None or a.model == model)
+               for a in db.query(Artifact, document_id=doc_id))
+
+
+def pages_with_names(db: Any) -> set[str]:
+    """Every page some entity was found on (`KnowledgeEntity.source_document_ids`): the pages the names
+    step has been over."""
+    from fichero_server.models import KnowledgeEntity
+
+    return {doc_id for e in db.query(KnowledgeEntity) for doc_id in (e.source_document_ids or [])}
+
+
 def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
     """True when the page already has this card's output; None when the card cannot tell."""
     job = card.get("job")
@@ -180,6 +202,10 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
         from fichero_server.recipes.prepare import prepared
 
         return prepared(db, doc_id) is not None
+    if job == "correct":
+        return _has_review(db, doc_id, card.get("model_override"))
+    if job == "find-names-tag-words":
+        return doc_id in pages_with_names(db)
     return None
 
 
@@ -187,6 +213,10 @@ def split_done(db: Any, card: dict[str, Any], pages: list[str]) -> tuple[list[st
     """(the pages still to do, how many are done; None when the card cannot tell)."""
     if card.get("job") not in KNOWS_DONE:
         return pages, None
+    if card.get("job") == "find-names-tag-words":  # one read of the entities, not one per page
+        named = pages_with_names(db)
+        todo = [p for p in pages if p not in named]
+        return todo, len(pages) - len(todo)
     todo = [p for p in pages if not is_done(db, card, p)]
     return todo, len(pages) - len(todo)
 

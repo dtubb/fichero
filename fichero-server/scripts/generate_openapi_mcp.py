@@ -113,7 +113,7 @@ def _docstring(op: Operation) -> str:
     parts = [op.summary.strip()]
     if op.description:
         parts.append(op.description)
-    acts = "reads" if op.method == "GET" else "changes data, as the agent account when one exists"
+    acts = "reads" if op.reads else "changes data, as the agent account when one exists"
     parts.append(f"Route: {op.method} {op.path} (toolset `{op.tag}`; {acts}).")
     return "\n\n".join(parts)
 
