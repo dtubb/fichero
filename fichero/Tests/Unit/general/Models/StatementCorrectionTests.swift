@@ -182,6 +182,8 @@ final class StatementCorrectionTests: XCTestCase {
         XCTAssertEqual(rejected.map(\.method), ["PATCH"])
         XCTAssertEqual(rejected.first?.body["to_state"] as? String, "rejected")
         XCTAssertEqual(rejected.first?.body["reviewed_by"] as? String, "human")
+        // #5613: the deleted hand-rolled path sent `state`, which the engine refuses (422).
+        XCTAssertNil(rejected.first?.body["state"], "the old hand-rolled `state` key is never sent")
     }
 
     /// WHY: a refused correction is thrown, not swallowed, so the section can say it -- and a mark with
