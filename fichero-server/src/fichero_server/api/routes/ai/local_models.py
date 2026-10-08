@@ -178,9 +178,10 @@ def download_model(
         runtime = audio_runtime_status()
         if not runtime["ready"]:
             raise HTTPException(status_code=409, detail=str(runtime["reason"]))
-    elif model_type == "spacy":
+    elif model_type in ("spacy", "mlx"):
         # A pipeline downloads as files, as a `download-model` job on the network lane of the open library
-        # (`runtime.spacy.pipelines-download-as-data`).
+        # (`runtime.spacy.pipelines-download-as-data`); an MLX model through this Mac's model store, the
+        # download a Start plan offers (`source.onboard.auto.installed-model-first`).
         from pathlib import Path as _Path
 
         from fichero_server.actions.registry import ActionContext, registry
@@ -190,7 +191,7 @@ def download_model(
         db = get_library_database_for_write(request, request.headers.get("x-fichero-library-path", ""))
         ctx = ActionContext(actor=request_actor(request), library_path=str(_Path(db.path).parent))
         try:
-            result = registry.invoke(db, "model.download", {"runtime": "spacy", "model": model_id}, ctx)
+            result = registry.invoke(db, "model.download", {"runtime": model_type, "model": model_id}, ctx)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return DownloadStartedResponse(status="queued", model_type=model_type, model_id=model_id,
@@ -246,9 +247,23 @@ class ModelDownloadParams(BaseModel):
 
 @action("model.download", ModelDownloadParams, domains=["models"], undoable=False)
 def _action_model_download(db, params: ModelDownloadParams, ctx):
-    """Queue a `download-model` job on the network lane (`runtime.spacy.pipelines-download-as-data`)."""
+    """Queue a `download-model` job on the network lane (`runtime.spacy.pipelines-download-as-data`); an MLX
+    model is fetched by this Mac's model store, its own download job (the download a Start plan offers, #5583)."""
     from fichero_server.llm.local_models import enqueue_download
 
+    if params.runtime == "mlx":
+        import anyio
+
+        from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+        try:
+            job = anyio.from_thread.run(get_mlx_model_store().start_download, params.model)
+        except KeyError as exc:
+            raise ValueError(f"no download for mlx:{params.model}") from exc
+        except RuntimeError as exc:  # this Mac cannot run it (LocalModelHardwareError): said, never queued
+            raise ValueError(str(exc)) from exc
+        return {"job_id": job.job_id, "runtime": "mlx", "model": params.model}, ChangeSpec(
+            domains=["models"], target_ids=[job.job_id], after={"job_id": job.job_id})
     job_id = enqueue_download(db, params.runtime, params.model, started_by=ctx.actor or "owner")
     return {"job_id": job_id, "runtime": params.runtime, "model": params.model}, ChangeSpec(
         domains=["models"], target_ids=[job_id], after={"job_id": job_id})

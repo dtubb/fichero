@@ -12593,6 +12593,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("use-installed-instead")
+    def recipes_use_installed_instead_post(
+        ctx: typer.Context,
+        card: str = typer.Option(..., "--card", help="Request field: card."),
+        model: str = typer.Option(..., "--model", help="Request field: model."),
+    ) -> None:
+        """Use Installed Instead (POST /api/recipes/project/start/use-instead)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/start/use-instead"
+            params = None
+            payload = _build_json_payload({
+                "card": card,
+                "model": model,
+            }, {
+                "card": {'type': 'string', 'title': 'Card', 'description': "the installed model's card id, as that download's `instead` names it", 'x-cli-required': True},
+                "model": {'type': 'string', 'title': 'Model', 'description': 'the download the plan waits for, as its `downloads` names it (`model`)', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-purposes")
     def recipes_list_purposes_get(
         ctx: typer.Context,

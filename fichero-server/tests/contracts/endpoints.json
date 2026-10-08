@@ -8836,6 +8836,16 @@
         "response_model": "StartPlan"
       },
       {
+        "method": "POST",
+        "path": "/recipes/project/start/use-instead",
+        "operation_id": "use_installed_instead_api_recipes_project_start_use_instead_post",
+        "summary": "Use Installed Instead",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "UseInsteadRequest",
+        "response_model": "ProjectSetup"
+      },
+      {
         "method": "GET",
         "path": "/recipes/purposes",
         "operation_id": "list_purposes_api_recipes_purposes_get",

@@ -306,11 +306,17 @@ def test_the_plan_refuses_a_model_whose_card_says_this_mac_cannot_run_it(mac):
     assert "24 GB" in refusal and "Choose Qwen2.5-VL 3B (OCR) instead" in refusal
 
 
-def test_the_plan_refuses_a_model_not_installed_and_says_how_to_install_it(mac):
+def test_the_plan_offers_a_model_not_installed_as_a_download_or_the_installed_one(mac):
+    """#5583: not installed is a download offer beside the installed models, never "edit the recipe"
+    (`source.onboard.auto.installed-model-first`, pinned through the routes in
+    tests/unit/recipes/test_installed_model_first_to_spec.py)."""
     mac.install("Qwen2.5-VL-3B")
-    [refusal] = _plan(_read_with("mlx-community/Qwen2.5-VL-7B-Instruct-4bit"))["refusals"]
-    assert "Qwen2.5-VL 7B (OCR) is not installed" in refusal and "Settings › AI › Local models" in refusal
-    assert "Qwen2.5-VL 3B (OCR)" in refusal
+    plan = _plan(_read_with("mlx-community/Qwen2.5-VL-7B-Instruct-4bit"))
+    [refusal] = plan["refusals"]
+    assert "wait for Qwen2.5-VL 7B (OCR)" in refusal and "download it" in refusal
+    assert "use the installed Qwen2.5-VL 3B (OCR) instead" in refusal
+    [download] = plan["downloads"]
+    assert download["model"] == "Qwen2.5-VL-7B" and [i["model"] for i in download["instead"]] == ["Qwen2.5-VL-3B"]
 
 
 def test_the_plan_runs_an_installed_model_that_fits_as_the_steps_own(mac):

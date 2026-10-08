@@ -1075,7 +1075,25 @@ plan's peak memory across steps. Ready shows none of it.
 - `source.onboard.auto.models-fetched-first` — **[PARTIAL]** (#5367, #5537) every model the plan needs
   is fetched before its step, as a visible download job, never during a page read. This covers the
   Kraken readers and the MLX vision models as well as spaCy pipelines. Built: spaCy pipelines
-  (`missing_models`).
+  (`missing_models`); MLX models offered as downloads (`local_models_to_download`, #5583).
+- `source.onboard.auto.installed-model-first` — **[PARTIAL]** (#5583; built 2026-10-07 (engine + app), not yet
+  seen: `Card.installed` (`discovery.mark_installed`) ranked in `assemble._rank_key`;
+  `start.local_models_to_download`, `start.use_instead`, `POST /api/recipes/project/start/use-instead`, the
+  `mlx` runtime on `POST /api/local-models/download/{runtime}/{model}` and `model.download`; Ready's
+  `RecipeDownloadRows` and `RecipeSetupStore.useInstead`; tested in
+  `fichero-server/tests/unit/recipes/test_installed_model_first_to_spec.py`. *Not built:* the plan reading
+  again by itself when the MLX download finishes) a step's local model that is not on
+  this Mac never refuses Start in words the person must answer by editing the recipe. (1) When the rules
+  propose a recipe, a model already on this Mac wins over one that must be downloaded, among the cards the
+  rules accept for the step, after accuracy (each card's `installed`; the reason says "already on this
+  Mac"). (2) When the plan's step is pinned to a catalogue MLX model that is not installed, the plan offers
+  it in `downloads` (runtime `mlx`, its name, its size, the steps it serves, Download through the one
+  download route) and, beside it, `instead`: every installed model this Mac can serve for that step, each a
+  card the person can choose in one press (`POST /api/recipes/project/start/use-instead`, kept as a
+  project-scope override on the recipe, as Use This keeps a bake-off's choice; the press is the deliberate
+  choice a licence that is not open needs). Ready shows the two as one choice: "Download Qwen2.5-VL 7B
+  (OCR) · 5653 MB" and "Use the installed Qwen2.5-VL 3B (OCR)". Start waits, saying so, until one is
+  taken: the refusal names the download and the installed models, never "edit the recipe".
 
 **The five fixes that would most make onboarding just work, ranked.**
 1. **Make the run visible and honest** (#5573, #5575, #5576, #5577; #5555). Ready shows skipped steps and downloads.

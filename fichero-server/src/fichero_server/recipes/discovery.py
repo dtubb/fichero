@@ -149,9 +149,26 @@ def installed_cards(seed: tuple[Card, ...] | list[Card]) -> list[Card]:
             jobs=READER_JOBS, scripts=None, languages=_tags(meta.get("language")), material=frozenset(),
             open_licence=open_licence, size_gb=round(spec.download_size_bytes / 1e9, 3),
             memory_gb=round(memory / 1024**3, 2), trainable=True, licence=licence,
-            note=spec.display_name, source="installed", offered_because=why,
+            note=spec.display_name, source="installed", offered_because=why, installed=True,
         )
     return sorted(out.values(), key=lambda c: c.id)
+
+
+def mark_installed(cards) -> list[Card]:
+    """These cards, each MLX model's card saying whether its model is complete in this Mac's store
+    (`Card.installed`, #5583); every other card as it is. The rules rank a model already here first."""
+    from dataclasses import replace
+
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+    from fichero_server.recipes.cards import mlx_model_for
+
+    store = get_mlx_model_store()
+    out = []
+    for card in cards:
+        repo = mlx_model_for(card.pin) if card.local and card.installed is None else None
+        model_id = store.canonical_id(repo) if repo else None
+        out.append(replace(card, installed=store.is_complete(store.spec(model_id))) if model_id else card)
+    return out
 
 
 def _is_open(licence: str) -> bool:
@@ -355,7 +372,7 @@ def known_cards(a: Answers | None = None, *, include_not_built: bool = False) ->
     seed = all_seed_cards() if include_not_built else seed_cards()
     cached = cached_repository()
     languages = a.languages if a is not None else frozenset()
-    return [*seed, *installed_cards(seed),
+    return [*mark_installed(seed), *installed_cards(seed),
             *(repository_cards(cached["records"], seed, languages) if cached else [])]
 
 
@@ -376,7 +393,7 @@ async def discover(a: Answers, *, online: bool) -> tuple[list[Card], list[dict[s
 
     seed = all_seed_cards()
     sources: list[dict[str, Any]] = []
-    shipped = [c for c in seed if c.runs_here]
+    shipped = mark_installed(c for c in seed if c.runs_here)
     sources.append({"source": "shipped", "state": "read", "count": len(shipped),
                     "detail": "the cards that ship with Fichero"})
     installed = installed_cards(seed)

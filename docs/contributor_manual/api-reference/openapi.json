@@ -13658,6 +13658,70 @@
         }
       }
     },
+    "/api/recipes/project/start/use-instead": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Use Installed Instead",
+        "description": "Use the installed model instead: every step pinned to the model Start waits to download is set to the\ninstalled one the plan offers (`downloads[].instead`), kept as a project-scope override on the recipe (as Use\nThis keeps a bake-off's choice), through `project.save_setup` (audited, undoable)\n(`source.onboard.auto.installed-model-first`). Refused (422) for a model the plan does not wait for, or a card\nit does not offer instead.",
+        "operationId": "use_installed_instead_api_recipes_project_start_use_instead_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UseInsteadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/layers": {
       "post": {
         "tags": [
@@ -82914,6 +82978,20 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Params"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name",
+            "description": "the model's name, as people read it (MLX models)"
+          },
+          "instead": {
+            "items": {
+              "$ref": "#/components/schemas/StartInstead"
+            },
+            "type": "array",
+            "title": "Instead",
+            "description": "installed models this Mac can serve for the same steps, each usable instead in one press (POST /api/recipes/project/start/use-instead; source.onboard.auto.installed-model-first)"
           }
         },
         "type": "object",
@@ -83003,6 +83081,39 @@
           "cost_usd"
         ],
         "title": "StartEstimateRun"
+      },
+      "StartInstead": {
+        "properties": {
+          "card": {
+            "type": "string",
+            "title": "Card",
+            "description": "its card id, to send to use-instead"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "its id in this Mac's model store"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "its name, as people read it"
+          },
+          "licence": {
+            "type": "string",
+            "title": "Licence",
+            "description": "its licence when it is not open (choosing it accepts that); empty when open",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "card",
+          "model",
+          "name"
+        ],
+        "title": "StartInstead",
+        "description": "An installed model the plan offers instead of a download (#5583)."
       },
       "StartPlan": {
         "properties": {
@@ -86868,6 +86979,28 @@
         },
         "type": "object",
         "title": "UpdateUserRequest"
+      },
+      "UseInsteadRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "the download the plan waits for, as its `downloads` names it (`model`)"
+          },
+          "card": {
+            "type": "string",
+            "title": "Card",
+            "description": "the installed model's card id, as that download's `instead` names it"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "model",
+          "card"
+        ],
+        "title": "UseInsteadRequest",
+        "description": "Use an installed model instead of downloading the one the plan waits for (#5583)."
       },
       "UserListResponse": {
         "properties": {

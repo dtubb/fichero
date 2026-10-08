@@ -150,6 +150,10 @@ class Card:
     source: str = "shipped"
     #: Why discovery offers it, in words: what was found where, and what its record states.
     offered_because: str = ""
+    #: Whether its model is already on this Mac (#5583): True or False for a model a person downloads before
+    #: Start (an MLX model in this Mac's store), None where that does not apply (a Kraken reader the run fetches,
+    #: a built-in, a cloud model). A model already here wins over one to download (`_rank_key`).
+    installed: bool | None = None
 
     @property
     def local(self) -> bool:
@@ -299,11 +303,13 @@ def _accuracy(card: Card) -> float:
 def _rank_key(card: Card, material: str) -> tuple:
     """The fixed order (section 8): accuracy in one-point bands, then local before remote, cheaper,
     faster, lower carbon, trainable, smaller, and the card id so ties are deterministic. The
-    material soft rule ranks a reader made for the material first."""
+    material soft rule ranks a reader made for the material first; then a model already on this Mac
+    comes before one to download (`source.onboard.auto.installed-model-first`, #5583)."""
     band = int(_accuracy(card) * 100)
     return (
         band,
         0 if material in card.material else 1,
+        1 if card.installed is False else 0,
         0 if card.local else 1,
         card.cost_per_page,
         -card.pages_per_hour,
@@ -346,6 +352,10 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
         reasons.append("unmeasured on your pages until a bake-off measures it")
     if best.offered_because:
         reasons.append(best.offered_because)
+    if best.installed:
+        reasons.append("already on this Mac")
+    elif best.installed is False:
+        reasons.append(f"to download first ({best.size_gb:g} GB)")
     reasons.append("runs on this Mac, free" if best.local else f"runs on {best.runs_on}")
     if best.trainable:
         reasons.append("trainable on your corrections")
