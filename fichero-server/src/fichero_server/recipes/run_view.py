@@ -136,6 +136,15 @@ class RecipeRunSummary(BaseModel):
     statements: int = Field(description="the statements (claims) on those pages")
     documents_proposed: Optional[int] = Field(default=None, description=(
         "the documents Find the Documents proposed; null when it did not run in this run"))
+    documents_accepted: Optional[int] = Field(default=None, description=(
+        "of those, the ones accepted (by the run's own setting, or by a person since); null as above"))
+    groups_proposed: Optional[int] = Field(default=None, description=(
+        "the groups (a case, a correspondence) Find the Documents proposed; null as above"))
+    entries: Optional[int] = Field(default=None, description=(
+        "the dated entries the entries stage split the pages into (made, or found again); null when it did not "
+        "run in this run"))
+    lines: list[str] = Field(default_factory=list, description=(
+        "the summary in the engine's words, one line per figure, shown as given"))
     failed: list[StageFailures] = Field(description="each stage's failed pages, with Read Again")
     pages_failed: int = Field(description="the failed pages over every stage")
     skipped: list[SkippedStep] = Field(description="the steps the plan skipped, each with why and its fix")
@@ -170,6 +179,59 @@ def _knowledge(db: Any, pages: list[str]) -> tuple[list[NamesOfAKind], int, int]
     return names, dates, graph.claim_count
 
 
+def _found_documents(db: Any, steps: list[dict[str, Any]]) -> tuple[Optional[int], Optional[int], Optional[int]]:
+    """(documents proposed, accepted, groups proposed) by the run's Find the Documents stages, as their proposals
+    stand now; (None, None, None) when the run had no such stage that started."""
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.finddocs import store
+
+    children = [s["child_id"] for s in steps if s.get("card") == "find-documents" and s.get("child_id")]
+    if not children:
+        return None, None, None
+    proposed = accepted = groups = 0
+    for child in children:
+        row = jobs.read_job(db, child)
+        ids = (json.loads((row or {}).get("detail") or "{}").get("result") or {}).get("proposal_ids") or []
+        for proposal_id in ids:
+            try:
+                proposal = store.read(db, proposal_id)
+            except LookupError:  # the proposal was withdrawn since
+                continue
+            proposed += len(proposal.documents)
+            accepted += sum(1 for d in proposal.documents if d.state == "accepted")
+            groups += len(proposal.groups)
+    return proposed, accepted, groups
+
+
+def _entries(steps: list[dict[str, Any]]) -> tuple[Optional[int], int]:
+    """(entries, pages split) by the run's entries stages; entries None when it had none that ran."""
+    made = [s["entries"] for s in steps if s.get("entries")]
+    if not made:
+        return None, 0
+    return (sum(e.get("created", 0) + e.get("unchanged", 0) + e.get("updated", 0) for e in made),
+            sum(e.get("pages", 0) for e in made))
+
+
+def _plural(count: int, noun: str, nouns: str | None = None) -> str:
+    return f"{count} {noun if count == 1 else (nouns or noun + 's')}"
+
+
+def _lines(s: RecipeRunSummary, pages_split: int) -> list[str]:
+    """The summary in words, one line per figure (#5577): the app shows them as given."""
+    lines = [f"Read {s.pages_read} of {_plural(s.pages, 'page')}"]
+    names = [n for n in s.names if n.count > 0]
+    lines.append("Names: " + " · ".join(f"{n.count} {n.label}" for n in names) if names else "No names found")
+    lines.append(f"{_plural(s.dates, 'date')} · {_plural(s.statements, 'statement')}")
+    if s.documents_proposed is not None:
+        lines.append(f"{_plural(s.documents_proposed, 'document')} proposed, {s.documents_accepted} accepted")
+        lines.append(f"{_plural(s.groups_proposed or 0, 'group')} proposed")
+    if s.entries is not None:
+        lines.append(f"{_plural(s.entries, 'entry', 'entries')} from {_plural(pages_split, 'page')}")
+    return lines
+
+
 async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     """The summary of one recipe run; LookupError when there is none."""
     from fichero_server.recipes import runner
@@ -184,12 +246,16 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
             continue
         failed.append(StageFailures(steps=step["steps"], thread_id=step["child_id"], pages_failed=account.pages_failed,
                                     failures=account.failures, offer=account.offer.label if account.offer else None))
-    return RecipeRunSummary(
+    proposed, accepted, groups = _found_documents(db, status["steps"])
+    entries, pages_split = _entries(status["steps"])
+    made = RecipeRunSummary(
         job_id=job_id, state=status["state"], finished=status["state"] in ("done", "failed", "cancelled"),
         pages=len(pages), pages_read=sum(1 for p in pages if _has_reading(db, p)),
         names=names, dates=dates, statements=statements,
-        documents_proposed=None,  # Find the Documents has no card yet (#5574); its stage fills this in
+        documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,
         failed=failed, pages_failed=sum(f.pages_failed for f in failed),
         skipped=[SkippedStep(**s) for s in status.get("skipped", [])],
         not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in ("failed", "not run", "cancelled")],
     )
+    made.lines = _lines(made, pages_split)
+    return made

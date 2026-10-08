@@ -170,10 +170,20 @@ def blank_versos(db: Any, page_ids: list[str]) -> set[str]:
     return out
 
 
-def page_inputs(db: Any, pages: list[Any]) -> list[PageInput]:
+def _stop_point(job_id: str | None) -> None:
+    """Stop on the run's row (or on the recipe run it is a step of, #5609) takes effect here: before the next folder
+    or page. The folders already finished keep their proposals (a hypothesis each; nothing in the source changed)."""
+    from fichero_server.execution.cancellation import cancellation_requested
+
+    if cancellation_requested(job_id):
+        raise jobs.JobCancelled("Stopped by you")
+
+
+def page_inputs(db: Any, pages: list[Any], *, job_id: str | None = None) -> list[PageInput]:
     names = _names(db, [p.id for p in pages])
     out = []
     for page in pages:
+        _stop_point(job_id)
         ink, image_hash = _look(page.path)
         out.append(PageInput(id=page.id, text=_text(db, page), ink=ink, image_hash=image_hash,
                              names=names.get(page.id, [])))
@@ -184,9 +194,10 @@ def find_documents(db: Any, scope_ids: list[str], *, job_id: str | None = None) 
     """Propose and store, one proposal per folder in scope; a folder with no loose pages proposes nothing."""
     stored = []
     for folder_id, pages in scopes(db, scope_ids).items():
+        _stop_point(job_id)
         if not pages:
             continue
-        proposal = propose(page_inputs(db, pages), folder_id=folder_id, job_id=job_id)
+        proposal = propose(page_inputs(db, pages, job_id=job_id), folder_id=folder_id, job_id=job_id)
         stored.append(store(db, proposal, folder_id or pages[0].id))
     return stored
 
@@ -197,11 +208,36 @@ def start(db: Any, request: FindDocumentsRequest, *, started_by: str, watched: b
                         detail=json.dumps({"request": request.model_dump()}))
 
 
+def request_cancel(db: Any, job_id: str) -> str:
+    """Stop on the run's row (#5609): a waiting or paused run ends cancelled now; a running one is asked to stop and
+    stops before its next folder or page (`_stop_point`), its row saying it is stopping until then."""
+    from fichero_server.execution.cancellation import request_cancellation
+
+    state = jobs._job_row(db, job_id)[1]
+    if state in ("waiting", "paused"):
+        jobs.cancel_waiting(db, job_id)
+        return "cancelled"
+    if state != "running":
+        return state
+    request_cancellation(job_id)
+    jobs.say_stopping(db, job_id)
+    return "stopping"
+
+
 def run(db: Any, subject: str) -> dict[str, Any]:
+    from fichero_server.execution.cancellation import clear_cancellation
+
+    job_id = jobs.job_id_for(db, KIND, subject)
+    try:
+        return _run(db, job_id)
+    finally:
+        clear_cancellation(job_id)
+
+
+def _run(db: Any, job_id: str) -> dict[str, Any]:
     from fichero_server.actions.registry import ActionContext, registry
     from fichero_server.finddocs import accept  # noqa: F401  (registers finddocs.accept)
 
-    job_id = jobs.job_id_for(db, KIND, subject)
     row = jobs.read_job(db, job_id)
     detail = json.loads(row["detail"] or "{}")
     request = FindDocumentsRequest(**detail["request"])
@@ -211,6 +247,7 @@ def run(db: Any, subject: str) -> dict[str, Any]:
     if request.accept_above is not None:
         ctx = ActionContext(actor=row["started_by"] or "owner", run_id=job_id, library_path=str(Path(db.path).parent))
         for proposal in found:
+            _stop_point(job_id)
             if any(d.confidence >= request.accept_above for d in proposal.documents):
                 result = registry.invoke(db, "finddocs.accept", {"proposal_id": proposal.id,
                                                                  "min_confidence": request.accept_above}, ctx)
@@ -237,4 +274,4 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
 def register_job_kinds() -> None:
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="images",
-                           name="Find the documents")
+                           name="Find the documents", cancel=request_cancel)

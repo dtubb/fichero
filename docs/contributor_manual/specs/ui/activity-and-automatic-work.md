@@ -449,16 +449,21 @@ workflow by hand: a hand run is a job like any other.
   its reason), its `tokens`, and its `cost_usd` from the vendored price list, null unless every
   call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Chat's model calls are rows too, outside any run
   (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). A batch is a job whose children are its runs (`fichero-server/tests/unit/jobs/test_batches_are_jobs.py`).
-- `activity.recipe-run.stop-reaches-its-step` — **[PARTIAL]** (#5609) Stop on a recipe run's row
+- `activity.recipe-run.stop-reaches-its-step` — **[OK]** (#5609) Stop on a recipe run's row
   (`POST /api/activity/jobs/{id}/cancel`) stops the run: a waiting one ends `cancelled` at once; a running one
   answers `stopping`, its row says "Stopping at its next step", the step it is running is stopped through that
-  step's own Stop (a workflow run, its pages waiting for a lane withdrawn; a check; a search step stops waiting
-  and leaves its pages' embed jobs, which a correction may share, to finish), no step after it runs (each says "not run", "the run was stopped before this step"), and the row
+  step's own Stop (a workflow run, its pages waiting for a lane withdrawn; a check; a Find the Documents run,
+  which stops before its next folder or page and keeps what it proposed for the folders it finished; a search
+  step stops waiting and leaves its pages' embed jobs, which a correction may share, to finish); a step the run
+  does itself stops before its next page: the entries step (its account counts the pages it split), prepare
+  (its account counts the pages it looked at), and publish (the site is not finished); export only ties a
+  folder or queues its rewrites, which is over at once. The stopped step says `cancelled`, "Stopped by you"; no step after it runs (each says "not run", "the run was stopped before this step"), and the row
   ends `cancelled`, "Stopped by you; N of M steps done". A run left stopping when the engine went away (or its
   project closed) is not taken up again on the next open. The list drops it and its tree says how it ended.
-  Before: the cancel answered `running` and the run went on to its next step. Still a gap: a Find the Documents
-  step, the entries, prepare, export and publish steps run to their end before the run stops
-  (`fichero-server/tests/unit/jobs/test_cancel_recipe_run_5609.py`).
+  Before: the cancel answered `running` and the run went on to its next step; then a Find the Documents step and
+  the entries, prepare and publish steps ran to their end before the run stopped
+  (`fichero-server/tests/unit/jobs/test_cancel_recipe_run_5609.py`,
+  `fichero-server/tests/unit/recipes/test_stop_reaches_inline_steps_5609.py`).
 - `activity.job-tree-to-a-depth` — **[OK]** (#5605) `GET /api/activity/jobs/{id}?depth=N` returns the job
   and N levels under it (`depth=1`: a run and its steps); each row it cuts keeps its rolled-up counts and
   says how many children it left out (`children_omitted`). Without `depth`, the whole tree. An agent reads a

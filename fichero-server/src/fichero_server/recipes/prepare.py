@@ -15,6 +15,7 @@ operation's effect on reading (`prep.judged-by-reading`), and the image-preparat
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -115,9 +116,11 @@ def prepared(db: Any, doc_id: str) -> Any | None:
     return next((r for r in db.query(Rendition, document_id=doc_id) if r.role == ROLE), None)
 
 
-def prepare_pages(db: Any, documents: list[str], run_id: str) -> dict[str, int]:
+def prepare_pages(db: Any, documents: list[str], run_id: str,
+                  stop: Callable[[], bool] | None = None) -> dict[str, int]:
     """Prepare each faded page of `documents` as a new rendition; the account of what it did: `prepared`, `clear`
-    (not faded, left alone), `no_image` (nothing to look at: a PDF's page, a text file)."""
+    (not faded, left alone), `no_image` (nothing to look at: a PDF's page, a text file). `stop` asked before each
+    page: true, the pages after are not looked at (Stop on the recipe run, #5609)."""
     from PIL import Image, ImageOps
 
     from fichero_server.models import Document, Rendition
@@ -125,6 +128,8 @@ def prepare_pages(db: Any, documents: list[str], run_id: str) -> dict[str, int]:
     library = Path(db.path).parent
     account = {"prepared": 0, "clear": 0, "no_image": 0}
     for doc_id in documents:
+        if stop is not None and stop():
+            break
         doc = db.get(Document, doc_id)
         spread = contrast_spread(doc.path if doc is not None else None)
         if spread is None:
