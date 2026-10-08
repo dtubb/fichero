@@ -19,7 +19,11 @@ catches a real bypass, so a green run means nothing bypasses, not a blind scan.
 from __future__ import annotations
 
 import ast
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from _scan_files import scan_rglob  # noqa: E402 -- raises on a missing root, skips nested worktrees
 
 CLI_SRC = Path(__file__).resolve().parents[1] / "src"
 
@@ -88,7 +92,7 @@ def findings_for(source: str, filename: str = "<src>") -> list[str]:
 
 
 def test_the_cli_reaches_no_capability_in_process():
-    files = sorted(CLI_SRC.rglob("*.py"))
+    files = sorted(scan_rglob(CLI_SRC, "*.py"))
     assert len(files) >= 5, "scan found too few files to mean anything"
     found: list[str] = []
     for path in files:
