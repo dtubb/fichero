@@ -12,7 +12,7 @@ undo and redo included -- and NOT from the individual reading actions. Two halve
   cache commit or roll back together;
 * `queue_reembed` queues, in the same transaction, one durable re-embed job per page on the
   engine's job scheduler (`execution/jobs.py`), so search matches the corrected text without a
-  correction waiting for the embedder.
+  correction waiting for the embedder, and one re-read of the page's names (`queue_reread_names`).
 
 Not refreshed: a page whose `page_content` a person edited directly (`page_content_is_user_edited`)
 -- the direct edit route is a second writer, still open -- and a page with no working pass.
@@ -376,27 +376,49 @@ def queue_reembed(db: Any, document_ids: list[str]) -> None:
 
     for document_id in document_ids:
         jobs.enqueue(db, REEMBED_KIND, document_id, started_by="correction")
+    queue_reread_names(db, document_ids)
+
+
+#: The re-read of a corrected page's names and claims: a job of its own (#5361), so it shows in
+#: Activity, obeys the pause, survives a quit, and an embed failure never takes it down with it.
+REREAD_NAMES_KIND = "read-names-again"
+
+
+def queue_reread_names(db: Any, document_ids: list[str]) -> None:
+    """Queue, in the change's own transaction, one re-read of each corrected page's names
+    (`activity.auto.reextract-on-change`). Only where the library reads names automatically:
+    nothing is queued that the library did not ask for. The job reads the page's current text
+    when it runs, so a run of corrections to one page makes one job."""
+    if not document_ids:
+        return
+    from fichero_server.importers.nlp_draft import auto_nlp_enabled
+
+    if not auto_nlp_enabled():
+        return
+    from fichero_server.execution import jobs
+
+    for document_id in document_ids:
+        jobs.enqueue(db, REREAD_NAMES_KIND, document_id, started_by="correction")
 
 
 def _reembed(db: Any, document_id: str) -> None:
     """The job: embed the page's current text (behind the same gate as every other embed, so a
-    correction and an import never stack two all-core ONNX passes), then re-read its names."""
+    correction and an import never stack two all-core ONNX passes)."""
     from fichero_server.importers.derivatives import _embed_gate
     from fichero_server.models import Document
 
-    try:
-        doc = db.get(Document, document_id)
-        if doc is not None and doc.page_content:
-            with _embed_gate:
-                db.embed(doc)
-    finally:  # an embed failure fails the job, with its reason; the names still follow the text
-        reread_names_after_commit(db, document_id)
+    doc = db.get(Document, document_id)
+    if doc is not None and doc.page_content:
+        with _embed_gate:
+            db.embed(doc)
 
 
 def _register() -> None:
     from fichero_server.execution import jobs
 
     jobs.register_kind(REEMBED_KIND, _reembed, model="embedder")
+    jobs.register_kind(REREAD_NAMES_KIND, lambda db, doc_id: reread_names_after_commit(db, doc_id), model="spacy",
+                       name="Read names again after a correction")
 
 
 _register()

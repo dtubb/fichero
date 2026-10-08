@@ -1067,10 +1067,12 @@ and node, not by job); a retry action for failed pages.
   read (`nlp_text_sha`), so unchanged pages and the open-time resume never re-read; a re-run
   extraction workflow misses the cache on changed text
   (`fichero-server/tests/unit/api/test_names_follow_a_correction.py`,
-  `fichero-server/tests/unit/workflows/test_cache_key_follows_the_page_text.py`). The re-read runs
-  inside the correction's queued re-embed job (`actions/page_text_cache.py:380-391`). Still a gap:
-  it is not a row of its own, and claims from LLM workflows are not withdrawn when the workflow
-  re-runs.
+  `fichero-server/tests/unit/workflows/test_cache_key_follows_the_page_text.py`). Built
+  (2026-10-08): the re-read is a job of its own, `read-names-again`, queued in the change's own
+  transaction by a reading correction and by a direct text edit (no more daemon thread), one
+  waiting job per page, shown in Activity and held by the pause; nothing is queued where the
+  library does not read names (`fichero-server/tests/unit/api/test_names_follow_a_correction.py`).
+  Still a gap: claims from LLM workflows are not withdrawn when the workflow re-runs.
 - `activity.derived.names-its-inputs` — **[PARTIAL]** (→ #4925, #5360) pictures,
   search entries, vectors and word analysis name what they were made from (`source.derived.recomputable`);
   claims name their page and offsets but not the text version; entity mentions and NLP drafts name

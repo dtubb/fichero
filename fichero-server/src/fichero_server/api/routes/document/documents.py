@@ -2533,14 +2533,10 @@ def update_document_impl(
             logger.info(f"Re-embedded {doc_id} after page_content edit")
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Re-embed after edit failed for {doc_id}: {exc}")
-        # Names and claims follow the edited text too, off the request (#5361).
-        import threading
+        # Names and claims follow the edited text too, as a queued job of their own (#5361).
+        from fichero_server.actions.page_text_cache import queue_reread_names
 
-        from fichero_server.actions.page_text_cache import reread_names_after_commit
-
-        threading.Thread(
-            target=reread_names_after_commit, args=(db, doc_id), name="page-text-names", daemon=True
-        ).start()
+        queue_reread_names(db, [doc_id])
 
     return doc, before, list(update_data.keys())
 
