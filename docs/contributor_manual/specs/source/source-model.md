@@ -544,8 +544,20 @@ level it was made for.
   *Built (#5599): `catalogue.py` writes the narrative through the one reading writer, derived from
   the `catalogue.narrative` artifact; a re-run retracts the machine description it replaces, so the
   folder is described once. Pinned by `fichero-server/tests/unit/workflows/
-  test_text_outputs_are_readings.py` (the shipped Catalogue preset through the real runner). Libraries
-  whose folders already hold an earlier run's narrative as their text are not rewritten.*
+  test_text_outputs_are_readings.py` (the shipped Catalogue preset through the real runner).*
+  A project whose documents an earlier Catalogue run wrote over is moved once when it opens (ruled
+  2026-10-08): a document whose text is exactly (whitespace-trimmed) one of its own
+  `catalogue.narrative` artifacts gains that narrative as a machine description reading (under the
+  catalogue's run, or the migration's when the artifact names none), unless a live description
+  already holds it; a folder or group's text is then cleared (what it held before cannot be
+  recovered); a file's text is left, because it is its own transcription, and the file is reported.
+  A text that differs from the artifact, or that a person saved, is never touched. A second open
+  changes nothing. The engine log says at open how many texts moved and which were left and why;
+  the run is recorded with each change in the mutation log, so it can be rolled back.
+  *Built: `MigrationRunner.move_catalogue_narratives_to_descriptions`, run from
+  `DatabaseManager.get_database`. Pinned by `fichero-server/tests/unit/db/
+  test_catalogue_narrative_migration.py` (folder moved, person-edited untouched, file left and
+  reported, twice changes nothing, the real open migrates once).*
 - `source.extract.shown-as-layers` — **[GAP]** (#1659, #5418) names, statements, quotations, dates,
   entries and table cells each have a layer in the Preview, drawn on their segments, with the empty
   case said.
