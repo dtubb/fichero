@@ -324,6 +324,9 @@ class TestGetThreadStatus:
         mock_cp.aget_tuple = AsyncMock(return_value=checkpoint_tuple)
         db = MagicMock()
         db.path = "/tmp/test.fichero/fichero.duckdb"
+        # The run account asks the jobs table what a page waits for (#5606); a real database answers
+        # None when no page waits, never a bare MagicMock (which unpacks to nothing).
+        db.execute_fetchone.return_value = None
 
         run = WorkflowRun(
             thread_id="thread-1",

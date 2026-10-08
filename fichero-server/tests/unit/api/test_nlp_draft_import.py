@@ -739,10 +739,13 @@ class TestChangeEventIsCoalescedOncePerDocument:
 
 
 class TestRunsOnTheModelLane:
-    def test_nlp_stage_runs_on_the_model_lane_after_the_embeds(self, db, test_package, monkeypatch):
+    def test_nlp_stage_runs_on_the_model_lane_grouped_apart_from_the_embeds(self, db, test_package, monkeypatch):
         """WHY: spaCy is a model; run beside the embedder it would put two models in memory, and
         interleaved with it would swap them page by page. Thumbnails are not models and keep
-        their own two-wide lane (#1400)."""
+        their own two-wide lane (#1400). Which group goes first is the lane's choice, not this
+        stage's: the model it used last runs first (`activity.lane.group-by-model`), so after a
+        spaCy job the drafts go before the embeds. Since the embeds wait for the thumbnails
+        (#5585) both groups are queued when the lane picks, so that choice now shows."""
         import threading
 
         from fichero_server.execution import jobs
@@ -761,7 +764,8 @@ class TestRunsOnTheModelLane:
         _drain(derivatives.queue_derivatives(docs, library_path=test_package))
 
         model_lane = [name for name, thread in seen if thread == "fichero-jobs"]
-        assert model_lane == ["embed", "embed", "nlp", "nlp"]
+        assert sorted(model_lane) == ["embed", "embed", "nlp", "nlp"]  # every model stage on the one lane
+        assert model_lane in (["embed", "embed", "nlp", "nlp"], ["nlp", "nlp", "embed", "embed"])  # never interleaved
         assert {thread for name, thread in seen if name == "thumbnail"} <= {"fichero-jobs-images"}
         assert derivatives.MAX_CONCURRENT_DERIVATIVES == jobs.LANES["images"] == 2  # unchanged ceiling
 

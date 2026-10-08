@@ -138,8 +138,9 @@ def queue_derivatives(
     db = db if db is not None else _library_db(library)
     # Thumbnails run on their own lane, so an image never waits behind a
     # ~1.3s embed of an earlier page (user, live 2026-08-19). The NLP draft
-    # runs after the embeds on the model lane (the cheaper, more visible
-    # stages first) and is not counted in `_progress_add`'s total: its
+    # runs on the model lane with the embeds, never interleaved with them
+    # (the lane groups work by model, `activity.lane.group-by-model`, so
+    # either group may go first) and is not counted in `_progress_add`'s total: its
     # per-document visibility is its job row and the `nlp_error` field.
     queued_jobs = (
         jobs.enqueue_many(db, THUMBNAIL_KIND, queued)

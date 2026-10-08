@@ -7299,7 +7299,7 @@
     "ms": 40.8,
     "note": "tightened from 70.1 ms"
   },
-  "test::tests/unit/api/test_routes_settings.py::TestGetAIDefaults::test_defaults_are_empty_strings": {
+  "test::tests/unit/api/test_routes_settings.py::TestGetAIDefaults::test_fresh_install_holds_the_first_launch_defaults": {
     "commit": "18917fe1f",
     "ms": 40.8,
     "note": "tightened from 124.1 ms"
