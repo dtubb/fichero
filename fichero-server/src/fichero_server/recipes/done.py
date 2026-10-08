@@ -9,7 +9,8 @@ redo the step:
 * finding lines: a page with a live pass that has lines;
 * reading lines (with or without finding lines first): a page with a live pass, read by the step's own model,
   that has lines;
-* reading a page: a page with a transcription saved by the step's own model.
+* reading a page: a page with a transcription saved by the step's own model;
+* preparing the image: a page with a prepared rendition.
 
 Every other card cannot tell, and runs on every page.
 """
@@ -18,7 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 #: Jobs whose output a page can be seen to have.
-KNOWS_DONE = frozenset({"split-pages", "find-lines", "read-a-line", "read-a-page"})
+KNOWS_DONE = frozenset({"split-pages", "find-lines", "read-a-line", "read-a-page", "prepare-the-image"})
 
 
 def _children(db: Any, doc_id: str) -> list[Any]:
@@ -175,6 +176,10 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
         return _has_line_readings(db, doc_id, card.get("model_override"))
     if job == "read-a-page":
         return _has_page_reading(db, doc_id, card.get("model_override"))
+    if job == "prepare-the-image":
+        from fichero_server.recipes.prepare import prepared
+
+        return prepared(db, doc_id) is not None
     return None
 
 

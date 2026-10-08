@@ -42,11 +42,14 @@ OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export
                "find-documents-in-a-folder": "find-documents",
                # A diary or register split into its dated entries by the Diary Entries splitter, with the step's
                # model, over the pages that have text (`source.onboard.auto.diary-entries`, #5581).
-               "split-into-entries": "entries"}
+               "split-into-entries": "entries",
+               # Faded pages get a prepared rendition, their contrast raised, before lines; the original is kept
+               # (`source.onboard.auto.prepare-damaged-images`, #5580).
+               "prepare-the-image": "prepare"}
 #: Jobs that need no model.
 #: The fixes setup offers as a button for a skipped step (`RecipeStepRow.fixTitle`).
 _FIX_BUTTONS = frozenset({"choose-model", "allow-cloud"})
-_NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates", "find-documents-in-a-folder"})
+_NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates", "find-documents-in-a-folder", "prepare-the-image"})
 #: Search: the page's text embedded by the embed job that also follows every correction
 #: (`actions/page_text_cache.REEMBED_KIND`, a job named `make-a-vector`), one per page (#5574).
 EMBED_JOB = "make-a-vector"
@@ -56,7 +59,6 @@ EMBED_JOB = "make-a-vector"
 START_JOBS = frozenset(WORKFLOW_FOR_JOB) | frozenset(OTHER_CARDS) | {EMBED_JOB, "train-a-model"}
 #: What to use instead, by hand, for a job Start cannot run by itself (the shipped workflow or tool that does it).
 BY_HAND_FIX = {
-    "prepare-the-image": "run the Prepare Images for OCR or Enhance Images workflow on the pages by hand",
     "find-regions": "run the Detect Segments (Apple Vision) workflow by hand",
     "translate-transliterate-normalise": "run the Translate workflow (or Modernización, for Spanish) by hand",
     "link-to-authorities": "link each name to an authority from its Inspector",
@@ -274,6 +276,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             elif job == "find-documents-in-a-folder":
                 # The project's setting: None leaves every proposal for the person.
                 entry.update(accept_above=settings.get("accept_above"))
+            elif job == "prepare-the-image":
+                pass  # Fichero's own measure and contrast, on this Mac: nothing to configure
             elif job == "publish":
                 if not settings.get("where"):
                     skip(sid, f"{label} names no folder (`where`) to publish the site into",

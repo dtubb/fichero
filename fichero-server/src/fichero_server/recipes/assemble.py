@@ -66,6 +66,9 @@ MATERIALS: tuple[str, ...] = ("handwriting", "print", "typescript")
 READING_JOBS = frozenset({"read-a-line", "read-a-page"})
 #: Finding the documents in a box of loose pages, after reading (`finddocs.recipe-step`, #5550).
 FIND_DOCUMENTS = "find-documents-in-a-folder"
+#: Preparing faded pages (their contrast raised on a new rendition) before lines, where the sample shows them
+#: (`source.onboard.auto.prepare-damaged-images`, #5580).
+PREPARE = "prepare-the-image"
 
 #: Jobs whose model must know the project's language (section 8, rule 3).
 LANGUAGE_JOBS = frozenset({"correct", "translate-transliterate-normalise", "find-names-tag-words",
@@ -82,7 +85,7 @@ MEMORY_HEADROOM_GB = 2.0
 #: purpose's jobs, and any job ticked on its own, are sorted by it. A test pins that it covers the
 #: whole job registry, so a new job cannot be ticked without a place in the order.
 STEP_ORDER: tuple[str, ...] = (
-    "prepare-the-image", "split-pages", "find-regions", "find-lines",
+    "split-pages", "prepare-the-image", "find-regions", "find-lines",
     "put-in-order", "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
     "tie-text-to-lines", "transcribe-speech", "correct", "find-documents-in-a-folder", "trace-a-drawing",
     "identify-signs",
@@ -182,6 +185,9 @@ class Answers:
     #: The material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them
     #: then finds the documents among them (`finddocs.recipe-step`, #5550).
     loose_pages: bool = False
+    #: The project's sample shows faded pages (`recipes/prepare.sample_shows_faded`): a recipe that lines or reads
+    #: them prepares them first (#5580).
+    faded_pages: bool = False
     #: The answers under a purpose (`answers.job_answers`): which kinds of names, which gazetteer, how far to
     #: normalise; each reaches the setting of the step it configures (`start.JOB_ANSWER_SETTINGS`, #5478).
     job_answers: dict[str, Any] = field(default_factory=dict, compare=False, hash=False)
@@ -398,6 +404,8 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
     jobs |= {j for j in a.jobs if j in STEP_ORDER}
     if a.loose_pages and jobs & READING_JOBS:
         jobs.add(FIND_DOCUMENTS)
+    if a.faded_pages and jobs & (READING_JOBS | {"find-lines"}):
+        jobs.add(PREPARE)
     left_by_hand = [by_hand(j) for j in sorted(jobs, key=STEP_ORDER.index) if not start_runs(j)]
     jobs = {j for j in jobs if start_runs(j)}
     train_ticked = "train-a-model" in jobs
@@ -424,6 +432,14 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
                           "reasons": ["reads the text already there and the pages' thumbnails, on this Mac, free",
                                       f"proposes; accepts by itself only a document at least "
                                       f"{AUTO_ACCEPT_ABOVE:.0%} sure (one undo restores)"]})
+            continue
+        if job == PREPARE:
+            # Fichero's own measure and contrast, no model to choose (`recipes/prepare.py`).
+            why = ("the sample pages show faded ink" if a.faded_pages else "you ticked it")
+            steps.append({"id": job, "job": job, **_topic(job), "model": {"builtin": "image-preparer"},
+                          "runs_on": "this-mac", "uses_cloud": False,
+                          "reasons": [why, "raises the contrast of each faded page on a new copy, on this Mac, free, "
+                                           "before lines; the original is kept"]})
             continue
         choice = _choose(job, cards, a)
         step: dict[str, Any] = {"id": job, "job": job, **_topic(job)}

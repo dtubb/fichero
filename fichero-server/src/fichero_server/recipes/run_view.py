@@ -43,6 +43,14 @@ class StageEntries(BaseModel):
     removed: int = Field(default=0, description="entries a run before made that it no longer finds (kept, hidden)")
 
 
+class StagePrepared(BaseModel):
+    """What a stage that prepares faded pages did (#5580)."""
+
+    prepared: int = Field(description="faded pages given a prepared rendition, their contrast raised")
+    clear: int = Field(description="pages left alone: clear enough, or blank")
+    no_image: int = Field(description="pages with no image to look at (a PDF's page, a text file)")
+
+
 class RecipeRunStep(BaseModel):
     """One stage of a recipe run: the card that carries one or more recipe steps."""
 
@@ -65,6 +73,8 @@ class RecipeRunStep(BaseModel):
         "a stage with a reader per kind: one workflow run per reader (#5578)"))
     entries: Optional[StageEntries] = Field(default=None, description=(
         "a stage that splits a diary or register into its dated entries: its pages and entries (#5581)"))
+    prepared: Optional[StagePrepared] = Field(default=None, description=(
+        "a stage that prepares faded pages before lines: how many it prepared and left alone (#5580)"))
 
 
 class SkippedStep(BaseModel):

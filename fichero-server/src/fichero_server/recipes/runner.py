@@ -12,6 +12,8 @@ page, and every file that has no pages), or, after an import, over the pages tha
   itself only what the step's `accept_above` allows;
 * an **entries** card splits a diary or register into its dated entries with the Diary Entries splitter
   (`workflows/tools/diary_entries.py`) and the step's model, over the pages that have text (#5581);
+* a **prepare** card gives each faded page a prepared rendition, its contrast raised, that lines and reading then
+  read; the original is kept (`recipes/prepare.py`, #5580);
 * an **embed** card (search) queues the embed job (`make-a-vector`) for each page and waits for them;
 * an **export** card is the project's synced folder (`sync_folder.py`): the folder the step names is tied
   (once) and the pages are written, or a folder already tied rewrites them.
@@ -226,6 +228,16 @@ def _run_entries(db: Any, card: dict[str, Any], documents: list[str],
     return None, "done", None
 
 
+def _run_prepare(db: Any, documents: list[str], parent: str,
+                 step: dict[str, Any]) -> tuple[str | None, str, str | None]:
+    """Each faded page gets a prepared rendition (`source.onboard.auto.prepare-damaged-images`, #5580); the step's
+    account (`prepared`) says how many it prepared, how many were clear and how many had no image to look at."""
+    from fichero_server.recipes.prepare import prepare_pages
+
+    step["prepared"] = prepare_pages(db, documents, parent)
+    return None, "done", None
+
+
 def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
     """The card's own job, a child of the recipe's row, waited on until it ends."""
     jobs.set_parent(db, child, parent)
@@ -332,6 +344,8 @@ def run(db: Any, subject: str) -> dict[str, Any]:
             child, state, why = _run_find_documents(db, card, documents, job_id, started_by)
         elif card["card"] == "entries":
             child, state, why = _run_entries(db, card, documents, step)
+        elif card["card"] == "prepare":
+            child, state, why = _run_prepare(db, documents, job_id, step)
         elif card["card"] == "publish":
             child, state, why = _run_publish(db, card)
         elif card["card"] == "embed":

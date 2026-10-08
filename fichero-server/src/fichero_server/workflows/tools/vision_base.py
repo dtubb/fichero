@@ -3540,11 +3540,11 @@ def _substitute_region_crops(
     return substituted
 
 
-def _frame_true_background_removed_path(
-    library_path: str, doc_id: str | None
+def frame_true_rendition_path(
+    library_path: str, doc_id: str | None, roles: tuple[str, ...]
 ) -> str | None:
-    """Absolute path of the doc's background_removed rendition, IF it is the
-    node's own frame and its bytes exist — else None.
+    """Absolute path of the doc's first rendition in ``roles`` (in that order)
+    that IS the node's own frame and whose bytes exist — else None.
 
     ``transform is None`` is the Rendition contract for "identical frame:
     anchors pass straight through", which is exactly the guarantee the OCR
@@ -3563,18 +3563,33 @@ def _frame_true_background_removed_path(
         renditions = db.query(Rendition, document_id=str(doc_id))
     except Exception:
         return None
-    for rendition in renditions:
-        if (
-            rendition.role == "background_removed"
-            and rendition.transform is None
-            and rendition.materialized
-        ):
-            candidate = Path(rendition.path)
-            if not candidate.is_absolute():
-                candidate = Path(library_path) / rendition.path
-            if candidate.exists():
-                return str(candidate)
+    for role in roles:
+        for rendition in renditions:
+            if (
+                rendition.role == role
+                and rendition.transform is None
+                and rendition.materialized
+            ):
+                candidate = Path(rendition.path)
+                if not candidate.is_absolute():
+                    candidate = Path(library_path) / rendition.path
+                if candidate.exists():
+                    return str(candidate)
     return None
+
+
+#: The renditions lines and reading read in place of the original, first found
+#: first: the recipe's prepared page (`recipes/prepare.py`, #5580), then a
+#: background-removed one (faint pencil, 2026-08-24 eval).
+READ_FROM_ROLES = ("prepared", "background_removed")
+
+
+def _frame_true_background_removed_path(
+    library_path: str, doc_id: str | None
+) -> str | None:
+    """The page's frame-true prepared or background_removed rendition (see
+    :func:`frame_true_rendition_path`), else None."""
+    return frame_true_rendition_path(library_path, doc_id, READ_FROM_ROLES)
 
 
 async def process_vision(
@@ -4851,8 +4866,13 @@ async def process_vision(
                             max_dimension=max_image_dimension,
                         )
                     else:
+                        # A page the recipe prepared is read from its prepared
+                        # rendition, the page's own frame (#5580).
                         image_uri = await file_to_data_uri_async(
-                            file_path, max_dimension=max_image_dimension
+                            frame_true_rendition_path(
+                                library_path, doc_id_for_file, ("prepared",)
+                            ) or file_path,
+                            max_dimension=max_image_dimension,
                         )
 
                     if is_thinking_model(effective_config.model):
