@@ -15,10 +15,12 @@ Provides:
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 from contextvars import ContextVar
 import os
 import tempfile
 import threading
+import time
 import base64
 import dataclasses
 from functools import lru_cache
@@ -2008,11 +2010,17 @@ def _vision_ocr_cgimage_with_geometry(
     return VisionOCRResult(text="", line_boxes=[], word_boxes=[])
 
 
-#: Apple Vision calls in flight at once, across the whole engine. One per fanned-out file (104 at
-#: once on a notebook folder) deadlocked Apple's text recogniser: four threads stuck in
-#: VNRecognizeTextRequest, 0% CPU, and the run "running" forever (#5392).
+#: Apple Vision calls in flight at once, across the whole engine, at most. One per fanned-out file (104
+#: at once on a notebook folder) deadlocked Apple's text recogniser: four threads stuck in
+#: VNRecognizeTextRequest, 0% CPU, and the run "running" forever (#5392). This is the bound for
+#: correctness; memory can lower it (`apple_vision_reads_at_once`).
 APPLE_VISION_CONCURRENCY = 2
-_APPLE_VISION_GATE = threading.BoundedSemaphore(APPLE_VISION_CONCURRENCY)
+#: What a second Apple Vision page read beside the first must find free: the per-read margin the local
+#: models use (`local_inference._MLX_LOAD_MARGIN_BYTES`, 1 GB). A choice, not a measurement; the run's
+#: peak memory is how it is re-measured.
+APPLE_VISION_EXTRA_READ_BYTES = 1 * 1024**3
+#: How often a page waiting for the gate looks at memory again.
+_APPLE_VISION_LOOK_AGAIN_SECONDS = 0.25
 
 
 class AppleVisionTimeout(RuntimeError):
@@ -2026,22 +2034,115 @@ def _apple_vision_deadline() -> float:
         return 300.0
 
 
+def _apple_vision_memory_short() -> str | None:
+    """THE memory check (`throttle.memory_short`, #5537), asked for one more Apple Vision page."""
+    from fichero_server.execution.throttle import memory_short
+
+    return memory_short(need_bytes=APPLE_VISION_EXTRA_READ_BYTES, what="a second Apple Vision page")
+
+
+def apple_vision_reads_at_once() -> int:
+    """How many Apple Vision pages may read at once now: the smaller of the bound for correctness
+    (`APPLE_VISION_CONCURRENCY`, #5392) and what memory allows (#5537) -- one at a time when memory is
+    short or pressure is critical. Never below one: a single page always reads. An unreadable reading
+    is no reason to hold back (the rule `memory_short` keeps)."""
+    try:
+        short = _apple_vision_memory_short()
+    except Exception:  # noqa: BLE001 -- a reading must never stop a page
+        short = None
+    return 1 if short else APPLE_VISION_CONCURRENCY
+
+
+class _AppleVisionGate:
+    """The engine-wide gate every Apple Vision call passes (#5392): no more than
+    `apple_vision_reads_at_once()` in flight, asked again while a page waits, so a page that would be
+    the second waits while memory is short. A page abandoned before its turn never starts."""
+
+    def __init__(self) -> None:
+        self._cond = threading.Condition()
+        self.in_flight = 0
+
+    def acquire(self, timeout: float, abandoned: threading.Event) -> bool:
+        end = time.monotonic() + timeout
+        with self._cond:
+            while self.in_flight >= 1 and self.in_flight >= apple_vision_reads_at_once():
+                left = end - time.monotonic()
+                if left <= 0 or abandoned.is_set():
+                    return False
+                self._cond.wait(min(left, _APPLE_VISION_LOOK_AGAIN_SECONDS))
+            if abandoned.is_set():
+                return False
+            self.in_flight += 1
+            return True
+
+    def release(self) -> None:
+        with self._cond:
+            self.in_flight -= 1
+            self._cond.notify_all()
+
+
+_APPLE_VISION_GATE = _AppleVisionGate()
+
+
+def _apple_vision_timeout(deadline: float) -> AppleVisionTimeout:
+    return AppleVisionTimeout(
+        f"Apple Vision did not finish this page within {deadline:.0f} s "
+        f"(at most {APPLE_VISION_CONCURRENCY} pages read at once, one when memory is tight); "
+        "the page was skipped"
+    )
+
+
+def _start_apple_vision_page(fn, args, deadline: float):
+    """Start one Apple Vision call on its own daemon thread, behind the gate; returns its future and
+    the event that abandons it. A daemon thread, not the event loop's executor: a call stuck in
+    Apple's recogniser cannot be interrupted, and an executor thread would hold the engine's exit."""
+    future: concurrent.futures.Future = concurrent.futures.Future()
+    abandoned = threading.Event()
+
+    def run() -> None:
+        if not future.set_running_or_notify_cancel():
+            return
+        try:
+            if not _APPLE_VISION_GATE.acquire(deadline, abandoned):
+                future.set_exception(_apple_vision_timeout(deadline))
+                return
+            try:
+                result = None if abandoned.is_set() else fn(*args)
+            finally:
+                _APPLE_VISION_GATE.release()
+            future.set_result(result)
+        except BaseException as exc:  # noqa: BLE001 -- handed to the caller's thread
+            future.set_exception(exc)
+
+    threading.Thread(target=run, name="apple-vision-page", daemon=True).start()
+    return future, abandoned
+
+
 async def _apple_vision_call(fn, *args):
     """Run one Apple Vision page call through the engine-wide gate, with a deadline that covers
     waiting for the gate too. A call stuck in Apple's recogniser cannot be interrupted, so it is
     abandoned: this page raises AppleVisionTimeout by name and the run continues (#5392)."""
-    def gated():
-        with _APPLE_VISION_GATE:
-            return fn(*args)
-
     deadline = _apple_vision_deadline()
+    future, abandoned = _start_apple_vision_page(fn, args, deadline)
     try:
-        return await asyncio.wait_for(asyncio.to_thread(gated), timeout=deadline)
+        return await asyncio.wait_for(asyncio.wrap_future(future), timeout=deadline)
     except asyncio.TimeoutError as exc:
-        raise AppleVisionTimeout(
-            f"Apple Vision did not finish this page within {deadline:.0f} s "
-            f"(at most {APPLE_VISION_CONCURRENCY} pages read at once); the page was skipped"
-        ) from exc
+        raise _apple_vision_timeout(deadline) from exc
+    finally:
+        abandoned.set()  # cancelled (the run's Stop) or timed out before its turn: it never starts
+
+
+def _apple_vision_call_sync(fn, *args):
+    """`_apple_vision_call` for a caller off the event loop (economy HTR, the page splitter's own
+    detection): the same gate and the same deadline."""
+    deadline = _apple_vision_deadline()
+    future, abandoned = _start_apple_vision_page(fn, args, deadline)
+    try:
+        return future.result(timeout=deadline)
+    except concurrent.futures.TimeoutError as exc:
+        raise _apple_vision_timeout(deadline) from exc
+    finally:
+        abandoned.set()
 
 
 async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:

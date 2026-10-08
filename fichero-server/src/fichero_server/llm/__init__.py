@@ -2389,6 +2389,7 @@ async def _apple_vision_dispatch(
     (similarity, compare, video) that have no document language to offer.
     """
     from fichero_server.workflows.tools.vision_base import (
+        _apple_vision_call,
         apple_vision_ocr,
         validate_vision_language,
     )
@@ -2429,8 +2430,8 @@ async def _apple_vision_dispatch(
 
     # Apple Vision's Quartz-based image loader takes a file path. Most
     # workflow callers pass base64 data URIs; write each to a temp file
-    # and clean up after. apple_vision_ocr is sync, so dispatch via
-    # asyncio.to_thread to keep the async caller non-blocking.
+    # and clean up after. apple_vision_ocr is sync; the gate runs it on its
+    # own thread, so the async caller is not blocked.
     page_texts: list[str] = []
     cleanup_paths: list[str] = []
     try:
@@ -2459,9 +2460,10 @@ async def _apple_vision_dispatch(
                 )
             if cleanup_this:
                 cleanup_paths.append(file_path)
-            text = await asyncio.to_thread(
-                apple_vision_ocr, file_path, ocr_language
-            )
+            # Through the engine-wide Apple Vision gate and deadline (#5392), like every
+            # other Apple Vision call: this route used to reach Vision on its own thread
+            # per page, so a fan-out on the apple provider ran unbounded.
+            text = await _apple_vision_call(apple_vision_ocr, file_path, ocr_language)
             if text:
                 if len(images) > 1:
                     page_texts.append(f"--- Image {index + 1} ---")

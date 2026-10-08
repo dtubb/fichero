@@ -77,7 +77,10 @@ def split_pages_file(file_path: str | Path, output_dir: str | Path, *, direction
         with Image.open(source) as opened:
             image = opened.copy()
         if outline is None and use_apple_vision:
-            outline = page_split.detect_document_outline(str(source))
+            from fichero_server.workflows.tools.vision_base import _apple_vision_call_sync
+
+            # The engine-wide Apple Vision gate and deadline (#5392), as `split_pages` uses.
+            outline = _apple_vision_call_sync(page_split.detect_document_outline, str(source))
         outline = outline or page_split.whole_frame(image.width, image.height)
         plan = page_split.split_plan_for_image(np.asarray(image.convert("L")), outline,
                                                direction=direction, min_confidence=min_confidence)
