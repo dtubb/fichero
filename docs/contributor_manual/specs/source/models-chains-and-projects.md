@@ -1011,8 +1011,15 @@ plan's peak memory across steps. Ready shows none of it.
   and its place ("Transcribe (Kraken) · stage 1 of 3"), its run account's pages done, failed and left
   (`pages_done`/`pages_failed`/`pages_left`), the time left (`estimate_seconds_left`) and what its pages
   wait for (`waiting_reason`, else the run's reason); before a stage runs, what the run waits for (its
-  reason). Show Details opens the recipe run's Activity details. Nothing is counted in the app. Pinned
-  by `fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift`. *Not built:* waiting on a download
+  reason). Show Details opens the recipe run's Activity details. Nothing is counted in the app.
+  **Built 2026-10-08 (app), not yet seen:** after a relaunch the strip comes back. When the project
+  opens, before its first jobs poll, `ActivityStore.restoreProjectRun` reads the project's recipe runs
+  once (`GET /api/recipes/project/runs`, newest first) and follows the newest one still running,
+  waiting or paused; if none, the newest run that ended, with its summary, unless the person closed
+  that run's summary (Close is remembered per run in the app's defaults,
+  `project.runStrip.closed.<project id>`). An older ended run never replaces a closed one. From then on
+  the jobs poll follows it as above (one path: `adoptProjectRun`). Pinned by
+  `fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift`. *Not built:* waiting on a download
   (a run never waits for one; Start is refused until it is here).
 - `source.onboard.auto.results-summary` — **[PARTIAL]** (#5577) when a run ends, the project says what
   it made: pages read, lines, names by kind, dates, statements, documents and groups proposed, pages

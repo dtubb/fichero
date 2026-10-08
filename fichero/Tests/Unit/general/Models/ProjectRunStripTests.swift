@@ -92,7 +92,7 @@ final class ProjectRunStripTests: XCTestCase {
         MockTransportURLProtocol.reset([])
     }
 
-    private static func store() -> ActivityStore {
+    private static func store(defaults: UserDefaults? = nil) -> ActivityStore {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockTransportURLProtocol.self]
         let client = FicheroClient(
@@ -100,7 +100,22 @@ final class ProjectRunStripTests: XCTestCase {
             libraryPath: "/tmp/ProjectRunStripTests.fichero",
             session: URLSession(configuration: configuration)
         )
-        return ActivityStore(service: ActivityService(ficheroClient: client))
+        let service = ActivityService(ficheroClient: client)
+        guard let defaults else { return ActivityStore(service: service) }
+        return ActivityStore(service: service, defaults: defaults, projectKey: "project-under-test")
+    }
+
+    /// The app's defaults for one test: a suite of its own, emptied when the test ends.
+    private func scratchDefaults() throws -> UserDefaults {
+        let suite = "ProjectRunStripTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
+        return defaults
+    }
+
+    /// `GET /api/recipes/project/runs`: the project's recipe runs, newest first, as (id, state).
+    private static func recipeRuns(_ runs: [(id: String, state: String)]) throws -> Data {
+        try json(["items": runs.map { ["job_id": $0.id, "state": $0.state, "steps": [Any](), "skipped": [Any]()] as [String: Any] }])
     }
 
     /// The engine's answer, as `test_run_visible_to_spec.py` recorded it.
@@ -256,5 +271,72 @@ final class ProjectRunStripTests: XCTestCase {
 
         store.putAwayProjectRun()
         XCTAssertNil(ProjectRunStrip(store: store), "put away, the strip is gone")
+    }
+
+    // MARK: - source.onboard.auto.lands-on-the-run after a relaunch (#5576)
+
+    func testRelaunch_aRunStillGoing_isBackOnTheStrip() async throws {
+        // WHY: after a relaunch the strip came back only for a run the app saw start; one still running said nothing.
+        let store = Self.store(defaults: try scratchDefaults())
+        let tree = try Self.runningTree()
+        let jobId = try XCTUnwrap(tree["id"] as? String)
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/recipes/project/runs", method: "GET", status: 200,
+                 body: try Self.recipeRuns([("newer-ended-run", "done"), (jobId, "running")])),
+            Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(tree))
+        ])
+
+        await store.restoreProjectRun()
+
+        XCTAssertEqual(store.projectRunId, jobId, "the run still going wins over a newer one that ended")
+        let strip = try XCTUnwrap(ProjectRunStrip(store: store))
+        XCTAssertTrue(strip.isLive)
+        XCTAssertEqual(strip.title, "Transcribe (Kraken) · stage 1 of 3")
+        XCTAssertEqual(Self.treeReads("newer-ended-run"), 0, "only the adopted run's tree is read")
+    }
+
+    func testRelaunch_aRunThatEndedWhileClosed_showsItsSummary() async throws {
+        // WHY: a run that ended while the app was closed never said what it made in the project window.
+        let store = Self.store(defaults: try scratchDefaults())
+        let failed = try Self.failedTree()
+        let jobId = try XCTUnwrap(failed["id"] as? String)
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/recipes/project/runs", method: "GET", status: 200,
+                 body: try Self.recipeRuns([(jobId, "failed"), ("older-run", "done")])),
+            Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(failed))
+        ])
+
+        await store.restoreProjectRun()
+
+        let strip = try XCTUnwrap(ProjectRunStrip(store: store), "the newest ended run's summary is on the strip")
+        XCTAssertEqual(strip.jobId, jobId)
+        XCTAssertFalse(strip.isLive)
+        XCTAssertEqual(strip.title, "Recipe run failed")
+        XCTAssertEqual(strip.detail, "Read 2 of 2 pages · Names: 1 People · 1 Places · 1 date · 1 statement")
+    }
+
+    func testRelaunch_aSummaryThePersonClosed_staysClosed() async throws {
+        // WHY: a summary the person closed must not come back on every launch.
+        let defaults = try scratchDefaults()
+        let failed = try Self.failedTree()
+        let jobId = try XCTUnwrap(failed["id"] as? String)
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/recipes/project/runs", method: "GET", status: 200,
+                 body: try Self.recipeRuns([(jobId, "failed"), ("older-run", "done")])),
+            Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(failed))
+        ])
+        let before = Self.store(defaults: defaults)
+        await before.restoreProjectRun()
+        XCTAssertEqual(before.projectRunId, jobId)
+        before.putAwayProjectRun()
+
+        // Relaunch: a new store over the same project's defaults.
+        let after = Self.store(defaults: defaults)
+        await after.restoreProjectRun()
+
+        XCTAssertNil(after.projectRunId, "closed stays closed; an older ended run does not take its place")
+        XCTAssertNil(ProjectRunStrip(store: after))
+        XCTAssertEqual(Self.treeReads("older-run"), 0)
+        XCTAssertEqual(Self.treeReads(jobId), 1, "only the first launch read the closed run's tree")
     }
 }

@@ -135,16 +135,30 @@ final class ActivityStore: ChangeEventConsumer {
     /// that run until the person puts it away. Its words are its tree's
     /// (`runTrees[projectRunId]`), the record the Activity details read.
     private(set) var projectRunId: String?
-    /// Runs the person put away: never shown on the strip again.
+    /// Runs the person put away: never shown on the strip again, across
+    /// relaunches (kept under `putAwayKey` in the app's defaults).
     @ObservationIgnored private var putAwayRunIds: Set<String> = []
+    /// The project's key for the runs put away (`project.runStrip.closed.<project id>`);
+    /// nil for a store with no project, which remembers them only while it lives.
+    @ObservationIgnored private let putAwayKey: String?
+    @ObservationIgnored private let defaults: UserDefaults
+    /// How many put-away run ids are kept: the newest; older runs are never adopted again anyway.
+    private static let putAwayKept = 50
     /// How often the jobs endpoint is polled. Loopback + a point-in-time read,
     /// so 2s is live enough for a progress bar without adding real load.
     private let jobsPollInterval: Duration = .seconds(2)
 
-    init(service: ActivityService, library: LibraryManager.LibraryReference? = nil) {
+    /// `projectKey` names the project the put-away runs are kept for when there is no
+    /// `library` (tests); with a library it is the library's id.
+    init(service: ActivityService, library: LibraryManager.LibraryReference? = nil,
+         defaults: UserDefaults = EngineConfig.defaults, projectKey: String? = nil) {
         self.activityService = service
         self.library = library
         self.streamService = ActivityStreamService(activityService: service)
+        self.defaults = defaults
+        let key = (library?.id.uuidString ?? projectKey).map { "project.runStrip.closed.\($0)" }
+        self.putAwayKey = key
+        if let key { putAwayRunIds = Set(defaults.stringArray(forKey: key) ?? []) }
     }
 
     func start() {
@@ -168,6 +182,8 @@ final class ActivityStore: ChangeEventConsumer {
     private func startJobsPolling() {
         jobsPollTask?.cancel()
         jobsPollTask = Task { [weak self] in
+            // The project just opened: the run its strip showed before a relaunch first (#5576).
+            await self?.restoreProjectRun()
             while !Task.isCancelled {
                 await self?.refreshBackgroundJobs()
                 guard let interval = self?.jobsPollInterval else { return }
@@ -659,8 +675,36 @@ extension ActivityStore {
             job.taskType == Self.recipeRunKind && job.parentId == nil && !job.id.hasPrefix("waiting:")
                 && (job.state.isActive || job.state == .waiting) && !putAwayRunIds.contains(job.id)
         }) else { return }
-        if projectRunId != live.id { projectRunId = live.id }
-        await loadRunTree(threadId: live.id)
+        await adoptProjectRun(live.id)
+    }
+
+    /// When the project opens (#5576, `source.onboard.auto.lands-on-the-run`): the
+    /// run the strip would be showing had the app stayed open. The newest recipe
+    /// run still running, waiting or paused; else the newest run that ended, unless
+    /// the person closed its summary. Read once from the project's recipe runs
+    /// (newest first); from then on the jobs poll follows it as any other.
+    func restoreProjectRun() async {
+        guard projectRunId == nil else { return }
+        let runs: [Components.Schemas.RecipeRunStatus]
+        do {
+            runs = try await activityService.getProjectRecipeRuns()
+        } catch {
+            log.debug("ActivityStore: recipe runs read failed \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        let ended: Set<String> = ["done", "failed", "cancelled"]
+        let live = runs.first(where: { !ended.contains($0.state) && !putAwayRunIds.contains($0.jobId) })
+        // Only the newest ended run: an older one never takes the place of a summary the person closed.
+        let newestEnded = runs.first(where: { ended.contains($0.state) })
+        let run = live ?? newestEnded.flatMap { putAwayRunIds.contains($0.jobId) ? nil : $0 }
+        guard let run, projectRunId == nil else { return }
+        await adoptProjectRun(run.jobId)
+    }
+
+    /// The strip shows `id`: its tree read once, as the record its words come from.
+    private func adoptProjectRun(_ id: String) async {
+        if projectRunId != id { projectRunId = id }
+        await loadRunTree(threadId: id)
     }
 
     /// A recipe run's stage (a workflow run) whose row on the jobs poll moved
@@ -672,11 +716,15 @@ extension ActivityStore {
         }
     }
 
-    /// The person put the strip away: that run is not shown on it again.
+    /// The person put the strip away: that run is not shown on it again, nor
+    /// after a relaunch (#5576).
     func putAwayProjectRun() {
         guard let id = projectRunId else { return }
         putAwayRunIds.insert(id)
         projectRunId = nil
+        guard let putAwayKey else { return }
+        let kept = (defaults.stringArray(forKey: putAwayKey) ?? []).filter { $0 != id } + [id]
+        defaults.set(Array(kept.suffix(Self.putAwayKept)), forKey: putAwayKey)
     }
 
     /// The key of the tree that holds `jobId`: its run's thread id, or the

@@ -203,6 +203,22 @@ class ActivityService {
         }
     }
 
+    // MARK: - Recipe runs (#5576)
+
+    /// The project's recipe runs, newest first (`GET /api/recipes/project/runs`):
+    /// what the project window's strip comes back to after a relaunch.
+    func getProjectRecipeRuns() async throws -> [Components.Schemas.RecipeRunStatus] {
+        switch try await client.api.recipeRunsApiRecipesProjectRunsGet() {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .undocumented(let statusCode, let payload):
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw denial
+            }
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     // MARK: - Background jobs (#user-machine-always-useful FIX 2)
 
     /// Snapshot of currently-running background jobs + rough process CPU%.
