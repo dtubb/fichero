@@ -403,10 +403,17 @@ def _seed_builtin_providers() -> None:
             # keys that are currently missing — never overwrites a user
             # configuration. Apple Intelligence is the natural pick on
             # macOS 26+ Apple Silicon (free, on-device, always available).
-            _ensure_default_ai_defaults(app_db, apple_provider.id)
-            _repair_known_bad_ai_defaults(app_db)
+            seed_ai_defaults(app_db)
     except Exception as exc:
         logger.warning("Could not seed built-in providers: %s", exc)
+
+
+def seed_ai_defaults(app_db) -> None:
+    """The first-launch AI defaults: fill the unset tier defaults for this Mac and build, then
+    repair stale ones. The one seed a fresh install gets, so the test suite's app databases take
+    it from here too (tests/conftest.py) rather than naming providers of their own (#5368)."""
+    _ensure_default_ai_defaults(app_db, "")
+    _repair_known_bad_ai_defaults(app_db)
 
 
 def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:

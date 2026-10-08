@@ -576,6 +576,19 @@ from fichero_server.api.main import (  # noqa: E402
 )
 from fichero_server.db import db_manager  # noqa: E402
 from fichero_server.db.app import AppDatabase  # noqa: E402
+from fichero_server.api.main import seed_ai_defaults as _seed_ai_defaults  # noqa: E402
+
+# A real install always has AI defaults: the first-launch bootstrap seeds them (#5520), and a step
+# with no model on it, its workflow or Settings is refused rather than given the first provider
+# (#5368). So the per-process app database that bare TestClient(app) / get_app_db() open gets the
+# same seed, through the same function -- opened, seeded and closed here so no connection is held
+# against an engine a fixture spawns on this base path. The `app_db` fixture seeds its own.
+_default_app_db = AppDatabase()
+try:
+    _seed_ai_defaults(_default_app_db)
+finally:
+    _default_app_db.close()
+del _default_app_db
 
 _deadlock_dump_armed = False
 
@@ -783,6 +796,7 @@ def app_db(tmp_path):
     """
     app_db_path = tmp_path / "test_app.duckdb"
     db = AppDatabase(path=app_db_path)
+    _seed_ai_defaults(db)  # what a fresh install's first launch seeds (#5520, #5368)
 
     import fichero_server.db.app as _app_db_module
     saved_singleton = _app_db_module._app_db
