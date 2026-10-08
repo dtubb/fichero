@@ -25,6 +25,8 @@ parser.add_argument("--out", required=True)
 parser.add_argument("--base", default="")
 parser.add_argument("--name", default="model")
 parser.add_argument("--device", default="cuda:0")
+# Lines a step; the engine picks it for the hardware (`compute.tune.kraken-batch-fits-the-gpu`, #5527).
+parser.add_argument("--batch", type=int, default=16)
 args = parser.parse_args()
 
 pages = sorted(glob.glob(os.path.join(args.data, "*.xml")))
@@ -39,7 +41,7 @@ if args.device.startswith("cuda"):
 # carries a cosine schedule (PP-OCRv6) has an infinite step count under early stopping with no ceiling, and ketos
 # stops at once.
 command += ["train", "-f", "page", "-q", "early", "-N", "50", "--min-epochs", "5", "--lag", "5",
-            "--schedule", "constant", "-B", "16", "-p", "0.9", "-o", os.path.join(args.out, args.name)]
+            "--schedule", "constant", "-B", str(args.batch), "-p", "0.9", "-o", os.path.join(args.out, args.name)]
 if args.base:
     command += ["-i", os.path.join(args.data, "base", args.base), "--resize", "union"]
 subprocess.run([*command, *pages], check=True)

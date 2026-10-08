@@ -16189,6 +16189,7 @@ def register_generated_openapi_commands(
     def training_train_a_kraken_reader_on_hugging_face_jobs_post(
         ctx: typer.Context,
         base: Optional[str] = typer.Option(None, "--base", help="Request field: base."),
+        batch_size: Optional[int] = typer.Option(None, "--batch-size", help="Request field: batch_size."),
         display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
         flavor: Optional[str] = typer.Option(None, "--flavor", help="Request field: flavor."),
         held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
@@ -16206,6 +16207,7 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "base": base,
+                "batch_size": batch_size,
                 "display_name": display_name,
                 "flavor": flavor,
                 "held_out_ids": held_out_ids,
@@ -16218,6 +16220,7 @@ def register_generated_openapi_commands(
                 "timeout": timeout,
             }, {
                 "base": {'type': 'string', 'nullable': True, 'title': 'Base', 'description': 'The Kraken reader to start from (a model id); none trains from nothing.', 'x-cli-required': False},
+                "batch_size": {'type': 'integer', 'maximum': 64.0, 'minimum': 1.0, 'nullable': True, 'title': 'Batch Size', 'description': "Lines per step, as on this Mac; none: the largest measured to fit the hardware's GPU (8 on a 16 GB T4), else ketos's 16.", 'x-cli-required': False},
                 "display_name": {'type': 'string', 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
                 "flavor": {'type': 'string', 'title': 'Flavor', 'description': 'Hugging Face hardware.', 'default': 't4-small', 'x-cli-required': False},
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'Pages kept home as the test; never sent.', 'x-cli-required': False},

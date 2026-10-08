@@ -611,6 +611,22 @@ needs them.
   trainer passed `-q early` with no ceiling and no schedule; the PP-OCRv6 base brings a cosine schedule,
   whose step count was then infinite, and ketos stopped at once (`OverflowError: cannot convert float
   infinity to integer`, Mosquera HF Job 6ac26009…, 72 s); the McCATMuS base trained.
+- `compute.tune.hf-token-checked-first` — **[OK]** (#5526; built: `training/hf_jobs.py` `HfJobsTarget.check_token` (whoami; a `fineGrained` token needs `job.write` and `repo.write`, a `read` one is refused) and `rejected`, called by `training/job.py` in `start` and before preparing in `run`, and for a 401/403 at sending; tested in `fichero-server/tests/unit/training/test_hf_training_preflight_to_spec.py`; the old jobs' reasons of #5526 item 4 are not rewritten) training on Hugging Face asks the service who the
+  token belongs to, and whether it may run Jobs and write to the person's repositories and buckets, BEFORE
+  anything is queued and again before the training set is prepared, so a token that cannot do the work is
+  refused in seconds, not after ten minutes of preparing. The refusal says which token was used (the one the
+  app supplied, or the one in the Keychain) and what it lacks; a token the service refuses (while checking,
+  sending or submitting) ends the job with "Hugging Face rejected the token …", never as a failed Job. When
+  the app-supplied token is refused and the Keychain holds a different one that the service accepts, the
+  refusal says so and names both; Fichero never quietly uses the other token instead. Sergio's two runs of
+  2026-10-06 prepared for ~9.6 min each and then failed at sending with "Invalid user token." from a stale
+  app-supplied key while the Keychain token was valid.
+- `compute.tune.kraken-batch-fits-the-gpu` — **[OK]** (#5527; built: `TrainKrakenRequest.batch_size`, `training/hf_jobs.py` `KRAKEN_BATCH_BY_FLAVOR` and `kraken_batch`, `hf_kraken_train.py --batch`, the row's and the start answer's `batch_size`; tested in `fichero-server/tests/unit/training/test_hf_training_preflight_to_spec.py`; the plan saying which GPU a base needs before it starts is not built) a Kraken training on Hugging Face takes an
+  optional batch size, as training on this Mac does; without one the trainer picks it from the hardware's GPU
+  memory, from a small table of measured values only (a 16 GB T4 with the PP-OCRv6 medium base ran out of
+  memory at 16 lines a step, so 8 there; elsewhere ketos's 16), and the chosen batch is on the job's row. A
+  Job that runs out of GPU memory ends with "Too big for this GPU (<hardware>) at batch N: try a smaller batch
+  or a larger GPU", with the service's reason and the log's last lines after it.
 - `compute.tune.set-excludes-flagged-lines` — **[PARTIAL]** (#5446) *Built (2026-10-05): `training/kraken_set.py` leaves out a line whose reading is empty or `null` and one whose newest check verdict (a person's or Fable's) rejects it; the manifest and the job's `training_set` count them by flag with each line's segment, say whether the check had run (`check_ran`), and `GET /api/training/set` (`fichero_training_preview_set`) counts the same set without sending it; tested in `fichero-server/tests/unit/training/test_set_excludes_flagged_lines.py`. The teacher-line check's flags (a neighbour's reading, below the set score; `source.lines.reading-checked-against-the-page`) are its reject verdicts, so they leave the set counted under `rejected`; tested in `fichero-server/tests/unit/check/test_line_against_page.py`. Not built: the set's count split by the check's own flag.* a training set leaves out every line the
   reading check flagged (`source.lines.reading-checked-against-the-page`: a reading that belongs to a
   neighbour, a null or empty reading, one below the set score) and every line a person rejected, and
