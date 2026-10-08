@@ -282,13 +282,19 @@ def _run_find_documents(db: Any, card: dict[str, Any], documents: list[str], par
     from fichero_server.finddocs import job as finddocs_job
     from fichero_server.models.found_documents import FindDocumentsRequest
 
+    from fichero_server.execution.cancellation import link_child, unlink_child
+
     finddocs_job.register_job_kinds()
     child = finddocs_job.start(db, FindDocumentsRequest(scope_ids=documents, accept_above=card.get("accept_above")),
                                started_by=started_by, watched=False)
-    return _wait(db, child, parent)
+    link_child(parent, child)  # Stop on the recipe run reaches its next folder or page at once (#5609)
+    try:
+        return _wait(db, child, parent)
+    finally:
+        unlink_child(child)
 
 
-def _run_entries(db: Any, card: dict[str, Any], documents: list[str],
+def _run_entries(db: Any, card: dict[str, Any], documents: list[str], parent: str,
                  step: dict[str, Any]) -> tuple[str | None, str, str | None]:
     """A diary or register split into its dated entries (`source.onboard.auto.diary-entries`, #5581): the Diary
     Entries workflow's own splitter, with the step's model, over the pages that have text. The step's account
@@ -301,11 +307,14 @@ def _run_entries(db: Any, card: dict[str, Any], documents: list[str],
     with_text = [page for page in pages if (page.page_content or "").strip()]
     config = LLMConfig(provider=card["provider"], model=card["model"])
     try:
-        _made, totals, errors, _lines = asyncio.run(split_pages_into_entries(db, with_text, config))
+        _made, totals, errors, _lines = asyncio.run(split_pages_into_entries(
+            db, with_text, config, stop=lambda: _stop_asked(parent)))
     except Exception as exc:  # noqa: BLE001 -- the model's failure, in its words, on the step
         step["entries"] = {"pages": len(with_text), "without_text": len(pages) - len(with_text)}
         return None, "failed", f"the entries were not split: {exc}"
     step["entries"] = {"pages": len(with_text), "without_text": len(pages) - len(with_text), **totals}
+    if _stop_asked(parent):  # stopped before its next page (#5609): `pages` says how many it split
+        return None, "cancelled", "Stopped by you"
     if errors:
         return None, "failed", "; ".join(errors)
     return None, "done", None
@@ -317,7 +326,9 @@ def _run_prepare(db: Any, documents: list[str], parent: str,
     account (`prepared`) says how many it prepared, how many were clear and how many had no image to look at."""
     from fichero_server.recipes.prepare import prepare_pages
 
-    step["prepared"] = prepare_pages(db, documents, parent)
+    step["prepared"] = prepare_pages(db, documents, parent, stop=lambda: _stop_asked(parent))
+    if _stop_asked(parent):  # stopped before its next page (#5609): the account counts the pages it looked at
+        return None, "cancelled", "Stopped by you"
     return None, "done", None
 
 
@@ -371,11 +382,15 @@ def _run_export(db: Any, card: dict[str, Any], documents: list[str]) -> tuple[st
     return None, "done", None
 
 
-def _run_publish(db: Any, card: dict[str, Any]) -> tuple[str | None, str, str | None]:
-    """The project as an 11ty static site, through the one site export (`source.job.publish`); again rewrites it."""
+def _run_publish(db: Any, card: dict[str, Any], parent: str) -> tuple[str | None, str, str | None]:
+    """The project as an 11ty static site, through the one site export (`source.job.publish`); again rewrites it.
+    Stopped (#5609), it ends before its next page and the site is left unfinished."""
     from fichero_server.export_service import export_eleventy_site
 
-    export_eleventy_site(db, card["folder"], overwrite=True, package_path=_library(db))
+    export_eleventy_site(db, card["folder"], overwrite=True, package_path=_library(db),
+                         stop=lambda: _stop_asked(parent))
+    if _stop_asked(parent):
+        return None, "cancelled", "Stopped by you"
     return None, "done", None
 
 
@@ -452,11 +467,11 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
         elif card["card"] == "find-documents":
             child, state, why = _run_find_documents(db, card, documents, job_id, started_by)
         elif card["card"] == "entries":
-            child, state, why = _run_entries(db, card, documents, step)
+            child, state, why = _run_entries(db, card, documents, job_id, step)
         elif card["card"] == "prepare":
             child, state, why = _run_prepare(db, documents, job_id, step)
         elif card["card"] == "publish":
-            child, state, why = _run_publish(db, card)
+            child, state, why = _run_publish(db, card, job_id)
         elif card["card"] == "embed":
             child, state, why = _run_embed(db, documents, job_id, started_by)
         else:

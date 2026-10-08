@@ -30,6 +30,7 @@ not tied keeps the copied text, and the entry says so (``metadata["text_from"]``
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -716,8 +717,12 @@ async def split_pages_into_entries(
     *,
     prototype_key: str = DEFAULT_PROTOTYPE_KEY,
     prompt: str | None = None,
+    stop: Callable[[], bool] | None = None,
 ) -> tuple[list[Document], dict[str, int], list[str], list[str]]:
     """Split each page, in order: (entries, totals, errors, one line per entry).
+
+    ``stop`` is asked before each page: true, the pages after are not split (Stop on the recipe run, #5609), and
+    ``totals["pages"]`` says how many were.
 
     The one splitter both the workflow tool and a recipe's ``split-into-entries`` step run (#5581).
     ``totals`` counts what the run did: unchanged, updated, created and removed entries. A page with
@@ -726,7 +731,10 @@ async def split_pages_into_entries(
     lines: list[str] = []
     errors: list[str] = []
     totals = {"unchanged": 0, "updated": 0, "created": 0, "removed": 0}
-    for page in pages:
+    for done, page in enumerate(pages):
+        if stop is not None and stop():
+            totals["pages"] = done
+            break
         try:
             entries = await split_page_into_entries(
                 db, page, llm_config, prototype_key=prototype_key, prompt=prompt

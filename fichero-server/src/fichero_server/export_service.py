@@ -388,8 +388,12 @@ def export_eleventy_site(
     overwrite: bool = False,
     package_path: str | Path | None = None,
     site_title: str | None = None,
+    stop: Callable[[], bool] | None = None,
 ) -> EleventySiteExportResult:
     """Export a folder (or subfolder) as a buildable 11ty/Netlify static site.
+
+    ``stop`` is asked before each document's page: true, the export ends there and the site is left unfinished
+    (Stop on the recipe run that publishes it, #5609).
 
     The third export target alongside Markdown and Excel (#2535), reusing the
     same document-collection + asset-copy plumbing. Folder structure maps to
@@ -437,6 +441,8 @@ def export_eleventy_site(
             if doc_id:
                 claims_by_doc.setdefault(doc_id, []).append(claim)
     for doc in documents:
+        if stop is not None and stop():
+            return result
         rel_parts = _collection_path_for(doc, by_id, root_id)
         if rel_parts:
             collections.add(rel_parts[0])
