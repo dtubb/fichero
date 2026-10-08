@@ -111,6 +111,10 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     # #4951: a bake-off is the project's comparison of readers (its evaluation job's id); starting it
     # checks every sample page through `evaluation.run`.
     "bakeoff_id": (LIBRARY, _WORKFLOW),
+    # #5550: a Find the Documents proposal over a folder's pages; reading one checks every page it names
+    # (`find_documents._readable`), and accepting it is the audited `finddocs.accept`.
+    "proposal_id": (LIBRARY, "a Find the Documents proposal over a folder's pages: a read checks every page it "
+                    "names, and a proposal naming a page the caller may not read answers 404"),
     "server_id": (LIBRARY, _CONFIG),
     # #5485: a kept export is the project's own setting (a folder, a format, per page or document);
     # it writes the whole project's work, and a page it reads is read through the exporter.
