@@ -297,6 +297,9 @@ def _resolve_selection_pairs(
         (a split spread) yields itself and its halves.
         """
         children = db.query(Document, parent_id=folder.id)
+        if folder.doc_type == DocType.group:
+            # A group is read first page to last, in the order it was given (#5570, #5604).
+            children = sorted(children, key=lambda child: child.sort_order or 0)
         for child in children:
             if child.doc_type in (DocType.folder, DocType.group):
                 _expand_folder(child, origin)
@@ -494,6 +497,43 @@ def _load_capped_folder_files(
 # =============================================================================
 
 
+def segment_work_units(db, segment_ids: list[str], library_path: str) -> tuple[list[str], list[dict]]:
+    """Each segment as a work unit: its picture, and its page standing for it (#5604).
+
+    `source.extract.run-on-any-level`: the file is the segment's own picture, cut to it by the one
+    cutter (`media/segment_pictures.py`, which extends `region_crops`); the document is the page it
+    is on, its text the segment's current reading, and it names the segment
+    (`selection.SEGMENT_TARGET_KEY`), so what a reader reads is written on the segment. A segment
+    whose picture cannot be cut honestly fails the run: it is never read as the whole page.
+    """
+    from fichero_server.api.routes.document.segment_readings import counting_texts  # noqa: PLC0415
+    from fichero_server.media.region_crops import RegionCropUnavailable  # noqa: PLC0415
+    from fichero_server.media.segment_pictures import segment_picture  # noqa: PLC0415
+    from fichero_server.workflows.selection import SEGMENT_TARGET_KEY, live_segments  # noqa: PLC0415
+
+    segments = live_segments(db, segment_ids)
+    texts = counting_texts(db, segments)
+    files: list[str] = []
+    documents: list[dict] = []
+    for segment in segments:
+        page = db.get(Document, segment.document_id)
+        if page is None:
+            raise ValueError(f"files source: segment {segment.id}'s page is not in this project")
+        if getattr(page, "exclude_from_processing", False):
+            raise ValueError(f"files source: segment {segment.id} is on a page excluded from processing")
+        try:
+            picture = segment_picture(db, segment.id, library_path=library_path)
+        except RegionCropUnavailable as exc:
+            raise ValueError(f"files source: no picture of {segment.kind} {segment.id}: {exc}") from exc
+        text = texts.get(segment.id, "")
+        unit = page.model_dump(mode="json")
+        unit["page_content"] = text
+        unit[SEGMENT_TARGET_KEY] = {"segment_id": segment.id, "level": segment.kind, "text": text}
+        files.append(picture.path)
+        documents.append(unit)
+    return files, documents
+
+
 #: The fields a reference carries: who the document is and where it sits,
 #: never its text, metadata or embedding.
 _REF_FIELDS = ("id", "name", "doc_type", "parent_id", "sequence", "path")
@@ -579,6 +619,18 @@ async def files_tool(
         raw_documents = inputs.get("documents") or state.get("documents", [])
         documents = list(raw_documents or [])
         logger.info(f"Files source tool: {len(files)} files from explicit inputs")
+        return {"files": files, "documents": documents, "count": len(files)}
+
+    # Priority 2a: a run on segments (#5604): each segment on its own picture, with its reading.
+    selected_segment_ids = list(state.get("selected_segment_ids") or [])
+    if selected_segment_ids:
+        library_path = state.get("library_path")
+        if not library_path:
+            raise ValueError("files source: a run on segments needs the project's path, and has none")
+        files, documents = segment_work_units(
+            db_manager.get_database(library_path), selected_segment_ids, library_path
+        )
+        logger.info(f"Files source tool: {len(files)} segment(s), each on its own picture")
         return {"files": files, "documents": documents, "count": len(files)}
 
     # Priority 2: UI selection passed via execute inputs

@@ -305,6 +305,9 @@ class State(TypedDict):
 
     # UI selection — document IDs selected when the user clicked Run
     selected_doc_ids: list[str]
+    #: A run on segments (#5604): the segment ids pointed at, any level. `selected_doc_ids` then
+    #: holds the pages they are on. Declared for the same reason as `selected_doc_ids`.
+    selected_segment_ids: list[str]
 
     #: Whether a selected FOLDER is expanded to its file descendants (the
     #: default) or treated as the single work unit. The workflow bar's "This

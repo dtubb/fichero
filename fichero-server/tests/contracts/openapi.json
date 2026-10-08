@@ -81555,7 +81555,9 @@
         "enum": [
           "documents",
           "folder",
-          "collection"
+          "collection",
+          "group",
+          "segments"
         ],
         "title": "SelectionKind",
         "description": "What sort of thing the user selected.\n\nAn enum, not a string, for the same reason `artifact_type` is being made\none (#4426): the generated Swift client gets a compile error instead of a\nsilent mismatch. A vocabulary the client can misspell is a vocabulary that\nwill eventually be misspelled."
