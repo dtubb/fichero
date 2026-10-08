@@ -85,7 +85,7 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
           target_factory: Callable[[], Any] | None = None) -> dict[str, Any]:
     """Queue a training job; refuses before anything is queued when it could not run."""
     from fichero_server.llm.kraken_runtime import resolve_recognition_model
-    from fichero_server.training.hf_jobs import LORA_FLAVORS, HfJobsTarget
+    from fichero_server.training.hf_jobs import LORA_FLAVORS, HfJobsTarget, kraken_batch
 
     if not request.pages_may_leave:
         raise PagesMayNotLeave("Training on Hugging Face sends this project's pages there. "
@@ -95,14 +95,18 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
     if isinstance(request, TrainKrakenRequest) and request.base:
         resolve_recognition_model(request.base)  # not installed: refused here, by name
     target = (target_factory or HfJobsTarget)()  # no token: refused here, by name
+    target.check_token()  # a token that can't run Jobs: refused here, in words (#5526)
     flavor = request.flavor or target.cheapest(LORA_FLAVORS)
     price = target.price_per_hour(flavor)
+    batch = kraken_batch(flavor, request.batch_size) if isinstance(request, TrainKrakenRequest) else None
     detail = {"card": _card_of(request), "request": request.model_dump(), "flavor": flavor,
               "price_per_hour_usd": price, "yes": {"by": started_by, "at": _now(), "to": TARGET},
-              "phase": "waiting", "history": [{"phase": "waiting", "at": _now()}]}
+              "phase": "waiting", "history": [{"phase": "waiting", "at": _now()}],
+              **({"batch_size": batch} if batch else {})}
     job_id = jobs.enqueue_remote(db, KIND, f"training:{uuid.uuid4()}", target=TARGET, detail=json.dumps(detail),
                                  reason="Waiting to send to Hugging Face", started_by=started_by)
-    return {"job_id": job_id, "flavor": flavor, "timeout": request.timeout, "price_per_hour_usd": price}
+    return {"job_id": job_id, "flavor": flavor, "timeout": request.timeout, "price_per_hour_usd": price,
+            "batch_size": batch}
 
 
 #: Phases after which the Job on Hugging Face is known to have ended (or never to have started).
@@ -162,7 +166,9 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         poll_seconds: float | None = None) -> str:
     """Carry a training job through its phases; returns the landed model's id."""
     from fichero_server.llm.kraken_runtime import resolve_recognition_model
-    from fichero_server.training.hf_jobs import LORA_TRAINER, TRAINER, HfJobsTarget, kraken_args, lora_args
+    from fichero_server.training.hf_jobs import (
+        LORA_TRAINER, TRAINER, HfJobsTarget, cannot_reach, kraken_args, kraken_batch, lora_args, ran_out_of_gpu_memory,
+    )
     from fichero_server.training.kraken_set import EmptyTrainingSet, export_training_set
     from fichero_server.training.line_pairs import write_line_pairs
 
@@ -181,7 +187,10 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     work = _work_dir(job_id)
     poll = POLL_SECONDS if poll_seconds is None else poll_seconds
 
+    batch = None if vision else (detail.get("batch_size") or kraken_batch(flavor, request.batch_size))
     if not detail.get("far_id"):
+        # Minutes of preparing are never spent on a token Hugging Face will refuse at sending (#5526).
+        target.check_token()
         _save(db, job_id, detail, phase="preparing", reason="Preparing the training set")
         data = work / "data"
         if data.exists():
@@ -213,11 +222,17 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
                 (data / "base").mkdir()
                 shutil.copy2(base_path, data / "base" / base_path.name)
                 base_file = base_path.name
-            script, args = TRAINER, kraken_args(job_id, base_file=base_file, model_name=request.name)
+            detail["batch_size"] = batch
+            script, args = TRAINER, kraken_args(job_id, base_file=base_file, model_name=request.name, batch_size=batch)
         _save(db, job_id, detail, phase="sending",
               reason=f"Sending {len(made.pages)} pages ({made.lines} lines) to Hugging Face")
-        target.send(data, job_id)
-        far_id = target.submit(job_id, script=script, script_args=args, flavor=flavor, timeout=request.timeout)
+        try:
+            target.send(data, job_id)
+            far_id = target.submit(job_id, script=script, script_args=args, flavor=flavor, timeout=request.timeout)
+        except Exception as exc:
+            if cannot_reach(exc):
+                raise target.rejected(exc) from exc  # the token, in words, not a failed Job (#5526)
+            raise
         detail["far_id"] = far_id
         _save(db, job_id, detail, phase="submitted", reason=f"Sent to Hugging Face ({flavor})")
 
@@ -252,7 +267,11 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         if far.state == "failed":
             _save(db, job_id, detail, phase="failed")
             tail = " | ".join(detail["last_lines"][-3:])
-            raise RuntimeError(f"Hugging Face: {far.message or far.stage}" + (f"; last lines: {tail}" if tail else ""))
+            why = f"Hugging Face: {far.message or far.stage}" + (f"; last lines: {tail}" if tail else "")
+            if batch and ran_out_of_gpu_memory(detail["last_lines"]):  # #5527
+                why = (f"Too big for this GPU ({flavor}) at batch {batch}: try a smaller batch or a larger GPU. "
+                       + why)
+            raise RuntimeError(why)
         break
 
     _save(db, job_id, detail, phase="fetching", reason="Bringing the trained model home")

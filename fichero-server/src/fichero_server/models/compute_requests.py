@@ -28,6 +28,8 @@ class TrainKrakenRequest(_TrainRequest):
     name: str = Field("reader", description="A short name for the trained reader's file.")
     flavor: str = Field("t4-small", description="Hugging Face hardware.")
     timeout: str = Field("4h", description="The Job's time limit; always sent (the service's default is 30 minutes).")
+    batch_size: int | None = Field(None, ge=1, le=64, description="Lines per step, as on this Mac; none: the largest "
+                                   "measured to fit the hardware's GPU (8 on a 16 GB T4), else ketos's 16.")
 
 
 class TrainVisionLoraRequest(_TrainRequest):

@@ -31,6 +31,9 @@ class FakeHub:
         self.message = message
         self.sent, self.submitted, self.cancelled, self.fetched = [], [], [], []
 
+    def check_token(self):
+        return "historian"
+
     def price_per_hour(self, flavor):
         return {NOTEBOOK_FLAVOR: 0.4, "l4x1": 0.8}.get(flavor)
 

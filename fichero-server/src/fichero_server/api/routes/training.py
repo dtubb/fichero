@@ -75,6 +75,7 @@ class TrainingStarted(BaseModel):
     flavor: str
     timeout: str
     price_per_hour_usd: float | None = None
+    batch_size: int | None = None  # Kraken: the lines a step it trains at, asked or sized to the GPU (#5527)
 
 
 class TrainingStartedHere(BaseModel):
@@ -92,6 +93,7 @@ class TrainingJobStatus(BaseModel):
     flavor: str | None = None
     far_id: str | None = None
     price_per_hour_usd: float | None = None
+    batch_size: int | None = None
     reader_id: str | None = None
     model_id: str | None = None
     training_set: dict[str, Any] | None = None

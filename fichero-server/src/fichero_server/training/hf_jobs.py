@@ -31,6 +31,16 @@ DEFAULT_TIMEOUT = "4h"
 #: weights); the cheapest listed is chosen. `a10g-small` is left out: its 15 GB of RAM is less than the
 #: bf16 weights it would have to load.
 LORA_FLAVORS = ("l4x1", "a10g-large")
+#: ketos's own batch size (lines a step), used where nothing smaller has been measured.
+KETOS_BATCH = 16
+#: ponytail: measured ceilings only, by hardware (#5527). Both T4 flavours are one 16 GB T4; PP-OCRv6's medium
+#: base ran it out of memory at 16 (job f3923a0e, 2026-10-06), so 8 there. Add a row only from a measured run.
+KRAKEN_BATCH_BY_FLAVOR = {"t4-small": 8, "t4-medium": 8}
+#: What a Job's log says when the GPU ran out of memory (torch's error and its older message).
+_OOM_MARKS = ("OutOfMemoryError", "CUDA out of memory")
+#: What a Job needs the token to allow (fine-grained token permissions).
+NEEDED_PERMISSIONS = {"job.write": "run Jobs", "repo.write": "write to your repositories and buckets"}
+APP_SUPPLIED = "the token the app supplied"
 
 #: Hugging Face's stages, in the words a job row carries.
 DONE, FAILED, CANCELLED, WAITING, RUNNING = "done", "failed", "cancelled", "waiting", "running"
@@ -40,6 +50,60 @@ _STAGES = {"COMPLETED": DONE, "ERROR": FAILED, "CANCELED": CANCELLED, "DELETED":
 
 class NoHuggingFaceToken(RuntimeError):
     """No Hugging Face token is set in Fichero."""
+
+
+class HuggingFaceTokenRejected(NoHuggingFaceToken):
+    """Hugging Face refused the token Fichero used, or it lacks a permission the work needs (#5526). A
+    kind of `NoHuggingFaceToken`: no usable token, refused before anything is sent where it can be."""
+
+
+def kraken_batch(flavor: str, asked: int | None) -> int:
+    """The batch a Kraken training runs at: the one asked for, else the measured ceiling for this hardware."""
+    return asked or KRAKEN_BATCH_BY_FLAVOR.get(flavor, KETOS_BATCH)
+
+
+def ran_out_of_gpu_memory(lines: list[str]) -> bool:
+    return any(mark in line for line in lines for mark in _OOM_MARKS)
+
+
+def token_source(token: str) -> str:
+    """Where the token in use came from, in words (#5526): the app's push wins over the Keychain."""
+    from fichero_server.security.provider_keys import supplied_api_key
+
+    if supplied_api_key("huggingface") == token:
+        return APP_SUPPLIED
+    return "the token in the Keychain" if _keychain_token() == token else "the token in the environment"
+
+
+def _keychain_token() -> str | None:
+    """The Keychain's Hugging Face token, read only to say whether it differs; never used in its place."""
+    try:
+        from fichero_server.security.keychain import get_api_key
+
+        return get_api_key("huggingface")
+    except Exception:  # noqa: BLE001 -- only for the words of a refusal
+        return None
+
+
+def _refused(exc: BaseException) -> bool:
+    return getattr(getattr(exc, "response", None), "status_code", None) in (401, 403)
+
+
+def _lacks(whoami: dict[str, Any]) -> list[str]:
+    """The permissions the work needs that this token's answer to `whoami` does not grant. An answer that
+    carries no role (an older service) is not refused on a guess."""
+    access = (whoami.get("auth") or {}).get("accessToken") or {}
+    role = access.get("role")
+    if role in (None, "write", "admin"):
+        return []
+    if role != "fineGrained":
+        return list(NEEDED_PERMISSIONS)
+    grants = access.get("fineGrained") or {}
+    have = set(grants.get("global") or [])
+    for scoped in grants.get("scoped") or []:
+        if (scoped.get("entity") or {}).get("name") == whoami.get("name"):
+            have |= set(scoped.get("permissions") or [])
+    return [p for p in NEEDED_PERMISSIONS if p not in have]
 
 
 def cannot_reach(exc: BaseException) -> bool:
@@ -98,6 +162,45 @@ class HfJobsTarget:
         self.api = api
         self.token = token or hf_token()
         self._namespace: str | None = None
+
+    def check_token(self) -> str:
+        """Ask Hugging Face who this token is and whether it may run Jobs and write the bucket, before
+        anything is prepared (#5526); returns the account name. Refused with words: which token was used,
+        what it lacks, and, when the app's token is refused while the Keychain holds a different one the
+        service accepts, both. The other token is never used instead (raise, never fall back)."""
+        try:
+            me = self.api.whoami(token=self.token)
+        except Exception as exc:
+            if not _refused(exc):
+                raise
+            raise self.rejected(exc) from exc
+        if lacks := _lacks(me):
+            raise HuggingFaceTokenRejected(
+                f"Hugging Face rejected the token for training: it accepts {token_source(self.token)} (account "
+                f"{me.get('name')}), but that token may not " + " or ".join(NEEDED_PERMISSIONS[p] for p in lacks)
+                + f" ({', '.join(lacks)} missing). Give it those permissions on huggingface.co, or save one that "
+                "has them in Settings (AI providers, Hugging Face).")
+        self._namespace = me["name"]
+        return self._namespace
+
+    def rejected(self, exc: BaseException) -> HuggingFaceTokenRejected:
+        """The refusal for a token the service refused (HTTP 401/403), in words (#5526)."""
+        source = token_source(self.token)
+        said = str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
+        words = f"Hugging Face rejected the token: {source} was refused ({said})."
+        other = _keychain_token()
+        if source == APP_SUPPLIED and other and other != self.token:
+            try:
+                name = self.api.whoami(token=other).get("name")
+            except Exception:  # noqa: BLE001 -- the Keychain's one is only described, never used
+                name = None
+            if name:
+                return HuggingFaceTokenRejected(
+                    words + f" The token in the Keychain is a different one and Hugging Face accepts it (account "
+                    f"{name}); Fichero does not switch tokens on its own: save the right one in the app's Settings "
+                    "(AI providers, Hugging Face) so the app supplies it, then start again.")
+        return HuggingFaceTokenRejected(words + " Save a valid token in Settings (AI providers, Hugging Face); it "
+                                                "needs permission to run Jobs and to write to your buckets.")
 
     @property
     def namespace(self) -> str:
@@ -174,7 +277,7 @@ class HfJobsTarget:
         stage = str(getattr(info.status.stage, "value", info.status.stage))
         return FarStatus(state=_STAGES.get(stage, RUNNING), stage=stage, message=info.status.message)
 
-    def last_lines(self, far_id: str, n: int = 20) -> list[str]:
+    def last_lines(self, far_id: str, n: int = 40) -> list[str]:
         return [str(line).rstrip() for line in self.api.fetch_job_logs(job_id=far_id, tail=n, token=self.token)]
 
     def cancel(self, far_id: str) -> None:
@@ -193,9 +296,10 @@ def job_root(job_key: str) -> str:
     return f"{MOUNT}/{job_key}"
 
 
-def kraken_args(job_key: str, *, base_file: str | None, model_name: str) -> list[str]:
+def kraken_args(job_key: str, *, base_file: str | None, model_name: str, batch_size: int = KETOS_BATCH) -> list[str]:
     root = job_root(job_key)
-    return ["--data", f"{root}/data", "--out", f"{root}/out", "--base", base_file or "", "--name", model_name]
+    return ["--data", f"{root}/data", "--out", f"{root}/out", "--base", base_file or "", "--name", model_name,
+            "--batch", str(batch_size)]
 
 
 def lora_args(job_key: str, *, base_repo: str, epochs: int, rank: int, arm: str = "answer",

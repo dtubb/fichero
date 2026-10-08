@@ -84988,6 +84988,14 @@
             "title": "Timeout",
             "description": "The Job's time limit; always sent (the service's default is 30 minutes).",
             "default": "4h"
+          },
+          "batch_size": {
+            "type": "integer",
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Batch Size",
+            "description": "Lines per step, as on this Mac; none: the largest measured to fit the hardware's GPU (8 on a 16 GB T4), else ketos's 16."
           }
         },
         "type": "object",
@@ -85531,6 +85539,11 @@
             "nullable": true,
             "title": "Price Per Hour Usd"
           },
+          "batch_size": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Batch Size"
+          },
           "reader_id": {
             "type": "string",
             "nullable": true,
@@ -85769,6 +85782,11 @@
             "type": "number",
             "nullable": true,
             "title": "Price Per Hour Usd"
+          },
+          "batch_size": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Batch Size"
           }
         },
         "type": "object",
