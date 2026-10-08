@@ -930,11 +930,17 @@ and node, not by job); a retry action for failed pages.
   job that started by itself, at its next boundary, and the island says so. Built (2026-10-03):
   `PUT /api/activity/jobs/paused`; while paused the scheduler starts nothing and a waiting job says
   "Paused by you"; `/api/activity/jobs` reports `paused` (`fichero-server/tests/unit/jobs/test_job_queue.py`). The derivative stages
-  are held too (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). Still a gap: the Mac control and the island, and the work not
-  yet on the queue (workflow runs started by themselves).
+  are held too (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). The engine starts no workflow run
+  by itself outside the queue (2026-10-08): a recipe run is a `recipes` job, held like any other, and
+  the schedule and file-trigger managers are never started (`init_scheduler`, `init_file_watcher`
+  have no caller). Still a gap: the Mac control and the island.
 - `activity.pause.global-survives-relaunch` — **[PARTIAL]** (#5355) a Mac paused at quit is
   paused at launch. Built: the switch is an app setting (`background_work_paused`), read by the
-  scheduler before every job (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the click-around leg.
+  scheduler before every job (`fichero-server/tests/unit/jobs/test_job_queue.py`). Pinned (2026-10-08): after a
+  relaunch the open's resume puts interrupted jobs back to waiting without starting them, and
+  `/api/activity/jobs` says `paused` and "Paused by you" until the switch is turned off
+  (`test_job_queue.py::TestPause::test_pause_survives_a_relaunch_and_activity_says_so`). Still a gap:
+  the click-around leg.
 - `activity.pause.per-job` — **[PARTIAL]** (#5356) Pause, Resume and Cancel on any row, applying
   to its children. Built (2026-10-03, 2026-10-04): any row in the `jobs` table can be paused,
   resumed and cancelled (`PUT /api/activity/jobs/{id}/paused`, `POST /api/activity/jobs/{id}/cancel`);
