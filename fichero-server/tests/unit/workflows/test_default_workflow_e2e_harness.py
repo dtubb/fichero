@@ -143,9 +143,7 @@ def test_catalogue_default_workflow_processes_imported_pdf_page_children(
     final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
 
     _assert_workflow_completed(final_state)
-    parent_doc = db.get(Document, parent_doc_id)
-    assert parent_doc is not None
-    assert parent_doc.page_content == "Catalogue narrative for the regression fixture."
+    _narrative_is_the_description(db, parent_doc_id)
 
     assert len(db.all(KnowledgeEntity)) > before_entities
     assert len(db.all(KnowledgeClaim)) > before_claims
@@ -805,9 +803,7 @@ def _assert_artifacts_landed(
     target_artifacts = db.query(Artifact, document_id=catalogue_target_id)
     assert any(a.artifact_type == "catalogue.narrative" for a in target_artifacts)
 
-    target_doc = db.get(Document, catalogue_target_id)
-    assert target_doc is not None
-    assert target_doc.page_content == "Catalogue narrative for the regression fixture."
+    _narrative_is_the_description(db, catalogue_target_id)
 
     if catalogue_target_id != source_doc_id:
         # Folder shape: catalogue writes to the folder, so the source file
@@ -815,9 +811,7 @@ def _assert_artifacts_landed(
         source_doc = db.get(Document, source_doc_id)
         assert source_doc is not None
         assert source_doc.page_content == FIXTURE_TEXT
-    # File shape (#1291): catalogue writes its narrative directly onto the
-    # selected file (which is the resolved container), so page_content on
-    # the source doc has already been updated to the narrative above.
+    # File shape (#1291): the narrative is the selected file's description reading; its text is kept (#5599).
 
 
 def _assert_kg_rows_landed(
@@ -1437,3 +1431,16 @@ def test_catalogue_twostage_folder_writes_kg_rows_to_child_docs(
         "expected no entity-linked claims on folder container when child "
         "doc_ids are available"
     )
+
+
+NARRATIVE = "Catalogue narrative for the regression fixture."
+
+def _narrative_is_the_description(db, document_id: str) -> None:
+    """`source.extract.catalogue-never-overwrites-text` (#5599): the catalogue's narrative is the document's live
+    description reading; its own text is never the narrative."""
+    from fichero_server.api.routes.document.content_representations import list_representations
+
+    doc = db.get(Document, document_id)
+    assert doc is not None and doc.page_content != NARRATIVE
+    rows = asyncio.run(list_representations(document_id, db=db)).items
+    assert [r.content for r in rows if r.kind == "description" and r.retracted_at is None] == [NARRATIVE]
