@@ -32,6 +32,7 @@ def hold_the_run(monkeypatch):
 
     monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
     monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs: [])
+    monkeypatch.setattr(start, "local_models_to_download", lambda runs: [])  # #5583: a missing model is a download
 
 
 def _save(client, recipe, cloud_allowed=False):
