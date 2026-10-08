@@ -142,6 +142,19 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   `{quality}.{format}`), whose commands and tools sent the braces literally. Built: the shared parse
   takes every `{name}` in the path (`openapi_operations.py`). Pinned on every generated command by
   `fichero-cli/tests/test_cli_path_ids_positional.py`.
+- `openapi.cli.flags-say-what-they-take` **[OK]** (#5501) a generated flag's `--help` is the field's
+  description from the contract (its choices and default after), never only `Request field: X`, as the
+  MCP tool's parameter doc says it (one `field_doc` in `openapi_operations.py`). A list of plain values
+  (`languages`, `scripts`, `document_ids`) is given by repeating the flag, as one comma-separated value,
+  or as a JSON list, and its help says so; a structured field (an object, a list of objects) says it
+  takes JSON. The request models of recipes, documents, segments and workflow runs describe every field.
+  Pinned by `fichero-cli/tests/test_cli_flags_and_names.py`.
+- `openapi.cli.names-from-the-handler` **[OK]** (#5501) a generated command is named, as its MCP tool is,
+  by the route handler's name less the words its group already says (`evaluation start`,
+  `sync-folders tie`), never by cutting the group's words out of the summary sentence
+  (`sync-folders tie-the-project-to-a-on-the-engine-s-disk`). The name it had before runs still, hidden,
+  so a command written down keeps working. A generated command never takes the name of a hand-written
+  one in the same group (typer keeps one of two). Pinned by `fichero-cli/tests/test_cli_flags_and_names.py`.
 
 ### C. Driving the app: AppleScript and App Intents
 

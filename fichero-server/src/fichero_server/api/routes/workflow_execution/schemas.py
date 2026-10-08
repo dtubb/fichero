@@ -26,10 +26,10 @@ UNREAD_TARGET_INPUT_KEYS = ("files", "documents", "docs", "doc_ids", "document_i
 class ExecuteWorkflowRequest(BaseModel):
     """Request to execute a workflow."""
 
-    workflow_id: str
-    inputs: dict[str, Any] = Field(default_factory=dict)
-    thread_id: str | None = None  # Optional - generated if not provided
-    checkpoint_ns: str = ""  # Checkpoint namespace for sub-workflows
+    workflow_id: str = Field(description='The workflow to run.')
+    inputs: dict[str, Any] = Field(default_factory=dict, description="The workflow's inputs, a JSON object.")
+    thread_id: str | None = Field(default=None, description="Continue this run's thread; made up when not given.")  # Optional - generated if not provided
+    checkpoint_ns: str = Field(default="", description='Checkpoint namespace, for a sub-workflow.')  # Checkpoint namespace for sub-workflows
     interrupt_before: list[str] = Field(
         default_factory=list
     )  # Node IDs to pause before
@@ -49,15 +49,15 @@ class ExecuteWorkflowRequest(BaseModel):
     #: every child run re-OCR its pages, which is minutes of work nobody asked
     #: for. A user holding Option to force a recompute is a different intent
     #: from the runtime declining to reuse a node result.
-    force_recompute: bool = False
-    provider_override: str | None = None  # Optional run-level provider override
-    model_override: str | None = None  # Optional run-level model override
+    force_recompute: bool = Field(default=False, description='Run it again for real: bypass every cache.')
+    provider_override: str | None = Field(default=None, description='Run every step on this provider.')  # Optional run-level provider override
+    model_override: str | None = Field(default=None, description='Run every step with this model.')  # Optional run-level model override
 
     # What the user pointed at (#4397/#4396). Before this there was NO schema
     # for the selection at all — `selected_doc_ids` rode untyped inside
     # `inputs` — which is why a client sending a whole folder for a one-file
     # selection could not be rejected: there was no contract to violate.
-    selection: WorkflowSelection | None = None
+    selection: WorkflowSelection | None = Field(default=None, description='What the run reads: the documents or folder pointed at.')
 
     @model_validator(mode="after")
     def _derive_selection(self) -> "ExecuteWorkflowRequest":
@@ -141,12 +141,12 @@ class ExecutionStatusResponse(BaseModel):
 class ResumeWorkflowRequest(BaseModel):
     """Request to resume a paused workflow."""
 
-    inputs: dict[str, Any] | None = None  # Optional new inputs
+    inputs: dict[str, Any] | None = Field(default=None, description='New inputs for the paused run.')  # Optional new inputs
     # The human's answer to a workflow that paused on a LangGraph interrupt()
     # (human-in-the-loop, #2529). When set, the run is resumed via
     # Command(resume=answer) so the value is delivered back to the interrupt()
     # call — a plain inputs dict would NOT reach it.
-    answer: Any | None = None
+    answer: Any | None = Field(default=None, description='The answer to the question the run paused on.')
 
 
 class CancelWorkflowRequest(BaseModel):

@@ -25,11 +25,11 @@ from openapi_operations import (  # noqa: E402
     OPENAPI,
     ROOT,
     Operation,
-    RequestField,
     _build_operations,
     _camel_resource_tokens,
     _identifier,
     _is_event_stream,
+    field_doc,
 )
 
 OUTPUT = ROOT / "fichero-mcp" / "src" / "fichero_mcp" / "openapi_tools_generated.py"
@@ -92,15 +92,7 @@ def _py_type(schema: dict) -> str:
     return _PY_TYPES.get(kind, "Any")
 
 
-def _field_doc(field: RequestField) -> str:
-    schema = field.schema
-    text = " ".join(str(schema.get("description") or schema.get("title") or field.name).split())
-    text = text if text.endswith((".", "?", "!", ")")) else text + "."
-    if schema.get("enum"):
-        text += " One of: " + ", ".join(str(v) for v in schema["enum"]) + "."
-    if "default" in schema and schema["default"] is not None:
-        text += f" Default: {json.dumps(schema['default'])}."
-    return text
+_field_doc = field_doc
 
 
 def _param(var: str, annotation: str, doc: str, required: bool) -> str:

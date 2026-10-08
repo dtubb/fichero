@@ -252,6 +252,16 @@ Readings
   wins; independent readings stay equal alternatives
   (`fichero-server/tests/unit/api/test_a_correction_counts.py::test_a_correction_of_a_persons_reading_does_not_blank_the_line`
   and five more).
+- `source.reading.correct-a-line` — **[OK]** (#5499) correcting a line takes the segment and its new
+  text, nothing more: `POST /api/segments/{segment_id}/correct` `{text}` (CLI `segments correct-line
+  <segment_id> --text ...`, MCP `fichero_segments_correct_line`). It is one `representation.create`, the
+  action every correction is, so it is audited and undone as one; the engine fills in the document, the
+  reading it corrects (the one counting now, or the file's text a provisional reading still lives in)
+  and the compare-and-set: when another reading counts than the one the caller read
+  (`expected_counting_id`), it is refused with 409 and nothing is written. Who corrects is the caller,
+  so a person's correction counts over a machine's reading. The `kind` defaults to `transcription`.
+  Left: the bake-off counting a person's readings on a model's pass as ground truth (#4951).
+  Pinned by `fichero-server/tests/unit/api/test_correct_a_line.py`.
 - `source.reading.equal-alternatives` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestStrictProject::test_three_peoples_readings_coexist_and_nothing_counts_until_one_is_chosen`) several readings of one kind can stand as equally
   valid, apart from a machine's ranked guesses.
 - `source.reading.chosen-is-worked-out` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestALiveHumanChoiceWinsInAnyProject::test_a_superseded_choice_is_history_not_a_vote`) "which reading counts" is worked out from recorded

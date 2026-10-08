@@ -178,21 +178,21 @@ class DocumentCreate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(min_length=1)
-    parent_id: Optional[str] = None
-    node_kind: Optional[str] = None
-    doc_type: DocType = DocType.file
-    file_type: Optional[FileType] = None
-    path: Optional[str] = None
-    page_content: Optional[str] = None
-    metadata: dict = {}
-    prototype_key: Optional[str] = None
-    position_x: Optional[float] = None
-    position_y: Optional[float] = None
-    position_z: Optional[float] = None
-    rotation_z: Optional[float] = None
-    scale: Optional[float] = None
-    z_index: Optional[int] = None
+    name: str = Field(min_length=1, description="The new node's name.")
+    parent_id: Optional[str] = Field(default=None, description='The folder to create it in; none puts it at the top of the project.')
+    node_kind: Optional[str] = Field(default=None, description="The node's kind (folder, page, document, ...).")
+    doc_type: DocType = Field(default=DocType.file, description='Whether the node is a file or a folder.')
+    file_type: Optional[FileType] = Field(default=None, description="The file's type (pdf, image, text, ...).")
+    path: Optional[str] = Field(default=None, description="The file's path inside the project's storage.")
+    page_content: Optional[str] = Field(default=None, description="The page's text.")
+    metadata: dict = Field(default={}, description='Free metadata, a JSON object.')
+    prototype_key: Optional[str] = Field(default=None, description='The prototype (kind of record) the node takes its attributes from.')
+    position_x: Optional[float] = Field(default=None, description='Its x on the canvas.')
+    position_y: Optional[float] = Field(default=None, description='Its y on the canvas.')
+    position_z: Optional[float] = Field(default=None, description='Its z on the canvas.')
+    rotation_z: Optional[float] = Field(default=None, description='Its rotation on the canvas, in degrees.')
+    scale: Optional[float] = Field(default=None, description='Its scale on the canvas.')
+    z_index: Optional[int] = Field(default=None, description='Its stacking order on the canvas.')
 
     def audit_params(self) -> dict:
         """Every argument except the page's text, which the document row holds once (#5057, the
@@ -206,30 +206,30 @@ class DocumentUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: Optional[str] = None
-    parent_id: Optional[str] = None
-    node_kind: Optional[str] = None
-    doc_type: Optional[DocType] = None
-    file_type: Optional[FileType] = None
-    path: Optional[str] = None
-    page_content: Optional[str] = None
-    status: Optional[Status] = None
-    is_read: Optional[bool] = None
-    is_starred: Optional[bool] = None
-    is_flagged: Optional[bool] = None
-    exclude_from_processing: Optional[bool] = None
-    exclude_from_search: Optional[bool] = None
-    metadata: Optional[dict] = None
-    prototype_key: Optional[str] = None
+    name: Optional[str] = Field(default=None, description="The node's new name.")
+    parent_id: Optional[str] = Field(default=None, description='The folder to move it into.')
+    node_kind: Optional[str] = Field(default=None, description="The node's new kind.")
+    doc_type: Optional[DocType] = Field(default=None, description='Whether the node is a file or a folder.')
+    file_type: Optional[FileType] = Field(default=None, description="The file's type.")
+    path: Optional[str] = Field(default=None, description="The file's path inside the project's storage.")
+    page_content: Optional[str] = Field(default=None, description="The page's new text.")
+    status: Optional[Status] = Field(default=None, description="The node's processing status.")
+    is_read: Optional[bool] = Field(default=None, description='Mark it read or unread.')
+    is_starred: Optional[bool] = Field(default=None, description='Star or unstar it.')
+    is_flagged: Optional[bool] = Field(default=None, description='Flag or unflag it.')
+    exclude_from_processing: Optional[bool] = Field(default=None, description='Leave it out of runs.')
+    exclude_from_search: Optional[bool] = Field(default=None, description='Leave it out of search.')
+    metadata: Optional[dict] = Field(default=None, description='Free metadata, a JSON object; replaces the whole object.')
+    prototype_key: Optional[str] = Field(default=None, description='The prototype (kind of record) the node takes its attributes from.')
     # Prototype-scoped node attribute VALUES (datasets Stage 1). Wholesale
     # replace, like metadata; a per-key patch arrives with the Stage 2 grid.
-    attributes: Optional[dict] = None
-    position_x: Optional[float] = None
-    position_y: Optional[float] = None
-    position_z: Optional[float] = None
-    rotation_z: Optional[float] = None
-    scale: Optional[float] = None
-    z_index: Optional[int] = None
+    attributes: Optional[dict] = Field(default=None, description="The prototype's attribute values, a JSON object; replaces the whole object.")
+    position_x: Optional[float] = Field(default=None, description='Its x on the canvas.')
+    position_y: Optional[float] = Field(default=None, description='Its y on the canvas.')
+    position_z: Optional[float] = Field(default=None, description='Its z on the canvas.')
+    rotation_z: Optional[float] = Field(default=None, description='Its rotation on the canvas, in degrees.')
+    scale: Optional[float] = Field(default=None, description='Its scale on the canvas.')
+    z_index: Optional[int] = Field(default=None, description='Its stacking order on the canvas.')
 
 
 class DocumentExclusionScope(str, Enum):
@@ -241,11 +241,11 @@ class DocumentExclusionScope(str, Enum):
 
 
 class DocumentBatchExcludeRequest(BaseModel):
-    document_ids: list[str]
-    excluded: bool
-    reason: str | None = None
+    document_ids: list[str] = Field(description='The nodes to change.')
+    excluded: bool = Field(description='True leaves them out; false brings them back.')
+    reason: str | None = Field(default=None, description='Why, in a few words.')
     # Default keeps every existing caller's behaviour (#4580).
-    scope: DocumentExclusionScope = DocumentExclusionScope.processing
+    scope: DocumentExclusionScope = Field(default=DocumentExclusionScope.processing, description='What they are left out of: processing (runs) or search.')
 
 
 class DocumentBatchExcludeResponse(BaseModel):
@@ -256,10 +256,10 @@ class DocumentBatchExcludeResponse(BaseModel):
 class PrototypeAssignRequest(BaseModel):
     # None CLEARS the assignment — the picker's "None" must reach the
     # database, not stop at the UI (it silently no-opped before 2026-08-14).
-    prototype_key: str | None = None
-    include_descendants: bool = False
-    page_start: int | None = None
-    page_end: int | None = None
+    prototype_key: str | None = Field(default=None, description='The prototype to assign; null clears the assignment.')
+    include_descendants: bool = Field(default=False, description='Assign it to every node inside as well.')
+    page_start: int | None = Field(default=None, description='The first page of the range it applies to.')
+    page_end: int | None = Field(default=None, description='The last page of the range it applies to.')
 
 
 class PrototypeAssignResponse(BaseModel):
@@ -4127,8 +4127,8 @@ def _action_import_upload_file(
 
 
 class DocumentGroupRequest(BaseModel):
-    name: str = Field(min_length=1)
-    child_ids: list[str] = Field(min_length=2)
+    name: str = Field(min_length=1, description="The new group's name.")
+    child_ids: list[str] = Field(min_length=2, description='The nodes to put in the group (two or more).')
 
 
 class DocumentGroupParams(DocumentGroupRequest):

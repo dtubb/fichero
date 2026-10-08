@@ -308,11 +308,11 @@ class WorkflowToolListResponse(BaseModel):
 class WorkflowCostEstimateRequest(BaseModel):
     """Inputs for pre-run workflow cost estimation."""
 
-    file_count: int = 1
-    estimated_input_tokens_per_file: int = 1200
-    estimated_output_tokens_per_file: int = 300
-    provider: str | None = None
-    model: str | None = None
+    file_count: int = Field(default=1, description='How many files the run reads (used when no selection is given).')
+    estimated_input_tokens_per_file: int = Field(default=1200, description='Tokens sent per file.')
+    estimated_output_tokens_per_file: int = Field(default=300, description='Tokens returned per file.')
+    provider: str | None = Field(default=None, description='The provider to price.')
+    model: str | None = Field(default=None, description='The model to price.')
     # The SELECTION, so the estimate can price what the run will actually touch
     # rather than what the client happened to send. A folder or a PDF is one
     # id but many units of work; counting the selection verbatim priced a
@@ -320,7 +320,7 @@ class WorkflowCostEstimateRequest(BaseModel):
     # engine's own scope resolver expands these to their leaf count and that
     # becomes the effective file_count — file_count above stays the fallback for
     # a caller that already knows the resolved number.
-    selected_doc_ids: list[str] | None = None
+    selected_doc_ids: list[str] | None = Field(default=None, description='The selection the run will read; a folder counts its pages.')
 
 
 class WorkflowCostEstimateResponse(BaseModel):

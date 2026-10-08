@@ -29,6 +29,8 @@ from openapi_operations import (  # noqa: E402,F401  (re-exported: tests read th
     _identifier,
     _is_event_stream,
     _slug,
+    field_doc,
+    scalar_list_items,
 )
 
 OUTPUT = ROOT / "fichero-cli" / "src" / "fichero_cli" / "openapi_surface_generated.py"
@@ -85,11 +87,27 @@ def _default_name(op: Operation) -> str:
 
 
 def _command_name(op: Operation, seen: set[str]) -> str:
+    """The route handler's name less the words its group already says, as the MCP tool is named
+    (`start_evaluation` -> `evaluation start`, `save_project_setup` -> `recipes save-project-setup`).
+    A summary is a sentence; cutting the group's words out of it left names like
+    `tie-the-project-to-a-on-the-engine-s-disk` (#5501)."""
+    resource_tokens = _camel_resource_tokens(op.resource)
+    tokens = [t for t in _slug(op.function_name or op.operation_id).split("-") if t]
+    rest = [t for t in tokens if t not in resource_tokens] or tokens
+    return _unique_name("-".join(rest) or _default_name(op), op, seen)
+
+
+def _summary_name(op: Operation, seen: set[str]) -> str:
+    """The name the generator gave before #5501: the summary less the group's words. Kept as a
+    hidden alias, so a command written down under it still runs."""
     resource_tokens = _camel_resource_tokens(op.resource)
     summary_tokens = [t for t in _slug(op.summary).split("-") if t]
     filtered = [t for t in summary_tokens if t not in resource_tokens]
     candidate = "-".join(filtered) if filtered else _default_name(op)
-    candidate = candidate or _default_name(op)
+    return _unique_name(candidate or _default_name(op), op, seen)
+
+
+def _unique_name(candidate: str, op: Operation, seen: set[str]) -> str:
     if candidate not in seen:
         seen.add(candidate)
         return candidate
@@ -129,52 +147,76 @@ def _annotation(schema_type: str, required: bool) -> str:
     return base if required else f"Optional[{base}]"
 
 
+#: What a list flag's help adds: the three ways to give it (#5501).
+LIST_HELP = " A list: repeat the flag, or give the values comma-separated, or as JSON."
+
+
+def _flag_option(flag_name: str, required: bool, is_bool: bool, help_text: str) -> str:
+    flag = f"--{flag_name.replace('_', '-')}"
+    default = "..." if required else "None"
+    if is_bool:
+        flag = f"{flag}/--no-{flag_name.replace('_', '-')}"
+    return f"typer.Option({default}, {flag!r}, help={help_text!r})"
+
+
+def _query_annotation(param: QueryParam) -> str:
+    if param.schema_type == "array":
+        return "list[str]" if param.required else "Optional[list[str]]"
+    return _annotation(param.schema_type, param.required)
+
+
 def _option_expr(var_name: str, param: QueryParam) -> str:
-    flag = f"--{param.name.replace('_', '-')}"
-    help_text = f"Query parameter: {param.name}."
-    if param.schema_type == "boolean":
-        if param.required:
-            return f'typer.Option(..., "{flag}/--no-{param.name.replace("_", "-")}", help="{help_text}")'
-        return f'typer.Option(None, "{flag}/--no-{param.name.replace("_", "-")}", help="{help_text}")'
-    default = "..." if param.required else "None"
-    return f'typer.Option({default}, "{flag}", help="{help_text}")'
+    help_text = " ".join(param.description.split()) or f"Query parameter: {param.name}"
+    help_text = help_text if help_text.endswith((".", "?", "!", ")")) else help_text + "."
+    if param.schema_type == "array":
+        help_text += LIST_HELP
+    return _flag_option(param.name, param.required, param.schema_type == "boolean", help_text)
 
 
 def _request_field_annotation(field: RequestField) -> str:
     schema_type = field.schema.get("type")
     if schema_type in {"integer", "number", "boolean"}:
         return _annotation(schema_type, field.required)
+    if scalar_list_items(field.schema):
+        return "list[str]" if field.required else "Optional[list[str]]"
     return "str" if field.required else "Optional[str]"
 
 
+def _request_field_help(field: RequestField) -> str:
+    """The field's schema description, then how to give it: a list three ways, anything
+    structured as JSON (#5501). It used to say only `Request field: <name>.`"""
+    text = field_doc(field)
+    schema = field.schema
+    if scalar_list_items(schema):
+        return text + LIST_HELP
+    if schema.get("type") in {"array", "object"} or any(k in schema for k in ("$ref", "allOf", "anyOf", "oneOf")):
+        return text + " JSON."
+    return text
+
+
 def _request_field_option_expr(field: RequestField) -> str:
-    flag = f"--{field.name.replace('_', '-')}"
-    help_text = f"Request field: {field.name}."
-    schema_type = field.schema.get("type")
-    if schema_type == "boolean":
-        if field.required:
-            return f'typer.Option(..., "{flag}/--no-{field.name.replace("_", "-")}", help="{help_text}")'
-        return f'typer.Option(None, "{flag}/--no-{field.name.replace("_", "-")}", help="{help_text}")'
-    default = "..." if field.required else "None"
-    return f'typer.Option({default}, "{flag}", help="{help_text}")'
+    return _flag_option(
+        field.name, field.required, field.schema.get("type") == "boolean", _request_field_help(field)
+    )
 
 
-def _emit_function(op: Operation, command_name: str) -> list[str]:
+def _emit_function(op: Operation, command_name: str, aliases: list[str] = ()) -> list[str]:
     used_identifiers = {"ctx", "body", "body_file", "field", "upload", "payload"}
     param_map: list[tuple[str, str]] = []
-    lines = ["    @target_app.command(" + json.dumps(command_name) + ")", f"    def {_identifier(f'{op.resource}_{command_name}_{op.method.lower()}', set())}("]
+    lines = [f"    @target_app.command({json.dumps(alias)}, hidden=True)" for alias in aliases]
+    lines += ["    @target_app.command(" + json.dumps(command_name) + ")", f"    def {_identifier(f'{op.resource}_{command_name}_{op.method.lower()}', set())}("]
     lines.append("        ctx: typer.Context,")
-    for path_param in op.path_params:
+    path_docs = op.path_param_descriptions or ("",) * len(op.path_params)
+    for path_param, path_doc in zip(op.path_params, path_docs):
         var_name = _identifier(path_param, used_identifiers)
         param_map.append((path_param, var_name))
-        lines.append(
-            f'        {var_name}: str = typer.Argument(..., help="Path parameter: {path_param}."),'
-        )
+        help_text = " ".join(path_doc.split()) or f"Path parameter: {path_param}."
+        lines.append(f"        {var_name}: str = typer.Argument(..., help={help_text!r}),")
     for query_param in op.query_params:
         var_name = _identifier(query_param.name, used_identifiers)
         param_map.append((query_param.name, var_name))
         lines.append(
-            f"        {var_name}: {_annotation(query_param.schema_type, query_param.required)} = "
+            f"        {var_name}: {_query_annotation(query_param)} = "
             + _option_expr(var_name, query_param)
             + ","
         )
@@ -228,6 +270,8 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
         query_lines = []
         for query_param in op.query_params:
             var_name = next(v for source, v in param_map if source == query_param.name)
+            if query_param.schema_type == "array":
+                var_name = f"_list_values({var_name})"
             query_lines.append(f'                "{query_param.name}": {var_name},')
         lines.append("            params = {")
         lines.extend(query_lines)
@@ -276,12 +320,43 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
     return lines
 
 
+CLI_MAIN = ROOT / "fichero-cli" / "src" / "fichero_cli" / "__main__.py"
+
+
+def _hand_written_commands() -> dict[str, set[str]]:
+    """The command names `__main__.py` writes by hand into a group the generated commands join
+    (its `existing_apps` map). A generated command never takes one of them: typer keeps the last
+    registration, so a clash hides one of the two (#5501)."""
+    source = CLI_MAIN.read_text(encoding="utf-8")
+    block = re.search(r"existing_apps=\{(.*?)\}", source, re.S)
+    app_to_resource = {
+        var: resource for resource, var in re.findall(r'"([\w-]+)":\s*(\w+)', block.group(1) if block else "")
+    }
+    names: dict[str, set[str]] = {}
+    for var, name in re.findall(r'@(\w+)\.command\(\s*"([^"]+)"', source):
+        if var in app_to_resource:
+            names.setdefault(app_to_resource[var], set()).add(name)
+    return names
+
+
 def _generate_module(operations: list[Operation]) -> str:
     per_resource: dict[str, list[tuple[str, Operation]]] = {}
-    seen_per_resource: dict[str, set[str]] = {}
+    seen_per_resource: dict[str, set[str]] = {
+        resource: set(names) for resource, names in _hand_written_commands().items()
+    }
+    old_seen: dict[str, set[str]] = {}
+    old_names: dict[int, str] = {}
     for op in operations:
         command_name = _command_name(op, seen_per_resource.setdefault(op.resource, set()))
         per_resource.setdefault(op.resource, []).append((command_name, op))
+        old_names[id(op)] = _summary_name(op, old_seen.setdefault(op.resource, set()))
+    #: The pre-#5501 name, hidden, where it differs and names no other command of the group.
+    aliases: dict[int, list[str]] = {
+        id(op): [old_names[id(op)]]
+        for resource, named in per_resource.items()
+        for command_name, op in named
+        if old_names[id(op)] not in seen_per_resource[resource]
+    }
 
     lines = [
         '"""Auto-generated OpenAPI CLI commands.',
@@ -301,11 +376,40 @@ def _generate_module(operations: list[Operation]) -> str:
         "from fichero_cli import FicheroClient",
         "",
         "",
+        "def _list_values(values: Optional[list[str]]) -> Optional[list[str]]:",
+        '    """A list flag\'s values: repeated flags each whole; one value as JSON when it is a JSON',
+        '    list, else split on commas (#5501)."""',
+        "    if values is None:",
+        "        return None",
+        "    if len(values) == 1:",
+        "        raw = values[0].strip()",
+        '        if raw.startswith("["):',
+        "            try:",
+        "                parsed = json.loads(raw)",
+        "            except json.JSONDecodeError as exc:",
+        '                raise typer.BadParameter(f"Invalid JSON list: {exc}") from exc',
+        "            if not isinstance(parsed, list):",
+        '                raise typer.BadParameter("Expected a JSON list.")',
+        "            return parsed",
+        '        return [part.strip() for part in raw.split(",") if part.strip()]',
+        "    return list(values)",
+        "",
+        "",
         "def _coerce_json_field(value: Any, schema: dict[str, Any]) -> Any:",
         '    """Coerce CLI option values into the request-body field shape."""',
         "    if value is None:",
         "        return None",
         '    schema_type = schema.get("type")',
+        "    if isinstance(value, list):",
+        "        items = _list_values(value) or []",
+        '        item_type = (schema.get("items") or {}).get("type")',
+        '        if item_type in {"integer", "number"}:',
+        "            cast = int if item_type == \"integer\" else float",
+        "            try:",
+        "                return [item if isinstance(item, (int, float)) else cast(item) for item in items]",
+        "            except ValueError as exc:",
+        '                raise typer.BadParameter(f"Expected numbers: {exc}") from exc',
+        "        return items",
         '    if schema_type in {"array", "object"} or "$ref" in schema or "allOf" in schema or "anyOf" in schema or "oneOf" in schema:',
         "        if not isinstance(value, str):",
         "            return value",
@@ -413,7 +517,7 @@ def _generate_module(operations: list[Operation]) -> str:
         )
         for command_name, op in per_resource[resource]:
             lines.append("")
-            lines.extend(_emit_function(op, command_name))
+            lines.extend(_emit_function(op, command_name, aliases.get(id(op), [])))
 
     lines.append("")
     return "\n".join(lines) + "\n"
