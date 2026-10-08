@@ -176,13 +176,12 @@ def test_the_kinds_of_names_reach_the_names_step(client, db, pages, tmp_path, en
     assert run["tool_config"] == {"extract_entities_only": {"entity_types": "people,organizations"}}
 
     # The spaCy pipeline at the model boundary: it finds a person, a place and an organisation on every page.
-    from types import SimpleNamespace
 
     from fichero_server.workflows.ner import providers
 
     class Finder:
         async def extract(self, text, *, language=None):
-            return [SimpleNamespace(name=n, type=t, aliases=[], metadata={}) for n, t in
+            return [providers._record(name=n, entity_type=t, provider_name="spacy", model_name=None) for n, t in
                     (("Juan Pérez", "person"), ("Quito", "location"), ("Cabildo de Quito", "organization"))]
 
     monkeypatch.setattr(local_models, "spacy_pipeline_available", lambda name: True)
