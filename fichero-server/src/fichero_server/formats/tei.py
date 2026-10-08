@@ -143,6 +143,11 @@ TEI_MARKS = "tei:marks"
 #: (`page_export.page_from_library`), each {kind, start, end, reason, place, certainty, extent...}.
 #: The TEI writer draws them as the elements an import reads them from (#5179).
 EDITORIAL_FACTS = "editorial:facts"
+#: `foreign` key on an EXPORTED segment: the record's names and dates on the reading written
+#: (`page_export._record_marks`, #5603), each {kind: "name"|"date", start, end, tag, ref, type, when}.
+#: The TEI writer draws a name as `<persName|placeName|orgName|rs ref=...>` and a date as `<date when=...>`
+#: at its span; the text itself is never changed.
+RECORD_MARKS = "record:marks"
 
 #: `<note type=...>` that carries a word segment whose text is not in its line's text (#5083).
 UNPLACED_WORD = "unplaced-word"
@@ -884,8 +889,11 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 "TEI's apparatus lists rival readings but has no way to say WHICH one a "
                 "project counts, so the choice is not carried",
             )
+            if segment.foreign.get(RECORD_MARKS):
+                report.note("names and dates not inline", len(segment.foreign[RECORD_MARKS]),
+                            "a line written as rival readings has no single text to mark names and dates in")
         else:
-            facts = segment.foreign.get(EDITORIAL_FACTS) or []
+            facts = [*(segment.foreign.get(EDITORIAL_FACTS) or []), *(segment.foreign.get(RECORD_MARKS) or [])]
             if facts:
                 _append_marked(target, first, facts)
             else:
@@ -895,6 +903,17 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         """The TEI element an import reads this fact from (`format_import._editorial_facts`)."""
         kind = fact["kind"]
         attrs: dict[str, str] = {}
+        if kind == "name":  # a mention, pointing at its entity by the record's own id (#5603)
+            attrs["ref"] = f"fichero:entity:{fact['ref']}"
+            if fact["tag"] == "rs" and fact.get("type"):
+                attrs["type"] = fact["type"]
+            return etree.Element(q(fact["tag"]), attrs)
+        if kind == "date":  # a date a claim states, at the words that write it (#5603)
+            if fact.get("when"):
+                attrs["when"] = fact["when"]
+            if fact.get("ref"):
+                attrs["ana"] = f"fichero:claim:{fact['ref']}"
+            return etree.Element(q("date"), attrs)
         cert = fact.get("certainty")
         if cert is not None:
             attrs["cert"] = "high" if cert >= 0.9 else "medium" if cert >= 0.6 else "low"
@@ -1012,6 +1031,9 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             describe(holder, line)
         else:
             describe(etree.Element("x"), line)  # reports inline-markup losses only
+        if words and line.foreign.get(RECORD_MARKS):
+            report.note("names and dates not inline", len(line.foreign[RECORD_MARKS]),
+                        "a line written as its words has no line text to mark names and dates in")
         if words and _words_in_text(holder, line, words, zone_for, describe, q, report):
             pass
         elif words:

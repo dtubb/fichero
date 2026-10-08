@@ -153,6 +153,7 @@ def page_from_library(
     segments: list[PageSegment] = []
     rule = project_record_rule(db)
     retired_memo: dict[tuple[str, str], set[str]] = {}
+    on_lines = _record_on_lines(db, document_id)   # the page's names and dates, by line (#5603)
     measures = ReadingMeasures(db)   # which machine reading counts, looked up once for the page (#5558)
     # One pass, asked once: on a pass a person marked ground truth the file's readings are theirs (#5513).
     on_ground_truth = bool(pass_row is not None and pass_row.ground_truth)
@@ -212,6 +213,12 @@ def page_from_library(
         from fichero_server.formats.tei import EDITORIAL_FACTS
 
         segments[-1].foreign[EDITORIAL_FACTS] = _editorial_facts_on(db, row.id, items[0].id if items else None)
+        if items and row.id in on_lines:
+            from fichero_server.formats.tei import RECORD_MARKS
+
+            marks = _marks_on_reading(on_lines[row.id], items[0].id, items[0].content)
+            if marks:
+                segments[-1].foreign[RECORD_MARKS] = marks
         if pass_row is not None and pass_row.transformation:
             _georeference_ends(db, row, segments[-1], controls)
     choices.segment_count = len(segments)
@@ -284,6 +291,66 @@ def _editorial_facts_on(db: Any, segment_id: str, reading_id: str | None) -> lis
             "extent_quantity": fact.extent_quantity, "extent_unit": fact.extent_unit,
         })
     return out
+
+
+#: The TEI element a name of each entity type is written as; any other type is an `<rs type=...>`.
+NAME_TAGS = {"person": "persName", "location": "placeName", "organization": "orgName"}
+
+
+def _record_on_lines(db: Any, document_id: str) -> dict[str, list[dict[str, Any]]]:
+    """The page's names and dates that stand on a line, by segment (#5603, `source.extract.exported`):
+    each mention (`export_service.record_mentions`, the record stream's own reader) and each date claim
+    whose anchor names its line, with the reading its span was measured on."""
+    from fichero_server.export_service import anchor_columns, record_mentions
+    from fichero_server.models.knowledge import KnowledgeClaim
+
+    out: dict[str, list[dict[str, Any]]] = {}
+    for mention in record_mentions(db, [document_id]):
+        if mention["segment_id"] is None or mention["segment_char_start"] is None:
+            continue
+        out.setdefault(mention["segment_id"], []).append({
+            "kind": "name", "start": mention["segment_char_start"], "end": mention["segment_char_end"],
+            "reading_id": mention["reading_id"], "exact": mention["excerpt"],
+            "tag": NAME_TAGS.get(mention["entity_type"], "rs"), "type": mention["entity_type"],
+            "ref": mention["entity_id"],
+        })
+    for claim in db.query(KnowledgeClaim, source_document_id=document_id):
+        date_text = (claim.metadata or {}).get("date_text")
+        anchor = anchor_columns(claim.source_anchor)
+        if claim.merged_into_id or not date_text or anchor["segment_id"] is None or anchor["segment_char_start"] is None:
+            continue
+        out.setdefault(anchor["segment_id"], []).append({
+            "kind": "date", "start": anchor["segment_char_start"], "end": anchor["segment_char_end"],
+            "reading_id": anchor["reading_id"], "exact": None, "date_text": date_text,
+            "when": (claim.metadata or {}).get("date_normalized") or claim.time_start, "ref": claim.id,
+        })
+    return out
+
+
+def _marks_on_reading(entries: list[dict[str, Any]], reading_id: str, text: str) -> list[dict[str, Any]]:
+    """The names and dates to draw on the reading being written, at their spans in it. A span measured on
+    another reading of the line is drawn only where that reading's words are the same at that place; a
+    date stands on the words that write it inside its statement's span; anything else is left unmarked,
+    so the text is never changed and a mark is never put on the wrong words."""
+    marks: list[dict[str, Any]] = []
+    seen: set[tuple[str, int, int]] = set()
+    for entry in entries:
+        start, end = entry["start"], entry["end"]
+        if end is None or not 0 <= start < end <= len(text):
+            continue
+        if entry["reading_id"] != reading_id and (entry["exact"] is None or text[start:end] != entry["exact"]):
+            continue
+        if entry["kind"] == "date":
+            at = text.find(entry["date_text"], start, end)
+            if at < 0:
+                continue
+            start, end = at, at + len(entry["date_text"])
+        if (entry["kind"], start, end) in seen:
+            continue
+        seen.add((entry["kind"], start, end))
+        marks.append({k: v for k, v in entry.items() if k not in ("reading_id", "exact", "date_text")}
+                     | {"start": start, "end": end})
+    return marks
 
 
 def _georeference_ends(db: Any, row: Any, segment: PageSegment, controls: dict[str, str]) -> None:

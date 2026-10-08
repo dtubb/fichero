@@ -240,12 +240,114 @@ def build_document_annotation_page(db: Database, doc: Document) -> dict[str, Any
                 "target": _annotation_target(doc, ann),
             }
         )
+    items.extend(_record_annotations(db, doc))
     return {
         "@context": "http://www.w3.org/ns/anno.jsonld",
         "id": f"/api/documents/{doc.id}/annotations.jsonld",
         "type": "AnnotationPage",
         "items": items,
     }
+
+
+def _record_creator(made_by: dict[str, Any] | None, *, provider: str | None = None,
+                    model: str | None = None) -> dict[str, Any] | None:
+    """Who made a record, as a W3C `creator`: the run and its model (Software) for a machine's, the
+    person for a person's; None when the record does not say."""
+    if made_by and made_by.get("by") == "person":
+        return {"type": "Person", "name": made_by.get("name") or "person"}
+    made_by = made_by or {}
+    run_id, model, provider = made_by.get("run_id"), made_by.get("model") or model, made_by.get("provider") or provider
+    if not (run_id or model or provider):
+        return None
+    creator: dict[str, Any] = {"type": "Software", "name": model or provider}
+    if run_id:
+        creator["id"] = f"fichero:run:{run_id}"
+    if provider and model:
+        creator["nickname"] = provider
+    return creator
+
+
+def _record_target(doc: Document, segment_id: str | None, seg_start: int | None, seg_end: int | None,
+                   reading_id: str | None, page_start: int | None, page_end: int | None,
+                   exact: str | None) -> dict[str, Any] | None:
+    """A record's place as a W3C target: its line (the segment) with the span in the reading it was
+    measured on when the page is tied, else the page with the words it quotes (and their position in
+    the page text when the words are there). None when it has no place to point at."""
+    if segment_id and seg_start is not None and seg_end is not None:
+        selectors: list[dict[str, Any]] = [{"type": "TextPositionSelector", "start": seg_start, "end": seg_end}]
+        if exact:
+            selectors.append({"type": "TextQuoteSelector", "exact": exact})
+        target: dict[str, Any] = {"source": f"/api/segments/{segment_id}",
+                                  "scope": f"/api/documents/{doc.id}", "selector": selectors}
+        if reading_id:
+            target["reading"] = f"/api/content-representations/{reading_id}"
+        return target
+    text = doc.page_content or ""
+    if page_start is not None and page_end is not None and 0 <= page_start < page_end <= len(text):
+        exact = text[page_start:page_end]
+        return {"source": _iiif_canvas_id(doc.id, None), "selector": [
+            {"type": "TextQuoteSelector", "exact": exact},
+            {"type": "TextPositionSelector", "start": page_start, "end": page_end},
+        ]}
+    if exact and exact in text:
+        return {"source": _iiif_canvas_id(doc.id, None), "selector": {"type": "TextQuoteSelector", "exact": exact}}
+    return None
+
+
+def _record_annotations(db: Database, doc: Document) -> list[dict[str, Any]]:
+    """The page's names and statements as Web Annotations (#5603, `source.extract.exported`), read from
+    the same record the export stream reads (`export_service.record_mentions`, `claim_record_columns`):
+    a name is `identifying` its entity, a statement `describing` the words it rests on, each with who made
+    it. A name the page does not write (unanchored) has nowhere to point and is not written."""
+    from fichero_server.export_service import claim_record_columns, record_mentions
+    from fichero_server.models.knowledge import KnowledgeClaim
+
+    out: list[dict[str, Any]] = []
+    for mention in record_mentions(db, [doc.id]):
+        target = _record_target(doc, mention["segment_id"], mention["segment_char_start"],
+                                mention["segment_char_end"], mention["reading_id"], mention["char_start"],
+                                mention["char_end"], mention["excerpt"] if mention["char_start"] is not None else None)
+        if target is None:
+            continue
+        annotation: dict[str, Any] = {
+            "id": f"/api/documents/{doc.id}/mentions/{mention['mention_id']}",
+            "type": "Annotation",
+            "motivation": "identifying",
+            "body": {"type": "SpecificResource", "source": f"/api/entities/{mention['entity_id']}",
+                     "purpose": "identifying", "label": mention["canonical_name"],
+                     "entityType": mention["entity_type"]},
+            "target": target,
+        }
+        creator = _record_creator(mention["made_by"])
+        if creator:
+            annotation["creator"] = creator
+        out.append(annotation)
+    for claim in db.query(KnowledgeClaim, source_document_id=doc.id):
+        if claim.merged_into_id:
+            continue
+        cols = claim_record_columns(claim)
+        quoted = (claim.metadata or {}).get("source_text")
+        target = _record_target(doc, cols["segment_id"], cols["segment_char_start"], cols["segment_char_end"],
+                                cols["reading_id"], cols["source_char_start"], cols["source_char_end"], quoted)
+        if target is None:
+            continue
+        annotation = {
+            "id": f"/api/documents/{doc.id}/claims/{claim.id}",
+            "type": "Annotation",
+            "motivation": "describing",
+            "body": [{"type": "TextualBody", "value": claim.text, "format": "text/plain", "purpose": "describing"},
+                     *({"type": "SpecificResource", "source": f"/api/entities/{entity_id}", "purpose": "tagging"}
+                       for entity_id in claim.entity_ids)],
+            "target": target,
+        }
+        if cols["date_normalized"] or cols["time_start"]:
+            annotation["body"].append({"type": "TextualBody", "purpose": "tagging", "format": "text/plain",
+                                       "value": cols["date_normalized"] or cols["time_start"]})
+        creator = _record_creator(None, provider=claim.provider, model=claim.model)
+        if creator:
+            annotation["creator"] = creator
+        out.append(annotation)
+    return out
 
 
 def _dedupe_annotations(*groups: list[Annotation]) -> list[Annotation]:
