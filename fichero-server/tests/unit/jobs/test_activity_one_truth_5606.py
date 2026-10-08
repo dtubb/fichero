@@ -29,6 +29,7 @@ from fichero_server.api.routes.ai import local_inference as servers
 from fichero_server.execution import jobs
 from fichero_server.recipes import runner
 
+HOLD_KIND = "hold-the-recipe-lane"
 LOG_TAIL = ("2026-10-07 23:47:43,151 - INFO - Decode progress: request=7 generated_tokens=1110 | "
             "[METAL] Command buffer execution failed: Insufficient Memory")
 
@@ -55,8 +56,11 @@ def _tree(client, job_id):
 
 @pytest.fixture
 def recipe_kind(monkeypatch):
-    """The recipe kind on the real recipes lane, its work a stub that holds until released."""
-    release = threading.Event()
+    """The recipe kind on the real recipes lane, its work a stub that holds until released; and another kind on
+    the same lane that holds its one slot until released, so the run waits for its lane for as long as the
+    test reads it (#5610: read while the lane was free to pick it, the list and the tree were asked at two
+    moments, either side of the pick)."""
+    release, lane_free = threading.Event(), threading.Event()
     ran: list[str] = []
 
     def run(db, subject):
@@ -66,15 +70,24 @@ def recipe_kind(monkeypatch):
         ran.append(subject)
         release.wait(30)
 
+    def hold(db, subject):
+        ran.append(subject)
+        lane_free.wait(30)
+
     monkeypatch.setitem(jobs.KINDS, runner.KIND, jobs.Kind(run=run, model=None, lane="recipes",
                                                           name="Run the recipe"))
-    return SimpleNamespace(release=release, ran=ran)
+    monkeypatch.setitem(jobs.KINDS, HOLD_KIND, jobs.Kind(run=hold, model=None, lane="recipes",
+                                                        name="Hold the recipe lane"))
+    yield SimpleNamespace(release=release, lane_free=lane_free, ran=ran)
+    lane_free.set()  # a failed assertion leaves no lane thread waiting out its 30 s
+    release.set()
 
 
 def test_an_interrupted_then_resumed_recipe_run_reads_the_same_in_the_list_and_the_tree(db, client, recipe_kind):
     """WHY (#5606): after the restart the run's tree said "waiting — Interrupted; carries on" and the list
     said "running", reason null. Each surface read the row its own way; now both read it from one place."""
     jobs.set_paused(True)  # nothing runs while the run is set up as the engine left it
+    holder = jobs.enqueue(db, HOLD_KIND, "the lane", watched=True)  # first on the lane once it runs
     detail = {"runs": [{"steps": ["read"], "card": "workflow"}],
               "steps": [{"steps": ["read"], "card": "workflow", "state": "running", "child_id": None}]}
     job_id = jobs.enqueue(db, runner.KIND, "project", started_by="owner", detail=json.dumps(detail))
@@ -86,12 +99,14 @@ def test_an_interrupted_then_resumed_recipe_run_reads_the_same_in_the_list_and_t
     listed, tree = _listed(client, job_id), _tree(client, job_id)
     assert listed == tree == ("waiting", "Paused by you")
 
-    jobs.set_paused(False)
+    jobs.set_paused(False)  # the lane runs again; its one slot is held, so the run waits for it
+    assert _wait_for(lambda: recipe_kind.ran == ["the lane"])
     listed, tree = _listed(client, job_id), _tree(client, job_id)
-    assert listed == tree and listed[0] in ("waiting", "running"), (listed, tree)
-    assert listed[1], "a waiting or running recipe run says why"
+    assert listed == tree == ("waiting", "Waiting for the recipe lane: Hold the recipe lane is running")
 
-    assert _wait_for(lambda: recipe_kind.ran == ["project"])
+    recipe_kind.lane_free.set()  # the lane is free: the run carries on
+    assert _wait_for(lambda: recipe_kind.ran == ["the lane", "project"])
+    assert _wait_for(lambda: jobs.read_job(db, holder)["state"] == "done")
     listed, tree = _listed(client, job_id), _tree(client, job_id)
     assert listed == tree == ("running", "Running step read")
     recipe_kind.release.set()
