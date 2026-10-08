@@ -641,6 +641,11 @@ def end_cancelled(db: "Database", job_id: str, reason: str) -> None:
                [reason, utc_now(), job_id])
 
 
+def say_stopping(db: "Database", job_id: str) -> None:
+    """A running job asked to stop says so until it does (#5609)."""
+    db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING, job_id])
+
+
 def cancel_waiting(db: "Database", job_id: str) -> None:
     """End a job that has not started: `cancelled`, "Stopped by you"."""
     db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "

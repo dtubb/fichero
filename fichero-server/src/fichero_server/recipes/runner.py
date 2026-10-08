@@ -204,7 +204,7 @@ def request_cancel(db: Any, job_id: str) -> str:
     if state != "running":
         return state
     request_cancellation(job_id)
-    db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [jobs.STOPPING, job_id])
+    jobs.say_stopping(db, job_id)
     return "stopping"
 
 
