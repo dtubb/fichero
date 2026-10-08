@@ -1,5 +1,4 @@
 {
-  "classify": "a document's kind is a proposed prototype on the node, not a 'classification' artifact (#5600)",
   "classify_script": "the script class (Transcribe Auto-detect) is an attribute of the page, not a 'script_classification' artifact (#5600)",
   "classify_text": "a document's kind is a proposed prototype on the node, not a 'classification' artifact (#5600)",
   "colors": "colours are an attribute value of the page or its regions (#5600)",
@@ -17,7 +16,6 @@
   "quality": "an image-quality judgment is an attribute of the page (#5600)",
   "questions": "generated study questions (a JSON list) are not a reading of the page: neither its text nor text about it; their home is still to be ruled (#5599)",
   "safety": "a safety judgment is an attribute of the page (#5600)",
-  "scene": "a scene is a classification (one scene type, with lighting/time/weather as JSON), not text about the page: an attribute of the page (#5600)",
   "sentiment": "sentiment is an attribute value of the node that cites its span (#5600)",
   "similarity": "a same-document cluster is a proposed group of documents, not a 'similarity' artifact on the folder (#5604)",
   "style": "a style judgment is an attribute of the page (#5600)",

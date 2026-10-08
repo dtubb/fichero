@@ -465,12 +465,32 @@ level it was made for.
 - `source.extract.places-one-home` — **[BROKEN]** (#5597) a place's coordinates live on its
   entity; a document's map points are worked out from its place mentions; the `geo` artifact and
   `metadata.geo_points` are retired.
-- `source.extract.attributes-cite` — **[GAP]** (#5365, #5550; #5600) a prototype attribute's
+- `source.extract.attributes-cite` — **[PARTIAL]** (#5365, #5550; #5600) a prototype attribute's
   value (a judgment's judge, parties, date, ruling; a catalogue field) is a typed value that cites
   the mention or span it was read from; a person's value cites nothing and outranks a machine's.
-- `source.extract.kinds-proposed-as-prototypes` — **[GAP]** (#5550) a document's kind, whether from
-  Find the Documents or `classify`, is a proposed prototype on the node, accepted by a person, not a
-  `classification` artifact.
+  *Built (#5600): each attribute key (and the node's kind, key `prototype`) records who set it in
+  `Document.metadata.attribute_sources` (`workflows/attribute_sources.py`): a person's `{"by":
+  "person"}`, set by `PUT /api/documents/{id}` for every attribute it adds, changes or removes and
+  by `PUT /api/documents/{id}/prototype`; a run's `{"by": "machine", "tool", "step", "run_id",
+  "artifact_id", "provider", "model", "said", "cites"}`. A run writes a key only when a machine set
+  it or it is empty and unclaimed, so a person's value (or one from before) is never overwritten.
+  Scene writes its answer as page attributes (`scene`, `scene_<field>`) citing its run, through the
+  tool seam `LLMToolConfig.attribute_key`. Pinned by `fichero-server/tests/unit/workflows/
+  test_attributes_cite.py` (the real runner, read back through `GET /api/documents/{id}` and
+  `/effective-attributes`). Not built: no writer yet cites a mention, segment or span (`cites` is
+  empty: Extract, a judgment's fields, the catalogue's fields, keywords, sentiment, tags), the sources
+  are not on the effective-attributes response or the Inspector, and the other page judgments
+  (quality, style, safety, colours, language) still write only their artifact.*
+- `source.extract.kinds-proposed-as-prototypes` — **[PARTIAL]** (#5550; #5600) a document's kind,
+  whether from Find the Documents or `classify`, is a proposed prototype on the node, accepted by a
+  person, not a `classification` artifact. *Built (#5600): `classify` assigns its answer as the
+  node's prototype through the audited `document.assign_prototype` (the prototype made through
+  `classification.create` when the project has none of that name), its source the run, the record
+  and what the model said; a kind a person chose is kept, and a later run replaces only a run's. The
+  artifact stays as the run's record. Pinned by `fichero-server/tests/unit/workflows/
+  test_attributes_cite.py`. Not built: a run's kind is assigned at once rather than held for a
+  person to accept (it is marked `by: machine` until a person sets it); `classify_text` and
+  `classify_script` still write only their artifact.*
 - `source.extract.catalogue-never-overwrites-text` — **[OK]** (#5365; #5599) the catalogue's
   narrative is a reading of kind description on the folder, never written into its `page_content`.
   *Built (#5599): `catalogue.py` writes the narrative through the one reading writer, derived from

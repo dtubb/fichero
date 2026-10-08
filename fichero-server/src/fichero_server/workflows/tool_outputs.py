@@ -159,13 +159,18 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     "rewrite": _d("document", "reading", "artifact"),
     # Markdown / HTML / SVG are readings of those kinds; LaTeX and CSV write only the artifact
     "convert": _d("page", "reading", "artifact"),
+    # ── attributes that cite their run (#5600, `LLMToolConfig.attribute_key`) ──
+    # the kind is proposed as the node's prototype (`document.assign_prototype`), citing the run in
+    # `metadata.attribute_sources`; a kind a person chose is kept
+    "classify": _d("page", "attribute", "artifact"),
+    # the scene type and its details are page attributes (`scene`, `scene_<field>`), citing the run
+    "scene": _d("page", "attribute", "artifact"),
     # ── a document-level artifact only (known gaps, each naming its slice) ────
     "timeline": _ARTIFACT,
     "key_people": _ARTIFACT,
     "sentiment": _ARTIFACT,
     "keywords": _ARTIFACT,
     "tags": _ARTIFACT,
-    "classify": _ARTIFACT,
     "classify_text": _ARTIFACT,
     "classify_script": _ARTIFACT,
     "questions": _ARTIFACT,
@@ -173,7 +178,6 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     "faces": _ARTIFACT,
     "objects": _ARTIFACT,
     "layout": _ARTIFACT,
-    "scene": _ARTIFACT,
     "diagram": _ARTIFACT,
     "style": _ARTIFACT,
     "quality": _ARTIFACT,

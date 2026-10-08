@@ -34,6 +34,8 @@ TOOL_CONFIG = VisionToolConfig(
     trigger_embedding=False,
     supports_apple_vision=False,
     metadata_field="scene",
+    # The scene type and its details are attributes of the page, citing this run (#5600).
+    attribute_key="scene",
 )
 
 DEFAULT_SCENES = [
