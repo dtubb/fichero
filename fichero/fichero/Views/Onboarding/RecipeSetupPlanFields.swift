@@ -216,7 +216,9 @@ struct RecipeDownloadRows: View {
                     }
                     // The other half of the one choice (#5583): an installed model instead.
                     ForEach(download.instead ?? [], id: \.card) { installed in
-                        Button("Use the installed \(installed.name)") {
+                        // A licence that is not open is in the button's words: the press accepts it.
+                        let licence = (installed.licence ?? "").isEmpty ? "" : " (licence: \(installed.licence ?? ""))"
+                        Button("Use the installed \(installed.name)\(licence)") {
                             Task { await store.useInstead(download, installed) }
                         }
                         .controlSize(.small)

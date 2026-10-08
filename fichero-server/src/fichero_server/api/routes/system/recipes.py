@@ -777,6 +777,7 @@ class StartInstead(BaseModel):
     card: str = Field(description="its card id, to send to use-instead")
     model: str = Field(description="its id in this Mac's model store")
     name: str = Field(description="its name, as people read it")
+    licence: str = Field("", description="its licence when it is not open (choosing it accepts that); empty when open")
 
 
 class StartDownload(BaseModel):

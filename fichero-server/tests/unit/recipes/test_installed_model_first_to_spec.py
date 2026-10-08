@@ -66,7 +66,8 @@ def test_source_onboard_auto_installed_model_first_at_start(client, db, pages, m
     assert download["size_mb"] == 5653 and download["steps"] == ["correct"]
     assert download["action"] == "model.download" and download["params"] == {"runtime": "mlx",
                                                                                 "model": "Qwen2.5-VL-7B"}
-    assert download["instead"] == [{"card": THREE_CARD, "model": "Qwen2.5-VL-3B", "name": "Qwen2.5-VL 3B (OCR)"}]
+    assert download["instead"] == [{"card": THREE_CARD, "model": "Qwen2.5-VL-3B", "name": "Qwen2.5-VL 3B (OCR)",
+                                    "licence": "Qwen-Research"}], "a licence that is not open is named: the press accepts it"
     [refusal] = plan["refusals"]
     assert "download it, or use the installed Qwen2.5-VL 3B (OCR) instead" in refusal
     assert "cannot run on this Mac" not in refusal and "Settings" not in refusal

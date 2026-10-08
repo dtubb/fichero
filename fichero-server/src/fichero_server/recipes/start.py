@@ -432,7 +432,9 @@ def _installed_instead(run: dict[str, Any], store: Any) -> list[dict[str, str]]:
         if repo is None or local_model_problem(repo, _capability(run), store=store) is not None:
             continue
         model_id = store.canonical_id(repo)
-        out.setdefault(model_id, {"card": card.id, "model": model_id, "name": store.spec(model_id).display_name})
+        # A licence that is not open is named, so the press that chooses it says what it accepts.
+        out.setdefault(model_id, {"card": card.id, "model": model_id, "name": store.spec(model_id).display_name,
+                                  "licence": "" if card.open_licence else (card.licence or "not open")})
     return list(out.values())
 
 
