@@ -75438,6 +75438,11 @@
             "nullable": true,
             "title": "Readers",
             "description": "a stage with a reader per kind: one workflow run per reader (#5578)"
+          },
+          "entries": {
+            "$ref": "#/components/schemas/StageEntries",
+            "nullable": true,
+            "description": "a stage that splits a diary or register into its dated entries: its pages and entries (#5581)"
           }
         },
         "type": "object",
@@ -82933,6 +82938,51 @@
         ],
         "title": "SparqlResponseRow",
         "description": "One SPARQL result row. Bindings keyed by query variable name."
+      },
+      "StageEntries": {
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "the pages it split: those that had text"
+          },
+          "without_text": {
+            "type": "integer",
+            "title": "Without Text",
+            "description": "the pages it left alone because they had no text"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created",
+            "description": "entries it made",
+            "default": 0
+          },
+          "unchanged": {
+            "type": "integer",
+            "title": "Unchanged",
+            "description": "entries a run before made, found again as they were",
+            "default": 0
+          },
+          "updated": {
+            "type": "integer",
+            "title": "Updated",
+            "description": "entries a run before made, found again changed",
+            "default": 0
+          },
+          "removed": {
+            "type": "integer",
+            "title": "Removed",
+            "description": "entries a run before made that it no longer finds (kept, hidden)",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "without_text"
+        ],
+        "title": "StageEntries",
+        "description": "What a stage that splits a diary or register into its dated entries did (#5581)."
       },
       "StageFailures": {
         "properties": {
