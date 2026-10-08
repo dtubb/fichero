@@ -9,7 +9,8 @@ in each fanned-out step) and its pages' rows in the job table (what a page is wa
 * what the run is waiting for, when a page waits (memory, the lane);
 * the estimate of the time left, from this run's own pace;
 * the engine's and the model servers' peak memory (#5537), live while it runs;
-* interrupted, when the engine stopped before the run finished (`mark_interrupted_runs`);
+* interrupted, when the engine stopped, or its project was closed, before the run finished
+  (`mark_interrupted_runs`, `closing_runs`);
 * the offer at the end: "Read the 3 pages that failed" (or "... not done" after an interruption), one
   action (`read_again`) that runs the same workflow, with the same model, over those pages only.
 
@@ -28,6 +29,8 @@ from fichero_server.workflows.run_progress import MAX_FAILURES_LISTED, item_erro
 
 #: How an interrupted run's reason starts; `account_state` reads a run whose reason starts so as interrupted.
 INTERRUPTED_PREFIX = "Interrupted: the engine stopped"
+#: How a run's reason starts when its project was closed while it ran (#5608).
+CLOSED_PREFIX = "Interrupted: the project was closed"
 #: The words the older open-time sweep wrote (`workflows/activity_store._STALE_RUN_ERROR`).
 _LEGACY_INTERRUPTED_PREFIX = "Run interrupted"
 
@@ -82,7 +85,7 @@ _STATES = {"accepted": "waiting", "running": "running", "paused": "paused", "com
 
 def account_state(status: str | None, reason: str | None) -> str:
     state = _STATES.get((status or "").lower(), status or "running")
-    if state == "failed" and reason and reason.startswith((INTERRUPTED_PREFIX, _LEGACY_INTERRUPTED_PREFIX)):
+    if state == "failed" and reason and reason.startswith((INTERRUPTED_PREFIX, CLOSED_PREFIX, _LEGACY_INTERRUPTED_PREFIX)):
         return "interrupted"
     return state
 
@@ -240,20 +243,61 @@ def forget(thread_id: str) -> None:
     _FINISHED.pop(thread_id, None)
 
 
-def stopped_at_words(when: datetime | None) -> str:
-    """'the engine stopped at 14:05' in this Mac's time, or without a time when none is known."""
+def stopped_at_words(when: datetime | None, prefix: str = INTERRUPTED_PREFIX) -> str:
+    """'the engine stopped at 14:05' (or `prefix` at 14:05) in this Mac's time, or without a time when none
+    is known."""
     if when is None:
-        return INTERRUPTED_PREFIX
+        return prefix
     local = ensure_utc(when).astimezone()
-    return f"{INTERRUPTED_PREFIX} at {local.strftime('%H:%M')}"
+    return f"{prefix} at {local.strftime('%H:%M')}"
+
+
+#: Runs whose project was closed while they ran in this engine, by thread id: when it closed (#5608). Kept until
+#: a run starts again on the thread (`run_started`); bounded.
+_CLOSED_MID_RUN: dict[str, datetime] = {}
+_CLOSED_MID_RUN_LIMIT = 500
+
+
+def closing_runs(db: Any) -> list[str]:
+    """A project is closing (#5608): each of its runs in flight in this engine leaves the live set, is noted
+    with when, and is asked to stop. Its own later writes do not end it (`closed_mid_run`); the project's next
+    open marks it interrupted, "the project was closed at HH:MM" (`mark_interrupted_runs`), and settles its
+    documents as any interrupted run's are. Called by the database manager before the connection closes."""
+    from fichero_server.execution.cancellation import request_cancellation
+    from fichero_server.execution.runner import _running_workflows
+    from fichero_server.workflows import activity_store
+    from fichero_server.workflows.run_status import is_terminal
+
+    live = {tid for tid, s in list(_running_workflows.items()) if not is_terminal(s.get("status"))}
+    now = utc_now()
+    closing = [tid for tid, _started in activity_store.unfinished_runs(db) if tid in live]
+    for thread_id in closing:
+        while len(_CLOSED_MID_RUN) >= _CLOSED_MID_RUN_LIMIT:
+            _CLOSED_MID_RUN.pop(next(iter(_CLOSED_MID_RUN)))
+        _CLOSED_MID_RUN[thread_id] = now
+        _running_workflows.pop(thread_id, None)
+        request_cancellation(thread_id)  # its pages not yet handed in are not read with the project closed
+    return closing
+
+
+def closed_mid_run(thread_id: str) -> bool:
+    """Whether this run's project was closed while it ran: the runner's own end does not end its record."""
+    return thread_id in _CLOSED_MID_RUN
+
+
+def run_started(thread_id: str) -> None:
+    """A run starts (again) on this thread: a close before it is no longer its story."""
+    _CLOSED_MID_RUN.pop(thread_id, None)
 
 
 def mark_interrupted_runs(db: Any) -> list[str]:
     """On opening a project, every run this engine did not finish is marked interrupted (#5555): its record
     and its job row say "Interrupted: the engine stopped at HH:MM, before this run finished", the time being
-    the last work the run recorded. Its checkpoint is kept, so its account still counts the pages done and
-    left, and offers to read the pages not done (`read_again`). A run alive in this engine (a project closed
-    and opened again mid-run) is left alone. Returns the runs marked; the caller settles their documents."""
+    the last work the run recorded; a run whose project was closed while it ran says "Interrupted: the
+    project was closed at HH:MM, before this run finished", the time of the close (#5608). Its checkpoint is
+    kept, so its account still counts the pages done and left, and offers to read the pages not done
+    (`read_again`). A run alive in this engine is left alone; one its project's close stopped is not alive
+    (`closing_runs`). Returns the runs marked; the caller settles their documents."""
     from fichero_server.execution import jobs
     from fichero_server.execution.runner import _running_workflows
     from fichero_server.workflows import activity_store
@@ -264,8 +308,13 @@ def mark_interrupted_runs(db: Any) -> list[str]:
     for thread_id, started_at in activity_store.unfinished_runs(db):
         if thread_id in live:
             continue
-        heard = [t for t in (jobs.last_heard(db, thread_id), started_at) if t is not None]
-        reason = f"{stopped_at_words(max(ensure_utc(t) for t in heard) if heard else None)}, before this run finished"
+        closed_at = _CLOSED_MID_RUN.get(thread_id)
+        if closed_at is not None:
+            words = stopped_at_words(closed_at, CLOSED_PREFIX)
+        else:
+            heard = [t for t in (jobs.last_heard(db, thread_id), started_at) if t is not None]
+            words = stopped_at_words(max(ensure_utc(t) for t in heard) if heard else None)
+        reason = f"{words}, before this run finished"
         activity_store.mark_run_failed(db, thread_id, reason)
         jobs.fail_run_rows(db, thread_id, reason)
         forget(thread_id)
@@ -273,5 +322,6 @@ def mark_interrupted_runs(db: Any) -> list[str]:
     return marked
 
 
-__all__ = ["INTERRUPTED_PREFIX", "PageFailure", "RunAccount", "RunOffer", "build_account", "forget",
-           "mark_interrupted_runs", "run_account", "stopped_at_words"]
+__all__ = ["CLOSED_PREFIX", "INTERRUPTED_PREFIX", "PageFailure", "RunAccount", "RunOffer", "build_account",
+           "closed_mid_run", "closing_runs", "forget", "mark_interrupted_runs", "run_account", "run_started",
+           "stopped_at_words"]
