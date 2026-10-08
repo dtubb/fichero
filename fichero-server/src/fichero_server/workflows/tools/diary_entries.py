@@ -17,8 +17,14 @@ parser — the LLM proposes, ``parse_historical_date`` disposes; an entry
 whose date cannot be parsed keeps the raw date text as its name and gets
 NO date attribute (undated is a recorded fact, never a guess).
 
-Re-running replaces this tool's previous children under the same page
-(idempotent, like split_chapters).
+Re-running matches this tool's previous children under the same page and
+updates them in place.
+
+An entry is the set of lines it covers (#5601, `source.extract.entries-are-units`): when the page text
+is tied to the page's lines (`checking.tie_text.line_spans`), the entry records those lines in order
+(``metadata["lines"]``) and its text is READ from their counting readings whenever the entry is listed
+(`with_texts_read_from_lines`), so a correction on a line shows in the entry without a re-run. A page
+not tied keeps the copied text, and the entry says so (``metadata["text_from"]``).
 """
 
 from __future__ import annotations
@@ -445,7 +451,7 @@ def _entry_identity(iso: str | None, date_text: str, body: str) -> str:
     return "body:" + " ".join(body.split()).casefold()[:120]
 
 
-def _entry_unchanged(node: Document, body: str, iso: str | None) -> bool:
+def _entry_unchanged(node: Document, body: str, iso: str | None, lines: list[str]) -> bool:
     """Whether re-extraction produced materially the same entry.
 
     Region is deliberately NOT compared. A recomputed region can differ by a
@@ -455,7 +461,75 @@ def _entry_unchanged(node: Document, body: str, iso: str | None) -> bool:
     """
     same_body = " ".join((node.page_content or "").split()) == " ".join(body.split())
     same_date = (node.attributes or {}).get("date") == iso
-    return same_body and same_date
+    same_lines = list((node.metadata or {}).get("lines") or []) == lines
+    return same_body and same_date and same_lines
+
+
+#: Where an entry's text comes from (#5601): its lines, or a copy of the page text, and why.
+TEXT_FROM_LINES = "lines"
+NOT_TIED = "copied: not on lines, the page text is not tied to its lines"
+NOT_FOUND = "copied: not on lines, the entry was not found in the page text"
+
+
+def _entry_lines(db: Database, page_id: str, entries: list[DiaryEntry]) -> list[list[str]] | None:
+    """Each entry's lines, in order: the page's tied lines (`tie_text.line_spans`) under the entry's span
+    of the page reading the lines were tied to, the band from its heading to the next entry's (leading
+    matter before the first heading is the first entry's). None when the page text is not tied to its
+    lines; an entry whose place in the text was not found gets no lines.
+
+    The spans are found in the tied page READING, not in ``page_content``: once a person corrects a line,
+    the page's text is derived from its lines and no longer holds the tie's stretch for that line, so a
+    re-run measured against it would drop the corrected line from its entry."""
+    from fichero_server.checking.tie_text import line_spans, lines_under, page_reading
+
+    reading = page_reading(db, page_id)
+    text = (reading.content or "") if reading is not None else ""
+    tied = line_spans(db, page_id, text) if text else []
+    if not tied:
+        return None
+    out: list[list[str]] = []
+    first = True
+    for span in _entry_spans(text, entries):
+        if span is None:
+            out.append([])
+            continue
+        start = 0 if first else span[0]
+        first = False
+        out.append([line.segment_id for line in lines_under(tied, start, span[1])])
+    return out
+
+
+def read_from_lines(db: Database, lines_by_entry: dict[str, list[str]]) -> dict[str, str]:
+    """Each entry's text as its lines read now: each line's counting reading (`counting_texts`, the
+    same answer the page's text uses), in the entry's order, one line per line. One query for every
+    entry's lines. A line deleted since, or with no reading that counts, adds nothing."""
+    from fichero_server.api.routes.document.segment_readings import counting_texts
+    from fichero_server.models import Segment
+
+    ids = list(dict.fromkeys(i for line_ids in lines_by_entry.values() for i in line_ids))
+    rows = [row for row in db.query_in(Segment, "id", ids) if row.deleted_at is None] if ids else []
+    texts = counting_texts(db, rows)
+    return {entry: "\n".join(texts[i] for i in line_ids if texts.get(i))
+            for entry, line_ids in lines_by_entry.items()}
+
+
+def with_texts_read_from_lines(db: Database, items: list[Document]) -> list[Document]:
+    """An entry on lines is listed with its text read from them (#5601): its stored ``page_content`` is
+    what the lines read when it was split; a correction since is read here. Other items unchanged."""
+    on_lines = {
+        item.id: list(item.metadata["lines"])
+        for item in items
+        if (item.metadata or {}).get(_DIARY_TOOL_KEY) and (item.metadata or {}).get("lines")
+    }
+    if not on_lines:
+        return items
+    read = read_from_lines(db, on_lines)
+    for item in items:
+        if item.id in read:
+            item.page_content = _body_without_date_heading(
+                read[item.id], str((item.metadata or {}).get("date_text") or "")
+            )
+    return items
 
 
 async def split_page_into_entries(
@@ -490,6 +564,11 @@ async def split_page_into_entries(
         _entry_spans(geometry_content, entries)
         if geometry_content and boxes
         else [None] * len(entries)
+    )
+    # The lines each entry covers, when the page text is tied to them (#5601), read once for all.
+    entry_lines = _entry_lines(db, page.id, entries)
+    read_now = read_from_lines(
+        db, {str(i): lines for i, lines in enumerate(entry_lines or []) if lines}
     )
 
     # RE-RUN MATCHING (2026-08-23). This used to hard-delete every previous
@@ -534,13 +613,17 @@ async def split_page_into_entries(
     for index, entry in enumerate(entries, start=1):
         iso = _normalized_iso(entry)
         region = _region_union(boxes, spans[index - 1], geometry_provider)
-        body = _body_without_date_heading(entry.text, entry.date_text)
+        lines = entry_lines[index - 1] if entry_lines is not None else []
+        text_from = TEXT_FROM_LINES if lines else (NOT_TIED if entry_lines is None else NOT_FOUND)
+        body = _body_without_date_heading(
+            read_now[str(index - 1)] if lines else entry.text, entry.date_text
+        )
 
         identity = _entry_identity(iso, entry.date_text, body)
         prior = existing_by_identity.get(identity)
         if prior is not None and prior.id not in matched_ids:
             matched_ids.add(prior.id)
-            unchanged = _entry_unchanged(prior, body, iso)
+            unchanged = _entry_unchanged(prior, body, iso, lines)
 
             # A REGION A PERSON PLACED OR CORRECTED SURVIVES RE-EXTRACTION.
             # That is what RegionConfidence.user is for, and the old
@@ -566,6 +649,8 @@ async def split_page_into_entries(
                 "source_document_name": page.name,
                 "date_text": entry.date_text,
                 "date_parsed": iso is not None,
+                "lines": lines,
+                "text_from": text_from,
                 "bbox_basis": (
                     "user-corrected" if keep_user_region
                     else ("ocr_geometry" if region else "none")
@@ -596,6 +681,8 @@ async def split_page_into_entries(
                 "source_document_name": page.name,
                 "date_text": entry.date_text,
                 "date_parsed": iso is not None,
+                "lines": lines,
+                "text_from": text_from,
                 # "no_page_dimensions" is gone: a normalized region never
                 # needed the page's pixel size, so that outcome cannot occur.
                 "bbox_basis": "ocr_geometry" if region else "none",
@@ -653,7 +740,8 @@ async def split_pages_into_entries(
             totals[key] += page_report.get(key, 0)
         for node in entries:
             marker = "▣" if node.region_in_parent else "·"
-            lines.append(f"{marker} {node.name} — {page.name}")
+            on = len((node.metadata or {}).get("lines") or [])
+            lines.append(f"{marker} {node.name} — {page.name} — " + (f"on {on} lines" if on else "not on lines"))
     return created, totals, errors, lines
 
 

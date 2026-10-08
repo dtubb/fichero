@@ -381,7 +381,10 @@ def _with_child_counts(db: Database, items: list[Document]) -> list[Document]:
     counts = db.child_counts([item.id for item in items])
     for item in items:
         item.child_count = counts.get(item.id, 0)
-    return _with_group_dates(db, items)
+    # A diary entry on lines is listed with its text read from them (#5601).
+    from fichero_server.workflows.tools.diary_entries import with_texts_read_from_lines
+
+    return _with_group_dates(db, with_texts_read_from_lines(db, items))
 
 
 # A group's date when it has none of its own is the range of its pages'
