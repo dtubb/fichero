@@ -61,6 +61,11 @@ struct SegmentInspectorView: View {
         }
     }
 
+    /// The line's text a name's words are fixed on (#5602): its counted transcription, else its own text.
+    private func lineText(of segmentId: String) -> String? {
+        text?.countingContent(ofKind: "transcription") ?? segments.first { $0.id == segmentId }?.text
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             pathHead
@@ -119,8 +124,11 @@ struct SegmentInspectorView: View {
                         )
                         // Typed links, both ways, and the segment's reference (5.7).
                         InspectorLinksSection(segmentId: inspected, documentId: documentId, selectedIds: selectedIds)
-                        // What is said about it: claims and mentions whose anchor names it (5.7).
-                        InspectorStatementsSection(segmentId: inspected, documentId: documentId)
+                        // What is said about it: claims and mentions whose anchor names it (5.7), each
+                        // corrected in place (#5602); a name's words are fixed on the line's counted text.
+                        InspectorStatementsSection(
+                            segmentId: inspected, documentId: documentId, lineText: lineText(of: inspected)
+                        )
                         // What applies here, from the library down (5.8).
                         InspectorRightsSection(targetKind: "segment", targetId: inspected, pageId: documentId)
                         // Its picture, baseline and own history, with Restore (#5163).

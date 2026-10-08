@@ -590,7 +590,14 @@ level it was made for.
   date (`claim.patch`) and its rejection (`claim.transition`) survive a re-run of its extractor, which
   matches the corrected row. Pinned by `fichero-server/tests/unit/workflows/test_corrected_in_place.py`
   (on a tied page, through the routes: re-point, fix a span, date and reject a statement, undo each, a
-  re-run keeps each). Not yet: the Preview layer and Inspector that call these (#1659, #5418); taking
+  re-run keeps each). The Inspector half (#5602): the statements section on a segment offers each
+  mention "Not this person… (choose another)" (the claim editor's entity search, then `mention.repoint`)
+  and "Fix the words" (select the words on the line's counted text, sent as page offsets to
+  `mention.respan`; not offered when the line's text does not hold the mark), each statement "Change
+  date" and "Not true (reject)", re-reads that segment's statements after each, and marks a person's
+  mention "corrected by you" (`StatementService`, `InspectorStatementsSection`; pinned by
+  `StatementCorrectionTests`, `InspectorStatementsTests`). Not yet: the Preview layer that calls these
+  (#1659, #5418); the app's Undo for these corrections (undone through the audit only); taking
   a mention away altogether ("not a name"); a page date is corrected by `document.set_date`, not from
   its heading's mark.* A person corrects a fact from
   its mark on the page or from the Inspector, through the one action for its record, and every view

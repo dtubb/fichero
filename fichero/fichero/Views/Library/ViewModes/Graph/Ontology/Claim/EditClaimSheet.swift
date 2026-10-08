@@ -245,6 +245,11 @@ struct InlineClaimEditor: View {
 struct ClaimSubjectEntityPicker: View {
     @Binding var subjectEntityId: String?
     @Binding var subjectName: String
+    /// What the pick is for, in the button's words: "Subject" here, "Who it is" when a name on the page
+    /// is re-pointed from the Inspector (#5602).
+    var role = "Subject"
+    /// Open with the search showing (the Inspector's "Not this person…" asked for it already).
+    var startsExpanded = false
 
     @Environment(EntityService.self) private var entityService: EntityService?
     @State private var isExpanded = false
@@ -264,10 +269,10 @@ struct ClaimSubjectEntityPicker: View {
             Button {
                 isExpanded.toggle()
             } label: {
-                Text(subjectName.isEmpty ? "Subject: pick an entity…" : subjectName)
+                Text(subjectName.isEmpty ? "\(role): pick an entity…" : subjectName)
             }
             .accessibilityLabel(
-                subjectName.isEmpty ? "Subject, none picked" : "Subject, \(subjectName), change"
+                subjectName.isEmpty ? "\(role), none picked" : "\(role), \(subjectName), change"
             )
             .accessibilityHint("Opens entity search")
             if isExpanded {
@@ -291,12 +296,13 @@ struct ClaimSubjectEntityPicker: View {
                             results = []
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Set subject to \(pair.entity.canonicalName)")
+                        .accessibilityLabel("Set \(role.lowercased()) to \(pair.entity.canonicalName)")
                     }
                     .frame(maxHeight: 120)
                 }
             }
         }
+        .onAppear { if startsExpanded { isExpanded = true } }
     }
 
     private func search(_ text: String) async {
