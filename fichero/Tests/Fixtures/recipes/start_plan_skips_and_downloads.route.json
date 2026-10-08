@@ -35,7 +35,8 @@
      "line_readings",
      "lines"
     ],
-    "tool_config": null
+    "tool_config": null,
+    "readers": null
    },
    {
     "steps": [
@@ -55,9 +56,9 @@
     "prompt": null,
     "folder": null,
     "formats": null,
-    "done": null,
+    "done": 0,
     "of": 2,
-    "note": "cannot tell what is done; runs on every page (2)",
+    "note": "already done on 0 of 2 pages; runs on the rest",
     "last_run": null,
     "last_why": null,
     "takes": [
@@ -66,7 +67,8 @@
     "gives": [
      "mentions"
     ],
-    "tool_config": null
+    "tool_config": null,
+    "readers": null
    },
    {
     "steps": [
@@ -84,7 +86,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-211/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-464/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -99,7 +101,8 @@
     "gives": [
      "files"
     ],
-    "tool_config": null
+    "tool_config": null,
+    "readers": null
    }
   ],
   "workflows": [
@@ -170,6 +173,7 @@
     "instead": []
    }
   ],
+  "elsewhere": [],
   "estimate": {
    "pages": 2,
    "counted": "2 photographs = 2 pages; the project holds 15 documents: these, and 13 folders",

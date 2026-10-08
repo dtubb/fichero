@@ -12625,8 +12625,9 @@ def register_generated_openapi_commands(
     @target_app.command("use-installed-instead")
     def recipes_use_installed_instead_post(
         ctx: typer.Context,
-        card: str = typer.Option(..., "--card", help="Request field: card."),
+        card: Optional[str] = typer.Option(None, "--card", help="Request field: card."),
         model: str = typer.Option(..., "--model", help="Request field: model."),
+        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
     ) -> None:
         """Use Installed Instead (POST /api/recipes/project/start/use-instead)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12635,9 +12636,11 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "card": card,
                 "model": model,
+                "provider": provider,
             }, {
-                "card": {'type': 'string', 'title': 'Card', 'description': "the installed model's card id, as that download's `instead` names it", 'x-cli-required': True},
-                "model": {'type': 'string', 'title': 'Model', 'description': 'the download the plan waits for, as its `downloads` names it (`model`)', 'x-cli-required': True},
+                "card": {'type': 'string', 'title': 'Card', 'description': "the installed model's card id, as that download's `instead` names it", 'default': '', 'x-cli-required': False},
+                "model": {'type': 'string', 'title': 'Model', 'description': 'the download the plan waits for, as its `downloads` names it (`model`), or the model this Mac cannot run, as its `elsewhere` names it', 'x-cli-required': True},
+                "provider": {'type': 'string', 'title': 'Provider', 'description': "the free place's provider row id, as that `elsewhere` entry's `instead` names it", 'default': '', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

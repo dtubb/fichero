@@ -869,6 +869,33 @@ class StartInstead(BaseModel):
     licence: str = Field("", description="its licence when it is not open (choosing it accepts that); empty when open")
 
 
+class StartPlaceInstead(BaseModel):
+    """The same model at another place that costs nothing, offered for a model this Mac cannot run (#5592)."""
+
+    provider: str = Field(description="the place's provider row id, to send to use-instead")
+    provider_name: str = Field(description="the place's name, as people read it")
+    provider_type: str = Field(description="the place's provider type")
+    place: str = Field(description="where the place keeps the pages: own_machine or provider (llm/places.py)")
+    model: str = Field(description="the model's id at the place")
+    name: str = Field(description="its name, as people read it")
+    free: bool = Field(description="always True: only a place the price list says costs nothing is offered "
+                       "(ai.where.fallback-free-and-asked)")
+
+
+class StartElsewhere(BaseModel):
+    """A model a step is pinned to that this Mac cannot run, and the free places offered instead (#5592)."""
+
+    runtime: str
+    model: str
+    name: str
+    steps: list[str]
+    why: str = Field(description="why this Mac cannot run it")
+    said: str = Field(description="what its refusal adds: the free place offered, or why none is")
+    instead: list[StartPlaceInstead] = Field(default_factory=list, description=(
+        "the same model at places that cost nothing, each used only when the person presses it "
+        "(POST /api/recipes/project/start/use-instead with `provider`); a paid place is never offered"))
+
+
 class StartDownload(BaseModel):
     """A model a step needs that is not on this Mac, and the action that downloads it."""
 
@@ -913,6 +940,9 @@ class StartPlan(BaseModel):
     downloads: list[StartDownload] = Field(default_factory=list, description=(
         "models the steps are pinned to that are not on this Mac, each offered as a download "
         "(source.recipe.missing-model-offered)"))
+    elsewhere: list[StartElsewhere] = Field(default_factory=list, description=(
+        "models the steps are pinned to that this Mac cannot run, each with the free places offered instead, "
+        "never used without the person's press (ai.where.fallback-free-and-asked)"))
     estimate: StartEstimate
     proposed: Optional[ProposedJobs] = Field(default=None, description=(
         "jobs proposed for the material already in the project by a layer added later; once the project has "
@@ -1010,11 +1040,15 @@ async def start_project(
 
 
 class UseInsteadRequest(BaseModel):
-    """Use an installed model instead of downloading the one the plan waits for (#5583)."""
+    """Use an installed model instead of downloading the one the plan waits for (#5583), or the same model at a free
+    place instead of on this Mac, which cannot run it (#5592). Exactly one of `card` and `provider`."""
 
     model_config = ConfigDict(extra="forbid")
-    model: str = Field(description="the download the plan waits for, as its `downloads` names it (`model`)")
-    card: str = Field(description="the installed model's card id, as that download's `instead` names it")
+    model: str = Field(description="the download the plan waits for, as its `downloads` names it (`model`), or the "
+                       "model this Mac cannot run, as its `elsewhere` names it")
+    card: str = Field("", description="the installed model's card id, as that download's `instead` names it")
+    provider: str = Field("", description="the free place's provider row id, as that `elsewhere` entry's `instead` "
+                          "names it")
 
 
 @router.post("/project/start/use-instead", response_model=ProjectSetup)
@@ -1027,18 +1061,30 @@ async def use_installed_instead(
     installed one the plan offers (`downloads[].instead`), kept as a project-scope override on the recipe (as Use
     This keeps a bake-off's choice), through `project.save_setup` (audited, undoable)
     (`source.onboard.auto.installed-model-first`). Refused (422) for a model the plan does not wait for, or a card
-    it does not offer instead."""
+    it does not offer instead. With `provider`: every step pinned to the model this Mac cannot run is set to the same
+    model at that free place the plan offers (`elsewhere[].instead`), the same way; refused (422) for a place the
+    plan does not offer, a paid one included (`ai.where.fallback-free-and-asked`)."""
     from fichero_server.core.timeutil import utc_now_iso
-    from fichero_server.recipes.start import use_instead
+    from fichero_server.recipes.start import use_instead, use_place_instead
 
+    if bool(request.card) == bool(request.provider):
+        raise HTTPException(status_code=422, detail="send either an installed model's card or a place's provider")
     library = _library(db)
+    setup = read_project_setup(library)
+    now = utc_now_iso(timespec="seconds")
+    if request.provider:
+        try:
+            recipe = use_place_instead(setup["recipe"], _start_plan(db)["elsewhere"], request.model,
+                                       request.provider, now=now)
+            result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return ProjectSetup(**result.result)
     card = next((c for c in known_cards(include_not_built=True) if c.id == request.card), None)
     if card is None:
         raise HTTPException(status_code=422, detail="that model is not one Fichero has a card for")
-    setup = read_project_setup(library)
     try:
-        recipe = use_instead(setup["recipe"], _start_plan(db)["downloads"], request.model, card,
-                             now=utc_now_iso(timespec="seconds"))
+        recipe = use_instead(setup["recipe"], _start_plan(db)["downloads"], request.model, card, now=now)
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

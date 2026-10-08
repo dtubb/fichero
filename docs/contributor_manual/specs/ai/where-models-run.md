@@ -287,7 +287,8 @@ Decided **at Start**, shown on the Ready screen, never invented mid-run:
   not taken without asking.
 
 This reconciles "the app manages fallbacks" with the 2026-09-07 ruling against fallback ladders;
-it needs the maintainer's ruling (question 1).
+Ruled 2026-10-08 (question 1): another place only when it is free, and only after asking the
+person, never silently (`ai.where.fallback-free-and-asked`).
 
 ### 2.8 What the person sees
 
@@ -431,10 +432,24 @@ it needs the maintainer's ruling (question 1).
 
 ### F. Fallbacks and memory, managed by the app
 
-- `ai.where.fallback-across-places` — **[GAP]** (#5592) when a step's place fails for a
-  reason of the place, its page runs at the step's next alternative place for the same card,
-  allowed by the gate and within the plan's cost; the row and the run account say so. Waits on
-  question 1.
+- `ai.where.fallback-free-and-asked` — **[OK]** (#5592; ruled 2026-10-08, question 1) a step may
+  fall back to another place only when that place is free, and only after asking the person, never
+  silently. Built at Start: a step whose model this Mac cannot run (its card says this Mac's memory
+  cannot) is offered the same model at each free place in the plan's `elsewhere[].instead`
+  (`free: true`, its `place` and provider), and Start stays refused until the person presses one
+  (`POST /api/recipes/project/start/use-instead` with `provider`), which keeps it as a
+  project-scope override said "chosen by you" (as `source.onboard.auto.installed-model-first`
+  does). A place is one of the person's enabled provider rows off this Mac that lists the model by
+  the same id; it is free only when the price list says its input and output cost 0
+  (`llm/usage.py`). A paid place, or one the price list does not price, is never offered (the
+  refusal names it and says why); a project that keeps its pages on this Mac is offered no other
+  place. Built: `recipes/start.py` (`places_elsewhere`, `use_place_instead`). *Test:*
+  `fichero-server/tests/unit/recipes/test_fallback_free_and_asked.py`.
+- `ai.where.fallback-across-places` — **[GAP]** (#5592) when a step's place fails during a run
+  for a reason of the place (server down, quota, key missing), its page runs at the step's next
+  alternative place for the same card, only one the person accepted at Start and only a free one
+  (`.fallback-free-and-asked`); the row and the run account say so. Not built: a run never moves
+  a page by itself; only the Start offer above is.
 - `ai.where.app-keeps-memory` — **[PARTIAL]** (#5537) a local model that does not fit now waits
   while the engine releases its own idle models; built for MLX and Kraken
   (`llm/local_inference.py:137-204`), not for other runtimes or local servers.
@@ -477,7 +492,8 @@ it needs the maintainer's ruling (question 1).
    `.remote-audio-priced`).
 8. **Batch places as offers** (`ai.where.batch-is-an-offer`; #5566, #5398), after the Slurm slices of
    `compute/remote-compute.md`.
-9. **Fallback across places** (`ai.where.fallback-across-places`), once question 1 is ruled.
+9. **Fallback across places**: at Start, free and asked (`ai.where.fallback-free-and-asked`, built);
+   during a run (`ai.where.fallback-across-places`), to an accepted free place only.
 10. **The rest of the job model** (`ai.where.every-runtime-on-a-lane`, `.one-retry-policy`,
     `.one-cloud-cap`, `.lane-from-the-place`) and Settings' list (`ai.where.settings-lists-places`,
     `.place-status-is-probed`, `.one-list-of-places`, `.hf-endpoint-is-a-place`).
@@ -495,10 +511,8 @@ it needs the maintainer's ruling (question 1).
 
 ## Open questions (with recommendations)
 
-1. **Fallback across places.** The 2026-09-07 ruling removed fallback ladders; the maintainer now
-   asks that the app manage fallbacks. *Recommend:* allowed only to another place for the **same
-   card**, named at Start as the step's alternative, allowed by the gate, within the plan's cost;
-   a different model only when the accepted plan named it. Never decided mid-run.
+1. **Fallback across places.** *Ruled 2026-10-08:* another place only when that place is free (no
+   cost), and only after asking the person, never silently (`ai.where.fallback-free-and-asked`).
 2. **Is a server on the person's own machine "leaving the Mac"?** *Recommend:* a third egress
    class, "your machine", which a project that keeps its pages here may allow separately (a lab
    machine on Tailscale is not a company in another country).
