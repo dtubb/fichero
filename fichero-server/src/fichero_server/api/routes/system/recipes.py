@@ -771,6 +771,14 @@ class StartRun(BaseModel):
         "settings from setup's answers this run gives its workflow's tools, by tool (which kinds of names)"))
 
 
+class StartInstead(BaseModel):
+    """An installed model the plan offers instead of a download (#5583)."""
+
+    card: str = Field(description="its card id, to send to use-instead")
+    model: str = Field(description="its id in this Mac's model store")
+    name: str = Field(description="its name, as people read it")
+
+
 class StartDownload(BaseModel):
     """A model a step needs that is not on this Mac, and the action that downloads it."""
 
@@ -780,6 +788,10 @@ class StartDownload(BaseModel):
     size_mb: Optional[int] = None
     action: str = Field(description="the action to invoke to download it (a download-model job on the network lane)")
     params: dict[str, Any]
+    name: Optional[str] = Field(default=None, description="the model's name, as people read it (MLX models)")
+    instead: list[StartInstead] = Field(default_factory=list, description=(
+        "installed models this Mac can serve for the same steps, each usable instead in one press "
+        "(POST /api/recipes/project/start/use-instead; source.onboard.auto.installed-model-first)"))
 
 
 class ProposedStep(BaseModel):
@@ -905,6 +917,42 @@ async def start_project(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return StartPlan(**_as_started(db, _start_plan(db)))
+
+
+class UseInsteadRequest(BaseModel):
+    """Use an installed model instead of downloading the one the plan waits for (#5583)."""
+
+    model_config = ConfigDict(extra="forbid")
+    model: str = Field(description="the download the plan waits for, as its `downloads` names it (`model`)")
+    card: str = Field(description="the installed model's card id, as that download's `instead` names it")
+
+
+@router.post("/project/start/use-instead", response_model=ProjectSetup)
+async def use_installed_instead(
+    request: UseInsteadRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ProjectSetup:
+    """Use the installed model instead: every step pinned to the model Start waits to download is set to the
+    installed one the plan offers (`downloads[].instead`), kept as a project-scope override on the recipe (as Use
+    This keeps a bake-off's choice), through `project.save_setup` (audited, undoable)
+    (`source.onboard.auto.installed-model-first`). Refused (422) for a model the plan does not wait for, or a card
+    it does not offer instead."""
+    from fichero_server.core.timeutil import utc_now_iso
+    from fichero_server.recipes.start import use_instead
+
+    library = _library(db)
+    card = next((c for c in known_cards(include_not_built=True) if c.id == request.card), None)
+    if card is None:
+        raise HTTPException(status_code=422, detail="that model is not one Fichero has a card for")
+    setup = read_project_setup(library)
+    try:
+        recipe = use_instead(setup["recipe"], _start_plan(db)["downloads"], request.model, card,
+                             now=utc_now_iso(timespec="seconds"))
+        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ProjectSetup(**result.result)
 
 
 def _invert_start(before: dict | None, after: dict | None, ctx: ActionContext):

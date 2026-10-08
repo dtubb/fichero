@@ -335,6 +335,32 @@ final class RecipeSetupStore {
         }
     }
 
+    /// Use the installed model the plan offers instead of a download (#5583,
+    /// `source.onboard.auto.installed-model-first`): the engine sets it on the steps that waited for
+    /// the download and saves the recipe; the changed steps replace theirs in place, and Ready reads
+    /// the plan again because the recipe changed.
+    func useInstead(_ download: Components.Schemas.StartDownload,
+                    _ installed: Components.Schemas.StartInstead) async {
+        do {
+            switch try await client.api.useInstalledInsteadApiRecipesProjectStartUseInsteadPost(
+                body: .json(.init(model: download.model, card: installed.card))
+            ) {
+            case .ok(let success):
+                if let recipe = try success.body.json.recipe {
+                    adoptEngineRecipe(try JSONEncoder().encode(recipe))
+                }
+            case .unprocessableContent(let error):
+                errorMessage = (try? error.body.json)?.detail?.description
+                    ?? "The engine would not use \(installed.name)."
+            case .undocumented(let code, _):
+                errorMessage = "Could not use \(installed.name) (HTTP \(code))."
+            }
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not use \(installed.name): \(error.localizedDescription)"
+        }
+    }
+
     // MARK: What the engine wrote on the recipe (Use This, #4951)
 
     /// The recipe's `overrides` as the engine last saved them (Use This writes them,

@@ -6050,6 +6050,15 @@ def fichero_recipes_start_project(
     return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"redo": redo}))
 
 
+def fichero_recipes_use_installed_instead(
+    *,
+    card: Annotated[str, Field(description="the installed model's card id, as that download's `instead` names it.")],
+    model: Annotated[str, Field(description='the download the plan waits for, as its `downloads` names it (`model`)')],
+) -> Any:
+    "Use Installed Instead\n\nUse the installed model instead: every step pinned to the model Start waits to download is set to the\ninstalled one the plan offers (`downloads[].instead`), kept as a project-scope override on the recipe (as Use\nThis keeps a bake-off's choice), through `project.save_setup` (audited, undoable)\n(`source.onboard.auto.installed-model-first`). Refused (422) for a model the plan does not wait for, or a card\nit does not offer instead.\n\nRoute: POST /api/recipes/project/start/use-instead (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/start/use-instead", json=_rt.body({"card": card, "model": model}))
+
+
 def fichero_recipes_list_purposes(
 ) -> Any:
     'List Purposes\n\nThe purposes setup offers as checkboxes, in order, each with its label, whether it runs by\nitself and the jobs it proposes (`source.onboard.purpose-first`).\n\nRoute: GET /api/recipes/purposes (toolset `recipes`; reads).'
@@ -9038,6 +9047,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_run_summary", "recipes", "GET", "/api/recipes/project/runs/{job_id}/summary", fichero_recipes_run_summary),
     GeneratedTool("fichero_recipes_get_start_plan", "recipes", "GET", "/api/recipes/project/start", fichero_recipes_get_start_plan),
     GeneratedTool("fichero_recipes_start_project", "recipes", "POST", "/api/recipes/project/start", fichero_recipes_start_project),
+    GeneratedTool("fichero_recipes_use_installed_instead", "recipes", "POST", "/api/recipes/project/start/use-instead", fichero_recipes_use_installed_instead),
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
     GeneratedTool("fichero_recipes_routes_for_volume", "recipes", "GET", "/api/recipes/routes", fichero_recipes_routes_for_volume),
     GeneratedTool("fichero_recipes_search_scripts", "recipes", "GET", "/api/recipes/scripts", fichero_recipes_search_scripts),

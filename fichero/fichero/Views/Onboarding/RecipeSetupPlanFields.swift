@@ -214,17 +214,26 @@ struct RecipeDownloadRows: View {
                                 .controlSize(.small)
                         }
                     }
+                    // The other half of the one choice (#5583): an installed model instead.
+                    ForEach(download.instead ?? [], id: \.card) { installed in
+                        Button("Use the installed \(installed.name)") {
+                            Task { await store.useInstead(download, installed) }
+                        }
+                        .controlSize(.small)
+                    }
                 }
             }
         }
     }
 
-    /// "spaCy model es_core_news_sm · 13 MB · for Find names".
+    /// "spaCy model es_core_news_sm · 13 MB · for Find names", or by its name ("Qwen2.5-VL 7B (OCR) · 5653 MB · for
+    /// Correct") when the engine gives one.
     static func words(_ download: Components.Schemas.StartDownload, store: RecipeSetupStore) -> String {
         let runtime = download.runtime == "spacy" ? "spaCy" : download.runtime
         let size = download.sizeMb.map { " · \($0) MB" } ?? ""
         let steps = download.steps.map { store.title(ofStepId: $0) }.joined(separator: ", ")
-        return "\(runtime) model \(download.model)\(size) · for \(steps)"
+        let model = download.name ?? "\(runtime) model \(download.model)"
+        return "\(model)\(size) · for \(steps)"
     }
 }
 

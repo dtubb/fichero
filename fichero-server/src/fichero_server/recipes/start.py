@@ -314,9 +314,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         run["takes"], run["gives"] = card_inputs([jobs_of.get(sid, "") for sid in run["steps"]])
     # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
     refusals = check_recipe(recipe)
-    downloads = missing_models(runs)
-    refusals += [f"steps {', '.join(d['steps'])} need the {d['runtime']} model {d['model']} ({d['size_mb']} MB), "
-                 f"which is not on this Mac: download it first" for d in downloads]
+    downloads = missing_models(runs) + local_models_to_download(runs)
+    refusals += [_waits_for(d) for d in downloads]
     refusals += local_models_this_mac_cannot_serve(runs)
     if not runs and not refusals:
         nothing = isinstance(automatic, dict) and not automatic.get("runs", True)
@@ -361,25 +360,136 @@ def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return list(out.values())
 
 
+def _waits_for(download: dict[str, Any]) -> str:
+    """Start's refusal while a download is not here, naming what fixes it: the download, or an installed model
+    used instead (`source.onboard.auto.installed-model-first`), never an edit of the recipe."""
+    steps = ", ".join(download["steps"])
+    if download["runtime"] != "mlx":
+        return (f"steps {steps} need the {download['runtime']} model {download['model']} ({download['size_mb']} MB), "
+                f"which is not on this Mac: download it first")
+    instead = [i["name"] for i in download.get("instead") or []]
+    return (f"steps {steps} wait for {download['name']} ({download['size_mb']} MB), which is not on this Mac: "
+            f"download it" + (f", or use the installed {' or '.join(instead)} instead" if instead else "")
+            + " (Set Up… › Ready)")
+
+
 #: Jobs whose local model reads the page image; the others send it text alone.
 _TEXT_ONLY_JOBS = frozenset({"find-names-tag-words", "find-statements"})
+
+
+def _capability(run: dict[str, Any]) -> str:
+    return "text" if run["job"] in _TEXT_ONLY_JOBS else "vision"
+
+
+def _local_model(run: dict[str, Any]) -> str | None:
+    """The model a run asks this Mac's local model server (`omlx`) for, or None for any other run."""
+    provider = run.get("provider_override") or run.get("provider")
+    model = run.get("model_override") or run.get("model")
+    return model if provider == "omlx" and model else None
+
+
+def local_models_to_download(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The catalogue MLX models the plan's runs are pinned to that are not installed, each offered as a download
+    (`runtime` mlx, its name and size, the steps it serves) and, in `instead`, the installed models this Mac can
+    serve for every one of those steps, each by its card, to use in one press (`use_instead`,
+    `source.onboard.auto.installed-model-first`, #5583)."""
+    from fichero_server.llm import local_model_choice
+
+    store = local_model_choice._store()
+    out: dict[str, dict[str, Any]] = {}
+    for run in runs:
+        model = _local_model(run)
+        if model is None:
+            continue
+        problem = local_model_choice.local_model_problem(model, _capability(run), store=store)
+        if problem is None or problem.kind != "not-installed":
+            continue
+        model_id = store.canonical_id(model)
+        spec = store.spec(model_id)
+        instead = _installed_instead(run, store)
+        entry = out.get(model_id)
+        if entry is None:
+            out[model_id] = {"runtime": "mlx", "model": model_id, "name": spec.display_name,
+                             "steps": list(run["steps"]), "size_mb": spec.download_size_bytes // 1_000_000,
+                             "action": "model.download", "params": {"runtime": "mlx", "model": model_id},
+                             "instead": instead}
+        else:
+            entry["steps"] += run["steps"]
+            fits = {i["card"] for i in instead}
+            entry["instead"] = [i for i in entry["instead"] if i["card"] in fits]
+    return list(out.values())
+
+
+def _installed_instead(run: dict[str, Any], store: Any) -> list[dict[str, str]]:
+    """The installed models' cards that name this run's job and that this Mac's server can serve for it."""
+    from fichero_server.llm.local_model_choice import local_model_problem
+    from fichero_server.recipes.cards import mlx_model_for
+    from fichero_server.recipes.discovery import known_cards
+
+    out: dict[str, dict[str, str]] = {}
+    for card in known_cards():
+        repo = mlx_model_for(card.pin) if card.installed and run["job"] in card.jobs else None
+        if repo is None or local_model_problem(repo, _capability(run), store=store) is not None:
+            continue
+        model_id = store.canonical_id(repo)
+        out.setdefault(model_id, {"card": card.id, "model": model_id, "name": store.spec(model_id).display_name})
+    return list(out.values())
+
+
+def use_instead(recipe: dict[str, Any] | None, downloads: list[dict[str, Any]], model: str, card: Any, *,
+                now: str) -> dict[str, Any]:
+    """The recipe with the installed model `card` set, as a project-scope override (the one way a person's choice
+    of model is kept, as Use This keeps a bake-off's), on every step pinned to the download `model` the plan
+    offers it instead of (`source.onboard.auto.installed-model-first`, #5583). The press is the person's
+    deliberate choice, a licence that is not open included. ValueError, in words, when the plan offers no such
+    choice."""
+    import copy
+
+    from fichero_server.llm import local_model_choice
+    from fichero_server.recipes.bakeoff import apply_project_overrides
+    from fichero_server.recipes.cards import mlx_model_for
+
+    if not recipe:
+        raise ValueError("this project has no recipe yet: run setup first")
+    offer = next((d for d in downloads if d.get("runtime") == "mlx" and d["model"] == model), None)
+    if offer is None:
+        raise ValueError(f"{model} is not a model this project's Start waits to download")
+    chosen = next((i for i in offer.get("instead") or [] if i["card"] == card.id), None)
+    if chosen is None:
+        raise ValueError(f"{card.note or card.id} is not an installed model offered instead of {offer['name']}")
+    store = local_model_choice._store()
+    out = copy.deepcopy(recipe)
+    because = (f"chosen by you: the installed {chosen['name']}, rather than downloading {offer['name']} "
+               f"({offer['size_mb']} MB)")
+    for step in out.get("steps") or []:
+        repo = mlx_model_for(step.get("model") or {})
+        if step.get("id") not in offer["steps"] or not repo or store.canonical_id(repo) != model:
+            continue
+        sid = step["id"]
+        override = {"step": sid, "scope": "project", "folder_id": None, "model": dict(card.pin), "card": card.id,
+                    "runs_on": card.runs_on, "because": because, "at": now}
+        out["overrides"] = [o for o in out.get("overrides") or []
+                            if (o.get("step"), o.get("scope"), o.get("folder_id")) != (sid, "project", None)]
+        out["overrides"].append(override)
+    return apply_project_overrides(out, [card])
 
 
 def local_models_this_mac_cannot_serve(runs: list[dict[str, Any]]) -> list[str]:
     """A refusal for each run whose own local model (`omlx`) this Mac's local model server cannot
     serve -- not in the catalogue, not installed, or its card says this Mac's memory cannot run it
     -- with the reason and the fix, BEFORE Start (#5496, #5520). The step's model is the one the
-    run asks the server for, which switches to it; it is never served another in its place."""
+    run asks the server for, which switches to it; it is never served another in its place. One that is only
+    not installed is not refused here: the plan offers its download and any installed model instead (#5583)."""
     from fichero_server.llm.local_model_choice import local_model_problem
 
     out = []
     for run in runs:
-        provider = run.get("provider_override") or run.get("provider")
-        model = run.get("model_override") or run.get("model")
-        if provider != "omlx" or not model:
+        model = _local_model(run)
+        if model is None:
             continue
-        problem = local_model_problem(model, "text" if run["job"] in _TEXT_ONLY_JOBS else "vision")
-        if problem is not None:
+        problem = local_model_problem(model, _capability(run))
+        # A catalogue model that is only not installed yet is a download offer (`local_models_to_download`).
+        if problem is not None and problem.kind != "not-installed":
             out.append(f"steps {', '.join(run['steps'])} cannot run on this Mac: {problem}")
     return out
 
