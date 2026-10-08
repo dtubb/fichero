@@ -404,9 +404,13 @@ enum ActivityServiceError: LocalizedError {
     case validationError(String)
     case badRequest(String)
     case unexpectedResponse(Int)
+    /// The engine said no, in its own words (a 409 refusal): shown as it is.
+    case refused(String)
 
     var errorDescription: String? {
         switch self {
+        case .refused(let words):
+            return words
         case .validationError(let message):
             return "Validation error: \(message)"
         case .badRequest(let message):
@@ -511,6 +515,31 @@ extension ActivityService {
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
+    /// Run a failed or stopped job again (the audited `job.retry`, #5356): it
+    /// goes back to waiting and carries on from its own checkpoint. Returns the
+    /// job's state after the request. A refusal (409: work a run hands in, a
+    /// training on Hugging Face, work already waiting) throws the engine's words.
+    func retryJob(id: String) async throws -> String {
+        let response = try await client.api.retryJobApiActivityJobsJobIdRetryPost(path: .init(jobId: id))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.state
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            // One read of the body serves both: a streamed body reads only once.
+            let body = await AccessError.collectDenialBody(payload)
+            if let denial = AccessError.classify(statusCode: statusCode, body: body) {
+                throw denial
+            }
+            if let words = EngineErrorDetail.message(from: body) {
+                throw ActivityServiceError.refused(words)
+            }
             throw ActivityServiceError.unexpectedResponse(statusCode)
         }
     }

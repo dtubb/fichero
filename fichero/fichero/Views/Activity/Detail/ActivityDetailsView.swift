@@ -82,11 +82,12 @@ struct ActivityDetailsView: View {
         var failure: String?
         switch action {
         case .control(let control):
-            guard let jobId = row.jobId else { return }
+            guard let jobId = control == .retry ? row.retryJobId : row.jobId else { return }
             switch control {
             case .pause: failure = await store.setJobPaused(jobId: jobId, paused: true, runThreadId: row.runThreadId)
             case .resume: failure = await store.setJobPaused(jobId: jobId, paused: false, runThreadId: row.runThreadId)
             case .stop: failure = await store.cancelJob(jobId: jobId, runThreadId: row.runThreadId)
+            case .retry: failure = await store.retryJob(jobId: jobId, runThreadId: row.runThreadId)
             }
             failure = failure.map { "Couldn't \(control.label.lowercased()) \(row.name): \($0)" }
         case .readAgain:

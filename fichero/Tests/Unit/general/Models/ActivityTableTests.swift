@@ -388,6 +388,72 @@ final class ActivityTableTests: XCTestCase {
         XCTAssertEqual(row.children?[0].controls, [], "a finished row offers nothing")
     }
 
+    // MARK: - Retry on a failed or stopped row (activity.pause.per-job, #5356)
+
+    func testActivityWindowTable_retryOnAFailedPageRowSetsThatOneRowsState() async throws {
+        // WHY: "a failed or stopped row offers Retry", through the one audited
+        // job route (`job.retry`), and the engine's answer lands on that row in place.
+        let store = Self.storeWithMockTransport()
+        let pageId = "e3a1c445-72a4-4bb7-8135-05dacc6ca483"
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs/\(Self.runId)", method: "GET", status: 200,
+                 body: Self.treeJSON(runState: "failed", stepState: "failed")),
+            Stub(pathContains: "/api/activity/jobs/\(pageId)/retry", method: "POST", status: 200,
+                 body: Data(#"{"id":"\#(pageId)","state":"waiting"}"#.utf8))
+        ])
+        let before = try await loadedTree(store)
+        let beforeRow = ActivityMonitorRow.run(Self.run(), tree: before)
+        let failedPage = try XCTUnwrap(beforeRow.children?[1].children?[1])
+        XCTAssertEqual(failedPage.controls, [.retry], "a failed row offers Retry")
+        XCTAssertEqual(beforeRow.children?[1].children?[0].controls, [], "a done row offers nothing")
+
+        let failure = await store.retryJob(jobId: pageId, runThreadId: Self.runId)
+
+        XCTAssertNil(failure)
+        let post = try XCTUnwrap(MockTransportURLProtocol.recorded().last { $0.httpMethod == "POST" })
+        XCTAssertTrue(post.url?.path.hasSuffix("/api/activity/jobs/\(pageId)/retry") == true)
+        let after = try XCTUnwrap(store.runTrees[Self.runId])
+        XCTAssertEqual(after.children[1].children[1].state, "waiting")
+        XCTAssertEqual(after.children[1].children[0], before.children[1].children[0], "the sibling page is untouched")
+        XCTAssertEqual(after.children[0], before.children[0], "the other step is untouched")
+        let row = ActivityMonitorRow.run(Self.run(), tree: after)
+        XCTAssertEqual(row.children?[1].children?[1].controls, [.pause, .stop],
+                       "a retried row waits again, and offers Pause and Stop")
+    }
+
+    func testActivityWindowTable_aRefusedRetrySaysTheEnginesWordsAndChangesNothing() async throws {
+        // WHY: "a refusal shows the engine's words": a training on Hugging Face,
+        // work a run hands in, or work already waiting cannot be retried (409).
+        let store = Self.storeWithMockTransport()
+        let words = "A training on Hugging Face cannot be run again here: start a new one."
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs/\(Self.runId)", method: "GET", status: 200,
+                 body: Self.treeJSON(runState: "failed", stepState: "failed")),
+            Stub(pathContains: "/api/activity/jobs/\(Self.runId)/retry", method: "POST", status: 409,
+                 body: Data(#"{"detail":"\#(words)"}"#.utf8))
+        ])
+        let before = try await loadedTree(store)
+
+        let failure = await store.retryJob(jobId: Self.runId, runThreadId: Self.runId)
+
+        XCTAssertEqual(failure, words, "the refusal is the engine's sentence, not a status code")
+        XCTAssertEqual(store.runTrees[Self.runId], before, "a refused retry changes no row")
+    }
+
+    func testActivityWindowTable_aStoppedJobOfItsOwnOffersRetryButARunningOneDoesNot() {
+        // WHY: Retry reaches every job (`job.retry`), a job of its own from the
+        // jobs read too, while Pause and Stop stay on rows with a tree node.
+        let failed = ActivityMonitorRow.job(
+            ActivityJob(id: "dl-1", taskType: "model-download", name: "Download a model", state: .failed),
+            libraryId: Self.libraryId, projectName: nil)
+        let running = ActivityMonitorRow.job(
+            ActivityJob(id: "dl-2", taskType: "model-download", name: "Download a model", state: .running),
+            libraryId: Self.libraryId, projectName: nil)
+        XCTAssertEqual(failed.controls, [.retry])
+        XCTAssertEqual(failed.retryJobId, "dl-1", "Retry acts on the job of its own's id")
+        XCTAssertEqual(running.controls, [])
+    }
+
     // MARK: - Sortable columns
 
     func testActivityWindowTable_rowsSortByAColumnAndTheirChildrenToo() {

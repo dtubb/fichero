@@ -580,6 +580,23 @@ extension ActivityStore {
         }
     }
 
+    /// Run a failed or stopped row's job again (`job.retry`, #5356): the state
+    /// the engine answers is set on that ONE node in place, and a job of its
+    /// own is re-read by the jobs poll. Returns the engine's refusal, in its
+    /// words, or nil.
+    func retryJob(jobId: String, runThreadId: String?) async -> String? {
+        do {
+            let state = try await activityService.retryJob(id: jobId)
+            patchJobState(state, jobId: jobId, runThreadId: runThreadId)
+            if backgroundJobs.contains(where: { $0.id == jobId }) {
+                await refreshBackgroundJobs()
+            }
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     /// Read the pages a finished run did not do (#5555): the engine starts one
     /// new run; the run list picks it up on the next resync. Returns what went
     /// wrong, in words, or nil.
