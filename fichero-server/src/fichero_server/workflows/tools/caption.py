@@ -34,6 +34,7 @@ TOOL_CONFIG = VisionToolConfig(
     trigger_embedding=False,
     supports_apple_vision=False,
     metadata_field="caption",
+    reading_kind="description",  # a caption is text about the page (#5599)
 )
 
 CAPTION_CONFIG = {

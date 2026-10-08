@@ -5326,7 +5326,7 @@ async def process_vision(
                 if _read_flag is not None:
                     effective_artifact_data = {**(effective_artifact_data or {}), READ_FLAG_KEY: _read_flag}
                     _save_tool_config = dataclasses.replace(
-                        tool_config, update_page_content=False, trigger_embedding=False
+                        tool_config, update_page_content=False, trigger_embedding=False, reading_kind=None
                     )
                 # Set proper provider/model labels for local processing
                 save_config = effective_config

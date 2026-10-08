@@ -34,6 +34,7 @@ TOOL_CONFIG = VisionToolConfig(
     trigger_embedding=False,
     supports_apple_vision=False,  # Need LLM for descriptions
     metadata_field="description",  # Store in metadata for quick access
+    reading_kind="description",  # the page's description reading (#5599)
 )
 
 # Describe-specific config (added to VISION_CONFIG_SCHEMA)
