@@ -167,6 +167,14 @@ class Card:
     #: a built-in, a cloud model). A model already here wins over one to download (`_rank_key`).
     installed: bool | None = None
 
+    def __post_init__(self) -> None:
+        # A card that lists a language also covers the languages written as it (a Syriac reader reads Classical
+        # Syriac): one place, so every rule that compares languages agrees (#5595).
+        if self.languages is not None:
+            from fichero_server.recipes.names import languages_covered
+
+            object.__setattr__(self, "languages", languages_covered(self.languages))
+
     @property
     def local(self) -> bool:
         return self.runs_on == "this-mac"

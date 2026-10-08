@@ -116,7 +116,11 @@ def check_recipe(recipe: dict[str, Any], folder: Path | None = None) -> list[str
                 if name not in CONDITIONS:
                     out.append(f"{label}: {cond_key} {name!r} is not one of the allowed conditions "
                                f"({', '.join(sorted(CONDITIONS))})")
-        if "model" in step:
+        if "model" in step and step["model"] is None:
+            # A step the rules found no model for says why in the person's words, never "the model None" (#5595).
+            problem = step.get("problem") if isinstance(step.get("problem"), dict) else {}
+            out.append(f"{label}: {problem.get('sentence') or step.get('gap') or 'no model is chosen for it'}")
+        elif "model" in step:
             _check_model(label, step["model"], out)
         for alt in step.get("alternatives") or []:
             _check_model(f"{label} alternative", alt, out)
