@@ -134,9 +134,8 @@ KRAKEN_RECOGNITION_MODELS: dict[str, dict[str, object]] = {
         "doi": "10.5281/zenodo.12743230",
         "display_name": "CATMuS Medieval",
         "size_bytes": 16_332_989,
-        "note": "Medieval manuscripts (Old/Middle French, Latin, Spanish). "
-                "Older hands than a 19th-20th century court record — offered as "
-                "a general Latin-script option, not a court-hand pick.",
+        "note": "Medieval manuscripts in Latin script (Old/Middle French, Latin, "
+                "Spanish and other languages).",
     },
 }
 

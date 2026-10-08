@@ -150,3 +150,24 @@ def test_source_find_note_counts_agree(client, here):
     note = _kraken(client)["kraken-trained-0123456789ab"]["note"]
     assert "on 1 page (1 line," in note and "1 page held out" in note and "11 pages" in note, note
     assert "1 pages" not in note.replace("11 pages", "")
+
+
+# -- source.find.note-describes-model -------------------------------------------------------------------------
+
+
+def test_source_find_note_describes_model(client, here):
+    """source.find.note-describes-model: "a model's note in the local-models list describes the model ... never a
+    period or kind of record it was not chosen for: a note shown in every project names no century and no
+    project's material.\""""
+    import re
+
+    _install(here, "kraken-mccatmus", 4096)
+    _install(here, "kraken-catmus-medieval", 4096)
+    rows = client.get("/api/local-models", params={"model_type": "spacy"}).json()["models"] + \
+        list(_kraken(client).values())
+    assert {"es_core_news_md", "es_core_news_lg", "kraken-catmus-medieval"} <= {m["model_id"] for m in rows}
+    for m in rows:
+        if m["model_id"] == "kraken-mccatmus":
+            continue  # its record's own span (16th-21st century) is what it was trained on: it describes the model
+        assert not re.search(r"\d+(st|nd|rd|th)[- ]century|court", m["note"] or "", re.IGNORECASE), m
+    assert "UNMEASURED" in next(m for m in rows if m["model_id"] == "es_core_news_md")["note"]

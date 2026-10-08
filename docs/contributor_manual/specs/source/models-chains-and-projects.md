@@ -2868,6 +2868,12 @@ Finding models
   a reader's note counts in words that agree with the number: "on 1 page (3 lines)", "1 page held out", never
   "on 1 pages". A trained reader's card is written so, and a card written before (its summary kept on disk) is
   said so when listed.
+- `source.find.note-describes-model` — **[OK]** (#5617; built 2026-10-08: the notes in `llm/local_models.py`
+  `SPACY_MODELS` and `llm/kraken_runtime.py` `KRAKEN_RECOGNITION_MODELS`; pinned by
+  `fichero-server/tests/unit/recipes/test_reader_cards_5617.py`) a model's note in the local-models list describes
+  the model (its language, what it reads, what is unmeasured about it), never a period or kind of record it was not
+  chosen for: a note shown in every project names no century and no project's material (no "16th-century
+  orthography" for a spaCy pipeline, no "court record" for CATMuS).
 - `source.find.installed-count` — **[OK]** (#5519) every complete MLX vision model in this engine's
   model store that no shipped card pins (a catalogue model, one Fichero trained, one found in the
   store) is a reader candidate with a card made from its own metadata: its config says it reads
