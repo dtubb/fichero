@@ -13393,7 +13393,7 @@
           "recipes"
         ],
         "summary": "Model Candidates",
-        "description": "Every reader candidate for these scripts and languages (comma-separated codes or names), from the\nshipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is reached only with `online=true`, and never when this engine works\noffline; otherwise the repository is read from its last fetch and the Hub is not searched. Refused\n(422), in words, for an unknown script, language, material or job.",
+        "description": "Every reader candidate for these scripts and languages (comma-separated codes or names), from the\nshipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is reached only with `online=true`, and never when this engine works\noffline; otherwise the repository is read from its last fetch and the Hub readers from the earlier searches\nfor these languages (#5593). Refused\n(422), in words, for an unknown script, language, material or job.",
         "operationId": "model_candidates_api_recipes_candidates_get",
         "parameters": [
           {
@@ -68588,7 +68588,7 @@
           "in_recipe_rules": {
             "type": "boolean",
             "title": "In Recipe Rules",
-            "description": "false for a Hugging Face result: Fichero cannot download a Hub model outside its catalogue yet, so the rules do not choose it"
+            "description": "whether the rules choose from it: true for every candidate since a found Hugging Face reader downloads like a catalogue model (#5593)"
           },
           "rule_rank": {
             "type": "integer",
@@ -69902,6 +69902,33 @@
           "link_id"
         ],
         "title": "NamingSegment"
+      },
+      "NearestReader": {
+        "properties": {
+          "card": {
+            "type": "string",
+            "title": "Card",
+            "description": "its card id: for the Inspector, never shown in setup's sentence"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "its card's name, as people read it"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "how near it is, in words: another material, a related script, or the language"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card",
+          "name",
+          "why"
+        ],
+        "title": "NearestReader",
+        "description": "A refused reader close to fitting a step that has none (`source.onboard.nothing-fits-names-nearest`)."
       },
       "NeighborEntity": {
         "properties": {
@@ -76088,6 +76115,25 @@
         ],
         "title": "ReferenceWithProvenanceResponse",
         "description": "Response from GET /api/references/{id}."
+      },
+      "RefusedCard": {
+        "properties": {
+          "card": {
+            "type": "string",
+            "title": "Card"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "the rules' first reason it cannot do the step"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card",
+          "why"
+        ],
+        "title": "RefusedCard"
       },
       "RegenerateMissingResponse": {
         "properties": {
@@ -83757,7 +83803,23 @@
           "detail": {
             "type": "string",
             "title": "Detail",
-            "description": "the rules' own reason, model ids included: for the Inspector and the log"
+            "description": "the rules' own reason, short (how many cards were refused, and why): for the Inspector and the log"
+          },
+          "nearest": {
+            "items": {
+              "$ref": "#/components/schemas/NearestReader"
+            },
+            "type": "array",
+            "title": "Nearest",
+            "description": "up to three refused readers closest to fitting, the ones the sentence names (source.onboard.nothing-fits-names-nearest)"
+          },
+          "refused": {
+            "items": {
+              "$ref": "#/components/schemas/RefusedCard"
+            },
+            "type": "array",
+            "title": "Refused",
+            "description": "every card refused for the step, and why"
           }
         },
         "type": "object",

@@ -452,7 +452,9 @@ class MLXModelStore:
 
     def canonical_id(self, name: str | None) -> str | None:
         """The store's id for a model a step names by its catalogue id, its Hub repository, or a
-        trained model's id; None for any other name (#5520: a recipe pins the repo, the CLI the id)."""
+        trained model's id; None for any other name (#5520: a recipe pins the repo, the CLI the id).
+        A Hub reader the model search found and kept is known too, so it downloads like a catalogue
+        model (#5593)."""
         if not name:
             return None
         for model_id, spec in MANAGED_MLX_MODELS.items():
@@ -460,14 +462,25 @@ class MLXModelStore:
                 return model_id
         if self.trained_card(name) is not None or self.found_spec(name) is not None:
             return name
+        if self.hub_spec(name) is not None:
+            return name
         return None
+
+    @staticmethod
+    def hub_spec(repo_id: str) -> ManagedModelSpec | None:
+        """A Hub reader the model search found and kept, not yet in this store (`recipes.discovery.hub_spec`)."""
+        if not _REPO_ID.match(repo_id or "") or repo_id.startswith(f"{TRAINED_ORG}/"):
+            return None
+        from fichero_server.recipes.discovery import hub_spec
+
+        return hub_spec(repo_id)
 
     def spec(self, model_id: str) -> ManagedModelSpec:
         if model_id in MANAGED_MLX_MODELS:
             return MANAGED_MLX_MODELS[model_id]
         card = self.trained_card(model_id)
         if card is None:
-            found = self.found_spec(model_id)
+            found = self.found_spec(model_id) or self.hub_spec(model_id)
             if found is None:
                 raise KeyError(f"Unknown managed MLX model: {model_id}")
             return found

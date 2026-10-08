@@ -1678,9 +1678,10 @@ Known gaps that discovery must close (corpus run 2026-10-06, #5519): Fraktur (UB
 Syriac (eScriptorium, Calamari), Latin and Ancient Greek spaCy (LatinCy, greCy).
 Built 2026-10-07 for readers (#5519, `source.find.installed-count`, `source.find.kraken-repository`,
 `source.find.hub-runs-here`, `source.find.rules-see-candidates`): sources 1 (MLX vision models), 2 and 3,
-through `GET /api/recipes/candidates`. Still owed: installed Kraken readers outside the repository,
-spaCy pipelines, YOLO weights, downloading a found Hub model, and a "no model fits" problem that names
-the nearest candidates.
+through `GET /api/recipes/candidates`. Built 2026-10-08 (#5593): a found Hub reader is kept, chosen by the
+rules and offered as a download (`source.find.found-reader-downloads`), and "no model fits" names the nearest
+candidates (`source.onboard.nothing-fits-names-nearest`). Still owed: installed Kraken readers outside the
+repository, spaCy pipelines, YOLO weights.
 
 **Training layout models (YOLO) and tables (proposed, maintainer 2026-10-05, #5525).**
 Fichero reads and writes YOLO labels today (`formats/yolo.py`) but has no YOLO training. The
@@ -2825,9 +2826,9 @@ Finding models
   (the `mlx` tag; the Hub ignores a `library` parameter, which is how the old search returned GGUF chat
   models) or a safetensors model's MLX conversion found by its `base_model:` tag, each saying why it is
   offered; never a GGUF repository. *Built, pinned by `test_model_discovery.py` with recorded Hub
-  answers. Residue: Fichero cannot download a Hub model outside its catalogue yet, so these are
-  listed (`in_recipe_rules: false`), not chosen by the rules; installed by hand, one becomes an
-  installed candidate.*
+  answers. Since #5593 (2026-10-08) what a search finds is kept and the rules choose from it
+  (`in_recipe_rules: true`; `source.find.found-reader-downloads`). Residue: the Hub's listing states
+  no size or memory for a found build.*
 - `source.find.rules-see-candidates` — **[OK]** (#5519) setup's assembly, the bake-off and Use This
   choose from the shipped, installed and cached repository cards (never the network), ranked by the
   same fixed order, so a Japanese, Chinese or Fraktur project gets a reader where one is installed or
@@ -2835,6 +2836,33 @@ Finding models
   a bake-off measures it, and its card names where it came from (`card.source`). An installed vision
   model runs at Start and is scored in the bake-off like a catalogue one. *Pinned by
   `test_model_discovery.py`.*
+- `source.recipe.script-reader-first` — **[OK]** (#5593; built 2026-10-08: `made_for_script` and `_rank_key` in `recipes/assemble.py`, a record's material in `discovery._row_material`; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`) among the readers that pass the hard
+  constraints, one **made for the asked script** comes before a generic one: every script its card
+  states is the asked one, its parent (Latin for Fraktur) or one of its parts (kana for Japanese), its
+  card lists the project's languages, and it states a published CER. A generic multilingual card (a
+  base model trained on many scripts) never outranks it, however low its own CER. Next, a reader whose
+  card states the asked material (print, handwriting) comes before one that does not state it, so the
+  same generic card is not chosen for print and handwriting alike; a repository record's material is
+  read from its own words ("printed", "manuscript"). Only then does a published CER rank, so it only
+  ranks cards of the same script tier and material. A measurement on the project's pages outranks all
+  of these. *Test:* a Fraktur print project gets a Fraktur card, not the multilingual base model; a
+  Spanish project keeps PP-OCRv6 (no Latin-only card states a CER).
+- `source.recipe.no-cross-script-reader` — **[OK]** (#5593; built 2026-10-08: `discovery.covered_scripts` widens a card one step from what it states, never chained; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`) a reader is never chosen for a script its
+  card does not cover: a Japanese card covers Han, kana and Japanese, never Traditional or Simplified
+  Chinese, so Classical Chinese (`Hant`) never gets the Kuzushiji reader silently. Where no reader
+  covers the script, the step says so (`source.onboard.nothing-fits-names-nearest`).
+- `source.find.found-reader-downloads` — **[PARTIAL]** (#5593; built 2026-10-08: `discovery.keep_hub`/`hub_cards`/`hub_spec`, the model store's `hub_spec`; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`. *Residue: the Hub's listing states no size or memory, so a found reader's are unknown until downloaded; the download itself is not exercised without the network.*) a Hugging Face reader found by the online
+  search is kept beside the repository listing in the model store's `discovery/` folder, joins the rules
+  for the languages it was found for (never the network at assembly), and where the rules choose it the
+  Start plan offers it as a download (`downloads`, with `instead`), through the same model download as a
+  catalogue model (`local_models_to_download`, `model.download`); a size the Hub did not state is said to
+  be unknown, never zero. *Test:* a Tamil project after an online search has its reader in `downloads`.
+- `source.onboard.nothing-fits-names-nearest` — **[PARTIAL]** (#5593; built 2026-10-08 (engine): `_nearest` and `_problem` in `recipes/assemble.py`, the plan's skip in `recipes/start.py`, `StepProblem.nearest`/`refused`; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`. *Residue: "the same language family" is not built (the engine holds no language families; a card listing the project's language stands in); the app's step row is not yet seen showing the nearest.*) where no reader fits, the step's
+  problem sentence stays short and names up to three nearest readers by name (one for the same script
+  but another material, then a related script, then one listing the project's language), never an id;
+  `detail` is one short line (how many cards each rule refused, naming two of each); every refused card
+  and why stays in the structured `refused` list and
+  `nearest` lists the three. The Start plan's skipped step says the same sentence.
 - `source.find.download-is-a-provider-row` — **[GAP]** (#4948) a downloaded model becomes a row under
   its provider, through the one catalogue's download path.
 - `source.find.results-are-cards` — **[GAP]** (#4948) results are shown as cards, with licence

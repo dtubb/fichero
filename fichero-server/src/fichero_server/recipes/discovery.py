@@ -19,8 +19,10 @@ reader candidates from three more places, each turned into a `Card` the same rul
 * **Hugging Face** (`search_hugging_face`): image-to-text and image-text-to-text models by task and
   language tag, never by keyword, and only builds this Mac can run: an MLX build, or a safetensors model
   whose MLX conversion the Hub names (`base_model:`), offered as that conversion. A GGUF-only repository
-  is never offered. Each result says why it is offered. Fichero cannot yet download a Hub model outside
-  its catalogue, so these are listed for the person and not handed to the rules.
+  is never offered. Each result says why it is offered. What a search finds is kept beside the repository
+  listing (`hugging-face.json`), so the rules choose from it for the languages it was found for, without
+  the network; one the rules choose is offered as a download through this Mac's model store (`hub_spec`,
+  #5593, `source.find.found-reader-downloads`).
 
 The network is reached only when a caller asks (`online`), never at import time, and never when the engine
 works offline (`llm.is_local_only`, the egress setting). Offline, discovery offers what is installed and
@@ -42,6 +44,8 @@ READER_JOBS = frozenset({"read-a-line", "read-a-page"})
 #: Where discovery keeps what it fetched, under the model store root.
 CACHE_FOLDER = "discovery"
 REPOSITORY_FILE = "kraken-repository.json"
+#: The Hub readers the searches found, each with the languages it was found for (#5593).
+HUB_FILE = "hugging-face.json"
 #: A cached repository listing older than this is fetched again when a caller asks for the network.
 REFRESH_AFTER = timedelta(days=1)
 #: Hugging Face tasks a page or line reader is published under. MLX builds are asked for by the `mlx` tag:
@@ -53,11 +57,13 @@ HF_CONVERSIONS_LOOKED_UP = 8
 
 #: ISO 15924 codes that cover others (Han covers its simplified and traditional variants; Japanese is Han
 #: plus the kana; Korean is Hangul plus Han), so a project's `Jpan` is covered by a card that states
-#: `Hani`, `Hira` and `Kana`, and the reverse.
+#: `Hani`, `Hira` and `Kana`, and the reverse. A card is widened one step from what it states, never
+#: further: a Japanese card covers Han as Japanese writes it, never Traditional or Simplified Chinese
+#: (#5593: Classical Chinese was given the Kuzushiji reader, `source.recipe.no-cross-script-reader`).
 _UNIONS: dict[str, frozenset[str]] = {
     "Hani": frozenset({"Hans", "Hant"}),
-    "Jpan": frozenset({"Hani", "Hira", "Kana", "Hrkt", "Hans", "Hant"}),
-    "Kore": frozenset({"Hang", "Hani", "Hans", "Hant"}),
+    "Jpan": frozenset({"Hani", "Hira", "Kana", "Hrkt"}),
+    "Kore": frozenset({"Hang", "Hani"}),
     "Hrkt": frozenset({"Hira", "Kana"}),
 }
 
@@ -71,11 +77,12 @@ def _store_root() -> Path:
 def covered_scripts(scripts: list[str] | frozenset[str]) -> frozenset[str]:
     """The scripts a card covers, its stated ones widened by the unions above (#5519: a Japanese project
     asked for `Jpan` and a card stated `Hani`, `Hira`, `Kana`)."""
-    out = set(scripts)
+    stated = set(scripts)
+    out = set(stated)
+    for whole, parts in _UNIONS.items():
+        if whole in stated:  # one step down from what the card states, never chained (Jpan -> Hani -> Hant)
+            out |= parts
     for _ in range(2):
-        for whole, parts in _UNIONS.items():
-            if whole in out:
-                out |= parts
         for whole, parts in _UNIONS.items():
             needed = {p for p in parts if p not in ("Hans", "Hant", "Hrkt")}
             if whole not in out and needed and needed <= out:
@@ -266,6 +273,20 @@ def _row_scripts(row: dict[str, Any]) -> frozenset[str]:
     return covered_scripts(scripts)
 
 
+def _row_material(row: dict[str, Any]) -> frozenset[str]:
+    """The material a record's own words name ("printed", "manuscripts", "typewritten"), or none: the rules
+    rank a reader whose card states the asked material first (`source.recipe.script-reader-first`, #5593)."""
+    text = " ".join([row["summary"], *row["keywords"]]).lower()
+    found = set()
+    if re.search(r"\bprint|\bincunab|\bnewspaper", text):
+        found.add("print")
+    if re.search(r"handwrit|manuscript", text):
+        found.add("handwriting")
+    if re.search(r"typewrit|typescript", text):
+        found.add("typescript")
+    return frozenset(found)
+
+
 def repository_cards(rows: list[dict[str, Any]], seed: tuple[Card, ...] | list[Card],
                      languages: frozenset[str] = frozenset()) -> list[Card]:
     """A card for each repository record no shipped card pins. Its published CER is its accuracy only
@@ -287,7 +308,7 @@ def repository_cards(rows: list[dict[str, Any]], seed: tuple[Card, ...] | list[C
             why += "; downloaded on this Mac"
         out.append(Card(
             id=f"kraken:zenodo/{row['doi']}@pinned", pin={"zenodo": row["doi"]}, jobs=frozenset({"read-a-line"}),
-            scripts=_row_scripts(row) or None, languages=langs, material=frozenset(),
+            scripts=_row_scripts(row) or None, languages=langs, material=_row_material(row),
             open_licence=_is_open(row["licence"]), size_gb=round(row["size_bytes"] / 1e9, 4),
             trainable=True, cer_published=cer if matches else None, licence=row["licence"],
             note=row["summary"] or row["doi"], source="kraken-repository", offered_because=why,
@@ -360,20 +381,98 @@ def _with_languages(card: Card, languages: frozenset[str] | None) -> Card:
     return replace(card, languages=languages)
 
 
+def cached_hub() -> dict[str, dict[str, Any]]:
+    """The Hub readers the searches found, {repo: row}, each row with the languages it was found for."""
+    try:
+        data = json.loads((_store_root() / HUB_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    found = data.get("found") if isinstance(data, dict) else None
+    return found if isinstance(found, dict) else {}
+
+
+def keep_hub(cards: list[Card], languages: frozenset[str]) -> None:
+    """Keep what a Hub search for these languages found, beside what earlier searches found (#5593)."""
+    if not cards or not languages:
+        return
+    found = cached_hub()
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    for card in cards:
+        repo = str(card.pin["hf"])
+        before = found.get(repo) or {}
+        found[repo] = {"repo": repo, "languages": sorted(card.languages) if card.languages else None,
+                       "licence": card.licence, "note": card.note, "offered_because": card.offered_because,
+                       "size_gb": card.size_gb, "found_for": sorted({*before.get("found_for", []), *languages}),
+                       "found_at": now}
+    folder = _store_root()
+    folder.mkdir(parents=True, exist_ok=True)
+    tmp = folder / f".{HUB_FILE}.tmp"
+    tmp.write_text(json.dumps({"found": found}, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(folder / HUB_FILE)
+
+
+def hub_cards(languages: frozenset[str] | None, skip_repos: set[str] = frozenset()) -> list[Card]:
+    """The kept Hub readers found for any of these languages (every one kept, for None: a card looked up by its
+    id), as cards the rules rank, except those whose repository another card already pins (a shipped card, or
+    the installed copy once downloaded)."""
+    out = []
+    for repo, row in sorted(cached_hub().items()):
+        if repo in skip_repos or (languages is not None and not languages & set(row.get("found_for") or ())):
+            continue
+        out.append(Card(
+            id=f"mlx:hf/{repo}@main", pin={"hf": repo, "revision": "main"}, jobs=READER_JOBS, scripts=None,
+            languages=_tags(row.get("languages")), material=frozenset(),
+            open_licence=_is_open(str(row.get("licence") or "")), trainable=True,
+            size_gb=float(row.get("size_gb") or 0), licence=str(row.get("licence") or ""),
+            note=str(row.get("note") or repo.rsplit("/", 1)[-1]), source="hugging-face",
+            offered_because=str(row.get("offered_because") or "found on Hugging Face"),
+        ))
+    return out
+
+
+def hub_spec(repo_id: str) -> Any:
+    """The model store's spec for a Hub reader a search found and kept, so this Mac's model store downloads it
+    as it downloads a catalogue model (`model.download`, #5593); None for any other name. Its size and memory are
+    not stated by the Hub's listing: zero here, said as unknown, until its files are in the store (then the store
+    reads it as a found model, `found_spec`)."""
+    from fichero_server.llm.mlx_model_store import ManagedModelSpec
+
+    row = cached_hub().get(repo_id or "")
+    if row is None:
+        return None
+    size = int(float(row.get("size_gb") or 0) * 1e9)
+    return ManagedModelSpec(
+        model_id=repo_id, repo_id=repo_id, revision="main", display_name=str(row.get("note") or repo_id),
+        download_size_bytes=size, min_memory_bytes=size,
+        memory_class="memory not stated until it is downloaded" if not size else
+        f"needs at least {size / 1e9:.1f} GB unified memory (its weights)",
+        capabilities=("text", "vision"),
+        note=f"Found on Hugging Face by Fichero's model search: {row.get('offered_because') or ''}. "
+             "Not measured here yet.",
+    )
+
+
 # --- what the rules see -------------------------------------------------------------------------------
 
 
 def known_cards(a: Answers | None = None, *, include_not_built: bool = False) -> list[Card]:
     """Every card the rules choose from, without the network: the shipped seed, the installed models'
-    cards and the cached repository's. `include_not_built` keeps seed cards whose runtime is not in this
-    build (the bake-off names Tesseract)."""
+    cards, the cached repository's, and the Hub readers kept for the project's languages (#5593).
+    `include_not_built` keeps seed cards whose runtime is not in this build (the bake-off names Tesseract)."""
     from fichero_server.recipes.cards import all_seed_cards, seed_cards
 
     seed = all_seed_cards() if include_not_built else seed_cards()
     cached = cached_repository()
     languages = a.languages if a is not None else frozenset()
-    return [*mark_installed(seed), *installed_cards(seed),
-            *(repository_cards(cached["records"], seed, languages) if cached else [])]
+    installed = installed_cards(seed)
+    return [*mark_installed(seed), *installed,
+            *(repository_cards(cached["records"], seed, languages) if cached else []),
+            *mark_installed(hub_cards(a.languages if a is not None else None,
+                                      _pinned_repos([*seed, *installed])))]
+
+
+def _pinned_repos(cards: list[Card]) -> set[str]:
+    return {str(c.pin["hf"]) for c in cards if "hf" in c.pin}
 
 
 def egress_allowed() -> bool:
@@ -419,9 +518,13 @@ async def discover(a: Answers, *, online: bool) -> tuple[list[Card], list[dict[s
         detail += f"Kraken's model repository on Zenodo, as fetched {cached['fetched_at']}"
     sources.append({"source": "kraken-repository", "state": state, "count": len(repo_cards), "detail": detail})
     hf_cards: list[Card] = []
+    pinned = _pinned_repos([*seed, *installed])
     if allowed:
         try:
-            hf_cards = await search_hugging_face(a.languages)
+            searched = await search_hugging_face(a.languages)
+            # Kept, so the rules choose from them for these languages without the network (#5593).
+            keep_hub(searched, a.languages)
+            hf_cards = mark_installed(c for c in searched if str(c.pin["hf"]) not in pinned)
             sources.append({"source": "hugging-face", "state": "searched", "count": len(hf_cards),
                             "detail": "image-to-text and image-text-to-text models by language tag; MLX "
                                       "builds only, never GGUF"})
@@ -429,6 +532,11 @@ async def discover(a: Answers, *, online: bool) -> tuple[list[Card], list[dict[s
             sources.append({"source": "hugging-face", "state": "failed", "count": 0,
                             "detail": f"the Hub could not be searched ({getattr(exc, 'detail', exc)})"})
     else:
-        sources.append({"source": "hugging-face", "state": "offline" if online else "not-searched", "count": 0,
-                        "detail": offline_why})
+        hf_cards = mark_installed(hub_cards(a.languages, pinned))
+        if hf_cards:
+            sources.append({"source": "hugging-face", "state": "cached", "count": len(hf_cards),
+                            "detail": "the readers earlier searches found for these languages"})
+        else:
+            sources.append({"source": "hugging-face", "state": "offline" if online else "not-searched",
+                            "count": 0, "detail": offline_why})
     return [*shipped, *installed, *repo_cards, *hf_cards], sources
