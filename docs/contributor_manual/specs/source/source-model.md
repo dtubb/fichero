@@ -462,7 +462,17 @@ level it was made for.
 - `source.extract.date-run-taken-back` — **[GAP]** (#5597) a run's writes to a document's date
   are recorded under the run and undone when the run is taken back, as its readings are.
 - `source.extract.entries-are-units` — **[PARTIAL]** (#5467; #5601) *Built: entry nodes with a
-  date, a region and a prototype.* An entry is a logical unit over the lines it covers; its text is
+  date, a region and a prototype. Built (#5601): on a page tied to its lines, the one splitter
+  (`diary_entries.split_pages_into_entries`) records the lines each entry covers, in order
+  (`metadata.lines`, the tied lines under the entry's span of the tied page reading), and the
+  documents routes (`GET /api/documents/{id}` and `/children`) read the entry's text from those lines'
+  counting readings, so a correction on a line is the entry's text without a re-run; a page not tied
+  keeps the copied text and the entry says it is not on lines (`metadata.text_from`); a re-run matches
+  the entries and updates their lines. Pinned by `fichero-server/tests/unit/workflows/
+  test_entries_over_lines_5601.py` (2 tests). Not built: the date as the mention on the heading, the
+  entry as its own unit row (it is still a child node with a stored text snapshot that search and
+  export read), a line shared by two entries split at the heading, and entries split before the tie
+  (they gain lines only when re-run).* An entry is a logical unit over the lines it covers; its text is
   read from those lines, its date is the mention on its heading, and it sits on the timeline.
 - `source.extract.account-lines-are-rows` — **[GAP]** (#5559, #5490) the dated items of an account
   page become table rows on their lines, each date a mention.
