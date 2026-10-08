@@ -181,6 +181,9 @@ extension AISettingsView {
                 )
             }
 
+            // Readers for the open project (#5611): the model finder's Settings host.
+            SettingsModelFinderSection()
+
             Section {
                 Label(
                     "Per-tool overrides in the workflow editor take precedence.",

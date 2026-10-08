@@ -66,6 +66,15 @@ struct ProjectInspector: View {
                 }
                 Button("Set Up…") { libraryManager.requestSetUp(for: library.id) }
             }
+            // The model finder (#5611, `source.find.app-finder-three-hosts`): readers for the
+            // project's scripts and languages, read only when opened.
+            if let recipeStore {
+                Section("Readers") {
+                    DisclosureGroup("Find a Reader") {
+                        ProjectModelFinder(library: library, setup: recipeStore)
+                    }
+                }
+            }
             KeptExportsInspectorSection(store: library.keptExportStore)
             Section("Sharing") {
                 if EngineConfig.multiuserEnabled {

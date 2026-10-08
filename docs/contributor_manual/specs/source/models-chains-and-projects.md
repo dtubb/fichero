@@ -2853,6 +2853,41 @@ Finding models
   waiting or running is reused. With no project open the online search is not run and the source says why.
   *Test:* the cold call returns before the Hub answers, with the job id; Activity lists the job; once it is
   done the next call lists what it found.
+- `source.find.app-finder-three-hosts` — **[GAP]** (#5611) the app's model finder is one view
+  (`ModelFinderView`) over one store per project (`ModelFinderStore`, on the project's own client, so every
+  call names the project), shown in three places (ruled 2026-10-08): the project's Inspector (a Find a
+  Reader disclosure under its readers), Set Up… › Ready (a Find a Reader… button beside a reading step's
+  model, opening the finder for that step's job, the project's scripts and languages and its first
+  material), and Settings › AI (a section for the open project; with no project open it says to open one,
+  since the scripts and languages are the project's answers). The finder never works out a candidate,
+  a rank or a fit: it shows `GET /api/recipes/candidates` in the engine's order, and a change to the
+  list replaces it as the engine answered it.
+- `source.find.app-card-says` — **[GAP]** (#5611) each candidate is a card: its name, the engine's
+  reason it is offered (`offered_because`), its size in the engine's words (`size`: "1.2 GB" or "size
+  not stated", never 0), where it came from in words (ships with Fichero, installed on this Mac, Kraken's
+  repository, Hugging Face), what is measured on the project (`measured`), its licence when not open, and,
+  when the rules refuse it, the rules' reason (`refused`) in place of an action. Each source's line
+  (`sources[].detail`) is said once above the cards.
+- `source.find.app-card-actions` — **[GAP]** (#5611) a card's actions are only those an existing route
+  serves: **Download** for a found Hugging Face reader (`source: hugging-face`), through the one download
+  route (`POST /api/local-models/download/mlx/{repo}`, the repo its `pin` names; the card then says
+  Downloading… and Activity shows the job); **Use for This Step** in Set Up… only where the Start plan
+  offers that installed card instead of the step's pending download (`downloads[].instead`), through
+  `POST /api/recipes/project/start/use-instead` (setup's own `useInstead`, one code path); and **Search
+  Online** for the whole list (`online=true`). *Residue, owed by the engine before the rest can be
+  built:* a candidate carries no download action of its own (a shipped MLX card's `pin` names its Hub
+  repo, which the download route refuses; a Kraken record downloads by another route), no installed
+  flag for a shipped card, and no place it runs (`source.find.model-and-where-it-runs`, #5582); and no
+  route sets an arbitrary candidate as a step's reader (Use This takes only a bake-off's scored
+  candidate, use-instead only the plan's installed offer).
+- `source.find.app-searching-line` — **[GAP]** (#5611) after Search Online the finder says
+  "Searching online…" with the job's reason, observed through the project's `ActivityStore` (the one
+  poller of `GET /api/activity/jobs`) by the job's id (`search_job.id`, or the `find-models` kind's
+  waiting row), never by a poller of its own; when the job leaves the list (done), the finder reads the
+  candidates once more with `online` (a search done within a day is not run again, so this returns the
+  finished job's findings) and the line goes; when Activity shows it failed, its reason is said in the
+  line's place and the finder reads once more without `online`, so a failing search is never queued
+  again by itself. *Test:* `ModelFinderStoreTests`.
 - `source.find.rules-see-candidates` — **[OK]** (#5519) setup's assembly, the bake-off and Use This
   choose from the shipped, installed and cached repository cards (never the network), ranked by the
   same fixed order, so a Japanese, Chinese or Fraktur project gets a reader where one is installed or
