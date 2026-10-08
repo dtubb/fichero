@@ -411,8 +411,8 @@ async def list_background_jobs(
             for job in jobs:
                 job.state, job.reason = "waiting", held
 
-    # Workflow runs that are running or recently failed. A completed run is not a
-    # "job" the user needs to watch; a running or failed one is.
+    # Workflow runs that are running, paused or recently failed. A completed run is not a
+    # "job" the user needs to watch; a running, paused or failed one is.
     try:
         tracker = get_activity_tracker(str(db.path))
         runs = await tracker.store.list_workflow_runs(limit=50)
@@ -420,7 +420,8 @@ async def list_background_jobs(
 
         for run in runs:
             status = (run.status or "").lower()
-            if status not in ("running", "failed"):
+            # A paused run is listed too (#5357): it waits for its Resume, after a relaunch as before.
+            if status not in ("running", "paused", "failed"):
                 continue
             # The run's account, the one its status shows (#5555): its pages done and in all, not the
             # saved timeline's last event (which read "total 0" for a fanned-out run).

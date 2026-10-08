@@ -45,7 +45,9 @@ async def _save_run(store: ActivityStore, thread_id: str, status: str, minutes_o
 
 
 class TestRecoverySweep:
-    def test_sweeps_every_non_terminal_status(self, tmp_path):
+    def test_sweeps_what_a_dead_process_leaves_and_keeps_paused_runs_paused(self, tmp_path):
+        """Running and accepted runs had a worker that died; a paused run needs none and resumes from
+        its checkpoint (#5357, `activity.durable.paused-stays-paused`), so it is not swept."""
         store = ActivityStore(str(tmp_path / "lib.duckdb"))
         asyncio.run(_save_run(store, "t-running", "running"))
         asyncio.run(_save_run(store, "t-accepted", "accepted"))
@@ -53,12 +55,13 @@ class TestRecoverySweep:
         asyncio.run(_save_run(store, "t-done", "completed"))
 
         recovered = asyncio.run(store.recover_stale_runs(max_age_hours=0))
-        assert len(recovered) == 3
+        assert len(recovered) == 2
 
-        for tid in ("t-running", "t-accepted", "t-paused"):
+        for tid in ("t-running", "t-accepted"):
             run = asyncio.run(store.get_workflow_run(tid))
             assert run.status == "failed", f"{tid} not swept"
             assert run.error
+        assert asyncio.run(store.get_workflow_run("t-paused")).status == "paused"
         assert asyncio.run(store.get_workflow_run("t-done")).status == "completed"
 
     def test_sweep_excludes_live_runs(self, tmp_path):
