@@ -657,6 +657,136 @@ def _entity_match_results(
     return out
 
 
+#: Scopes whose record is a knowledge-graph entity (#5597,
+#: `source.extract.search-reads-the-record`). `dates:` and `keywords:` have no
+#: entity home yet and still read their artifacts.
+_SCOPE_ENTITY_TYPES: dict[str, str] = {
+    "people": "person",
+    "places": "location",
+    "organizations": "organization",
+    "events": "event",
+}
+
+
+def _entity_scope_results(
+    db: Database,
+    *,
+    scope: str,
+    query: str,
+    limit: int,
+    exclude_doc_ids: set[str],
+) -> list[SearchResult]:
+    """Documents where an entity whose name or alias contains `query` is written (#5597).
+
+    A scoped search (`people:Asprilla`) reads the record, not the artifact copy: the
+    entity's canonical name and aliases, accent-blind. A merged-away entity resolves to
+    the entity it was merged into, so two merged entities are one; an entity a person
+    rejected, or a name a suppress rule hides, is not found. Each hit is a document where
+    the entity (or one merged into it) is mentioned, with the segments its mentions sit
+    on when the page is tied (`metadata["segment_ids"]`)."""
+    from fichero_server.models.knowledge import EntityCurationState
+    from fichero_server.workflows.tools._entity_writer import _apply_entity_resolution_rules
+
+    entity_type = _SCOPE_ENTITY_TYPES.get(scope)
+    needle = _fold_for_search(query.strip())
+    if entity_type is None or not needle or limit <= 0:
+        return []
+    try:
+        entities = db.all(KnowledgeEntity)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("entity-scope search failed: %s", exc)
+        return []
+    by_id = {entity.id: entity for entity in entities}
+
+    def _survivor(entity: KnowledgeEntity) -> KnowledgeEntity | None:
+        for _ in range(16):
+            if entity.merged_into_id is None:
+                return entity
+            nxt = by_id.get(entity.merged_into_id)
+            if nxt is None:
+                return None
+            entity = nxt
+        return None
+
+    merged_into: dict[str, list[KnowledgeEntity]] = {}
+    for entity in entities:
+        survivor = _survivor(entity) if entity.merged_into_id else None
+        if survivor is not None:
+            merged_into.setdefault(survivor.id, []).append(entity)
+
+    matched: dict[str, KnowledgeEntity] = {}
+    for entity in entities:
+        names = [entity.canonical_name, *(entity.aliases or [])]
+        if not any(needle in _fold_for_search(name or "") for name in names):
+            continue
+        survivor = _survivor(entity)
+        if (
+            survivor is None
+            or survivor.id in matched
+            or getattr(survivor.entity_type, "value", survivor.entity_type) != entity_type
+            or survivor.curation_state == EntityCurationState.rejected
+            or _apply_entity_resolution_rules(db, survivor.canonical_name, survivor.entity_type) is None
+        ):
+            continue
+        matched[survivor.id] = survivor
+
+    # Each matched entity -> its documents (mentions first, then the documents it was
+    # extracted from), with the segments its mentions are on.
+    doc_order: list[tuple[str, KnowledgeEntity]] = []
+    placed: set[str] = set(exclude_doc_ids)
+    segments: dict[str, list[str]] = {}
+    for survivor in matched.values():
+        for entity in (survivor, *merged_into.get(survivor.id, [])):
+            doc_ids = [s.source_document_id for s in entity.source_supports]
+            doc_ids += list(entity.source_document_ids or [])
+            for support in entity.source_supports:
+                segment_id = getattr(support.source_anchor, "segment_id", None)
+                if segment_id:
+                    seg_list = segments.setdefault(support.source_document_id, [])
+                    if segment_id not in seg_list:
+                        seg_list.append(segment_id)
+            for doc_id in doc_ids:
+                if doc_id and doc_id not in placed:
+                    placed.add(doc_id)
+                    doc_order.append((doc_id, survivor))
+    if not doc_order:
+        return []
+    try:
+        identity = {
+            row[0]: row for row in db.live_document_identity_rows([doc_id for doc_id, _ in doc_order])
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("entity-scope document lookup failed: %s", exc)
+        return []
+
+    out: list[SearchResult] = []
+    for doc_id, survivor in doc_order:
+        row = identity.get(doc_id)
+        if row is None:
+            continue
+        out.append(
+            SearchResult(
+                document_id=doc_id,
+                score=0.5,  # Below semantic top-1 (1.0), above no-content (0.0025)
+                content_preview=f"Entity match for '{query}'",
+                metadata={
+                    "name": row[1],
+                    "doc_type": row[2],
+                    "file_type": row[3],
+                    "match_source": "entity",
+                    "entity_id": survivor.id,
+                    "entity_name": survivor.canonical_name,
+                    "segment_ids": segments.get(doc_id, []),
+                },
+                highlights=[],
+                kg_entity_ids=[survivor.id],
+            )
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _search_scope_queries(
     *,
     plan: Any,
@@ -1063,13 +1193,24 @@ async def enhanced_search(
                 # Scoped: emit one batch per (type, value) and dedupe.
                 for entity_type, values in plan.artifact_scopes.items():
                     for value in values:
-                        hits = _entity_match_results(
-                            db,
-                            query=value,
-                            limit=slots_remaining,
-                            exclude_doc_ids=seen_ids,
-                            entity_types=(entity_type,),
-                        )
+                        # #5597: people/places/organizations/events read the
+                        # entities; only scopes with no entity home read artifacts.
+                        if entity_type in _SCOPE_ENTITY_TYPES:
+                            hits = _entity_scope_results(
+                                db,
+                                scope=entity_type,
+                                query=value,
+                                limit=slots_remaining,
+                                exclude_doc_ids=seen_ids,
+                            )
+                        else:
+                            hits = _entity_match_results(
+                                db,
+                                query=value,
+                                limit=slots_remaining,
+                                exclude_doc_ids=seen_ids,
+                                entity_types=(entity_type,),
+                            )
                         for hit in hits:
                             seen_ids.add(hit.document_id)
                         artifact_hits.extend(hits)
@@ -1187,6 +1328,12 @@ async def enhanced_search(
                 results = enriched
     except Exception as exc:  # noqa: BLE001
         logger.warning("search KG enrichment failed: %s", exc)
+    # A hit found THROUGH an entity (scoped search, graph leg) keeps that
+    # entity's id after enrichment rewrote the list from claims (#5597).
+    for result in results:
+        found_via = (result.metadata or {}).get("entity_id")
+        if found_via and found_via not in result.kg_entity_ids:
+            result.kg_entity_ids = [*result.kg_entity_ids, found_via]
 
     visible_doc_ids = _readable_document_ids(
         actor=getattr(getattr(http_request, "state", None), "user", None),
