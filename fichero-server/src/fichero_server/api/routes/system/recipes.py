@@ -118,7 +118,7 @@ class AssembleRequest(BaseModel):
         "script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own "
         "(source.onboard.direction-chosen)"))
     pages: int = Field(default=0, ge=0, description="roughly how many pages")
-    cloud_allowed: bool = False
+    cloud_allowed: bool = Field(default=False, description='Whether a step may use a cloud model; false keeps every step on this Mac.')
     mac_memory_gb: Optional[float] = Field(default=None, description="defaults to this machine's memory")
     layers: list[str] = Field(default_factory=list, description="layers added beyond the purposes' "
                               "(source.onboard.add-layer)")
@@ -563,7 +563,7 @@ async def assemble_recipe(
 
 class CheckRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    recipe: dict[str, Any]
+    recipe: dict[str, Any] = Field(description='The recipe to check, as GET /api/recipes/project returns it.')
 
 
 class CheckResponse(BaseModel):
@@ -761,8 +761,8 @@ class ProjectSetup(BaseModel):
     (`source.project.has-settings`). Saving is not Start: nothing runs."""
 
     model_config = ConfigDict(extra="forbid")
-    answers: Optional[dict[str, Any]] = None
-    recipe: Optional[dict[str, Any]] = None
+    answers: Optional[dict[str, Any]] = Field(default=None, description="Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them.")
+    recipe: Optional[dict[str, Any]] = Field(default=None, description="The project's recipe, as POST /api/recipes/assemble returns it; null clears it.")
 
 
 def _library(db: Database) -> Path:
@@ -1448,7 +1448,7 @@ class BakeoffList(BaseModel):
 class BakeoffUseRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     card: str = Field(description="the candidate's card id")
-    scope: Literal["project", "folder"] = "project"
+    scope: Literal["project", "folder"] = Field(default="project", description='Where the choice applies: the whole project, or one folder.')
     folder_id: Optional[str] = Field(default=None, description="the folder, when the scope is a folder")
 
 

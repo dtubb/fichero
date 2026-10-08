@@ -46307,8 +46307,8 @@
           },
           "anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Output",
-            "nullable": true,
-            "description": "Where this annotation points: the region and/or span, naming the rendition its coordinates belong to."
+            "description": "Where this annotation points: the region and/or span, naming the rendition its coordinates belong to.",
+            "nullable": true
           },
           "anchor_kind": {
             "type": "string",
@@ -46480,6 +46480,7 @@
           },
           "anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Input",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates.",
             "nullable": true
           },
           "anchor_kind": {
@@ -46710,6 +46711,7 @@
           },
           "anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Input",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates.",
             "nullable": true
           },
           "anchor_kind": {
@@ -46808,8 +46810,8 @@
           },
           "anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Output",
-            "nullable": true,
-            "description": "Where this annotation points: the region and/or span, naming the rendition its coordinates belong to."
+            "description": "Where this annotation points: the region and/or span, naming the rendition its coordinates belong to.",
+            "nullable": true
           },
           "anchor_kind": {
             "type": "string",
@@ -47922,6 +47924,7 @@
           "cloud_allowed": {
             "type": "boolean",
             "title": "Cloud Allowed",
+            "description": "Whether a step may use a cloud model; false keeps every step on this Mac.",
             "default": false
           },
           "mac_memory_gb": {
@@ -48980,6 +48983,7 @@
               "folder"
             ],
             "title": "Scope",
+            "description": "Where the choice applies: the whole project, or one folder.",
             "default": "project"
           },
           "folder_id": {
@@ -51181,7 +51185,8 @@
           "recipe": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Recipe"
+            "title": "Recipe",
+            "description": "The recipe to check, as GET /api/recipes/project returns it."
           }
         },
         "additionalProperties": false,
@@ -52617,6 +52622,7 @@
           },
           "source_anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Input",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates.",
             "nullable": true
           },
           "entity_ids": {
@@ -53556,6 +53562,7 @@
           },
           "anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Output",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates.",
             "nullable": true
           }
         },
@@ -54198,7 +54205,8 @@
             "title": "Script"
           },
           "source_anchor": {
-            "$ref": "#/components/schemas/SourceAnchor-Output"
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates."
           },
           "parent_representation_id": {
             "type": "string",
@@ -56631,19 +56639,23 @@
               "type": "string"
             },
             "type": "array",
-            "title": "Document Ids"
+            "title": "Document Ids",
+            "description": "The nodes to change."
           },
           "excluded": {
             "type": "boolean",
-            "title": "Excluded"
+            "title": "Excluded",
+            "description": "True leaves them out; false brings them back."
           },
           "reason": {
             "type": "string",
             "nullable": true,
-            "title": "Reason"
+            "title": "Reason",
+            "description": "Why, in a few words."
           },
           "scope": {
             "$ref": "#/components/schemas/DocumentExclusionScope",
+            "description": "What they are left out of: processing (runs) or search.",
             "default": "processing"
           }
         },
@@ -56810,76 +56822,91 @@
           "name": {
             "type": "string",
             "minLength": 1,
-            "title": "Name"
+            "title": "Name",
+            "description": "The new node's name."
           },
           "parent_id": {
             "type": "string",
             "nullable": true,
-            "title": "Parent Id"
+            "title": "Parent Id",
+            "description": "The folder to create it in; none puts it at the top of the project."
           },
           "node_kind": {
             "type": "string",
             "nullable": true,
-            "title": "Node Kind"
+            "title": "Node Kind",
+            "description": "The node's kind (folder, page, document, ...)."
           },
           "doc_type": {
             "$ref": "#/components/schemas/DocType",
+            "description": "Whether the node is a file or a folder.",
             "default": "file"
           },
           "file_type": {
             "$ref": "#/components/schemas/FileType",
-            "nullable": true
+            "nullable": true,
+            "description": "The file's type (pdf, image, text, ...)."
           },
           "path": {
             "type": "string",
             "nullable": true,
-            "title": "Path"
+            "title": "Path",
+            "description": "The file's path inside the project's storage."
           },
           "page_content": {
             "type": "string",
             "nullable": true,
-            "title": "Page Content"
+            "title": "Page Content",
+            "description": "The page's text."
           },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata",
+            "description": "Free metadata, a JSON object.",
             "default": {}
           },
           "prototype_key": {
             "type": "string",
             "nullable": true,
-            "title": "Prototype Key"
+            "title": "Prototype Key",
+            "description": "The prototype (kind of record) the node takes its attributes from."
           },
           "position_x": {
             "type": "number",
             "nullable": true,
-            "title": "Position X"
+            "title": "Position X",
+            "description": "Its x on the canvas."
           },
           "position_y": {
             "type": "number",
             "nullable": true,
-            "title": "Position Y"
+            "title": "Position Y",
+            "description": "Its y on the canvas."
           },
           "position_z": {
             "type": "number",
             "nullable": true,
-            "title": "Position Z"
+            "title": "Position Z",
+            "description": "Its z on the canvas."
           },
           "rotation_z": {
             "type": "number",
             "nullable": true,
-            "title": "Rotation Z"
+            "title": "Rotation Z",
+            "description": "Its rotation on the canvas, in degrees."
           },
           "scale": {
             "type": "number",
             "nullable": true,
-            "title": "Scale"
+            "title": "Scale",
+            "description": "Its scale on the canvas."
           },
           "z_index": {
             "type": "integer",
             "nullable": true,
-            "title": "Z Index"
+            "title": "Z Index",
+            "description": "Its stacking order on the canvas."
           }
         },
         "additionalProperties": false,
@@ -57046,7 +57073,8 @@
           "name": {
             "type": "string",
             "minLength": 1,
-            "title": "Name"
+            "title": "Name",
+            "description": "The new group's name."
           },
           "child_ids": {
             "items": {
@@ -57054,7 +57082,8 @@
             },
             "type": "array",
             "minItems": 2,
-            "title": "Child Ids"
+            "title": "Child Ids",
+            "description": "The nodes to put in the group (two or more)."
           }
         },
         "type": "object",
@@ -57464,111 +57493,133 @@
           "name": {
             "type": "string",
             "nullable": true,
-            "title": "Name"
+            "title": "Name",
+            "description": "The node's new name."
           },
           "parent_id": {
             "type": "string",
             "nullable": true,
-            "title": "Parent Id"
+            "title": "Parent Id",
+            "description": "The folder to move it into."
           },
           "node_kind": {
             "type": "string",
             "nullable": true,
-            "title": "Node Kind"
+            "title": "Node Kind",
+            "description": "The node's new kind."
           },
           "doc_type": {
             "$ref": "#/components/schemas/DocType",
-            "nullable": true
+            "nullable": true,
+            "description": "Whether the node is a file or a folder."
           },
           "file_type": {
             "$ref": "#/components/schemas/FileType",
-            "nullable": true
+            "nullable": true,
+            "description": "The file's type."
           },
           "path": {
             "type": "string",
             "nullable": true,
-            "title": "Path"
+            "title": "Path",
+            "description": "The file's path inside the project's storage."
           },
           "page_content": {
             "type": "string",
             "nullable": true,
-            "title": "Page Content"
+            "title": "Page Content",
+            "description": "The page's new text."
           },
           "status": {
             "$ref": "#/components/schemas/Status",
-            "nullable": true
+            "nullable": true,
+            "description": "The node's processing status."
           },
           "is_read": {
             "type": "boolean",
             "nullable": true,
-            "title": "Is Read"
+            "title": "Is Read",
+            "description": "Mark it read or unread."
           },
           "is_starred": {
             "type": "boolean",
             "nullable": true,
-            "title": "Is Starred"
+            "title": "Is Starred",
+            "description": "Star or unstar it."
           },
           "is_flagged": {
             "type": "boolean",
             "nullable": true,
-            "title": "Is Flagged"
+            "title": "Is Flagged",
+            "description": "Flag or unflag it."
           },
           "exclude_from_processing": {
             "type": "boolean",
             "nullable": true,
-            "title": "Exclude From Processing"
+            "title": "Exclude From Processing",
+            "description": "Leave it out of runs."
           },
           "exclude_from_search": {
             "type": "boolean",
             "nullable": true,
-            "title": "Exclude From Search"
+            "title": "Exclude From Search",
+            "description": "Leave it out of search."
           },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
             "nullable": true,
-            "title": "Metadata"
+            "title": "Metadata",
+            "description": "Free metadata, a JSON object; replaces the whole object."
           },
           "prototype_key": {
             "type": "string",
             "nullable": true,
-            "title": "Prototype Key"
+            "title": "Prototype Key",
+            "description": "The prototype (kind of record) the node takes its attributes from."
           },
           "attributes": {
             "additionalProperties": true,
             "type": "object",
             "nullable": true,
-            "title": "Attributes"
+            "title": "Attributes",
+            "description": "The prototype's attribute values, a JSON object; replaces the whole object."
           },
           "position_x": {
             "type": "number",
             "nullable": true,
-            "title": "Position X"
+            "title": "Position X",
+            "description": "Its x on the canvas."
           },
           "position_y": {
             "type": "number",
             "nullable": true,
-            "title": "Position Y"
+            "title": "Position Y",
+            "description": "Its y on the canvas."
           },
           "position_z": {
             "type": "number",
             "nullable": true,
-            "title": "Position Z"
+            "title": "Position Z",
+            "description": "Its z on the canvas."
           },
           "rotation_z": {
             "type": "number",
             "nullable": true,
-            "title": "Rotation Z"
+            "title": "Rotation Z",
+            "description": "Its rotation on the canvas, in degrees."
           },
           "scale": {
             "type": "number",
             "nullable": true,
-            "title": "Scale"
+            "title": "Scale",
+            "description": "Its scale on the canvas."
           },
           "z_index": {
             "type": "integer",
             "nullable": true,
-            "title": "Z Index"
+            "title": "Z Index",
+            "description": "Its stacking order on the canvas."
           }
         },
         "additionalProperties": false,
@@ -59809,6 +59860,7 @@
           },
           "anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Input",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates.",
             "nullable": true
           },
           "char_start": {
@@ -60418,21 +60470,25 @@
         "properties": {
           "workflow_id": {
             "type": "string",
-            "title": "Workflow Id"
+            "title": "Workflow Id",
+            "description": "The workflow to run."
           },
           "inputs": {
             "additionalProperties": true,
             "type": "object",
-            "title": "Inputs"
+            "title": "Inputs",
+            "description": "The workflow's inputs, a JSON object."
           },
           "thread_id": {
             "type": "string",
             "nullable": true,
-            "title": "Thread Id"
+            "title": "Thread Id",
+            "description": "Continue this run's thread; made up when not given."
           },
           "checkpoint_ns": {
             "type": "string",
             "title": "Checkpoint Ns",
+            "description": "Checkpoint namespace, for a sub-workflow.",
             "default": ""
           },
           "interrupt_before": {
@@ -60462,21 +60518,25 @@
           "force_recompute": {
             "type": "boolean",
             "title": "Force Recompute",
+            "description": "Run it again for real: bypass every cache.",
             "default": false
           },
           "provider_override": {
             "type": "string",
             "nullable": true,
-            "title": "Provider Override"
+            "title": "Provider Override",
+            "description": "Run every step on this provider."
           },
           "model_override": {
             "type": "string",
             "nullable": true,
-            "title": "Model Override"
+            "title": "Model Override",
+            "description": "Run every step with this model."
           },
           "selection": {
             "$ref": "#/components/schemas/WorkflowSelection",
-            "nullable": true
+            "nullable": true,
+            "description": "What the run reads: the documents or folder pointed at."
           }
         },
         "type": "object",
@@ -64779,8 +64839,8 @@
           },
           "source_anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Output",
-            "nullable": true,
-            "description": "Where this claim's evidence sits on the page, naming the coordinate space and the rendition it belongs to."
+            "description": "Where this claim's evidence sits on the page, naming the coordinate space and the rendition it belongs to.",
+            "nullable": true
           },
           "source_type": {
             "$ref": "#/components/schemas/SourceType",
@@ -72197,6 +72257,7 @@
           },
           "source_anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Output",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates.",
             "nullable": true
           },
           "source_char_start": {
@@ -72395,7 +72456,8 @@
         "properties": {
           "ground_truth": {
             "type": "boolean",
-            "title": "Ground Truth"
+            "title": "Ground Truth",
+            "description": "True marks the pass ground truth; false unmarks it."
           }
         },
         "additionalProperties": false,
@@ -73813,13 +73875,15 @@
             "additionalProperties": true,
             "type": "object",
             "nullable": true,
-            "title": "Answers"
+            "title": "Answers",
+            "description": "Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them."
           },
           "recipe": {
             "additionalProperties": true,
             "type": "object",
             "nullable": true,
-            "title": "Recipe"
+            "title": "Recipe",
+            "description": "The project's recipe, as POST /api/recipes/assemble returns it; null clears it."
           }
         },
         "additionalProperties": false,
@@ -74193,22 +74257,26 @@
           "prototype_key": {
             "type": "string",
             "nullable": true,
-            "title": "Prototype Key"
+            "title": "Prototype Key",
+            "description": "The prototype to assign; null clears the assignment."
           },
           "include_descendants": {
             "type": "boolean",
             "title": "Include Descendants",
+            "description": "Assign it to every node inside as well.",
             "default": false
           },
           "page_start": {
             "type": "integer",
             "nullable": true,
-            "title": "Page Start"
+            "title": "Page Start",
+            "description": "The first page of the range it applies to."
           },
           "page_end": {
             "type": "integer",
             "nullable": true,
-            "title": "Page End"
+            "title": "Page End",
+            "description": "The last page of the range it applies to."
           }
         },
         "type": "object",
@@ -75336,11 +75404,13 @@
         "properties": {
           "kind": {
             "type": "string",
-            "title": "Kind"
+            "title": "Kind",
+            "description": "The kind of reading chosen (e.g. transcription)."
           },
           "representation_id": {
             "type": "string",
-            "title": "Representation Id"
+            "title": "Representation Id",
+            "description": "The reading to make the one that counts."
           }
         },
         "additionalProperties": false,
@@ -75803,6 +75873,7 @@
           },
           "source_anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Output",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates.",
             "nullable": true
           },
           "created_at": {
@@ -77663,6 +77734,7 @@
           },
           "source_anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Input",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates.",
             "nullable": true
           },
           "derived_from_representation_id": {
@@ -78197,7 +78269,8 @@
       "ResolvedAnchor": {
         "properties": {
           "anchor": {
-            "$ref": "#/components/schemas/SourceAnchor-Output"
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates."
           },
           "basis": {
             "$ref": "#/components/schemas/AnchorBasis"
@@ -78388,11 +78461,13 @@
             "additionalProperties": true,
             "type": "object",
             "nullable": true,
-            "title": "Inputs"
+            "title": "Inputs",
+            "description": "New inputs for the paused run."
           },
           "answer": {
             "nullable": true,
-            "title": "Answer"
+            "title": "Answer",
+            "description": "The answer to the question the run paused on."
           }
         },
         "type": "object",
@@ -79984,8 +80059,8 @@
           },
           "source_anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Output",
-            "nullable": true,
-            "description": "Where this claim's evidence sits on the page, naming the coordinate space and the rendition it belongs to."
+            "description": "Where this claim's evidence sits on the page, naming the coordinate space and the rendition it belongs to.",
+            "nullable": true
           },
           "source_type": {
             "$ref": "#/components/schemas/SourceType",
@@ -81275,21 +81350,24 @@
         "properties": {
           "match_id": {
             "type": "string",
-            "title": "Match Id"
+            "title": "Match Id",
+            "description": "The match to carry across."
           },
           "kinds": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Kinds"
+            "title": "Kinds",
+            "description": "What to carry: readings, annotations, ..."
           },
           "expected_versions": {
             "additionalProperties": {
               "type": "integer"
             },
             "type": "object",
-            "title": "Expected Versions"
+            "title": "Expected Versions",
+            "description": "Each matched segment's version as last read, {segment_id: version}."
           }
         },
         "additionalProperties": false,
@@ -81305,18 +81383,21 @@
         "properties": {
           "document_id": {
             "type": "string",
-            "title": "Document Id"
+            "title": "Document Id",
+            "description": "The document (page) the segments are on."
           },
           "pass_id": {
             "type": "string",
-            "title": "Pass Id"
+            "title": "Pass Id",
+            "description": "The pass (layer) the segments join."
           },
           "segments": {
             "items": {
               "$ref": "#/components/schemas/SegmentSpec"
             },
             "type": "array",
-            "title": "Segments"
+            "title": "Segments",
+            "description": "The segments to create, each with its kind and anchor."
           }
         },
         "additionalProperties": false,
@@ -81332,18 +81413,22 @@
         "properties": {
           "document_id": {
             "type": "string",
-            "title": "Document Id"
+            "title": "Document Id",
+            "description": "The document (page) the segment is on."
           },
           "pass_id": {
             "type": "string",
-            "title": "Pass Id"
+            "title": "Pass Id",
+            "description": "The pass (layer) the segment joins."
           },
           "kind": {
             "type": "string",
-            "title": "Kind"
+            "title": "Kind",
+            "description": "The segment's kind: region, line, word, ..."
           },
           "anchor": {
-            "$ref": "#/components/schemas/SourceAnchor-Input"
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates."
           },
           "baseline": {
             "items": {
@@ -81354,17 +81439,20 @@
             },
             "type": "array",
             "nullable": true,
-            "title": "Baseline"
+            "title": "Baseline",
+            "description": "The line's baseline as [[x, y], ...] points in page coordinates."
           },
           "parent_segment_id": {
             "type": "string",
             "nullable": true,
-            "title": "Parent Segment Id"
+            "title": "Parent Segment Id",
+            "description": "The segment this one sits inside (a line's region)."
           },
           "kind_raw": {
             "type": "string",
             "nullable": true,
-            "title": "Kind Raw"
+            "title": "Kind Raw",
+            "description": "The kind as the source format named it (e.g. a PAGE XML region type)."
           }
         },
         "additionalProperties": false,
@@ -81385,20 +81473,23 @@
               "type": "string"
             },
             "type": "array",
-            "title": "Segment Ids"
+            "title": "Segment Ids",
+            "description": "The segments to delete."
           },
           "expected_versions": {
             "additionalProperties": {
               "type": "integer"
             },
             "type": "object",
-            "title": "Expected Versions"
+            "title": "Expected Versions",
+            "description": "Each segment's version as last read, {segment_id: version}; a changed segment is refused."
           },
           "reason": {
             "type": "string",
             "maxLength": 200,
             "nullable": true,
-            "title": "Reason"
+            "title": "Reason",
+            "description": "A short note about the delete (kept in the audit log)."
           }
         },
         "additionalProperties": false,
@@ -81618,22 +81709,26 @@
         "properties": {
           "from_segment_id": {
             "type": "string",
-            "title": "From Segment Id"
+            "title": "From Segment Id",
+            "description": "One end of the match."
           },
           "to_segment_id": {
             "type": "string",
-            "title": "To Segment Id"
+            "title": "To Segment Id",
+            "description": "The other end of the match."
           },
           "certainty": {
             "type": "number",
             "nullable": true,
-            "title": "Certainty"
+            "title": "Certainty",
+            "description": "How sure the proposer is, 0 to 1."
           },
           "note": {
             "type": "string",
             "maxLength": 200,
             "nullable": true,
-            "title": "Note"
+            "title": "Note",
+            "description": "A short note about the match (kept in the audit log)."
           }
         },
         "additionalProperties": false,
@@ -81651,18 +81746,21 @@
               "type": "string"
             },
             "type": "array",
-            "title": "Segment Ids"
+            "title": "Segment Ids",
+            "description": "The segments to merge."
           },
           "keep_id": {
             "type": "string",
-            "title": "Keep Id"
+            "title": "Keep Id",
+            "description": "The segment that survives the merge."
           },
           "expected_versions": {
             "additionalProperties": {
               "type": "integer"
             },
             "type": "object",
-            "title": "Expected Versions"
+            "title": "Expected Versions",
+            "description": "Each segment's version as last read, {segment_id: version}; a changed segment is refused."
           }
         },
         "additionalProperties": false,
@@ -81863,21 +81961,25 @@
         "properties": {
           "document_id": {
             "type": "string",
-            "title": "Document Id"
+            "title": "Document Id",
+            "description": "The document (page) the new pass belongs to."
           },
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The pass's name, as the Layers list shows it."
           },
           "run_id": {
             "type": "string",
             "nullable": true,
-            "title": "Run Id"
+            "title": "Run Id",
+            "description": "The run that produced this pass, when a run did."
           },
           "source_artifact_id": {
             "type": "string",
             "nullable": true,
-            "title": "Source Artifact Id"
+            "title": "Source Artifact Id",
+            "description": "The artifact the pass was read from, when it came from one."
           }
         },
         "additionalProperties": false,
@@ -81924,7 +82026,8 @@
             "$ref": "#/components/schemas/ProvenanceKind"
           },
           "anchor": {
-            "$ref": "#/components/schemas/SourceAnchor-Output"
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates."
           },
           "baseline": {
             "items": {
@@ -82028,11 +82131,13 @@
         "properties": {
           "version": {
             "type": "integer",
-            "title": "Version"
+            "title": "Version",
+            "description": "The earlier version to bring back."
           },
           "expected_version": {
             "type": "integer",
-            "title": "Expected Version"
+            "title": "Expected Version",
+            "description": "The segment's current version as last read; a changed segment is refused."
           }
         },
         "additionalProperties": false,
@@ -82050,7 +82155,8 @@
             "title": "Kind"
           },
           "anchor": {
-            "$ref": "#/components/schemas/SourceAnchor-Input"
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates."
           },
           "baseline": {
             "items": {
@@ -82086,7 +82192,8 @@
         "properties": {
           "segment_id": {
             "type": "string",
-            "title": "Segment Id"
+            "title": "Segment Id",
+            "description": "The segment to split."
           },
           "parts": {
             "items": {
@@ -82094,16 +82201,19 @@
             },
             "type": "array",
             "title": "Parts",
+            "description": "The parts to split it into, each with its own anchor (or give at_offset).",
             "default": []
           },
           "at_offset": {
             "type": "integer",
             "nullable": true,
-            "title": "At Offset"
+            "title": "At Offset",
+            "description": "Split at this character of the line's reading instead of giving parts."
           },
           "expected_version": {
             "type": "integer",
-            "title": "Expected Version"
+            "title": "Expected Version",
+            "description": "The segment's version as last read; a changed segment is refused."
           }
         },
         "additionalProperties": false,
@@ -82117,7 +82227,8 @@
       "SegmentSplitPart": {
         "properties": {
           "anchor": {
-            "$ref": "#/components/schemas/SourceAnchor-Input"
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates."
           },
           "baseline": {
             "items": {
@@ -82182,14 +82293,16 @@
               "type": "string"
             },
             "type": "array",
-            "title": "Segment Ids"
+            "title": "Segment Ids",
+            "description": "The deleted segments to bring back."
           },
           "order_entries": {
             "items": {
               "$ref": "#/components/schemas/SegmentOrderEntryParams"
             },
             "type": "array",
-            "title": "Order Entries"
+            "title": "Order Entries",
+            "description": "The reading-order entries the delete took out, written back where they were."
           }
         },
         "additionalProperties": false,
@@ -82208,7 +82321,8 @@
             },
             "type": "array",
             "minItems": 1,
-            "title": "Updates"
+            "title": "Updates",
+            "description": "One change per segment, each with its id and version."
           }
         },
         "additionalProperties": false,
@@ -82222,14 +82336,17 @@
         "properties": {
           "segment_id": {
             "type": "string",
-            "title": "Segment Id"
+            "title": "Segment Id",
+            "description": "The segment to change."
           },
           "expected_version": {
             "type": "integer",
-            "title": "Expected Version"
+            "title": "Expected Version",
+            "description": "The segment's version as last read; a changed segment is refused."
           },
           "anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Input",
+            "description": "The segment's new place on the page.",
             "nullable": true
           },
           "baseline": {
@@ -82241,42 +82358,50 @@
             },
             "type": "array",
             "nullable": true,
-            "title": "Baseline"
+            "title": "Baseline",
+            "description": "The line's new baseline as [[x, y], ...] points."
           },
           "kind": {
             "type": "string",
             "nullable": true,
-            "title": "Kind"
+            "title": "Kind",
+            "description": "The segment's new kind."
           },
           "kind_raw": {
             "type": "string",
             "nullable": true,
-            "title": "Kind Raw"
+            "title": "Kind Raw",
+            "description": "The kind as the source format named it."
           },
           "parent_segment_id": {
             "type": "string",
             "nullable": true,
-            "title": "Parent Segment Id"
+            "title": "Parent Segment Id",
+            "description": "The segment this one now sits inside."
           },
           "is_furniture": {
             "type": "boolean",
             "nullable": true,
-            "title": "Is Furniture"
+            "title": "Is Furniture",
+            "description": "True marks the segment as page furniture (running heads, folio numbers)."
           },
           "language": {
             "type": "string",
             "nullable": true,
-            "title": "Language"
+            "title": "Language",
+            "description": "The segment's language, a BCP 47 tag."
           },
           "script": {
             "type": "string",
             "nullable": true,
-            "title": "Script"
+            "title": "Script",
+            "description": "The segment's script, an ISO 15924 code."
           },
           "direction": {
             "type": "string",
             "nullable": true,
-            "title": "Direction"
+            "title": "Direction",
+            "description": "The segment's writing direction."
           }
         },
         "additionalProperties": false,
@@ -82325,7 +82450,8 @@
             "title": "Kind Raw"
           },
           "anchor": {
-            "$ref": "#/components/schemas/SourceAnchor-Output"
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates."
           },
           "baseline": {
             "items": {
@@ -83582,6 +83708,7 @@
           },
           "source_anchor": {
             "$ref": "#/components/schemas/SourceAnchor-Output",
+            "description": "Where the segment sits on the page: a box or polygon in page coordinates.",
             "nullable": true
           },
           "support_basis": {
@@ -88988,27 +89115,32 @@
           "file_count": {
             "type": "integer",
             "title": "File Count",
+            "description": "How many files the run reads (used when no selection is given).",
             "default": 1
           },
           "estimated_input_tokens_per_file": {
             "type": "integer",
             "title": "Estimated Input Tokens Per File",
+            "description": "Tokens sent per file.",
             "default": 1200
           },
           "estimated_output_tokens_per_file": {
             "type": "integer",
             "title": "Estimated Output Tokens Per File",
+            "description": "Tokens returned per file.",
             "default": 300
           },
           "provider": {
             "type": "string",
             "nullable": true,
-            "title": "Provider"
+            "title": "Provider",
+            "description": "The provider to price."
           },
           "model": {
             "type": "string",
             "nullable": true,
-            "title": "Model"
+            "title": "Model",
+            "description": "The model to price."
           },
           "selected_doc_ids": {
             "items": {
@@ -89016,7 +89148,8 @@
             },
             "type": "array",
             "nullable": true,
-            "title": "Selected Doc Ids"
+            "title": "Selected Doc Ids",
+            "description": "The selection the run will read; a folder counts its pages."
           }
         },
         "type": "object",

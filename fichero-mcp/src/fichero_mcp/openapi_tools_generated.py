@@ -1946,19 +1946,19 @@ def fichero_documents_create(
     *,
     doc_type: Annotated[Optional[str], Field(description='Type of document node in the hierarchy. One of: folder, group, file, page, chunk.')] = None,
     file_type: Annotated[Optional[str], Field(description='Type of source file. One of: image, pdf, audio, video, text, word, docx, epub, spreadsheet, presentation, other.')] = None,
-    metadata: Annotated[Optional[dict[str, Any]], Field(description='Metadata. Default: {}.')] = None,
-    name: Annotated[str, Field(description='Name.')],
-    node_kind: Annotated[Optional[str], Field(description='Node Kind.')] = None,
-    page_content: Annotated[Optional[str], Field(description='Page Content.')] = None,
-    parent_id: Annotated[Optional[str], Field(description='Parent Id.')] = None,
-    path: Annotated[Optional[str], Field(description='Path.')] = None,
-    position_x: Annotated[Optional[float], Field(description='Position X.')] = None,
-    position_y: Annotated[Optional[float], Field(description='Position Y.')] = None,
-    position_z: Annotated[Optional[float], Field(description='Position Z.')] = None,
-    prototype_key: Annotated[Optional[str], Field(description='Prototype Key.')] = None,
-    rotation_z: Annotated[Optional[float], Field(description='Rotation Z.')] = None,
-    scale: Annotated[Optional[float], Field(description='Scale.')] = None,
-    z_index: Annotated[Optional[int], Field(description='Z Index.')] = None,
+    metadata: Annotated[Optional[dict[str, Any]], Field(description='Free metadata, a JSON object. Default: {}.')] = None,
+    name: Annotated[str, Field(description="The new node's name.")],
+    node_kind: Annotated[Optional[str], Field(description="The node's kind (folder, page, document, ...).")] = None,
+    page_content: Annotated[Optional[str], Field(description="The page's text.")] = None,
+    parent_id: Annotated[Optional[str], Field(description='The folder to create it in; none puts it at the top of the project.')] = None,
+    path: Annotated[Optional[str], Field(description="The file's path inside the project's storage.")] = None,
+    position_x: Annotated[Optional[float], Field(description='Its x on the canvas.')] = None,
+    position_y: Annotated[Optional[float], Field(description='Its y on the canvas.')] = None,
+    position_z: Annotated[Optional[float], Field(description='Its z on the canvas.')] = None,
+    prototype_key: Annotated[Optional[str], Field(description='The prototype (kind of record) the node takes its attributes from.')] = None,
+    rotation_z: Annotated[Optional[float], Field(description='Its rotation on the canvas, in degrees.')] = None,
+    scale: Annotated[Optional[float], Field(description='Its scale on the canvas.')] = None,
+    z_index: Annotated[Optional[int], Field(description='Its stacking order on the canvas.')] = None,
 ) -> Any:
     'Create Document\n\nCreate a new document.\n\nRoute: POST /api/documents (toolset `documents`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/documents", json=_rt.body({"doc_type": doc_type, "file_type": file_type, "metadata": metadata, "name": name, "node_kind": node_kind, "page_content": page_content, "parent_id": parent_id, "path": path, "position_x": position_x, "position_y": position_y, "position_z": position_z, "prototype_key": prototype_key, "rotation_z": rotation_z, "scale": scale, "z_index": z_index}))
@@ -1966,9 +1966,9 @@ def fichero_documents_create(
 
 def fichero_documents_batch_exclude(
     *,
-    document_ids: Annotated[list[Any], Field(description='Document Ids.')],
-    excluded: Annotated[bool, Field(description='Excluded.')],
-    reason: Annotated[Optional[str], Field(description='Reason.')] = None,
+    document_ids: Annotated[list[Any], Field(description='The nodes to change.')],
+    excluded: Annotated[bool, Field(description='True leaves them out; false brings them back.')],
+    reason: Annotated[Optional[str], Field(description='Why, in a few words.')] = None,
     scope: Annotated[Optional[str], Field(description='Which exclusion flag a batch-exclude toggles (#4580). A closed set — an enum, never a bare str, so the generated Swift client cannot drift. One of: processing, search.')] = None,
 ) -> Any:
     'Batch Exclude Documents\n\nToggle exclude-from-processing on multiple documents with audit logging.\n\nRoute: PATCH /api/documents/batch-exclude (toolset `documents`; changes data, as the agent account when one exists).'
@@ -2015,8 +2015,8 @@ def fichero_documents_dataset_query(
 
 def fichero_documents_create_group(
     *,
-    child_ids: Annotated[list[Any], Field(description='Child Ids.')],
-    name: Annotated[str, Field(description='Name.')],
+    child_ids: Annotated[list[Any], Field(description='The nodes to put in the group (two or more).')],
+    name: Annotated[str, Field(description="The new group's name.")],
 ) -> Any:
     'Create Document Group\n\nCreate a reversible logical stack without modifying source children (audited, undoable).\n\nRoute: POST /api/documents/groups (toolset `documents`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/documents/groups", json=_rt.body({"child_ids": child_ids, "name": name}))
@@ -2116,28 +2116,28 @@ def fichero_documents_get(
 def fichero_documents_update(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
-    attributes: Annotated[Optional[dict[str, Any]], Field(description='Attributes.')] = None,
+    attributes: Annotated[Optional[dict[str, Any]], Field(description="The prototype's attribute values, a JSON object; replaces the whole object.")] = None,
     doc_type: Annotated[Optional[str], Field(description='Type of document node in the hierarchy. One of: folder, group, file, page, chunk.')] = None,
-    exclude_from_processing: Annotated[Optional[bool], Field(description='Exclude From Processing.')] = None,
-    exclude_from_search: Annotated[Optional[bool], Field(description='Exclude From Search.')] = None,
+    exclude_from_processing: Annotated[Optional[bool], Field(description='Leave it out of runs.')] = None,
+    exclude_from_search: Annotated[Optional[bool], Field(description='Leave it out of search.')] = None,
     file_type: Annotated[Optional[str], Field(description='Type of source file. One of: image, pdf, audio, video, text, word, docx, epub, spreadsheet, presentation, other.')] = None,
-    is_flagged: Annotated[Optional[bool], Field(description='Is Flagged.')] = None,
-    is_read: Annotated[Optional[bool], Field(description='Is Read.')] = None,
-    is_starred: Annotated[Optional[bool], Field(description='Is Starred.')] = None,
-    metadata: Annotated[Optional[dict[str, Any]], Field(description='Metadata.')] = None,
-    name: Annotated[Optional[str], Field(description='Name.')] = None,
-    node_kind: Annotated[Optional[str], Field(description='Node Kind.')] = None,
-    page_content: Annotated[Optional[str], Field(description='Page Content.')] = None,
-    parent_id: Annotated[Optional[str], Field(description='Parent Id.')] = None,
-    path: Annotated[Optional[str], Field(description='Path.')] = None,
-    position_x: Annotated[Optional[float], Field(description='Position X.')] = None,
-    position_y: Annotated[Optional[float], Field(description='Position Y.')] = None,
-    position_z: Annotated[Optional[float], Field(description='Position Z.')] = None,
-    prototype_key: Annotated[Optional[str], Field(description='Prototype Key.')] = None,
-    rotation_z: Annotated[Optional[float], Field(description='Rotation Z.')] = None,
-    scale: Annotated[Optional[float], Field(description='Scale.')] = None,
+    is_flagged: Annotated[Optional[bool], Field(description='Flag or unflag it.')] = None,
+    is_read: Annotated[Optional[bool], Field(description='Mark it read or unread.')] = None,
+    is_starred: Annotated[Optional[bool], Field(description='Star or unstar it.')] = None,
+    metadata: Annotated[Optional[dict[str, Any]], Field(description='Free metadata, a JSON object; replaces the whole object.')] = None,
+    name: Annotated[Optional[str], Field(description="The node's new name.")] = None,
+    node_kind: Annotated[Optional[str], Field(description="The node's new kind.")] = None,
+    page_content: Annotated[Optional[str], Field(description="The page's new text.")] = None,
+    parent_id: Annotated[Optional[str], Field(description='The folder to move it into.')] = None,
+    path: Annotated[Optional[str], Field(description="The file's path inside the project's storage.")] = None,
+    position_x: Annotated[Optional[float], Field(description='Its x on the canvas.')] = None,
+    position_y: Annotated[Optional[float], Field(description='Its y on the canvas.')] = None,
+    position_z: Annotated[Optional[float], Field(description='Its z on the canvas.')] = None,
+    prototype_key: Annotated[Optional[str], Field(description='The prototype (kind of record) the node takes its attributes from.')] = None,
+    rotation_z: Annotated[Optional[float], Field(description='Its rotation on the canvas, in degrees.')] = None,
+    scale: Annotated[Optional[float], Field(description='Its scale on the canvas.')] = None,
     status: Annotated[Optional[str], Field(description='Processing status. One of: pending, processing, active, completed, failed.')] = None,
-    z_index: Annotated[Optional[int], Field(description='Z Index.')] = None,
+    z_index: Annotated[Optional[int], Field(description='Its stacking order on the canvas.')] = None,
 ) -> Any:
     'Update Document\n\nUpdate an existing document.\n\nRoute: PUT /api/documents/{doc_id} (toolset `documents`; changes data, as the agent account when one exists).'
     return _rt.call("PUT", f"/api/documents/{doc_id}", json=_rt.body({"attributes": attributes, "doc_type": doc_type, "exclude_from_processing": exclude_from_processing, "exclude_from_search": exclude_from_search, "file_type": file_type, "is_flagged": is_flagged, "is_read": is_read, "is_starred": is_starred, "metadata": metadata, "name": name, "node_kind": node_kind, "page_content": page_content, "parent_id": parent_id, "path": path, "position_x": position_x, "position_y": position_y, "position_z": position_z, "prototype_key": prototype_key, "rotation_z": rotation_z, "scale": scale, "status": status, "z_index": z_index}))
@@ -2308,10 +2308,10 @@ def fichero_documents_reject_proposed_kind(
 def fichero_documents_assign_prototype(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
-    include_descendants: Annotated[Optional[bool], Field(description='Include Descendants. Default: false.')] = None,
-    page_end: Annotated[Optional[int], Field(description='Page End.')] = None,
-    page_start: Annotated[Optional[int], Field(description='Page Start.')] = None,
-    prototype_key: Annotated[Optional[str], Field(description='Prototype Key.')] = None,
+    include_descendants: Annotated[Optional[bool], Field(description='Assign it to every node inside as well. Default: false.')] = None,
+    page_end: Annotated[Optional[int], Field(description='The last page of the range it applies to.')] = None,
+    page_start: Annotated[Optional[int], Field(description='The first page of the range it applies to.')] = None,
+    prototype_key: Annotated[Optional[str], Field(description='The prototype to assign; null clears the assignment.')] = None,
 ) -> Any:
     'Assign Document Prototype\n\nRoute: PUT /api/documents/{doc_id}/prototype (toolset `documents`; changes data, as the agent account when one exists).'
     return _rt.call("PUT", f"/api/documents/{doc_id}/prototype", json=_rt.body({"include_descendants": include_descendants, "page_end": page_end, "page_start": page_start, "prototype_key": prototype_key}))
@@ -5953,7 +5953,7 @@ def fichero_reading_orders_place_in(
 
 def fichero_recipes_assemble(
     *,
-    cloud_allowed: Annotated[Optional[bool], Field(description='Cloud Allowed. Default: false.')] = None,
+    cloud_allowed: Annotated[Optional[bool], Field(description='Whether a step may use a cloud model; false keeps every step on this Mac. Default: false.')] = None,
     directions: Annotated[Optional[dict[str, Any]], Field(description='script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen)')] = None,
     faded_pages: Annotated[Optional[bool], Field(description="the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread across them) shows a faded page (source.onboard.auto.prepare-damaged-images)")] = None,
     job_answers: Annotated[Optional[dict[str, Any]], Field(description='the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the step it configures (source.onboard.auto.job-answers-read)')] = None,
@@ -5989,7 +5989,7 @@ def fichero_recipes_model_candidates(
 
 def fichero_recipes_check(
     *,
-    recipe: Annotated[dict[str, Any], Field(description='Recipe.')],
+    recipe: Annotated[dict[str, Any], Field(description='The recipe to check, as GET /api/recipes/project returns it.')],
 ) -> Any:
     'Check\n\nEvery reason a recipe cannot run as it stands, step by step (`source.recipe.*`).\n\nRoute: POST /api/recipes/check (toolset `recipes`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/recipes/check", json=_rt.body({"recipe": recipe}))
@@ -6026,8 +6026,8 @@ def fichero_recipes_get_project_setup(
 
 def fichero_recipes_save_project_setup(
     *,
-    answers: Annotated[Optional[dict[str, Any]], Field(description='Answers.')] = None,
-    recipe: Annotated[Optional[dict[str, Any]], Field(description='Recipe.')] = None,
+    answers: Annotated[Optional[dict[str, Any]], Field(description="Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them.")] = None,
+    recipe: Annotated[Optional[dict[str, Any]], Field(description="The project's recipe, as POST /api/recipes/assemble returns it; null clears it.")] = None,
 ) -> Any:
     "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
@@ -6060,7 +6060,7 @@ def fichero_recipes_use_bakeoff_choice(
     bakeoff_id: Annotated[str, Field(description='Bakeoff Id')],
     card: Annotated[str, Field(description="the candidate's card id.")],
     folder_id: Annotated[Optional[str], Field(description='the folder, when the scope is a folder.')] = None,
-    scope: Annotated[Optional[str], Field(description='Scope. One of: project, folder. Default: "project".')] = None,
+    scope: Annotated[Optional[str], Field(description='Where the choice applies: the whole project, or one folder. One of: project, folder. Default: "project".')] = None,
 ) -> Any:
     "Use Bakeoff Choice\n\nUse This: make a scored candidate the reading step's reader for the project or one folder, kept as an\noverride on the recipe (for the project, the step's model too), through `project.save_setup` (audited,\nundoable). Refused (422) for a candidate not scored in this bake-off, a folder that is not one, or a\nproject with no recipe.\n\nRoute: POST /api/recipes/project/bakeoffs/{bakeoff_id}/use (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/recipes/project/bakeoffs/{bakeoff_id}/use", json=_rt.body({"card": card, "folder_id": folder_id, "scope": scope}))
@@ -7003,7 +7003,7 @@ def fichero_segments_list_in_scope(
 
 def fichero_segments_update_many(
     *,
-    updates: Annotated[list[Any], Field(description='Updates.')],
+    updates: Annotated[list[Any], Field(description='One change per segment, each with its id and version.')],
 ) -> Any:
     "Update Segments Many\n\n`PATCH /api/segments` — one attribute edit across a selection, as one audited\naction and one undo step. Answers the new versions AND the audit id, so the app can\noffer ⌘Z for the whole edit without guessing which row to invert.\n\nPATCH on the collection, not `POST /update-many`: a partial modification of some of\nthe collection's members is what PATCH means, and `check_rest_conventions` requires\nan `update_*` operation to be PUT or PATCH. The body carries `expected_version`s, and\nPATCH — unlike DELETE — carries a body reliably, which is the invariant that matters.\n\nRoute: PATCH /api/segments (toolset `segments`; changes data, as the agent account when one exists)."
     return _rt.call("PATCH", "/api/segments", json=_rt.body({"updates": updates}))
@@ -7012,12 +7012,12 @@ def fichero_segments_update_many(
 def fichero_segments_create(
     *,
     anchor: Annotated[dict[str, Any], Field(description='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own.')],
-    baseline: Annotated[Optional[list[Any]], Field(description='Baseline.')] = None,
-    document_id: Annotated[str, Field(description='Document Id.')],
-    kind: Annotated[str, Field(description='Kind.')],
-    kind_raw: Annotated[Optional[str], Field(description='Kind Raw.')] = None,
-    parent_segment_id: Annotated[Optional[str], Field(description='Parent Segment Id.')] = None,
-    pass_id: Annotated[str, Field(description='Pass Id.')],
+    baseline: Annotated[Optional[list[Any]], Field(description="The line's baseline as [[x, y], ...] points in page coordinates.")] = None,
+    document_id: Annotated[str, Field(description='The document (page) the segment is on.')],
+    kind: Annotated[str, Field(description="The segment's kind: region, line, word, ...")],
+    kind_raw: Annotated[Optional[str], Field(description='The kind as the source format named it (e.g. a PAGE XML region type).')] = None,
+    parent_segment_id: Annotated[Optional[str], Field(description="The segment this one sits inside (a line's region).")] = None,
+    pass_id: Annotated[str, Field(description='The pass (layer) the segment joins.')],
 ) -> Any:
     'Create Segment\n\nRoute: POST /api/segments (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/segments", json=_rt.body({"anchor": anchor, "baseline": baseline, "document_id": document_id, "kind": kind, "kind_raw": kind_raw, "parent_segment_id": parent_segment_id, "pass_id": pass_id}))
@@ -7025,9 +7025,9 @@ def fichero_segments_create(
 
 def fichero_segments_create_bulk(
     *,
-    document_id: Annotated[str, Field(description='Document Id.')],
-    pass_id: Annotated[str, Field(description='Pass Id.')],
-    segments: Annotated[list[Any], Field(description='Segments.')],
+    document_id: Annotated[str, Field(description='The document (page) the segments are on.')],
+    pass_id: Annotated[str, Field(description='The pass (layer) the segments join.')],
+    segments: Annotated[list[Any], Field(description='The segments to create, each with its kind and anchor.')],
 ) -> Any:
     'Create Segments Bulk\n\nRoute: POST /api/segments/bulk (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/segments/bulk", json=_rt.body({"document_id": document_id, "pass_id": pass_id, "segments": segments}))
@@ -7035,9 +7035,9 @@ def fichero_segments_create_bulk(
 
 def fichero_segments_carry_across_match(
     *,
-    expected_versions: Annotated[dict[str, Any], Field(description='Expected Versions.')],
-    kinds: Annotated[list[Any], Field(description='Kinds.')],
-    match_id: Annotated[str, Field(description='Match Id.')],
+    expected_versions: Annotated[dict[str, Any], Field(description="Each matched segment's version as last read, {segment_id: version}.")],
+    kinds: Annotated[list[Any], Field(description='What to carry: readings, annotations, ...')],
+    match_id: Annotated[str, Field(description='The match to carry across.')],
 ) -> Any:
     'Carry Across Match\n\nRoute: POST /api/segments/carry (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/segments/carry", json=_rt.body({"expected_versions": expected_versions, "kinds": kinds, "match_id": match_id}))
@@ -7045,9 +7045,9 @@ def fichero_segments_carry_across_match(
 
 def fichero_segments_delete(
     *,
-    expected_versions: Annotated[dict[str, Any], Field(description='Expected Versions.')],
-    reason: Annotated[Optional[str], Field(description='Reason.')] = None,
-    segment_ids: Annotated[list[Any], Field(description='Segment Ids.')],
+    expected_versions: Annotated[dict[str, Any], Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")],
+    reason: Annotated[Optional[str], Field(description='A short note about the delete (kept in the audit log).')] = None,
+    segment_ids: Annotated[list[Any], Field(description='The segments to delete.')],
 ) -> Any:
     'Delete Segments\n\nRoute: POST /api/segments/delete (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/segments/delete", json=_rt.body({"expected_versions": expected_versions, "reason": reason, "segment_ids": segment_ids}))
@@ -7088,10 +7088,10 @@ def fichero_segments_get_document_text(
 
 def fichero_segments_propose_match(
     *,
-    certainty: Annotated[Optional[float], Field(description='Certainty.')] = None,
-    from_segment_id: Annotated[str, Field(description='From Segment Id.')],
-    note: Annotated[Optional[str], Field(description='Note.')] = None,
-    to_segment_id: Annotated[str, Field(description='To Segment Id.')],
+    certainty: Annotated[Optional[float], Field(description='How sure the proposer is, 0 to 1.')] = None,
+    from_segment_id: Annotated[str, Field(description='One end of the match.')],
+    note: Annotated[Optional[str], Field(description='A short note about the match (kept in the audit log).')] = None,
+    to_segment_id: Annotated[str, Field(description='The other end of the match.')],
 ) -> Any:
     'Propose Match\n\nRoute: POST /api/segments/matches (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/segments/matches", json=_rt.body({"certainty": certainty, "from_segment_id": from_segment_id, "note": note, "to_segment_id": to_segment_id}))
@@ -7115,9 +7115,9 @@ def fichero_segments_reject_match(
 
 def fichero_segments_merge(
     *,
-    expected_versions: Annotated[dict[str, Any], Field(description='Expected Versions.')],
-    keep_id: Annotated[str, Field(description='Keep Id.')],
-    segment_ids: Annotated[list[Any], Field(description='Segment Ids.')],
+    expected_versions: Annotated[dict[str, Any], Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")],
+    keep_id: Annotated[str, Field(description='The segment that survives the merge.')],
+    segment_ids: Annotated[list[Any], Field(description='The segments to merge.')],
 ) -> Any:
     'Merge Segments\n\nRoute: POST /api/segments/merge (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/segments/merge", json=_rt.body({"expected_versions": expected_versions, "keep_id": keep_id, "segment_ids": segment_ids}))
@@ -7125,10 +7125,10 @@ def fichero_segments_merge(
 
 def fichero_segments_create_pass(
     *,
-    document_id: Annotated[str, Field(description='Document Id.')],
-    name: Annotated[str, Field(description='Name.')],
-    run_id: Annotated[Optional[str], Field(description='Run Id.')] = None,
-    source_artifact_id: Annotated[Optional[str], Field(description='Source Artifact Id.')] = None,
+    document_id: Annotated[str, Field(description='The document (page) the new pass belongs to.')],
+    name: Annotated[str, Field(description="The pass's name, as the Layers list shows it.")],
+    run_id: Annotated[Optional[str], Field(description='The run that produced this pass, when a run did.')] = None,
+    source_artifact_id: Annotated[Optional[str], Field(description='The artifact the pass was read from, when it came from one.')] = None,
 ) -> Any:
     'Create Pass\n\nRoute: POST /api/segments/passes (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/segments/passes", json=_rt.body({"document_id": document_id, "name": name, "run_id": run_id, "source_artifact_id": source_artifact_id}))
@@ -7145,7 +7145,7 @@ def fichero_segments_delete_pass(
 def fichero_segments_set_pass_ground_truth(
     *,
     pass_id: Annotated[str, Field(description='Pass Id')],
-    ground_truth: Annotated[bool, Field(description='Ground Truth.')],
+    ground_truth: Annotated[bool, Field(description='True marks the pass ground truth; false unmarks it.')],
 ) -> Any:
     "Set Pass Ground Truth\n\n`PUT /api/segments/passes/{pass_id}/ground-truth` -- Mark as Ground Truth, or unmark (#5513).\n\nFor corrected transcriptions imported without the mark: the bake-off and the evaluation count a\nmarked pass's lines, and its readings are not labelled machine. Audited and undoable.\n\nRoute: PUT /api/segments/passes/{pass_id}/ground-truth (toolset `segments`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", f"/api/segments/passes/{pass_id}/ground-truth", json=_rt.body({"ground_truth": ground_truth}))
@@ -7161,10 +7161,10 @@ def fichero_segments_get_pass_original(
 
 def fichero_segments_split(
     *,
-    at_offset: Annotated[Optional[int], Field(description='At Offset.')] = None,
-    expected_version: Annotated[int, Field(description='Expected Version.')],
-    parts: Annotated[Optional[list[Any]], Field(description='Parts. Default: [].')] = None,
-    segment_id: Annotated[str, Field(description='Segment Id.')],
+    at_offset: Annotated[Optional[int], Field(description="Split at this character of the line's reading instead of giving parts.")] = None,
+    expected_version: Annotated[int, Field(description="The segment's version as last read; a changed segment is refused.")],
+    parts: Annotated[Optional[list[Any]], Field(description='The parts to split it into, each with its own anchor (or give at_offset). Default: [].')] = None,
+    segment_id: Annotated[str, Field(description='The segment to split.')],
 ) -> Any:
     'Split Segment\n\nRoute: POST /api/segments/split (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/segments/split", json=_rt.body({"at_offset": at_offset, "expected_version": expected_version, "parts": parts, "segment_id": segment_id}))
@@ -7172,8 +7172,8 @@ def fichero_segments_split(
 
 def fichero_segments_undelete(
     *,
-    order_entries: Annotated[Optional[list[Any]], Field(description='Order Entries.')] = None,
-    segment_ids: Annotated[list[Any], Field(description='Segment Ids.')],
+    order_entries: Annotated[Optional[list[Any]], Field(description='The reading-order entries the delete took out, written back where they were.')] = None,
+    segment_ids: Annotated[list[Any], Field(description='The deleted segments to bring back.')],
 ) -> Any:
     'Undelete Segments\n\nRoute: POST /api/segments/undelete (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/segments/undelete", json=_rt.body({"order_entries": order_entries, "segment_ids": segment_ids}))
@@ -7191,16 +7191,16 @@ def fichero_segments_update(
     *,
     segment_id: Annotated[str, Field(description='Segment Id')],
     anchor: Annotated[Optional[dict[str, Any]], Field(description='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own.')] = None,
-    baseline: Annotated[Optional[list[Any]], Field(description='Baseline.')] = None,
-    direction: Annotated[Optional[str], Field(description='Direction.')] = None,
-    expected_version: Annotated[int, Field(description='Expected Version.')],
-    is_furniture: Annotated[Optional[bool], Field(description='Is Furniture.')] = None,
-    kind: Annotated[Optional[str], Field(description='Kind.')] = None,
-    kind_raw: Annotated[Optional[str], Field(description='Kind Raw.')] = None,
-    language: Annotated[Optional[str], Field(description='Language.')] = None,
-    parent_segment_id: Annotated[Optional[str], Field(description='Parent Segment Id.')] = None,
-    script: Annotated[Optional[str], Field(description='Script.')] = None,
-    segment_id_2: Annotated[str, Field(description='Segment Id.')],
+    baseline: Annotated[Optional[list[Any]], Field(description="The line's new baseline as [[x, y], ...] points.")] = None,
+    direction: Annotated[Optional[str], Field(description="The segment's writing direction.")] = None,
+    expected_version: Annotated[int, Field(description="The segment's version as last read; a changed segment is refused.")],
+    is_furniture: Annotated[Optional[bool], Field(description='True marks the segment as page furniture (running heads, folio numbers).')] = None,
+    kind: Annotated[Optional[str], Field(description="The segment's new kind.")] = None,
+    kind_raw: Annotated[Optional[str], Field(description='The kind as the source format named it.')] = None,
+    language: Annotated[Optional[str], Field(description="The segment's language, a BCP 47 tag.")] = None,
+    parent_segment_id: Annotated[Optional[str], Field(description='The segment this one now sits inside.')] = None,
+    script: Annotated[Optional[str], Field(description="The segment's script, an ISO 15924 code.")] = None,
+    segment_id_2: Annotated[str, Field(description='The segment to change.')],
 ) -> Any:
     'Update Segment\n\nRoute: PUT /api/segments/{segment_id} (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("PUT", f"/api/segments/{segment_id}", json=_rt.body({"anchor": anchor, "baseline": baseline, "direction": direction, "expected_version": expected_version, "is_furniture": is_furniture, "kind": kind, "kind_raw": kind_raw, "language": language, "parent_segment_id": parent_segment_id, "script": script, "segment_id": segment_id_2}))
@@ -7230,8 +7230,8 @@ def fichero_segments_list_readings(
 def fichero_segments_choose_reading(
     *,
     segment_id: Annotated[str, Field(description='Segment Id')],
-    kind: Annotated[str, Field(description='Kind.')],
-    representation_id: Annotated[str, Field(description='Representation Id.')],
+    kind: Annotated[str, Field(description='The kind of reading chosen (e.g. transcription).')],
+    representation_id: Annotated[str, Field(description='The reading to make the one that counts.')],
 ) -> Any:
     'Choose Segment Reading\n\n`POST /api/segments/{segment_id}/readings/choice` — record which\nreading counts. Only a person may (`ChoiceNeedsAPerson`, 403).\n\nRoute: POST /api/segments/{segment_id}/readings/choice (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/segments/{segment_id}/readings/choice", json=_rt.body({"kind": kind, "representation_id": representation_id}))
@@ -7248,8 +7248,8 @@ def fichero_segments_reference(
 def fichero_segments_restore_version(
     *,
     segment_id: Annotated[str, Field(description='Segment Id')],
-    expected_version: Annotated[int, Field(description='Expected Version.')],
-    version: Annotated[int, Field(description='Version.')],
+    expected_version: Annotated[int, Field(description="The segment's current version as last read; a changed segment is refused.")],
+    version: Annotated[int, Field(description='The earlier version to bring back.')],
 ) -> Any:
     'Restore Segment Version\n\nRoute: POST /api/segments/{segment_id}/restore-version (toolset `segments`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/segments/{segment_id}/restore-version", json=_rt.body({"expected_version": expected_version, "version": version}))
@@ -8127,18 +8127,18 @@ def fichero_workflow_execution_compare_runs(
 
 def fichero_workflow_execution_execute(
     *,
-    checkpoint_ns: Annotated[Optional[str], Field(description='Checkpoint Ns. Default: "".')] = None,
+    checkpoint_ns: Annotated[Optional[str], Field(description='Checkpoint namespace, for a sub-workflow. Default: "".')] = None,
     force_new: Annotated[Optional[bool], Field(description='Force New. Default: false.')] = None,
-    force_recompute: Annotated[Optional[bool], Field(description='Force Recompute. Default: false.')] = None,
-    inputs: Annotated[Optional[dict[str, Any]], Field(description='Inputs.')] = None,
+    force_recompute: Annotated[Optional[bool], Field(description='Run it again for real: bypass every cache. Default: false.')] = None,
+    inputs: Annotated[Optional[dict[str, Any]], Field(description="The workflow's inputs, a JSON object.")] = None,
     interrupt_after: Annotated[Optional[list[Any]], Field(description='Interrupt After.')] = None,
     interrupt_before: Annotated[Optional[list[Any]], Field(description='Interrupt Before.')] = None,
-    model_override: Annotated[Optional[str], Field(description='Model Override.')] = None,
-    provider_override: Annotated[Optional[str], Field(description='Provider Override.')] = None,
+    model_override: Annotated[Optional[str], Field(description='Run every step with this model.')] = None,
+    provider_override: Annotated[Optional[str], Field(description='Run every step on this provider.')] = None,
     selection: Annotated[Optional[dict[str, Any]], Field(description='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data.')] = None,
     skip_cache: Annotated[Optional[bool], Field(description='Skip Cache. Default: false.')] = None,
-    thread_id: Annotated[Optional[str], Field(description='Thread Id.')] = None,
-    workflow_id: Annotated[str, Field(description='Workflow Id.')],
+    thread_id: Annotated[Optional[str], Field(description="Continue this run's thread; made up when not given.")] = None,
+    workflow_id: Annotated[str, Field(description='The workflow to run.')],
 ) -> Any:
     'Execute Workflow\n\nExecute a workflow (non-blocking).\n\nThis endpoint starts workflow execution in the background and returns\nimmediately with a 202 Accepted response. Use the stream_url to\nsubscribe to real-time progress events via SSE.\n\nFlow:\n1. POST /execute → 202 Accepted with thread_id and stream_url\n2. GET /stream/{thread_id} → SSE stream with progress events\n3. Events: start, node_begin, node_end, parallel_complete, complete, error\n\nArgs:\n    request: Execution parameters including workflow_id and inputs\n\nReturns:\n    202 Accepted with thread_id and stream_url for SSE subscription\n\nRaises:\n    404: Workflow not found\n\nRoute: POST /api/workflow-execution/execute (toolset `workflow-execution`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/workflow-execution/execute", json=_rt.body({"checkpoint_ns": checkpoint_ns, "force_new": force_new, "force_recompute": force_recompute, "inputs": inputs, "interrupt_after": interrupt_after, "interrupt_before": interrupt_before, "model_override": model_override, "provider_override": provider_override, "selection": selection, "skip_cache": skip_cache, "thread_id": thread_id, "workflow_id": workflow_id}))
@@ -8240,8 +8240,8 @@ def fichero_workflow_execution_read_pages_again(
 def fichero_workflow_execution_resume(
     *,
     thread_id: Annotated[str, Field(description='Thread Id')],
-    answer: Annotated[Optional[Any], Field(description='Answer.')] = None,
-    inputs: Annotated[Optional[dict[str, Any]], Field(description='Inputs.')] = None,
+    answer: Annotated[Optional[Any], Field(description='The answer to the question the run paused on.')] = None,
+    inputs: Annotated[Optional[dict[str, Any]], Field(description='New inputs for the paused run.')] = None,
 ) -> Any:
     'Resume Workflow\n\nResume a paused workflow from checkpoint (non-blocking, #4317).\n\nContinues execution from the last checkpoint, optionally with new inputs\nor an interrupt() answer. The run is dispatched to the SAME dedicated\nworker-thread path as ``/execute`` — it streams SSE via\n``GET /stream/{thread_id}``, honors pause/cancel, and hits the document\ncompletion boundary — instead of blocking the FastAPI event loop with a\nsynchronous ``ainvoke`` that emitted no events and force-wrote\n``completed``.\n\nArgs:\n    thread_id: Thread ID from original execution\n    request: Optional new inputs / interrupt answer\n\nReturns:\n    Execution status with status="running" once dispatched\n\nRaises:\n    404: Thread not found\n    500: Resume error\n\nRoute: POST /api/workflow-execution/threads/{thread_id}/resume (toolset `workflow-execution`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/workflow-execution/threads/{thread_id}/resume", json=_rt.body({"answer": answer, "inputs": inputs}))
@@ -8461,12 +8461,12 @@ def fichero_workflows_duplicate(
 def fichero_workflows_estimate_cost(
     *,
     workflow_id: Annotated[str, Field(description='Workflow Id')],
-    estimated_input_tokens_per_file: Annotated[Optional[int], Field(description='Estimated Input Tokens Per File. Default: 1200.')] = None,
-    estimated_output_tokens_per_file: Annotated[Optional[int], Field(description='Estimated Output Tokens Per File. Default: 300.')] = None,
-    file_count: Annotated[Optional[int], Field(description='File Count. Default: 1.')] = None,
-    model: Annotated[Optional[str], Field(description='Model.')] = None,
-    provider: Annotated[Optional[str], Field(description='Provider.')] = None,
-    selected_doc_ids: Annotated[Optional[list[Any]], Field(description='Selected Doc Ids.')] = None,
+    estimated_input_tokens_per_file: Annotated[Optional[int], Field(description='Tokens sent per file. Default: 1200.')] = None,
+    estimated_output_tokens_per_file: Annotated[Optional[int], Field(description='Tokens returned per file. Default: 300.')] = None,
+    file_count: Annotated[Optional[int], Field(description='How many files the run reads (used when no selection is given). Default: 1.')] = None,
+    model: Annotated[Optional[str], Field(description='The model to price.')] = None,
+    provider: Annotated[Optional[str], Field(description='The provider to price.')] = None,
+    selected_doc_ids: Annotated[Optional[list[Any]], Field(description='The selection the run will read; a folder counts its pages.')] = None,
 ) -> Any:
     'Estimate Workflow Cost\n\nEstimate run cost from file count and per-file token assumptions.\n\nRoute: POST /api/workflows/{workflow_id}/estimate-cost (toolset `workflows`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/workflows/{workflow_id}/estimate-cost", json=_rt.body({"estimated_input_tokens_per_file": estimated_input_tokens_per_file, "estimated_output_tokens_per_file": estimated_output_tokens_per_file, "file_count": file_count, "model": model, "provider": provider, "selected_doc_ids": selected_doc_ids}))

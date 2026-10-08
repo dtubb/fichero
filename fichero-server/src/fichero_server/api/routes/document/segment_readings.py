@@ -37,7 +37,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.auth import action_context
@@ -729,8 +729,8 @@ async def list_segment_readings(
 class ReadingChoiceBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    kind: str
-    representation_id: str
+    kind: str = Field(description='The kind of reading chosen (e.g. transcription).')
+    representation_id: str = Field(description='The reading to make the one that counts.')
 
 
 @router.post("/{segment_id}/readings/choice")

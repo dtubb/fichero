@@ -783,10 +783,10 @@ def _mark_working_pass(db: Database, doc_id: str, passes: list[PassRead], segmen
 class SegmentPassCreateParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    document_id: str
-    name: str
-    run_id: Optional[str] = None
-    source_artifact_id: Optional[str] = None
+    document_id: str = Field(description='The document (page) the new pass belongs to.')
+    name: str = Field(description="The pass's name, as the Layers list shows it.")
+    run_id: Optional[str] = Field(default=None, description='The run that produced this pass, when a run did.')
+    source_artifact_id: Optional[str] = Field(default=None, description='The artifact the pass was read from, when it came from one.')
 
 
 def _new_pass_provenance_kind(
@@ -1126,13 +1126,13 @@ class SegmentCreateParams(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    document_id: str
-    pass_id: str
-    kind: str
-    anchor: SourceAnchor
-    baseline: Optional[list[list[float]]] = None
-    parent_segment_id: Optional[str] = None
-    kind_raw: Optional[str] = None
+    document_id: str = Field(description='The document (page) the segment is on.')
+    pass_id: str = Field(description='The pass (layer) the segment joins.')
+    kind: str = Field(description="The segment's kind: region, line, word, ...")
+    anchor: SourceAnchor = Field(description='Where the segment sits on the page: a box or polygon in page coordinates.')
+    baseline: Optional[list[list[float]]] = Field(default=None, description="The line's baseline as [[x, y], ...] points in page coordinates.")
+    parent_segment_id: Optional[str] = Field(default=None, description="The segment this one sits inside (a line's region).")
+    kind_raw: Optional[str] = Field(default=None, description='The kind as the source format named it (e.g. a PAGE XML region type).')
 
 
 def _invert_segment_create(before, after, ctx: ActionContext):
@@ -1261,9 +1261,9 @@ def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: Actio
 class SegmentCreateManyParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    document_id: str
-    pass_id: str
-    segments: list[SegmentSpec]
+    document_id: str = Field(description='The document (page) the segments are on.')
+    pass_id: str = Field(description='The pass (layer) the segments join.')
+    segments: list[SegmentSpec] = Field(description='The segments to create, each with its kind and anchor.')
 
 
 @action(
@@ -1416,14 +1416,14 @@ class SegmentDeleteParams(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    segment_ids: list[str]
-    expected_versions: dict[str, int]
+    segment_ids: list[str] = Field(description='The segments to delete.')
+    expected_versions: dict[str, int] = Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")
     #: Capped (#4923 review): recorded inside the tamper-evident audit
     #: chain, where nothing can ever be purged -- an operator's short note
     #: about the delete, never a quote from a source. Whether even a short
     #: typed field belongs in the chain at all is the maintainer's open
     #: question (morning file, question 17/23), not settled here.
-    reason: Optional[str] = Field(default=None, max_length=200)
+    reason: Optional[str] = Field(default=None, max_length=200, description='A short note about the delete (kept in the audit log).')
 
 
 def _invert_segment_delete(before, after, ctx: ActionContext):
@@ -1539,11 +1539,11 @@ class SegmentUndeleteParams(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    segment_ids: list[str]
+    segment_ids: list[str] = Field(description='The deleted segments to bring back.')
     #: The order entries the delete took out (`remove_segment_entries`), written back where they were.
     #: Only entries OF these segments are accepted: an undelete puts back a segment's own places, never
     #: anyone else's.
-    order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list)
+    order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list, description='The reading-order entries the delete took out, written back where they were.')
 
 
 def _invert_segment_undelete(before, after, ctx: ActionContext):
@@ -1621,14 +1621,14 @@ class SegmentUpdateParams(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    segment_id: str
-    expected_version: int
-    anchor: Optional[SourceAnchor] = None
-    baseline: Optional[list[list[float]]] = None
-    kind: Optional[str] = None
-    kind_raw: Optional[str] = None
-    parent_segment_id: Optional[str] = None
-    is_furniture: Optional[bool] = None
+    segment_id: str = Field(description='The segment to change.')
+    expected_version: int = Field(description="The segment's version as last read; a changed segment is refused.")
+    anchor: Optional[SourceAnchor] = Field(default=None, description="The segment's new place on the page.")
+    baseline: Optional[list[list[float]]] = Field(default=None, description="The line's new baseline as [[x, y], ...] points.")
+    kind: Optional[str] = Field(default=None, description="The segment's new kind.")
+    kind_raw: Optional[str] = Field(default=None, description='The kind as the source format named it.')
+    parent_segment_id: Optional[str] = Field(default=None, description='The segment this one now sits inside.')
+    is_furniture: Optional[bool] = Field(default=None, description='True marks the segment as page furniture (running heads, folio numbers).')
     #: The cascade's three facts (slice 9, #4938). Set here rather than through
     #: an action of their own, because `segment.update` already owns the version
     #: snapshot, the stale check, the inverse and the audit row -- a second
@@ -1649,9 +1649,9 @@ class SegmentUpdateParams(BaseModel):
     #: back to "never determined" is not expressible here and waits for
     #: `source_setting.clear`, which is the general project/node/segment action
     #: the build notes describe. Undo reverses a mis-set value in the meantime.
-    language: Optional[str] = None
-    script: Optional[str] = None
-    direction: Optional[str] = None
+    language: Optional[str] = Field(default=None, description="The segment's language, a BCP 47 tag.")
+    script: Optional[str] = Field(default=None, description="The segment's script, an ISO 15924 code.")
+    direction: Optional[str] = Field(default=None, description="The segment's writing direction.")
     #: NOT accepted from a caller: `language_meta`, `script_meta` and
     #: `direction_meta` are provenance, and the engine writes them from `ctx`
     #: (#4868/#4869 -- a machine's claim recorded as a person's is the defect
@@ -2095,7 +2095,7 @@ class SegmentAttributeUpdate(BaseModel):
 class SegmentUpdateManyParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    updates: list[SegmentAttributeUpdate] = Field(min_length=1)
+    updates: list[SegmentAttributeUpdate] = Field(min_length=1, description='One change per segment, each with its id and version.')
 
 
 class SegmentVersionRestore(BaseModel):
@@ -2318,15 +2318,15 @@ async def update_segments_many(
 class SegmentMatchProposeParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    from_segment_id: str
-    to_segment_id: str
-    certainty: Optional[float] = None
+    from_segment_id: str = Field(description='One end of the match.')
+    to_segment_id: str = Field(description='The other end of the match.')
+    certainty: Optional[float] = Field(default=None, description='How sure the proposer is, 0 to 1.')
     #: Capped (#4923 review): this is recorded inside the tamper-evident
     #: audit chain, where nothing can ever be purged -- an operator's short
     #: note about the match, never a quote from a source. Whether even a
     #: short typed field belongs in the chain at all is the maintainer's
     #: open question (morning file, question 17/23), not settled here.
-    note: Optional[str] = Field(default=None, max_length=200)
+    note: Optional[str] = Field(default=None, max_length=200, description='A short note about the match (kept in the audit log).')
 
 
 def _invert_match_propose(before, after, ctx: ActionContext):
@@ -2536,8 +2536,8 @@ def _action_match_set_state(db: Database, params: SegmentMatchSetStateParams, ct
 class SegmentMergeParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    segment_ids: list[str]
-    keep_id: str
+    segment_ids: list[str] = Field(description='The segments to merge.')
+    keep_id: str = Field(description='The segment that survives the merge.')
     #: Compare-and-set, one entry per id in `segment_ids` (#4957 follow-up
     #: 1: "a redo is refused when something else changed the segment since"
     #: -- previously merge took no token at all, so a redo silently merged
@@ -2546,7 +2546,7 @@ class SegmentMergeParams(BaseModel):
     #: `keep_id` included even though merge itself never bumps it -- a
     #: concurrent edit to the kept segment is still something that changed
     #: since the caller last read it.
-    expected_versions: dict[str, int]
+    expected_versions: dict[str, int] = Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")
 
 
 def _invert_merge(before, after, ctx: ActionContext):
@@ -3065,19 +3065,19 @@ def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["Segment
 class SegmentSplitParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    segment_id: str
-    parts: list[SegmentSplitPart] = []
+    segment_id: str = Field(description='The segment to split.')
+    parts: list[SegmentSplitPart] = Field(default=[], description='The parts to split it into, each with its own anchor (or give at_offset).')
     #: Return in the Reader (#5154): split at this character of the line's counting reading,
     #: INSTEAD of giving `parts`. Nothing knows where a character sits on the image, so the box is
     #: cut in proportion (characters before / all characters) along the line's direction --
     #: left to right, right to left, or top to bottom -- and both parts are marked
     #: `metadata.cut = "estimated"`, for a person to reshape.
-    at_offset: Optional[int] = None
+    at_offset: Optional[int] = Field(default=None, description="Split at this character of the line's reading instead of giving parts.")
     #: Compare-and-set on the segment being split (#4957 follow-up 1) --
     #: the new parts are brand-new rows with nothing to compare yet, so
     #: only the one EXISTING id needs a token, the same shape
     #: `segment.update` already takes.
-    expected_version: int
+    expected_version: int = Field(description="The segment's version as last read; a changed segment is refused.")
 
 
 def _invert_split(before, after, ctx: ActionContext):
@@ -3558,14 +3558,14 @@ def _copy_record_to_segment(carried_kind: str, original: BaseModel, to_segment: 
 class SegmentCarryParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    match_id: str
-    kinds: list[str]
+    match_id: str = Field(description='The match to carry across.')
+    kinds: list[str] = Field(description='What to carry: readings, annotations, ...')
     #: Compare-and-set on the matched segments (#4957 follow-up 1), keyed
     #: by `SegmentMatch.from_segment_id`/`.to_segment_id` -- carry itself
     #: never bumps either segment's version (it only copies readings/
     #: annotations across), but the caller's view of the match can still
     #: be stale if either end was reshaped since it was read.
-    expected_versions: dict[str, int]
+    expected_versions: dict[str, int] = Field(description="Each matched segment's version as last read, {segment_id: version}.")
 
 
 def _invert_carry(before, after, ctx: ActionContext):
@@ -3793,7 +3793,7 @@ class PassGroundTruthBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     #: True marks the pass ground truth; False unmarks it.
-    ground_truth: bool
+    ground_truth: bool = Field(description='True marks the pass ground truth; false unmarks it.')
 
 
 class PassGroundTruthResponse(BaseModel):
@@ -4115,8 +4115,8 @@ async def undelete_segments(
 class SegmentRestoreVersionBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    version: int
-    expected_version: int
+    version: int = Field(description='The earlier version to bring back.')
+    expected_version: int = Field(description="The segment's current version as last read; a changed segment is refused.")
 
 
 @router.post("/{segment_id}/restore-version", response_model=SegmentRead)

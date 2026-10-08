@@ -86,6 +86,28 @@ def _camel_resource_tokens(resource: str) -> set[str]:
     return {t for t in out if t}
 
 
+def field_doc(field: RequestField) -> str:
+    """A body field's help in words: its schema description (else title, else name), its choices
+    and its default. The CLI's ``--help`` and the MCP tool's parameter docs both say this (#5501)."""
+    schema = field.schema
+    text = " ".join(str(schema.get("description") or schema.get("title") or field.name).split())
+    text = text if text.endswith((".", "?", "!", ")")) else text + "."
+    if schema.get("enum"):
+        text += " One of: " + ", ".join(str(v) for v in schema["enum"]) + "."
+    if "default" in schema and schema["default"] is not None:
+        text += f" Default: {json.dumps(schema['default'])}."
+    return text
+
+
+def scalar_list_items(schema: dict) -> str | None:
+    """The item type of a list of plain values (``string``, ``integer``, ``number``), else None.
+    Such a field takes a comma-separated or repeated flag on the CLI, not only JSON (#5501)."""
+    if schema.get("type") != "array":
+        return None
+    kind = (schema.get("items") or {}).get("type")
+    return kind if kind in {"string", "integer", "number"} else None
+
+
 def _identifier(name: str, used: set[str]) -> str:
     value = re.sub(r"[^a-zA-Z0-9_]+", "_", name).strip("_") or "value"
     if value and value[0].isdigit():

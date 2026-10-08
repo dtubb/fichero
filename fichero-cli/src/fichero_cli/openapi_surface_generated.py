@@ -15,11 +15,40 @@ import typer
 from fichero_cli import FicheroClient
 
 
+def _list_values(values: Optional[list[str]]) -> Optional[list[str]]:
+    """A list flag's values: repeated flags each whole; one value as JSON when it is a JSON
+    list, else split on commas (#5501)."""
+    if values is None:
+        return None
+    if len(values) == 1:
+        raw = values[0].strip()
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise typer.BadParameter(f"Invalid JSON list: {exc}") from exc
+            if not isinstance(parsed, list):
+                raise typer.BadParameter("Expected a JSON list.")
+            return parsed
+        return [part.strip() for part in raw.split(",") if part.strip()]
+    return list(values)
+
+
 def _coerce_json_field(value: Any, schema: dict[str, Any]) -> Any:
     """Coerce CLI option values into the request-body field shape."""
     if value is None:
         return None
     schema_type = schema.get("type")
+    if isinstance(value, list):
+        items = _list_values(value) or []
+        item_type = (schema.get("items") or {}).get("type")
+        if item_type in {"integer", "number"}:
+            cast = int if item_type == "integer" else float
+            try:
+                return [item if isinstance(item, (int, float)) else cast(item) for item in items]
+            except ValueError as exc:
+                raise typer.BadParameter(f"Expected numbers: {exc}") from exc
+        return items
     if schema_type in {"array", "object"} or "$ref" in schema or "allOf" in schema or "anyOf" in schema or "oneOf" in schema:
         if not isinstance(value, str):
             return value
@@ -128,15 +157,15 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def actions_create_post(
         ctx: typer.Context,
-        author: Optional[str] = typer.Option(None, "--author", help="Request field: author."),
-        category: Optional[str] = typer.Option(None, "--category", help="Request field: category."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        edges: Optional[str] = typer.Option(None, "--edges", help="Request field: edges."),
-        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        node_template: Optional[str] = typer.Option(None, "--node-template", help="Request field: node_template."),
-        nodes: Optional[str] = typer.Option(None, "--nodes", help="Request field: nodes."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        author: Optional[str] = typer.Option(None, '--author', help='Author. Default: "".'),
+        category: Optional[str] = typer.Option(None, '--category', help='Category. Default: "custom".'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        edges: Optional[str] = typer.Option(None, '--edges', help='Edges. Default: []. JSON.'),
+        icon: Optional[str] = typer.Option(None, '--icon', help='Icon. Default: "square.stack.3d.up".'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        node_template: Optional[str] = typer.Option(None, '--node-template', help='Node Template. Default: {}. JSON.'),
+        nodes: Optional[str] = typer.Option(None, '--nodes', help='Nodes. Default: []. JSON.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Create Action (POST /api/actions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -169,7 +198,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-audit-log")
     def actions_list_audit_log_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """List Audit Log (GET /api/actions/audit)."""
         def op_call(client: FicheroClient) -> Any:
@@ -183,7 +212,7 @@ def register_generated_openapi_commands(
     @target_app.command("undo")
     def actions_undo_post(
         ctx: typer.Context,
-        audit_id: str = typer.Argument(..., help="Path parameter: audit_id."),
+        audit_id: str = typer.Argument(..., help='Audit Id'),
     ) -> None:
         """Undo Action (POST /api/actions/audit/{audit_id}/undo)."""
         def op_call(client: FicheroClient) -> Any:
@@ -217,7 +246,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-by-category")
     def actions_list_by_category_get(
         ctx: typer.Context,
-        category: str = typer.Argument(..., help="Path parameter: category."),
+        category: str = typer.Argument(..., help='Category'),
     ) -> None:
         """List Actions By Category (GET /api/actions/category/{category})."""
         def op_call(client: FicheroClient) -> Any:
@@ -229,12 +258,12 @@ def register_generated_openapi_commands(
     @target_app.command("create-composite")
     def actions_create_composite_post(
         ctx: typer.Context,
-        category: Optional[str] = typer.Option(None, "--category", help="Request field: category."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        edges: str = typer.Option(..., "--edges", help="Request field: edges."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        nodes: str = typer.Option(..., "--nodes", help="Request field: nodes."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        category: Optional[str] = typer.Option(None, '--category', help='Category. Default: "custom".'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        edges: str = typer.Option(..., '--edges', help='Edges. JSON.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        nodes: str = typer.Option(..., '--nodes', help='Nodes. JSON.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Create Composite Action (POST /api/actions/composite)."""
         def op_call(client: FicheroClient) -> Any:
@@ -272,11 +301,11 @@ def register_generated_openapi_commands(
     @target_app.command("create-from-node")
     def actions_create_from_node_post(
         ctx: typer.Context,
-        category: Optional[str] = typer.Option(None, "--category", help="Request field: category."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        node: str = typer.Option(..., "--node", help="Request field: node."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        category: Optional[str] = typer.Option(None, '--category', help='Category. Default: "custom".'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        node: str = typer.Option(..., '--node', help='Node. JSON.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Create Action From Node (POST /api/actions/from-node)."""
         def op_call(client: FicheroClient) -> Any:
@@ -301,8 +330,8 @@ def register_generated_openapi_commands(
     @target_app.command("import")
     def actions_import_post(
         ctx: typer.Context,
-        json_data: str = typer.Option(..., "--json-data", help="Request field: json_data."),
-        new_id: Optional[bool] = typer.Option(None, "--new-id/--no-new-id", help="Request field: new_id."),
+        json_data: str = typer.Option(..., '--json-data', help='Json Data.'),
+        new_id: Optional[bool] = typer.Option(None, '--new-id/--no-new-id', help='New Id. Default: true.'),
     ) -> None:
         """Import Action (POST /api/actions/import)."""
         def op_call(client: FicheroClient) -> Any:
@@ -321,11 +350,11 @@ def register_generated_openapi_commands(
     @target_app.command("invoke")
     def actions_invoke_post(
         ctx: typer.Context,
-        actor: Optional[str] = typer.Option(None, "--actor", help="Request field: actor."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        origin_window: Optional[str] = typer.Option(None, "--origin-window", help="Request field: origin_window."),
-        params: Optional[str] = typer.Option(None, "--params", help="Request field: params."),
-        run_id: Optional[str] = typer.Option(None, "--run-id", help="Request field: run_id."),
+        actor: Optional[str] = typer.Option(None, '--actor', help='DEPRECATED — rejected if set. Actor comes from the authenticated session.'),
+        name: str = typer.Option(..., '--name', help="Registered action name, '<domain>.<verb>'."),
+        origin_window: Optional[str] = typer.Option(None, '--origin-window', help='DEPRECATED — rejected if set. Use X-Fichero-Origin-Window header.'),
+        params: Optional[str] = typer.Option(None, '--params', help='Raw action params. JSON.'),
+        run_id: Optional[str] = typer.Option(None, '--run-id', help='AI run id, if any (#1832)'),
     ) -> None:
         """Invoke Action (POST /api/actions/invoke)."""
         def op_call(client: FicheroClient) -> Any:
@@ -350,7 +379,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-popular")
     def actions_list_popular_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """List Popular Actions (GET /api/actions/popular)."""
         def op_call(client: FicheroClient) -> Any:
@@ -364,7 +393,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-recent")
     def actions_list_recent_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """List Recent Actions (GET /api/actions/recent)."""
         def op_call(client: FicheroClient) -> Any:
@@ -389,9 +418,9 @@ def register_generated_openapi_commands(
     @target_app.command("search")
     def actions_search_get(
         ctx: typer.Context,
-        category: Optional[str] = typer.Option(None, "--category", help="Query parameter: category."),
-        query: Optional[str] = typer.Option(None, "--query", help="Query parameter: query."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Query parameter: tags."),
+        category: Optional[str] = typer.Option(None, '--category', help='Category.'),
+        query: Optional[str] = typer.Option(None, '--query', help='Query.'),
+        tags: Optional[str] = typer.Option(None, '--tags', help='Comma-separated tags.'),
     ) -> None:
         """Search Actions (GET /api/actions/search)."""
         def op_call(client: FicheroClient) -> Any:
@@ -407,7 +436,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def actions_delete_delete(
         ctx: typer.Context,
-        action_id: str = typer.Argument(..., help="Path parameter: action_id."),
+        action_id: str = typer.Argument(..., help='Action Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Action (DELETE /api/actions/{action_id})."""
@@ -422,7 +451,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def actions_get_get(
         ctx: typer.Context,
-        action_id: str = typer.Argument(..., help="Path parameter: action_id."),
+        action_id: str = typer.Argument(..., help='Action Id'),
     ) -> None:
         """Get Action (GET /api/actions/{action_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -434,15 +463,15 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def actions_update_put(
         ctx: typer.Context,
-        action_id: str = typer.Argument(..., help="Path parameter: action_id."),
-        category: Optional[str] = typer.Option(None, "--category", help="Request field: category."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        edges: Optional[str] = typer.Option(None, "--edges", help="Request field: edges."),
-        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        node_template: Optional[str] = typer.Option(None, "--node-template", help="Request field: node_template."),
-        nodes: Optional[str] = typer.Option(None, "--nodes", help="Request field: nodes."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        action_id: str = typer.Argument(..., help='Action Id'),
+        category: Optional[str] = typer.Option(None, '--category', help='Category.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        edges: Optional[str] = typer.Option(None, '--edges', help='Edges. JSON.'),
+        icon: Optional[str] = typer.Option(None, '--icon', help='Icon.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        node_template: Optional[str] = typer.Option(None, '--node-template', help='Node Template. JSON.'),
+        nodes: Optional[str] = typer.Option(None, '--nodes', help='Nodes. JSON.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Update Action (PUT /api/actions/{action_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -473,7 +502,7 @@ def register_generated_openapi_commands(
     @target_app.command("export")
     def actions_export_get(
         ctx: typer.Context,
-        action_id: str = typer.Argument(..., help="Path parameter: action_id."),
+        action_id: str = typer.Argument(..., help='Action Id'),
     ) -> None:
         """Export Action (GET /api/actions/{action_id}/export)."""
         def op_call(client: FicheroClient) -> Any:
@@ -485,7 +514,7 @@ def register_generated_openapi_commands(
     @target_app.command("record-use")
     def actions_record_use_post(
         ctx: typer.Context,
-        action_id: str = typer.Argument(..., help="Path parameter: action_id."),
+        action_id: str = typer.Argument(..., help='Action Id'),
     ) -> None:
         """Record Action Use (POST /api/actions/{action_id}/use)."""
         def op_call(client: FicheroClient) -> Any:
@@ -503,16 +532,16 @@ def register_generated_openapi_commands(
     @target_app.command("list-activities")
     def activity_list_activities_get(
         ctx: typer.Context,
-        batch_id: Optional[str] = typer.Option(None, "--batch-id", help="Query parameter: batch_id."),
-        levels: Optional[str] = typer.Option(None, "--levels", help="Query parameter: levels."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        search: Optional[str] = typer.Option(None, "--search", help="Query parameter: search."),
-        since: Optional[str] = typer.Option(None, "--since", help="Query parameter: since."),
-        thread_id: Optional[str] = typer.Option(None, "--thread-id", help="Query parameter: thread_id."),
-        types: Optional[str] = typer.Option(None, "--types", help="Query parameter: types."),
-        until: Optional[str] = typer.Option(None, "--until", help="Query parameter: until."),
-        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Query parameter: workflow_id."),
+        batch_id: Optional[str] = typer.Option(None, '--batch-id', help='Batch Id.'),
+        levels: Optional[str] = typer.Option(None, '--levels', help='Comma-separated levels (info,warning,error)'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        search: Optional[str] = typer.Option(None, '--search', help='Search in message text.'),
+        since: Optional[str] = typer.Option(None, '--since', help='ISO datetime string.'),
+        thread_id: Optional[str] = typer.Option(None, '--thread-id', help='Thread Id.'),
+        types: Optional[str] = typer.Option(None, '--types', help='Comma-separated activity types.'),
+        until: Optional[str] = typer.Option(None, '--until', help='ISO datetime string.'),
+        workflow_id: Optional[str] = typer.Option(None, '--workflow-id', help='Workflow Id.'),
     ) -> None:
         """List Activities (GET /api/activity)."""
         def op_call(client: FicheroClient) -> Any:
@@ -535,8 +564,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-batch")
     def activity_get_batch_get(
         ctx: typer.Context,
-        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        batch_id: str = typer.Argument(..., help='Batch Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Get Batch Activity (GET /api/activity/batch/{batch_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -550,7 +579,7 @@ def register_generated_openapi_commands(
     @target_app.command("cleanup-old-activities")
     def activity_cleanup_old_activities_delete(
         ctx: typer.Context,
-        days: Optional[int] = typer.Option(None, "--days", help="Query parameter: days."),
+        days: Optional[int] = typer.Option(None, '--days', help='Delete activities older than N days.'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Cleanup Old Activities (DELETE /api/activity/cleanup)."""
@@ -578,7 +607,7 @@ def register_generated_openapi_commands(
     @target_app.command("set-background-paused")
     def activity_set_background_paused_put(
         ctx: typer.Context,
-        paused: bool = typer.Option(..., "--paused/--no-paused", help="Request field: paused."),
+        paused: bool = typer.Option(..., '--paused/--no-paused', help='true pauses all background work; false resumes it.'),
     ) -> None:
         """Set Background Paused (PUT /api/activity/jobs/paused)."""
         def op_call(client: FicheroClient) -> Any:
@@ -595,8 +624,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-job-tree")
     def activity_get_job_tree_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
-        depth: Optional[int] = typer.Option(None, "--depth", help="Query parameter: depth."),
+        job_id: str = typer.Argument(..., help='Job Id'),
+        depth: Optional[int] = typer.Option(None, '--depth', help='levels below this job to include (1: a run and its steps); every row keeps its rolled-up counts and says how many children it left out. Omitted: the whole tree, every page.'),
     ) -> None:
         """Get Job Tree (GET /api/activity/jobs/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -610,7 +639,7 @@ def register_generated_openapi_commands(
     @target_app.command("cancel-job")
     def activity_cancel_job_post(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Cancel Job (POST /api/activity/jobs/{job_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -622,7 +651,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-job-log")
     def activity_get_job_log_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Get Job Log (GET /api/activity/jobs/{job_id}/log)."""
         def op_call(client: FicheroClient) -> Any:
@@ -634,8 +663,8 @@ def register_generated_openapi_commands(
     @target_app.command("set-job-paused")
     def activity_set_job_paused_put(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
-        paused: bool = typer.Option(..., "--paused/--no-paused", help="Request field: paused."),
+        job_id: str = typer.Argument(..., help='Job Id'),
+        paused: bool = typer.Option(..., '--paused/--no-paused', help='true pauses this job; false resumes it.'),
     ) -> None:
         """Set Job Paused (PUT /api/activity/jobs/{job_id}/paused)."""
         def op_call(client: FicheroClient) -> Any:
@@ -652,7 +681,7 @@ def register_generated_openapi_commands(
     @target_app.command("retry-job")
     def activity_retry_job_post(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Retry Job (POST /api/activity/jobs/{job_id}/retry)."""
         def op_call(client: FicheroClient) -> Any:
@@ -664,7 +693,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-metrics-summary")
     def activity_get_metrics_summary_get(
         ctx: typer.Context,
-        hours: Optional[int] = typer.Option(None, "--hours", help="Query parameter: hours."),
+        hours: Optional[int] = typer.Option(None, '--hours', help='Hours.'),
     ) -> None:
         """Get Activity Metrics Summary (GET /api/activity/metrics/summary)."""
         def op_call(client: FicheroClient) -> Any:
@@ -678,7 +707,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-recent-activities")
     def activity_get_recent_activities_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Get Recent Activities (GET /api/activity/recent)."""
         def op_call(client: FicheroClient) -> Any:
@@ -692,7 +721,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-stats")
     def activity_get_stats_get(
         ctx: typer.Context,
-        hours: Optional[int] = typer.Option(None, "--hours", help="Query parameter: hours."),
+        hours: Optional[int] = typer.Option(None, '--hours', help='Number of hours to analyze.'),
     ) -> None:
         """Get Activity Stats (GET /api/activity/stats)."""
         def op_call(client: FicheroClient) -> Any:
@@ -706,8 +735,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-workflow")
     def activity_get_workflow_get(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Get Workflow Activity (GET /api/activity/workflow/{workflow_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -721,7 +750,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def activity_delete_delete(
         ctx: typer.Context,
-        activity_id: str = typer.Argument(..., help="Path parameter: activity_id."),
+        activity_id: str = typer.Argument(..., help='Activity Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Activity (DELETE /api/activity/{activity_id})."""
@@ -742,11 +771,11 @@ def register_generated_openapi_commands(
     @target_app.command("list-notes")
     def agent_memory_list_notes_get(
         ctx: typer.Context,
-        actor_id: Optional[str] = typer.Option(None, "--actor-id", help="Query parameter: actor_id."),
-        expediente: Optional[str] = typer.Option(None, "--expediente", help="Query parameter: expediente."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
-        page_id: Optional[str] = typer.Option(None, "--page-id", help="Query parameter: page_id."),
-        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Query parameter: source_document_id."),
+        actor_id: Optional[str] = typer.Option(None, '--actor-id', help='Actor Id.'),
+        expediente: Optional[str] = typer.Option(None, '--expediente', help='Expediente.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Kind.'),
+        page_id: Optional[str] = typer.Option(None, '--page-id', help='Page Id.'),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='Source Document Id.'),
     ) -> None:
         """List Agent Notes (GET /api/agent-memory)."""
         def op_call(client: FicheroClient) -> Any:
@@ -764,11 +793,11 @@ def register_generated_openapi_commands(
     @target_app.command("create-note")
     def agent_memory_create_note_post(
         ctx: typer.Context,
-        actor: str = typer.Option(..., "--actor", help="Request field: actor."),
-        body_2: str = typer.Option(..., "--body", help="Request field: body."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        source_anchor: str = typer.Option(..., "--source-anchor", help="Request field: source_anchor."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        actor: str = typer.Option(..., '--actor', help='Who wrote the agent note — explicit, transparent attribution (#2152). JSON.'),
+        body_2: str = typer.Option(..., '--body', help='Body.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Kind.'),
+        source_anchor: str = typer.Option(..., '--source-anchor', help='User-visible provenance anchor for AI working-memory notes (#2152). JSON.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Create Agent Note (POST /api/agent-memory)."""
         def op_call(client: FicheroClient) -> Any:
@@ -793,7 +822,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-note")
     def agent_memory_delete_note_delete(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        note_id: str = typer.Argument(..., help='Note Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Agent Note (DELETE /api/agent-memory/{note_id})."""
@@ -808,7 +837,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-note")
     def agent_memory_get_note_get(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        note_id: str = typer.Argument(..., help='Note Id'),
     ) -> None:
         """Get Agent Note (GET /api/agent-memory/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -820,12 +849,12 @@ def register_generated_openapi_commands(
     @target_app.command("patch-note")
     def agent_memory_patch_note_patch(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
-        actor: Optional[str] = typer.Option(None, "--actor", help="Request field: actor."),
-        body_2: Optional[str] = typer.Option(None, "--body", help="Request field: body."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        source_anchor: Optional[str] = typer.Option(None, "--source-anchor", help="Request field: source_anchor."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        note_id: str = typer.Argument(..., help='Note Id'),
+        actor: Optional[str] = typer.Option(None, '--actor', help='Who wrote the agent note — explicit, transparent attribution (#2152). JSON.'),
+        body_2: Optional[str] = typer.Option(None, '--body', help='Body.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Kind.'),
+        source_anchor: Optional[str] = typer.Option(None, '--source-anchor', help='User-visible provenance anchor for AI working-memory notes (#2152). JSON.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Patch Agent Note (PATCH /api/agent-memory/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -853,21 +882,22 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='agents')
         existing_apps['agents'] = target_app
 
-    @target_app.command("submit-an-write-request")
-    def agents_submit_an_write_request_post(
+    @target_app.command("submit-an-write-request", hidden=True)
+    @target_app.command("submit-write")
+    def agents_submit_write_post(
         ctx: typer.Context,
-        agent_id: str = typer.Option(..., "--agent-id", help="Request field: agent_id."),
-        agent_name: str = typer.Option(..., "--agent-name", help="Request field: agent_name."),
-        artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Request field: artifact_id."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
-        entity_id: Optional[str] = typer.Option(None, "--entity-id", help="Request field: entity_id."),
-        entity_type: str = typer.Option(..., "--entity-type", help="Request field: entity_type."),
-        evidence: Optional[str] = typer.Option(None, "--evidence", help="Request field: evidence."),
-        justification: Optional[str] = typer.Option(None, "--justification", help="Request field: justification."),
-        operation: str = typer.Option(..., "--operation", help="Request field: operation."),
-        payload_2: Optional[str] = typer.Option(None, "--payload", help="Request field: payload."),
-        sources: Optional[str] = typer.Option(None, "--sources", help="Request field: sources."),
+        agent_id: str = typer.Option(..., '--agent-id', help='Agent Id.'),
+        agent_name: str = typer.Option(..., '--agent-name', help='Agent Name.'),
+        artifact_id: Optional[str] = typer.Option(None, '--artifact-id', help='Artifact Id.'),
+        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence.'),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='Document Id.'),
+        entity_id: Optional[str] = typer.Option(None, '--entity-id', help='Entity Id.'),
+        entity_type: str = typer.Option(..., '--entity-type', help='Entity Type.'),
+        evidence: Optional[str] = typer.Option(None, '--evidence', help='Evidence. JSON.'),
+        justification: Optional[str] = typer.Option(None, '--justification', help='Justification. Default: "".'),
+        operation: str = typer.Option(..., '--operation', help='Operation.'),
+        payload_2: Optional[str] = typer.Option(None, '--payload', help='Payload. JSON.'),
+        sources: Optional[list[str]] = typer.Option(None, '--sources', help='Sources. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Submit an agent write request (POST /api/agents/write)."""
         def op_call(client: FicheroClient) -> Any:
@@ -903,13 +933,14 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("approve-or-reject-a-pending-write-request")
-    def agents_approve_or_reject_a_pending_write_request_post(
+    @target_app.command("approve-or-reject-a-pending-write-request", hidden=True)
+    @target_app.command("approve-write")
+    def agents_approve_write_post(
         ctx: typer.Context,
-        record_id: str = typer.Option(..., "--record-id", help="Query parameter: record_id."),
-        approved: bool = typer.Option(..., "--approved/--no-approved", help="Request field: approved."),
-        approved_by: str = typer.Option(..., "--approved-by", help="Request field: approved_by."),
-        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        record_id: str = typer.Option(..., '--record-id', help='Record Id.'),
+        approved: bool = typer.Option(..., '--approved/--no-approved', help='Approved.'),
+        approved_by: str = typer.Option(..., '--approved-by', help='Approved By.'),
+        reason: Optional[str] = typer.Option(None, '--reason', help='Reason. Default: "".'),
     ) -> None:
         """Approve or reject a pending write request (POST /api/agents/write/approve)."""
         def op_call(client: FicheroClient) -> Any:
@@ -929,16 +960,17 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("get-write-audit-history")
-    def agents_get_write_audit_history_get(
+    @target_app.command("get-write-audit-history", hidden=True)
+    @target_app.command("get-write-audit")
+    def agents_get_write_audit_get(
         ctx: typer.Context,
-        agent_id: Optional[str] = typer.Option(None, "--agent-id", help="Query parameter: agent_id."),
-        artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Query parameter: artifact_id."),
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        state: Optional[str] = typer.Option(None, "--state", help="Query parameter: state."),
+        agent_id: Optional[str] = typer.Option(None, '--agent-id', help='Filter by agent ID.'),
+        artifact_id: Optional[str] = typer.Option(None, '--artifact-id', help='Filter by artifact ID.'),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='Filter by document ID.'),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Filter by entity type.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        state: Optional[str] = typer.Option(None, '--state', help='Filter by approval state.'),
     ) -> None:
         """Get agent write audit history (GET /api/agents/write/audit)."""
         def op_call(client: FicheroClient) -> Any:
@@ -955,10 +987,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-a-specific-write-record")
-    def agents_get_a_specific_write_record_get(
+    @target_app.command("get-a-specific-write-record", hidden=True)
+    @target_app.command("get-write-record")
+    def agents_get_write_record_get(
         ctx: typer.Context,
-        record_id: str = typer.Argument(..., help="Path parameter: record_id."),
+        record_id: str = typer.Argument(..., help='Record Id'),
     ) -> None:
         """Get a specific write record (GET /api/agents/write/audit/{record_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -973,15 +1006,16 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='annotations')
         existing_apps['annotations'] = target_app
 
-    @target_app.command("list-filterable-by-document-kind-tag")
-    def annotations_list_filterable_by_document_kind_tag_get(
+    @target_app.command("list-filterable-by-document-kind-tag", hidden=True)
+    @target_app.command("list")
+    def annotations_list_get(
         ctx: typer.Context,
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
-        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Query parameter: folder_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
-        min_rating: Optional[int] = typer.Option(None, "--min-rating", help="Query parameter: min_rating."),
-        page_id: Optional[str] = typer.Option(None, "--page-id", help="Query parameter: page_id."),
-        tag: Optional[str] = typer.Option(None, "--tag", help="Query parameter: tag."),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='Document Id.'),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='Folder Id.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Kind.'),
+        min_rating: Optional[int] = typer.Option(None, '--min-rating', help='Min Rating.'),
+        page_id: Optional[str] = typer.Option(None, '--page-id', help='Page Id.'),
+        tag: Optional[str] = typer.Option(None, '--tag', help='Tag.'),
     ) -> None:
         """List annotations, filterable by document / kind / tag (GET /api/annotations)."""
         def op_call(client: FicheroClient) -> Any:
@@ -997,35 +1031,36 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("create-an")
-    def annotations_create_an_post(
+    @target_app.command("create-an", hidden=True)
+    @target_app.command("create")
+    def annotations_create_post(
         ctx: typer.Context,
-        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
-        anchor_kind: Optional[str] = typer.Option(None, "--anchor-kind", help="Request field: anchor_kind."),
-        char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
-        char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
-        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
-        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
-        ink_payload: Optional[str] = typer.Option(None, "--ink-payload", help="Request field: ink_payload."),
-        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
-        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
-        linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
-        linked_note_ids: Optional[str] = typer.Option(None, "--linked-note-ids", help="Request field: linked_note_ids."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        ocr_confidence: Optional[float] = typer.Option(None, "--ocr-confidence", help="Request field: ocr_confidence."),
-        ocr_model: Optional[str] = typer.Option(None, "--ocr-model", help="Request field: ocr_model."),
-        ocr_provider: Optional[str] = typer.Option(None, "--ocr-provider", help="Request field: ocr_provider."),
-        ocr_recorded_at: Optional[str] = typer.Option(None, "--ocr-recorded-at", help="Request field: ocr_recorded_at."),
-        ocr_text: Optional[str] = typer.Option(None, "--ocr-text", help="Request field: ocr_text."),
-        page_id: Optional[str] = typer.Option(None, "--page-id", help="Request field: page_id."),
-        page_index: Optional[int] = typer.Option(None, "--page-index", help="Request field: page_index."),
-        page_label: Optional[str] = typer.Option(None, "--page-label", help="Request field: page_label."),
-        paragraph_index: Optional[int] = typer.Option(None, "--paragraph-index", help="Request field: paragraph_index."),
-        rating: Optional[int] = typer.Option(None, "--rating", help="Request field: rating."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
-        targets: Optional[str] = typer.Option(None, "--targets", help="Request field: targets."),
-        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+        anchor: Optional[str] = typer.Option(None, '--anchor', help='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own. JSON.'),
+        anchor_kind: Optional[str] = typer.Option(None, '--anchor-kind', help='Anchor Kind.'),
+        char_end: Optional[int] = typer.Option(None, '--char-end', help='Char End.'),
+        char_start: Optional[int] = typer.Option(None, '--char-start', help='Char Start.'),
+        color: Optional[str] = typer.Option(None, '--color', help='Color.'),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='Document Id.'),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='Folder Id.'),
+        ink_payload: Optional[str] = typer.Option(None, '--ink-payload', help='Ink Payload.'),
+        kind: str = typer.Option(..., '--kind', help='User annotation kinds (#914). Each kind has slightly different rendering + payload conventions: - highlight: coloured tint over a span; ``color`` + ``rating`` carry weight - note: margin/sticky note; ``text`` is the body - rating: 1-5 importance flag; ``rating`` carries weight - bookmark: navigation marker; ``text`` optional label - comment: threaded discussion (future); ``text`` is the body. One of: highlight, note, rating, bookmark, comment, line, underline, strikethrough.'),
+        linked_claim_ids: Optional[list[str]] = typer.Option(None, '--linked-claim-ids', help='Linked Claim Ids. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_entity_ids: Optional[list[str]] = typer.Option(None, '--linked-entity-ids', help='Linked Entity Ids. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_note_ids: Optional[list[str]] = typer.Option(None, '--linked-note-ids', help='Linked Note Ids. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. Default: {}. JSON.'),
+        ocr_confidence: Optional[float] = typer.Option(None, '--ocr-confidence', help='Ocr Confidence.'),
+        ocr_model: Optional[str] = typer.Option(None, '--ocr-model', help='Ocr Model.'),
+        ocr_provider: Optional[str] = typer.Option(None, '--ocr-provider', help='Ocr Provider.'),
+        ocr_recorded_at: Optional[str] = typer.Option(None, '--ocr-recorded-at', help='Ocr Recorded At.'),
+        ocr_text: Optional[str] = typer.Option(None, '--ocr-text', help='Ocr Text.'),
+        page_id: Optional[str] = typer.Option(None, '--page-id', help='Page Id.'),
+        page_index: Optional[int] = typer.Option(None, '--page-index', help='Page Index.'),
+        page_label: Optional[str] = typer.Option(None, '--page-label', help='Page Label.'),
+        paragraph_index: Optional[int] = typer.Option(None, '--paragraph-index', help='Paragraph Index.'),
+        rating: Optional[int] = typer.Option(None, '--rating', help='Rating.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        targets: Optional[str] = typer.Option(None, '--targets', help='Targets. Default: []. JSON.'),
+        text: Optional[str] = typer.Option(None, '--text', help='Text.'),
     ) -> None:
         """Create an annotation (POST /api/annotations)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1089,17 +1124,18 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("ephemeral-crop-for-an-unsaved-region-no-persisted")
-    def annotations_ephemeral_crop_for_an_unsaved_region_no_persisted_post(
+    @target_app.command("ephemeral-crop-for-an-unsaved-region-no-persisted", hidden=True)
+    @target_app.command("crop-ephemeral")
+    def annotations_crop_ephemeral_post(
         ctx: typer.Context,
-        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
-        char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
-        char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
-        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        page_index: Optional[int] = typer.Option(None, "--page-index", help="Request field: page_index."),
-        page_label: Optional[str] = typer.Option(None, "--page-label", help="Request field: page_label."),
-        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+        anchor: Optional[str] = typer.Option(None, '--anchor', help='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own. JSON.'),
+        char_end: Optional[int] = typer.Option(None, '--char-end', help='Char End.'),
+        char_start: Optional[int] = typer.Option(None, '--char-start', help='Char Start.'),
+        document_id: str = typer.Option(..., '--document-id', help='Document Id.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='User annotation kinds (#914). Each kind has slightly different rendering + payload conventions: - highlight: coloured tint over a span; ``color`` + ``rating`` carry weight - note: margin/sticky note; ``text`` is the body - rating: 1-5 importance flag; ``rating`` carries weight - bookmark: navigation marker; ``text`` optional label - comment: threaded discussion (future); ``text`` is the body. One of: highlight, note, rating, bookmark, comment, line, underline, strikethrough.'),
+        page_index: Optional[int] = typer.Option(None, '--page-index', help='Page Index.'),
+        page_label: Optional[str] = typer.Option(None, '--page-label', help='Page Label.'),
+        text: Optional[str] = typer.Option(None, '--text', help='Text.'),
     ) -> None:
         """Ephemeral crop for an unsaved region (no annotation persisted) (POST /api/annotations/crop)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1130,7 +1166,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def annotations_delete_delete(
         ctx: typer.Context,
-        annotation_id: str = typer.Argument(..., help="Path parameter: annotation_id."),
+        annotation_id: str = typer.Argument(..., help='Annotation Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Annotation (DELETE /api/annotations/{annotation_id})."""
@@ -1145,7 +1181,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def annotations_get_get(
         ctx: typer.Context,
-        annotation_id: str = typer.Argument(..., help="Path parameter: annotation_id."),
+        annotation_id: str = typer.Argument(..., help='Annotation Id'),
     ) -> None:
         """Get Annotation (GET /api/annotations/{annotation_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -1157,29 +1193,29 @@ def register_generated_openapi_commands(
     @target_app.command("patch")
     def annotations_patch_patch(
         ctx: typer.Context,
-        annotation_id: str = typer.Argument(..., help="Path parameter: annotation_id."),
-        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
-        anchor_kind: Optional[str] = typer.Option(None, "--anchor-kind", help="Request field: anchor_kind."),
-        char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
-        char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
-        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
-        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
-        ink_payload: Optional[str] = typer.Option(None, "--ink-payload", help="Request field: ink_payload."),
-        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
-        linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
-        linked_note_ids: Optional[str] = typer.Option(None, "--linked-note-ids", help="Request field: linked_note_ids."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        ocr_confidence: Optional[float] = typer.Option(None, "--ocr-confidence", help="Request field: ocr_confidence."),
-        ocr_model: Optional[str] = typer.Option(None, "--ocr-model", help="Request field: ocr_model."),
-        ocr_provider: Optional[str] = typer.Option(None, "--ocr-provider", help="Request field: ocr_provider."),
-        ocr_recorded_at: Optional[str] = typer.Option(None, "--ocr-recorded-at", help="Request field: ocr_recorded_at."),
-        ocr_text: Optional[str] = typer.Option(None, "--ocr-text", help="Request field: ocr_text."),
-        page_id: Optional[str] = typer.Option(None, "--page-id", help="Request field: page_id."),
-        paragraph_index: Optional[int] = typer.Option(None, "--paragraph-index", help="Request field: paragraph_index."),
-        rating: Optional[int] = typer.Option(None, "--rating", help="Request field: rating."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
-        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+        annotation_id: str = typer.Argument(..., help='Annotation Id'),
+        anchor: Optional[str] = typer.Option(None, '--anchor', help='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own. JSON.'),
+        anchor_kind: Optional[str] = typer.Option(None, '--anchor-kind', help='Anchor Kind.'),
+        char_end: Optional[int] = typer.Option(None, '--char-end', help='Char End.'),
+        char_start: Optional[int] = typer.Option(None, '--char-start', help='Char Start.'),
+        color: Optional[str] = typer.Option(None, '--color', help='Color.'),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='Document Id.'),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='Folder Id.'),
+        ink_payload: Optional[str] = typer.Option(None, '--ink-payload', help='Ink Payload.'),
+        linked_claim_ids: Optional[list[str]] = typer.Option(None, '--linked-claim-ids', help='Linked Claim Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_entity_ids: Optional[list[str]] = typer.Option(None, '--linked-entity-ids', help='Linked Entity Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_note_ids: Optional[list[str]] = typer.Option(None, '--linked-note-ids', help='Linked Note Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        ocr_confidence: Optional[float] = typer.Option(None, '--ocr-confidence', help='Ocr Confidence.'),
+        ocr_model: Optional[str] = typer.Option(None, '--ocr-model', help='Ocr Model.'),
+        ocr_provider: Optional[str] = typer.Option(None, '--ocr-provider', help='Ocr Provider.'),
+        ocr_recorded_at: Optional[str] = typer.Option(None, '--ocr-recorded-at', help='Ocr Recorded At.'),
+        ocr_text: Optional[str] = typer.Option(None, '--ocr-text', help='Ocr Text.'),
+        page_id: Optional[str] = typer.Option(None, '--page-id', help='Page Id.'),
+        paragraph_index: Optional[int] = typer.Option(None, '--paragraph-index', help='Paragraph Index.'),
+        rating: Optional[int] = typer.Option(None, '--rating', help='Rating.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        text: Optional[str] = typer.Option(None, '--text', help='Text.'),
     ) -> None:
         """Patch Annotation (PATCH /api/annotations/{annotation_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -1235,10 +1271,11 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("cropped-content-for-this-text-body-or-image-bytes")
-    def annotations_cropped_content_for_this_text_body_or_image_bytes_get(
+    @target_app.command("cropped-content-for-this-text-body-or-image-bytes", hidden=True)
+    @target_app.command("get-crop")
+    def annotations_get_crop_get(
         ctx: typer.Context,
-        annotation_id: str = typer.Argument(..., help="Path parameter: annotation_id."),
+        annotation_id: str = typer.Argument(..., help='Annotation Id'),
     ) -> None:
         """Cropped content for this annotation (text body or image bytes) (GET /api/annotations/{annotation_id}/crop)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1247,10 +1284,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("turn-a-highlight-or-note-into-a-knowledgeclaim")
-    def annotations_turn_a_highlight_or_note_into_a_knowledgeclaim_post(
+    @target_app.command("turn-a-highlight-or-note-into-a-knowledgeclaim", hidden=True)
+    @target_app.command("promote-to-claim")
+    def annotations_promote_to_claim_post(
         ctx: typer.Context,
-        annotation_id: str = typer.Argument(..., help="Path parameter: annotation_id."),
+        annotation_id: str = typer.Argument(..., help='Annotation Id'),
     ) -> None:
         """Turn a highlight or note into a KnowledgeClaim (POST /api/annotations/{annotation_id}/promote-to-claim)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1268,11 +1306,11 @@ def register_generated_openapi_commands(
     @target_app.command("list-all")
     def artifacts_list_all_get(
         ctx: typer.Context,
-        artifact_type: Optional[str] = typer.Option(None, "--artifact-type", help="Query parameter: artifact_type."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        run_id: Optional[str] = typer.Option(None, "--run-id", help="Query parameter: run_id."),
-        step_name: Optional[str] = typer.Option(None, "--step-name", help="Query parameter: step_name."),
+        artifact_type: Optional[str] = typer.Option(None, '--artifact-type', help='Filter by artifact type.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Max results.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset for pagination.'),
+        run_id: Optional[str] = typer.Option(None, '--run-id', help='Filter by producing workflow run (thread id, #4313)'),
+        step_name: Optional[str] = typer.Option(None, '--step-name', help='Filter by producing workflow node id (#4313)'),
     ) -> None:
         """List All Artifacts (GET /api/artifacts/)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1290,19 +1328,19 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def artifacts_create_post(
         ctx: typer.Context,
-        artifact_type: str = typer.Option(..., "--artifact-type", help="Request field: artifact_type."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        content: Optional[str] = typer.Option(None, "--content", help="Request field: content."),
-        data: Optional[str] = typer.Option(None, "--data", help="Request field: data."),
-        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
-        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
-        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
-        reviewed: Optional[bool] = typer.Option(None, "--reviewed/--no-reviewed", help="Request field: reviewed."),
-        run_id: Optional[str] = typer.Option(None, "--run-id", help="Request field: run_id."),
-        source_artifact_id: Optional[str] = typer.Option(None, "--source-artifact-id", help="Request field: source_artifact_id."),
-        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
-        step_name: Optional[str] = typer.Option(None, "--step-name", help="Request field: step_name."),
-        version: Optional[int] = typer.Option(None, "--version", help="Request field: version."),
+        artifact_type: str = typer.Option(..., '--artifact-type', help='Artifact Type.'),
+        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence.'),
+        content: Optional[str] = typer.Option(None, '--content', help='Content.'),
+        data: Optional[str] = typer.Option(None, '--data', help='Data. JSON.'),
+        document_id: str = typer.Option(..., '--document-id', help='Document Id.'),
+        model: Optional[str] = typer.Option(None, '--model', help='Model.'),
+        provider: Optional[str] = typer.Option(None, '--provider', help='Provider.'),
+        reviewed: Optional[bool] = typer.Option(None, '--reviewed/--no-reviewed', help='Reviewed. Default: false.'),
+        run_id: Optional[str] = typer.Option(None, '--run-id', help='Run Id.'),
+        source_artifact_id: Optional[str] = typer.Option(None, '--source-artifact-id', help='Source Artifact Id.'),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='Source Document Id.'),
+        step_name: Optional[str] = typer.Option(None, '--step-name', help='Step Name.'),
+        version: Optional[int] = typer.Option(None, '--version', help='Version. Default: 1.'),
     ) -> None:
         """Create Artifact (POST /api/artifacts/)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1343,7 +1381,7 @@ def register_generated_openapi_commands(
     @target_app.command("bulk-create")
     def artifacts_bulk_create_post(
         ctx: typer.Context,
-        artifacts: str = typer.Option(..., "--artifacts", help="Request field: artifacts."),
+        artifacts: str = typer.Option(..., '--artifacts', help='Artifacts. JSON.'),
     ) -> None:
         """Bulk Create Artifacts (POST /api/artifacts/bulk)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1360,11 +1398,11 @@ def register_generated_openapi_commands(
     @target_app.command("list-document")
     def artifacts_list_document_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        artifact_type: Optional[str] = typer.Option(None, "--artifact-type", help="Query parameter: artifact_type."),
-        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Query parameter: include_descendants."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        artifact_type: Optional[str] = typer.Option(None, '--artifact-type', help='Filter by artifact type.'),
+        include_descendants: Optional[bool] = typer.Option(None, '--include-descendants/--no-include-descendants', help='Include artifacts from children and parent (legacy aggregation). Set false for strict per-document scope — V2 inspector uses this so delete operations are visibly per-artifact rather than confused by sibling artifacts.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Max results.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset for pagination.'),
     ) -> None:
         """List Document Artifacts (GET /api/artifacts/document/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -1381,8 +1419,8 @@ def register_generated_openapi_commands(
     @target_app.command("resolve-document-text-regions")
     def artifacts_resolve_document_text_regions_post(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        spans: str = typer.Option(..., "--spans", help="Request field: spans."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        spans: str = typer.Option(..., '--spans', help='Spans. JSON.'),
     ) -> None:
         """Resolve Document Text Regions (POST /api/artifacts/document/{doc_id}/text-regions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1407,10 +1445,10 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("delete")
-    def artifacts_delete_delete(
+    @target_app.command("delete-artifacts")
+    def artifacts_delete_artifacts_delete(
         ctx: typer.Context,
-        artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
+        artifact_id: str = typer.Argument(..., help='Artifact Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Artifact (DELETE /api/artifacts/{artifact_id})."""
@@ -1422,10 +1460,10 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get")
-    def artifacts_get_get(
+    @target_app.command("get-artifacts")
+    def artifacts_get_artifacts_get(
         ctx: typer.Context,
-        artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
+        artifact_id: str = typer.Argument(..., help='Artifact Id'),
     ) -> None:
         """Get Artifact (GET /api/artifacts/{artifact_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -1434,12 +1472,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("update")
-    def artifacts_update_put(
+    @target_app.command("update-artifacts")
+    def artifacts_update_artifacts_put(
         ctx: typer.Context,
-        artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
-        content: Optional[str] = typer.Option(None, "--content", help="Request field: content."),
-        reviewed: Optional[bool] = typer.Option(None, "--reviewed/--no-reviewed", help="Request field: reviewed."),
+        artifact_id: str = typer.Argument(..., help='Artifact Id'),
+        content: Optional[str] = typer.Option(None, '--content', help='Content.'),
+        reviewed: Optional[bool] = typer.Option(None, '--reviewed/--no-reviewed', help='Reviewed.'),
     ) -> None:
         """Update Artifact (PUT /api/artifacts/{artifact_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -1458,7 +1496,7 @@ def register_generated_openapi_commands(
     @target_app.command("align-transcript-to-regions")
     def artifacts_align_transcript_to_regions_post(
         ctx: typer.Context,
-        artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
+        artifact_id: str = typer.Argument(..., help='Artifact Id'),
     ) -> None:
         """Align Transcript To Regions (POST /api/artifacts/{artifact_id}/align-transcript)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1470,10 +1508,10 @@ def register_generated_openapi_commands(
     @target_app.command("get-region")
     def artifacts_get_region_get(
         ctx: typer.Context,
-        artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
-        char_end: Optional[int] = typer.Option(None, "--char-end", help="Query parameter: char_end."),
-        char_start: Optional[int] = typer.Option(None, "--char-start", help="Query parameter: char_start."),
-        line: Optional[int] = typer.Option(None, "--line", help="Query parameter: line."),
+        artifact_id: str = typer.Argument(..., help='Artifact Id'),
+        char_end: Optional[int] = typer.Option(None, '--char-end', help="End offset (exclusive) into the artifact's content."),
+        char_start: Optional[int] = typer.Option(None, '--char-start', help="Start offset into the artifact's content."),
+        line: Optional[int] = typer.Option(None, '--line', help="Zero-based line of the artifact's content."),
     ) -> None:
         """Get Artifact Region (GET /api/artifacts/{artifact_id}/region)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1489,12 +1527,12 @@ def register_generated_openapi_commands(
     @target_app.command("edit-regions")
     def artifacts_edit_regions_put(
         ctx: typer.Context,
-        artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
-        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
-        indices: Optional[str] = typer.Option(None, "--indices", help="Request field: indices."),
-        level: Optional[str] = typer.Option(None, "--level", help="Request field: level."),
-        op: str = typer.Option(..., "--op", help="Request field: op."),
-        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+        artifact_id: str = typer.Argument(..., help='Artifact Id'),
+        bbox: Optional[list[str]] = typer.Option(None, '--bbox', help='Normalized [x, y, w, h] for move/add. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        indices: Optional[list[str]] = typer.Option(None, '--indices', help='Positions into ocr_geometry.boxes (order irrelevant) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        level: Optional[str] = typer.Option(None, '--level', help='OCRGeometryLevel. One of: page, block, line, word, region.'),
+        op: str = typer.Option(..., '--op', help='A closed vocabulary — an enum in the schema, never a bare str (rule 4). One of: move, delete, add, combine.'),
+        text: Optional[str] = typer.Option(None, '--text', help='Text for the new box on `add`. REFUSED on add until readings attach to segments (422, `TextNeedsReadings`): once a page\'s boxes are segment records there is nowhere lawful to keep typed words, and a page\'s first edit converts it (#4924). Draw the region, then transcribe it. Ignored by the other ops. Default: "".'),
     ) -> None:
         """Edit Artifact Regions (PUT /api/artifacts/{artifact_id}/regions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1547,9 +1585,9 @@ def register_generated_openapi_commands(
     @target_app.command("create-invite")
     def auth_create_invite_post(
         ctx: typer.Context,
-        channel: Optional[str] = typer.Option(None, "--channel", help="Request field: channel."),
-        display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
-        username: str = typer.Option(..., "--username", help="Request field: username."),
+        channel: Optional[str] = typer.Option(None, '--channel', help='Channel. One of: qr, messages, email. Default: "qr".'),
+        display_name: Optional[str] = typer.Option(None, '--display-name', help='Display Name.'),
+        username: str = typer.Option(..., '--username', help='Username.'),
     ) -> None:
         """Create Invite (POST /api/auth/invites)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1570,8 +1608,8 @@ def register_generated_openapi_commands(
     @target_app.command("redeem-invite")
     def auth_redeem_invite_post(
         ctx: typer.Context,
-        invite_token: str = typer.Option(..., "--invite-token", help="Request field: invite_token."),
-        new_password: str = typer.Option(..., "--new-password", help="Request field: new_password."),
+        invite_token: str = typer.Option(..., '--invite-token', help='Invite Token.'),
+        new_password: str = typer.Option(..., '--new-password', help='New Password.'),
     ) -> None:
         """Redeem Invite (POST /api/auth/invites/redeem)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1590,7 +1628,7 @@ def register_generated_openapi_commands(
     @target_app.command("revoke-invite")
     def auth_revoke_invite_post(
         ctx: typer.Context,
-        invite_id: str = typer.Argument(..., help="Path parameter: invite_id."),
+        invite_id: str = typer.Argument(..., help='Invite Id'),
     ) -> None:
         """Revoke Invite (POST /api/auth/invites/{invite_id}/revoke)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1599,12 +1637,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("login")
-    def auth_login_post(
+    @target_app.command("login-auth-login")
+    def auth_login_auth_login_post(
         ctx: typer.Context,
-        device_label: Optional[str] = typer.Option(None, "--device-label", help="Request field: device_label."),
-        password: str = typer.Option(..., "--password", help="Request field: password."),
-        username: str = typer.Option(..., "--username", help="Request field: username."),
+        device_label: Optional[str] = typer.Option(None, '--device-label', help='Device Label.'),
+        password: str = typer.Option(..., '--password', help='Password.'),
+        username: str = typer.Option(..., '--username', help='Username.'),
     ) -> None:
         """Login (POST /api/auth/login)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1622,8 +1660,8 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("logout")
-    def auth_logout_post(
+    @target_app.command("logout-auth-logout")
+    def auth_logout_auth_logout_post(
         ctx: typer.Context,
     ) -> None:
         """Logout (POST /api/auth/logout)."""
@@ -1658,7 +1696,7 @@ def register_generated_openapi_commands(
     @target_app.command("revoke-session")
     def auth_revoke_session_post(
         ctx: typer.Context,
-        session_id: str = typer.Argument(..., help="Path parameter: session_id."),
+        session_id: str = typer.Argument(..., help='Session Id'),
     ) -> None:
         """Revoke Session (POST /api/auth/sessions/{session_id}/revoke)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1687,7 +1725,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-library-snapshot")
     def authz_get_library_snapshot_get(
         ctx: typer.Context,
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Target Id.'),
     ) -> None:
         """Get Library Authz Snapshot (GET /api/authz/library)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1701,7 +1739,7 @@ def register_generated_openapi_commands(
     @target_app.command("revoke-library-member-role")
     def authz_revoke_library_member_role_delete(
         ctx: typer.Context,
-        user: str = typer.Option(..., "--user", help="Query parameter: user."),
+        user: str = typer.Option(..., '--user', help='User.'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Revoke Library Member Role (DELETE /api/authz/members)."""
@@ -1729,8 +1767,8 @@ def register_generated_openapi_commands(
     @target_app.command("set-library-member-role")
     def authz_set_library_member_role_put(
         ctx: typer.Context,
-        role: str = typer.Option(..., "--role", help="Request field: role."),
-        user: str = typer.Option(..., "--user", help="Request field: user."),
+        role: str = typer.Option(..., '--role', help='owner/editor/viewer.'),
+        user: str = typer.Option(..., '--user', help='Target user id or username.'),
     ) -> None:
         """Set Library Member Role (PUT /api/authz/members)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1749,10 +1787,10 @@ def register_generated_openapi_commands(
     @target_app.command("share-library-object")
     def authz_share_library_object_post(
         ctx: typer.Context,
-        object_id: Optional[str] = typer.Option(None, "--object-id", help="Request field: object_id."),
-        object_type: Optional[str] = typer.Option(None, "--object-type", help="Request field: object_type."),
-        role: Optional[str] = typer.Option(None, "--role", help="Request field: role."),
-        user: str = typer.Option(..., "--user", help="Request field: user."),
+        object_id: Optional[str] = typer.Option(None, '--object-id', help='Entity/document id (required for those types)'),
+        object_type: Optional[str] = typer.Option(None, '--object-type', help='library | entity | document. Default: "library".'),
+        role: Optional[str] = typer.Option(None, '--role', help='Role to grant: owner/editor/viewer. Default: "viewer".'),
+        user: str = typer.Option(..., '--user', help='Recipient user id or username.'),
     ) -> None:
         """Share Library Object (POST /api/authz/share)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1781,9 +1819,9 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def batches_list_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Status.'),
     ) -> None:
         """List Batches (GET /api/batches)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1799,10 +1837,10 @@ def register_generated_openapi_commands(
     @target_app.command("create-batch")
     def batches_create_batch_post(
         ctx: typer.Context,
-        items: str = typer.Option(..., "--items", help="Request field: items."),
-        max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
-        selection: Optional[str] = typer.Option(None, "--selection", help="Request field: selection."),
-        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
+        items: str = typer.Option(..., '--items', help='List of input dictionaries, one per item. JSON.'),
+        max_concurrent: Optional[int] = typer.Option(None, '--max-concurrent', help='Maximum concurrent executions. Default: 5.'),
+        selection: Optional[str] = typer.Option(None, '--selection', help='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data. JSON.'),
+        workflow_id: str = typer.Option(..., '--workflow-id', help='Workflow Id.'),
     ) -> None:
         """Create Batch (POST /api/batches)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1825,7 +1863,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-batch")
     def batches_delete_batch_delete(
         ctx: typer.Context,
-        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+        batch_id: str = typer.Argument(..., help='Batch Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Batch (DELETE /api/batches/{batch_id})."""
@@ -1840,8 +1878,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-batch")
     def batches_get_batch_get(
         ctx: typer.Context,
-        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
-        include_items: Optional[bool] = typer.Option(None, "--include-items/--no-include-items", help="Query parameter: include_items."),
+        batch_id: str = typer.Argument(..., help='Batch Id'),
+        include_items: Optional[bool] = typer.Option(None, '--include-items/--no-include-items', help='Include Items.'),
     ) -> None:
         """Get Batch (GET /api/batches/{batch_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -1855,7 +1893,7 @@ def register_generated_openapi_commands(
     @target_app.command("cancel-batch")
     def batches_cancel_batch_post(
         ctx: typer.Context,
-        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+        batch_id: str = typer.Argument(..., help='Batch Id'),
     ) -> None:
         """Cancel Batch (POST /api/batches/{batch_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1867,7 +1905,7 @@ def register_generated_openapi_commands(
     @target_app.command("execute-batch")
     def batches_execute_batch_post(
         ctx: typer.Context,
-        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+        batch_id: str = typer.Argument(..., help='Batch Id'),
     ) -> None:
         """Execute Batch (POST /api/batches/{batch_id}/execute)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1879,7 +1917,7 @@ def register_generated_openapi_commands(
     @target_app.command("pause-batch")
     def batches_pause_batch_post(
         ctx: typer.Context,
-        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+        batch_id: str = typer.Argument(..., help='Batch Id'),
     ) -> None:
         """Pause Batch (POST /api/batches/{batch_id}/pause)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1891,7 +1929,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-batch-progress")
     def batches_get_batch_progress_get(
         ctx: typer.Context,
-        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+        batch_id: str = typer.Argument(..., help='Batch Id'),
     ) -> None:
         """Get Batch Progress (GET /api/batches/{batch_id}/progress)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1903,7 +1941,7 @@ def register_generated_openapi_commands(
     @target_app.command("resume-batch")
     def batches_resume_batch_post(
         ctx: typer.Context,
-        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+        batch_id: str = typer.Argument(..., help='Batch Id'),
     ) -> None:
         """Resume Batch (POST /api/batches/{batch_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1915,7 +1953,7 @@ def register_generated_openapi_commands(
     @target_app.command("retry-batch")
     def batches_retry_batch_post(
         ctx: typer.Context,
-        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+        batch_id: str = typer.Argument(..., help='Batch Id'),
     ) -> None:
         """Retry Batch (POST /api/batches/{batch_id}/retry)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1930,10 +1968,11 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='bibliography')
         existing_apps['bibliography'] = target_app
 
-    @target_app.command("get-a-document-s-bibliographic-metadata")
-    def bibliography_get_a_document_s_bibliographic_metadata_get(
+    @target_app.command("get-a-document-s-bibliographic-metadata", hidden=True)
+    @target_app.command("get-metadata")
+    def bibliography_get_metadata_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Get a document's bibliographic metadata (GET /api/bibliography/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -1942,11 +1981,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("set-or-update-a-document-s-bibliographic-metadata")
-    def bibliography_set_or_update_a_document_s_bibliographic_metadata_patch(
+    @target_app.command("set-or-update-a-document-s-bibliographic-metadata", hidden=True)
+    @target_app.command("patch-metadata")
+    def bibliography_patch_metadata_patch(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        metadata: str = typer.Option(..., "--metadata", help="Request field: metadata."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        metadata: str = typer.Option(..., '--metadata', help='Metadata. JSON.'),
     ) -> None:
         """Set or update a document's bibliographic metadata (PATCH /api/bibliography/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -1960,12 +2000,13 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("attach-a-bibtex-ris-csl-json-record-to-a-document")
-    def bibliography_attach_a_bibtex_ris_csl_json_record_to_a_document_post(
+    @target_app.command("attach-a-bibtex-ris-csl-json-record-to-a-document", hidden=True)
+    @target_app.command("attach-record")
+    def bibliography_attach_record_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        format: Optional[str] = typer.Option(None, "--format", help="Request field: format."),
-        text: str = typer.Option(..., "--text", help="Request field: text."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        format: Optional[str] = typer.Option(None, '--format', help='Format.'),
+        text: str = typer.Option(..., '--text', help='Text.'),
     ) -> None:
         """Attach a BibTeX / RIS / CSL-JSON record to a document (POST /api/bibliography/document/{document_id}/attach)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1981,11 +2022,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("run-the-bibliographic-extractor-on-a-document")
-    def bibliography_run_the_bibliographic_extractor_on_a_document_post(
+    @target_app.command("run-the-bibliographic-extractor-on-a-document", hidden=True)
+    @target_app.command("run-extractor")
+    def bibliography_run_extractor_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        use_llm: Optional[bool] = typer.Option(None, "--use-llm/--no-use-llm", help="Query parameter: use_llm."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        use_llm: Optional[bool] = typer.Option(None, '--use-llm/--no-use-llm', help='When true, in addition to PDF metadata run an Apple Intelligence first-page extractor. Requires a configured LLM.'),
     ) -> None:
         """Run the bibliographic extractor on a document (POST /api/bibliography/document/{document_id}/extract)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1996,10 +2038,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("bulk-export-multiple-documents-as-bibtex")
-    def bibliography_bulk_export_multiple_documents_as_bibtex_post(
+    @target_app.command("bulk-export-multiple-documents-as-bibtex", hidden=True)
+    @target_app.command("export-bibtex")
+    def bibliography_export_bibtex_post(
         ctx: typer.Context,
-        document_ids: str = typer.Option(..., "--document-ids", help="Request field: document_ids."),
+        document_ids: list[str] = typer.Option(..., '--document-ids', help='Document Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Bulk export multiple documents as BibTeX (POST /api/bibliography/export.bib)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2013,11 +2056,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("parse-bibtex-ris-csl-json-into-sourcemetadata-dicts-909")
-    def bibliography_parse_bibtex_ris_csl_json_into_sourcemetadata_dicts_909_post(
+    @target_app.command("parse-bibtex-ris-csl-json-into-sourcemetadata-dicts-909", hidden=True)
+    @target_app.command("import")
+    def bibliography_import_post(
         ctx: typer.Context,
-        format: Optional[str] = typer.Option(None, "--format", help="Request field: format."),
-        text: str = typer.Option(..., "--text", help="Request field: text."),
+        format: Optional[str] = typer.Option(None, '--format', help='Format.'),
+        text: str = typer.Option(..., '--text', help='Text.'),
     ) -> None:
         """Parse BibTeX / RIS / CSL JSON into SourceMetadata dicts (#909) (POST /api/bibliography/import)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2033,12 +2077,13 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("parse-persist-entries-as-child-documents-3328")
-    def bibliography_parse_persist_entries_as_child_documents_3328_post(
+    @target_app.command("parse-persist-entries-as-child-documents-3328", hidden=True)
+    @target_app.command("bulk-import-persist")
+    def bibliography_bulk_import_persist_post(
         ctx: typer.Context,
-        format: Optional[str] = typer.Option(None, "--format", help="Request field: format."),
-        target_document_id: Optional[str] = typer.Option(None, "--target-document-id", help="Request field: target_document_id."),
-        text: str = typer.Option(..., "--text", help="Request field: text."),
+        format: Optional[str] = typer.Option(None, '--format', help='Format.'),
+        target_document_id: Optional[str] = typer.Option(None, '--target-document-id', help='Target Document Id.'),
+        text: str = typer.Option(..., '--text', help='Text.'),
     ) -> None:
         """Parse + persist bibliography entries as child documents (#3328) (POST /api/bibliography/import/persist)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2056,12 +2101,13 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("resolve-a-doi-or-isbn-via-crossref-open-library-910")
-    def bibliography_resolve_a_doi_or_isbn_via_crossref_open_library_910_post(
+    @target_app.command("resolve-a-doi-or-isbn-via-crossref-open-library-910", hidden=True)
+    @target_app.command("resolve")
+    def bibliography_resolve_post(
         ctx: typer.Context,
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
-        doi: Optional[str] = typer.Option(None, "--doi", help="Request field: doi."),
-        isbn: Optional[str] = typer.Option(None, "--isbn", help="Request field: isbn."),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='Document Id.'),
+        doi: Optional[str] = typer.Option(None, '--doi', help='Doi.'),
+        isbn: Optional[str] = typer.Option(None, '--isbn', help='Isbn.'),
     ) -> None:
         """Resolve a DOI or ISBN via Crossref / Open Library (#910) (POST /api/bibliography/resolve)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2088,7 +2134,7 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def bookmarks_list_get(
         ctx: typer.Context,
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Filter by parent bookmark container.'),
     ) -> None:
         """List Bookmarks (GET /api/bookmarks)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2102,9 +2148,9 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def bookmarks_create_post(
         ctx: typer.Context,
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
-        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Parent Id.'),
+        target_id: str = typer.Option(..., '--target-id', help='Target Id.'),
     ) -> None:
         """Create Bookmark (POST /api/bookmarks)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2125,7 +2171,7 @@ def register_generated_openapi_commands(
     @target_app.command("resolve")
     def bookmarks_resolve_get(
         ctx: typer.Context,
-        bookmark_id: str = typer.Argument(..., help="Path parameter: bookmark_id."),
+        bookmark_id: str = typer.Argument(..., help='Bookmark Id'),
     ) -> None:
         """Resolve Bookmark (GET /api/bookmarks/{bookmark_id}/resolve)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2143,7 +2189,7 @@ def register_generated_openapi_commands(
     @target_app.command("of-document")
     def campaigns_of_document_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Campaigns Of Document (GET /api/campaigns/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2155,7 +2201,7 @@ def register_generated_openapi_commands(
     @target_app.command("of-reading")
     def campaigns_of_reading_get(
         ctx: typer.Context,
-        representation_id: str = typer.Argument(..., help="Path parameter: representation_id."),
+        representation_id: str = typer.Argument(..., help='Representation Id'),
     ) -> None:
         """Campaigns Of Reading (GET /api/campaigns/reading/{representation_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2167,7 +2213,7 @@ def register_generated_openapi_commands(
     @target_app.command("of-segment")
     def campaigns_of_segment_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
     ) -> None:
         """Campaign Of Segment (GET /api/campaigns/segment/{segment_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2185,12 +2231,12 @@ def register_generated_openapi_commands(
     @target_app.command("arrange-folder-layout")
     def canvas_arrange_folder_layout_post(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        columns: Optional[int] = typer.Option(None, "--columns", help="Request field: columns."),
-        node_ids: str = typer.Option(..., "--node-ids", help="Request field: node_ids."),
-        radius: Optional[float] = typer.Option(None, "--radius", help="Request field: radius."),
-        spacing: Optional[float] = typer.Option(None, "--spacing", help="Request field: spacing."),
-        strategy: Optional[str] = typer.Option(None, "--strategy", help="Request field: strategy."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
+        columns: Optional[int] = typer.Option(None, '--columns', help='Columns.'),
+        node_ids: list[str] = typer.Option(..., '--node-ids', help='Node Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        radius: Optional[float] = typer.Option(None, '--radius', help='Radius.'),
+        spacing: Optional[float] = typer.Option(None, '--spacing', help='Spacing. Default: 160.0.'),
+        strategy: Optional[str] = typer.Option(None, '--strategy', help='The geometric arrangement strategies supported by ``compute_arrangement``. One of: grid, row, column, circle, stack.'),
     ) -> None:
         """Arrange Folder Canvas Layout (POST /api/canvas/folders/{folder_id}/arrange)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2215,8 +2261,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-folder-items")
     def canvas_list_folder_items_get(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Kind.'),
     ) -> None:
         """List Folder Canvas Items (GET /api/canvas/folders/{folder_id}/canvas-items)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2230,12 +2276,12 @@ def register_generated_openapi_commands(
     @target_app.command("create-folder-item")
     def canvas_create_folder_item_post(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        payload_2: Optional[str] = typer.Option(None, "--payload", help="Request field: payload."),
-        source_item_id: Optional[str] = typer.Option(None, "--source-item-id", help="Request field: source_item_id."),
-        target_item_id: Optional[str] = typer.Option(None, "--target-item-id", help="Request field: target_item_id."),
-        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='What a standalone (non-document) canvas item IS. One of: note, quote, work_note, link, text.'),
+        payload_2: Optional[str] = typer.Option(None, '--payload', help='Payload. JSON.'),
+        source_item_id: Optional[str] = typer.Option(None, '--source-item-id', help='Source Item Id.'),
+        target_item_id: Optional[str] = typer.Option(None, '--target-item-id', help='Target Item Id.'),
+        text: Optional[str] = typer.Option(None, '--text', help='Text. Default: "".'),
     ) -> None:
         """Create Folder Canvas Item (POST /api/canvas/folders/{folder_id}/canvas-items)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2260,8 +2306,8 @@ def register_generated_openapi_commands(
     @target_app.command("delete-folder-item")
     def canvas_delete_folder_item_delete(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        item_id: str = typer.Argument(..., help="Path parameter: item_id."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
+        item_id: str = typer.Argument(..., help='Item Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Folder Canvas Item (DELETE /api/canvas/folders/{folder_id}/canvas-items/{item_id})."""
@@ -2276,13 +2322,13 @@ def register_generated_openapi_commands(
     @target_app.command("update-folder-item")
     def canvas_update_folder_item_patch(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        item_id: str = typer.Argument(..., help="Path parameter: item_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        payload_2: Optional[str] = typer.Option(None, "--payload", help="Request field: payload."),
-        source_item_id: Optional[str] = typer.Option(None, "--source-item-id", help="Request field: source_item_id."),
-        target_item_id: Optional[str] = typer.Option(None, "--target-item-id", help="Request field: target_item_id."),
-        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
+        item_id: str = typer.Argument(..., help='Item Id'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='What a standalone (non-document) canvas item IS. One of: note, quote, work_note, link, text.'),
+        payload_2: Optional[str] = typer.Option(None, '--payload', help='Payload. JSON.'),
+        source_item_id: Optional[str] = typer.Option(None, '--source-item-id', help='Source Item Id.'),
+        target_item_id: Optional[str] = typer.Option(None, '--target-item-id', help='Target Item Id.'),
+        text: Optional[str] = typer.Option(None, '--text', help='Text.'),
     ) -> None:
         """Update Folder Canvas Item (PATCH /api/canvas/folders/{folder_id}/canvas-items/{item_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2307,7 +2353,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-folder-layout")
     def canvas_get_folder_layout_get(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
     ) -> None:
         """Get Folder Canvas Layout (GET /api/canvas/folders/{folder_id}/canvas-layout)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2319,8 +2365,8 @@ def register_generated_openapi_commands(
     @target_app.command("save-folder-layout")
     def canvas_save_folder_layout_put(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        items: str = typer.Option(..., "--items", help="Request field: items."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
+        items: str = typer.Option(..., '--items', help='Items. JSON.'),
     ) -> None:
         """Save Folder Canvas Layout (PUT /api/canvas/folders/{folder_id}/canvas-layout)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2337,8 +2383,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-folder-picture")
     def canvas_get_folder_picture_get(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        max_size: Optional[int] = typer.Option(None, "--max-size", help="Query parameter: max_size."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
+        max_size: Optional[int] = typer.Option(None, '--max-size', help='Longest side of the picture, in pixels.'),
     ) -> None:
         """Get Folder Canvas Picture (GET /api/canvas/folders/{folder_id}/canvas-picture)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2358,8 +2404,8 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def chains_list_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
     ) -> None:
         """List Chains (GET /api/chains)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2374,11 +2420,11 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def chains_create_post(
         ctx: typer.Context,
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        entry_step: Optional[str] = typer.Option(None, "--entry-step", help="Request field: entry_step."),
-        initial_inputs: Optional[str] = typer.Option(None, "--initial-inputs", help="Request field: initial_inputs."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        steps: Optional[str] = typer.Option(None, "--steps", help="Request field: steps."),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        entry_step: Optional[str] = typer.Option(None, '--entry-step', help='Entry Step.'),
+        initial_inputs: Optional[str] = typer.Option(None, '--initial-inputs', help='Free-form JSON inputs for the chain entrypoint. Values are passed through as-is and must match the target workflow contract. JSON.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        steps: Optional[str] = typer.Option(None, '--steps', help='Steps. JSON.'),
     ) -> None:
         """Create Chain (POST /api/chains)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2403,7 +2449,7 @@ def register_generated_openapi_commands(
     @target_app.command("cancel-execution")
     def chains_cancel_execution_delete(
         ctx: typer.Context,
-        execution_id: str = typer.Argument(..., help="Path parameter: execution_id."),
+        execution_id: str = typer.Argument(..., help='Execution Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Cancel Chain Execution (DELETE /api/chains/executions/{execution_id})."""
@@ -2418,7 +2464,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-execution")
     def chains_get_execution_get(
         ctx: typer.Context,
-        execution_id: str = typer.Argument(..., help="Path parameter: execution_id."),
+        execution_id: str = typer.Argument(..., help='Execution Id'),
     ) -> None:
         """Get Chain Execution (GET /api/chains/executions/{execution_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2452,7 +2498,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def chains_delete_delete(
         ctx: typer.Context,
-        chain_id: str = typer.Argument(..., help="Path parameter: chain_id."),
+        chain_id: str = typer.Argument(..., help='Chain Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Chain (DELETE /api/chains/{chain_id})."""
@@ -2467,7 +2513,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def chains_get_get(
         ctx: typer.Context,
-        chain_id: str = typer.Argument(..., help="Path parameter: chain_id."),
+        chain_id: str = typer.Argument(..., help='Chain Id'),
     ) -> None:
         """Get Chain (GET /api/chains/{chain_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2479,12 +2525,12 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def chains_update_put(
         ctx: typer.Context,
-        chain_id: str = typer.Argument(..., help="Path parameter: chain_id."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        entry_step: Optional[str] = typer.Option(None, "--entry-step", help="Request field: entry_step."),
-        initial_inputs: Optional[str] = typer.Option(None, "--initial-inputs", help="Request field: initial_inputs."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        steps: Optional[str] = typer.Option(None, "--steps", help="Request field: steps."),
+        chain_id: str = typer.Argument(..., help='Chain Id'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        entry_step: Optional[str] = typer.Option(None, '--entry-step', help='Entry Step.'),
+        initial_inputs: Optional[str] = typer.Option(None, '--initial-inputs', help='Free-form JSON inputs for the chain entrypoint. Values are passed through as-is and must match the target workflow contract. JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        steps: Optional[str] = typer.Option(None, '--steps', help='Steps. JSON.'),
     ) -> None:
         """Update Chain (PUT /api/chains/{chain_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2509,9 +2555,9 @@ def register_generated_openapi_commands(
     @target_app.command("execute")
     def chains_execute_post(
         ctx: typer.Context,
-        chain_id: str = typer.Argument(..., help="Path parameter: chain_id."),
-        input_files: Optional[str] = typer.Option(None, "--input-files", help="Request field: input_files."),
-        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
+        chain_id: str = typer.Argument(..., help='Chain Id'),
+        input_files: Optional[list[str]] = typer.Option(None, '--input-files', help='Input Files. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        inputs: Optional[str] = typer.Option(None, '--inputs', help='Free-form JSON execution inputs. This remains dynamic because each workflow chain defines its own input contract. JSON.'),
     ) -> None:
         """Execute Chain (POST /api/chains/{chain_id}/execute)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2530,8 +2576,8 @@ def register_generated_openapi_commands(
     @target_app.command("execute-steps")
     def chains_execute_steps_post(
         ctx: typer.Context,
-        chain_id: str = typer.Argument(..., help="Path parameter: chain_id."),
-        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
+        chain_id: str = typer.Argument(..., help='Chain Id'),
+        inputs: Optional[str] = typer.Option(None, '--inputs', help='Free-form JSON run inputs shared by every step (frozen selection, user context, hints). Each step merges its static_inputs on top. Values stay workflow-defined and are not coerced. JSON.'),
     ) -> None:
         """Execute Chain Steps (POST /api/chains/{chain_id}/execute-steps)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2571,15 +2617,15 @@ def register_generated_openapi_commands(
     @target_app.command("chat")
     def chat_chat_post(
         ctx: typer.Context,
-        conversation_id: Optional[str] = typer.Option(None, "--conversation-id", help="Request field: conversation_id."),
-        document_ids: Optional[str] = typer.Option(None, "--document-ids", help="Request field: document_ids."),
-        graph_hops: Optional[int] = typer.Option(None, "--graph-hops", help="Request field: graph_hops."),
-        include_sources: Optional[bool] = typer.Option(None, "--include-sources/--no-include-sources", help="Request field: include_sources."),
-        max_kg_claims: Optional[int] = typer.Option(None, "--max-kg-claims", help="Request field: max_kg_claims."),
-        max_sources: Optional[int] = typer.Option(None, "--max-sources", help="Request field: max_sources."),
-        message: str = typer.Option(..., "--message", help="Request field: message."),
-        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
-        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
+        conversation_id: Optional[str] = typer.Option(None, '--conversation-id', help='Conversation Id.'),
+        document_ids: Optional[list[str]] = typer.Option(None, '--document-ids', help='Document Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        graph_hops: Optional[int] = typer.Option(None, '--graph-hops', help='Graph Hops. Default: 1.'),
+        include_sources: Optional[bool] = typer.Option(None, '--include-sources/--no-include-sources', help='Include Sources. Default: true.'),
+        max_kg_claims: Optional[int] = typer.Option(None, '--max-kg-claims', help='Max Kg Claims. Default: 12.'),
+        max_sources: Optional[int] = typer.Option(None, '--max-sources', help='Max Sources. Default: 5.'),
+        message: str = typer.Option(..., '--message', help='Message.'),
+        model: Optional[str] = typer.Option(None, '--model', help='Model.'),
+        provider: Optional[str] = typer.Option(None, '--provider', help='Provider.'),
     ) -> None:
         """Chat (POST /api/chat)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2612,7 +2658,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-conversations")
     def chat_list_conversations_get(
         ctx: typer.Context,
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Query parameter: folder_path."),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path.'),
     ) -> None:
         """List Conversations (GET /api/chat/conversations)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2626,10 +2672,10 @@ def register_generated_openapi_commands(
     @target_app.command("create-conversation")
     def chat_create_conversation_post(
         ctx: typer.Context,
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
-        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
-        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
-        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path. Default: "/".'),
+        model: Optional[str] = typer.Option(None, '--model', help='Model.'),
+        provider: Optional[str] = typer.Option(None, '--provider', help='Provider.'),
+        title: Optional[str] = typer.Option(None, '--title', help='Title.'),
     ) -> None:
         """Create Conversation (POST /api/chat/conversations)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2652,7 +2698,7 @@ def register_generated_openapi_commands(
     @target_app.command("reorder-conversations")
     def chat_reorder_conversations_post(
         ctx: typer.Context,
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Query parameter: folder_path."),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path.'),
         body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
         body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
     ) -> None:
@@ -2669,7 +2715,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-conversation")
     def chat_delete_conversation_delete(
         ctx: typer.Context,
-        conversation_id: str = typer.Argument(..., help="Path parameter: conversation_id."),
+        conversation_id: str = typer.Argument(..., help='Conversation Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Conversation (DELETE /api/chat/conversations/{conversation_id})."""
@@ -2684,7 +2730,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-conversation")
     def chat_get_conversation_get(
         ctx: typer.Context,
-        conversation_id: str = typer.Argument(..., help="Path parameter: conversation_id."),
+        conversation_id: str = typer.Argument(..., help='Conversation Id'),
     ) -> None:
         """Get Conversation (GET /api/chat/conversations/{conversation_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2696,9 +2742,9 @@ def register_generated_openapi_commands(
     @target_app.command("update-conversation")
     def chat_update_conversation_put(
         ctx: typer.Context,
-        conversation_id: str = typer.Argument(..., help="Path parameter: conversation_id."),
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
-        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
+        conversation_id: str = typer.Argument(..., help='Conversation Id'),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path.'),
+        title: Optional[str] = typer.Option(None, '--title', help='Title.'),
     ) -> None:
         """Update Conversation (PUT /api/chat/conversations/{conversation_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2717,7 +2763,7 @@ def register_generated_openapi_commands(
     @target_app.command("duplicate-conversation")
     def chat_duplicate_conversation_post(
         ctx: typer.Context,
-        conversation_id: str = typer.Argument(..., help="Path parameter: conversation_id."),
+        conversation_id: str = typer.Argument(..., help='Conversation Id'),
     ) -> None:
         """Duplicate Conversation (POST /api/chat/conversations/{conversation_id}/duplicate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2729,8 +2775,8 @@ def register_generated_openapi_commands(
     @target_app.command("save-conversation-as-workspace")
     def chat_save_conversation_as_workspace_post(
         ctx: typer.Context,
-        conversation_id: str = typer.Argument(..., help="Path parameter: conversation_id."),
-        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
+        conversation_id: str = typer.Argument(..., help='Conversation Id'),
+        title: Optional[str] = typer.Option(None, '--title', help='Title.'),
     ) -> None:
         """Save Conversation As Workspace (POST /api/chat/conversations/{conversation_id}/workspace)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2747,8 +2793,8 @@ def register_generated_openapi_commands(
     @target_app.command("extract-text")
     def chat_extract_text_post(
         ctx: typer.Context,
-        document_ids: Optional[str] = typer.Option(None, "--document-ids", help="Request field: document_ids."),
-        force: Optional[bool] = typer.Option(None, "--force/--no-force", help="Request field: force."),
+        document_ids: Optional[list[str]] = typer.Option(None, '--document-ids', help='Document Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        force: Optional[bool] = typer.Option(None, '--force/--no-force', help='Force. Default: false.'),
     ) -> None:
         """Extract Text (POST /api/chat/extract-text)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2789,7 +2835,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-agent-workspace")
     def chat_delete_agent_workspace_delete(
         ctx: typer.Context,
-        workspace_id: str = typer.Argument(..., help="Path parameter: workspace_id."),
+        workspace_id: str = typer.Argument(..., help='Workspace Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Agent Workspace (DELETE /api/chat/workspaces/{workspace_id})."""
@@ -2804,7 +2850,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-agent-workspace")
     def chat_get_agent_workspace_get(
         ctx: typer.Context,
-        workspace_id: str = typer.Argument(..., help="Path parameter: workspace_id."),
+        workspace_id: str = typer.Argument(..., help='Workspace Id'),
     ) -> None:
         """Get Agent Workspace (GET /api/chat/workspaces/{workspace_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2816,9 +2862,9 @@ def register_generated_openapi_commands(
     @target_app.command("patch-agent-workspace-members")
     def chat_patch_agent_workspace_members_patch(
         ctx: typer.Context,
-        workspace_id: str = typer.Argument(..., help="Path parameter: workspace_id."),
-        add: Optional[str] = typer.Option(None, "--add", help="Request field: add."),
-        remove_ids: Optional[str] = typer.Option(None, "--remove-ids", help="Request field: remove_ids."),
+        workspace_id: str = typer.Argument(..., help='Workspace Id'),
+        add: Optional[str] = typer.Option(None, '--add', help='Add. JSON.'),
+        remove_ids: Optional[list[str]] = typer.Option(None, '--remove-ids', help='Remove Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Patch Agent Workspace Members (PATCH /api/chat/workspaces/{workspace_id}/members)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2840,18 +2886,19 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='check')
         existing_apps['check'] = target_app
 
-    @target_app.command("a-layer-s-proposals-with-a-checker-model-as-one-job")
-    def check_a_layer_s_proposals_with_a_checker_model_as_one_job_post(
+    @target_app.command("a-layer-s-proposals-with-a-checker-model-as-one-job", hidden=True)
+    @target_app.command("start-run")
+    def check_start_run_post(
         ctx: typer.Context,
-        check: Optional[str] = typer.Option(None, "--check", help="Request field: check."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        layer: str = typer.Option(..., "--layer", help="Request field: layer."),
-        model: str = typer.Option(..., "--model", help="Request field: model."),
-        pass_model: Optional[str] = typer.Option(None, "--pass-model", help="Request field: pass_model."),
-        prompt_file: Optional[str] = typer.Option(None, "--prompt-file", help="Request field: prompt_file."),
-        provider: str = typer.Option(..., "--provider", help="Request field: provider."),
-        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+        check: Optional[str] = typer.Option(None, '--check', help='model: the checker model reads each proposal. line-against-page (readings only, provider kraken, model a Kraken reader): each line\'s reading is scored against Kraken\'s rough read of that line and of its neighbours; a reading closer to a neighbour\'s line, or below the threshold, is rejected (#5446). tie-text-to-lines (readings only, provider kraken, model a Kraken reader): the page\'s best reading is aligned in order to the rough reads of the page\'s own lines (found by Kraken first when it has none) and each line given its stretch as a reading, never a second pass (#5487); a line whose stretch agrees with its rough read below the threshold is rejected as doubtful (#5444). One of: model, line-against-page, tie-text-to-lines. Default: "model".'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='readings: the kind of reading checked. Default: "transcription".'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        layer: str = typer.Option(..., '--layer', help="Which layer's proposals to check. One of: readings, claims, entities."),
+        model: str = typer.Option(..., '--model', help='The checker model, e.g. a palaeographer such as Fable.'),
+        pass_model: Optional[str] = typer.Option(None, '--pass-model', help="readings: check the lines of this model's pass, not the page's newest."),
+        prompt_file: Optional[str] = typer.Option(None, '--prompt-file', help="The recipe's prompt for this card; none uses Fichero's own."),
+        provider: str = typer.Option(..., '--provider', help="The checker's provider, e.g. openrouter, omlx."),
+        scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders, pages or documents: their lines, or their statements and entities. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Check a layer's proposals with a checker model, as one job (POST /api/check/runs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2881,10 +2928,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("a-run-s-counts-in-words-and-numbers")
-    def check_a_run_s_counts_in_words_and_numbers_get(
+    @target_app.command("a-run-s-counts-in-words-and-numbers", hidden=True)
+    @target_app.command("run-status")
+    def check_run_status_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """A check run's counts in words and numbers (GET /api/check/runs/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -2893,10 +2941,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("stop-a-run-before-its-next-proposal")
-    def check_stop_a_run_before_its_next_proposal_post(
+    @target_app.command("stop-a-run-before-its-next-proposal", hidden=True)
+    @target_app.command("cancel-run")
+    def check_cancel_run_post(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Stop a check run before its next proposal (POST /api/check/runs/{job_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2905,13 +2954,14 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("verdicts-on-a-proposal-or-of-a-run")
-    def check_verdicts_on_a_proposal_or_of_a_run_get(
+    @target_app.command("verdicts-on-a-proposal-or-of-a-run", hidden=True)
+    @target_app.command("list-verdicts")
+    def check_list_verdicts_get(
         ctx: typer.Context,
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
-        layer: Optional[str] = typer.Option(None, "--layer", help="Query parameter: layer."),
-        run_id: Optional[str] = typer.Option(None, "--run-id", help="Query parameter: run_id."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help="one page's verdicts (a page view never reads the library's)"),
+        layer: Optional[str] = typer.Option(None, '--layer', help='Layer.'),
+        run_id: Optional[str] = typer.Option(None, '--run-id', help='Run Id.'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Target Id.'),
     ) -> None:
         """Verdicts on a proposal, or of a run (GET /api/check/verdicts)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2925,18 +2975,19 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("record-your-verdict-on-a-proposal")
-    def check_record_your_verdict_on_a_proposal_post(
+    @target_app.command("record-your-verdict-on-a-proposal", hidden=True)
+    @target_app.command("record-verdict")
+    def check_record_verdict_post(
         ctx: typer.Context,
-        checker_model: Optional[str] = typer.Option(None, "--checker-model", help="Request field: checker_model."),
-        correction: Optional[str] = typer.Option(None, "--correction", help="Request field: correction."),
-        episode_id: Optional[str] = typer.Option(None, "--episode-id", help="Request field: episode_id."),
-        layer: str = typer.Option(..., "--layer", help="Request field: layer."),
-        reasons: str = typer.Option(..., "--reasons", help="Request field: reasons."),
-        replacement_id: Optional[str] = typer.Option(None, "--replacement-id", help="Request field: replacement_id."),
-        segment_id: Optional[str] = typer.Option(None, "--segment-id", help="Request field: segment_id."),
-        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
-        verdict: str = typer.Option(..., "--verdict", help="Request field: verdict."),
+        checker_model: Optional[str] = typer.Option(None, '--checker-model', help='Checker Model.'),
+        correction: Optional[str] = typer.Option(None, '--correction', help='Correction. JSON.'),
+        episode_id: Optional[str] = typer.Option(None, '--episode-id', help='Episode Id.'),
+        layer: str = typer.Option(..., '--layer', help='Layer. One of: readings, claims, entities.'),
+        reasons: str = typer.Option(..., '--reasons', help='Reasons.'),
+        replacement_id: Optional[str] = typer.Option(None, '--replacement-id', help='Replacement Id.'),
+        segment_id: Optional[str] = typer.Option(None, '--segment-id', help='Segment Id.'),
+        target_id: str = typer.Option(..., '--target-id', help='Target Id.'),
+        verdict: str = typer.Option(..., '--verdict', help='Verdict. One of: confirm, correct, reject.'),
     ) -> None:
         """Record your verdict on a proposal (POST /api/check/verdicts)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2975,10 +3026,10 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def citation_usages_list_get(
         ctx: typer.Context,
-        reference_id: Optional[str] = typer.Option(None, "--reference-id", help="Query parameter: reference_id."),
-        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Query parameter: source_document_id."),
-        stance: Optional[str] = typer.Option(None, "--stance", help="Query parameter: stance."),
-        target_document_id: Optional[str] = typer.Option(None, "--target-document-id", help="Query parameter: target_document_id."),
+        reference_id: Optional[str] = typer.Option(None, '--reference-id', help='Reference Id.'),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='Source Document Id.'),
+        stance: Optional[str] = typer.Option(None, '--stance', help='Stance.'),
+        target_document_id: Optional[str] = typer.Option(None, '--target-document-id', help='Target Document Id.'),
     ) -> None:
         """List Citation Usages (GET /api/citation-usages)."""
         def op_call(client: FicheroClient) -> Any:
@@ -2998,11 +3049,12 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='citations')
         existing_apps['citations'] = target_app
 
-    @target_app.command("render-a-document-s-in-one-of-the-supported-styles")
-    def citations_render_a_document_s_in_one_of_the_supported_styles_get(
+    @target_app.command("render-a-document-s-in-one-of-the-supported-styles", hidden=True)
+    @target_app.command("cite-document")
+    def citations_cite_document_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        style: Optional[str] = typer.Option(None, "--style", help="Query parameter: style."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        style: Optional[str] = typer.Option(None, '--style', help='Citation style: bibtex | chicago | apa | mla.'),
     ) -> None:
         """Render a document's citation in one of the supported styles (GET /api/citations/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -3013,10 +3065,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("download-a-single-document-s-bibtex-entry-as-text")
-    def citations_download_a_single_document_s_bibtex_entry_as_text_get(
+    @target_app.command("download-a-single-document-s-bibtex-entry-as-text", hidden=True)
+    @target_app.command("cite-document-bibtex")
+    def citations_cite_document_bibtex_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Download a single document's BibTeX entry as text (GET /api/citations/document/{document_id}.bib)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3025,27 +3078,29 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("bulk-export-bibtex-for-a-list-of-documents")
-    def citations_bulk_export_bibtex_for_a_list_of_documents_get(
+    @target_app.command("bulk-export-bibtex-for-a-list-of-documents", hidden=True)
+    @target_app.command("export-bibtex")
+    def citations_export_bibtex_get(
         ctx: typer.Context,
-        document_ids: Optional[str] = typer.Option(None, "--document-ids", help="Query parameter: document_ids."),
+        document_ids: Optional[list[str]] = typer.Option(None, '--document-ids', help='Document Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Bulk export — BibTeX for a list of documents (GET /api/citations/export)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/citations/export"
             params = {
-                "document_ids": document_ids,
+                "document_ids": _list_values(document_ids),
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("list-filter-by-source-target-detector")
-    def citations_list_filter_by_source_target_detector_get(
+    @target_app.command("list-filter-by-source-target-detector", hidden=True)
+    @target_app.command("list")
+    def citations_list_get(
         ctx: typer.Context,
-        detector: Optional[str] = typer.Option(None, "--detector", help="Query parameter: detector."),
-        min_confidence: Optional[float] = typer.Option(None, "--min-confidence", help="Query parameter: min_confidence."),
-        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Query parameter: source_document_id."),
-        target_document_id: Optional[str] = typer.Option(None, "--target-document-id", help="Query parameter: target_document_id."),
+        detector: Optional[str] = typer.Option(None, '--detector', help='Detector.'),
+        min_confidence: Optional[float] = typer.Option(None, '--min-confidence', help='Min Confidence.'),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='Source Document Id.'),
+        target_document_id: Optional[str] = typer.Option(None, '--target-document-id', help='Target Document Id.'),
     ) -> None:
         """List citations (filter by source/target/detector) (GET /api/citations/graph)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3059,18 +3114,19 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("record-a-from-one-document-to-another")
-    def citations_record_a_from_one_document_to_another_post(
+    @target_app.command("record-a-from-one-document-to-another", hidden=True)
+    @target_app.command("create")
+    def citations_create_post(
         ctx: typer.Context,
-        char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
-        char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        detector: Optional[str] = typer.Option(None, "--detector", help="Request field: detector."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        page_label: Optional[str] = typer.Option(None, "--page-label", help="Request field: page_label."),
-        source_document_id: str = typer.Option(..., "--source-document-id", help="Request field: source_document_id."),
-        target_citation_text: str = typer.Option(..., "--target-citation-text", help="Request field: target_citation_text."),
-        target_document_id: Optional[str] = typer.Option(None, "--target-document-id", help="Request field: target_document_id."),
+        char_end: Optional[int] = typer.Option(None, '--char-end', help='Char End.'),
+        char_start: Optional[int] = typer.Option(None, '--char-start', help='Char Start.'),
+        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence. Default: 1.0.'),
+        detector: Optional[str] = typer.Option(None, '--detector', help='Detector. Default: "manual".'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. Default: {}. JSON.'),
+        page_label: Optional[str] = typer.Option(None, '--page-label', help='Page Label.'),
+        source_document_id: str = typer.Option(..., '--source-document-id', help='Source Document Id.'),
+        target_citation_text: str = typer.Option(..., '--target-citation-text', help='Target Citation Text.'),
+        target_document_id: Optional[str] = typer.Option(None, '--target-document-id', help='Target Document Id.'),
     ) -> None:
         """Record a citation from one document to another (POST /api/citations/graph)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3100,10 +3156,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("to-this-document-what-cites-it")
-    def citations_to_this_document_what_cites_it_get(
+    @target_app.command("to-this-document-what-cites-it", hidden=True)
+    @target_app.command("inbound")
+    def citations_inbound_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Citations TO this document — what cites it (GET /api/citations/graph/document/{document_id}/inbound)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3112,10 +3169,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("from-this-document-what-it-cites")
-    def citations_from_this_document_what_it_cites_get(
+    @target_app.command("from-this-document-what-it-cites", hidden=True)
+    @target_app.command("outbound")
+    def citations_outbound_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Citations FROM this document — what it cites (GET /api/citations/graph/document/{document_id}/outbound)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3127,7 +3185,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def citations_delete_delete(
         ctx: typer.Context,
-        citation_id: str = typer.Argument(..., help="Path parameter: citation_id."),
+        citation_id: str = typer.Argument(..., help='Citation Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Citation (DELETE /api/citations/graph/{citation_id})."""
@@ -3142,13 +3200,13 @@ def register_generated_openapi_commands(
     @target_app.command("patch")
     def citations_patch_patch(
         ctx: typer.Context,
-        citation_id: str = typer.Argument(..., help="Path parameter: citation_id."),
-        char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
-        char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        page_label: Optional[str] = typer.Option(None, "--page-label", help="Request field: page_label."),
-        target_citation_text: Optional[str] = typer.Option(None, "--target-citation-text", help="Request field: target_citation_text."),
-        target_document_id: Optional[str] = typer.Option(None, "--target-document-id", help="Request field: target_document_id."),
+        citation_id: str = typer.Argument(..., help='Citation Id'),
+        char_end: Optional[int] = typer.Option(None, '--char-end', help='Char End.'),
+        char_start: Optional[int] = typer.Option(None, '--char-start', help='Char Start.'),
+        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence.'),
+        page_label: Optional[str] = typer.Option(None, '--page-label', help='Page Label.'),
+        target_citation_text: Optional[str] = typer.Option(None, '--target-citation-text', help='Target Citation Text.'),
+        target_document_id: Optional[str] = typer.Option(None, '--target-document-id', help='Target Document Id.'),
     ) -> None:
         """Patch Citation (PATCH /api/citations/graph/{citation_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -3181,7 +3239,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def claim_links_delete_delete(
         ctx: typer.Context,
-        link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        link_id: str = typer.Argument(..., help='Link Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Claim Link (DELETE /api/claim-links/{link_id})."""
@@ -3196,7 +3254,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def claim_links_get_get(
         ctx: typer.Context,
-        link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        link_id: str = typer.Argument(..., help='Link Id'),
     ) -> None:
         """Get Claim Link (GET /api/claim-links/{link_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -3208,11 +3266,11 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def claim_links_update_patch(
         ctx: typer.Context,
-        link_id: str = typer.Argument(..., help="Path parameter: link_id."),
-        evidence: Optional[str] = typer.Option(None, "--evidence", help="Request field: evidence."),
-        link_quality: Optional[float] = typer.Option(None, "--link-quality", help="Request field: link_quality."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        relation_type: Optional[str] = typer.Option(None, "--relation-type", help="Request field: relation_type."),
+        link_id: str = typer.Argument(..., help='Link Id'),
+        evidence: Optional[str] = typer.Option(None, '--evidence', help='Evidence.'),
+        link_quality: Optional[float] = typer.Option(None, '--link-quality', help='Link Quality.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        relation_type: Optional[str] = typer.Option(None, '--relation-type', help="Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B). Originally four kinds (supports / contradicts / refines / duplicate_of). #1123 extends with five new dimensions plus ``related_to`` (the generic fallback used by ``kg_predictions._record_predictions`` when a model surfaces a relation outside the curated set): - ``corroborates`` — independent evidence agreeing with the source claim. Distinct from ``supports`` (which just reinforces with additional evidence drawn from the same line of reasoning). - ``derives_from`` — claim B is inferred from / built on claim A; removing A invalidates B. Stronger than ``cites``. - ``cites`` — B references A as a source. Bibliographic / citation graph use. - ``follows`` — temporal sequence (A then B). Doesn't imply causation; ``caused_by`` is the explicit causal claim. - ``caused_by`` — A is the cause of B. Strong claim; reviewers should treat with corroboration. - ``related_to`` — generic fallback when the typed kinds don't fit. Closes the latent crash in ``kg_predictions.py:269`` where the relation_map fallback referenced this value before it existed. Note: ``contests`` was considered as a synonym for ``contradicts`` but excluded — same semantic, different word, doesn't earn a separate enum slot. Writers should keep using ``contradicts``. One of: supports, contradicts, refines, duplicate_of, corroborates, derives_from, cites, follows, caused_by, related_to."),
     ) -> None:
         """Update Claim Link (PATCH /api/claim-links/{link_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -3238,21 +3296,21 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='claim')
         existing_apps['claims'] = target_app
 
-    @target_app.command("list")
-    def claims_list_get(
+    @target_app.command("list-claims")
+    def claims_list_claims_get(
         ctx: typer.Context,
-        claim_type: Optional[str] = typer.Option(None, "--claim-type", help="Query parameter: claim_type."),
-        curated_only: Optional[bool] = typer.Option(None, "--curated-only/--no-curated-only", help="Query parameter: curated_only."),
-        curation_state: Optional[str] = typer.Option(None, "--curation-state", help="Query parameter: curation_state."),
-        entity_id: Optional[str] = typer.Option(None, "--entity-id", help="Query parameter: entity_id."),
-        epistemic_status: Optional[str] = typer.Option(None, "--epistemic-status", help="Query parameter: epistemic_status."),
-        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Query parameter: include_descendants."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
-        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Query parameter: source_document_id."),
-        source_language: Optional[str] = typer.Option(None, "--source-language", help="Query parameter: source_language."),
-        source_type: Optional[str] = typer.Option(None, "--source-type", help="Query parameter: source_type."),
+        claim_type: Optional[str] = typer.Option(None, '--claim-type', help='Claim Type.'),
+        curated_only: Optional[bool] = typer.Option(None, '--curated-only/--no-curated-only', help='Curated Only.'),
+        curation_state: Optional[str] = typer.Option(None, '--curation-state', help='Curation State.'),
+        entity_id: Optional[str] = typer.Option(None, '--entity-id', help='Entity Id.'),
+        epistemic_status: Optional[str] = typer.Option(None, '--epistemic-status', help='Epistemic Status.'),
+        include_descendants: Optional[bool] = typer.Option(None, '--include-descendants/--no-include-descendants', help='Include Descendants.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        q: Optional[str] = typer.Option(None, '--q', help='Q.'),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='Source Document Id.'),
+        source_language: Optional[str] = typer.Option(None, '--source-language', help='Source Language.'),
+        source_type: Optional[str] = typer.Option(None, '--source-type', help='Source Type.'),
     ) -> None:
         """List Claims (GET /api/claims)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3274,51 +3332,51 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("create")
-    def claims_create_post(
+    @target_app.command("create-claims")
+    def claims_create_claims_post(
         ctx: typer.Context,
-        audience: Optional[str] = typer.Option(None, "--audience", help="Request field: audience."),
-        claim_geo: Optional[str] = typer.Option(None, "--claim-geo", help="Request field: claim_geo."),
-        claim_recorded_at: Optional[str] = typer.Option(None, "--claim-recorded-at", help="Request field: claim_recorded_at."),
-        claim_type: Optional[str] = typer.Option(None, "--claim-type", help="Request field: claim_type."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        confidence_source: Optional[str] = typer.Option(None, "--confidence-source", help="Request field: confidence_source."),
-        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
-        curation_state: Optional[str] = typer.Option(None, "--curation-state", help="Request field: curation_state."),
-        editor_entity_id: Optional[str] = typer.Option(None, "--editor-entity-id", help="Request field: editor_entity_id."),
-        editor_name: Optional[str] = typer.Option(None, "--editor-name", help="Request field: editor_name."),
-        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
-        epistemic_status: Optional[str] = typer.Option(None, "--epistemic-status", help="Request field: epistemic_status."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        object_phrase: Optional[str] = typer.Option(None, "--object-phrase", help="Request field: object_phrase."),
-        predicate_verb: Optional[str] = typer.Option(None, "--predicate-verb", help="Request field: predicate_verb."),
-        predicted_by: Optional[str] = typer.Option(None, "--predicted-by", help="Request field: predicted_by."),
-        predicted_confidence: Optional[float] = typer.Option(None, "--predicted-confidence", help="Request field: predicted_confidence."),
-        prediction: Optional[str] = typer.Option(None, "--prediction", help="Request field: prediction."),
-        provenance_kind: Optional[str] = typer.Option(None, "--provenance-kind", help="Request field: provenance_kind."),
-        provenance_layer: Optional[str] = typer.Option(None, "--provenance-layer", help="Request field: provenance_layer."),
-        quotation_kind: Optional[str] = typer.Option(None, "--quotation-kind", help="Request field: quotation_kind."),
-        scribe_entity_id: Optional[str] = typer.Option(None, "--scribe-entity-id", help="Request field: scribe_entity_id."),
-        scribe_name: Optional[str] = typer.Option(None, "--scribe-name", help="Request field: scribe_name."),
-        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
-        source_excerpt: Optional[str] = typer.Option(None, "--source-excerpt", help="Request field: source_excerpt."),
-        source_genre: Optional[str] = typer.Option(None, "--source-genre", help="Request field: source_genre."),
-        source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Request field: source_ids."),
-        source_language: Optional[str] = typer.Option(None, "--source-language", help="Request field: source_language."),
-        source_languages: Optional[str] = typer.Option(None, "--source-languages", help="Request field: source_languages."),
-        source_page_label: Optional[str] = typer.Option(None, "--source-page-label", help="Request field: source_page_label."),
-        source_page_labels: Optional[str] = typer.Option(None, "--source-page-labels", help="Request field: source_page_labels."),
-        source_ref: Optional[str] = typer.Option(None, "--source-ref", help="Request field: source_ref."),
-        source_segment_id: Optional[str] = typer.Option(None, "--source-segment-id", help="Request field: source_segment_id."),
-        source_type: Optional[str] = typer.Option(None, "--source-type", help="Request field: source_type."),
-        speaker_entity_id: Optional[str] = typer.Option(None, "--speaker-entity-id", help="Request field: speaker_entity_id."),
-        speaker_name: Optional[str] = typer.Option(None, "--speaker-name", help="Request field: speaker_name."),
-        subject_canonical: Optional[str] = typer.Option(None, "--subject-canonical", help="Request field: subject_canonical."),
-        subject_entity_id: Optional[str] = typer.Option(None, "--subject-entity-id", help="Request field: subject_entity_id."),
-        subject_of_inquiry_entity_id: Optional[str] = typer.Option(None, "--subject-of-inquiry-entity-id", help="Request field: subject_of_inquiry_entity_id."),
-        text: str = typer.Option(..., "--text", help="Request field: text."),
-        translation_chain: Optional[str] = typer.Option(None, "--translation-chain", help="Request field: translation_chain."),
+        audience: Optional[str] = typer.Option(None, '--audience', help='Audience.'),
+        claim_geo: Optional[str] = typer.Option(None, '--claim-geo', help="Lat/lon for the spatial scope a claim refers to. Distinct from entity locations (a claim about Pedro travelling from Popayán to Quito has a different geo scope than Pedro's birthplace). Optional precision_m lets the renderer draw a confidence radius instead of a point pin when locations are imprecise. JSON."),
+        claim_recorded_at: Optional[str] = typer.Option(None, '--claim-recorded-at', help='Claim Recorded At.'),
+        claim_type: Optional[str] = typer.Option(None, '--claim-type', help='ClaimType. One of: fact, analysis, interpretation, argument, historiography, theory.'),
+        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence. Default: 0.5.'),
+        confidence_source: Optional[str] = typer.Option(None, '--confidence-source', help='Confidence Source.'),
+        created_by: Optional[str] = typer.Option(None, '--created-by', help='Created By. Default: "human".'),
+        curation_state: Optional[str] = typer.Option(None, '--curation-state', help='ClaimCurationState. One of: unreviewed, shortlisted, curated, rejected.'),
+        editor_entity_id: Optional[str] = typer.Option(None, '--editor-entity-id', help='Editor Entity Id.'),
+        editor_name: Optional[str] = typer.Option(None, '--editor-name', help='Editor Name.'),
+        entity_ids: Optional[list[str]] = typer.Option(None, '--entity-ids', help='Entity Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        epistemic_status: Optional[str] = typer.Option(None, '--epistemic-status', help='EpistemicStatus. One of: tentative, confirmed, rejected.'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        object_phrase: Optional[str] = typer.Option(None, '--object-phrase', help='Object Phrase.'),
+        predicate_verb: Optional[str] = typer.Option(None, '--predicate-verb', help='Predicate Verb.'),
+        predicted_by: Optional[list[str]] = typer.Option(None, '--predicted-by', help='Predicted By. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        predicted_confidence: Optional[float] = typer.Option(None, '--predicted-confidence', help='Predicted Confidence.'),
+        prediction: Optional[str] = typer.Option(None, '--prediction', help='PredictionMetadata. JSON.'),
+        provenance_kind: Optional[str] = typer.Option(None, '--provenance-kind', help='Who or what wrote a claim (#4869) -- a closed vocabulary, set by the SERVER at the point of writing, never accepted from a client on any route or action. Deliberately does NOT split `workflow` by model (LLM vs spaCy): `provider`/`model` already say which, and a reader wanting that detail reads those, not this field. `agent` is NOT a first-class principal today (#4869 open question): it identifies the SURFACE an action came through (the MCP tool routes), not a verified property of the authenticated account. A real agent-principal type is the actual fix; this is the smallest honest signal available until that exists. One of: human, agent, workflow, external_import, unknown.'),
+        provenance_layer: Optional[str] = typer.Option(None, '--provenance-layer', help="Where on a page the claim's source text lives. Marginalia and interlinear annotations were added by later readers and carry different evidentiary weight than the main text. ``main_text`` is the default; PDF-bbox heuristics (top/bottom margin offsets) flip to ``marginalia`` or ``footnote``. One of: main_text, marginalia, footnote, annotation_later, scribal_correction, interlinear."),
+        quotation_kind: Optional[str] = typer.Option(None, '--quotation-kind', help="How literally a claim reproduces its source text. Picks up the warrant strength: a verbatim quotation supports a stronger epistemic status than an inferred one. Defaults to ``paraphrase`` — that's the realistic default for an LLM extractor that summarised the source rather than copying it verbatim. One of: verbatim, paraphrase, indirect, inference, free_indirect."),
+        scribe_entity_id: Optional[str] = typer.Option(None, '--scribe-entity-id', help='Scribe Entity Id.'),
+        scribe_name: Optional[str] = typer.Option(None, '--scribe-name', help='Scribe Name.'),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='Source Document Id.'),
+        source_excerpt: Optional[str] = typer.Option(None, '--source-excerpt', help='Source Excerpt.'),
+        source_genre: Optional[str] = typer.Option(None, '--source-genre', help='Genre of the source passage that produced this claim. Per-passage, not per-document — a 19th-century compiled collection may reprint an 18th-century royal decree alongside private letters; each excerpt carries its own genre. Classified per-doc at ingest, stamped onto every claim from that doc as a default; overridable per-claim. One of: petition, testimony, royal_decree, private_letter, receipt, inventory, deed, minutes, report, article, book, note, other.'),
+        source_ids: Optional[list[str]] = typer.Option(None, '--source-ids', help='Source Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        source_language: Optional[str] = typer.Option(None, '--source-language', help='Source Language.'),
+        source_languages: Optional[list[str]] = typer.Option(None, '--source-languages', help='Source Languages. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        source_page_label: Optional[str] = typer.Option(None, '--source-page-label', help='Source Page Label.'),
+        source_page_labels: Optional[list[str]] = typer.Option(None, '--source-page-labels', help='Source Page Labels. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        source_ref: Optional[str] = typer.Option(None, '--source-ref', help='Source Ref.'),
+        source_segment_id: Optional[str] = typer.Option(None, '--source-segment-id', help="A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id."),
+        source_type: Optional[str] = typer.Option(None, '--source-type', help='SourceType. One of: document, claim, multiple, synthesis.'),
+        speaker_entity_id: Optional[str] = typer.Option(None, '--speaker-entity-id', help='Speaker Entity Id.'),
+        speaker_name: Optional[str] = typer.Option(None, '--speaker-name', help='Speaker Name.'),
+        subject_canonical: Optional[str] = typer.Option(None, '--subject-canonical', help='Subject Canonical.'),
+        subject_entity_id: Optional[str] = typer.Option(None, '--subject-entity-id', help='Subject Entity Id.'),
+        subject_of_inquiry_entity_id: Optional[str] = typer.Option(None, '--subject-of-inquiry-entity-id', help='Subject Of Inquiry Entity Id.'),
+        text: str = typer.Option(..., '--text', help='Text.'),
+        translation_chain: Optional[list[str]] = typer.Option(None, '--translation-chain', help='Translation Chain. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Create Claim (POST /api/claims)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3417,14 +3475,14 @@ def register_generated_openapi_commands(
     @target_app.command("assign-time-period")
     def claims_assign_time_period_post(
         ctx: typer.Context,
-        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Request field: include_descendants."),
-        overwrite_existing: Optional[bool] = typer.Option(None, "--overwrite-existing/--no-overwrite-existing", help="Request field: overwrite_existing."),
-        page_end: Optional[int] = typer.Option(None, "--page-end", help="Request field: page_end."),
-        page_start: Optional[int] = typer.Option(None, "--page-start", help="Request field: page_start."),
-        source_document_id: str = typer.Option(..., "--source-document-id", help="Request field: source_document_id."),
-        time_end: Optional[str] = typer.Option(None, "--time-end", help="Request field: time_end."),
-        time_precision: Optional[str] = typer.Option(None, "--time-precision", help="Request field: time_precision."),
-        time_start: str = typer.Option(..., "--time-start", help="Request field: time_start."),
+        include_descendants: Optional[bool] = typer.Option(None, '--include-descendants/--no-include-descendants', help='Include Descendants. Default: false.'),
+        overwrite_existing: Optional[bool] = typer.Option(None, '--overwrite-existing/--no-overwrite-existing', help='Overwrite Existing. Default: true.'),
+        page_end: Optional[int] = typer.Option(None, '--page-end', help='Page End.'),
+        page_start: Optional[int] = typer.Option(None, '--page-start', help='Page Start.'),
+        source_document_id: str = typer.Option(..., '--source-document-id', help='Source Document Id.'),
+        time_end: Optional[str] = typer.Option(None, '--time-end', help='Time End.'),
+        time_precision: Optional[str] = typer.Option(None, '--time-precision', help='Time Precision.'),
+        time_start: str = typer.Option(..., '--time-start', help='Time Start.'),
     ) -> None:
         """Assign Time Period (POST /api/claims/assign-time-period)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3455,9 +3513,9 @@ def register_generated_openapi_commands(
     @target_app.command("assign-time-period-from-metadata")
     def claims_assign_time_period_from_metadata_post(
         ctx: typer.Context,
-        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Request field: include_descendants."),
-        overwrite_existing: Optional[bool] = typer.Option(None, "--overwrite-existing/--no-overwrite-existing", help="Request field: overwrite_existing."),
-        source_document_id: str = typer.Option(..., "--source-document-id", help="Request field: source_document_id."),
+        include_descendants: Optional[bool] = typer.Option(None, '--include-descendants/--no-include-descendants', help='Include Descendants. Default: false.'),
+        overwrite_existing: Optional[bool] = typer.Option(None, '--overwrite-existing/--no-overwrite-existing', help='Overwrite Existing. Default: true.'),
+        source_document_id: str = typer.Option(..., '--source-document-id', help='Source Document Id.'),
     ) -> None:
         """Assign Time Period From Metadata (POST /api/claims/assign-time-period-from-metadata)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3478,10 +3536,10 @@ def register_generated_openapi_commands(
     @target_app.command("batch-transition")
     def claims_batch_transition_post(
         ctx: typer.Context,
-        claim_ids: str = typer.Option(..., "--claim-ids", help="Request field: claim_ids."),
-        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
-        reviewed_by: Optional[str] = typer.Option(None, "--reviewed-by", help="Request field: reviewed_by."),
-        to_state: str = typer.Option(..., "--to-state", help="Request field: to_state."),
+        claim_ids: list[str] = typer.Option(..., '--claim-ids', help='List of claim IDs to transition. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        reason: Optional[str] = typer.Option(None, '--reason', help='Optional reason for transition.'),
+        reviewed_by: Optional[str] = typer.Option(None, '--reviewed-by', help='Who performed the review. Default: "human".'),
+        to_state: str = typer.Option(..., '--to-state', help='Target curation state.'),
     ) -> None:
         """Batch transition claims (POST /api/claims/batch/transition)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3504,11 +3562,11 @@ def register_generated_openapi_commands(
     @target_app.command("get-curated-queue")
     def claims_get_curated_queue_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        person: Optional[str] = typer.Option(None, "--person", help="Query parameter: person."),
-        question: Optional[str] = typer.Option(None, "--question", help="Query parameter: question."),
-        topic: Optional[str] = typer.Option(None, "--topic", help="Query parameter: topic."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        person: Optional[str] = typer.Option(None, '--person', help='Filter by entity name (person)'),
+        question: Optional[str] = typer.Option(None, '--question', help='Filter by question in text.'),
+        topic: Optional[str] = typer.Option(None, '--topic', help='Filter by topic/entity.'),
     ) -> None:
         """Get curated claims queue (GET /api/claims/queues/curated)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3526,11 +3584,11 @@ def register_generated_openapi_commands(
     @target_app.command("get-rejected-queue")
     def claims_get_rejected_queue_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        person: Optional[str] = typer.Option(None, "--person", help="Query parameter: person."),
-        question: Optional[str] = typer.Option(None, "--question", help="Query parameter: question."),
-        topic: Optional[str] = typer.Option(None, "--topic", help="Query parameter: topic."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        person: Optional[str] = typer.Option(None, '--person', help='Filter by entity name (person)'),
+        question: Optional[str] = typer.Option(None, '--question', help='Filter by question in text.'),
+        topic: Optional[str] = typer.Option(None, '--topic', help='Filter by topic/entity.'),
     ) -> None:
         """Get rejected claims queue (GET /api/claims/queues/rejected)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3548,11 +3606,11 @@ def register_generated_openapi_commands(
     @target_app.command("get-shortlisted-queue")
     def claims_get_shortlisted_queue_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        person: Optional[str] = typer.Option(None, "--person", help="Query parameter: person."),
-        question: Optional[str] = typer.Option(None, "--question", help="Query parameter: question."),
-        topic: Optional[str] = typer.Option(None, "--topic", help="Query parameter: topic."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        person: Optional[str] = typer.Option(None, '--person', help='Filter by entity name (person)'),
+        question: Optional[str] = typer.Option(None, '--question', help='Filter by question in text.'),
+        topic: Optional[str] = typer.Option(None, '--topic', help='Filter by topic/entity.'),
     ) -> None:
         """Get shortlisted claims queue (GET /api/claims/queues/shortlisted)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3570,11 +3628,11 @@ def register_generated_openapi_commands(
     @target_app.command("get-unreviewed-queue")
     def claims_get_unreviewed_queue_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        person: Optional[str] = typer.Option(None, "--person", help="Query parameter: person."),
-        question: Optional[str] = typer.Option(None, "--question", help="Query parameter: question."),
-        topic: Optional[str] = typer.Option(None, "--topic", help="Query parameter: topic."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        person: Optional[str] = typer.Option(None, '--person', help='Filter by entity name (person)'),
+        question: Optional[str] = typer.Option(None, '--question', help='Filter by question in text.'),
+        topic: Optional[str] = typer.Option(None, '--topic', help='Filter by topic/entity.'),
     ) -> None:
         """Get unreviewed claims queue (GET /api/claims/queues/unreviewed)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3592,11 +3650,11 @@ def register_generated_openapi_commands(
     @target_app.command("resolve-source")
     def claims_resolve_source_post(
         ctx: typer.Context,
-        claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Request field: claim_id."),
-        object_phrase: Optional[str] = typer.Option(None, "--object-phrase", help="Request field: object_phrase."),
-        predicate_verb: Optional[str] = typer.Option(None, "--predicate-verb", help="Request field: predicate_verb."),
-        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
-        subject_canonical: Optional[str] = typer.Option(None, "--subject-canonical", help="Request field: subject_canonical."),
+        claim_id: Optional[str] = typer.Option(None, '--claim-id', help='Claim Id.'),
+        object_phrase: Optional[str] = typer.Option(None, '--object-phrase', help='Object Phrase.'),
+        predicate_verb: Optional[str] = typer.Option(None, '--predicate-verb', help='Predicate Verb.'),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='Source Document Id.'),
+        subject_canonical: Optional[str] = typer.Option(None, '--subject-canonical', help='Subject Canonical.'),
     ) -> None:
         """Resolve Claim Source (POST /api/claims/resolve-source)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3618,10 +3676,10 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("delete")
-    def claims_delete_delete(
+    @target_app.command("delete-claims")
+    def claims_delete_claims_delete(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Claim (DELETE /api/claims/{claim_id})."""
@@ -3633,10 +3691,10 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get")
-    def claims_get_get(
+    @target_app.command("get-claims")
+    def claims_get_claims_get(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
     ) -> None:
         """Get Claim (GET /api/claims/{claim_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -3648,57 +3706,57 @@ def register_generated_openapi_commands(
     @target_app.command("patch")
     def claims_patch_patch(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-        audience: Optional[str] = typer.Option(None, "--audience", help="Request field: audience."),
-        claim_geo: Optional[str] = typer.Option(None, "--claim-geo", help="Request field: claim_geo."),
-        claim_recorded_at: Optional[str] = typer.Option(None, "--claim-recorded-at", help="Request field: claim_recorded_at."),
-        claim_type: Optional[str] = typer.Option(None, "--claim-type", help="Request field: claim_type."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        confidence_source: Optional[str] = typer.Option(None, "--confidence-source", help="Request field: confidence_source."),
-        curation_state: Optional[str] = typer.Option(None, "--curation-state", help="Request field: curation_state."),
-        editor_entity_id: Optional[str] = typer.Option(None, "--editor-entity-id", help="Request field: editor_entity_id."),
-        editor_name: Optional[str] = typer.Option(None, "--editor-name", help="Request field: editor_name."),
-        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
-        epistemic_status: Optional[str] = typer.Option(None, "--epistemic-status", help="Request field: epistemic_status."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        object_phrase: Optional[str] = typer.Option(None, "--object-phrase", help="Request field: object_phrase."),
-        predicate_canonical: Optional[str] = typer.Option(None, "--predicate-canonical", help="Request field: predicate_canonical."),
-        predicate_verb: Optional[str] = typer.Option(None, "--predicate-verb", help="Request field: predicate_verb."),
-        predicted_by: Optional[str] = typer.Option(None, "--predicted-by", help="Request field: predicted_by."),
-        predicted_confidence: Optional[float] = typer.Option(None, "--predicted-confidence", help="Request field: predicted_confidence."),
-        prediction: Optional[str] = typer.Option(None, "--prediction", help="Request field: prediction."),
-        provenance_layer: Optional[str] = typer.Option(None, "--provenance-layer", help="Request field: provenance_layer."),
-        quotation_kind: Optional[str] = typer.Option(None, "--quotation-kind", help="Request field: quotation_kind."),
-        scribe_entity_id: Optional[str] = typer.Option(None, "--scribe-entity-id", help="Request field: scribe_entity_id."),
-        scribe_name: Optional[str] = typer.Option(None, "--scribe-name", help="Request field: scribe_name."),
-        source_anchor: Optional[str] = typer.Option(None, "--source-anchor", help="Request field: source_anchor."),
-        source_char_end: Optional[int] = typer.Option(None, "--source-char-end", help="Request field: source_char_end."),
-        source_char_start: Optional[int] = typer.Option(None, "--source-char-start", help="Request field: source_char_start."),
-        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
-        source_excerpt: Optional[str] = typer.Option(None, "--source-excerpt", help="Request field: source_excerpt."),
-        source_genre: Optional[str] = typer.Option(None, "--source-genre", help="Request field: source_genre."),
-        source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Request field: source_ids."),
-        source_language: Optional[str] = typer.Option(None, "--source-language", help="Request field: source_language."),
-        source_languages: Optional[str] = typer.Option(None, "--source-languages", help="Request field: source_languages."),
-        source_page_label: Optional[str] = typer.Option(None, "--source-page-label", help="Request field: source_page_label."),
-        source_page_labels: Optional[str] = typer.Option(None, "--source-page-labels", help="Request field: source_page_labels."),
-        source_ref: Optional[str] = typer.Option(None, "--source-ref", help="Request field: source_ref."),
-        source_segment_id: Optional[str] = typer.Option(None, "--source-segment-id", help="Request field: source_segment_id."),
-        source_type: Optional[str] = typer.Option(None, "--source-type", help="Request field: source_type."),
-        speaker_entity_id: Optional[str] = typer.Option(None, "--speaker-entity-id", help="Request field: speaker_entity_id."),
-        speaker_name: Optional[str] = typer.Option(None, "--speaker-name", help="Request field: speaker_name."),
-        subject_canonical: Optional[str] = typer.Option(None, "--subject-canonical", help="Request field: subject_canonical."),
-        subject_entity_id: Optional[str] = typer.Option(None, "--subject-entity-id", help="Request field: subject_entity_id."),
-        subject_of_inquiry_entity_id: Optional[str] = typer.Option(None, "--subject-of-inquiry-entity-id", help="Request field: subject_of_inquiry_entity_id."),
-        svo_object: Optional[str] = typer.Option(None, "--svo-object", help="Request field: svo_object."),
-        svo_subject: Optional[str] = typer.Option(None, "--svo-subject", help="Request field: svo_subject."),
-        svo_verb: Optional[str] = typer.Option(None, "--svo-verb", help="Request field: svo_verb."),
-        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
-        time_end: Optional[str] = typer.Option(None, "--time-end", help="Request field: time_end."),
-        time_precision: Optional[str] = typer.Option(None, "--time-precision", help="Request field: time_precision."),
-        time_start: Optional[str] = typer.Option(None, "--time-start", help="Request field: time_start."),
-        translation_chain: Optional[str] = typer.Option(None, "--translation-chain", help="Request field: translation_chain."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
+        audience: Optional[str] = typer.Option(None, '--audience', help='Audience.'),
+        claim_geo: Optional[str] = typer.Option(None, '--claim-geo', help="Lat/lon for the spatial scope a claim refers to. Distinct from entity locations (a claim about Pedro travelling from Popayán to Quito has a different geo scope than Pedro's birthplace). Optional precision_m lets the renderer draw a confidence radius instead of a point pin when locations are imprecise. JSON."),
+        claim_recorded_at: Optional[str] = typer.Option(None, '--claim-recorded-at', help='Claim Recorded At.'),
+        claim_type: Optional[str] = typer.Option(None, '--claim-type', help='ClaimType. One of: fact, analysis, interpretation, argument, historiography, theory.'),
+        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence.'),
+        confidence_source: Optional[str] = typer.Option(None, '--confidence-source', help='Confidence Source.'),
+        curation_state: Optional[str] = typer.Option(None, '--curation-state', help='ClaimCurationState. One of: unreviewed, shortlisted, curated, rejected.'),
+        editor_entity_id: Optional[str] = typer.Option(None, '--editor-entity-id', help='Editor Entity Id.'),
+        editor_name: Optional[str] = typer.Option(None, '--editor-name', help='Editor Name.'),
+        entity_ids: Optional[list[str]] = typer.Option(None, '--entity-ids', help='Entity Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        epistemic_status: Optional[str] = typer.Option(None, '--epistemic-status', help='EpistemicStatus. One of: tentative, confirmed, rejected.'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        object_phrase: Optional[str] = typer.Option(None, '--object-phrase', help='Object Phrase.'),
+        predicate_canonical: Optional[str] = typer.Option(None, '--predicate-canonical', help='Predicate Canonical.'),
+        predicate_verb: Optional[str] = typer.Option(None, '--predicate-verb', help='Predicate Verb.'),
+        predicted_by: Optional[list[str]] = typer.Option(None, '--predicted-by', help='Predicted By. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        predicted_confidence: Optional[float] = typer.Option(None, '--predicted-confidence', help='Predicted Confidence.'),
+        prediction: Optional[str] = typer.Option(None, '--prediction', help='PredictionMetadata. JSON.'),
+        provenance_layer: Optional[str] = typer.Option(None, '--provenance-layer', help="Where on a page the claim's source text lives. Marginalia and interlinear annotations were added by later readers and carry different evidentiary weight than the main text. ``main_text`` is the default; PDF-bbox heuristics (top/bottom margin offsets) flip to ``marginalia`` or ``footnote``. One of: main_text, marginalia, footnote, annotation_later, scribal_correction, interlinear."),
+        quotation_kind: Optional[str] = typer.Option(None, '--quotation-kind', help="How literally a claim reproduces its source text. Picks up the warrant strength: a verbatim quotation supports a stronger epistemic status than an inferred one. Defaults to ``paraphrase`` — that's the realistic default for an LLM extractor that summarised the source rather than copying it verbatim. One of: verbatim, paraphrase, indirect, inference, free_indirect."),
+        scribe_entity_id: Optional[str] = typer.Option(None, '--scribe-entity-id', help='Scribe Entity Id.'),
+        scribe_name: Optional[str] = typer.Option(None, '--scribe-name', help='Scribe Name.'),
+        source_anchor: Optional[str] = typer.Option(None, '--source-anchor', help='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own. JSON.'),
+        source_char_end: Optional[int] = typer.Option(None, '--source-char-end', help='Source Char End.'),
+        source_char_start: Optional[int] = typer.Option(None, '--source-char-start', help='Source Char Start.'),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='Source Document Id.'),
+        source_excerpt: Optional[str] = typer.Option(None, '--source-excerpt', help='Source Excerpt.'),
+        source_genre: Optional[str] = typer.Option(None, '--source-genre', help='Genre of the source passage that produced this claim. Per-passage, not per-document — a 19th-century compiled collection may reprint an 18th-century royal decree alongside private letters; each excerpt carries its own genre. Classified per-doc at ingest, stamped onto every claim from that doc as a default; overridable per-claim. One of: petition, testimony, royal_decree, private_letter, receipt, inventory, deed, minutes, report, article, book, note, other.'),
+        source_ids: Optional[list[str]] = typer.Option(None, '--source-ids', help='Source Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        source_language: Optional[str] = typer.Option(None, '--source-language', help='Source Language.'),
+        source_languages: Optional[list[str]] = typer.Option(None, '--source-languages', help='Source Languages. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        source_page_label: Optional[str] = typer.Option(None, '--source-page-label', help='Source Page Label.'),
+        source_page_labels: Optional[list[str]] = typer.Option(None, '--source-page-labels', help='Source Page Labels. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        source_ref: Optional[str] = typer.Option(None, '--source-ref', help='Source Ref.'),
+        source_segment_id: Optional[str] = typer.Option(None, '--source-segment-id', help="A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id."),
+        source_type: Optional[str] = typer.Option(None, '--source-type', help='SourceType. One of: document, claim, multiple, synthesis.'),
+        speaker_entity_id: Optional[str] = typer.Option(None, '--speaker-entity-id', help='Speaker Entity Id.'),
+        speaker_name: Optional[str] = typer.Option(None, '--speaker-name', help='Speaker Name.'),
+        subject_canonical: Optional[str] = typer.Option(None, '--subject-canonical', help='Subject Canonical.'),
+        subject_entity_id: Optional[str] = typer.Option(None, '--subject-entity-id', help='Subject Entity Id.'),
+        subject_of_inquiry_entity_id: Optional[str] = typer.Option(None, '--subject-of-inquiry-entity-id', help='Subject Of Inquiry Entity Id.'),
+        svo_object: Optional[str] = typer.Option(None, '--svo-object', help='Svo Object.'),
+        svo_subject: Optional[str] = typer.Option(None, '--svo-subject', help='Svo Subject.'),
+        svo_verb: Optional[str] = typer.Option(None, '--svo-verb', help='Svo Verb.'),
+        text: Optional[str] = typer.Option(None, '--text', help='Text.'),
+        time_end: Optional[str] = typer.Option(None, '--time-end', help='Time End.'),
+        time_precision: Optional[str] = typer.Option(None, '--time-precision', help='Time Precision.'),
+        time_start: Optional[str] = typer.Option(None, '--time-start', help='Time Start.'),
+        translation_chain: Optional[list[str]] = typer.Option(None, '--translation-chain', help='Translation Chain. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Patch Claim (PATCH /api/claims/{claim_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -3813,7 +3871,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-links")
     def claims_list_links_get(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
     ) -> None:
         """List Claim Links (GET /api/claims/{claim_id}/links)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3825,12 +3883,12 @@ def register_generated_openapi_commands(
     @target_app.command("create-link")
     def claims_create_link_post(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-        evidence: Optional[str] = typer.Option(None, "--evidence", help="Request field: evidence."),
-        link_quality: Optional[float] = typer.Option(None, "--link-quality", help="Request field: link_quality."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        related_claim_id: str = typer.Option(..., "--related-claim-id", help="Request field: related_claim_id."),
-        relation_type: str = typer.Option(..., "--relation-type", help="Request field: relation_type."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
+        evidence: Optional[str] = typer.Option(None, '--evidence', help='Evidence.'),
+        link_quality: Optional[float] = typer.Option(None, '--link-quality', help='Link Quality. Default: 0.5.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        related_claim_id: str = typer.Option(..., '--related-claim-id', help='Related Claim Id.'),
+        relation_type: str = typer.Option(..., '--relation-type', help="Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B). Originally four kinds (supports / contradicts / refines / duplicate_of). #1123 extends with five new dimensions plus ``related_to`` (the generic fallback used by ``kg_predictions._record_predictions`` when a model surfaces a relation outside the curated set): - ``corroborates`` — independent evidence agreeing with the source claim. Distinct from ``supports`` (which just reinforces with additional evidence drawn from the same line of reasoning). - ``derives_from`` — claim B is inferred from / built on claim A; removing A invalidates B. Stronger than ``cites``. - ``cites`` — B references A as a source. Bibliographic / citation graph use. - ``follows`` — temporal sequence (A then B). Doesn't imply causation; ``caused_by`` is the explicit causal claim. - ``caused_by`` — A is the cause of B. Strong claim; reviewers should treat with corroboration. - ``related_to`` — generic fallback when the typed kinds don't fit. Closes the latent crash in ``kg_predictions.py:269`` where the relation_map fallback referenced this value before it existed. Note: ``contests`` was considered as a synonym for ``contradicts`` but excluded — same semantic, different word, doesn't earn a separate enum slot. Writers should keep using ``contradicts``. One of: supports, contradicts, refines, duplicate_of, corroborates, derives_from, cites, follows, caused_by, related_to."),
     ) -> None:
         """Create Claim Link (POST /api/claims/{claim_id}/links)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3855,8 +3913,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-related")
     def claims_get_related_get(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-        relation_type: Optional[str] = typer.Option(None, "--relation-type", help="Query parameter: relation_type."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
+        relation_type: Optional[str] = typer.Option(None, '--relation-type', help='Relation Type.'),
     ) -> None:
         """Get Related Claims (GET /api/claims/{claim_id}/related)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3867,13 +3925,14 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("transition-curation-state")
-    def claims_transition_curation_state_patch(
+    @target_app.command("transition-curation-state", hidden=True)
+    @target_app.command("transition")
+    def claims_transition_patch(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
-        reviewed_by: Optional[str] = typer.Option(None, "--reviewed-by", help="Request field: reviewed_by."),
-        to_state: str = typer.Option(..., "--to-state", help="Request field: to_state."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
+        reason: Optional[str] = typer.Option(None, '--reason', help='Optional reason for transition.'),
+        reviewed_by: Optional[str] = typer.Option(None, '--reviewed-by', help='Who performed the review. Default: "human".'),
+        to_state: str = typer.Option(..., '--to-state', help='Target curation state: unreviewed, shortlisted, curated, rejected.'),
     ) -> None:
         """Transition claim curation state (PATCH /api/claims/{claim_id}/transition)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3897,10 +3956,11 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='classifications')
         existing_apps['classifications'] = target_app
 
-    @target_app.command("list-values-filter-by-dimension")
-    def classifications_list_values_filter_by_dimension_get(
+    @target_app.command("list-values-filter-by-dimension", hidden=True)
+    @target_app.command("list-values")
+    def classifications_list_values_get(
         ctx: typer.Context,
-        dimension: Optional[str] = typer.Option(None, "--dimension", help="Query parameter: dimension."),
+        dimension: Optional[str] = typer.Option(None, '--dimension', help='Dimension.'),
     ) -> None:
         """List classification values (filter by dimension) (GET /api/classifications)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3911,18 +3971,19 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("add-a-custom-value")
-    def classifications_add_a_custom_value_post(
+    @target_app.command("add-a-custom-value", hidden=True)
+    @target_app.command("create-value")
+    def classifications_create_value_post(
         ctx: typer.Context,
-        attributes: Optional[str] = typer.Option(None, "--attributes", help="Request field: attributes."),
-        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        dimension: str = typer.Option(..., "--dimension", help="Request field: dimension."),
-        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
-        key: str = typer.Option(..., "--key", help="Request field: key."),
-        label: str = typer.Option(..., "--label", help="Request field: label."),
-        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
-        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
+        attributes: Optional[str] = typer.Option(None, '--attributes', help='Attributes. Default: {}. JSON.'),
+        color: Optional[str] = typer.Option(None, '--color', help='Color.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        dimension: str = typer.Option(..., '--dimension', help='Which classification axis a registry value belongs to (#915). ``node_class`` (#1570) is the Tinderbox-style prototype/class axis for workspace curated items; values key off ``ClassificationValue.key``. One of: epistemic_status, claim_type, entity_type, document_prototype, node_class.'),
+        icon: Optional[str] = typer.Option(None, '--icon', help='Icon.'),
+        key: str = typer.Option(..., '--key', help='Key.'),
+        label: str = typer.Option(..., '--label', help='Label.'),
+        parent_key: Optional[str] = typer.Option(None, '--parent-key', help='Parent Key.'),
+        sort_order: Optional[int] = typer.Option(None, '--sort-order', help='Sort Order. Default: 0.'),
     ) -> None:
         """Add a custom classification value (POST /api/classifications)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3952,10 +4013,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("a-prototype-s-effective-attributes-inheritance-resolved")
-    def classifications_a_prototype_s_effective_attributes_inheritance_resolved_get(
+    @target_app.command("a-prototype-s-effective-attributes-inheritance-resolved", hidden=True)
+    @target_app.command("resolved-prototype")
+    def classifications_resolved_prototype_get(
         ctx: typer.Context,
-        key: str = typer.Argument(..., help="Path parameter: key."),
+        key: str = typer.Argument(..., help='Key'),
     ) -> None:
         """A prototype's effective attributes (inheritance resolved) (GET /api/classifications/resolved/{key})."""
         def op_call(client: FicheroClient) -> Any:
@@ -3967,7 +4029,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-value")
     def classifications_delete_value_delete(
         ctx: typer.Context,
-        value_id: str = typer.Argument(..., help="Path parameter: value_id."),
+        value_id: str = typer.Argument(..., help='Value Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Value (DELETE /api/classifications/{value_id})."""
@@ -3979,17 +4041,18 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("edit-a-value-s-label-color-order")
-    def classifications_edit_a_value_s_label_color_order_patch(
+    @target_app.command("edit-a-value-s-label-color-order", hidden=True)
+    @target_app.command("patch-value")
+    def classifications_patch_value_patch(
         ctx: typer.Context,
-        value_id: str = typer.Argument(..., help="Path parameter: value_id."),
-        attributes: Optional[str] = typer.Option(None, "--attributes", help="Request field: attributes."),
-        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
-        label: Optional[str] = typer.Option(None, "--label", help="Request field: label."),
-        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
-        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
+        value_id: str = typer.Argument(..., help='Value Id'),
+        attributes: Optional[str] = typer.Option(None, '--attributes', help='Attributes. JSON.'),
+        color: Optional[str] = typer.Option(None, '--color', help='Color.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        icon: Optional[str] = typer.Option(None, '--icon', help='Icon.'),
+        label: Optional[str] = typer.Option(None, '--label', help='Label.'),
+        parent_key: Optional[str] = typer.Option(None, '--parent-key', help='Parent Key.'),
+        sort_order: Optional[int] = typer.Option(None, '--sort-order', help='Sort Order.'),
     ) -> None:
         """Edit a classification value's label / color / order (PATCH /api/classifications/{value_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -4041,22 +4104,22 @@ def register_generated_openapi_commands(
     @target_app.command("create-route")
     def content_representations_create_route_post(
         ctx: typer.Context,
-        content: str = typer.Option(..., "--content", help="Request field: content."),
-        corrects_representation_id: Optional[str] = typer.Option(None, "--corrects-representation-id", help="Request field: corrects_representation_id."),
-        derived_from_artifact_id: Optional[str] = typer.Option(None, "--derived-from-artifact-id", help="Request field: derived_from_artifact_id."),
-        derived_from_representation_id: Optional[str] = typer.Option(None, "--derived-from-representation-id", help="Request field: derived_from_representation_id."),
-        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
-        expected_counting_id: Optional[str] = typer.Option(None, "--expected-counting-id", help="Request field: expected_counting_id."),
-        guideline: Optional[str] = typer.Option(None, "--guideline", help="Request field: guideline."),
-        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        language_meta: Optional[str] = typer.Option(None, "--language-meta", help="Request field: language_meta."),
-        level: Optional[str] = typer.Option(None, "--level", help="Request field: level."),
-        read_from_rendition_id: Optional[str] = typer.Option(None, "--read-from-rendition-id", help="Request field: read_from_rendition_id."),
-        script: Optional[str] = typer.Option(None, "--script", help="Request field: script."),
-        script_meta: Optional[str] = typer.Option(None, "--script-meta", help="Request field: script_meta."),
-        segment_id: Optional[str] = typer.Option(None, "--segment-id", help="Request field: segment_id."),
-        source_anchor: Optional[str] = typer.Option(None, "--source-anchor", help="Request field: source_anchor."),
+        content: str = typer.Option(..., '--content', help='Content.'),
+        corrects_representation_id: Optional[str] = typer.Option(None, '--corrects-representation-id', help='Corrects Representation Id.'),
+        derived_from_artifact_id: Optional[str] = typer.Option(None, '--derived-from-artifact-id', help='Derived From Artifact Id.'),
+        derived_from_representation_id: Optional[str] = typer.Option(None, '--derived-from-representation-id', help='Derived From Representation Id.'),
+        document_id: str = typer.Option(..., '--document-id', help='Document Id.'),
+        expected_counting_id: Optional[str] = typer.Option(None, '--expected-counting-id', help='Expected Counting Id.'),
+        guideline: Optional[str] = typer.Option(None, '--guideline', help='Guideline.'),
+        kind: str = typer.Option(..., '--kind', help='Kind.'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        language_meta: Optional[str] = typer.Option(None, '--language-meta', help='Language Meta. JSON.'),
+        level: Optional[str] = typer.Option(None, '--level', help='Level.'),
+        read_from_rendition_id: Optional[str] = typer.Option(None, '--read-from-rendition-id', help='Read From Rendition Id.'),
+        script: Optional[str] = typer.Option(None, '--script', help='Script.'),
+        script_meta: Optional[str] = typer.Option(None, '--script-meta', help='Script Meta. JSON.'),
+        segment_id: Optional[str] = typer.Option(None, '--segment-id', help='Segment Id.'),
+        source_anchor: Optional[str] = typer.Option(None, '--source-anchor', help='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own. JSON.'),
     ) -> None:
         """Create Representation Route (POST /api/content-representations)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4103,7 +4166,7 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def content_representations_list_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """List Representations (GET /api/content-representations/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -4115,7 +4178,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-revisions")
     def content_representations_list_revisions_get(
         ctx: typer.Context,
-        representation_id: str = typer.Argument(..., help="Path parameter: representation_id."),
+        representation_id: str = typer.Argument(..., help='Representation Id'),
     ) -> None:
         """List Revisions (GET /api/content-representations/{representation_id}/revisions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4127,10 +4190,10 @@ def register_generated_openapi_commands(
     @target_app.command("create-revision")
     def content_representations_create_revision_post(
         ctx: typer.Context,
-        representation_id: str = typer.Argument(..., help="Path parameter: representation_id."),
-        content: str = typer.Option(..., "--content", help="Request field: content."),
-        decision: Optional[str] = typer.Option(None, "--decision", help="Request field: decision."),
-        representation_id_2: str = typer.Option(..., "--representation-id", help="Request field: representation_id."),
+        representation_id: str = typer.Argument(..., help='Representation Id'),
+        content: str = typer.Option(..., '--content', help='Content.'),
+        decision: Optional[str] = typer.Option(None, '--decision', help='Decision.'),
+        representation_id_2: str = typer.Option(..., '--representation-id', help='Representation Id.'),
     ) -> None:
         """Create Revision (POST /api/content-representations/{representation_id}/revisions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4168,7 +4231,7 @@ def register_generated_openapi_commands(
     @target_app.command("seen")
     def conversion_seen_post(
         ctx: typer.Context,
-        run_id: str = typer.Argument(..., help="Path parameter: run_id."),
+        run_id: str = typer.Argument(..., help='Run Id'),
     ) -> None:
         """Conversion Seen (POST /api/conversion/{run_id}/seen)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4183,18 +4246,18 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='docs')
         existing_apps['documents'] = target_app
 
-    @target_app.command("list")
-    def documents_list_get(
+    @target_app.command("list-documents")
+    def documents_list_documents_get(
         ctx: typer.Context,
-        doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Query parameter: doc_type."),
-        file_type: Optional[str] = typer.Option(None, "--file-type", help="Query parameter: file_type."),
-        ids: Optional[str] = typer.Option(None, "--ids", help="Query parameter: ids."),
-        include_deleted: Optional[bool] = typer.Option(None, "--include-deleted/--no-include-deleted", help="Query parameter: include_deleted."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        node_kind: Optional[str] = typer.Option(None, "--node-kind", help="Query parameter: node_kind."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
+        doc_type: Optional[str] = typer.Option(None, '--doc-type', help='Filter by document type.'),
+        file_type: Optional[str] = typer.Option(None, '--file-type', help='Filter by file type.'),
+        ids: Optional[str] = typer.Option(None, '--ids', help="Comma-separated document ids — fetch exactly these rows in one round-trip. The client's change-stream patch flush used to issue one GET per id (measured 2026-08-19: 1,001 requests in a session). Combines with the other filters."),
+        include_deleted: Optional[bool] = typer.Option(None, '--include-deleted/--no-include-deleted', help='Include soft-deleted rows in the response.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Max results (no limit if not specified)'),
+        node_kind: Optional[str] = typer.Option(None, '--node-kind', help='Filter by node kind.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset for pagination.'),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Filter by parent ID.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Filter by status.'),
     ) -> None:
         """List Documents (GET /api/documents)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4216,21 +4279,21 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def documents_create_post(
         ctx: typer.Context,
-        doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Request field: doc_type."),
-        file_type: Optional[str] = typer.Option(None, "--file-type", help="Request field: file_type."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        node_kind: Optional[str] = typer.Option(None, "--node-kind", help="Request field: node_kind."),
-        page_content: Optional[str] = typer.Option(None, "--page-content", help="Request field: page_content."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
-        path: Optional[str] = typer.Option(None, "--path", help="Request field: path."),
-        position_x: Optional[float] = typer.Option(None, "--position-x", help="Request field: position_x."),
-        position_y: Optional[float] = typer.Option(None, "--position-y", help="Request field: position_y."),
-        position_z: Optional[float] = typer.Option(None, "--position-z", help="Request field: position_z."),
-        prototype_key: Optional[str] = typer.Option(None, "--prototype-key", help="Request field: prototype_key."),
-        rotation_z: Optional[float] = typer.Option(None, "--rotation-z", help="Request field: rotation_z."),
-        scale: Optional[float] = typer.Option(None, "--scale", help="Request field: scale."),
-        z_index: Optional[int] = typer.Option(None, "--z-index", help="Request field: z_index."),
+        doc_type: Optional[str] = typer.Option(None, '--doc-type', help='Type of document node in the hierarchy. One of: folder, group, file, page, chunk.'),
+        file_type: Optional[str] = typer.Option(None, '--file-type', help='Type of source file. One of: image, pdf, audio, video, text, word, docx, epub, spreadsheet, presentation, other.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Free metadata, a JSON object. Default: {}. JSON.'),
+        name: str = typer.Option(..., '--name', help="The new node's name."),
+        node_kind: Optional[str] = typer.Option(None, '--node-kind', help="The node's kind (folder, page, document, ...)."),
+        page_content: Optional[str] = typer.Option(None, '--page-content', help="The page's text."),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='The folder to create it in; none puts it at the top of the project.'),
+        path: Optional[str] = typer.Option(None, '--path', help="The file's path inside the project's storage."),
+        position_x: Optional[float] = typer.Option(None, '--position-x', help='Its x on the canvas.'),
+        position_y: Optional[float] = typer.Option(None, '--position-y', help='Its y on the canvas.'),
+        position_z: Optional[float] = typer.Option(None, '--position-z', help='Its z on the canvas.'),
+        prototype_key: Optional[str] = typer.Option(None, '--prototype-key', help='The prototype (kind of record) the node takes its attributes from.'),
+        rotation_z: Optional[float] = typer.Option(None, '--rotation-z', help='Its rotation on the canvas, in degrees.'),
+        scale: Optional[float] = typer.Option(None, '--scale', help='Its scale on the canvas.'),
+        z_index: Optional[int] = typer.Option(None, '--z-index', help='Its stacking order on the canvas.'),
     ) -> None:
         """Create Document (POST /api/documents)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4255,19 +4318,19 @@ def register_generated_openapi_commands(
             }, {
                 "doc_type": {'type': 'string', 'enum': ['folder', 'group', 'file', 'page', 'chunk'], 'title': 'DocType', 'description': 'Type of document node in the hierarchy.', 'x-cli-required': False},
                 "file_type": {'type': 'string', 'enum': ['image', 'pdf', 'audio', 'video', 'text', 'word', 'docx', 'epub', 'spreadsheet', 'presentation', 'other'], 'title': 'FileType', 'description': 'Type of source file.', 'x-cli-required': False},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'default': {}, 'x-cli-required': False},
-                "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
-                "node_kind": {'type': 'string', 'nullable': True, 'title': 'Node Kind', 'x-cli-required': False},
-                "page_content": {'type': 'string', 'nullable': True, 'title': 'Page Content', 'x-cli-required': False},
-                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
-                "path": {'type': 'string', 'nullable': True, 'title': 'Path', 'x-cli-required': False},
-                "position_x": {'type': 'number', 'nullable': True, 'title': 'Position X', 'x-cli-required': False},
-                "position_y": {'type': 'number', 'nullable': True, 'title': 'Position Y', 'x-cli-required': False},
-                "position_z": {'type': 'number', 'nullable': True, 'title': 'Position Z', 'x-cli-required': False},
-                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'x-cli-required': False},
-                "rotation_z": {'type': 'number', 'nullable': True, 'title': 'Rotation Z', 'x-cli-required': False},
-                "scale": {'type': 'number', 'nullable': True, 'title': 'Scale', 'x-cli-required': False},
-                "z_index": {'type': 'integer', 'nullable': True, 'title': 'Z Index', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'description': 'Free metadata, a JSON object.', 'default': {}, 'x-cli-required': False},
+                "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'description': "The new node's name.", 'x-cli-required': True},
+                "node_kind": {'type': 'string', 'nullable': True, 'title': 'Node Kind', 'description': "The node's kind (folder, page, document, ...).", 'x-cli-required': False},
+                "page_content": {'type': 'string', 'nullable': True, 'title': 'Page Content', 'description': "The page's text.", 'x-cli-required': False},
+                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'description': 'The folder to create it in; none puts it at the top of the project.', 'x-cli-required': False},
+                "path": {'type': 'string', 'nullable': True, 'title': 'Path', 'description': "The file's path inside the project's storage.", 'x-cli-required': False},
+                "position_x": {'type': 'number', 'nullable': True, 'title': 'Position X', 'description': 'Its x on the canvas.', 'x-cli-required': False},
+                "position_y": {'type': 'number', 'nullable': True, 'title': 'Position Y', 'description': 'Its y on the canvas.', 'x-cli-required': False},
+                "position_z": {'type': 'number', 'nullable': True, 'title': 'Position Z', 'description': 'Its z on the canvas.', 'x-cli-required': False},
+                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'description': 'The prototype (kind of record) the node takes its attributes from.', 'x-cli-required': False},
+                "rotation_z": {'type': 'number', 'nullable': True, 'title': 'Rotation Z', 'description': 'Its rotation on the canvas, in degrees.', 'x-cli-required': False},
+                "scale": {'type': 'number', 'nullable': True, 'title': 'Scale', 'description': 'Its scale on the canvas.', 'x-cli-required': False},
+                "z_index": {'type': 'integer', 'nullable': True, 'title': 'Z Index', 'description': 'Its stacking order on the canvas.', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -4275,10 +4338,10 @@ def register_generated_openapi_commands(
     @target_app.command("batch-exclude")
     def documents_batch_exclude_patch(
         ctx: typer.Context,
-        document_ids: str = typer.Option(..., "--document-ids", help="Request field: document_ids."),
-        excluded: bool = typer.Option(..., "--excluded/--no-excluded", help="Request field: excluded."),
-        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
-        scope: Optional[str] = typer.Option(None, "--scope", help="Request field: scope."),
+        document_ids: list[str] = typer.Option(..., '--document-ids', help='The nodes to change. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        excluded: bool = typer.Option(..., '--excluded/--no-excluded', help='True leaves them out; false brings them back.'),
+        reason: Optional[str] = typer.Option(None, '--reason', help='Why, in a few words.'),
+        scope: Optional[str] = typer.Option(None, '--scope', help='Which exclusion flag a batch-exclude toggles (#4580). A closed set — an enum, never a bare str, so the generated Swift client cannot drift. One of: processing, search.'),
     ) -> None:
         """Batch Exclude Documents (PATCH /api/documents/batch-exclude)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4290,9 +4353,9 @@ def register_generated_openapi_commands(
                 "reason": reason,
                 "scope": scope,
             }, {
-                "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Document Ids', 'x-cli-required': True},
-                "excluded": {'type': 'boolean', 'title': 'Excluded', 'x-cli-required': True},
-                "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
+                "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Document Ids', 'description': 'The nodes to change.', 'x-cli-required': True},
+                "excluded": {'type': 'boolean', 'title': 'Excluded', 'description': 'True leaves them out; false brings them back.', 'x-cli-required': True},
+                "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'description': 'Why, in a few words.', 'x-cli-required': False},
                 "scope": {'type': 'string', 'enum': ['processing', 'search'], 'title': 'DocumentExclusionScope', 'description': 'Which exclusion flag a batch-exclude toggles (#4580). A closed set —\nan enum, never a bare str, so the generated Swift client cannot drift.', 'x-cli-required': False},
             }, required=True)
             return client.request("PATCH", endpoint_path, params=params, json=payload)
@@ -4301,7 +4364,7 @@ def register_generated_openapi_commands(
     @target_app.command("bulk-create")
     def documents_bulk_create_post(
         ctx: typer.Context,
-        documents: str = typer.Option(..., "--documents", help="Request field: documents."),
+        documents: str = typer.Option(..., '--documents', help='Documents. JSON.'),
     ) -> None:
         """Bulk Create Documents (POST /api/documents/bulk)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4340,17 +4403,17 @@ def register_generated_openapi_commands(
     @target_app.command("dataset-query")
     def documents_dataset_query_post(
         ctx: typer.Context,
-        attributed_only: Optional[bool] = typer.Option(None, "--attributed-only/--no-attributed-only", help="Request field: attributed_only."),
-        bins: Optional[str] = typer.Option(None, "--bins", help="Request field: bins."),
-        facets: Optional[str] = typer.Option(None, "--facets", help="Request field: facets."),
-        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
-        ids: Optional[str] = typer.Option(None, "--ids", help="Request field: ids."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Request field: offset."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
-        prototype_key: Optional[str] = typer.Option(None, "--prototype-key", help="Request field: prototype_key."),
-        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
-        sort: Optional[str] = typer.Option(None, "--sort", help="Request field: sort."),
+        attributed_only: Optional[bool] = typer.Option(None, '--attributed-only/--no-attributed-only', help='Attributed Only. Default: false.'),
+        bins: Optional[str] = typer.Option(None, '--bins', help='DatasetBins. JSON.'),
+        facets: Optional[list[str]] = typer.Option(None, '--facets', help='Facets. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        filters: Optional[str] = typer.Option(None, '--filters', help='Filters. JSON.'),
+        ids: Optional[list[str]] = typer.Option(None, '--ids', help='Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit. Default: 100.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset. Default: 0.'),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Parent Id.'),
+        prototype_key: Optional[str] = typer.Option(None, '--prototype-key', help='Prototype Key.'),
+        recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Recursive. Default: false.'),
+        sort: Optional[str] = typer.Option(None, '--sort', help='DatasetSort. JSON.'),
     ) -> None:
         """Dataset Query (POST /api/documents/dataset/query)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4387,8 +4450,8 @@ def register_generated_openapi_commands(
     @target_app.command("create-group")
     def documents_create_group_post(
         ctx: typer.Context,
-        child_ids: str = typer.Option(..., "--child-ids", help="Request field: child_ids."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
+        child_ids: list[str] = typer.Option(..., '--child-ids', help='The nodes to put in the group (two or more). A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        name: str = typer.Option(..., '--name', help="The new group's name."),
     ) -> None:
         """Create Document Group (POST /api/documents/groups)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4398,8 +4461,8 @@ def register_generated_openapi_commands(
                 "child_ids": child_ids,
                 "name": name,
             }, {
-                "child_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 2, 'title': 'Child Ids', 'x-cli-required': True},
-                "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
+                "child_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 2, 'title': 'Child Ids', 'description': 'The nodes to put in the group (two or more).', 'x-cli-required': True},
+                "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'description': "The new group's name.", 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -4407,7 +4470,7 @@ def register_generated_openapi_commands(
     @target_app.command("ungroup")
     def documents_ungroup_post(
         ctx: typer.Context,
-        group_id: str = typer.Argument(..., help="Path parameter: group_id."),
+        group_id: str = typer.Argument(..., help='Group Id'),
     ) -> None:
         """Ungroup Document (POST /api/documents/groups/{group_id}/ungroup)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4419,7 +4482,7 @@ def register_generated_openapi_commands(
     @target_app.command("import-file")
     def documents_import_file_post(
         ctx: typer.Context,
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Parent Id.'),
         field: Optional[list[str]] = typer.Option(None, "--field", help="Repeatable multipart field as key=value."),
         upload: Optional[list[str]] = typer.Option(None, "--upload", help="Repeatable multipart upload as field=/path/to/file."),
     ) -> None:
@@ -4438,7 +4501,7 @@ def register_generated_openapi_commands(
     @target_app.command("import-files-together")
     def documents_import_files_together_post(
         ctx: typer.Context,
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Parent Id.'),
         field: Optional[list[str]] = typer.Option(None, "--field", help="Repeatable multipart field as key=value."),
         upload: Optional[list[str]] = typer.Option(None, "--upload", help="Repeatable multipart upload as field=/path/to/file."),
     ) -> None:
@@ -4468,7 +4531,7 @@ def register_generated_openapi_commands(
     @target_app.command("reorder")
     def documents_reorder_post(
         ctx: typer.Context,
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Query parameter: folder_path."),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path.'),
         body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
         body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
     ) -> None:
@@ -4485,8 +4548,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-roots")
     def documents_list_roots_get(
         ctx: typer.Context,
-        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
-        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Query parameter: sort_direction."),
+        sort_by: Optional[str] = typer.Option(None, '--sort-by', help="Optional server-side ordering; only 'document_date'."),
+        sort_direction: Optional[str] = typer.Option(None, '--sort-direction', help="'asc' or 'desc'."),
     ) -> None:
         """List Roots (GET /api/documents/roots)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4501,13 +4564,13 @@ def register_generated_openapi_commands(
     @target_app.command("get-run-history")
     def documents_get_run_history_get(
         ctx: typer.Context,
-        ids: str = typer.Option(..., "--ids", help="Query parameter: ids."),
+        ids: list[str] = typer.Option(..., '--ids', help="the documents to read, e.g. a table's visible rows. A list: repeat the flag, or give the values comma-separated, or as JSON."),
     ) -> None:
         """Get Run History (GET /api/documents/run-history)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/documents/run-history"
             params = {
-                "ids": ids,
+                "ids": _list_values(ids),
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -4515,8 +4578,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-deleted")
     def documents_list_deleted_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Max results (no limit if not specified)'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset for pagination.'),
     ) -> None:
         """List Deleted Documents (GET /api/documents/trash)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4539,10 +4602,10 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("delete")
-    def documents_delete_delete(
+    @target_app.command("delete-documents")
+    def documents_delete_documents_delete(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Document (DELETE /api/documents/{doc_id})."""
@@ -4554,10 +4617,10 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get")
-    def documents_get_get(
+    @target_app.command("get-documents")
+    def documents_get_documents_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Get Document (GET /api/documents/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -4566,32 +4629,32 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("update")
-    def documents_update_put(
+    @target_app.command("update-documents")
+    def documents_update_documents_put(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        attributes: Optional[str] = typer.Option(None, "--attributes", help="Request field: attributes."),
-        doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Request field: doc_type."),
-        exclude_from_processing: Optional[bool] = typer.Option(None, "--exclude-from-processing/--no-exclude-from-processing", help="Request field: exclude_from_processing."),
-        exclude_from_search: Optional[bool] = typer.Option(None, "--exclude-from-search/--no-exclude-from-search", help="Request field: exclude_from_search."),
-        file_type: Optional[str] = typer.Option(None, "--file-type", help="Request field: file_type."),
-        is_flagged: Optional[bool] = typer.Option(None, "--is-flagged/--no-is-flagged", help="Request field: is_flagged."),
-        is_read: Optional[bool] = typer.Option(None, "--is-read/--no-is-read", help="Request field: is_read."),
-        is_starred: Optional[bool] = typer.Option(None, "--is-starred/--no-is-starred", help="Request field: is_starred."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        node_kind: Optional[str] = typer.Option(None, "--node-kind", help="Request field: node_kind."),
-        page_content: Optional[str] = typer.Option(None, "--page-content", help="Request field: page_content."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
-        path: Optional[str] = typer.Option(None, "--path", help="Request field: path."),
-        position_x: Optional[float] = typer.Option(None, "--position-x", help="Request field: position_x."),
-        position_y: Optional[float] = typer.Option(None, "--position-y", help="Request field: position_y."),
-        position_z: Optional[float] = typer.Option(None, "--position-z", help="Request field: position_z."),
-        prototype_key: Optional[str] = typer.Option(None, "--prototype-key", help="Request field: prototype_key."),
-        rotation_z: Optional[float] = typer.Option(None, "--rotation-z", help="Request field: rotation_z."),
-        scale: Optional[float] = typer.Option(None, "--scale", help="Request field: scale."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
-        z_index: Optional[int] = typer.Option(None, "--z-index", help="Request field: z_index."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        attributes: Optional[str] = typer.Option(None, '--attributes', help="The prototype's attribute values, a JSON object; replaces the whole object. JSON."),
+        doc_type: Optional[str] = typer.Option(None, '--doc-type', help='Type of document node in the hierarchy. One of: folder, group, file, page, chunk.'),
+        exclude_from_processing: Optional[bool] = typer.Option(None, '--exclude-from-processing/--no-exclude-from-processing', help='Leave it out of runs.'),
+        exclude_from_search: Optional[bool] = typer.Option(None, '--exclude-from-search/--no-exclude-from-search', help='Leave it out of search.'),
+        file_type: Optional[str] = typer.Option(None, '--file-type', help='Type of source file. One of: image, pdf, audio, video, text, word, docx, epub, spreadsheet, presentation, other.'),
+        is_flagged: Optional[bool] = typer.Option(None, '--is-flagged/--no-is-flagged', help='Flag or unflag it.'),
+        is_read: Optional[bool] = typer.Option(None, '--is-read/--no-is-read', help='Mark it read or unread.'),
+        is_starred: Optional[bool] = typer.Option(None, '--is-starred/--no-is-starred', help='Star or unstar it.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Free metadata, a JSON object; replaces the whole object. JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help="The node's new name."),
+        node_kind: Optional[str] = typer.Option(None, '--node-kind', help="The node's new kind."),
+        page_content: Optional[str] = typer.Option(None, '--page-content', help="The page's new text."),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='The folder to move it into.'),
+        path: Optional[str] = typer.Option(None, '--path', help="The file's path inside the project's storage."),
+        position_x: Optional[float] = typer.Option(None, '--position-x', help='Its x on the canvas.'),
+        position_y: Optional[float] = typer.Option(None, '--position-y', help='Its y on the canvas.'),
+        position_z: Optional[float] = typer.Option(None, '--position-z', help='Its z on the canvas.'),
+        prototype_key: Optional[str] = typer.Option(None, '--prototype-key', help='The prototype (kind of record) the node takes its attributes from.'),
+        rotation_z: Optional[float] = typer.Option(None, '--rotation-z', help='Its rotation on the canvas, in degrees.'),
+        scale: Optional[float] = typer.Option(None, '--scale', help='Its scale on the canvas.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Processing status. One of: pending, processing, active, completed, failed.'),
+        z_index: Optional[int] = typer.Option(None, '--z-index', help='Its stacking order on the canvas.'),
     ) -> None:
         """Update Document (PUT /api/documents/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -4621,28 +4684,28 @@ def register_generated_openapi_commands(
                 "status": status,
                 "z_index": z_index,
             }, {
-                "attributes": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Attributes', 'x-cli-required': False},
+                "attributes": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Attributes', 'description': "The prototype's attribute values, a JSON object; replaces the whole object.", 'x-cli-required': False},
                 "doc_type": {'type': 'string', 'enum': ['folder', 'group', 'file', 'page', 'chunk'], 'title': 'DocType', 'description': 'Type of document node in the hierarchy.', 'x-cli-required': False},
-                "exclude_from_processing": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Processing', 'x-cli-required': False},
-                "exclude_from_search": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Search', 'x-cli-required': False},
+                "exclude_from_processing": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Processing', 'description': 'Leave it out of runs.', 'x-cli-required': False},
+                "exclude_from_search": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Search', 'description': 'Leave it out of search.', 'x-cli-required': False},
                 "file_type": {'type': 'string', 'enum': ['image', 'pdf', 'audio', 'video', 'text', 'word', 'docx', 'epub', 'spreadsheet', 'presentation', 'other'], 'title': 'FileType', 'description': 'Type of source file.', 'x-cli-required': False},
-                "is_flagged": {'type': 'boolean', 'nullable': True, 'title': 'Is Flagged', 'x-cli-required': False},
-                "is_read": {'type': 'boolean', 'nullable': True, 'title': 'Is Read', 'x-cli-required': False},
-                "is_starred": {'type': 'boolean', 'nullable': True, 'title': 'Is Starred', 'x-cli-required': False},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
-                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
-                "node_kind": {'type': 'string', 'nullable': True, 'title': 'Node Kind', 'x-cli-required': False},
-                "page_content": {'type': 'string', 'nullable': True, 'title': 'Page Content', 'x-cli-required': False},
-                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
-                "path": {'type': 'string', 'nullable': True, 'title': 'Path', 'x-cli-required': False},
-                "position_x": {'type': 'number', 'nullable': True, 'title': 'Position X', 'x-cli-required': False},
-                "position_y": {'type': 'number', 'nullable': True, 'title': 'Position Y', 'x-cli-required': False},
-                "position_z": {'type': 'number', 'nullable': True, 'title': 'Position Z', 'x-cli-required': False},
-                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'x-cli-required': False},
-                "rotation_z": {'type': 'number', 'nullable': True, 'title': 'Rotation Z', 'x-cli-required': False},
-                "scale": {'type': 'number', 'nullable': True, 'title': 'Scale', 'x-cli-required': False},
+                "is_flagged": {'type': 'boolean', 'nullable': True, 'title': 'Is Flagged', 'description': 'Flag or unflag it.', 'x-cli-required': False},
+                "is_read": {'type': 'boolean', 'nullable': True, 'title': 'Is Read', 'description': 'Mark it read or unread.', 'x-cli-required': False},
+                "is_starred": {'type': 'boolean', 'nullable': True, 'title': 'Is Starred', 'description': 'Star or unstar it.', 'x-cli-required': False},
+                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'description': 'Free metadata, a JSON object; replaces the whole object.', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'description': "The node's new name.", 'x-cli-required': False},
+                "node_kind": {'type': 'string', 'nullable': True, 'title': 'Node Kind', 'description': "The node's new kind.", 'x-cli-required': False},
+                "page_content": {'type': 'string', 'nullable': True, 'title': 'Page Content', 'description': "The page's new text.", 'x-cli-required': False},
+                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'description': 'The folder to move it into.', 'x-cli-required': False},
+                "path": {'type': 'string', 'nullable': True, 'title': 'Path', 'description': "The file's path inside the project's storage.", 'x-cli-required': False},
+                "position_x": {'type': 'number', 'nullable': True, 'title': 'Position X', 'description': 'Its x on the canvas.', 'x-cli-required': False},
+                "position_y": {'type': 'number', 'nullable': True, 'title': 'Position Y', 'description': 'Its y on the canvas.', 'x-cli-required': False},
+                "position_z": {'type': 'number', 'nullable': True, 'title': 'Position Z', 'description': 'Its z on the canvas.', 'x-cli-required': False},
+                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'description': 'The prototype (kind of record) the node takes its attributes from.', 'x-cli-required': False},
+                "rotation_z": {'type': 'number', 'nullable': True, 'title': 'Rotation Z', 'description': 'Its rotation on the canvas, in degrees.', 'x-cli-required': False},
+                "scale": {'type': 'number', 'nullable': True, 'title': 'Scale', 'description': 'Its scale on the canvas.', 'x-cli-required': False},
                 "status": {'type': 'string', 'enum': ['pending', 'processing', 'active', 'completed', 'failed'], 'title': 'Status', 'description': 'Processing status.', 'x-cli-required': False},
-                "z_index": {'type': 'integer', 'nullable': True, 'title': 'Z Index', 'x-cli-required': False},
+                "z_index": {'type': 'integer', 'nullable': True, 'title': 'Z Index', 'description': 'Its stacking order on the canvas.', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -4650,7 +4713,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-ancestors")
     def documents_get_ancestors_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Get Ancestors (GET /api/documents/{doc_id}/ancestors)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4659,10 +4722,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("export-a-s-annotations-as-w3c-annotationpage")
-    def documents_export_a_s_annotations_as_w3c_annotationpage_get(
+    @target_app.command("export-a-s-annotations-as-w3c-annotationpage", hidden=True)
+    @target_app.command("export-annotations-jsonld")
+    def documents_export_annotations_jsonld_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Export a document's annotations as W3C AnnotationPage (GET /api/documents/{doc_id}/annotations.jsonld)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4674,11 +4738,11 @@ def register_generated_openapi_commands(
     @target_app.command("get-children")
     def documents_get_children_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        level: Optional[str] = typer.Option(None, "--level", help="Query parameter: level."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
-        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Query parameter: sort_direction."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        level: Optional[str] = typer.Option(None, '--level', help="Which tier to return. 'stored' (default) is the tree as held — openings AND whole pages side by side. 'content' looks THROUGH containers to their pages, passing un-split pages through unchanged."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Max results (no limit if not specified)'),
+        sort_by: Optional[str] = typer.Option(None, '--sort-by', help="Optional server-side ordering; only 'document_date'."),
+        sort_direction: Optional[str] = typer.Option(None, '--sort-direction', help="'asc' or 'desc'."),
     ) -> None:
         """Get Children (GET /api/documents/{doc_id}/children)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4695,8 +4759,8 @@ def register_generated_openapi_commands(
     @target_app.command("duplicate")
     def documents_duplicate_post(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Parent Id.'),
     ) -> None:
         """Duplicate Document (POST /api/documents/{doc_id}/duplicate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4710,7 +4774,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-effective-attributes")
     def documents_get_effective_attributes_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Get Effective Attributes (GET /api/documents/{doc_id}/effective-attributes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4719,14 +4783,15 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("export-one-page-as-page-xml-alto-or-tei")
-    def documents_export_one_page_as_page_xml_alto_or_tei_get(
+    @target_app.command("export-one-page-as-page-xml-alto-or-tei", hidden=True)
+    @target_app.command("export-page")
+    def documents_export_page_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        format_name: str = typer.Argument(..., help="Path parameter: format_name."),
-        order_id: Optional[str] = typer.Option(None, "--order-id", help="Query parameter: order_id."),
-        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
-        reading_kind: Optional[str] = typer.Option(None, "--reading-kind", help="Query parameter: reading_kind."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        format_name: str = typer.Argument(..., help='Format Name'),
+        order_id: Optional[str] = typer.Option(None, '--order-id', help="A named reading order's id; defaults to the order as written."),
+        pass_id: Optional[str] = typer.Option(None, '--pass-id', help='The pass to export; defaults to the working pass.'),
+        reading_kind: Optional[str] = typer.Option(None, '--reading-kind', help='Which kind of reading to write.'),
     ) -> None:
         """Export one page as PAGE XML, ALTO or TEI (GET /api/documents/{doc_id}/export/{format_name})."""
         def op_call(client: FicheroClient) -> Any:
@@ -4739,10 +4804,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("list-geocoded-points-for-a")
-    def documents_list_geocoded_points_for_a_get(
+    @target_app.command("list-geocoded-points-for-a", hidden=True)
+    @target_app.command("list-geo")
+    def documents_list_geo_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """List geocoded points for a document (GET /api/documents/{doc_id}/geo)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4751,13 +4817,14 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("import-a-page-xml-alto-hocr-tei-or-yolo-file-as-a-new-pass")
-    def documents_import_a_page_xml_alto_hocr_tei_or_yolo_file_as_a_new_pass_post(
+    @target_app.command("import-a-page-xml-alto-hocr-tei-or-yolo-file-as-a-new-pass", hidden=True)
+    @target_app.command("import-page")
+    def documents_import_page_post(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        format: Optional[str] = typer.Option(None, "--format", help="Query parameter: format."),
-        ground_truth: Optional[bool] = typer.Option(None, "--ground-truth/--no-ground-truth", help="Query parameter: ground_truth."),
-        name: Optional[str] = typer.Option(None, "--name", help="Query parameter: name."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        format: Optional[str] = typer.Option(None, '--format', help='Force a format instead of recognising one from the bytes.'),
+        ground_truth: Optional[bool] = typer.Option(None, '--ground-truth/--no-ground-truth', help="The file holds CORRECTED transcriptions: mark the pass as ground truth, so the bake-off and the evaluation count its lines (#5513). Off by default, as a file of unknown origin is often a machine's."),
+        name: Optional[str] = typer.Option(None, '--name', help='What to call the pass.'),
         field: Optional[list[str]] = typer.Option(None, "--field", help="Repeatable multipart field as key=value."),
         upload: Optional[list[str]] = typer.Option(None, "--upload", help="Repeatable multipart upload as field=/path/to/file."),
     ) -> None:
@@ -4778,8 +4845,8 @@ def register_generated_openapi_commands(
     @target_app.command("move")
     def documents_move_put(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Parent Id.'),
     ) -> None:
         """Move Document (PUT /api/documents/{doc_id}/move)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4793,7 +4860,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-note")
     def documents_delete_note_delete(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Document Note (DELETE /api/documents/{doc_id}/notes)."""
@@ -4808,7 +4875,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-note")
     def documents_get_note_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Get Document Note (GET /api/documents/{doc_id}/notes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4820,8 +4887,8 @@ def register_generated_openapi_commands(
     @target_app.command("put-note")
     def documents_put_note_put(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        content: str = typer.Option(..., "--content", help="Request field: content."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        content: str = typer.Option(..., '--content', help='Content.'),
     ) -> None:
         """Put Document Note (PUT /api/documents/{doc_id}/notes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4838,7 +4905,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-page-ranges")
     def documents_list_page_ranges_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """List Page Ranges (GET /api/documents/{doc_id}/page-ranges)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4850,8 +4917,8 @@ def register_generated_openapi_commands(
     @target_app.command("upsert-page-ranges")
     def documents_upsert_page_ranges_put(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        items: str = typer.Option(..., "--items", help="Request field: items."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        items: str = typer.Option(..., '--items', help='Items. JSON.'),
     ) -> None:
         """Upsert Page Ranges (PUT /api/documents/{doc_id}/page-ranges)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4868,8 +4935,8 @@ def register_generated_openapi_commands(
     @target_app.command("page-range-for-page")
     def documents_page_range_for_page_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        page: str = typer.Argument(..., help="Path parameter: page."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        page: str = typer.Argument(..., help='Page'),
     ) -> None:
         """Page Range For Page (GET /api/documents/{doc_id}/page-ranges/at/{page})."""
         def op_call(client: FicheroClient) -> Any:
@@ -4881,7 +4948,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-parent")
     def documents_get_parent_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Get Document Parent (GET /api/documents/{doc_id}/parent)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4890,10 +4957,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("accept-the-kind-a-run-proposed-for-this-node")
-    def documents_accept_the_kind_a_run_proposed_for_this_node_post(
+    @target_app.command("accept-the-kind-a-run-proposed-for-this-node", hidden=True)
+    @target_app.command("accept-proposed-kind")
+    def documents_accept_proposed_kind_post(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Accept the kind a run proposed for this node (POST /api/documents/{doc_id}/proposed-kind/accept)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4902,10 +4970,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("reject-the-kind-a-run-proposed-for-this-node")
-    def documents_reject_the_kind_a_run_proposed_for_this_node_post(
+    @target_app.command("reject-the-kind-a-run-proposed-for-this-node", hidden=True)
+    @target_app.command("reject-proposed-kind")
+    def documents_reject_proposed_kind_post(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Reject the kind a run proposed for this node (POST /api/documents/{doc_id}/proposed-kind/reject)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4917,11 +4986,11 @@ def register_generated_openapi_commands(
     @target_app.command("assign-prototype")
     def documents_assign_prototype_put(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Request field: include_descendants."),
-        page_end: Optional[int] = typer.Option(None, "--page-end", help="Request field: page_end."),
-        page_start: Optional[int] = typer.Option(None, "--page-start", help="Request field: page_start."),
-        prototype_key: Optional[str] = typer.Option(None, "--prototype-key", help="Request field: prototype_key."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        include_descendants: Optional[bool] = typer.Option(None, '--include-descendants/--no-include-descendants', help='Assign it to every node inside as well. Default: false.'),
+        page_end: Optional[int] = typer.Option(None, '--page-end', help='The last page of the range it applies to.'),
+        page_start: Optional[int] = typer.Option(None, '--page-start', help='The first page of the range it applies to.'),
+        prototype_key: Optional[str] = typer.Option(None, '--prototype-key', help='The prototype to assign; null clears the assignment.'),
     ) -> None:
         """Assign Document Prototype (PUT /api/documents/{doc_id}/prototype)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4933,10 +5002,10 @@ def register_generated_openapi_commands(
                 "page_start": page_start,
                 "prototype_key": prototype_key,
             }, {
-                "include_descendants": {'type': 'boolean', 'title': 'Include Descendants', 'default': False, 'x-cli-required': False},
-                "page_end": {'type': 'integer', 'nullable': True, 'title': 'Page End', 'x-cli-required': False},
-                "page_start": {'type': 'integer', 'nullable': True, 'title': 'Page Start', 'x-cli-required': False},
-                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'x-cli-required': False},
+                "include_descendants": {'type': 'boolean', 'title': 'Include Descendants', 'description': 'Assign it to every node inside as well.', 'default': False, 'x-cli-required': False},
+                "page_end": {'type': 'integer', 'nullable': True, 'title': 'Page End', 'description': 'The last page of the range it applies to.', 'x-cli-required': False},
+                "page_start": {'type': 'integer', 'nullable': True, 'title': 'Page Start', 'description': 'The first page of the range it applies to.', 'x-cli-required': False},
+                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'description': 'The prototype to assign; null clears the assignment.', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -4944,7 +5013,7 @@ def register_generated_openapi_commands(
     @target_app.command("purge")
     def documents_purge_delete(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Purge Document (DELETE /api/documents/{doc_id}/purge)."""
@@ -4959,8 +5028,8 @@ def register_generated_openapi_commands(
     @target_app.command("related")
     def documents_related_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Related Documents (GET /api/documents/{doc_id}/related)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4971,10 +5040,10 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("restore")
-    def documents_restore_post(
+    @target_app.command("restore-documents-restore")
+    def documents_restore_documents_restore_post(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Restore Document (POST /api/documents/{doc_id}/restore)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4986,12 +5055,12 @@ def register_generated_openapi_commands(
     @target_app.command("get-view")
     def documents_get_view_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        attachments: Optional[bool] = typer.Option(None, "--attachments/--no-attachments", help="Query parameter: attachments."),
-        children: Optional[bool] = typer.Option(None, "--children/--no-children", help="Query parameter: children."),
-        level: Optional[str] = typer.Option(None, "--level", help="Query parameter: level."),
-        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
-        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Query parameter: sort_direction."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        attachments: Optional[bool] = typer.Option(None, '--attachments/--no-attachments', help="Include the anchor's attachment summary."),
+        children: Optional[bool] = typer.Option(None, '--children/--no-children', help='Include the children list.'),
+        level: Optional[str] = typer.Option(None, '--level', help="Which tier `children` returns. 'stored' (default) is the tree as held — the sidebar's STRUCTURAL view (ruled 2026-08-24); 'content' looks through containers to their pages, the grid's view."),
+        sort_by: Optional[str] = typer.Option(None, '--sort-by', help="Optional server-side child ordering; only 'document_date' (#3322 — same contract as /children, so the grid can migrate without losing its listing sort)."),
+        sort_direction: Optional[str] = typer.Option(None, '--sort-direction', help="'asc' or 'desc'."),
     ) -> None:
         """Get Document View (GET /api/documents/{doc_id}/view)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5006,10 +5075,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-workflow-provenance-for-a")
-    def documents_get_workflow_provenance_for_a_get(
+    @target_app.command("get-workflow-provenance-for-a", hidden=True)
+    @target_app.command("get-workflow-runs")
+    def documents_get_workflow_runs_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Get workflow provenance for a document (GET /api/documents/{doc_id}/workflow-runs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5021,10 +5091,10 @@ def register_generated_openapi_commands(
     @target_app.command("patch-workspace-items")
     def documents_patch_workspace_items_patch(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        add: Optional[str] = typer.Option(None, "--add", help="Request field: add."),
-        remove_ids: Optional[str] = typer.Option(None, "--remove-ids", help="Request field: remove_ids."),
-        reorder_ids: Optional[str] = typer.Option(None, "--reorder-ids", help="Request field: reorder_ids."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        add: Optional[str] = typer.Option(None, '--add', help='Add. Default: []. JSON.'),
+        remove_ids: Optional[list[str]] = typer.Option(None, '--remove-ids', help='Remove Ids. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        reorder_ids: Optional[list[str]] = typer.Option(None, '--reorder-ids', help='Reorder Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Patch Workspace Items (PATCH /api/documents/{doc_id}/workspace)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5045,7 +5115,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-workspace-items")
     def documents_get_workspace_items_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Get Workspace Items (GET /api/documents/{doc_id}/workspace/items)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5057,7 +5127,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-citations")
     def documents_get_citations_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Get Document Citations (GET /api/documents/{document_id}/citations)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5066,10 +5136,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("one-call-aggregate-of-every-kg-row-attached-to-this")
-    def documents_one_call_aggregate_of_every_kg_row_attached_to_this_get(
+    @target_app.command("one-call-aggregate-of-every-kg-row-attached-to-this", hidden=True)
+    @target_app.command("inspector-documents-inspector")
+    def documents_inspector_documents_inspector_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """One-call aggregate of every KG row attached to this document (GET /api/documents/{document_id}/inspector)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5078,11 +5149,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("canonical-kg-grouping-for-a-deduped-merge-resolved")
-    def documents_canonical_kg_grouping_for_a_deduped_merge_resolved_get(
+    @target_app.command("canonical-kg-grouping-for-a-deduped-merge-resolved", hidden=True)
+    @target_app.command("knowledge-graph")
+    def documents_knowledge_graph_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Query parameter: include_descendants."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        include_descendants: Optional[bool] = typer.Option(None, '--include-descendants/--no-include-descendants', help='Include Descendants.'),
     ) -> None:
         """Canonical KG grouping for a document — deduped, merge-resolved (GET /api/documents/{document_id}/knowledge-graph)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5093,10 +5165,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("hierarchical-source-outline-for-drill-down")
-    def documents_hierarchical_source_outline_for_drill_down_get(
+    @target_app.command("hierarchical-source-outline-for-drill-down", hidden=True)
+    @target_app.command("outline")
+    def documents_outline_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Hierarchical source outline for document drill-down (GET /api/documents/{document_id}/outline)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5108,11 +5181,11 @@ def register_generated_openapi_commands(
     @target_app.command("compare-readings")
     def documents_compare_readings_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        hypothesis: str = typer.Option(..., "--hypothesis", help="Request field: hypothesis."),
-        policies: Optional[str] = typer.Option(None, "--policies", help="Request field: policies."),
-        reference: str = typer.Option(..., "--reference", help="Request field: reference."),
-        reference_checked_by: Optional[str] = typer.Option(None, "--reference-checked-by", help="Request field: reference_checked_by."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        hypothesis: str = typer.Option(..., '--hypothesis', help='One reading of the page: a pass, or a saved result (artifact). JSON.'),
+        policies: Optional[list[str]] = typer.Option(None, '--policies', help='normalisation policies: accent-blind, diplomatic, layout-insensitive, lenient. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        reference: str = typer.Option(..., '--reference', help='One reading of the page: a pass, or a saved result (artifact). JSON.'),
+        reference_checked_by: Optional[str] = typer.Option(None, '--reference-checked-by', help='who checked the reference; without it the score is agreement, not CER.'),
     ) -> None:
         """Compare Readings (POST /api/documents/{document_id}/readings/compare)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5135,7 +5208,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-renditions")
     def documents_list_renditions_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """List Renditions (GET /api/documents/{document_id}/renditions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5147,8 +5220,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-rendition-content")
     def documents_get_rendition_content_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        rendition_id: str = typer.Argument(..., help="Path parameter: rendition_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        rendition_id: str = typer.Argument(..., help='Rendition Id'),
     ) -> None:
         """Get Rendition Content (GET /api/documents/{document_id}/renditions/{rendition_id}/content)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5157,10 +5230,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("cheap-per-type-child-counts-for-a-collapsed-library-outline-row")
-    def documents_cheap_per_type_child_counts_for_a_collapsed_library_outline_row_get(
+    @target_app.command("cheap-per-type-child-counts-for-a-collapsed-library-outline-row", hidden=True)
+    @target_app.command("rollup")
+    def documents_rollup_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Cheap per-type child counts for a collapsed library outline row (GET /api/documents/{document_id}/rollup)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5178,7 +5252,7 @@ def register_generated_openapi_commands(
     @target_app.command("facts-of-segment")
     def editorial_facts_of_segment_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
     ) -> None:
         """Facts Of Segment (GET /api/editorial/segment/{segment_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -5196,13 +5270,13 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def entities_list_get(
         ctx: typer.Context,
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
-        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Query parameter: include_descendants."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
-        run_id: Optional[str] = typer.Option(None, "--run-id", help="Query parameter: run_id."),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='Document Id.'),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Entity Type.'),
+        include_descendants: Optional[bool] = typer.Option(None, '--include-descendants/--no-include-descendants', help='Include Descendants.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        q: Optional[str] = typer.Option(None, '--q', help='Q.'),
+        run_id: Optional[str] = typer.Option(None, '--run-id', help='Only the entities this run named (its attribution entry)'),
     ) -> None:
         """List Entities (GET /api/entities)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5222,14 +5296,14 @@ def register_generated_openapi_commands(
     @target_app.command("upsert")
     def entities_upsert_post(
         ctx: typer.Context,
-        aliases: Optional[str] = typer.Option(None, "--aliases", help="Request field: aliases."),
-        canonical_name: str = typer.Option(..., "--canonical-name", help="Request field: canonical_name."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Request field: entity_type."),
-        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        source_document_ids: Optional[str] = typer.Option(None, "--source-document-ids", help="Request field: source_document_ids."),
+        aliases: Optional[list[str]] = typer.Option(None, '--aliases', help='Aliases. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        canonical_name: str = typer.Option(..., '--canonical-name', help='Canonical Name.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='EntityType. One of: person, location, organization, event, concept, citation, other.'),
+        id: Optional[str] = typer.Option(None, '--id', help='Id.'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        source_document_ids: Optional[list[str]] = typer.Option(None, '--source-document-ids', help='Source Document Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Upsert Entity (POST /api/entities)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5271,7 +5345,7 @@ def register_generated_openapi_commands(
     @target_app.command("bulk-upsert")
     def entities_bulk_upsert_post(
         ctx: typer.Context,
-        entities: str = typer.Option(..., "--entities", help="Request field: entities."),
+        entities: str = typer.Option(..., '--entities', help='Entities. JSON.'),
     ) -> None:
         """Bulk Upsert Entities (POST /api/entities/bulk)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5299,8 +5373,8 @@ def register_generated_openapi_commands(
     @target_app.command("digest")
     def entities_digest_get(
         ctx: typer.Context,
-        format: Optional[str] = typer.Option(None, "--format", help="Query parameter: format."),
-        library_path: Optional[str] = typer.Option(None, "--library-path", help="Query parameter: library_path."),
+        format: Optional[str] = typer.Option(None, '--format', help='Format.'),
+        library_path: Optional[str] = typer.Option(None, '--library-path', help='Library Path.'),
     ) -> None:
         """Entity Digest (GET /api/entities/digest)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5312,10 +5386,10 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("resolve")
-    def entities_resolve_get(
+    @target_app.command("resolve-entities-resolve")
+    def entities_resolve_entities_resolve_get(
         ctx: typer.Context,
-        value: str = typer.Argument(..., help="Path parameter: value."),
+        value: str = typer.Argument(..., help='Value'),
     ) -> None:
         """Resolve Entity (GET /api/entities/resolve/{value})."""
         def op_call(client: FicheroClient) -> Any:
@@ -5324,11 +5398,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("top")
-    def entities_top_get(
+    @target_app.command("top-entities-top")
+    def entities_top_entities_top_get(
         ctx: typer.Context,
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Entity Type.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Top Entities (GET /api/entities/top)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5340,11 +5414,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("delete")
-    def entities_delete_delete(
+    @target_app.command("delete-entities")
+    def entities_delete_entities_delete(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        cascade_claims: Optional[bool] = typer.Option(None, "--cascade-claims/--no-cascade-claims", help="Query parameter: cascade_claims."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        cascade_claims: Optional[bool] = typer.Option(None, '--cascade-claims/--no-cascade-claims', help='When true, also delete every claim that references this entity. When false (default), claims keep their entity_ids list intact but with this id stripped — preserves provenance for claims that mention multiple entities.'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Entity (DELETE /api/entities/{entity_id})."""
@@ -5358,10 +5432,10 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get")
-    def entities_get_get(
+    @target_app.command("get-entities")
+    def entities_get_entities_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
     ) -> None:
         """Get Entity (GET /api/entities/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -5373,13 +5447,13 @@ def register_generated_openapi_commands(
     @target_app.command("patch")
     def entities_patch_patch(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        aliases: Optional[str] = typer.Option(None, "--aliases", help="Request field: aliases."),
-        canonical_name: Optional[str] = typer.Option(None, "--canonical-name", help="Request field: canonical_name."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Request field: entity_type."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        aliases: Optional[list[str]] = typer.Option(None, '--aliases', help='Aliases. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        canonical_name: Optional[str] = typer.Option(None, '--canonical-name', help='Canonical Name.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='EntityType. One of: person, location, organization, event, concept, citation, other.'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
     ) -> None:
         """Patch Entity (PATCH /api/entities/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -5406,8 +5480,8 @@ def register_generated_openapi_commands(
     @target_app.command("add-aliases")
     def entities_add_aliases_post(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        aliases: str = typer.Option(..., "--aliases", help="Request field: aliases."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        aliases: list[str] = typer.Option(..., '--aliases', help='Aliases. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Add Entity Aliases (POST /api/entities/{entity_id}/aliases)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5424,10 +5498,10 @@ def register_generated_openapi_commands(
     @target_app.command("get-biography")
     def entities_get_biography_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        claims_limit: Optional[int] = typer.Option(None, "--claims-limit", help="Query parameter: claims_limit."),
-        co_occurrence_limit: Optional[int] = typer.Option(None, "--co-occurrence-limit", help="Query parameter: co_occurrence_limit."),
-        documents_limit: Optional[int] = typer.Option(None, "--documents-limit", help="Query parameter: documents_limit."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        claims_limit: Optional[int] = typer.Option(None, '--claims-limit', help='Claims Limit.'),
+        co_occurrence_limit: Optional[int] = typer.Option(None, '--co-occurrence-limit', help='Co Occurrence Limit.'),
+        documents_limit: Optional[int] = typer.Option(None, '--documents-limit', help='Documents Limit.'),
     ) -> None:
         """Get Entity Biography (GET /api/entities/{entity_id}/biography)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5443,8 +5517,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-co-occurrence")
     def entities_get_co_occurrence_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Get Entity Co Occurrence (GET /api/entities/{entity_id}/co-occurrence)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5458,8 +5532,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-documents")
     def entities_get_documents_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Get Entity Documents (GET /api/entities/{entity_id}/documents)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5473,10 +5547,10 @@ def register_generated_openapi_commands(
     @target_app.command("drill-down")
     def entities_drill_down_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        co_occurrence_limit: Optional[int] = typer.Option(None, "--co-occurrence-limit", help="Query parameter: co_occurrence_limit."),
-        documents_limit: Optional[int] = typer.Option(None, "--documents-limit", help="Query parameter: documents_limit."),
-        excerpts_limit: Optional[int] = typer.Option(None, "--excerpts-limit", help="Query parameter: excerpts_limit."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        co_occurrence_limit: Optional[int] = typer.Option(None, '--co-occurrence-limit', help='Co Occurrence Limit.'),
+        documents_limit: Optional[int] = typer.Option(None, '--documents-limit', help='Documents Limit.'),
+        excerpts_limit: Optional[int] = typer.Option(None, '--excerpts-limit', help='Excerpts Limit.'),
     ) -> None:
         """Entity Drill Down (GET /api/entities/{entity_id}/drill-down)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5489,11 +5563,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("download-an-biography")
-    def entities_download_an_biography_get(
+    @target_app.command("download-an-biography", hidden=True)
+    @target_app.command("export-biography")
+    def entities_export_biography_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        format: Optional[str] = typer.Option(None, "--format", help="Query parameter: format."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        format: Optional[str] = typer.Option(None, '--format', help='Format.'),
     ) -> None:
         """Download an entity biography (GET /api/entities/{entity_id}/export)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5504,10 +5579,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("one-call-aggregate-of-every-kg-row-attached-to-this")
-    def entities_one_call_aggregate_of_every_kg_row_attached_to_this_get(
+    @target_app.command("one-call-aggregate-of-every-kg-row-attached-to-this", hidden=True)
+    @target_app.command("inspector-entities-inspector")
+    def entities_inspector_entities_inspector_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
     ) -> None:
         """One-call aggregate of every KG row attached to this entity (GET /api/entities/{entity_id}/inspector)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5519,7 +5595,7 @@ def register_generated_openapi_commands(
     @target_app.command("place-as-linked-places")
     def entities_place_as_linked_places_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
     ) -> None:
         """Place As Linked Places (GET /api/entities/{entity_id}/linked-places)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5531,11 +5607,11 @@ def register_generated_openapi_commands(
     @target_app.command("repoint-mention")
     def entities_repoint_mention_post(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        char_end: int = typer.Option(..., "--char-end", help="Request field: char_end."),
-        char_start: int = typer.Option(..., "--char-start", help="Request field: char_start."),
-        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
-        to_entity_id: str = typer.Option(..., "--to-entity-id", help="Request field: to_entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        char_end: int = typer.Option(..., '--char-end', help='Char End.'),
+        char_start: int = typer.Option(..., '--char-start', help='Char Start.'),
+        document_id: str = typer.Option(..., '--document-id', help='Document Id.'),
+        to_entity_id: str = typer.Option(..., '--to-entity-id', help='To Entity Id.'),
     ) -> None:
         """Repoint Mention (POST /api/entities/{entity_id}/mentions/repoint)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5558,12 +5634,12 @@ def register_generated_openapi_commands(
     @target_app.command("respan-mention")
     def entities_respan_mention_post(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        char_end: int = typer.Option(..., "--char-end", help="Request field: char_end."),
-        char_start: int = typer.Option(..., "--char-start", help="Request field: char_start."),
-        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
-        new_char_end: int = typer.Option(..., "--new-char-end", help="Request field: new_char_end."),
-        new_char_start: int = typer.Option(..., "--new-char-start", help="Request field: new_char_start."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        char_end: int = typer.Option(..., '--char-end', help='Char End.'),
+        char_start: int = typer.Option(..., '--char-start', help='Char Start.'),
+        document_id: str = typer.Option(..., '--document-id', help='Document Id.'),
+        new_char_end: int = typer.Option(..., '--new-char-end', help='New Char End.'),
+        new_char_start: int = typer.Option(..., '--new-char-start', help='New Char Start.'),
     ) -> None:
         """Respan Mention (POST /api/entities/{entity_id}/mentions/respan)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5588,8 +5664,8 @@ def register_generated_openapi_commands(
     @target_app.command("place-as-of")
     def entities_place_as_of_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        as_of: str = typer.Option(..., "--as-of", help="Query parameter: as_of."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        as_of: str = typer.Option(..., '--as-of', help='A year or ISO 8601 date (astronomical count: -329 is 330 BC)'),
     ) -> None:
         """Place As Of (GET /api/entities/{entity_id}/place)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5606,14 +5682,15 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='evaluation')
         existing_apps['evaluation'] = target_app
 
-    @target_app.command("score-trained-and-out-of-the-box-models-on-the-held-out-checked-pages-as-one-job")
-    def evaluation_score_trained_and_out_of_the_box_models_on_the_held_out_checked_pages_as_one_job_post(
+    @target_app.command("score-trained-and-out-of-the-box-models-on-the-held-out-checked-pages-as-one-job", hidden=True)
+    @target_app.command("start")
+    def evaluation_start_post(
         ctx: typer.Context,
-        add_out_of_the_box: Optional[bool] = typer.Option(None, "--add-out-of-the-box/--no-add-out-of-the-box", help="Request field: add_out_of_the_box."),
-        candidates: str = typer.Option(..., "--candidates", help="Request field: candidates."),
-        checked: Optional[str] = typer.Option(None, "--checked", help="Request field: checked."),
-        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        add_out_of_the_box: Optional[bool] = typer.Option(None, '--add-out-of-the-box/--no-add-out-of-the-box', help="Also score the out-of-the-box readers the registry names for each kind asked (a trained reader's base, the Kraken catalogue, the vision bases' MLX builds) that are on this Mac. Default: true."),
+        candidates: str = typer.Option(..., '--candidates', help='The models to score: the trained one(s) and any others. JSON.'),
+        checked: Optional[str] = typer.Option(None, '--checked', help="The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against. None: on each page, the newest pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`)."),
+        held_out_ids: Optional[list[str]] = typer.Option(None, '--held-out-ids', help="The pages to score on. None given: the pages every trained candidate's card says were held out of its training. A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        language: Optional[str] = typer.Option(None, '--language', help="The pages' language, given to a vision model."),
     ) -> None:
         """Score trained and out-of-the-box models on the held-out checked pages, as one job (POST /api/evaluation/runs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5635,10 +5712,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("an-s-plan-progress-and-scores")
-    def evaluation_an_s_plan_progress_and_scores_get(
+    @target_app.command("an-s-plan-progress-and-scores", hidden=True)
+    @target_app.command("status")
+    def evaluation_status_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """An evaluation's plan, progress and scores (GET /api/evaluation/runs/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -5647,11 +5725,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("a-model-s-held-out-scores-as-its-card-keeps-them")
-    def evaluation_a_model_s_held_out_scores_as_its_card_keeps_them_get(
+    @target_app.command("a-model-s-held-out-scores-as-its-card-keeps-them", hidden=True)
+    @target_app.command("model-scores")
+    def evaluation_model_scores_get(
         ctx: typer.Context,
-        model: str = typer.Option(..., "--model", help="Query parameter: model."),
-        reader: Optional[str] = typer.Option(None, "--reader", help="Query parameter: reader."),
+        model: str = typer.Option(..., '--model', help='The model id: a Kraken reader, or a vision model.'),
+        reader: Optional[str] = typer.Option(None, '--reader', help='Reader.'),
     ) -> None:
         """A model's held-out scores, as its card keeps them (GET /api/evaluation/scores)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5672,11 +5751,11 @@ def register_generated_openapi_commands(
     @target_app.command("eleventy-site-route")
     def export_eleventy_site_route_post(
         ctx: typer.Context,
-        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
-        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
-        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
-        site_title: Optional[str] = typer.Option(None, "--site-title", help="Request field: site_title."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
+        output_path: str = typer.Option(..., '--output-path', help='Destination folder for the site project.'),
+        overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Allow writing into a non-empty folder. Default: false.'),
+        recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Include descendants of folders. Default: true.'),
+        site_title: Optional[str] = typer.Option(None, '--site-title', help='Site title (defaults to the root folder name)'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Optional folder id to publish; omitted exports the library.'),
     ) -> None:
         """Export Eleventy Site Route (POST /api/export/eleventy-site)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5701,10 +5780,10 @@ def register_generated_openapi_commands(
     @target_app.command("excel-route")
     def export_excel_route_post(
         ctx: typer.Context,
-        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
-        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
-        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
+        output_path: str = typer.Option(..., '--output-path', help='Destination .xlsx path.'),
+        overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Overwrite existing .xlsx. Default: false.'),
+        recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Include descendants of folders. Default: true.'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Optional document/folder id to export; omitted exports library.'),
     ) -> None:
         """Export Excel Route (POST /api/export/excel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5727,10 +5806,10 @@ def register_generated_openapi_commands(
     @target_app.command("jsonl-route")
     def export_jsonl_route_post(
         ctx: typer.Context,
-        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
-        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
-        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
+        output_path: str = typer.Option(..., '--output-path', help='Destination .jsonl path.'),
+        overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Overwrite existing .jsonl. Default: false.'),
+        recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Include descendants of folders. Default: true.'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Optional document/folder id to export; omitted exports library.'),
     ) -> None:
         """Export Jsonl Route (POST /api/export/jsonl)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5750,8 +5829,9 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("the-project-s-kept-exports-and-what-they-wrote")
-    def export_the_project_s_kept_exports_and_what_they_wrote_get(
+    @target_app.command("the-project-s-kept-exports-and-what-they-wrote", hidden=True)
+    @target_app.command("list-kept-exports")
+    def export_list_kept_exports_get(
         ctx: typer.Context,
     ) -> None:
         """The project's kept exports and what they wrote (GET /api/export/kept)."""
@@ -5761,12 +5841,13 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("keep-an-in-a-folder-written-again-as-the-work-changes")
-    def export_keep_an_in_a_folder_written_again_as_the_work_changes_post(
+    @target_app.command("keep-an-in-a-folder-written-again-as-the-work-changes", hidden=True)
+    @target_app.command("keep")
+    def export_keep_post(
         ctx: typer.Context,
-        folder: str = typer.Option(..., "--folder", help="Request field: folder."),
-        format: str = typer.Option(..., "--format", help="Request field: format."),
-        per: str = typer.Option(..., "--per", help="Request field: per."),
+        folder: str = typer.Option(..., '--folder', help="A full path to a folder on the engine's disk, outside the project."),
+        format: str = typer.Option(..., '--format', help='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr.'),
+        per: str = typer.Option(..., '--per', help='One file per page, or one per document (the page formats are one per page) One of: page, document.'),
     ) -> None:
         """Keep an export in a folder, written again as the work changes (POST /api/export/kept)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5784,10 +5865,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("stop-keeping-an-the-files-it-wrote-stay-in-the-folder")
-    def export_stop_keeping_an_the_files_it_wrote_stay_in_the_folder_delete(
+    @target_app.command("stop-keeping-an-the-files-it-wrote-stay-in-the-folder", hidden=True)
+    @target_app.command("remove-kept")
+    def export_remove_kept_delete(
         ctx: typer.Context,
-        export_id: str = typer.Argument(..., help="Path parameter: export_id."),
+        export_id: str = typer.Argument(..., help='Export Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Stop keeping an export (the files it wrote stay in the folder) (DELETE /api/export/kept/{export_id})."""
@@ -5799,10 +5881,11 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("write-a-kept-now-as-a-background-job")
-    def export_write_a_kept_now_as_a_background_job_post(
+    @target_app.command("write-a-kept-now-as-a-background-job", hidden=True)
+    @target_app.command("write-kept")
+    def export_write_kept_post(
         ctx: typer.Context,
-        export_id: str = typer.Argument(..., help="Path parameter: export_id."),
+        export_id: str = typer.Argument(..., help='Export Id'),
     ) -> None:
         """Write a kept export now, as a background job (POST /api/export/kept/{export_id}/write)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5814,11 +5897,11 @@ def register_generated_openapi_commands(
     @target_app.command("markdown-folder-route")
     def export_markdown_folder_route_post(
         ctx: typer.Context,
-        include_assets: Optional[bool] = typer.Option(None, "--include-assets/--no-include-assets", help="Request field: include_assets."),
-        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
-        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
-        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
+        include_assets: Optional[bool] = typer.Option(None, '--include-assets/--no-include-assets', help='Copy image assets. Default: true.'),
+        output_path: str = typer.Option(..., '--output-path', help='Destination folder for export files.'),
+        overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Allow writing into non-empty folder. Default: false.'),
+        recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Include descendants of folders. Default: true.'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Optional document/folder id to export; omitted exports library.'),
     ) -> None:
         """Export Markdown Folder Route (POST /api/export/markdown-folder)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5843,10 +5926,10 @@ def register_generated_openapi_commands(
     @target_app.command("parquet-route")
     def export_parquet_route_post(
         ctx: typer.Context,
-        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
-        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
-        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
+        output_path: str = typer.Option(..., '--output-path', help='Destination folder for Parquet files.'),
+        overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Allow writing into a non-empty folder. Default: false.'),
+        recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Include descendants of folders. Default: true.'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Optional document/folder id to export; omitted exports library.'),
     ) -> None:
         """Export Parquet Route (POST /api/export/parquet)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5869,10 +5952,10 @@ def register_generated_openapi_commands(
     @target_app.command("training-route")
     def export_training_route_post(
         ctx: typer.Context,
-        gold_only: Optional[bool] = typer.Option(None, "--gold-only/--no-gold-only", help="Request field: gold_only."),
-        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
-        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
-        use_case: Optional[str] = typer.Option(None, "--use-case", help="Request field: use_case."),
+        gold_only: Optional[bool] = typer.Option(None, '--gold-only/--no-gold-only', help='Only human-corrected (gold) pairs. Default: false.'),
+        output_path: str = typer.Option(..., '--output-path', help='Destination .jsonl path.'),
+        overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Overwrite existing .jsonl. Default: false.'),
+        use_case: Optional[str] = typer.Option(None, '--use-case', help="Filter to one workflow step's calls (e.g. 'transcription')"),
     ) -> None:
         """Export Training Route (POST /api/export/training)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5895,11 +5978,11 @@ def register_generated_openapi_commands(
     @target_app.command("word-route")
     def export_word_route_post(
         ctx: typer.Context,
-        include_knowledge_graph: Optional[bool] = typer.Option(None, "--include-knowledge-graph/--no-include-knowledge-graph", help="Request field: include_knowledge_graph."),
-        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
-        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
-        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
+        include_knowledge_graph: Optional[bool] = typer.Option(None, '--include-knowledge-graph/--no-include-knowledge-graph', help='Append relevant knowledge graph entities and claims. Default: true.'),
+        output_path: str = typer.Option(..., '--output-path', help='Destination .docx path.'),
+        overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Overwrite existing .docx. Default: false.'),
+        recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Include descendants of folders. Default: true.'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Optional document/folder id to export; omitted exports library.'),
     ) -> None:
         """Export Word Route (POST /api/export/word)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5927,10 +6010,11 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='find-documents')
         existing_apps['find-documents'] = target_app
 
-    @target_app.command("stored-the-proposals")
-    def find_documents_stored_the_proposals_get(
+    @target_app.command("stored-the-proposals", hidden=True)
+    @target_app.command("list-proposals")
+    def find_documents_list_proposals_get(
         ctx: typer.Context,
-        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Query parameter: folder_id."),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help="Only this folder's proposals."),
     ) -> None:
         """Stored Find the Documents proposals (GET /api/find-documents/proposals)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5941,10 +6025,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("one-the-proposal")
-    def find_documents_one_the_proposal_get(
+    @target_app.command("one-the-proposal", hidden=True)
+    @target_app.command("get-proposal")
+    def find_documents_get_proposal_get(
         ctx: typer.Context,
-        proposal_id: str = typer.Argument(..., help="Path parameter: proposal_id."),
+        proposal_id: str = typer.Argument(..., help='Proposal Id'),
     ) -> None:
         """One Find the Documents proposal (GET /api/find-documents/proposals/{proposal_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -5953,14 +6038,15 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("accept-proposed-group-nodes-with-their-prototypes-the-canvas-laid-out")
-    def find_documents_accept_proposed_group_nodes_with_their_prototypes_the_canvas_laid_out_post(
+    @target_app.command("accept-proposed-group-nodes-with-their-prototypes-the-canvas-laid-out", hidden=True)
+    @target_app.command("accept-proposal")
+    def find_documents_accept_proposal_post(
         ctx: typer.Context,
-        proposal_id: str = typer.Argument(..., help="Path parameter: proposal_id."),
-        arrange: Optional[bool] = typer.Option(None, "--arrange/--no-arrange", help="Request field: arrange."),
-        document_indexes: Optional[str] = typer.Option(None, "--document-indexes", help="Request field: document_indexes."),
-        groups: Optional[bool] = typer.Option(None, "--groups/--no-groups", help="Request field: groups."),
-        min_confidence: Optional[float] = typer.Option(None, "--min-confidence", help="Request field: min_confidence."),
+        proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        arrange: Optional[bool] = typer.Option(None, '--arrange/--no-arrange', help="Lay the folder's canvas out in the documents' order. Default: true."),
+        document_indexes: Optional[list[str]] = typer.Option(None, '--document-indexes', help='The documents to accept; none with no `min_confidence` accepts them all. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        groups: Optional[bool] = typer.Option(None, '--groups/--no-groups', help='Also accept each proposed group whose documents are all accepted. Default: true.'),
+        min_confidence: Optional[float] = typer.Option(None, '--min-confidence', help='Accept every document at least this confident.'),
     ) -> None:
         """Accept proposed documents: group nodes with their prototypes, the canvas laid out (POST /api/find-documents/proposals/{proposal_id}/accept)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5980,11 +6066,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("reject-proposed-kept-for-the-project-s-own-model-to-learn-from")
-    def find_documents_reject_proposed_kept_for_the_project_s_own_model_to_learn_from_post(
+    @target_app.command("reject-proposed-kept-for-the-project-s-own-model-to-learn-from", hidden=True)
+    @target_app.command("reject-proposal")
+    def find_documents_reject_proposal_post(
         ctx: typer.Context,
-        proposal_id: str = typer.Argument(..., help="Path parameter: proposal_id."),
-        document_indexes: str = typer.Option(..., "--document-indexes", help="Request field: document_indexes."),
+        proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        document_indexes: list[str] = typer.Option(..., '--document-indexes', help='Document Indexes. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Reject proposed documents (kept, for the project's own model to learn from) (POST /api/find-documents/proposals/{proposal_id}/reject)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5998,11 +6085,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("the-in-folders-or-a-selection-of-pages")
-    def find_documents_the_in_folders_or_a_selection_of_pages_post(
+    @target_app.command("the-in-folders-or-a-selection-of-pages", hidden=True)
+    @target_app.command("start")
+    def find_documents_start_post(
         ctx: typer.Context,
-        accept_above: Optional[float] = typer.Option(None, "--accept-above", help="Request field: accept_above."),
-        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+        accept_above: Optional[float] = typer.Option(None, '--accept-above', help="Accept, as the run ends, every proposed document at least this confident (left out: 0.95, the project's default, ruled 2026-10-08); null leaves all for a person. Default: 0.95."),
+        scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders, or a selection of pages (each with its folder). A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Find the documents in folders or a selection of pages (POST /api/find-documents/runs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6018,10 +6106,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("a-the-run-and-its-proposals")
-    def find_documents_a_the_run_and_its_proposals_get(
+    @target_app.command("a-the-run-and-its-proposals", hidden=True)
+    @target_app.command("run")
+    def find_documents_run_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """A Find the Documents run and its proposals (GET /api/find-documents/runs/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6039,9 +6128,9 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def folders_delete_delete(
         ctx: typer.Context,
-        entity_type: str = typer.Argument(..., help="Path parameter: entity_type."),
-        delete_contents: Optional[bool] = typer.Option(None, "--delete-contents/--no-delete-contents", help="Query parameter: delete_contents."),
-        folder_path: str = typer.Option(..., "--folder-path", help="Query parameter: folder_path."),
+        entity_type: str = typer.Argument(..., help='Path parameter: entity_type.'),
+        delete_contents: Optional[bool] = typer.Option(None, '--delete-contents/--no-delete-contents', help='Delete Contents.'),
+        folder_path: str = typer.Option(..., '--folder-path', help='Folder Path.'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Folder (DELETE /api/folders/{entity_type}/folders)."""
@@ -6059,8 +6148,8 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def folders_list_get(
         ctx: typer.Context,
-        entity_type: str = typer.Argument(..., help="Path parameter: entity_type."),
-        parent_path: Optional[str] = typer.Option(None, "--parent-path", help="Query parameter: parent_path."),
+        entity_type: str = typer.Argument(..., help='Path parameter: entity_type.'),
+        parent_path: Optional[str] = typer.Option(None, '--parent-path', help='Parent Path.'),
     ) -> None:
         """List Folders (GET /api/folders/{entity_type}/folders)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6074,8 +6163,8 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def folders_create_post(
         ctx: typer.Context,
-        entity_type: str = typer.Argument(..., help="Path parameter: entity_type."),
-        folder_path: str = typer.Option(..., "--folder-path", help="Query parameter: folder_path."),
+        entity_type: str = typer.Argument(..., help='Path parameter: entity_type.'),
+        folder_path: str = typer.Option(..., '--folder-path', help='Folder Path.'),
     ) -> None:
         """Create Folder (POST /api/folders/{entity_type}/folders)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6089,9 +6178,9 @@ def register_generated_openapi_commands(
     @target_app.command("rename")
     def folders_rename_put(
         ctx: typer.Context,
-        entity_type: str = typer.Argument(..., help="Path parameter: entity_type."),
-        new_path: str = typer.Option(..., "--new-path", help="Request field: new_path."),
-        old_path: str = typer.Option(..., "--old-path", help="Request field: old_path."),
+        entity_type: str = typer.Argument(..., help='Path parameter: entity_type.'),
+        new_path: str = typer.Option(..., '--new-path', help='New Path.'),
+        old_path: str = typer.Option(..., '--old-path', help='Old Path.'),
     ) -> None:
         """Rename Folder (PUT /api/folders/{entity_type}/folders)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6110,9 +6199,9 @@ def register_generated_openapi_commands(
     @target_app.command("move-items")
     def folders_move_items_put(
         ctx: typer.Context,
-        entity_type: str = typer.Argument(..., help="Path parameter: entity_type."),
-        folder_path: str = typer.Option(..., "--folder-path", help="Request field: folder_path."),
-        item_ids: str = typer.Option(..., "--item-ids", help="Request field: item_ids."),
+        entity_type: str = typer.Argument(..., help='Path parameter: entity_type.'),
+        folder_path: str = typer.Option(..., '--folder-path', help='Folder Path.'),
+        item_ids: list[str] = typer.Option(..., '--item-ids', help='Item Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Move Items (PUT /api/folders/{entity_type}/move)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6131,7 +6220,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-views")
     def folders_get_views_get(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
     ) -> None:
         """Get Folder Views (GET /api/folders/{folder_id}/views)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6160,7 +6249,7 @@ def register_generated_openapi_commands(
     @target_app.command("file")
     def fonts_file_get(
         ctx: typer.Context,
-        name: str = typer.Argument(..., help="Path parameter: name."),
+        name: str = typer.Argument(..., help='Name'),
     ) -> None:
         """Font File (GET /api/fonts/{name})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6175,8 +6264,9 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='formats')
         existing_apps['formats'] = target_app
 
-    @target_app.command("interchange-this-build-reads-and-writes")
-    def formats_interchange_this_build_reads_and_writes_get(
+    @target_app.command("interchange-this-build-reads-and-writes", hidden=True)
+    @target_app.command("list")
+    def formats_list_get(
         ctx: typer.Context,
     ) -> None:
         """Interchange formats this build reads and writes (GET /api/formats)."""
@@ -6195,8 +6285,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-document-geojson")
     def georeference_get_document_geojson_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        kinds: Optional[str] = typer.Option(None, "--kinds", help="Query parameter: kinds."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        kinds: Optional[str] = typer.Option(None, '--kinds', help='Comma-separated segment kinds to place.'),
     ) -> None:
         """Get Document Geojson (GET /api/georeference/documents/{doc_id}/geojson)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6210,8 +6300,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-transform")
     def georeference_get_transform_get(
         ctx: typer.Context,
-        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
-        mask_id: Optional[str] = typer.Option(None, "--mask-id", help="Query parameter: mask_id."),
+        pass_id: str = typer.Argument(..., help='Pass Id'),
+        mask_id: Optional[str] = typer.Option(None, '--mask-id', help='Which map on the sheet, when it has several.'),
     ) -> None:
         """Get Transform (GET /api/georeference/passes/{pass_id}/transform)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6225,8 +6315,8 @@ def register_generated_openapi_commands(
     @target_app.command("set-transformation")
     def georeference_set_transformation_put(
         ctx: typer.Context,
-        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
-        transformation: str = typer.Option(..., "--transformation", help="Request field: transformation."),
+        pass_id: str = typer.Argument(..., help='Pass Id'),
+        transformation: str = typer.Option(..., '--transformation', help='Transformation.'),
     ) -> None:
         """Set Transformation (PUT /api/georeference/passes/{pass_id}/transformation)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6243,8 +6333,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-world-shape")
     def georeference_get_world_shape_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
-        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
+        pass_id: Optional[str] = typer.Option(None, '--pass-id', help='The georeferencing pass, when the image has several.'),
     ) -> None:
         """Get World Shape (GET /api/georeference/segments/{segment_id}/world-shape)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6275,12 +6365,12 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def hands_create_post(
         ctx: typer.Context,
-        date: Optional[str] = typer.Option(None, "--date", help="Request field: date."),
-        label: str = typer.Option(..., "--label", help="Request field: label."),
-        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
-        place: Optional[str] = typer.Option(None, "--place", help="Request field: place."),
-        scribe: Optional[str] = typer.Option(None, "--scribe", help="Request field: scribe."),
-        style: Optional[str] = typer.Option(None, "--style", help="Request field: style."),
+        date: Optional[str] = typer.Option(None, '--date', help='Date.'),
+        label: str = typer.Option(..., '--label', help='Label.'),
+        notes: Optional[str] = typer.Option(None, '--notes', help='Notes.'),
+        place: Optional[str] = typer.Option(None, '--place', help='Place.'),
+        scribe: Optional[str] = typer.Option(None, '--scribe', help='Scribe.'),
+        style: Optional[str] = typer.Option(None, '--style', help='Style.'),
     ) -> None:
         """Create Hand (POST /api/hands)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6307,9 +6397,9 @@ def register_generated_openapi_commands(
     @target_app.command("attribute-segment")
     def hands_attribute_segment_post(
         ctx: typer.Context,
-        certainty: Optional[float] = typer.Option(None, "--certainty", help="Request field: certainty."),
-        hand_id: str = typer.Option(..., "--hand-id", help="Request field: hand_id."),
-        segment_id: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+        certainty: Optional[float] = typer.Option(None, '--certainty', help='Certainty.'),
+        hand_id: str = typer.Option(..., '--hand-id', help='Hand Id.'),
+        segment_id: str = typer.Option(..., '--segment-id', help='Segment Id.'),
     ) -> None:
         """Attribute Segment (POST /api/hands/attributions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6330,7 +6420,7 @@ def register_generated_openapi_commands(
     @target_app.command("withdraw-attribution")
     def hands_withdraw_attribution_post(
         ctx: typer.Context,
-        attribution_id: str = typer.Argument(..., help="Path parameter: attribution_id."),
+        attribution_id: str = typer.Argument(..., help='Attribution Id'),
     ) -> None:
         """Withdraw Attribution (POST /api/hands/attributions/{attribution_id}/withdraw)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6342,7 +6432,7 @@ def register_generated_openapi_commands(
     @target_app.command("of-segment")
     def hands_of_segment_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
     ) -> None:
         """Hands Of Segment (GET /api/hands/segment/{segment_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6354,7 +6444,7 @@ def register_generated_openapi_commands(
     @target_app.command("everything-in-a")
     def hands_everything_in_a_get(
         ctx: typer.Context,
-        hand_id: str = typer.Argument(..., help="Path parameter: hand_id."),
+        hand_id: str = typer.Argument(..., help='Hand Id'),
     ) -> None:
         """Everything In A Hand (GET /api/hands/{hand_id}/attributions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6366,7 +6456,7 @@ def register_generated_openapi_commands(
     @target_app.command("withdraw")
     def hands_withdraw_post(
         ctx: typer.Context,
-        hand_id: str = typer.Argument(..., help="Path parameter: hand_id."),
+        hand_id: str = typer.Argument(..., help='Hand Id'),
     ) -> None:
         """Withdraw Hand (POST /api/hands/{hand_id}/withdraw)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6384,7 +6474,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-circle-states")
     def hermeneutics_list_circle_states_get(
         ctx: typer.Context,
-        claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Query parameter: claim_id."),
+        claim_id: Optional[str] = typer.Option(None, '--claim-id', help='Claim Id.'),
     ) -> None:
         """List Circle States (GET /api/hermeneutics/circle-state)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6398,12 +6488,12 @@ def register_generated_openapi_commands(
     @target_app.command("create-circle-state")
     def hermeneutics_create_circle_state_post(
         ctx: typer.Context,
-        claim_id: str = typer.Option(..., "--claim-id", help="Request field: claim_id."),
-        current_focus: str = typer.Option(..., "--current-focus", help="Request field: current_focus."),
-        direction: str = typer.Option(..., "--direction", help="Request field: direction."),
-        focus_id: str = typer.Option(..., "--focus-id", help="Request field: focus_id."),
-        focus_label: str = typer.Option(..., "--focus-label", help="Request field: focus_label."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        claim_id: str = typer.Option(..., '--claim-id', help='Claim Id.'),
+        current_focus: str = typer.Option(..., '--current-focus', help='Current Focus.'),
+        direction: str = typer.Option(..., '--direction', help='Movement through the hermeneutic circle. One of: part_to_whole, whole_to_part.'),
+        focus_id: str = typer.Option(..., '--focus-id', help='Focus Id.'),
+        focus_label: str = typer.Option(..., '--focus-label', help='Focus Label.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
     ) -> None:
         """Create Circle State (POST /api/hermeneutics/circle-state)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6430,7 +6520,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-circle-state")
     def hermeneutics_get_circle_state_get(
         ctx: typer.Context,
-        state_id: str = typer.Argument(..., help="Path parameter: state_id."),
+        state_id: str = typer.Argument(..., help='State Id'),
     ) -> None:
         """Get Circle State (GET /api/hermeneutics/circle-state/{state_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6442,7 +6532,7 @@ def register_generated_openapi_commands(
     @target_app.command("backtrack-circle")
     def hermeneutics_backtrack_circle_post(
         ctx: typer.Context,
-        state_id: str = typer.Argument(..., help="Path parameter: state_id."),
+        state_id: str = typer.Argument(..., help='State Id'),
     ) -> None:
         """Backtrack Circle (POST /api/hermeneutics/circle-state/{state_id}/backtrack)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6454,10 +6544,10 @@ def register_generated_openapi_commands(
     @target_app.command("navigate-circle")
     def hermeneutics_navigate_circle_post(
         ctx: typer.Context,
-        state_id: str = typer.Argument(..., help="Path parameter: state_id."),
-        direction: str = typer.Option(..., "--direction", help="Request field: direction."),
-        focus_id: str = typer.Option(..., "--focus-id", help="Request field: focus_id."),
-        focus_label: str = typer.Option(..., "--focus-label", help="Request field: focus_label."),
+        state_id: str = typer.Argument(..., help='State Id'),
+        direction: str = typer.Option(..., '--direction', help='Movement through the hermeneutic circle. One of: part_to_whole, whole_to_part.'),
+        focus_id: str = typer.Option(..., '--focus-id', help='Focus Id.'),
+        focus_label: str = typer.Option(..., '--focus-label', help='Focus Label.'),
     ) -> None:
         """Navigate Circle (POST /api/hermeneutics/circle-state/{state_id}/navigate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6478,8 +6568,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-frameworks")
     def hermeneutics_list_frameworks_get(
         ctx: typer.Context,
-        framework_type: Optional[str] = typer.Option(None, "--framework-type", help="Query parameter: framework_type."),
-        is_active: Optional[bool] = typer.Option(None, "--is-active/--no-is-active", help="Query parameter: is_active."),
+        framework_type: Optional[str] = typer.Option(None, '--framework-type', help='Framework Type.'),
+        is_active: Optional[bool] = typer.Option(None, '--is-active/--no-is-active', help='Is Active.'),
     ) -> None:
         """List Frameworks (GET /api/hermeneutics/frameworks)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6494,16 +6584,16 @@ def register_generated_openapi_commands(
     @target_app.command("create-framework")
     def hermeneutics_create_framework_post(
         ctx: typer.Context,
-        core_questions: Optional[str] = typer.Option(None, "--core-questions", help="Request field: core_questions."),
-        creator: Optional[str] = typer.Option(None, "--creator", help="Request field: creator."),
-        description: str = typer.Option(..., "--description", help="Request field: description."),
-        framework_type: str = typer.Option(..., "--framework-type", help="Request field: framework_type."),
-        key_concepts: Optional[str] = typer.Option(None, "--key-concepts", help="Request field: key_concepts."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        origin: Optional[str] = typer.Option(None, "--origin", help="Request field: origin."),
-        typical_applications: Optional[str] = typer.Option(None, "--typical-applications", help="Request field: typical_applications."),
+        core_questions: Optional[list[str]] = typer.Option(None, '--core-questions', help='Core Questions. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        creator: Optional[str] = typer.Option(None, '--creator', help='Creator.'),
+        description: str = typer.Option(..., '--description', help='Description.'),
+        framework_type: str = typer.Option(..., '--framework-type', help='Interpretive lens categories. One of: historical, disciplinary, thematic, methodological, theoretical, narrative.'),
+        key_concepts: Optional[list[str]] = typer.Option(None, '--key-concepts', help='Key Concepts. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        origin: Optional[str] = typer.Option(None, '--origin', help='Origin.'),
+        typical_applications: Optional[list[str]] = typer.Option(None, '--typical-applications', help='Typical Applications. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Create Framework (POST /api/hermeneutics/frameworks)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6538,7 +6628,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-framework")
     def hermeneutics_delete_framework_delete(
         ctx: typer.Context,
-        framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
+        framework_id: str = typer.Argument(..., help='Framework Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Framework (DELETE /api/hermeneutics/frameworks/{framework_id})."""
@@ -6553,7 +6643,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-framework")
     def hermeneutics_get_framework_get(
         ctx: typer.Context,
-        framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
+        framework_id: str = typer.Argument(..., help='Framework Id'),
     ) -> None:
         """Get Framework (GET /api/hermeneutics/frameworks/{framework_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6565,18 +6655,18 @@ def register_generated_openapi_commands(
     @target_app.command("update-framework")
     def hermeneutics_update_framework_patch(
         ctx: typer.Context,
-        framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
-        core_questions: Optional[str] = typer.Option(None, "--core-questions", help="Request field: core_questions."),
-        creator: Optional[str] = typer.Option(None, "--creator", help="Request field: creator."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        framework_type: Optional[str] = typer.Option(None, "--framework-type", help="Request field: framework_type."),
-        is_active: Optional[bool] = typer.Option(None, "--is-active/--no-is-active", help="Request field: is_active."),
-        key_concepts: Optional[str] = typer.Option(None, "--key-concepts", help="Request field: key_concepts."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        origin: Optional[str] = typer.Option(None, "--origin", help="Request field: origin."),
-        typical_applications: Optional[str] = typer.Option(None, "--typical-applications", help="Request field: typical_applications."),
+        framework_id: str = typer.Argument(..., help='Framework Id'),
+        core_questions: Optional[list[str]] = typer.Option(None, '--core-questions', help='Core Questions. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        creator: Optional[str] = typer.Option(None, '--creator', help='Creator.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        framework_type: Optional[str] = typer.Option(None, '--framework-type', help='Interpretive lens categories. One of: historical, disciplinary, thematic, methodological, theoretical, narrative.'),
+        is_active: Optional[bool] = typer.Option(None, '--is-active/--no-is-active', help='Is Active.'),
+        key_concepts: Optional[list[str]] = typer.Option(None, '--key-concepts', help='Key Concepts. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        origin: Optional[str] = typer.Option(None, '--origin', help='Origin.'),
+        typical_applications: Optional[list[str]] = typer.Option(None, '--typical-applications', help='Typical Applications. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Update Framework (PATCH /api/hermeneutics/frameworks/{framework_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6613,10 +6703,10 @@ def register_generated_openapi_commands(
     @target_app.command("list-interpretations")
     def hermeneutics_list_interpretations_get(
         ctx: typer.Context,
-        act: Optional[str] = typer.Option(None, "--act", help="Query parameter: act."),
-        claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Query parameter: claim_id."),
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
-        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Query parameter: framework_id."),
+        act: Optional[str] = typer.Option(None, '--act', help='Act.'),
+        claim_id: Optional[str] = typer.Option(None, '--claim-id', help='Claim Id.'),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='Document Id.'),
+        framework_id: Optional[str] = typer.Option(None, '--framework-id', help='Framework Id.'),
     ) -> None:
         """List Interpretations (GET /api/hermeneutics/interpretations)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6633,19 +6723,19 @@ def register_generated_openapi_commands(
     @target_app.command("create-interpretation")
     def hermeneutics_create_interpretation_post(
         ctx: typer.Context,
-        act: str = typer.Option(..., "--act", help="Request field: act."),
-        claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Request field: claim_id."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        connections: Optional[str] = typer.Option(None, "--connections", help="Request field: connections."),
-        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
-        framework_id: str = typer.Option(..., "--framework-id", help="Request field: framework_id."),
-        interpretation_text: str = typer.Option(..., "--interpretation-text", help="Request field: interpretation_text."),
-        key_insights: Optional[str] = typer.Option(None, "--key-insights", help="Request field: key_insights."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        passage_text: Optional[str] = typer.Option(None, "--passage-text", help="Request field: passage_text."),
-        predicate: Optional[str] = typer.Option(None, "--predicate", help="Request field: predicate."),
-        tensions: Optional[str] = typer.Option(None, "--tensions", help="Request field: tensions."),
+        act: str = typer.Option(..., '--act', help='Types of interpretive operations. One of: reading, translating, contextualizing, synthesizing, critiquing, applying.'),
+        claim_id: Optional[str] = typer.Option(None, '--claim-id', help='Claim Id.'),
+        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence. Default: 0.5.'),
+        connections: Optional[list[str]] = typer.Option(None, '--connections', help='Connections. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        created_by: Optional[str] = typer.Option(None, '--created-by', help='Created By. Default: "human".'),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='Document Id.'),
+        framework_id: str = typer.Option(..., '--framework-id', help='Framework Id.'),
+        interpretation_text: str = typer.Option(..., '--interpretation-text', help='Interpretation Text.'),
+        key_insights: Optional[list[str]] = typer.Option(None, '--key-insights', help='Key Insights. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        passage_text: Optional[str] = typer.Option(None, '--passage-text', help='Passage Text.'),
+        predicate: Optional[str] = typer.Option(None, '--predicate', help='Predicate.'),
+        tensions: Optional[list[str]] = typer.Option(None, '--tensions', help='Tensions. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Create Interpretation (POST /api/hermeneutics/interpretations)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6686,7 +6776,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-interpretation")
     def hermeneutics_get_interpretation_get(
         ctx: typer.Context,
-        interpretation_id: str = typer.Argument(..., help="Path parameter: interpretation_id."),
+        interpretation_id: str = typer.Argument(..., help='Interpretation Id'),
     ) -> None:
         """Get Interpretation (GET /api/hermeneutics/interpretations/{interpretation_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6698,15 +6788,15 @@ def register_generated_openapi_commands(
     @target_app.command("update-interpretation")
     def hermeneutics_update_interpretation_patch(
         ctx: typer.Context,
-        interpretation_id: str = typer.Argument(..., help="Path parameter: interpretation_id."),
-        act: Optional[str] = typer.Option(None, "--act", help="Request field: act."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        connections: Optional[str] = typer.Option(None, "--connections", help="Request field: connections."),
-        interpretation_text: Optional[str] = typer.Option(None, "--interpretation-text", help="Request field: interpretation_text."),
-        key_insights: Optional[str] = typer.Option(None, "--key-insights", help="Request field: key_insights."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        predicate: Optional[str] = typer.Option(None, "--predicate", help="Request field: predicate."),
-        tensions: Optional[str] = typer.Option(None, "--tensions", help="Request field: tensions."),
+        interpretation_id: str = typer.Argument(..., help='Interpretation Id'),
+        act: Optional[str] = typer.Option(None, '--act', help='Types of interpretive operations. One of: reading, translating, contextualizing, synthesizing, critiquing, applying.'),
+        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence.'),
+        connections: Optional[list[str]] = typer.Option(None, '--connections', help='Connections. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        interpretation_text: Optional[str] = typer.Option(None, '--interpretation-text', help='Interpretation Text.'),
+        key_insights: Optional[list[str]] = typer.Option(None, '--key-insights', help='Key Insights. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        predicate: Optional[str] = typer.Option(None, '--predicate', help='Predicate.'),
+        tensions: Optional[list[str]] = typer.Option(None, '--tensions', help='Tensions. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Update Interpretation (PATCH /api/hermeneutics/interpretations/{interpretation_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6737,9 +6827,9 @@ def register_generated_openapi_commands(
     @target_app.command("list-patterns")
     def hermeneutics_list_patterns_get(
         ctx: typer.Context,
-        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Query parameter: framework_id."),
-        pattern_type: Optional[str] = typer.Option(None, "--pattern-type", help="Query parameter: pattern_type."),
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
+        framework_id: Optional[str] = typer.Option(None, '--framework-id', help='Framework Id.'),
+        pattern_type: Optional[str] = typer.Option(None, '--pattern-type', help='Pattern Type.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Status.'),
     ) -> None:
         """List Patterns (GET /api/hermeneutics/patterns)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6755,17 +6845,17 @@ def register_generated_openapi_commands(
     @target_app.command("create-pattern")
     def hermeneutics_create_pattern_post(
         ctx: typer.Context,
-        claim_ids: Optional[str] = typer.Option(None, "--claim-ids", help="Request field: claim_ids."),
-        description: str = typer.Option(..., "--description", help="Request field: description."),
-        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
-        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Request field: framework_id."),
-        frequency: Optional[int] = typer.Option(None, "--frequency", help="Request field: frequency."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        pattern_type: str = typer.Option(..., "--pattern-type", help="Request field: pattern_type."),
-        significance: Optional[float] = typer.Option(None, "--significance", help="Request field: significance."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
-        supporting_passages: Optional[str] = typer.Option(None, "--supporting-passages", help="Request field: supporting_passages."),
+        claim_ids: Optional[list[str]] = typer.Option(None, '--claim-ids', help='Claim Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        description: str = typer.Option(..., '--description', help='Description.'),
+        entity_ids: Optional[list[str]] = typer.Option(None, '--entity-ids', help='Entity Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        framework_id: Optional[str] = typer.Option(None, '--framework-id', help='Framework Id.'),
+        frequency: Optional[int] = typer.Option(None, '--frequency', help='Frequency. Default: 0.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        pattern_type: str = typer.Option(..., '--pattern-type', help='Pattern Type.'),
+        significance: Optional[float] = typer.Option(None, '--significance', help='Significance. Default: 0.5.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Lifecycle state of a recognized pattern. One of: tentative, confirmed, superseded.'),
+        supporting_passages: Optional[list[str]] = typer.Option(None, '--supporting-passages', help='Supporting Passages. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Create Pattern (POST /api/hermeneutics/patterns)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6802,7 +6892,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-pattern")
     def hermeneutics_get_pattern_get(
         ctx: typer.Context,
-        pattern_id: str = typer.Argument(..., help="Path parameter: pattern_id."),
+        pattern_id: str = typer.Argument(..., help='Pattern Id'),
     ) -> None:
         """Get Pattern (GET /api/hermeneutics/patterns/{pattern_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6814,18 +6904,18 @@ def register_generated_openapi_commands(
     @target_app.command("update-pattern")
     def hermeneutics_update_pattern_patch(
         ctx: typer.Context,
-        pattern_id: str = typer.Argument(..., help="Path parameter: pattern_id."),
-        claim_ids: Optional[str] = typer.Option(None, "--claim-ids", help="Request field: claim_ids."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
-        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Request field: framework_id."),
-        frequency: Optional[int] = typer.Option(None, "--frequency", help="Request field: frequency."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        pattern_type: Optional[str] = typer.Option(None, "--pattern-type", help="Request field: pattern_type."),
-        significance: Optional[float] = typer.Option(None, "--significance", help="Request field: significance."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
-        supporting_passages: Optional[str] = typer.Option(None, "--supporting-passages", help="Request field: supporting_passages."),
+        pattern_id: str = typer.Argument(..., help='Pattern Id'),
+        claim_ids: Optional[list[str]] = typer.Option(None, '--claim-ids', help='Claim Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        entity_ids: Optional[list[str]] = typer.Option(None, '--entity-ids', help='Entity Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        framework_id: Optional[str] = typer.Option(None, '--framework-id', help='Framework Id.'),
+        frequency: Optional[int] = typer.Option(None, '--frequency', help='Frequency.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        pattern_type: Optional[str] = typer.Option(None, '--pattern-type', help='Pattern Type.'),
+        significance: Optional[float] = typer.Option(None, '--significance', help='Significance.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Lifecycle state of a recognized pattern. One of: tentative, confirmed, superseded.'),
+        supporting_passages: Optional[list[str]] = typer.Option(None, '--supporting-passages', help='Supporting Passages. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Update Pattern (PATCH /api/hermeneutics/patterns/{pattern_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6862,8 +6952,8 @@ def register_generated_openapi_commands(
     @target_app.command("add-claim-to-pattern")
     def hermeneutics_add_claim_to_pattern_post(
         ctx: typer.Context,
-        pattern_id: str = typer.Argument(..., help="Path parameter: pattern_id."),
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
+        pattern_id: str = typer.Argument(..., help='Pattern Id'),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
     ) -> None:
         """Add Claim To Pattern (POST /api/hermeneutics/patterns/{pattern_id}/claims/{claim_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6872,8 +6962,9 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("picker-values-for-interpretation-editor-acts-framework-types")
-    def hermeneutics_picker_values_for_interpretation_editor_acts_framework_types_get(
+    @target_app.command("picker-values-for-interpretation-editor-acts-framework-types", hidden=True)
+    @target_app.command("get-taxonomy")
+    def hermeneutics_get_taxonomy_get(
         ctx: typer.Context,
     ) -> None:
         """Picker values for interpretation editor (acts + framework types) (GET /api/hermeneutics/taxonomy/methods)."""
@@ -6903,14 +6994,14 @@ def register_generated_openapi_commands(
     @target_app.command("create-or-update-cluster")
     def hpc_create_or_update_cluster_post(
         ctx: typer.Context,
-        account: Optional[str] = typer.Option(None, "--account", help="Request field: account."),
-        cluster_id: Optional[str] = typer.Option(None, "--cluster-id", help="Request field: cluster_id."),
-        host_alias: str = typer.Option(..., "--host-alias", help="Request field: host_alias."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        partition: Optional[str] = typer.Option(None, "--partition", help="Request field: partition."),
-        remote_base_dir: str = typer.Option(..., "--remote-base-dir", help="Request field: remote_base_dir."),
-        ssh_port: Optional[int] = typer.Option(None, "--ssh-port", help="Request field: ssh_port."),
-        username: str = typer.Option(..., "--username", help="Request field: username."),
+        account: Optional[str] = typer.Option(None, '--account', help='Account.'),
+        cluster_id: Optional[str] = typer.Option(None, '--cluster-id', help='Cluster Id.'),
+        host_alias: str = typer.Option(..., '--host-alias', help='Host Alias.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        partition: Optional[str] = typer.Option(None, '--partition', help='Partition. Default: "default".'),
+        remote_base_dir: str = typer.Option(..., '--remote-base-dir', help='Remote Base Dir.'),
+        ssh_port: Optional[int] = typer.Option(None, '--ssh-port', help='Ssh Port. Default: 22.'),
+        username: str = typer.Option(..., '--username', help='Username.'),
     ) -> None:
         """Create Or Update Cluster (POST /api/hpc/clusters)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6941,7 +7032,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-cluster")
     def hpc_delete_cluster_delete(
         ctx: typer.Context,
-        cluster_id: str = typer.Argument(..., help="Path parameter: cluster_id."),
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Cluster (DELETE /api/hpc/clusters/{cluster_id})."""
@@ -6956,7 +7047,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-cluster")
     def hpc_get_cluster_get(
         ctx: typer.Context,
-        cluster_id: str = typer.Argument(..., help="Path parameter: cluster_id."),
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
     ) -> None:
         """Get Cluster (GET /api/hpc/clusters/{cluster_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -6968,13 +7059,13 @@ def register_generated_openapi_commands(
     @target_app.command("dry-run-submit")
     def hpc_dry_run_submit_post(
         ctx: typer.Context,
-        cluster_id: str = typer.Argument(..., help="Path parameter: cluster_id."),
-        input_files: str = typer.Option(..., "--input-files", help="Request field: input_files."),
-        library_path: Optional[str] = typer.Option(None, "--library-path", help="Request field: library_path."),
-        run_id: str = typer.Option(..., "--run-id", help="Request field: run_id."),
-        throttle: Optional[int] = typer.Option(None, "--throttle", help="Request field: throttle."),
-        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
-        workflow_name: str = typer.Option(..., "--workflow-name", help="Request field: workflow_name."),
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+        input_files: list[str] = typer.Option(..., '--input-files', help='Input Files. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        library_path: Optional[str] = typer.Option(None, '--library-path', help='Library Path. Default: "".'),
+        run_id: str = typer.Option(..., '--run-id', help='Run Id.'),
+        throttle: Optional[int] = typer.Option(None, '--throttle', help='Throttle. Default: 0.'),
+        workflow_id: str = typer.Option(..., '--workflow-id', help='Workflow Id.'),
+        workflow_name: str = typer.Option(..., '--workflow-name', help='Workflow Name.'),
     ) -> None:
         """Dry Run Submit (POST /api/hpc/clusters/{cluster_id}/dry-run-submit)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7001,7 +7092,7 @@ def register_generated_openapi_commands(
     @target_app.command("test-cluster")
     def hpc_test_cluster_post(
         ctx: typer.Context,
-        cluster_id: str = typer.Argument(..., help="Path parameter: cluster_id."),
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
     ) -> None:
         """Test Cluster (POST /api/hpc/clusters/{cluster_id}/test)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7016,12 +7107,13 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='iiif')
         existing_apps['iiif'] = target_app
 
-    @target_app.command("direct-image-access")
-    def iiif_direct_image_access_get(
+    @target_app.command("direct-image-access", hidden=True)
+    @target_app.command("get-document-image")
+    def iiif_get_document_image_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        height: Optional[int] = typer.Option(None, "--height", help="Query parameter: height."),
-        width: Optional[int] = typer.Option(None, "--width", help="Query parameter: width."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        height: Optional[int] = typer.Option(None, '--height', help='Height.'),
+        width: Optional[int] = typer.Option(None, '--width', help='Width.'),
     ) -> None:
         """Direct Image Access (GET /api/iiif/iiif/image/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -7033,10 +7125,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("a-page-s-lines-as-annotations")
-    def iiif_a_page_s_lines_as_annotations_get(
+    @target_app.command("a-page-s-lines-as-annotations", hidden=True)
+    @target_app.command("get-lines-annotation-page")
+    def iiif_get_lines_annotation_page_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """A page's lines as IIIF annotations (GET /api/iiif/iiif/lines/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -7045,10 +7138,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("manifest")
-    def iiif_manifest_get(
+    @target_app.command("manifest", hidden=True)
+    @target_app.command("get-manifest")
+    def iiif_get_manifest_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """IIIF Manifest (GET /api/iiif/iiif/manifest/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -7057,10 +7151,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("image-information")
-    def iiif_image_information_get(
+    @target_app.command("image-information", hidden=True)
+    @target_app.command("get-image-info")
+    def iiif_get_image_info_get(
         ctx: typer.Context,
-        identifier: str = typer.Argument(..., help="Path parameter: identifier."),
+        identifier: str = typer.Argument(..., help='Identifier'),
     ) -> None:
         """IIIF Image Information (GET /api/iiif/iiif/{identifier}/info.json)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7069,15 +7164,16 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("image-request")
-    def iiif_image_request_get(
+    @target_app.command("image-request", hidden=True)
+    @target_app.command("serve-image")
+    def iiif_serve_image_get(
         ctx: typer.Context,
-        identifier: str = typer.Argument(..., help="Path parameter: identifier."),
-        region: str = typer.Argument(..., help="Path parameter: region."),
-        size: str = typer.Argument(..., help="Path parameter: size."),
-        rotation: str = typer.Argument(..., help="Path parameter: rotation."),
-        quality: str = typer.Argument(..., help="Path parameter: quality."),
-        format: str = typer.Argument(..., help="Path parameter: format."),
+        identifier: str = typer.Argument(..., help='Identifier'),
+        region: str = typer.Argument(..., help='Region'),
+        size: str = typer.Argument(..., help='Size'),
+        rotation: str = typer.Argument(..., help='Rotation'),
+        quality: str = typer.Argument(..., help='Quality'),
+        format: str = typer.Argument(..., help='Format'),
     ) -> None:
         """IIIF Image Request (GET /api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format})."""
         def op_call(client: FicheroClient) -> Any:
@@ -7095,10 +7191,10 @@ def register_generated_openapi_commands(
     @target_app.command("batch-apply-operation")
     def images_batch_apply_operation_post(
         ctx: typer.Context,
-        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
-        bboxes: Optional[str] = typer.Option(None, "--bboxes", help="Request field: bboxes."),
-        folder_id: str = typer.Option(..., "--folder-id", help="Request field: folder_id."),
-        operation: str = typer.Option(..., "--operation", help="Request field: operation."),
+        bbox: Optional[str] = typer.Option(None, '--bbox', help='Bbox. JSON.'),
+        bboxes: Optional[str] = typer.Option(None, '--bboxes', help='Bboxes. JSON.'),
+        folder_id: str = typer.Option(..., '--folder-id', help='Folder Id.'),
+        operation: str = typer.Option(..., '--operation', help='Operation. One of: crop, split.'),
     ) -> None:
         """Batch Apply Image Operation (POST /api/images/batch-apply)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7121,7 +7217,7 @@ def register_generated_openapi_commands(
     @target_app.command("undo-batch-operation")
     def images_undo_batch_operation_post(
         ctx: typer.Context,
-        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+        batch_id: str = typer.Argument(..., help='Batch Id'),
     ) -> None:
         """Undo Batch Image Operation (POST /api/images/batch-apply/{batch_id}/undo)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7133,13 +7229,13 @@ def register_generated_openapi_commands(
     @target_app.command("batch-crop")
     def images_batch_crop_post(
         ctx: typer.Context,
-        auto_orient: Optional[bool] = typer.Option(None, "--auto-orient/--no-auto-orient", help="Request field: auto_orient."),
-        document_ids: str = typer.Option(..., "--document-ids", help="Request field: document_ids."),
-        height: int = typer.Option(..., "--height", help="Request field: height."),
-        left: int = typer.Option(..., "--left", help="Request field: left."),
-        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
-        top: int = typer.Option(..., "--top", help="Request field: top."),
-        width: int = typer.Option(..., "--width", help="Request field: width."),
+        auto_orient: Optional[bool] = typer.Option(None, '--auto-orient/--no-auto-orient', help='Auto Orient. Default: true.'),
+        document_ids: list[str] = typer.Option(..., '--document-ids', help='Document Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        height: int = typer.Option(..., '--height', help='Height.'),
+        left: int = typer.Option(..., '--left', help='Left.'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
+        top: int = typer.Option(..., '--top', help='Top.'),
+        width: int = typer.Option(..., '--width', help='Width.'),
     ) -> None:
         """Batch Crop Images (POST /api/images/crops/batch)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7168,13 +7264,13 @@ def register_generated_openapi_commands(
     @target_app.command("crop-child")
     def images_crop_child_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        auto_orient: Optional[bool] = typer.Option(None, "--auto-orient/--no-auto-orient", help="Request field: auto_orient."),
-        height: int = typer.Option(..., "--height", help="Request field: height."),
-        left: int = typer.Option(..., "--left", help="Request field: left."),
-        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
-        top: int = typer.Option(..., "--top", help="Request field: top."),
-        width: int = typer.Option(..., "--width", help="Request field: width."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        auto_orient: Optional[bool] = typer.Option(None, '--auto-orient/--no-auto-orient', help='Auto Orient. Default: true.'),
+        height: int = typer.Option(..., '--height', help='Height.'),
+        left: int = typer.Option(..., '--left', help='Left.'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
+        top: int = typer.Option(..., '--top', help='Top.'),
+        width: int = typer.Option(..., '--width', help='Width.'),
     ) -> None:
         """Crop Image Child (POST /api/images/{document_id}/crop)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7201,7 +7297,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-edit-chain")
     def images_delete_edit_chain_delete(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Edit Chain (DELETE /api/images/{document_id}/edits)."""
@@ -7216,7 +7312,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-edit-chain")
     def images_get_edit_chain_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Get Edit Chain (GET /api/images/{document_id}/edits)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7228,8 +7324,8 @@ def register_generated_openapi_commands(
     @target_app.command("put-edit-chain")
     def images_put_edit_chain_put(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        operations: Optional[str] = typer.Option(None, "--operations", help="Request field: operations."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        operations: Optional[str] = typer.Option(None, '--operations', help='Operations. JSON.'),
     ) -> None:
         """Put Edit Chain (PUT /api/images/{document_id}/edits)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7246,13 +7342,13 @@ def register_generated_openapi_commands(
     @target_app.command("crop")
     def images_crop_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        auto_orient: Optional[bool] = typer.Option(None, "--auto-orient/--no-auto-orient", help="Request field: auto_orient."),
-        height: int = typer.Option(..., "--height", help="Request field: height."),
-        left: int = typer.Option(..., "--left", help="Request field: left."),
-        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
-        top: int = typer.Option(..., "--top", help="Request field: top."),
-        width: int = typer.Option(..., "--width", help="Request field: width."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        auto_orient: Optional[bool] = typer.Option(None, '--auto-orient/--no-auto-orient', help='Auto Orient. Default: true.'),
+        height: int = typer.Option(..., '--height', help='Height.'),
+        left: int = typer.Option(..., '--left', help='Left.'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
+        top: int = typer.Option(..., '--top', help='Top.'),
+        width: int = typer.Option(..., '--width', help='Width.'),
     ) -> None:
         """Crop Image (POST /api/images/{document_id}/operations/crop)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7279,12 +7375,12 @@ def register_generated_openapi_commands(
     @target_app.command("enhance")
     def images_enhance_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        auto_levels: Optional[bool] = typer.Option(None, "--auto-levels/--no-auto-levels", help="Request field: auto_levels."),
-        brightness: Optional[float] = typer.Option(None, "--brightness", help="Request field: brightness."),
-        contrast: Optional[float] = typer.Option(None, "--contrast", help="Request field: contrast."),
-        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
-        sharpen: Optional[float] = typer.Option(None, "--sharpen", help="Request field: sharpen."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        auto_levels: Optional[bool] = typer.Option(None, '--auto-levels/--no-auto-levels', help='Auto Levels. Default: false.'),
+        brightness: Optional[float] = typer.Option(None, '--brightness', help='Brightness. Default: 1.0.'),
+        contrast: Optional[float] = typer.Option(None, '--contrast', help='Contrast. Default: 1.0.'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
+        sharpen: Optional[float] = typer.Option(None, '--sharpen', help='Sharpen. Default: 1.0.'),
     ) -> None:
         """Enhance Image (POST /api/images/{document_id}/operations/enhance)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7309,10 +7405,10 @@ def register_generated_openapi_commands(
     @target_app.command("remove-background")
     def images_remove_background_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        method: Optional[str] = typer.Option(None, "--method", help="Request field: method."),
-        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
-        threshold: Optional[int] = typer.Option(None, "--threshold", help="Request field: threshold."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        method: Optional[str] = typer.Option(None, '--method', help='Method. Default: "opencv".'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
+        threshold: Optional[int] = typer.Option(None, '--threshold', help='Threshold. Default: 28.'),
     ) -> None:
         """Remove Background Image (POST /api/images/{document_id}/operations/remove-background)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7333,10 +7429,10 @@ def register_generated_openapi_commands(
     @target_app.command("rotate")
     def images_rotate_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        angle: float = typer.Option(..., "--angle", help="Request field: angle."),
-        expand: Optional[bool] = typer.Option(None, "--expand/--no-expand", help="Request field: expand."),
-        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        angle: float = typer.Option(..., '--angle', help='Angle.'),
+        expand: Optional[bool] = typer.Option(None, '--expand/--no-expand', help='Expand. Default: true.'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
     ) -> None:
         """Rotate Image (POST /api/images/{document_id}/operations/rotate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7357,12 +7453,12 @@ def register_generated_openapi_commands(
     @target_app.command("segment")
     def images_segment_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        max_segments: Optional[int] = typer.Option(None, "--max-segments", help="Request field: max_segments."),
-        method: Optional[str] = typer.Option(None, "--method", help="Request field: method."),
-        min_area: Optional[int] = typer.Option(None, "--min-area", help="Request field: min_area."),
-        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
-        threshold: Optional[int] = typer.Option(None, "--threshold", help="Request field: threshold."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        max_segments: Optional[int] = typer.Option(None, '--max-segments', help='Max Segments. Default: 20.'),
+        method: Optional[str] = typer.Option(None, '--method', help='Method. Default: "foreground".'),
+        min_area: Optional[int] = typer.Option(None, '--min-area', help='Min Area. Default: 100.'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
+        threshold: Optional[int] = typer.Option(None, '--threshold', help='Threshold. Default: 28.'),
     ) -> None:
         """Segment Image (POST /api/images/{document_id}/operations/segment)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7387,8 +7483,8 @@ def register_generated_openapi_commands(
     @target_app.command("straighten")
     def images_straighten_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
     ) -> None:
         """Straighten Image (POST /api/images/{document_id}/operations/straighten)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7405,9 +7501,9 @@ def register_generated_openapi_commands(
     @target_app.command("preview")
     def images_preview_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        apply_edits: Optional[bool] = typer.Option(None, "--apply-edits/--no-apply-edits", help="Query parameter: apply_edits."),
-        page: Optional[int] = typer.Option(None, "--page", help="Query parameter: page."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        apply_edits: Optional[bool] = typer.Option(None, '--apply-edits/--no-apply-edits', help='When true, apply the saved edit chain before rendering.'),
+        page: Optional[int] = typer.Option(None, '--page', help='PDF page number (1-indexed)'),
     ) -> None:
         """Preview Image (GET /api/images/{document_id}/preview)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7422,8 +7518,8 @@ def register_generated_openapi_commands(
     @target_app.command("split")
     def images_split_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        bboxes: Optional[str] = typer.Option(None, "--bboxes", help="Request field: bboxes."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        bboxes: Optional[str] = typer.Option(None, '--bboxes', help='Bboxes. JSON.'),
     ) -> None:
         """Split Image (POST /api/images/{document_id}/split)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7440,7 +7536,7 @@ def register_generated_openapi_commands(
     @target_app.command("uncrop-child")
     def images_uncrop_child_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Uncrop Image Child (POST /api/images/{document_id}/uncrop)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7452,7 +7548,7 @@ def register_generated_openapi_commands(
     @target_app.command("unsplit")
     def images_unsplit_post(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Unsplit Image (POST /api/images/{document_id}/unsplit)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7470,12 +7566,12 @@ def register_generated_openapi_commands(
     @target_app.command("file")
     def ingest_file_post(
         ctx: typer.Context,
-        auto_embed: Optional[bool] = typer.Option(None, "--auto-embed/--no-auto-embed", help="Request field: auto_embed."),
-        copy_mode: Optional[bool] = typer.Option(None, "--copy-mode/--no-copy-mode", help="Request field: copy_mode."),
-        extract_text: Optional[bool] = typer.Option(None, "--extract-text/--no-extract-text", help="Request field: extract_text."),
-        mode: Optional[str] = typer.Option(None, "--mode", help="Request field: mode."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
-        path: str = typer.Option(..., "--path", help="Request field: path."),
+        auto_embed: Optional[bool] = typer.Option(None, '--auto-embed/--no-auto-embed', help='Auto Embed. Default: false.'),
+        copy_mode: Optional[bool] = typer.Option(None, '--copy-mode/--no-copy-mode', help='Copy Mode. Default: false.'),
+        extract_text: Optional[bool] = typer.Option(None, '--extract-text/--no-extract-text', help='Extract Text. Default: true.'),
+        mode: Optional[str] = typer.Option(None, '--mode', help='Mode. One of: link, copy, move.'),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Parent Id.'),
+        path: str = typer.Option(..., '--path', help='Path.'),
     ) -> None:
         """Ingest File (POST /api/ingest/file)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7502,11 +7598,11 @@ def register_generated_openapi_commands(
     @target_app.command("files")
     def ingest_files_post(
         ctx: typer.Context,
-        auto_embed: Optional[bool] = typer.Option(None, "--auto-embed/--no-auto-embed", help="Request field: auto_embed."),
-        extract_text: Optional[bool] = typer.Option(None, "--extract-text/--no-extract-text", help="Request field: extract_text."),
-        mode: Optional[str] = typer.Option(None, "--mode", help="Request field: mode."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
-        paths: str = typer.Option(..., "--paths", help="Request field: paths."),
+        auto_embed: Optional[bool] = typer.Option(None, '--auto-embed/--no-auto-embed', help='Auto Embed. Default: false.'),
+        extract_text: Optional[bool] = typer.Option(None, '--extract-text/--no-extract-text', help='Extract Text. Default: true.'),
+        mode: Optional[str] = typer.Option(None, '--mode', help='Mode. One of: link, copy, move.'),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Parent Id.'),
+        paths: list[str] = typer.Option(..., '--paths', help='Paths. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Ingest Files (POST /api/ingest/files)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7531,14 +7627,14 @@ def register_generated_openapi_commands(
     @target_app.command("folder")
     def ingest_folder_post(
         ctx: typer.Context,
-        auto_embed: Optional[bool] = typer.Option(None, "--auto-embed/--no-auto-embed", help="Request field: auto_embed."),
-        copy_mode: Optional[bool] = typer.Option(None, "--copy-mode/--no-copy-mode", help="Request field: copy_mode."),
-        extract_text: Optional[bool] = typer.Option(None, "--extract-text/--no-extract-text", help="Request field: extract_text."),
-        ground_truth: Optional[bool] = typer.Option(None, "--ground-truth/--no-ground-truth", help="Request field: ground_truth."),
-        mode: Optional[str] = typer.Option(None, "--mode", help="Request field: mode."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
-        path: str = typer.Option(..., "--path", help="Request field: path."),
-        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
+        auto_embed: Optional[bool] = typer.Option(None, '--auto-embed/--no-auto-embed', help='Auto Embed. Default: false.'),
+        copy_mode: Optional[bool] = typer.Option(None, '--copy-mode/--no-copy-mode', help='Copy Mode. Default: false.'),
+        extract_text: Optional[bool] = typer.Option(None, '--extract-text/--no-extract-text', help='Extract Text. Default: true.'),
+        ground_truth: Optional[bool] = typer.Option(None, '--ground-truth/--no-ground-truth', help='Ground Truth. Default: false.'),
+        mode: Optional[str] = typer.Option(None, '--mode', help='Mode. One of: link, copy, move, index.'),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Parent Id.'),
+        path: str = typer.Option(..., '--path', help='Path.'),
+        recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Recursive. Default: true.'),
     ) -> None:
         """Ingest Folder (POST /api/ingest/folder)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7569,7 +7665,7 @@ def register_generated_openapi_commands(
     @target_app.command("cancel")
     def ingest_cancel_post(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """Cancel Ingest (POST /api/ingest/folder/{task_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7581,7 +7677,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-status")
     def ingest_get_status_get(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """Get Ingest Status (GET /api/ingest/status/{task_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -7593,11 +7689,11 @@ def register_generated_openapi_commands(
     @target_app.command("xlsx")
     def ingest_xlsx_post(
         ctx: typer.Context,
-        column_map: Optional[str] = typer.Option(None, "--column-map", help="Request field: column_map."),
-        dry_run: Optional[bool] = typer.Option(None, "--dry-run/--no-dry-run", help="Request field: dry_run."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
-        path: str = typer.Option(..., "--path", help="Request field: path."),
-        sheet_index: Optional[int] = typer.Option(None, "--sheet-index", help="Request field: sheet_index."),
+        column_map: Optional[str] = typer.Option(None, '--column-map', help='Column Map. JSON.'),
+        dry_run: Optional[bool] = typer.Option(None, '--dry-run/--no-dry-run', help='Dry Run. Default: true.'),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Parent Id.'),
+        path: str = typer.Option(..., '--path', help='Path.'),
+        sheet_index: Optional[int] = typer.Option(None, '--sheet-index', help='Sheet Index. Default: 0.'),
     ) -> None:
         """Ingest Xlsx (POST /api/ingest/xlsx)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7650,8 +7746,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-bookends-citation")
     def integrations_get_bookends_citation_get(
         ctx: typer.Context,
-        external_id: str = typer.Argument(..., help="Path parameter: external_id."),
-        style: Optional[str] = typer.Option(None, "--style", help="Query parameter: style."),
+        external_id: str = typer.Argument(..., help='External Id'),
+        style: Optional[str] = typer.Option(None, '--style', help='Style.'),
     ) -> None:
         """Get Bookends Citation (GET /api/integrations/bookends/citation/{external_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -7698,11 +7794,11 @@ def register_generated_openapi_commands(
     @target_app.command("create-tinderbox-note")
     def integrations_create_tinderbox_note_post(
         ctx: typer.Context,
-        attributes: Optional[str] = typer.Option(None, "--attributes", help="Request field: attributes."),
-        container: Optional[str] = typer.Option(None, "--container", help="Request field: container."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        prototype: Optional[str] = typer.Option(None, "--prototype", help="Request field: prototype."),
-        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+        attributes: Optional[str] = typer.Option(None, '--attributes', help='Attributes. JSON.'),
+        container: Optional[str] = typer.Option(None, '--container', help='Container.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        prototype: Optional[str] = typer.Option(None, '--prototype', help='Prototype.'),
+        text: Optional[str] = typer.Option(None, '--text', help='Text. Default: "".'),
     ) -> None:
         """Create Tinderbox Note (POST /api/integrations/tinderbox/notes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7727,8 +7823,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-tinderbox-attributes")
     def integrations_get_tinderbox_attributes_get(
         ctx: typer.Context,
-        external_id: str = typer.Argument(..., help="Path parameter: external_id."),
-        attributes: str = typer.Option(..., "--attributes", help="Query parameter: attributes."),
+        external_id: str = typer.Argument(..., help='External Id'),
+        attributes: str = typer.Option(..., '--attributes', help='Comma-separated list of attribute names.'),
     ) -> None:
         """Get Tinderbox Attributes (GET /api/integrations/tinderbox/notes/{external_id}/attributes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7742,8 +7838,8 @@ def register_generated_openapi_commands(
     @target_app.command("set-tinderbox-attributes")
     def integrations_set_tinderbox_attributes_put(
         ctx: typer.Context,
-        external_id: str = typer.Argument(..., help="Path parameter: external_id."),
-        attributes: str = typer.Option(..., "--attributes", help="Request field: attributes."),
+        external_id: str = typer.Argument(..., help='External Id'),
+        attributes: str = typer.Option(..., '--attributes', help='Attributes. JSON.'),
     ) -> None:
         """Set Tinderbox Attributes (PUT /api/integrations/tinderbox/notes/{external_id}/attributes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7760,7 +7856,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def integrations_get_get(
         ctx: typer.Context,
-        app_name: str = typer.Argument(..., help="Path parameter: app_name."),
+        app_name: str = typer.Argument(..., help='App Name'),
     ) -> None:
         """Get Integration (GET /api/integrations/{app_name})."""
         def op_call(client: FicheroClient) -> Any:
@@ -7772,13 +7868,13 @@ def register_generated_openapi_commands(
     @target_app.command("export-item")
     def integrations_export_item_post(
         ctx: typer.Context,
-        app_name: str = typer.Argument(..., help="Path parameter: app_name."),
-        container: Optional[str] = typer.Option(None, "--container", help="Request field: container."),
-        database: Optional[str] = typer.Option(None, "--database", help="Request field: database."),
-        file_path: str = typer.Option(..., "--file-path", help="Request field: file_path."),
-        group: Optional[str] = typer.Option(None, "--group", help="Request field: group."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        prototype: Optional[str] = typer.Option(None, "--prototype", help="Request field: prototype."),
+        app_name: str = typer.Argument(..., help='App Name'),
+        container: Optional[str] = typer.Option(None, '--container', help='Container.'),
+        database: Optional[str] = typer.Option(None, '--database', help='Database.'),
+        file_path: str = typer.Option(..., '--file-path', help='File Path.'),
+        group: Optional[str] = typer.Option(None, '--group', help='Group.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        prototype: Optional[str] = typer.Option(None, '--prototype', help='Prototype.'),
     ) -> None:
         """Export Item (POST /api/integrations/{app_name}/export)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7805,9 +7901,9 @@ def register_generated_openapi_commands(
     @target_app.command("import-item")
     def integrations_import_item_post(
         ctx: typer.Context,
-        app_name: str = typer.Argument(..., help="Path parameter: app_name."),
-        external_id: str = typer.Option(..., "--external-id", help="Request field: external_id."),
-        target_path: Optional[str] = typer.Option(None, "--target-path", help="Request field: target_path."),
+        app_name: str = typer.Argument(..., help='App Name'),
+        external_id: str = typer.Option(..., '--external-id', help='External Id.'),
+        target_path: Optional[str] = typer.Option(None, '--target-path', help='Target Path.'),
     ) -> None:
         """Import Item (POST /api/integrations/{app_name}/import)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7826,12 +7922,12 @@ def register_generated_openapi_commands(
     @target_app.command("list-items")
     def integrations_list_items_get(
         ctx: typer.Context,
-        app_name: str = typer.Argument(..., help="Path parameter: app_name."),
-        container: Optional[str] = typer.Option(None, "--container", help="Query parameter: container."),
-        database: Optional[str] = typer.Option(None, "--database", help="Query parameter: database."),
-        item_type: Optional[str] = typer.Option(None, "--item-type", help="Query parameter: item_type."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        search: Optional[str] = typer.Option(None, "--search", help="Query parameter: search."),
+        app_name: str = typer.Argument(..., help='App Name'),
+        container: Optional[str] = typer.Option(None, '--container', help='Container.'),
+        database: Optional[str] = typer.Option(None, '--database', help='Database.'),
+        item_type: Optional[str] = typer.Option(None, '--item-type', help='Item Type.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        search: Optional[str] = typer.Option(None, '--search', help='Search.'),
     ) -> None:
         """List Items (GET /api/integrations/{app_name}/items)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7849,8 +7945,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-item")
     def integrations_get_item_get(
         ctx: typer.Context,
-        app_name: str = typer.Argument(..., help="Path parameter: app_name."),
-        external_id: str = typer.Argument(..., help="Path parameter: external_id."),
+        app_name: str = typer.Argument(..., help='App Name'),
+        external_id: str = typer.Argument(..., help='External Id'),
     ) -> None:
         """Get Item (GET /api/integrations/{app_name}/items/{external_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -7862,8 +7958,8 @@ def register_generated_openapi_commands(
     @target_app.command("open-item")
     def integrations_open_item_post(
         ctx: typer.Context,
-        app_name: str = typer.Argument(..., help="Path parameter: app_name."),
-        external_id: str = typer.Argument(..., help="Path parameter: external_id."),
+        app_name: str = typer.Argument(..., help='App Name'),
+        external_id: str = typer.Argument(..., help='External Id'),
     ) -> None:
         """Open Item (POST /api/integrations/{app_name}/open/{external_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -7875,7 +7971,7 @@ def register_generated_openapi_commands(
     @target_app.command("refresh")
     def integrations_refresh_post(
         ctx: typer.Context,
-        app_name: str = typer.Argument(..., help="Path parameter: app_name."),
+        app_name: str = typer.Argument(..., help='App Name'),
     ) -> None:
         """Refresh Integration (POST /api/integrations/{app_name}/refresh)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7893,8 +7989,8 @@ def register_generated_openapi_commands(
     @target_app.command("contradictions")
     def kg_contradictions_get(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-        min_link_quality: Optional[float] = typer.Option(None, "--min-link-quality", help="Query parameter: min_link_quality."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
+        min_link_quality: Optional[float] = typer.Option(None, '--min-link-quality', help='Min Link Quality.'),
     ) -> None:
         """Contradictions (GET /api/kg/claim-analysis/{claim_id}/contradictions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7908,8 +8004,8 @@ def register_generated_openapi_commands(
     @target_app.command("evidence-chain")
     def kg_evidence_chain_get(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-        max_depth: Optional[int] = typer.Option(None, "--max-depth", help="Query parameter: max_depth."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
+        max_depth: Optional[int] = typer.Option(None, '--max-depth', help='Max Depth.'),
     ) -> None:
         """Evidence Chain (GET /api/kg/claim-analysis/{claim_id}/evidence-chain)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7923,10 +8019,10 @@ def register_generated_openapi_commands(
     @target_app.command("search-claims-semantic")
     def kg_search_claims_semantic_get(
         ctx: typer.Context,
-        claim_type: Optional[str] = typer.Option(None, "--claim-type", help="Query parameter: claim_type."),
-        curation_state: Optional[str] = typer.Option(None, "--curation-state", help="Query parameter: curation_state."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        q: str = typer.Option(..., "--q", help="Query parameter: q."),
+        claim_type: Optional[str] = typer.Option(None, '--claim-type', help='Claim Type.'),
+        curation_state: Optional[str] = typer.Option(None, '--curation-state', help='Curation State.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        q: str = typer.Option(..., '--q', help='Natural language query.'),
     ) -> None:
         """Search Claims Semantic (GET /api/kg/claim-search)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7943,7 +8039,7 @@ def register_generated_openapi_commands(
     @target_app.command("embed-claims")
     def kg_embed_claims_post(
         ctx: typer.Context,
-        claim_ids: Optional[str] = typer.Option(None, "--claim-ids", help="Request field: claim_ids."),
+        claim_ids: Optional[list[str]] = typer.Option(None, '--claim-ids', help='Claim Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Embed Claims (POST /api/kg/claim-search/embed)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7960,8 +8056,8 @@ def register_generated_openapi_commands(
     @target_app.command("find-similar-claims")
     def kg_find_similar_claims_get(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Find Similar Claims (GET /api/kg/claim-search/{claim_id}/similar)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7975,8 +8071,8 @@ def register_generated_openapi_commands(
     @target_app.command("batch-set-claim-curation-state")
     def kg_batch_set_claim_curation_state_patch(
         ctx: typer.Context,
-        claim_ids: str = typer.Option(..., "--claim-ids", help="Request field: claim_ids."),
-        curation_state: str = typer.Option(..., "--curation-state", help="Request field: curation_state."),
+        claim_ids: list[str] = typer.Option(..., '--claim-ids', help='Claim IDs to update. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        curation_state: str = typer.Option(..., '--curation-state', help='ClaimCurationState. One of: unreviewed, shortlisted, curated, rejected.'),
     ) -> None:
         """Batch set claim curation state (PATCH /api/kg/claims/batch-curation)."""
         def op_call(client: FicheroClient) -> Any:
@@ -7992,12 +8088,13 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("plan-dry-run-or-apply-batch-claim-dedupe-via-audited-merges")
-    def kg_plan_dry_run_or_apply_batch_claim_dedupe_via_audited_merges_post(
+    @target_app.command("plan-dry-run-or-apply-batch-claim-dedupe-via-audited-merges", hidden=True)
+    @target_app.command("dedupe-claims-kg-claims-dedupe")
+    def kg_dedupe_claims_kg_claims_dedupe_post(
         ctx: typer.Context,
-        apply: Optional[bool] = typer.Option(None, "--apply/--no-apply", help="Request field: apply."),
-        include_reviewed: Optional[bool] = typer.Option(None, "--include-reviewed/--no-include-reviewed", help="Request field: include_reviewed."),
-        near_duplicate_threshold: Optional[float] = typer.Option(None, "--near-duplicate-threshold", help="Request field: near_duplicate_threshold."),
+        apply: Optional[bool] = typer.Option(None, '--apply/--no-apply', help='False (default) returns the plan only; true executes every planned merge through the audited claim.merge action. Default: false.'),
+        include_reviewed: Optional[bool] = typer.Option(None, '--include-reviewed/--no-include-reviewed', help='By default only unreviewed claims are absorbed; curated rows stay put unless explicitly opted in. Default: false.'),
+        near_duplicate_threshold: Optional[float] = typer.Option(None, '--near-duplicate-threshold', help='Opt-in fuzzy tier: also group same-subject statements whose normalized keys share a token set and reach this SequenceMatcher ratio. Off by default — exact normalized statements only.'),
     ) -> None:
         """Plan (dry-run) or apply batch claim dedupe via audited merges (POST /api/kg/claims/dedupe)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8015,11 +8112,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("merge-duplicate-claims-into-a-surviving-claim")
-    def kg_merge_duplicate_claims_into_a_surviving_claim_post(
+    @target_app.command("merge-duplicate-claims-into-a-surviving-claim", hidden=True)
+    @target_app.command("merge-claims")
+    def kg_merge_claims_post(
         ctx: typer.Context,
-        absorbed_claim_ids: str = typer.Option(..., "--absorbed-claim-ids", help="Request field: absorbed_claim_ids."),
-        surviving_claim_id: str = typer.Option(..., "--surviving-claim-id", help="Request field: surviving_claim_id."),
+        absorbed_claim_ids: list[str] = typer.Option(..., '--absorbed-claim-ids', help='Duplicate claims absorbed into the survivor. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        surviving_claim_id: str = typer.Option(..., '--surviving-claim-id', help='Claim that remains canonical after the merge.'),
     ) -> None:
         """Merge duplicate claims into a surviving claim (POST /api/kg/claims/merge)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8035,14 +8133,15 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("prune-trivially-true-claims")
-    def kg_prune_trivially_true_claims_post(
+    @target_app.command("prune-trivially-true-claims", hidden=True)
+    @target_app.command("prune-trivial-claims")
+    def kg_prune_trivial_claims_post(
         ctx: typer.Context,
-        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
-        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
-        library_wide: Optional[bool] = typer.Option(None, "--library-wide/--no-library-wide", help="Request field: library_wide."),
-        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        created_by: Optional[str] = typer.Option(None, '--created-by', help='Actor recorded on any generated suppression rule. Default: "human".'),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='Single document/page scope. Only claims directly attached to this document are checked.'),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='Folder scope. The folder and every descendant document are checked.'),
+        library_wide: Optional[bool] = typer.Option(None, '--library-wide/--no-library-wide', help='When true, scan the whole library and persist a global trivial-copula suppression rule. Default: false.'),
+        reason: Optional[str] = typer.Option(None, '--reason', help='Audit note stored on any generated suppression rule. Default: "Prune trivial is-a copula claims".'),
     ) -> None:
         """Prune trivially-true claims (POST /api/kg/claims/prune-trivial)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8064,10 +8163,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("reverse-a-recorded-claim-merge")
-    def kg_reverse_a_recorded_claim_merge_post(
+    @target_app.command("reverse-a-recorded-claim-merge", hidden=True)
+    @target_app.command("unmerge-claims")
+    def kg_unmerge_claims_post(
         ctx: typer.Context,
-        audit_id: str = typer.Option(..., "--audit-id", help="Request field: audit_id."),
+        audit_id: str = typer.Option(..., '--audit-id', help='ClaimMergeAudit.id from the merge being reversed.'),
     ) -> None:
         """Reverse a recorded claim merge (POST /api/kg/claims/unmerge)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8085,7 +8185,7 @@ def register_generated_openapi_commands(
     def kg_delete_claim_rule_delete(
         ctx: typer.Context,
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
-        rule_id: str = typer.Option(..., "--rule-id", help="Request field: rule_id."),
+        rule_id: str = typer.Option(..., '--rule-id', help='Rule Id.'),
     ) -> None:
         """Delete Claim Rule (DELETE /api/kg/curation-rules/claim-rules)."""
         if not yes:
@@ -8115,13 +8215,13 @@ def register_generated_openapi_commands(
     @target_app.command("create-claim-rule")
     def kg_create_claim_rule_post(
         ctx: typer.Context,
-        action: str = typer.Option(..., "--action", help="Request field: action."),
-        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
-        match_object_phrase: Optional[str] = typer.Option(None, "--match-object-phrase", help="Request field: match_object_phrase."),
-        match_predicate_verb: Optional[str] = typer.Option(None, "--match-predicate-verb", help="Request field: match_predicate_verb."),
-        match_subject_name: Optional[str] = typer.Option(None, "--match-subject-name", help="Request field: match_subject_name."),
-        reason: str = typer.Option(..., "--reason", help="Request field: reason."),
-        suppress_is_a_copulas: Optional[bool] = typer.Option(None, "--suppress-is-a-copulas/--no-suppress-is-a-copulas", help="Request field: suppress_is_a_copulas."),
+        action: str = typer.Option(..., '--action', help='ClaimSuppressionRuleAction. One of: disable, demote, prune.'),
+        created_by: Optional[str] = typer.Option(None, '--created-by', help='Created By. Default: "human".'),
+        match_object_phrase: Optional[str] = typer.Option(None, '--match-object-phrase', help='Match Object Phrase.'),
+        match_predicate_verb: Optional[str] = typer.Option(None, '--match-predicate-verb', help='Match Predicate Verb.'),
+        match_subject_name: Optional[str] = typer.Option(None, '--match-subject-name', help='Match Subject Name.'),
+        reason: str = typer.Option(..., '--reason', help='Reason.'),
+        suppress_is_a_copulas: Optional[bool] = typer.Option(None, '--suppress-is-a-copulas/--no-suppress-is-a-copulas', help='Suppress Is A Copulas. Default: false.'),
     ) -> None:
         """Create Claim Rule (POST /api/kg/curation-rules/claim-rules)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8150,7 +8250,7 @@ def register_generated_openapi_commands(
     @target_app.command("create-claim-rules-batch")
     def kg_create_claim_rules_batch_post(
         ctx: typer.Context,
-        items: Optional[str] = typer.Option(None, "--items", help="Request field: items."),
+        items: Optional[str] = typer.Option(None, '--items', help='Items. JSON.'),
     ) -> None:
         """Create Claim Rules Batch (POST /api/kg/curation-rules/claim-rules/batch)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8168,7 +8268,7 @@ def register_generated_openapi_commands(
     def kg_delete_entity_rule_delete(
         ctx: typer.Context,
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
-        rule_id: str = typer.Option(..., "--rule-id", help="Request field: rule_id."),
+        rule_id: str = typer.Option(..., '--rule-id', help='Rule Id.'),
     ) -> None:
         """Delete Entity Rule (DELETE /api/kg/curation-rules/entity-rules)."""
         if not yes:
@@ -8198,13 +8298,13 @@ def register_generated_openapi_commands(
     @target_app.command("create-entity-rule")
     def kg_create_entity_rule_post(
         ctx: typer.Context,
-        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
-        match_canonical_name: str = typer.Option(..., "--match-canonical-name", help="Request field: match_canonical_name."),
-        match_entity_type: Optional[str] = typer.Option(None, "--match-entity-type", help="Request field: match_entity_type."),
-        reason: str = typer.Option(..., "--reason", help="Request field: reason."),
-        rule_type: str = typer.Option(..., "--rule-type", help="Request field: rule_type."),
-        target_canonical_name: Optional[str] = typer.Option(None, "--target-canonical-name", help="Request field: target_canonical_name."),
-        target_entity_type: Optional[str] = typer.Option(None, "--target-entity-type", help="Request field: target_entity_type."),
+        created_by: Optional[str] = typer.Option(None, '--created-by', help='Created By. Default: "human".'),
+        match_canonical_name: str = typer.Option(..., '--match-canonical-name', help='Match Canonical Name.'),
+        match_entity_type: Optional[str] = typer.Option(None, '--match-entity-type', help='EntityType. One of: person, location, organization, event, concept, citation, other.'),
+        reason: str = typer.Option(..., '--reason', help='Reason.'),
+        rule_type: str = typer.Option(..., '--rule-type', help='EntityResolutionRuleType. One of: suppress, merge_into, reclassify, alias.'),
+        target_canonical_name: Optional[str] = typer.Option(None, '--target-canonical-name', help='Target Canonical Name.'),
+        target_entity_type: Optional[str] = typer.Option(None, '--target-entity-type', help='EntityType. One of: person, location, organization, event, concept, citation, other.'),
     ) -> None:
         """Create Entity Rule (POST /api/kg/curation-rules/entity-rules)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8233,7 +8333,7 @@ def register_generated_openapi_commands(
     @target_app.command("create-entity-rules-batch")
     def kg_create_entity_rules_batch_post(
         ctx: typer.Context,
-        items: Optional[str] = typer.Option(None, "--items", help="Request field: items."),
+        items: Optional[str] = typer.Option(None, '--items', help='Items. JSON.'),
     ) -> None:
         """Create Entity Rules Batch (POST /api/kg/curation-rules/entity-rules/batch)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8250,8 +8350,8 @@ def register_generated_openapi_commands(
     @target_app.command("batch-set-entity-curation-state")
     def kg_batch_set_entity_curation_state_patch(
         ctx: typer.Context,
-        curation_state: str = typer.Option(..., "--curation-state", help="Request field: curation_state."),
-        entity_ids: str = typer.Option(..., "--entity-ids", help="Request field: entity_ids."),
+        curation_state: str = typer.Option(..., '--curation-state', help='EntityCurationState. One of: unreviewed, verified, rejected, merged.'),
+        entity_ids: list[str] = typer.Option(..., '--entity-ids', help='Entity IDs to update. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Batch set entity curation state (PATCH /api/kg/entities/batch-curation)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8267,10 +8367,11 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("generate-llm-biography-for-a-knowledge-entity")
-    def kg_generate_llm_biography_for_a_knowledge_entity_post(
+    @target_app.command("generate-llm-biography-for-a-knowledge-entity", hidden=True)
+    @target_app.command("generate-entity-bio")
+    def kg_generate_entity_bio_post(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
     ) -> None:
         """Generate LLM biography for a knowledge entity (POST /api/kg/entities/{entity_id}/bio)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8279,10 +8380,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-the-deterministic-readable-paragraph-for-a-knowledge-entity")
-    def kg_get_the_deterministic_readable_paragraph_for_a_knowledge_entity_get(
+    @target_app.command("get-the-deterministic-readable-paragraph-for-a-knowledge-entity", hidden=True)
+    @target_app.command("get-entity-readable")
+    def kg_get_entity_readable_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
     ) -> None:
         """Get the deterministic readable paragraph for a knowledge entity (GET /api/kg/entities/{entity_id}/readable)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8294,8 +8396,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-entity-audits")
     def kg_list_entity_audits_get(
         ctx: typer.Context,
-        entity_id: Optional[str] = typer.Option(None, "--entity-id", help="Query parameter: entity_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        entity_id: Optional[str] = typer.Option(None, '--entity-id', help='Entity Id.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """List Entity Audits (GET /api/kg/entity-curation/audit)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8310,7 +8412,7 @@ def register_generated_openapi_commands(
     @target_app.command("undo-entity-operation")
     def kg_undo_entity_operation_post(
         ctx: typer.Context,
-        audit_id: str = typer.Argument(..., help="Path parameter: audit_id."),
+        audit_id: str = typer.Argument(..., help='Audit Id'),
     ) -> None:
         """Undo Entity Operation (POST /api/kg/entity-curation/audit/{audit_id}/undo)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8319,12 +8421,13 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("confirm-and-persist-an-entity-to-authority-link")
-    def kg_confirm_and_persist_an_entity_to_authority_link_post(
+    @target_app.command("confirm-and-persist-an-entity-to-authority-link", hidden=True)
+    @target_app.command("link-external-authority")
+    def kg_link_external_authority_post(
         ctx: typer.Context,
-        authority: str = typer.Option(..., "--authority", help="Request field: authority."),
-        authority_id: str = typer.Option(..., "--authority-id", help="Request field: authority_id."),
-        entity_id: str = typer.Option(..., "--entity-id", help="Request field: entity_id."),
+        authority: str = typer.Option(..., '--authority', help='Authority. One of: wikidata, viaf, loc, pleiades, tgn, geonames, whg.'),
+        authority_id: str = typer.Option(..., '--authority-id', help='Authority Id.'),
+        entity_id: str = typer.Option(..., '--entity-id', help='Entity Id.'),
     ) -> None:
         """Confirm and persist an entity-to-authority link (POST /api/kg/entity-curation/authority/link)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8342,12 +8445,13 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("explicitly-refresh-local-wikidata-authority-snapshots")
-    def kg_explicitly_refresh_local_wikidata_authority_snapshots_post(
+    @target_app.command("explicitly-refresh-local-wikidata-authority-snapshots", hidden=True)
+    @target_app.command("refresh-external-authority")
+    def kg_refresh_external_authority_post(
         ctx: typer.Context,
-        authorities: Optional[str] = typer.Option(None, "--authorities", help="Request field: authorities."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
-        query: str = typer.Option(..., "--query", help="Request field: query."),
+        authorities: Optional[list[str]] = typer.Option(None, '--authorities', help='Authorities. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit. Default: 10.'),
+        query: str = typer.Option(..., '--query', help='Query.'),
     ) -> None:
         """Explicitly refresh local Wikidata authority snapshots (POST /api/kg/entity-curation/authority/refresh)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8365,8 +8469,9 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("read-the-app-wide-external-authority-opt-in")
-    def kg_read_the_app_wide_external_authority_opt_in_get(
+    @target_app.command("read-the-app-wide-external-authority-opt-in", hidden=True)
+    @target_app.command("get-external-authority-settings")
+    def kg_get_external_authority_settings_get(
         ctx: typer.Context,
     ) -> None:
         """Read the app-wide external-authority opt-in (GET /api/kg/entity-curation/authority/settings)."""
@@ -8376,10 +8481,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("set-the-app-wide-external-authority-opt-in")
-    def kg_set_the_app_wide_external_authority_opt_in_put(
+    @target_app.command("set-the-app-wide-external-authority-opt-in", hidden=True)
+    @target_app.command("put-external-authority-settings")
+    def kg_put_external_authority_settings_put(
         ctx: typer.Context,
-        external_authority_enabled: Optional[bool] = typer.Option(None, "--external-authority-enabled/--no-external-authority-enabled", help="Request field: external_authority_enabled."),
+        external_authority_enabled: Optional[bool] = typer.Option(None, '--external-authority-enabled/--no-external-authority-enabled', help='External Authority Enabled. Default: false.'),
     ) -> None:
         """Set the app-wide external-authority opt-in (PUT /api/kg/entity-curation/authority/settings)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8393,15 +8499,16 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("graph-context-merge-candidates-jaccard-over-co-occurrence-neighborhoods")
-    def kg_graph_context_merge_candidates_jaccard_over_co_occurrence_neighborhoods_get(
+    @target_app.command("graph-context-merge-candidates-jaccard-over-co-occurrence-neighborhoods", hidden=True)
+    @target_app.command("candidate-pairs")
+    def kg_candidate_pairs_get(
         ctx: typer.Context,
-        entity_id: Optional[str] = typer.Option(None, "--entity-id", help="Query parameter: entity_id."),
-        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Query parameter: folder_id."),
-        min_jaccard: Optional[float] = typer.Option(None, "--min-jaccard", help="Query parameter: min_jaccard."),
-        same_type_only: Optional[bool] = typer.Option(None, "--same-type-only/--no-same-type-only", help="Query parameter: same_type_only."),
-        scope: Optional[str] = typer.Option(None, "--scope", help="Query parameter: scope."),
-        top_k: Optional[int] = typer.Option(None, "--top-k", help="Query parameter: top_k."),
+        entity_id: Optional[str] = typer.Option(None, '--entity-id', help='Entity Id.'),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='Folder Id.'),
+        min_jaccard: Optional[float] = typer.Option(None, '--min-jaccard', help='Min Jaccard.'),
+        same_type_only: Optional[bool] = typer.Option(None, '--same-type-only/--no-same-type-only', help='Same Type Only.'),
+        scope: Optional[str] = typer.Option(None, '--scope', help='Scope.'),
+        top_k: Optional[int] = typer.Option(None, '--top-k', help='Top K.'),
     ) -> None:
         """Graph-context merge candidates (Jaccard over co-occurrence neighborhoods) (GET /api/kg/entity-curation/candidates)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8417,14 +8524,15 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("plan-dry-run-or-apply-batch-entity-dedupe-via-audited-merges")
-    def kg_plan_dry_run_or_apply_batch_entity_dedupe_via_audited_merges_post(
+    @target_app.command("plan-dry-run-or-apply-batch-entity-dedupe-via-audited-merges", hidden=True)
+    @target_app.command("dedupe-entities-kg-entity-curation-dedupe")
+    def kg_dedupe_entities_kg_entity_curation_dedupe_post(
         ctx: typer.Context,
-        apply: Optional[bool] = typer.Option(None, "--apply/--no-apply", help="Request field: apply."),
-        include_reviewed: Optional[bool] = typer.Option(None, "--include-reviewed/--no-include-reviewed", help="Request field: include_reviewed."),
-        min_similarity: Optional[float] = typer.Option(None, "--min-similarity", help="Request field: min_similarity."),
-        propose: Optional[bool] = typer.Option(None, "--propose/--no-propose", help="Request field: propose."),
-        spelling_variants: Optional[bool] = typer.Option(None, "--spelling-variants/--no-spelling-variants", help="Request field: spelling_variants."),
+        apply: Optional[bool] = typer.Option(None, '--apply/--no-apply', help='False (default) returns the plan only; true executes every planned merge through the audited entity.merge action. Default: false.'),
+        include_reviewed: Optional[bool] = typer.Option(None, '--include-reviewed/--no-include-reviewed', help='By default only unreviewed entities are absorbed; curated rows stay put unless explicitly opted in. Default: false.'),
+        min_similarity: Optional[float] = typer.Option(None, '--min-similarity', help='Opt-in fuzzy tier: also group same-type entities whose normalized names reach this SequenceMatcher ratio. Off by default — exact normalized-name/alias collisions only.'),
+        propose: Optional[bool] = typer.Option(None, '--propose/--no-propose', help='Put each planned pair into the entity review queue (/api/kg/review/pairs) for a person to accept or reject, instead of merging. A pair already queued, accepted or rejected is skipped. Default: false.'),
+        spelling_variants: Optional[bool] = typer.Option(None, '--spelling-variants/--no-spelling-variants', help='Also group same-type entities whose names are the same name written differently (old spelling, accents, the usual abbreviations, titles; kg.entity.variant-spellings-proposed). These are proposed for review, never merged: with apply this is refused. Default: false.'),
     ) -> None:
         """Plan (dry-run) or apply batch entity dedupe via audited merges (POST /api/kg/entity-curation/dedupe)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8446,12 +8554,13 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("import-selected-wikidata-statements-as-wikidata-sourced-claims")
-    def kg_import_selected_wikidata_statements_as_wikidata_sourced_claims_post(
+    @target_app.command("import-selected-wikidata-statements-as-wikidata-sourced-claims", hidden=True)
+    @target_app.command("enrich-import")
+    def kg_enrich_import_post(
         ctx: typer.Context,
-        entity_id: str = typer.Option(..., "--entity-id", help="Request field: entity_id."),
-        qid: str = typer.Option(..., "--qid", help="Request field: qid."),
-        statements: str = typer.Option(..., "--statements", help="Request field: statements."),
+        entity_id: str = typer.Option(..., '--entity-id', help='Entity Id.'),
+        qid: str = typer.Option(..., '--qid', help='Qid.'),
+        statements: str = typer.Option(..., '--statements', help='Statements. JSON.'),
     ) -> None:
         """Import selected Wikidata statements as WIKIDATA-SOURCED claims (POST /api/kg/entity-curation/enrich/import)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8469,11 +8578,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("fetch-a-linked-entity-s-wikidata-statements-for-review")
-    def kg_fetch_a_linked_entity_s_wikidata_statements_for_review_post(
+    @target_app.command("fetch-a-linked-entity-s-wikidata-statements-for-review", hidden=True)
+    @target_app.command("enrich-preview")
+    def kg_enrich_preview_post(
         ctx: typer.Context,
-        entity_id: str = typer.Option(..., "--entity-id", help="Request field: entity_id."),
-        qid: Optional[str] = typer.Option(None, "--qid", help="Request field: qid."),
+        entity_id: str = typer.Option(..., '--entity-id', help='Entity Id.'),
+        qid: Optional[str] = typer.Option(None, '--qid', help="Wikidata QID to enrich from. Defaults to the entity's linked Wikidata authority id."),
     ) -> None:
         """Fetch a linked entity's Wikidata statements for review (POST /api/kg/entity-curation/enrich/preview)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8492,10 +8602,10 @@ def register_generated_openapi_commands(
     @target_app.command("merge-entities")
     def kg_merge_entities_post(
         ctx: typer.Context,
-        absorbed_entity_ids: str = typer.Option(..., "--absorbed-entity-ids", help="Request field: absorbed_entity_ids."),
-        absorbing_entity_id: str = typer.Option(..., "--absorbing-entity-id", help="Request field: absorbing_entity_id."),
-        merged_aliases: Optional[str] = typer.Option(None, "--merged-aliases", help="Request field: merged_aliases."),
-        merged_description: Optional[str] = typer.Option(None, "--merged-description", help="Request field: merged_description."),
+        absorbed_entity_ids: list[str] = typer.Option(..., '--absorbed-entity-ids', help='Entities merged into the absorber. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        absorbing_entity_id: str = typer.Option(..., '--absorbing-entity-id', help='Entity that absorbs the others (survivor)'),
+        merged_aliases: Optional[list[str]] = typer.Option(None, '--merged-aliases', help='Merged Aliases. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        merged_description: Optional[str] = typer.Option(None, '--merged-description', help='Merged Description.'),
     ) -> None:
         """Merge Entities (POST /api/kg/entity-curation/merge)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8518,9 +8628,9 @@ def register_generated_openapi_commands(
     @target_app.command("search-entities-semantic")
     def kg_search_entities_semantic_get(
         ctx: typer.Context,
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        q: str = typer.Option(..., "--q", help="Query parameter: q."),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Entity Type.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        q: str = typer.Option(..., '--q', help='Natural language query.'),
     ) -> None:
         """Search Entities Semantic (GET /api/kg/entity-curation/semantic)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8536,7 +8646,7 @@ def register_generated_openapi_commands(
     @target_app.command("embed-entities")
     def kg_embed_entities_post(
         ctx: typer.Context,
-        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
+        entity_ids: Optional[list[str]] = typer.Option(None, '--entity-ids', help='Entity Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Embed Entities (POST /api/kg/entity-curation/semantic/embed)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8553,9 +8663,9 @@ def register_generated_openapi_commands(
     @target_app.command("split-entity")
     def kg_split_entity_post(
         ctx: typer.Context,
-        aliases_to_move: Optional[str] = typer.Option(None, "--aliases-to-move", help="Request field: aliases_to_move."),
-        primary_entity_id: str = typer.Option(..., "--primary-entity-id", help="Request field: primary_entity_id."),
-        split_off_entity_ids: str = typer.Option(..., "--split-off-entity-ids", help="Request field: split_off_entity_ids."),
+        aliases_to_move: Optional[list[str]] = typer.Option(None, '--aliases-to-move', help='Aliases To Move. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        primary_entity_id: str = typer.Option(..., '--primary-entity-id', help='Primary Entity Id.'),
+        split_off_entity_ids: list[str] = typer.Option(..., '--split-off-entity-ids', help='Split Off Entity Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Split Entity (POST /api/kg/entity-curation/split)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8573,11 +8683,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("export-the-library-knowledge-graph-as-rdf")
-    def kg_export_the_library_knowledge_graph_as_rdf_get(
+    @target_app.command("export-the-library-knowledge-graph-as-rdf", hidden=True)
+    @target_app.command("export-rdf")
+    def kg_export_rdf_get(
         ctx: typer.Context,
-        context: Optional[str] = typer.Option(None, "--context", help="Query parameter: context."),
-        format: Optional[str] = typer.Option(None, "--format", help="Query parameter: format."),
+        context: Optional[str] = typer.Option(None, '--context', help='Named @context profile for json-ld output. Ignored for other formats.'),
+        format: Optional[str] = typer.Option(None, '--format', help='RDF serialization format.'),
     ) -> None:
         """Export the library knowledge graph as RDF (GET /api/kg/export/rdf)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8589,11 +8700,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("top-k-entities-by-composite-centrality")
-    def kg_top_k_entities_by_composite_centrality_get(
+    @target_app.command("top-k-entities-by-composite-centrality", hidden=True)
+    @target_app.command("centrality")
+    def kg_centrality_get(
         ctx: typer.Context,
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
-        top_k: Optional[int] = typer.Option(None, "--top-k", help="Query parameter: top_k."),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Filter to one EntityType (person/location/...).'),
+        top_k: Optional[int] = typer.Option(None, '--top-k', help='Top K.'),
     ) -> None:
         """Top-k entities by composite centrality (GET /api/kg/graph/centrality)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8605,10 +8717,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("clustering-coefficient-per-entity")
-    def kg_clustering_coefficient_per_entity_get(
+    @target_app.command("clustering-coefficient-per-entity", hidden=True)
+    @target_app.command("clustering")
+    def kg_clustering_get(
         ctx: typer.Context,
-        top_k: Optional[int] = typer.Option(None, "--top-k", help="Query parameter: top_k."),
+        top_k: Optional[int] = typer.Option(None, '--top-k', help='Top K.'),
     ) -> None:
         """Clustering coefficient per entity (GET /api/kg/graph/clustering)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8619,10 +8732,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("cluster-entities-into-communities-louvain-label-propagation")
-    def kg_cluster_entities_into_communities_louvain_label_propagation_get(
+    @target_app.command("cluster-entities-into-communities-louvain-label-propagation", hidden=True)
+    @target_app.command("communities")
+    def kg_communities_get(
         ctx: typer.Context,
-        method: Optional[str] = typer.Option(None, "--method", help="Query parameter: method."),
+        method: Optional[str] = typer.Option(None, '--method', help='Method.'),
     ) -> None:
         """Cluster entities into communities (Louvain / label propagation) (GET /api/kg/graph/communities)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8633,8 +8747,9 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("connected-components-of-the-entity-graph")
-    def kg_connected_components_of_the_entity_graph_get(
+    @target_app.command("connected-components-of-the-entity-graph", hidden=True)
+    @target_app.command("components")
+    def kg_components_get(
         ctx: typer.Context,
     ) -> None:
         """Connected components of the entity graph (GET /api/kg/graph/components)."""
@@ -8644,10 +8759,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("co-occurrence-neighbours-of-an-entity")
-    def kg_co_occurrence_neighbours_of_an_entity_get(
+    @target_app.command("co-occurrence-neighbours-of-an-entity", hidden=True)
+    @target_app.command("cooccurrence-neighbours")
+    def kg_cooccurrence_neighbours_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
     ) -> None:
         """Co-occurrence neighbours of an entity (GET /api/kg/graph/cooccurrence/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -8656,8 +8772,9 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("library-wide-metrics-counts-averages")
-    def kg_library_wide_metrics_counts_averages_get(
+    @target_app.command("library-wide-metrics-counts-averages", hidden=True)
+    @target_app.command("metrics")
+    def kg_metrics_get(
         ctx: typer.Context,
     ) -> None:
         """Library-wide KG metrics (counts + averages) (GET /api/kg/graph/metrics)."""
@@ -8667,13 +8784,14 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("focus-entity-k-hop-neighbors-svo-edges")
-    def kg_focus_entity_k_hop_neighbors_svo_edges_get(
+    @target_app.command("focus-entity-k-hop-neighbors-svo-edges", hidden=True)
+    @target_app.command("neighborhood")
+    def kg_neighborhood_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        hops: Optional[int] = typer.Option(None, "--hops", help="Query parameter: hops."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        rank: Optional[str] = typer.Option(None, "--rank", help="Query parameter: rank."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        hops: Optional[int] = typer.Option(None, '--hops', help='Hops.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        rank: Optional[str] = typer.Option(None, '--rank', help='How to rank neighbors when more than `limit` are reachable. edge_weight (default): most edges to the focus first. degree: highest total-degree neighbors first. name: alphabetical (stable for tests + screenshots).'),
     ) -> None:
         """Focus entity + k-hop neighbors + SVO edges (GET /api/kg/graph/neighborhood/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -8686,11 +8804,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("top-k-entities-by-pagerank")
-    def kg_top_k_entities_by_pagerank_get(
+    @target_app.command("top-k-entities-by-pagerank", hidden=True)
+    @target_app.command("pagerank")
+    def kg_pagerank_get(
         ctx: typer.Context,
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
-        top_k: Optional[int] = typer.Option(None, "--top-k", help="Query parameter: top_k."),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Entity Type.'),
+        top_k: Optional[int] = typer.Option(None, '--top-k', help='Top K.'),
     ) -> None:
         """Top-k entities by PageRank (GET /api/kg/graph/pagerank)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8702,11 +8821,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("shortest-path-between-two-entities")
-    def kg_shortest_path_between_two_entities_get(
+    @target_app.command("shortest-path-between-two-entities", hidden=True)
+    @target_app.command("shortest-path")
+    def kg_shortest_path_get(
         ctx: typer.Context,
-        source: str = typer.Option(..., "--source", help="Query parameter: source."),
-        target: str = typer.Option(..., "--target", help="Query parameter: target."),
+        source: str = typer.Option(..., '--source', help='Source entity ID.'),
+        target: str = typer.Option(..., '--target', help='Target entity ID.'),
     ) -> None:
         """Shortest path between two entities (GET /api/kg/graph/path)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8718,12 +8838,13 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("structurally-similar-entities-jaccard-adamic-adar-preferential-attachment")
-    def kg_structurally_similar_entities_jaccard_adamic_adar_preferential_attachment_get(
+    @target_app.command("structurally-similar-entities-jaccard-adamic-adar-preferential-attachment", hidden=True)
+    @target_app.command("similar")
+    def kg_similar_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        method: Optional[str] = typer.Option(None, "--method", help="Query parameter: method."),
-        top_k: Optional[int] = typer.Option(None, "--top-k", help="Query parameter: top_k."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        method: Optional[str] = typer.Option(None, '--method', help='Method.'),
+        top_k: Optional[int] = typer.Option(None, '--top-k', help='Top K.'),
     ) -> None:
         """Structurally-similar entities (Jaccard / Adamic-Adar / preferential attachment) (GET /api/kg/graph/similar/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -8735,12 +8856,13 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("bfs-traversal-entity-neighbourhood")
-    def kg_bfs_traversal_entity_neighbourhood_get(
+    @target_app.command("bfs-traversal-entity-neighbourhood", hidden=True)
+    @target_app.command("traverse")
+    def kg_traverse_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        include_claims: Optional[bool] = typer.Option(None, "--include-claims/--no-include-claims", help="Query parameter: include_claims."),
-        max_depth: Optional[int] = typer.Option(None, "--max-depth", help="Query parameter: max_depth."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        include_claims: Optional[bool] = typer.Option(None, '--include-claims/--no-include-claims', help='Include Claims.'),
+        max_depth: Optional[int] = typer.Option(None, '--max-depth', help='Max Depth.'),
     ) -> None:
         """BFS traversal — entity neighbourhood (GET /api/kg/graph/traverse/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -8752,10 +8874,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("triangle-count-for-an-entity")
-    def kg_triangle_count_for_an_entity_get(
+    @target_app.command("triangle-count-for-an-entity", hidden=True)
+    @target_app.command("triangles")
+    def kg_triangles_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
     ) -> None:
         """Triangle count for an entity (GET /api/kg/graph/triangles/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -8767,8 +8890,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-inclusion")
     def kg_list_inclusion_get(
         ctx: typer.Context,
-        scope_type: Optional[str] = typer.Option(None, "--scope-type", help="Query parameter: scope_type."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
+        scope_type: Optional[str] = typer.Option(None, '--scope-type', help='Scope Type.'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Target Id.'),
     ) -> None:
         """List Inclusion (GET /api/kg/inclusion)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8783,11 +8906,11 @@ def register_generated_openapi_commands(
     @target_app.command("upsert-inclusion")
     def kg_upsert_inclusion_post(
         ctx: typer.Context,
-        included: bool = typer.Option(..., "--included/--no-included", help="Request field: included."),
-        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
-        scope_type: str = typer.Option(..., "--scope-type", help="Request field: scope_type."),
-        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
-        updated_by: Optional[str] = typer.Option(None, "--updated-by", help="Request field: updated_by."),
+        included: bool = typer.Option(..., '--included/--no-included', help='Included.'),
+        reason: Optional[str] = typer.Option(None, '--reason', help='Reason.'),
+        scope_type: str = typer.Option(..., '--scope-type', help='InclusionScopeType. One of: library, folder, document.'),
+        target_id: str = typer.Option(..., '--target-id', help='Target Id.'),
+        updated_by: Optional[str] = typer.Option(None, '--updated-by', help='Updated By. Default: "human".'),
     ) -> None:
         """Upsert Inclusion (POST /api/kg/inclusion)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8809,10 +8932,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("list-recent-mutations-newest-first")
-    def kg_list_recent_mutations_newest_first_get(
+    @target_app.command("list-recent-mutations-newest-first", hidden=True)
+    @target_app.command("list-mutations")
+    def kg_list_mutations_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """List recent KG mutations (newest first) (GET /api/kg/mutations)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8823,10 +8947,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("reverse-a-previous-mutation")
-    def kg_reverse_a_previous_mutation_post(
+    @target_app.command("reverse-a-previous-mutation", hidden=True)
+    @target_app.command("undo-mutation")
+    def kg_undo_mutation_post(
         ctx: typer.Context,
-        mutation_id: str = typer.Argument(..., help="Path parameter: mutation_id."),
+        mutation_id: str = typer.Argument(..., help='Mutation Id'),
     ) -> None:
         """Reverse a previous KG mutation (POST /api/kg/mutations/{mutation_id}/undo)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8838,8 +8963,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-prediction-runs")
     def kg_list_prediction_runs_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Status.'),
     ) -> None:
         """List Prediction Runs (GET /api/kg/predictions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8854,8 +8979,8 @@ def register_generated_openapi_commands(
     @target_app.command("generate-heuristic-predictions")
     def kg_generate_heuristic_predictions_post(
         ctx: typer.Context,
-        entity_id: Optional[str] = typer.Option(None, "--entity-id", help="Request field: entity_id."),
-        top_k: Optional[int] = typer.Option(None, "--top-k", help="Request field: top_k."),
+        entity_id: Optional[str] = typer.Option(None, '--entity-id', help='Entity Id.'),
+        top_k: Optional[int] = typer.Option(None, '--top-k', help='Top K. Default: 10.'),
     ) -> None:
         """Generate Heuristic Predictions (POST /api/kg/predictions/heuristic)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8874,9 +8999,9 @@ def register_generated_openapi_commands(
     @target_app.command("apply-prediction-run")
     def kg_apply_prediction_run_post(
         ctx: typer.Context,
-        run_id: str = typer.Argument(..., help="Path parameter: run_id."),
-        max_links: Optional[int] = typer.Option(None, "--max-links", help="Query parameter: max_links."),
-        min_confidence: Optional[float] = typer.Option(None, "--min-confidence", help="Query parameter: min_confidence."),
+        run_id: str = typer.Argument(..., help='Run Id'),
+        max_links: Optional[int] = typer.Option(None, '--max-links', help='Max Links.'),
+        min_confidence: Optional[float] = typer.Option(None, '--min-confidence', help='Min Confidence.'),
     ) -> None:
         """Apply Prediction Run (POST /api/kg/predictions/{run_id}/apply)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8888,10 +9013,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("delete-a-trained-pykeen-model")
-    def kg_delete_a_trained_pykeen_model_delete(
+    @target_app.command("delete-a-trained-pykeen-model", hidden=True)
+    @target_app.command("delete-trained-model")
+    def kg_delete_trained_model_delete(
         ctx: typer.Context,
-        model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        model_id: str = typer.Argument(..., help='Model Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete a trained PyKEEN model (DELETE /api/kg/pykeen/models/{model_id})."""
@@ -8903,11 +9029,12 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("top-k-predicted-facts-for-one-entity")
-    def kg_top_k_predicted_facts_for_one_entity_get(
+    @target_app.command("top-k-predicted-facts-for-one-entity", hidden=True)
+    @target_app.command("predict")
+    def kg_predict_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
-        top_k: Optional[int] = typer.Option(None, "--top-k", help="Query parameter: top_k."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
+        top_k: Optional[int] = typer.Option(None, '--top-k', help='Top K.'),
     ) -> None:
         """Top-k predicted facts for one entity (GET /api/kg/pykeen/predict/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -8921,7 +9048,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-prediction-reviews")
     def kg_list_prediction_reviews_get(
         ctx: typer.Context,
-        state: Optional[str] = typer.Option(None, "--state", help="Query parameter: state."),
+        state: Optional[str] = typer.Option(None, '--state', help='State.'),
     ) -> None:
         """List Prediction Reviews (GET /api/kg/pykeen/reviews)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8935,20 +9062,20 @@ def register_generated_openapi_commands(
     @target_app.command("create-prediction-review")
     def kg_create_prediction_review_post(
         ctx: typer.Context,
-        created_at: Optional[str] = typer.Option(None, "--created-at", help="Request field: created_at."),
-        decision_note: Optional[str] = typer.Option(None, "--decision-note", help="Request field: decision_note."),
-        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
-        model_config_snapshot: Optional[str] = typer.Option(None, "--model-config-snapshot", help="Request field: model_config_snapshot."),
-        model_id: Optional[str] = typer.Option(None, "--model-id", help="Request field: model_id."),
-        rank: Optional[int] = typer.Option(None, "--rank", help="Request field: rank."),
-        relation: str = typer.Option(..., "--relation", help="Request field: relation."),
-        resulting_claim_id: Optional[str] = typer.Option(None, "--resulting-claim-id", help="Request field: resulting_claim_id."),
-        reviewed_at: Optional[str] = typer.Option(None, "--reviewed-at", help="Request field: reviewed_at."),
-        run_id: Optional[str] = typer.Option(None, "--run-id", help="Request field: run_id."),
-        score: float = typer.Option(..., "--score", help="Request field: score."),
-        source_entity_id: str = typer.Option(..., "--source-entity-id", help="Request field: source_entity_id."),
-        state: Optional[str] = typer.Option(None, "--state", help="Request field: state."),
-        target_entity_id: str = typer.Option(..., "--target-entity-id", help="Request field: target_entity_id."),
+        created_at: Optional[str] = typer.Option(None, '--created-at', help='Created At.'),
+        decision_note: Optional[str] = typer.Option(None, '--decision-note', help='Decision Note.'),
+        id: Optional[str] = typer.Option(None, '--id', help='Id.'),
+        model_config_snapshot: Optional[str] = typer.Option(None, '--model-config-snapshot', help='Model Config Snapshot. JSON.'),
+        model_id: Optional[str] = typer.Option(None, '--model-id', help='Model Id.'),
+        rank: Optional[int] = typer.Option(None, '--rank', help='Rank.'),
+        relation: str = typer.Option(..., '--relation', help='Relation.'),
+        resulting_claim_id: Optional[str] = typer.Option(None, '--resulting-claim-id', help='Resulting Claim Id.'),
+        reviewed_at: Optional[str] = typer.Option(None, '--reviewed-at', help='Reviewed At.'),
+        run_id: Optional[str] = typer.Option(None, '--run-id', help='Run Id.'),
+        score: float = typer.Option(..., '--score', help='Score.'),
+        source_entity_id: str = typer.Option(..., '--source-entity-id', help='Source Entity Id.'),
+        state: Optional[str] = typer.Option(None, '--state', help='PredictionReviewState. One of: pending, accepted, rejected, deferred.'),
+        target_entity_id: str = typer.Option(..., '--target-entity-id', help='Target Entity Id.'),
     ) -> None:
         """Create Prediction Review (POST /api/kg/pykeen/reviews)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8991,10 +9118,10 @@ def register_generated_openapi_commands(
     @target_app.command("decide-prediction-review")
     def kg_decide_prediction_review_patch(
         ctx: typer.Context,
-        review_id: str = typer.Argument(..., help="Path parameter: review_id."),
-        note: Optional[str] = typer.Option(None, "--note", help="Request field: note."),
-        resulting_claim_id: Optional[str] = typer.Option(None, "--resulting-claim-id", help="Request field: resulting_claim_id."),
-        state: str = typer.Option(..., "--state", help="Request field: state."),
+        review_id: str = typer.Argument(..., help='Review Id'),
+        note: Optional[str] = typer.Option(None, '--note', help='Note.'),
+        resulting_claim_id: Optional[str] = typer.Option(None, '--resulting-claim-id', help='Resulting Claim Id.'),
+        state: str = typer.Option(..., '--state', help='PredictionReviewState. One of: pending, accepted, rejected, deferred.'),
     ) -> None:
         """Decide Prediction Review (PATCH /api/kg/pykeen/reviews/{review_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -9015,8 +9142,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-stored-predictions")
     def kg_list_stored_predictions_get(
         ctx: typer.Context,
-        model_id: Optional[str] = typer.Option(None, "--model-id", help="Query parameter: model_id."),
-        verified: Optional[bool] = typer.Option(None, "--verified/--no-verified", help="Query parameter: verified."),
+        model_id: Optional[str] = typer.Option(None, '--model-id', help='Model Id.'),
+        verified: Optional[bool] = typer.Option(None, '--verified/--no-verified', help='Verified.'),
     ) -> None:
         """List stored predictions (GET /api/kg/pykeen/stored)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9028,10 +9155,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-a-specific-stored-prediction")
-    def kg_get_a_specific_stored_prediction_get(
+    @target_app.command("get-a-specific-stored-prediction", hidden=True)
+    @target_app.command("get-stored-prediction")
+    def kg_get_stored_prediction_get(
         ctx: typer.Context,
-        prediction_id: str = typer.Argument(..., help="Path parameter: prediction_id."),
+        prediction_id: str = typer.Argument(..., help='Prediction Id'),
     ) -> None:
         """Get a specific stored prediction (GET /api/kg/pykeen/stored/{prediction_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -9040,12 +9168,13 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("verify-or-refute-a-stored-prediction")
-    def kg_verify_or_refute_a_stored_prediction_patch(
+    @target_app.command("verify-or-refute-a-stored-prediction", hidden=True)
+    @target_app.command("verify-prediction")
+    def kg_verify_prediction_patch(
         ctx: typer.Context,
-        prediction_id: str = typer.Argument(..., help="Path parameter: prediction_id."),
-        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
-        verified: bool = typer.Option(..., "--verified/--no-verified", help="Request field: verified."),
+        prediction_id: str = typer.Argument(..., help='Prediction Id'),
+        notes: Optional[str] = typer.Option(None, '--notes', help='Notes.'),
+        verified: bool = typer.Option(..., '--verified/--no-verified', help='Verified.'),
     ) -> None:
         """Verify or refute a stored prediction (PATCH /api/kg/pykeen/stored/{prediction_id}/verify)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9061,12 +9190,13 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("train-a-pykeen-link-prediction-model-on-the-library-s-claims")
-    def kg_train_a_pykeen_link_prediction_model_on_the_library_s_claims_post(
+    @target_app.command("train-a-pykeen-link-prediction-model-on-the-library-s-claims", hidden=True)
+    @target_app.command("train")
+    def kg_train_post(
         ctx: typer.Context,
-        embedding_dim: Optional[int] = typer.Option(None, "--embedding-dim", help="Query parameter: embedding_dim."),
-        model: Optional[str] = typer.Option(None, "--model", help="Query parameter: model."),
-        num_epochs: Optional[int] = typer.Option(None, "--num-epochs", help="Query parameter: num_epochs."),
+        embedding_dim: Optional[int] = typer.Option(None, '--embedding-dim', help='Embedding Dim.'),
+        model: Optional[str] = typer.Option(None, '--model', help='Model.'),
+        num_epochs: Optional[int] = typer.Option(None, '--num-epochs', help='Num Epochs.'),
     ) -> None:
         """Train a PyKEEN link-prediction model on the library's claims (POST /api/kg/pykeen/train)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9079,8 +9209,9 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("list-all-pykeen-training-jobs")
-    def kg_list_all_pykeen_training_jobs_get(
+    @target_app.command("list-all-pykeen-training-jobs", hidden=True)
+    @target_app.command("list-training-jobs")
+    def kg_list_training_jobs_get(
         ctx: typer.Context,
     ) -> None:
         """List all PyKEEN training jobs (GET /api/kg/pykeen/training-jobs)."""
@@ -9090,10 +9221,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-a-specific-pykeen-training-job")
-    def kg_get_a_specific_pykeen_training_job_get(
+    @target_app.command("get-a-specific-pykeen-training-job", hidden=True)
+    @target_app.command("get-training-job")
+    def kg_get_training_job_get(
         ctx: typer.Context,
-        model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        model_id: str = typer.Argument(..., help='Model Id'),
     ) -> None:
         """Get a specific PyKEEN training job (GET /api/kg/pykeen/training-jobs/{model_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -9102,8 +9234,9 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("list-example-queries")
-    def kg_list_example_queries_get(
+    @target_app.command("list-example-queries", hidden=True)
+    @target_app.command("sparql-examples")
+    def kg_sparql_examples_get(
         ctx: typer.Context,
     ) -> None:
         """List example KG queries (GET /api/kg/query/examples)."""
@@ -9113,11 +9246,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph")
-    def kg_run_a_sparql_query_against_the_library_s_rdf_graph_post(
+    @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph", hidden=True)
+    @target_app.command("sparql-query")
+    def kg_sparql_query_post(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
-        query: str = typer.Option(..., "--query", help="Request field: query."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Cap on result rows. Defaults to 1000. Default: 1000.'),
+        query: str = typer.Option(..., '--query', help='SPARQL 1.1 query. Read-only: SELECT / ASK / CONSTRUCT / DESCRIBE only — INSERT/DELETE/DROP/CLEAR/LOAD/CREATE rejected.'),
     ) -> None:
         """Run a SPARQL query against the library's RDF graph (POST /api/kg/query/sparql)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9133,11 +9267,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("backfill-derived-stores")
-    def kg_backfill_derived_stores_post(
+    @target_app.command("backfill-derived-stores", hidden=True)
+    @target_app.command("rebuild-kg-rebuild")
+    def kg_rebuild_kg_rebuild_post(
         ctx: typer.Context,
-        triples: Optional[bool] = typer.Option(None, "--triples/--no-triples", help="Request field: triples."),
-        vectors: Optional[bool] = typer.Option(None, "--vectors/--no-vectors", help="Request field: vectors."),
+        triples: Optional[bool] = typer.Option(None, '--triples/--no-triples', help='Triples. Default: true.'),
+        vectors: Optional[bool] = typer.Option(None, '--vectors/--no-vectors', help='Vectors. Default: true.'),
     ) -> None:
         """Backfill KG derived stores (POST /api/kg/rebuild)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9153,11 +9288,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("render-a-deterministic-paragraph")
-    def kg_render_a_deterministic_paragraph_post(
+    @target_app.command("render-a-deterministic-paragraph", hidden=True)
+    @target_app.command("render-paragraph")
+    def kg_render_paragraph_post(
         ctx: typer.Context,
-        claim_ids: str = typer.Option(..., "--claim-ids", help="Request field: claim_ids."),
-        style: Optional[str] = typer.Option(None, "--style", help="Request field: style."),
+        claim_ids: list[str] = typer.Option(..., '--claim-ids', help='Claim Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        style: Optional[str] = typer.Option(None, '--style', help='Supported paragraph render styles. One of: narrative, list, footnoted.'),
     ) -> None:
         """Render a deterministic KG paragraph (POST /api/kg/render/paragraph)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9173,12 +9309,13 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("propose-entity-merge-candidates-from-co-occurrence-overlap")
-    def kg_propose_entity_merge_candidates_from_co_occurrence_overlap_get(
+    @target_app.command("propose-entity-merge-candidates-from-co-occurrence-overlap", hidden=True)
+    @target_app.command("graph-candidates")
+    def kg_graph_candidates_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        min_shared: Optional[int] = typer.Option(None, "--min-shared", help="Query parameter: min_shared."),
-        threshold: Optional[float] = typer.Option(None, "--threshold", help="Query parameter: threshold."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        min_shared: Optional[int] = typer.Option(None, '--min-shared', help='Min Shared.'),
+        threshold: Optional[float] = typer.Option(None, '--threshold', help='Threshold.'),
     ) -> None:
         """Propose entity-merge candidates from co-occurrence overlap (GET /api/kg/review/graph-candidates)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9191,8 +9328,9 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("accumulated-human-labelled-pairs-for-splink-pykeen-training")
-    def kg_accumulated_human_labelled_pairs_for_splink_pykeen_training_get(
+    @target_app.command("accumulated-human-labelled-pairs-for-splink-pykeen-training", hidden=True)
+    @target_app.command("list-labels")
+    def kg_list_labels_get(
         ctx: typer.Context,
     ) -> None:
         """Accumulated human-labelled pairs for splink / PyKEEN training (GET /api/kg/review/labels)."""
@@ -9202,10 +9340,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("list-pending-entity-match-pairs")
-    def kg_list_pending_entity_match_pairs_get(
+    @target_app.command("list-pending-entity-match-pairs", hidden=True)
+    @target_app.command("list-pairs")
+    def kg_list_pairs_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """List pending entity-match pairs (GET /api/kg/review/pairs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9216,14 +9355,15 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("manually-queue-an-entity-pair-for-review")
-    def kg_manually_queue_an_entity_pair_for_review_post(
+    @target_app.command("manually-queue-an-entity-pair-for-review", hidden=True)
+    @target_app.command("queue-pair")
+    def kg_queue_pair_post(
         ctx: typer.Context,
-        candidate_entity_id: str = typer.Option(..., "--candidate-entity-id", help="Request field: candidate_entity_id."),
-        method: Optional[str] = typer.Option(None, "--method", help="Request field: method."),
-        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
-        score: Optional[float] = typer.Option(None, "--score", help="Request field: score."),
-        survivor_entity_id: str = typer.Option(..., "--survivor-entity-id", help="Request field: survivor_entity_id."),
+        candidate_entity_id: str = typer.Option(..., '--candidate-entity-id', help='Candidate Entity Id.'),
+        method: Optional[str] = typer.Option(None, '--method', help='Method. One of: manual, name_variant, duplicate_name. Default: "manual".'),
+        reason: Optional[str] = typer.Option(None, '--reason', help='Reason.'),
+        score: Optional[float] = typer.Option(None, '--score', help='How alike the two are; 0.5 when a person queues it. Default: 0.5.'),
+        survivor_entity_id: str = typer.Option(..., '--survivor-entity-id', help='Survivor Entity Id.'),
     ) -> None:
         """Manually queue an entity pair for review (POST /api/kg/review/pairs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9245,10 +9385,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("merge-candidate-into-survivor-accept-the-suggested-match")
-    def kg_merge_candidate_into_survivor_accept_the_suggested_match_post(
+    @target_app.command("merge-candidate-into-survivor-accept-the-suggested-match", hidden=True)
+    @target_app.command("accept-pair")
+    def kg_accept_pair_post(
         ctx: typer.Context,
-        pair_id: str = typer.Argument(..., help="Path parameter: pair_id."),
+        pair_id: str = typer.Argument(..., help='Pair Id'),
     ) -> None:
         """Merge candidate into survivor — accept the suggested match (POST /api/kg/review/pairs/{pair_id}/accept)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9257,10 +9398,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("keep-distinct-labels-this-pair-as-definitely-different")
-    def kg_keep_distinct_labels_this_pair_as_definitely_different_post(
+    @target_app.command("keep-distinct-labels-this-pair-as-definitely-different", hidden=True)
+    @target_app.command("reject-pair")
+    def kg_reject_pair_post(
         ctx: typer.Context,
-        pair_id: str = typer.Argument(..., help="Path parameter: pair_id."),
+        pair_id: str = typer.Argument(..., help='Pair Id'),
     ) -> None:
         """Keep distinct — labels this pair as definitely-different (POST /api/kg/review/pairs/{pair_id}/reject)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9269,8 +9411,9 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("review-queue-summary-for-badge-counts")
-    def kg_review_queue_summary_for_badge_counts_get(
+    @target_app.command("review-queue-summary-for-badge-counts", hidden=True)
+    @target_app.command("review-summary")
+    def kg_review_summary_get(
         ctx: typer.Context,
     ) -> None:
         """Review queue summary for badge counts (GET /api/kg/review/summary)."""
@@ -9280,12 +9423,13 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("mixed-type-search-one-call-hits-across-entities-claims-notes-annotations")
-    def kg_mixed_type_search_one_call_hits_across_entities_claims_notes_annotations_get(
+    @target_app.command("mixed-type-search-one-call-hits-across-entities-claims-notes-annotations", hidden=True)
+    @target_app.command("search-kg-search")
+    def kg_search_kg_search_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        q: str = typer.Option(..., "--q", help="Query parameter: q."),
-        types: Optional[str] = typer.Option(None, "--types", help="Query parameter: types."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        q: str = typer.Option(..., '--q', help='Q.'),
+        types: Optional[list[str]] = typer.Option(None, '--types', help="Filter to specific row types — pass repeated 'types' params. Defaults to all four when omitted. A list: repeat the flag, or give the values comma-separated, or as JSON."),
     ) -> None:
         """Mixed-type KG search — one call, hits across entities + claims + notes + annotations (GET /api/kg/search)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9293,16 +9437,17 @@ def register_generated_openapi_commands(
             params = {
                 "limit": limit,
                 "q": q,
-                "types": types,
+                "types": _list_values(types),
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph-legacy-path")
-    def kg_run_a_sparql_query_against_the_library_s_rdf_graph_legacy_path_post(
+    @target_app.command("run-a-sparql-query-against-the-library-s-rdf-graph-legacy-path", hidden=True)
+    @target_app.command("sparql-query-legacy")
+    def kg_sparql_query_legacy_post(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
-        query: str = typer.Option(..., "--query", help="Request field: query."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Cap on result rows. Defaults to 1000. Default: 1000.'),
+        query: str = typer.Option(..., '--query', help='SPARQL 1.1 query. Read-only: SELECT / ASK / CONSTRUCT / DESCRIBE only — INSERT/DELETE/DROP/CLEAR/LOAD/CREATE rejected.'),
     ) -> None:
         """Run a SPARQL query against the library's RDF graph (legacy path) (POST /api/kg/sparql)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9318,10 +9463,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("triangulated-facts-across-the-library")
-    def kg_triangulated_facts_across_the_library_get(
+    @target_app.command("triangulated-facts-across-the-library", hidden=True)
+    @target_app.command("library-triangulation")
+    def kg_library_triangulation_get(
         ctx: typer.Context,
-        threshold: Optional[float] = typer.Option(None, "--threshold", help="Query parameter: threshold."),
+        threshold: Optional[float] = typer.Option(None, '--threshold', help='Minimum weighted support required.'),
     ) -> None:
         """Triangulated facts across the library (GET /api/kg/triangulation)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9332,10 +9478,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("triangulated-triples-for-one-entity")
-    def kg_triangulated_triples_for_one_entity_get(
+    @target_app.command("triangulated-triples-for-one-entity", hidden=True)
+    @target_app.command("entity-triangulation")
+    def kg_entity_triangulation_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
     ) -> None:
         """Triangulated triples for one entity (GET /api/kg/triangulation/entity/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -9344,8 +9491,9 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("persist-global-support-counts-onto-claims")
-    def kg_persist_global_support_counts_onto_claims_post(
+    @target_app.command("persist-global-support-counts-onto-claims", hidden=True)
+    @target_app.command("recompute-triangulation")
+    def kg_recompute_triangulation_post(
         ctx: typer.Context,
     ) -> None:
         """Persist global support counts onto claims (POST /api/kg/triangulation/recompute)."""
@@ -9364,9 +9512,9 @@ def register_generated_openapi_commands(
     @target_app.command("gather")
     def letterforms_gather_get(
         ctx: typer.Context,
-        allograph_id: Optional[str] = typer.Option(None, "--allograph-id", help="Query parameter: allograph_id."),
-        character: Optional[str] = typer.Option(None, "--character", help="Query parameter: character."),
-        hand_id: Optional[str] = typer.Option(None, "--hand-id", help="Query parameter: hand_id."),
+        allograph_id: Optional[str] = typer.Option(None, '--allograph-id', help='Allograph Id.'),
+        character: Optional[str] = typer.Option(None, '--character', help='Character.'),
+        hand_id: Optional[str] = typer.Option(None, '--hand-id', help='Hand Id.'),
     ) -> None:
         """Gather (GET /api/letterforms)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9382,7 +9530,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-allographs")
     def letterforms_list_allographs_get(
         ctx: typer.Context,
-        character: Optional[str] = typer.Option(None, "--character", help="Query parameter: character."),
+        character: Optional[str] = typer.Option(None, '--character', help='Character.'),
     ) -> None:
         """List Allographs (GET /api/letterforms/allographs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9407,7 +9555,7 @@ def register_generated_openapi_commands(
     @target_app.command("description-of-segment")
     def letterforms_description_of_segment_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
     ) -> None:
         """Description Of Segment (GET /api/letterforms/segment/{segment_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -9425,7 +9573,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-entity-types")
     def libraries_list_entity_types_get(
         ctx: typer.Context,
-        lib: str = typer.Argument(..., help="Path parameter: lib."),
+        lib: str = typer.Argument(..., help='Lib'),
     ) -> None:
         """List Library Entity Types (GET /api/libraries/{lib}/entity-types)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9437,9 +9585,9 @@ def register_generated_openapi_commands(
     @target_app.command("add-entity-type")
     def libraries_add_entity_type_post(
         ctx: typer.Context,
-        lib: str = typer.Argument(..., help="Path parameter: lib."),
-        enabled: Optional[bool] = typer.Option(None, "--enabled/--no-enabled", help="Query parameter: enabled."),
-        entity_type_key: str = typer.Option(..., "--entity-type-key", help="Query parameter: entity_type_key."),
+        lib: str = typer.Argument(..., help='Lib'),
+        enabled: Optional[bool] = typer.Option(None, '--enabled/--no-enabled', help='Enabled.'),
+        entity_type_key: str = typer.Option(..., '--entity-type-key', help='Entity Type Key.'),
     ) -> None:
         """Add Library Entity Type (POST /api/libraries/{lib}/entity-types)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9454,8 +9602,8 @@ def register_generated_openapi_commands(
     @target_app.command("remove-entity-type")
     def libraries_remove_entity_type_delete(
         ctx: typer.Context,
-        lib: str = typer.Argument(..., help="Path parameter: lib."),
-        entity_type_key: str = typer.Argument(..., help="Path parameter: entity_type_key."),
+        lib: str = typer.Argument(..., help='Lib'),
+        entity_type_key: str = typer.Argument(..., help='Entity Type Key'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Library Entity Type (DELETE /api/libraries/{lib}/entity-types/{entity_type_key})."""
@@ -9473,10 +9621,10 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='library')
         existing_apps['library'] = target_app
 
-    @target_app.command("create")
-    def library_create_post(
+    @target_app.command("create-library")
+    def library_create_library_post(
         ctx: typer.Context,
-        path: str = typer.Option(..., "--path", help="Request field: path."),
+        path: str = typer.Option(..., '--path', help='Path.'),
     ) -> None:
         """Create Library (POST /api/library)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9493,9 +9641,9 @@ def register_generated_openapi_commands(
     @target_app.command("list-links")
     def library_list_links_get(
         ctx: typer.Context,
-        relation_type: Optional[str] = typer.Option(None, "--relation-type", help="Query parameter: relation_type."),
-        source_id: Optional[str] = typer.Option(None, "--source-id", help="Query parameter: source_id."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
+        relation_type: Optional[str] = typer.Option(None, '--relation-type', help='Relation Type.'),
+        source_id: Optional[str] = typer.Option(None, '--source-id', help='Source Id.'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Target Id.'),
     ) -> None:
         """List Library Links (GET /api/library/links)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9511,14 +9659,14 @@ def register_generated_openapi_commands(
     @target_app.command("create-link")
     def library_create_link_post(
         ctx: typer.Context,
-        evidence: Optional[str] = typer.Option(None, "--evidence", help="Request field: evidence."),
-        link_quality: Optional[float] = typer.Option(None, "--link-quality", help="Request field: link_quality."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        relation_type: str = typer.Option(..., "--relation-type", help="Request field: relation_type."),
-        source_id: str = typer.Option(..., "--source-id", help="Request field: source_id."),
-        source_type: str = typer.Option(..., "--source-type", help="Request field: source_type."),
-        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
-        target_type: str = typer.Option(..., "--target-type", help="Request field: target_type."),
+        evidence: Optional[str] = typer.Option(None, '--evidence', help='Evidence.'),
+        link_quality: Optional[float] = typer.Option(None, '--link-quality', help='Link Quality. Default: 0.5.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        relation_type: str = typer.Option(..., '--relation-type', help="Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B). Originally four kinds (supports / contradicts / refines / duplicate_of). #1123 extends with five new dimensions plus ``related_to`` (the generic fallback used by ``kg_predictions._record_predictions`` when a model surfaces a relation outside the curated set): - ``corroborates`` — independent evidence agreeing with the source claim. Distinct from ``supports`` (which just reinforces with additional evidence drawn from the same line of reasoning). - ``derives_from`` — claim B is inferred from / built on claim A; removing A invalidates B. Stronger than ``cites``. - ``cites`` — B references A as a source. Bibliographic / citation graph use. - ``follows`` — temporal sequence (A then B). Doesn't imply causation; ``caused_by`` is the explicit causal claim. - ``caused_by`` — A is the cause of B. Strong claim; reviewers should treat with corroboration. - ``related_to`` — generic fallback when the typed kinds don't fit. Closes the latent crash in ``kg_predictions.py:269`` where the relation_map fallback referenced this value before it existed. Note: ``contests`` was considered as a synonym for ``contradicts`` but excluded — same semantic, different word, doesn't earn a separate enum slot. Writers should keep using ``contradicts``. One of: supports, contradicts, refines, duplicate_of, corroborates, derives_from, cites, follows, caused_by, related_to."),
+        source_id: str = typer.Option(..., '--source-id', help='Source Id.'),
+        source_type: str = typer.Option(..., '--source-type', help='Node kinds that can participate in a general library link. One of: document, note, entity, claim.'),
+        target_id: str = typer.Option(..., '--target-id', help='Target Id.'),
+        target_type: str = typer.Option(..., '--target-type', help='Node kinds that can participate in a general library link. One of: document, note, entity, claim.'),
     ) -> None:
         """Create Library Link (POST /api/library/links)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9549,7 +9697,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-link")
     def library_delete_link_delete(
         ctx: typer.Context,
-        link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        link_id: str = typer.Argument(..., help='Link Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Library Link (DELETE /api/library/links/{link_id})."""
@@ -9564,7 +9712,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-link")
     def library_get_link_get(
         ctx: typer.Context,
-        link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        link_id: str = typer.Argument(..., help='Link Id'),
     ) -> None:
         """Get Library Link (GET /api/library/links/{link_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -9576,11 +9724,11 @@ def register_generated_openapi_commands(
     @target_app.command("update-link")
     def library_update_link_patch(
         ctx: typer.Context,
-        link_id: str = typer.Argument(..., help="Path parameter: link_id."),
-        evidence: Optional[str] = typer.Option(None, "--evidence", help="Request field: evidence."),
-        link_quality: Optional[float] = typer.Option(None, "--link-quality", help="Request field: link_quality."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        relation_type: Optional[str] = typer.Option(None, "--relation-type", help="Request field: relation_type."),
+        link_id: str = typer.Argument(..., help='Link Id'),
+        evidence: Optional[str] = typer.Option(None, '--evidence', help='Evidence.'),
+        link_quality: Optional[float] = typer.Option(None, '--link-quality', help='Link Quality.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        relation_type: Optional[str] = typer.Option(None, '--relation-type', help="Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B). Originally four kinds (supports / contradicts / refines / duplicate_of). #1123 extends with five new dimensions plus ``related_to`` (the generic fallback used by ``kg_predictions._record_predictions`` when a model surfaces a relation outside the curated set): - ``corroborates`` — independent evidence agreeing with the source claim. Distinct from ``supports`` (which just reinforces with additional evidence drawn from the same line of reasoning). - ``derives_from`` — claim B is inferred from / built on claim A; removing A invalidates B. Stronger than ``cites``. - ``cites`` — B references A as a source. Bibliographic / citation graph use. - ``follows`` — temporal sequence (A then B). Doesn't imply causation; ``caused_by`` is the explicit causal claim. - ``caused_by`` — A is the cause of B. Strong claim; reviewers should treat with corroboration. - ``related_to`` — generic fallback when the typed kinds don't fit. Closes the latent crash in ``kg_predictions.py:269`` where the relation_map fallback referenced this value before it existed. Note: ``contests`` was considered as a synonym for ``contradicts`` but excluded — same semantic, different word, doesn't earn a separate enum slot. Writers should keep using ``contradicts``. One of: supports, contradicts, refines, duplicate_of, corroborates, derives_from, cites, follows, caused_by, related_to."),
     ) -> None:
         """Update Library Link (PATCH /api/library/links/{link_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -9614,7 +9762,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-sync-object")
     def library_get_sync_object_get(
         ctx: typer.Context,
-        rel: str = typer.Option(..., "--rel", help="Query parameter: rel."),
+        rel: str = typer.Option(..., '--rel', help='Library-relative object path from the manifest.'),
     ) -> None:
         """Get Sync Object (GET /api/library/sync/object)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9631,11 +9779,12 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='library-items')
         existing_apps['library-items'] = target_app
 
-    @target_app.command("batch-column-metadata")
-    def library_items_batch_column_metadata_post(
+    @target_app.command("batch-column-metadata", hidden=True)
+    @target_app.command("columns")
+    def library_items_columns_post(
         ctx: typer.Context,
-        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Request field: include_descendants."),
-        item_ids: Optional[str] = typer.Option(None, "--item-ids", help="Request field: item_ids."),
+        include_descendants: Optional[bool] = typer.Option(None, '--include-descendants/--no-include-descendants', help='Include Descendants. Default: false.'),
+        item_ids: Optional[list[str]] = typer.Option(None, '--item-ids', help='Item Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Batch library-item column metadata (POST /api/library-items/columns)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9654,7 +9803,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-links-for")
     def library_items_list_links_for_get(
         ctx: typer.Context,
-        item_id: str = typer.Argument(..., help="Path parameter: item_id."),
+        item_id: str = typer.Argument(..., help='Item Id'),
     ) -> None:
         """List Links For Item (GET /api/library-items/{item_id}/links)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9672,13 +9821,13 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def links_create_post(
         ctx: typer.Context,
-        certainty: Optional[float] = typer.Option(None, "--certainty", help="Request field: certainty."),
-        from_id: str = typer.Option(..., "--from-id", help="Request field: from_id."),
-        from_kind: Optional[str] = typer.Option(None, "--from-kind", help="Request field: from_kind."),
-        link_type: str = typer.Option(..., "--link-type", help="Request field: link_type."),
-        note: Optional[str] = typer.Option(None, "--note", help="Request field: note."),
-        to_id: str = typer.Option(..., "--to-id", help="Request field: to_id."),
-        to_kind: Optional[str] = typer.Option(None, "--to-kind", help="Request field: to_kind."),
+        certainty: Optional[float] = typer.Option(None, '--certainty', help='Certainty.'),
+        from_id: str = typer.Option(..., '--from-id', help='From Id.'),
+        from_kind: Optional[str] = typer.Option(None, '--from-kind', help='From Kind. Default: "segment".'),
+        link_type: str = typer.Option(..., '--link-type', help='Link Type.'),
+        note: Optional[str] = typer.Option(None, '--note', help='Note.'),
+        to_id: str = typer.Option(..., '--to-id', help='To Id.'),
+        to_kind: Optional[str] = typer.Option(None, '--to-kind', help='To Kind. Default: "segment".'),
     ) -> None:
         """Create Link (POST /api/links)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9707,7 +9856,7 @@ def register_generated_openapi_commands(
     @target_app.command("segments-naming-place")
     def links_segments_naming_place_get(
         ctx: typer.Context,
-        uri: str = typer.Option(..., "--uri", help="Query parameter: uri."),
+        uri: str = typer.Option(..., '--uri', help="A gazetteer's (or other authority's) URI for the place."),
     ) -> None:
         """Segments Naming Place (GET /api/links/naming)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9721,8 +9870,8 @@ def register_generated_openapi_commands(
     @target_app.command("of")
     def links_of_get(
         ctx: typer.Context,
-        end_id: str = typer.Argument(..., help="Path parameter: end_id."),
-        include_deleted: Optional[bool] = typer.Option(None, "--include-deleted/--no-include-deleted", help="Query parameter: include_deleted."),
+        end_id: str = typer.Argument(..., help='End Id'),
+        include_deleted: Optional[bool] = typer.Option(None, '--include-deleted/--no-include-deleted', help='Include withdrawn links.'),
     ) -> None:
         """Links Of (GET /api/links/of/{end_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -9775,7 +9924,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-model-download")
     def local_inference_get_model_download_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Get Local Inference Model Download (GET /api/local-inference/models/downloads/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -9787,7 +9936,7 @@ def register_generated_openapi_commands(
     @target_app.command("cancel-model-download")
     def local_inference_cancel_model_download_post(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Cancel Local Inference Model Download (POST /api/local-inference/models/downloads/{job_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9799,7 +9948,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-model")
     def local_inference_delete_model_delete(
         ctx: typer.Context,
-        model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        model_id: str = typer.Argument(..., help='Model Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Local Inference Model (DELETE /api/local-inference/models/{model_id})."""
@@ -9814,7 +9963,7 @@ def register_generated_openapi_commands(
     @target_app.command("download-model")
     def local_inference_download_model_post(
         ctx: typer.Context,
-        model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        model_id: str = typer.Argument(..., help='Model Id'),
     ) -> None:
         """Download Local Inference Model (POST /api/local-inference/models/{model_id}/download)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9837,24 +9986,24 @@ def register_generated_openapi_commands(
     @target_app.command("validate-profile")
     def local_inference_validate_profile_post(
         ctx: typer.Context,
-        allows_paid_fallbacks: Optional[bool] = typer.Option(None, "--allows-paid-fallbacks/--no-allows-paid-fallbacks", help="Request field: allows_paid_fallbacks."),
-        base_url: str = typer.Option(..., "--base-url", help="Request field: base_url."),
-        command: Optional[str] = typer.Option(None, "--command", help="Request field: command."),
-        healthcheck_path: Optional[str] = typer.Option(None, "--healthcheck-path", help="Request field: healthcheck_path."),
-        id: str = typer.Option(..., "--id", help="Request field: id."),
-        local_only: Optional[bool] = typer.Option(None, "--local-only/--no-local-only", help="Request field: local_only."),
-        managed_by_app: Optional[bool] = typer.Option(None, "--managed-by-app/--no-managed-by-app", help="Request field: managed_by_app."),
-        max_concurrency: Optional[int] = typer.Option(None, "--max-concurrency", help="Request field: max_concurrency."),
-        model_id: str = typer.Option(..., "--model-id", help="Request field: model_id."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        provider_type: str = typer.Option(..., "--provider-type", help="Request field: provider_type."),
-        python_executable: Optional[str] = typer.Option(None, "--python-executable", help="Request field: python_executable."),
-        startup_policy: Optional[str] = typer.Option(None, "--startup-policy", help="Request field: startup_policy."),
-        startup_timeout_seconds: Optional[float] = typer.Option(None, "--startup-timeout-seconds", help="Request field: startup_timeout_seconds."),
-        supported: Optional[bool] = typer.Option(None, "--supported/--no-supported", help="Request field: supported."),
-        timeout_seconds: Optional[float] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
-        unsupported_reason: Optional[str] = typer.Option(None, "--unsupported-reason", help="Request field: unsupported_reason."),
-        visible_in_ui: Optional[bool] = typer.Option(None, "--visible-in-ui/--no-visible-in-ui", help="Request field: visible_in_ui."),
+        allows_paid_fallbacks: Optional[bool] = typer.Option(None, '--allows-paid-fallbacks/--no-allows-paid-fallbacks', help='Allows Paid Fallbacks. Default: false.'),
+        base_url: str = typer.Option(..., '--base-url', help='Base Url.'),
+        command: Optional[list[str]] = typer.Option(None, '--command', help='Command. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        healthcheck_path: Optional[str] = typer.Option(None, '--healthcheck-path', help='Healthcheck Path. Default: "/health".'),
+        id: str = typer.Option(..., '--id', help='Id.'),
+        local_only: Optional[bool] = typer.Option(None, '--local-only/--no-local-only', help='Local Only. Default: true.'),
+        managed_by_app: Optional[bool] = typer.Option(None, '--managed-by-app/--no-managed-by-app', help='Managed By App. Default: true.'),
+        max_concurrency: Optional[int] = typer.Option(None, '--max-concurrency', help='Max Concurrency. Default: 1.'),
+        model_id: str = typer.Option(..., '--model-id', help='Model Id.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        provider_type: str = typer.Option(..., '--provider-type', help='Supported LLM provider types. One of: apple, mock, spacy, kraken, whisper, ollama, lmstudio, omlx, huggingface, openrouter, openai, anthropic, google, groq, together, deepseek, mistral, cohere, dashscope, xai, perplexity, fireworks, deepl, azure, bedrock.'),
+        python_executable: Optional[str] = typer.Option(None, '--python-executable', help='Python Executable.'),
+        startup_policy: Optional[str] = typer.Option(None, '--startup-policy', help='When the app should start a managed local provider. One of: on_demand, eager, manual.'),
+        startup_timeout_seconds: Optional[float] = typer.Option(None, '--startup-timeout-seconds', help='Startup Timeout Seconds. Default: 300.0.'),
+        supported: Optional[bool] = typer.Option(None, '--supported/--no-supported', help='Supported. Default: true.'),
+        timeout_seconds: Optional[float] = typer.Option(None, '--timeout-seconds', help='Timeout Seconds. Default: 5.0.'),
+        unsupported_reason: Optional[str] = typer.Option(None, '--unsupported-reason', help='Unsupported Reason.'),
+        visible_in_ui: Optional[bool] = typer.Option(None, '--visible-in-ui/--no-visible-in-ui', help='Visible In Ui. Default: true.'),
     ) -> None:
         """Validate Local Inference Profile (POST /api/local-inference/profiles/validate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9905,7 +10054,7 @@ def register_generated_openapi_commands(
     @target_app.command("check-health")
     def local_inference_check_health_post(
         ctx: typer.Context,
-        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+        profile_id: str = typer.Argument(..., help='Profile Id'),
     ) -> None:
         """Check Local Inference Health (POST /api/local-inference/profiles/{profile_id}/health)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9917,8 +10066,8 @@ def register_generated_openapi_commands(
     @target_app.command("start-profile")
     def local_inference_start_profile_post(
         ctx: typer.Context,
-        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
-        timeout_seconds: Optional[float] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        profile_id: str = typer.Argument(..., help='Profile Id'),
+        timeout_seconds: Optional[float] = typer.Option(None, '--timeout-seconds', help='Timeout Seconds.'),
     ) -> None:
         """Start Local Inference Profile (POST /api/local-inference/profiles/{profile_id}/start)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9935,7 +10084,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-status")
     def local_inference_get_status_get(
         ctx: typer.Context,
-        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+        profile_id: str = typer.Argument(..., help='Profile Id'),
     ) -> None:
         """Get Local Inference Status (GET /api/local-inference/profiles/{profile_id}/status)."""
         def op_call(client: FicheroClient) -> Any:
@@ -9947,7 +10096,7 @@ def register_generated_openapi_commands(
     @target_app.command("stop-profile")
     def local_inference_stop_profile_post(
         ctx: typer.Context,
-        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+        profile_id: str = typer.Argument(..., help='Profile Id'),
     ) -> None:
         """Stop Local Inference Profile (POST /api/local-inference/profiles/{profile_id}/stop)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10001,7 +10150,7 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def local_models_list_get(
         ctx: typer.Context,
-        model_type: Optional[str] = typer.Option(None, "--model-type", help="Query parameter: model_type."),
+        model_type: Optional[str] = typer.Option(None, '--model-type', help='Model Type.'),
     ) -> None:
         """List Local Models (GET /api/local-models)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10026,8 +10175,8 @@ def register_generated_openapi_commands(
     @target_app.command("download")
     def local_models_download_post(
         ctx: typer.Context,
-        model_type: str = typer.Argument(..., help="Path parameter: model_type."),
-        model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        model_type: str = typer.Argument(..., help='Model Type'),
+        model_id: str = typer.Argument(..., help='Model Id'),
     ) -> None:
         """Download Model (POST /api/local-models/download/{model_type}/{model_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -10075,8 +10224,8 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def local_models_delete_delete(
         ctx: typer.Context,
-        model_type: str = typer.Argument(..., help="Path parameter: model_type."),
-        model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        model_type: str = typer.Argument(..., help='Model Type'),
+        model_id: str = typer.Argument(..., help='Model Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Model (DELETE /api/local-models/{model_type}/{model_id})."""
@@ -10097,14 +10246,14 @@ def register_generated_openapi_commands(
     @target_app.command("resolve")
     def locations_resolve_post(
         ctx: typer.Context,
-        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
-        charRange: Optional[str] = typer.Option(None, "--charRange", help="Request field: charRange."),
-        claimId: Optional[str] = typer.Option(None, "--claimId", help="Request field: claimId."),
-        documentId: Optional[str] = typer.Option(None, "--documentId", help="Request field: documentId."),
-        entityId: Optional[str] = typer.Option(None, "--entityId", help="Request field: entityId."),
-        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
-        segmentId: Optional[str] = typer.Option(None, "--segmentId", help="Request field: segmentId."),
-        surface: Optional[str] = typer.Option(None, "--surface", help="Request field: surface."),
+        bbox: Optional[list[str]] = typer.Option(None, '--bbox', help='Bbox. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        charRange: Optional[str] = typer.Option(None, '--charRange', help='CharacterRange. JSON.'),
+        claimId: Optional[str] = typer.Option(None, '--claimId', help='Claimid.'),
+        documentId: Optional[str] = typer.Option(None, '--documentId', help='Documentid.'),
+        entityId: Optional[str] = typer.Option(None, '--entityId', help='Entityid.'),
+        page: Optional[int] = typer.Option(None, '--page', help='Page.'),
+        segmentId: Optional[str] = typer.Option(None, '--segmentId', help='Segmentid.'),
+        surface: Optional[str] = typer.Option(None, '--surface', help='LocationSurface. One of: preview, reader, inspector, both.'),
     ) -> None:
         """Resolve Location (POST /api/locations/resolve)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10141,12 +10290,12 @@ def register_generated_openapi_commands(
     @target_app.command("check-verdict")
     def mcp_check_verdict_post(
         ctx: typer.Context,
-        correction: Optional[str] = typer.Option(None, "--correction", help="Request field: correction."),
-        layer: str = typer.Option(..., "--layer", help="Request field: layer."),
-        reasons: str = typer.Option(..., "--reasons", help="Request field: reasons."),
-        segment_id: Optional[str] = typer.Option(None, "--segment-id", help="Request field: segment_id."),
-        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
-        verdict: str = typer.Option(..., "--verdict", help="Request field: verdict."),
+        correction: Optional[str] = typer.Option(None, '--correction', help='Correction. JSON.'),
+        layer: str = typer.Option(..., '--layer', help='readings, claims or entities.'),
+        reasons: str = typer.Option(..., '--reasons', help='Reasons.'),
+        segment_id: Optional[str] = typer.Option(None, '--segment-id', help='Segment Id.'),
+        target_id: str = typer.Option(..., '--target-id', help='Target Id.'),
+        verdict: str = typer.Option(..., '--verdict', help='confirm, correct or reject.'),
     ) -> None:
         """Mcp Check Verdict (POST /api/mcp/tools/check/verdicts)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10170,14 +10319,15 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("list-knowledge-claims")
-    def mcp_list_knowledge_claims_get(
+    @target_app.command("list-knowledge-claims", hidden=True)
+    @target_app.command("knowledge-claims-list")
+    def mcp_knowledge_claims_list_get(
         ctx: typer.Context,
-        claim_type: Optional[str] = typer.Option(None, "--claim-type", help="Query parameter: claim_type."),
-        entity_id: Optional[str] = typer.Option(None, "--entity-id", help="Query parameter: entity_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
+        claim_type: Optional[str] = typer.Option(None, '--claim-type', help='Claim Type.'),
+        entity_id: Optional[str] = typer.Option(None, '--entity-id', help='Entity Id.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        q: Optional[str] = typer.Option(None, '--q', help='Q.'),
     ) -> None:
         """List knowledge claims (GET /api/mcp/tools/knowledge/claims)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10192,23 +10342,24 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("create-knowledge-claim")
-    def mcp_create_knowledge_claim_post(
+    @target_app.command("create-knowledge-claim", hidden=True)
+    @target_app.command("knowledge-claim-create")
+    def mcp_knowledge_claim_create_post(
         ctx: typer.Context,
-        claim_type: Optional[str] = typer.Option(None, "--claim-type", help="Request field: claim_type."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
-        curation_state: Optional[str] = typer.Option(None, "--curation-state", help="Request field: curation_state."),
-        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
-        epistemic_status: Optional[str] = typer.Option(None, "--epistemic-status", help="Request field: epistemic_status."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
-        source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Request field: source_ids."),
-        source_languages: Optional[str] = typer.Option(None, "--source-languages", help="Request field: source_languages."),
-        source_page_labels: Optional[str] = typer.Option(None, "--source-page-labels", help="Request field: source_page_labels."),
-        source_type: Optional[str] = typer.Option(None, "--source-type", help="Request field: source_type."),
-        text: str = typer.Option(..., "--text", help="Request field: text."),
+        claim_type: Optional[str] = typer.Option(None, '--claim-type', help='Type: fact, analysis, interpretation, argument, historiography, theory. Default: "fact".'),
+        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence. Default: 0.5.'),
+        created_by: Optional[str] = typer.Option(None, '--created-by', help='IGNORED (#4485). Who asserted a claim is the difference between evidence and hearsay; it derives exclusively from authenticated request state and a body value can never claim another principal. Accepted only for wire compatibility. Default: "mcp".'),
+        curation_state: Optional[str] = typer.Option(None, '--curation-state', help='State: unreviewed, shortlisted, curated, rejected. Default: "unreviewed".'),
+        entity_ids: Optional[list[str]] = typer.Option(None, '--entity-ids', help='Linked entity IDs. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        epistemic_status: Optional[str] = typer.Option(None, '--epistemic-status', help='Status: tentative, confirmed, rejected. Default: "tentative".'),
+        language: Optional[str] = typer.Option(None, '--language', help='ISO 639-1 language code.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='Primary source document ID.'),
+        source_ids: Optional[list[str]] = typer.Option(None, '--source-ids', help='Multiple source document IDs. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        source_languages: Optional[list[str]] = typer.Option(None, '--source-languages', help='ISO 639-1 codes per source. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        source_page_labels: Optional[list[str]] = typer.Option(None, '--source-page-labels', help='Source Page Labels. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        source_type: Optional[str] = typer.Option(None, '--source-type', help='Source type: document, claim, multiple, synthesis. Default: "document".'),
+        text: str = typer.Option(..., '--text', help='Claim text content.'),
     ) -> None:
         """Create knowledge claim (POST /api/mcp/tools/knowledge/claims/create)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10248,10 +10399,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("delete-knowledge-claim")
-    def mcp_delete_knowledge_claim_delete(
+    @target_app.command("delete-knowledge-claim", hidden=True)
+    @target_app.command("knowledge-claim-delete")
+    def mcp_knowledge_claim_delete_delete(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete knowledge claim (DELETE /api/mcp/tools/knowledge/claims/{claim_id})."""
@@ -10263,10 +10415,11 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-knowledge-claim")
-    def mcp_get_knowledge_claim_get(
+    @target_app.command("get-knowledge-claim", hidden=True)
+    @target_app.command("knowledge-claim-get")
+    def mcp_knowledge_claim_get_get(
         ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
+        claim_id: str = typer.Argument(..., help='Claim Id'),
     ) -> None:
         """Get knowledge claim (GET /api/mcp/tools/knowledge/claims/{claim_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -10275,13 +10428,14 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("list-knowledge-entities")
-    def mcp_list_knowledge_entities_get(
+    @target_app.command("list-knowledge-entities", hidden=True)
+    @target_app.command("knowledge-entities-list")
+    def mcp_knowledge_entities_list_get(
         ctx: typer.Context,
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Entity Type.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        q: Optional[str] = typer.Option(None, '--q', help='Q.'),
     ) -> None:
         """List knowledge entities (GET /api/mcp/tools/knowledge/entities)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10295,16 +10449,17 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("upsert-knowledge-entity")
-    def mcp_upsert_knowledge_entity_post(
+    @target_app.command("upsert-knowledge-entity", hidden=True)
+    @target_app.command("knowledge-entity-upsert")
+    def mcp_knowledge_entity_upsert_post(
         ctx: typer.Context,
-        aliases: Optional[str] = typer.Option(None, "--aliases", help="Request field: aliases."),
-        canonical_name: str = typer.Option(..., "--canonical-name", help="Request field: canonical_name."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Request field: entity_type."),
-        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        aliases: Optional[list[str]] = typer.Option(None, '--aliases', help='Alternative names. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        canonical_name: str = typer.Option(..., '--canonical-name', help='Canonical entity name.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Entity description.'),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Entity type. Default: "other".'),
+        id: Optional[str] = typer.Option(None, '--id', help='Entity ID for updates.'),
+        language: Optional[str] = typer.Option(None, '--language', help='ISO 639-1 language code.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Custom metadata. JSON.'),
     ) -> None:
         """Upsert knowledge entity (POST /api/mcp/tools/knowledge/entities/upsert)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10330,10 +10485,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("delete-knowledge-entity")
-    def mcp_delete_knowledge_entity_delete(
+    @target_app.command("delete-knowledge-entity", hidden=True)
+    @target_app.command("knowledge-entity-delete")
+    def mcp_knowledge_entity_delete_delete(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete knowledge entity (DELETE /api/mcp/tools/knowledge/entities/{entity_id})."""
@@ -10345,10 +10501,11 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-knowledge-entity")
-    def mcp_get_knowledge_entity_get(
+    @target_app.command("get-knowledge-entity", hidden=True)
+    @target_app.command("knowledge-entity-get")
+    def mcp_knowledge_entity_get_get(
         ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        entity_id: str = typer.Argument(..., help='Entity Id'),
     ) -> None:
         """Get knowledge entity (GET /api/mcp/tools/knowledge/entities/{entity_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -10377,16 +10534,16 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def mcp_servers_create_post(
         ctx: typer.Context,
-        args: Optional[str] = typer.Option(None, "--args", help="Request field: args."),
-        command: Optional[str] = typer.Option(None, "--command", help="Request field: command."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        enabled: Optional[bool] = typer.Option(None, "--enabled/--no-enabled", help="Request field: enabled."),
-        env: Optional[str] = typer.Option(None, "--env", help="Request field: env."),
-        headers: Optional[str] = typer.Option(None, "--headers", help="Request field: headers."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        tool_name_prefix: Optional[bool] = typer.Option(None, "--tool-name-prefix/--no-tool-name-prefix", help="Request field: tool_name_prefix."),
-        transport: str = typer.Option(..., "--transport", help="Request field: transport."),
-        url: Optional[str] = typer.Option(None, "--url", help="Request field: url."),
+        args: Optional[list[str]] = typer.Option(None, '--args', help='Args. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        command: Optional[str] = typer.Option(None, '--command', help='Command.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        enabled: Optional[bool] = typer.Option(None, '--enabled/--no-enabled', help='Enabled. Default: true.'),
+        env: Optional[str] = typer.Option(None, '--env', help='Env. Default: {}. JSON.'),
+        headers: Optional[str] = typer.Option(None, '--headers', help='Headers. Default: {}. JSON.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        tool_name_prefix: Optional[bool] = typer.Option(None, '--tool-name-prefix/--no-tool-name-prefix', help='Tool Name Prefix. Default: true.'),
+        transport: str = typer.Option(..., '--transport', help='Transport.'),
+        url: Optional[str] = typer.Option(None, '--url', help='Url.'),
     ) -> None:
         """Create Mcp Server (POST /api/mcp-servers)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10454,7 +10611,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def mcp_servers_delete_delete(
         ctx: typer.Context,
-        server_id: str = typer.Argument(..., help="Path parameter: server_id."),
+        server_id: str = typer.Argument(..., help='Server Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Mcp Server (DELETE /api/mcp-servers/{server_id})."""
@@ -10469,7 +10626,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def mcp_servers_get_get(
         ctx: typer.Context,
-        server_id: str = typer.Argument(..., help="Path parameter: server_id."),
+        server_id: str = typer.Argument(..., help='Server Id'),
     ) -> None:
         """Get Mcp Server (GET /api/mcp-servers/{server_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -10481,17 +10638,17 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def mcp_servers_update_put(
         ctx: typer.Context,
-        server_id: str = typer.Argument(..., help="Path parameter: server_id."),
-        args: Optional[str] = typer.Option(None, "--args", help="Request field: args."),
-        command: Optional[str] = typer.Option(None, "--command", help="Request field: command."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        enabled: Optional[bool] = typer.Option(None, "--enabled/--no-enabled", help="Request field: enabled."),
-        env: Optional[str] = typer.Option(None, "--env", help="Request field: env."),
-        headers: Optional[str] = typer.Option(None, "--headers", help="Request field: headers."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        tool_name_prefix: Optional[bool] = typer.Option(None, "--tool-name-prefix/--no-tool-name-prefix", help="Request field: tool_name_prefix."),
-        transport: Optional[str] = typer.Option(None, "--transport", help="Request field: transport."),
-        url: Optional[str] = typer.Option(None, "--url", help="Request field: url."),
+        server_id: str = typer.Argument(..., help='Server Id'),
+        args: Optional[list[str]] = typer.Option(None, '--args', help='Args. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        command: Optional[str] = typer.Option(None, '--command', help='Command.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        enabled: Optional[bool] = typer.Option(None, '--enabled/--no-enabled', help='Enabled.'),
+        env: Optional[str] = typer.Option(None, '--env', help='Env. JSON.'),
+        headers: Optional[str] = typer.Option(None, '--headers', help='Headers. JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        tool_name_prefix: Optional[bool] = typer.Option(None, '--tool-name-prefix/--no-tool-name-prefix', help='Tool Name Prefix.'),
+        transport: Optional[str] = typer.Option(None, '--transport', help='Transport.'),
+        url: Optional[str] = typer.Option(None, '--url', help='Url.'),
     ) -> None:
         """Update Mcp Server (PUT /api/mcp-servers/{server_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -10526,8 +10683,8 @@ def register_generated_openapi_commands(
     @target_app.command("load-tools")
     def mcp_servers_load_tools_post(
         ctx: typer.Context,
-        server_id: str = typer.Argument(..., help="Path parameter: server_id."),
-        force_reload: Optional[bool] = typer.Option(None, "--force-reload/--no-force-reload", help="Query parameter: force_reload."),
+        server_id: str = typer.Argument(..., help='Server Id'),
+        force_reload: Optional[bool] = typer.Option(None, '--force-reload/--no-force-reload', help='Force Reload.'),
     ) -> None:
         """Load Server Tools (POST /api/mcp-servers/{server_id}/load-tools)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10569,7 +10726,7 @@ def register_generated_openapi_commands(
     @target_app.command("rollback")
     def migrations_rollback_post(
         ctx: typer.Context,
-        run_id: str = typer.Option(..., "--run-id", help="Request field: run_id."),
+        run_id: str = typer.Option(..., '--run-id', help='Migration run ID to rollback.'),
     ) -> None:
         """Rollback Migration (POST /api/migrations/rollback)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10586,10 +10743,10 @@ def register_generated_openapi_commands(
     @target_app.command("run")
     def migrations_run_post(
         ctx: typer.Context,
-        batch_size: Optional[int] = typer.Option(None, "--batch-size", help="Request field: batch_size."),
-        command: str = typer.Option(..., "--command", help="Request field: command."),
-        dry_run: Optional[bool] = typer.Option(None, "--dry-run/--no-dry-run", help="Request field: dry_run."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+        batch_size: Optional[int] = typer.Option(None, '--batch-size', help='Process in batches.'),
+        command: str = typer.Option(..., '--command', help='Available migration commands. One of: migrate_claims_to_multi_source, backfill_claim_source_metadata, repair_orphaned_claim_links, repair_kg_svo_repr_leak, repair_rtf_escapes.'),
+        dry_run: Optional[bool] = typer.Option(None, '--dry-run/--no-dry-run', help='Validate without making changes. Default: false.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Maximum items to process.'),
     ) -> None:
         """Run Migration (POST /api/migrations/run)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10612,7 +10769,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-status")
     def migrations_get_status_get(
         ctx: typer.Context,
-        run_id: str = typer.Argument(..., help="Path parameter: run_id."),
+        run_id: str = typer.Argument(..., help='Run Id'),
     ) -> None:
         """Get Migration Status (GET /api/migrations/status/{run_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -10624,8 +10781,8 @@ def register_generated_openapi_commands(
     @target_app.command("validate")
     def migrations_validate_post(
         ctx: typer.Context,
-        command: str = typer.Option(..., "--command", help="Request field: command."),
-        sample_size: Optional[int] = typer.Option(None, "--sample-size", help="Request field: sample_size."),
+        command: str = typer.Option(..., '--command', help='Available migration commands. One of: migrate_claims_to_multi_source, backfill_claim_source_metadata, repair_orphaned_claim_links, repair_kg_svo_repr_leak, repair_rtf_escapes.'),
+        sample_size: Optional[int] = typer.Option(None, '--sample-size', help='Sample Size. Default: 100.'),
     ) -> None:
         """Validate Migration (POST /api/migrations/validate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10650,12 +10807,12 @@ def register_generated_openapi_commands(
     @target_app.command("compare-models")
     def model_comparison_compare_models_post(
         ctx: typer.Context,
-        expect_json: Optional[bool] = typer.Option(None, "--expect-json/--no-expect-json", help="Request field: expect_json."),
-        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
-        prompt: str = typer.Option(..., "--prompt", help="Request field: prompt."),
-        response_schema: Optional[str] = typer.Option(None, "--response-schema", help="Request field: response_schema."),
-        system_prompt: Optional[str] = typer.Option(None, "--system-prompt", help="Request field: system_prompt."),
-        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        expect_json: Optional[bool] = typer.Option(None, '--expect-json/--no-expect-json', help='Mark structured decode success by parsing responses as JSON. Default: false.'),
+        models: Optional[str] = typer.Option(None, '--models', help='Models to compare. JSON.'),
+        prompt: str = typer.Option(..., '--prompt', help='Prompt to send to all models.'),
+        response_schema: Optional[str] = typer.Option(None, '--response-schema', help='Optional JSON schema requested by the comparison UI. JSON.'),
+        system_prompt: Optional[str] = typer.Option(None, '--system-prompt', help='Optional system prompt.'),
+        timeout_seconds: Optional[int] = typer.Option(None, '--timeout-seconds', help='Timeout per model. Default: 60.'),
     ) -> None:
         """Compare Models (POST /api/model-comparison/compare)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10682,16 +10839,16 @@ def register_generated_openapi_commands(
     @target_app.command("compare-workflow-node")
     def model_comparison_compare_workflow_node_post(
         ctx: typer.Context,
-        input_files: Optional[str] = typer.Option(None, "--input-files", help="Request field: input_files."),
-        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
-        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
-        node_id: str = typer.Option(..., "--node-id", help="Request field: node_id."),
-        outputs: Optional[str] = typer.Option(None, "--outputs", help="Request field: outputs."),
-        pinned_inputs: Optional[str] = typer.Option(None, "--pinned-inputs", help="Request field: pinned_inputs."),
-        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
-        workflow: Optional[str] = typer.Option(None, "--workflow", help="Request field: workflow."),
-        workflow_config: Optional[str] = typer.Option(None, "--workflow-config", help="Request field: workflow_config."),
-        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Request field: workflow_id."),
+        input_files: Optional[list[str]] = typer.Option(None, '--input-files', help='Input Files. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        inputs: Optional[str] = typer.Option(None, '--inputs', help='Pinned workflow inputs for resolving this node. JSON.'),
+        models: Optional[str] = typer.Option(None, '--models', help='Models to compare. JSON.'),
+        node_id: str = typer.Option(..., '--node-id', help='Node to run across models.'),
+        outputs: Optional[str] = typer.Option(None, '--outputs', help='Pinned upstream node outputs for resolving this node. JSON.'),
+        pinned_inputs: Optional[str] = typer.Option(None, '--pinned-inputs', help='Resolved node inputs that override mappings/static inputs. JSON.'),
+        timeout_seconds: Optional[int] = typer.Option(None, '--timeout-seconds', help='Timeout per model. Default: 120.'),
+        workflow: Optional[str] = typer.Option(None, '--workflow', help='Complete workflow definition. This is the JSON-serializable representation of a workflow that can be saved, loaded, and executed. JSON.'),
+        workflow_config: Optional[str] = typer.Option(None, '--workflow-config', help='Workflow Config. JSON.'),
+        workflow_id: Optional[str] = typer.Option(None, '--workflow-id', help='Saved workflow ID when workflow is not supplied.'),
     ) -> None:
         """Compare Workflow Node (POST /api/model-comparison/compare-node)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10726,10 +10883,10 @@ def register_generated_openapi_commands(
     @target_app.command("apply-to-workflow-node")
     def model_comparison_apply_to_workflow_node_post(
         ctx: typer.Context,
-        model_name: str = typer.Option(..., "--model-name", help="Request field: model_name."),
-        node_id: str = typer.Option(..., "--node-id", help="Request field: node_id."),
-        provider_name: str = typer.Option(..., "--provider-name", help="Request field: provider_name."),
-        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
+        model_name: str = typer.Option(..., '--model-name', help='Model Name.'),
+        node_id: str = typer.Option(..., '--node-id', help='Node Id.'),
+        provider_name: str = typer.Option(..., '--provider-name', help='Provider Name.'),
+        workflow_id: str = typer.Option(..., '--workflow-id', help='Workflow Id.'),
     ) -> None:
         """Apply Model To Workflow Node (POST /api/model-comparison/compare-node/apply)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10752,11 +10909,11 @@ def register_generated_openapi_commands(
     @target_app.command("compare-tool-across-models")
     def model_comparison_compare_tool_across_models_post(
         ctx: typer.Context,
-        inputs: str = typer.Option(..., "--inputs", help="Request field: inputs."),
-        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
-        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
-        tool_config: Optional[str] = typer.Option(None, "--tool-config", help="Request field: tool_config."),
-        tool_name: str = typer.Option(..., "--tool-name", help="Request field: tool_name."),
+        inputs: str = typer.Option(..., '--inputs', help='Tool-specific inputs (files, text, etc.) JSON.'),
+        models: Optional[str] = typer.Option(None, '--models', help='Models to compare. JSON.'),
+        timeout_seconds: Optional[int] = typer.Option(None, '--timeout-seconds', help='Timeout per model. Default: 120.'),
+        tool_config: Optional[str] = typer.Option(None, '--tool-config', help='Optional tool configuration overrides. JSON.'),
+        tool_name: str = typer.Option(..., '--tool-name', help='Name of the workflow tool (describe, summarize, classify, etc.)'),
     ) -> None:
         """Compare Tool Across Models (POST /api/model-comparison/compare-tool)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10781,12 +10938,12 @@ def register_generated_openapi_commands(
     @target_app.command("compare-vision-models")
     def model_comparison_compare_vision_models_post(
         ctx: typer.Context,
-        detail: Optional[str] = typer.Option(None, "--detail", help="Request field: detail."),
-        doc_ids: Optional[str] = typer.Option(None, "--doc-ids", help="Request field: doc_ids."),
-        images: Optional[str] = typer.Option(None, "--images", help="Request field: images."),
-        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
-        prompt: Optional[str] = typer.Option(None, "--prompt", help="Request field: prompt."),
-        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        detail: Optional[str] = typer.Option(None, '--detail', help='Image detail level: auto, low, high. Default: "auto".'),
+        doc_ids: Optional[list[str]] = typer.Option(None, '--doc-ids', help='Library document IDs to render and compare as images. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        images: Optional[list[str]] = typer.Option(None, '--images', help='Image URLs or base64 data URIs. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        models: Optional[str] = typer.Option(None, '--models', help='Vision-capable models to compare. JSON.'),
+        prompt: Optional[str] = typer.Option(None, '--prompt', help='Prompt for vision analysis. Default: "Describe this image in detail".'),
+        timeout_seconds: Optional[int] = typer.Option(None, '--timeout-seconds', help='Timeout per model. Default: 120.'),
     ) -> None:
         """Compare Vision Models (POST /api/model-comparison/compare-vision)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10813,12 +10970,12 @@ def register_generated_openapi_commands(
     @target_app.command("compare-workflow-across-models")
     def model_comparison_compare_workflow_across_models_post(
         ctx: typer.Context,
-        doc_id: str = typer.Option(..., "--doc-id", help="Request field: doc_id."),
-        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
-        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
-        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
-        workflow: Optional[str] = typer.Option(None, "--workflow", help="Request field: workflow."),
-        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Request field: workflow_id."),
+        doc_id: str = typer.Option(..., '--doc-id', help='Document ID to run through the workflow.'),
+        inputs: Optional[str] = typer.Option(None, '--inputs', help='Additional workflow inputs merged with selected_doc_ids. JSON.'),
+        models: Optional[str] = typer.Option(None, '--models', help='Models to compare. JSON.'),
+        timeout_seconds: Optional[int] = typer.Option(None, '--timeout-seconds', help='Timeout per workflow run. Default: 300.'),
+        workflow: Optional[str] = typer.Option(None, '--workflow', help='Complete workflow definition. This is the JSON-serializable representation of a workflow that can be saved, loaded, and executed. JSON.'),
+        workflow_id: Optional[str] = typer.Option(None, '--workflow-id', help='Saved workflow ID when workflow is not supplied.'),
     ) -> None:
         """Compare Workflow Across Models (POST /api/model-comparison/compare-workflow)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10845,7 +11002,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def model_comparison_get_get(
         ctx: typer.Context,
-        comparison_id: str = typer.Argument(..., help="Path parameter: comparison_id."),
+        comparison_id: str = typer.Argument(..., help='Comparison Id'),
     ) -> None:
         """Get Comparison (GET /api/model-comparison/comparison/{comparison_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -10857,12 +11014,12 @@ def register_generated_openapi_commands(
     @target_app.command("estimate-cost")
     def model_comparison_estimate_cost_post(
         ctx: typer.Context,
-        expect_json: Optional[bool] = typer.Option(None, "--expect-json/--no-expect-json", help="Request field: expect_json."),
-        models: Optional[str] = typer.Option(None, "--models", help="Request field: models."),
-        prompt: str = typer.Option(..., "--prompt", help="Request field: prompt."),
-        response_schema: Optional[str] = typer.Option(None, "--response-schema", help="Request field: response_schema."),
-        system_prompt: Optional[str] = typer.Option(None, "--system-prompt", help="Request field: system_prompt."),
-        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        expect_json: Optional[bool] = typer.Option(None, '--expect-json/--no-expect-json', help='Mark structured decode success by parsing responses as JSON. Default: false.'),
+        models: Optional[str] = typer.Option(None, '--models', help='Models to compare. JSON.'),
+        prompt: str = typer.Option(..., '--prompt', help='Prompt to send to all models.'),
+        response_schema: Optional[str] = typer.Option(None, '--response-schema', help='Optional JSON schema requested by the comparison UI. JSON.'),
+        system_prompt: Optional[str] = typer.Option(None, '--system-prompt', help='Optional system prompt.'),
+        timeout_seconds: Optional[int] = typer.Option(None, '--timeout-seconds', help='Timeout per model. Default: 60.'),
     ) -> None:
         """Estimate Comparison Cost (POST /api/model-comparison/estimate-cost)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10889,7 +11046,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-history")
     def model_comparison_get_history_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Get Comparison History (GET /api/model-comparison/history)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10903,9 +11060,9 @@ def register_generated_openapi_commands(
     @target_app.command("get-language-fit")
     def model_comparison_get_language_fit_get(
         ctx: typer.Context,
-        language: str = typer.Option(..., "--language", help="Query parameter: language."),
-        model: Optional[str] = typer.Option(None, "--model", help="Query parameter: model."),
-        provider: Optional[str] = typer.Option(None, "--provider", help="Query parameter: provider."),
+        language: str = typer.Option(..., '--language', help='Language.'),
+        model: Optional[str] = typer.Option(None, '--model', help='Model.'),
+        provider: Optional[str] = typer.Option(None, '--provider', help='Provider.'),
     ) -> None:
         """Get Language Fit (GET /api/model-comparison/language-fit)."""
         def op_call(client: FicheroClient) -> Any:
@@ -10954,12 +11111,12 @@ def register_generated_openapi_commands(
     @target_app.command("recommend-models-for-picker")
     def model_comparison_recommend_models_for_picker_post(
         ctx: typer.Context,
-        candidates: Optional[str] = typer.Option(None, "--candidates", help="Request field: candidates."),
-        capability: Optional[str] = typer.Option(None, "--capability", help="Request field: capability."),
-        language: str = typer.Option(..., "--language", help="Request field: language."),
-        local_only: Optional[bool] = typer.Option(None, "--local-only/--no-local-only", help="Request field: local_only."),
-        private: Optional[bool] = typer.Option(None, "--private/--no-private", help="Request field: private."),
-        task: Optional[str] = typer.Option(None, "--task", help="Request field: task."),
+        candidates: Optional[str] = typer.Option(None, '--candidates', help='Optional explicit candidates; Settings models are used when omitted. JSON.'),
+        capability: Optional[str] = typer.Option(None, '--capability', help='Capability required by the caller, such as text or vision. Default: "text".'),
+        language: str = typer.Option(..., '--language', help='BCP-47-ish language code to score.'),
+        local_only: Optional[bool] = typer.Option(None, '--local-only/--no-local-only', help='Refuse cloud providers when the caller requires local execution. Default: false.'),
+        private: Optional[bool] = typer.Option(None, '--private/--no-private', help='Refuse cloud providers when the task is private. Default: false.'),
+        task: Optional[str] = typer.Option(None, '--task', help='Human-readable task label for recommendation reasons.'),
     ) -> None:
         """Recommend Models For Picker (POST /api/model-comparison/recommend-models)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11003,12 +11160,12 @@ def register_generated_openapi_commands(
     @target_app.command("search-hf")
     def models_search_hf_get(
         ctx: typer.Context,
-        library: Optional[str] = typer.Option(None, "--library", help="Query parameter: library."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        search: Optional[str] = typer.Option(None, "--search", help="Query parameter: search."),
-        sort: Optional[str] = typer.Option(None, "--sort", help="Query parameter: sort."),
-        task: Optional[str] = typer.Option(None, "--task", help="Query parameter: task."),
+        library: Optional[str] = typer.Option(None, '--library', help='Filter by library (e.g., transformers, gguf)'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Results per page.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Pagination offset.'),
+        search: Optional[str] = typer.Option(None, '--search', help='Search query.'),
+        sort: Optional[str] = typer.Option(None, '--sort', help='Sort by: downloads, likes, trending, lastModified.'),
+        task: Optional[str] = typer.Option(None, '--task', help='Filter by task (e.g., text-generation)'),
     ) -> None:
         """Search Hf Models (GET /api/models/huggingface)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11038,7 +11195,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-hf")
     def models_get_hf_get(
         ctx: typer.Context,
-        model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        model_id: str = typer.Argument(..., help='Model Id'),
     ) -> None:
         """Get Hf Model (GET /api/models/huggingface/{model_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -11056,9 +11213,9 @@ def register_generated_openapi_commands(
     @target_app.command("get-claims-by-language")
     def multilingual_get_claims_by_language_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        source_language: str = typer.Option(..., "--source-language", help="Query parameter: source_language."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        source_language: str = typer.Option(..., '--source-language', help='ISO 639-1 language code.'),
     ) -> None:
         """Get claims by language (GET /api/multilingual/claims)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11071,10 +11228,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("detect-language")
-    def multilingual_detect_language_post(
+    @target_app.command("detect-language", hidden=True)
+    @target_app.command("detect-language-endpoint")
+    def multilingual_detect_language_endpoint_post(
         ctx: typer.Context,
-        text: str = typer.Option(..., "--text", help="Request field: text."),
+        text: str = typer.Option(..., '--text', help='Text to analyze.'),
     ) -> None:
         """Detect language (POST /api/multilingual/detect)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11091,10 +11249,10 @@ def register_generated_openapi_commands(
     @target_app.command("get-entities-by-language")
     def multilingual_get_entities_by_language_get(
         ctx: typer.Context,
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
-        language: str = typer.Option(..., "--language", help="Query parameter: language."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Filter by entity type.'),
+        language: str = typer.Option(..., '--language', help='ISO 639-1 language code.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
     ) -> None:
         """Get entities by language (GET /api/multilingual/entities)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11111,9 +11269,9 @@ def register_generated_openapi_commands(
     @target_app.command("cross-language-entity-search")
     def multilingual_cross_language_entity_search_post(
         ctx: typer.Context,
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Request field: entity_type."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
-        query: str = typer.Option(..., "--query", help="Request field: query."),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Filter by entity type.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit. Default: 20.'),
+        query: str = typer.Option(..., '--query', help='Search query.'),
     ) -> None:
         """Cross-language entity search (POST /api/multilingual/entities/search)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11131,12 +11289,13 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("normalize-text")
-    def multilingual_normalize_text_post(
+    @target_app.command("normalize-text", hidden=True)
+    @target_app.command("normalize-endpoint")
+    def multilingual_normalize_endpoint_post(
         ctx: typer.Context,
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        stemming: Optional[bool] = typer.Option(None, "--stemming/--no-stemming", help="Request field: stemming."),
-        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+        language: Optional[str] = typer.Option(None, '--language', help='Language. Default: "en".'),
+        stemming: Optional[bool] = typer.Option(None, '--stemming/--no-stemming', help='Stemming. Default: false.'),
+        text: Optional[str] = typer.Option(None, '--text', help='Text. Default: "".'),
     ) -> None:
         """Normalize text (POST /api/multilingual/normalize)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11154,11 +11313,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("get-transliteration-variants")
-    def multilingual_get_transliteration_variants_post(
+    @target_app.command("get-transliteration-variants", hidden=True)
+    @target_app.command("transliterate-endpoint")
+    def multilingual_transliterate_endpoint_post(
         ctx: typer.Context,
-        language: str = typer.Option(..., "--language", help="Request field: language."),
-        text: str = typer.Option(..., "--text", help="Request field: text."),
+        language: str = typer.Option(..., '--language', help='Source language (ISO 639-1)'),
+        text: str = typer.Option(..., '--text', help='Text to transliterate.'),
     ) -> None:
         """Get transliteration variants (POST /api/multilingual/transliterate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11180,18 +11340,18 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='notes')
         existing_apps['notes'] = target_app
 
-    @target_app.command("list")
-    def notes_list_get(
+    @target_app.command("list-notes")
+    def notes_list_notes_get(
         ctx: typer.Context,
-        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Query parameter: folder_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
-        linked_claim_id: Optional[str] = typer.Option(None, "--linked-claim-id", help="Query parameter: linked_claim_id."),
-        linked_document_id: Optional[str] = typer.Option(None, "--linked-document-id", help="Query parameter: linked_document_id."),
-        linked_entity_id: Optional[str] = typer.Option(None, "--linked-entity-id", help="Query parameter: linked_entity_id."),
-        linked_structure_node_id: Optional[str] = typer.Option(None, "--linked-structure-node-id", help="Query parameter: linked_structure_node_id."),
-        page_id: Optional[str] = typer.Option(None, "--page-id", help="Query parameter: page_id."),
-        q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
-        tag: Optional[str] = typer.Option(None, "--tag", help="Query parameter: tag."),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='Folder Id.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Kind.'),
+        linked_claim_id: Optional[str] = typer.Option(None, '--linked-claim-id', help='Linked Claim Id.'),
+        linked_document_id: Optional[str] = typer.Option(None, '--linked-document-id', help='Linked Document Id.'),
+        linked_entity_id: Optional[str] = typer.Option(None, '--linked-entity-id', help='Linked Entity Id.'),
+        linked_structure_node_id: Optional[str] = typer.Option(None, '--linked-structure-node-id', help='Linked Structure Node Id.'),
+        page_id: Optional[str] = typer.Option(None, '--page-id', help='Page Id.'),
+        q: Optional[str] = typer.Option(None, '--q', help='full-text body search.'),
+        tag: Optional[str] = typer.Option(None, '--tag', help='Tag.'),
     ) -> None:
         """List Notes (GET /api/notes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11210,22 +11370,22 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("create")
-    def notes_create_post(
+    @target_app.command("create-notes")
+    def notes_create_notes_post(
         ctx: typer.Context,
-        address: Optional[str] = typer.Option(None, "--address", help="Request field: address."),
-        body_2: Optional[str] = typer.Option(None, "--body", help="Request field: body."),
-        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
-        linked_document_ids: Optional[str] = typer.Option(None, "--linked-document-ids", help="Request field: linked_document_ids."),
-        linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
-        linked_note_ids: Optional[str] = typer.Option(None, "--linked-note-ids", help="Request field: linked_note_ids."),
-        linked_structure_node_id: Optional[str] = typer.Option(None, "--linked-structure-node-id", help="Request field: linked_structure_node_id."),
-        page_id: Optional[str] = typer.Option(None, "--page-id", help="Request field: page_id."),
-        parent_address: Optional[str] = typer.Option(None, "--parent-address", help="Request field: parent_address."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
-        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
+        address: Optional[str] = typer.Option(None, '--address', help='Address.'),
+        body_2: Optional[str] = typer.Option(None, '--body', help='Body. Default: "".'),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='Folder Id.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Zettelkasten note kinds (#917). One of: zettel, reference, hub, inbox, fleeting, permanent.'),
+        linked_claim_ids: Optional[list[str]] = typer.Option(None, '--linked-claim-ids', help='Linked Claim Ids. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_document_ids: Optional[list[str]] = typer.Option(None, '--linked-document-ids', help='Linked Document Ids. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_entity_ids: Optional[list[str]] = typer.Option(None, '--linked-entity-ids', help='Linked Entity Ids. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_note_ids: Optional[list[str]] = typer.Option(None, '--linked-note-ids', help='Linked Note Ids. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_structure_node_id: Optional[str] = typer.Option(None, '--linked-structure-node-id', help='Linked Structure Node Id.'),
+        page_id: Optional[str] = typer.Option(None, '--page-id', help='Page Id.'),
+        parent_address: Optional[str] = typer.Option(None, '--parent-address', help='Parent Address.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        title: Optional[str] = typer.Option(None, '--title', help='Title.'),
     ) -> None:
         """Create Note (POST /api/notes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11266,7 +11426,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def notes_delete_delete(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        note_id: str = typer.Argument(..., help='Note Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Note (DELETE /api/notes/{note_id})."""
@@ -11278,10 +11438,10 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get")
-    def notes_get_get(
+    @target_app.command("get-notes")
+    def notes_get_notes_get(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        note_id: str = typer.Argument(..., help='Note Id'),
     ) -> None:
         """Get Note (GET /api/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -11293,21 +11453,21 @@ def register_generated_openapi_commands(
     @target_app.command("patch")
     def notes_patch_patch(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
-        address: Optional[str] = typer.Option(None, "--address", help="Request field: address."),
-        body_2: Optional[str] = typer.Option(None, "--body", help="Request field: body."),
-        expected_updated_at: Optional[str] = typer.Option(None, "--expected-updated-at", help="Request field: expected_updated_at."),
-        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
-        linked_document_ids: Optional[str] = typer.Option(None, "--linked-document-ids", help="Request field: linked_document_ids."),
-        linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
-        linked_note_ids: Optional[str] = typer.Option(None, "--linked-note-ids", help="Request field: linked_note_ids."),
-        linked_structure_node_id: Optional[str] = typer.Option(None, "--linked-structure-node-id", help="Request field: linked_structure_node_id."),
-        page_id: Optional[str] = typer.Option(None, "--page-id", help="Request field: page_id."),
-        parent_address: Optional[str] = typer.Option(None, "--parent-address", help="Request field: parent_address."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
-        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
+        note_id: str = typer.Argument(..., help='Note Id'),
+        address: Optional[str] = typer.Option(None, '--address', help='Address.'),
+        body_2: Optional[str] = typer.Option(None, '--body', help='Body.'),
+        expected_updated_at: Optional[str] = typer.Option(None, '--expected-updated-at', help='Expected Updated At.'),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='Folder Id.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Zettelkasten note kinds (#917). One of: zettel, reference, hub, inbox, fleeting, permanent.'),
+        linked_claim_ids: Optional[list[str]] = typer.Option(None, '--linked-claim-ids', help='Linked Claim Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_document_ids: Optional[list[str]] = typer.Option(None, '--linked-document-ids', help='Linked Document Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_entity_ids: Optional[list[str]] = typer.Option(None, '--linked-entity-ids', help='Linked Entity Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_note_ids: Optional[list[str]] = typer.Option(None, '--linked-note-ids', help='Linked Note Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_structure_node_id: Optional[str] = typer.Option(None, '--linked-structure-node-id', help='Linked Structure Node Id.'),
+        page_id: Optional[str] = typer.Option(None, '--page-id', help='Page Id.'),
+        parent_address: Optional[str] = typer.Option(None, '--parent-address', help='Parent Address.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        title: Optional[str] = typer.Option(None, '--title', help='Title.'),
     ) -> None:
         """Patch Note (PATCH /api/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -11347,10 +11507,11 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("every-that-links-to-this-one")
-    def notes_every_that_links_to_this_one_get(
+    @target_app.command("every-that-links-to-this-one", hidden=True)
+    @target_app.command("backlinks")
+    def notes_backlinks_get(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        note_id: str = typer.Argument(..., help='Note Id'),
     ) -> None:
         """Every note that links to this one (GET /api/notes/{note_id}/backlinks)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11359,10 +11520,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("every-this-one-links-to")
-    def notes_every_this_one_links_to_get(
+    @target_app.command("every-this-one-links-to", hidden=True)
+    @target_app.command("forward-links")
+    def notes_forward_links_get(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        note_id: str = typer.Argument(..., help='Note Id'),
     ) -> None:
         """Every note this one links to (GET /api/notes/{note_id}/forward-links)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11371,13 +11533,14 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("create-a-bidirectional-link-between-two")
-    def notes_create_a_bidirectional_link_between_two_post(
+    @target_app.command("create-a-bidirectional-link-between-two", hidden=True)
+    @target_app.command("create-link")
+    def notes_create_link_post(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
-        annotation: Optional[str] = typer.Option(None, "--annotation", help="Request field: annotation."),
-        link_type: Optional[str] = typer.Option(None, "--link-type", help="Request field: link_type."),
-        target_note_id: str = typer.Option(..., "--target-note-id", help="Request field: target_note_id."),
+        note_id: str = typer.Argument(..., help='Note Id'),
+        annotation: Optional[str] = typer.Option(None, '--annotation', help='Annotation.'),
+        link_type: Optional[str] = typer.Option(None, '--link-type', help='Link Type. Default: "free".'),
+        target_note_id: str = typer.Option(..., '--target-note-id', help='Target Note Id.'),
     ) -> None:
         """Create a bidirectional link between two notes (POST /api/notes/{note_id}/links)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11398,8 +11561,8 @@ def register_generated_openapi_commands(
     @target_app.command("delete-link")
     def notes_delete_link_delete(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
-        link_id: str = typer.Argument(..., help="Path parameter: link_id."),
+        note_id: str = typer.Argument(..., help='Note Id'),
+        link_id: str = typer.Argument(..., help='Link Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Note Link (DELETE /api/notes/{note_id}/links/{link_id})."""
@@ -11420,8 +11583,8 @@ def register_generated_openapi_commands(
     @target_app.command("device")
     def pair_device_post(
         ctx: typer.Context,
-        code: str = typer.Option(..., "--code", help="Request field: code."),
-        device_name: str = typer.Option(..., "--device-name", help="Request field: device_name."),
+        code: str = typer.Option(..., '--code', help='Code.'),
+        device_name: str = typer.Option(..., '--device-name', help='Device Name.'),
     ) -> None:
         """Pair Device (POST /api/pair)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11473,7 +11636,7 @@ def register_generated_openapi_commands(
     @target_app.command("revoke-device")
     def pair_revoke_device_post(
         ctx: typer.Context,
-        device_id: str = typer.Argument(..., help="Path parameter: device_id."),
+        device_id: str = typer.Argument(..., help='Device Id'),
     ) -> None:
         """Revoke Device (POST /api/pair/devices/{device_id}/revoke)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11485,8 +11648,8 @@ def register_generated_openapi_commands(
     @target_app.command("enroll-device")
     def pair_enroll_device_post(
         ctx: typer.Context,
-        device_name: str = typer.Option(..., "--device-name", help="Request field: device_name."),
-        enrollment_secret: str = typer.Option(..., "--enrollment-secret", help="Request field: enrollment_secret."),
+        device_name: str = typer.Option(..., '--device-name', help='Device Name.'),
+        enrollment_secret: str = typer.Option(..., '--enrollment-secret', help='Enrollment Secret.'),
     ) -> None:
         """Enroll Device (POST /api/pair/enroll)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11508,10 +11671,11 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='policies')
         existing_apps['policies'] = target_app
 
-    @target_app.command("list-orchestration-rules")
-    def policies_list_orchestration_rules_get(
+    @target_app.command("list-orchestration-rules", hidden=True)
+    @target_app.command("list-rules")
+    def policies_list_rules_get(
         ctx: typer.Context,
-        active_only: Optional[bool] = typer.Option(None, "--active-only/--no-active-only", help="Query parameter: active_only."),
+        active_only: Optional[bool] = typer.Option(None, '--active-only/--no-active-only', help='Only return active rules.'),
     ) -> None:
         """List orchestration policy rules (GET /api/policies/orchestration)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11522,17 +11686,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("create-a-new-rule")
-    def policies_create_a_new_rule_post(
+    @target_app.command("create-a-new-rule", hidden=True)
+    @target_app.command("create-rule")
+    def policies_create_rule_post(
         ctx: typer.Context,
-        action: Optional[str] = typer.Option(None, "--action", help="Request field: action."),
-        confidence_threshold: Optional[float] = typer.Option(None, "--confidence-threshold", help="Request field: confidence_threshold."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Request field: entity_type."),
-        min_evidence_count: Optional[int] = typer.Option(None, "--min-evidence-count", help="Request field: min_evidence_count."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
-        requires_source: Optional[bool] = typer.Option(None, "--requires-source/--no-requires-source", help="Request field: requires_source."),
+        action: Optional[str] = typer.Option(None, '--action', help='Actions that can be taken on a policy. One of: auto_approve, require_approval, deny.'),
+        confidence_threshold: Optional[float] = typer.Option(None, '--confidence-threshold', help='Confidence Threshold.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Scope of entity types for policy rules. One of: all, claims, entities, interpretations.'),
+        min_evidence_count: Optional[int] = typer.Option(None, '--min-evidence-count', help='Min Evidence Count. Default: 0.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        priority: Optional[int] = typer.Option(None, '--priority', help='Priority. Default: 100.'),
+        requires_source: Optional[bool] = typer.Option(None, '--requires-source/--no-requires-source', help='Requires Source. Default: false.'),
     ) -> None:
         """Create a new policy rule (POST /api/policies/orchestration)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11560,13 +11725,14 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("evaluate-a-hypothetical-write-against")
-    def policies_evaluate_a_hypothetical_write_against_post(
+    @target_app.command("evaluate-a-hypothetical-write-against", hidden=True)
+    @target_app.command("evaluate")
+    def policies_evaluate_post(
         ctx: typer.Context,
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        entity_type: str = typer.Option(..., "--entity-type", help="Request field: entity_type."),
-        evidence_count: Optional[int] = typer.Option(None, "--evidence-count", help="Request field: evidence_count."),
-        has_source: Optional[bool] = typer.Option(None, "--has-source/--no-has-source", help="Request field: has_source."),
+        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence.'),
+        entity_type: str = typer.Option(..., '--entity-type', help='Entity Type.'),
+        evidence_count: Optional[int] = typer.Option(None, '--evidence-count', help='Evidence Count. Default: 0.'),
+        has_source: Optional[bool] = typer.Option(None, '--has-source/--no-has-source', help='Has Source. Default: false.'),
     ) -> None:
         """Evaluate a hypothetical write against policies (POST /api/policies/orchestration/evaluate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11586,10 +11752,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("delete-a-rule")
-    def policies_delete_a_rule_delete(
+    @target_app.command("delete-a-rule", hidden=True)
+    @target_app.command("delete-rule")
+    def policies_delete_rule_delete(
         ctx: typer.Context,
-        rule_id: str = typer.Argument(..., help="Path parameter: rule_id."),
+        rule_id: str = typer.Argument(..., help='Rule Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete a policy rule (DELETE /api/policies/orchestration/{rule_id})."""
@@ -11601,10 +11768,11 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-a-specific-rule")
-    def policies_get_a_specific_rule_get(
+    @target_app.command("get-a-specific-rule", hidden=True)
+    @target_app.command("get-rule")
+    def policies_get_rule_get(
         ctx: typer.Context,
-        rule_id: str = typer.Argument(..., help="Path parameter: rule_id."),
+        rule_id: str = typer.Argument(..., help='Rule Id'),
     ) -> None:
         """Get a specific policy rule (GET /api/policies/orchestration/{rule_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -11613,10 +11781,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("update-a-rule")
-    def policies_update_a_rule_patch(
+    @target_app.command("update-a-rule", hidden=True)
+    @target_app.command("update-rule")
+    def policies_update_rule_patch(
         ctx: typer.Context,
-        rule_id: str = typer.Argument(..., help="Path parameter: rule_id."),
+        rule_id: str = typer.Argument(..., help='Rule Id'),
         body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
         body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
     ) -> None:
@@ -11637,7 +11806,7 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def projects_list_get(
         ctx: typer.Context,
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
+        status: Optional[str] = typer.Option(None, '--status', help='Status.'),
     ) -> None:
         """List Projects (GET /api/projects)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11651,12 +11820,12 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def projects_create_post(
         ctx: typer.Context,
-        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
-        members: Optional[str] = typer.Option(None, "--members", help="Request field: members."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        color: Optional[str] = typer.Option(None, '--color', help='Color.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        icon: Optional[str] = typer.Option(None, '--icon', help='Icon.'),
+        members: Optional[list[str]] = typer.Option(None, '--members', help='Members. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Lifecycle of a research workspace (#918). One of: active, archived, shipped.'),
     ) -> None:
         """Create Project (POST /api/projects)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11680,11 +11849,12 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("which-include-this-kg-row")
-    def projects_which_include_this_kg_row_get(
+    @target_app.command("which-include-this-kg-row", hidden=True)
+    @target_app.command("membership")
+    def projects_membership_get(
         ctx: typer.Context,
-        target_id: str = typer.Argument(..., help="Path parameter: target_id."),
-        target_type: Optional[str] = typer.Option(None, "--target-type", help="Query parameter: target_type."),
+        target_id: str = typer.Argument(..., help='Target Id'),
+        target_type: Optional[str] = typer.Option(None, '--target-type', help='Target Type.'),
     ) -> None:
         """Which projects include this KG row? (GET /api/projects/membership/{target_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -11698,7 +11868,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def projects_delete_delete(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        project_id: str = typer.Argument(..., help='Project Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Project (DELETE /api/projects/{project_id})."""
@@ -11713,7 +11883,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def projects_get_get(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        project_id: str = typer.Argument(..., help='Project Id'),
     ) -> None:
         """Get Project (GET /api/projects/{project_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -11725,13 +11895,13 @@ def register_generated_openapi_commands(
     @target_app.command("patch")
     def projects_patch_patch(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
-        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
-        members: Optional[str] = typer.Option(None, "--members", help="Request field: members."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        project_id: str = typer.Argument(..., help='Project Id'),
+        color: Optional[str] = typer.Option(None, '--color', help='Color.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        icon: Optional[str] = typer.Option(None, '--icon', help='Icon.'),
+        members: Optional[list[str]] = typer.Option(None, '--members', help='Members. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Lifecycle of a research workspace (#918). One of: active, archived, shipped.'),
     ) -> None:
         """Patch Project (PATCH /api/projects/{project_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -11755,14 +11925,15 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("add-a-kg-item-document-entity-claim-note-interpretation-annotation-to-a")
-    def projects_add_a_kg_item_document_entity_claim_note_interpretation_annotation_to_a_post(
+    @target_app.command("add-a-kg-item-document-entity-claim-note-interpretation-annotation-to-a", hidden=True)
+    @target_app.command("include-item")
+    def projects_include_item_post(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
-        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
-        role: Optional[str] = typer.Option(None, "--role", help="Request field: role."),
-        target_id: str = typer.Option(..., "--target-id", help="Request field: target_id."),
-        target_type: str = typer.Option(..., "--target-type", help="Request field: target_type."),
+        project_id: str = typer.Argument(..., help='Project Id'),
+        notes: Optional[str] = typer.Option(None, '--notes', help='Notes.'),
+        role: Optional[str] = typer.Option(None, '--role', help='Role.'),
+        target_id: str = typer.Option(..., '--target-id', help='Target Id.'),
+        target_type: str = typer.Option(..., '--target-type', help='Target Type.'),
     ) -> None:
         """Add a KG item (document / entity / claim / note / interpretation / annotation) to a project (POST /api/projects/{project_id}/include)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11785,8 +11956,8 @@ def register_generated_openapi_commands(
     @target_app.command("remove-inclusion")
     def projects_remove_inclusion_delete(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
-        inclusion_id: str = typer.Argument(..., help="Path parameter: inclusion_id."),
+        project_id: str = typer.Argument(..., help='Project Id'),
+        inclusion_id: str = typer.Argument(..., help='Inclusion Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Inclusion (DELETE /api/projects/{project_id}/include/{inclusion_id})."""
@@ -11798,11 +11969,12 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("list-every-item-included-in-a-optionally-filtered-by-type")
-    def projects_list_every_item_included_in_a_optionally_filtered_by_type_get(
+    @target_app.command("list-every-item-included-in-a-optionally-filtered-by-type", hidden=True)
+    @target_app.command("list-items")
+    def projects_list_items_get(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
-        target_type: Optional[str] = typer.Option(None, "--target-type", help="Query parameter: target_type."),
+        project_id: str = typer.Argument(..., help='Project Id'),
+        target_type: Optional[str] = typer.Option(None, '--target-type', help='Target Type.'),
     ) -> None:
         """List every item included in a project, optionally filtered by type (GET /api/projects/{project_id}/items)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11819,8 +11991,8 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='providers')
         existing_apps['providers'] = target_app
 
-    @target_app.command("list")
-    def providers_list_get(
+    @target_app.command("list-providers")
+    def providers_list_providers_get(
         ctx: typer.Context,
     ) -> None:
         """List Providers (GET /api/providers)."""
@@ -11833,10 +12005,10 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def providers_create_post(
         ctx: typer.Context,
-        api_base: Optional[str] = typer.Option(None, "--api-base", help="Request field: api_base."),
-        api_key: Optional[str] = typer.Option(None, "--api-key", help="Request field: api_key."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        provider_type: str = typer.Option(..., "--provider-type", help="Request field: provider_type."),
+        api_base: Optional[str] = typer.Option(None, '--api-base', help='Api Base.'),
+        api_key: Optional[str] = typer.Option(None, '--api-key', help='Api Key.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        provider_type: str = typer.Option(..., '--provider-type', help='Provider Type.'),
     ) -> None:
         """Create Provider (POST /api/providers)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11892,7 +12064,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-catalog")
     def providers_get_catalog_get(
         ctx: typer.Context,
-        provider_type: str = typer.Argument(..., help="Path parameter: provider_type."),
+        provider_type: str = typer.Argument(..., help='Provider Type'),
     ) -> None:
         """Get Catalog Provider (GET /api/providers/catalog/{provider_type})."""
         def op_call(client: FicheroClient) -> Any:
@@ -11915,10 +12087,10 @@ def register_generated_openapi_commands(
     @target_app.command("list-models-for")
     def providers_list_models_for_get(
         ctx: typer.Context,
-        provider_type: str = typer.Argument(..., help="Path parameter: provider_type."),
-        search: Optional[str] = typer.Option(None, "--search", help="Query parameter: search."),
-        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
-        vision_only: Optional[bool] = typer.Option(None, "--vision-only/--no-vision-only", help="Query parameter: vision_only."),
+        provider_type: str = typer.Argument(..., help='Provider Type'),
+        search: Optional[str] = typer.Option(None, '--search', help='Filter models by name.'),
+        sort_by: Optional[str] = typer.Option(None, '--sort-by', help='Sort by: name, cost.'),
+        vision_only: Optional[bool] = typer.Option(None, '--vision-only/--no-vision-only', help='Only show vision-capable models.'),
     ) -> None:
         """List Models For Provider (GET /api/providers/models/{provider_type})."""
         def op_call(client: FicheroClient) -> Any:
@@ -11945,7 +12117,7 @@ def register_generated_openapi_commands(
     @target_app.command("add-ref")
     def providers_add_ref_post(
         ctx: typer.Context,
-        provider_id: str = typer.Option(..., "--provider-id", help="Request field: provider_id."),
+        provider_id: str = typer.Option(..., '--provider-id', help='Provider Id.'),
     ) -> None:
         """Add Provider Ref (POST /api/providers/refs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -11962,7 +12134,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-ref")
     def providers_delete_ref_delete(
         ctx: typer.Context,
-        ref_id: str = typer.Argument(..., help="Path parameter: ref_id."),
+        ref_id: str = typer.Argument(..., help='Ref Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Provider Ref (DELETE /api/providers/refs/{ref_id})."""
@@ -11977,9 +12149,9 @@ def register_generated_openapi_commands(
     @target_app.command("update-ref")
     def providers_update_ref_patch(
         ctx: typer.Context,
-        ref_id: str = typer.Argument(..., help="Path parameter: ref_id."),
-        enabled: Optional[bool] = typer.Option(None, "--enabled/--no-enabled", help="Request field: enabled."),
-        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
+        ref_id: str = typer.Argument(..., help='Ref Id'),
+        enabled: Optional[bool] = typer.Option(None, '--enabled/--no-enabled', help='Enabled.'),
+        sort_order: Optional[int] = typer.Option(None, '--sort-order', help='Sort Order.'),
     ) -> None:
         """Update Provider Ref (PATCH /api/providers/refs/{ref_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -11995,10 +12167,10 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("delete")
-    def providers_delete_delete(
+    @target_app.command("delete-providers")
+    def providers_delete_providers_delete(
         ctx: typer.Context,
-        provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
+        provider_id: str = typer.Argument(..., help='Provider Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Provider (DELETE /api/providers/{provider_id})."""
@@ -12010,10 +12182,10 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get")
-    def providers_get_get(
+    @target_app.command("get-providers")
+    def providers_get_providers_get(
         ctx: typer.Context,
-        provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
+        provider_id: str = typer.Argument(..., help='Provider Id'),
     ) -> None:
         """Get Provider (GET /api/providers/{provider_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -12025,11 +12197,11 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def providers_update_patch(
         ctx: typer.Context,
-        provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
-        api_base: Optional[str] = typer.Option(None, "--api-base", help="Request field: api_base."),
-        api_key: Optional[str] = typer.Option(None, "--api-key", help="Request field: api_key."),
-        enabled: Optional[bool] = typer.Option(None, "--enabled/--no-enabled", help="Request field: enabled."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        provider_id: str = typer.Argument(..., help='Provider Id'),
+        api_base: Optional[str] = typer.Option(None, '--api-base', help='Api Base.'),
+        api_key: Optional[str] = typer.Option(None, '--api-key', help='Api Key.'),
+        enabled: Optional[bool] = typer.Option(None, '--enabled/--no-enabled', help='Enabled.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
     ) -> None:
         """Update Provider (PATCH /api/providers/{provider_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -12052,7 +12224,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-models")
     def providers_list_models_get(
         ctx: typer.Context,
-        provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
+        provider_id: str = typer.Argument(..., help='Provider Id'),
     ) -> None:
         """List Provider Models (GET /api/providers/{provider_id}/models)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12064,11 +12236,11 @@ def register_generated_openapi_commands(
     @target_app.command("add-model-to")
     def providers_add_model_to_post(
         ctx: typer.Context,
-        provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
-        is_default: Optional[bool] = typer.Option(None, "--is-default/--no-is-default", help="Request field: is_default."),
-        model_id: str = typer.Option(..., "--model-id", help="Request field: model_id."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        provider_id_2: str = typer.Option(..., "--provider-id", help="Request field: provider_id."),
+        provider_id: str = typer.Argument(..., help='Provider Id'),
+        is_default: Optional[bool] = typer.Option(None, '--is-default/--no-is-default', help='Is Default. Default: false.'),
+        model_id: str = typer.Option(..., '--model-id', help='Model Id.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        provider_id_2: str = typer.Option(..., '--provider-id', help='Provider Id.'),
     ) -> None:
         """Add Model To Provider (POST /api/providers/{provider_id}/models)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12091,8 +12263,8 @@ def register_generated_openapi_commands(
     @target_app.command("remove-model-from")
     def providers_remove_model_from_delete(
         ctx: typer.Context,
-        provider_id: str = typer.Argument(..., help="Path parameter: provider_id."),
-        model_id: str = typer.Argument(..., help="Path parameter: model_id."),
+        provider_id: str = typer.Argument(..., help='Provider Id'),
+        model_id: str = typer.Argument(..., help='Model Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Model From Provider (DELETE /api/providers/{provider_id}/models/{model_id})."""
@@ -12107,7 +12279,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-api-key")
     def providers_delete_api_key_delete(
         ctx: typer.Context,
-        provider_type: str = typer.Argument(..., help="Path parameter: provider_type."),
+        provider_type: str = typer.Argument(..., help='Provider Type'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Provider Api Key (DELETE /api/providers/{provider_type}/api-key)."""
@@ -12122,8 +12294,8 @@ def register_generated_openapi_commands(
     @target_app.command("set-api-key")
     def providers_set_api_key_post(
         ctx: typer.Context,
-        provider_type: str = typer.Argument(..., help="Path parameter: provider_type."),
-        api_key: str = typer.Option(..., "--api-key", help="Request field: api_key."),
+        provider_type: str = typer.Argument(..., help='Provider Type'),
+        api_key: str = typer.Option(..., '--api-key', help='Api Key.'),
     ) -> None:
         """Set Provider Api Key (POST /api/providers/{provider_type}/api-key)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12140,7 +12312,7 @@ def register_generated_openapi_commands(
     @target_app.command("check-api-key-status")
     def providers_check_api_key_status_get(
         ctx: typer.Context,
-        provider_type: str = typer.Argument(..., help="Path parameter: provider_type."),
+        provider_type: str = typer.Argument(..., help='Provider Type'),
     ) -> None:
         """Check Api Key Status (GET /api/providers/{provider_type}/api-key/status)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12152,7 +12324,7 @@ def register_generated_openapi_commands(
     @target_app.command("test-connection")
     def providers_test_connection_post(
         ctx: typer.Context,
-        provider_type: str = typer.Argument(..., help="Path parameter: provider_type."),
+        provider_type: str = typer.Argument(..., help='Provider Type'),
     ) -> None:
         """Test Provider Connection (POST /api/providers/{provider_type}/test)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12167,20 +12339,21 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='reading-at-scale')
         existing_apps['reading-at-scale'] = target_app
 
-    @target_app.command("read-pages-on-hugging-face-jobs-many-shards-as-one-job")
-    def reading_at_scale_read_pages_on_hugging_face_jobs_many_shards_as_one_job_post(
+    @target_app.command("read-pages-on-hugging-face-jobs-many-shards-as-one-job", hidden=True)
+    @target_app.command("start")
+    def reading_at_scale_start_post(
         ctx: typer.Context,
-        card: str = typer.Option(..., "--card", help="Request field: card."),
-        flavor: Optional[str] = typer.Option(None, "--flavor", help="Request field: flavor."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        longest: Optional[int] = typer.Option(None, "--longest", help="Request field: longest."),
-        max_in_flight: Optional[int] = typer.Option(None, "--max-in-flight", help="Request field: max_in_flight."),
-        pages_may_leave: Optional[bool] = typer.Option(None, "--pages-may-leave/--no-pages-may-leave", help="Request field: pages_may_leave."),
-        pass_name: Optional[str] = typer.Option(None, "--pass-name", help="Request field: pass_name."),
-        reader: Optional[str] = typer.Option(None, "--reader", help="Request field: reader."),
-        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
-        shard_size: Optional[int] = typer.Option(None, "--shard-size", help="Request field: shard_size."),
-        timeout: Optional[str] = typer.Option(None, "--timeout", help="Request field: timeout."),
+        card: str = typer.Option(..., '--card', help='The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.'),
+        flavor: Optional[str] = typer.Option(None, '--flavor', help='Hugging Face hardware for each shard. Default: "t4-small".'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        longest: Optional[int] = typer.Option(None, '--longest', help='Pixels on the longer side each image is read at. Default: 2000.'),
+        max_in_flight: Optional[int] = typer.Option(None, '--max-in-flight', help='Shards running at once. Default: 10.'),
+        pages_may_leave: Optional[bool] = typer.Option(None, '--pages-may-leave/--no-pages-may-leave', help="The person's yes for these pages (or their IIIF addresses) to go to Hugging Face. Default: false."),
+        pass_name: Optional[str] = typer.Option(None, '--pass-name', help='Pass Name.'),
+        reader: Optional[str] = typer.Option(None, '--reader', help='`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model). Default: "kraken".'),
+        scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages to read: images here, or pages imported by reference over IIIF. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        shard_size: Optional[int] = typer.Option(None, '--shard-size', help='Shard Size. Default: 50.'),
+        timeout: Optional[str] = typer.Option(None, '--timeout', help='Each shard\'s time limit; always sent. Default: "2h".'),
     ) -> None:
         """Read pages on Hugging Face Jobs, many shards as one job (POST /api/reading-at-scale)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12214,10 +12387,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("a-run-s-shards-and-what-landed")
-    def reading_at_scale_a_run_s_shards_and_what_landed_get(
+    @target_app.command("a-run-s-shards-and-what-landed", hidden=True)
+    @target_app.command("job-status")
+    def reading_at_scale_job_status_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """A reading run's shards and what landed (GET /api/reading-at-scale/jobs/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -12226,10 +12400,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("stop-a-run-cancels-its-running-shards-on-hugging-face")
-    def reading_at_scale_stop_a_run_cancels_its_running_shards_on_hugging_face_post(
+    @target_app.command("stop-a-run-cancels-its-running-shards-on-hugging-face", hidden=True)
+    @target_app.command("cancel-job")
+    def reading_at_scale_cancel_job_post(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Stop a reading run (cancels its running shards on Hugging Face) (POST /api/reading-at-scale/jobs/{job_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12238,10 +12413,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("send-a-run-s-failed-shards-again-and-only-those")
-    def reading_at_scale_send_a_run_s_failed_shards_again_and_only_those_post(
+    @target_app.command("send-a-run-s-failed-shards-again-and-only-those", hidden=True)
+    @target_app.command("resend-failed-shards")
+    def reading_at_scale_resend_failed_shards_post(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Send a reading run's failed shards again, and only those (POST /api/reading-at-scale/jobs/{job_id}/resend-failed)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12259,12 +12435,12 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def reading_orders_create_post(
         ctx: typer.Context,
-        certainty: Optional[float] = typer.Option(None, "--certainty", help="Request field: certainty."),
-        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        pass_id: str = typer.Option(..., "--pass-id", help="Request field: pass_id."),
-        seed_from_pass: Optional[bool] = typer.Option(None, "--seed-from-pass/--no-seed-from-pass", help="Request field: seed_from_pass."),
+        certainty: Optional[float] = typer.Option(None, '--certainty', help='Certainty.'),
+        document_id: str = typer.Option(..., '--document-id', help='Document Id.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Kind. Default: "as-written".'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name. Default: "as-written".'),
+        pass_id: str = typer.Option(..., '--pass-id', help='Pass Id.'),
+        seed_from_pass: Optional[bool] = typer.Option(None, '--seed-from-pass/--no-seed-from-pass', help='Seed From Pass. Default: false.'),
     ) -> None:
         """Create Reading Order (POST /api/reading-orders)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12291,8 +12467,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-document")
     def reading_orders_list_document_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        include_deleted: Optional[bool] = typer.Option(None, "--include-deleted/--no-include-deleted", help="Query parameter: include_deleted."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        include_deleted: Optional[bool] = typer.Option(None, '--include-deleted/--no-include-deleted', help='Include soft-deleted orders.'),
     ) -> None:
         """List Document Orders (GET /api/reading-orders/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -12306,7 +12482,7 @@ def register_generated_openapi_commands(
     @target_app.command("flows-onto-page")
     def reading_orders_flows_onto_page_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
     ) -> None:
         """Flows Onto Page (GET /api/reading-orders/flows/onto/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -12318,8 +12494,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-entries")
     def reading_orders_list_entries_get(
         ctx: typer.Context,
-        order_id: str = typer.Argument(..., help="Path parameter: order_id."),
-        parent_entry_id: Optional[str] = typer.Option(None, "--parent-entry-id", help="Query parameter: parent_entry_id."),
+        order_id: str = typer.Argument(..., help='Order Id'),
+        parent_entry_id: Optional[str] = typer.Option(None, '--parent-entry-id', help='One level at a time; omit for the top level.'),
     ) -> None:
         """List Order Entries (GET /api/reading-orders/{order_id}/entries)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12333,8 +12509,8 @@ def register_generated_openapi_commands(
     @target_app.command("neighbours")
     def reading_orders_neighbours_get(
         ctx: typer.Context,
-        order_id: str = typer.Argument(..., help="Path parameter: order_id."),
-        segment_id: str = typer.Option(..., "--segment-id", help="Query parameter: segment_id."),
+        order_id: str = typer.Argument(..., help='Order Id'),
+        segment_id: str = typer.Option(..., '--segment-id', help='The segment to find the neighbours of.'),
     ) -> None:
         """Order Neighbours (GET /api/reading-orders/{order_id}/neighbours)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12348,12 +12524,12 @@ def register_generated_openapi_commands(
     @target_app.command("place-in")
     def reading_orders_place_in_post(
         ctx: typer.Context,
-        order_id: str = typer.Argument(..., help="Path parameter: order_id."),
-        after_entry_id: Optional[str] = typer.Option(None, "--after-entry-id", help="Request field: after_entry_id."),
-        at_end: Optional[bool] = typer.Option(None, "--at-end/--no-at-end", help="Request field: at_end."),
-        expected_version: Optional[int] = typer.Option(None, "--expected-version", help="Request field: expected_version."),
-        parent_entry_id: Optional[str] = typer.Option(None, "--parent-entry-id", help="Request field: parent_entry_id."),
-        segment_id: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+        order_id: str = typer.Argument(..., help='Order Id'),
+        after_entry_id: Optional[str] = typer.Option(None, '--after-entry-id', help='After Entry Id.'),
+        at_end: Optional[bool] = typer.Option(None, '--at-end/--no-at-end', help='At End. Default: false.'),
+        expected_version: Optional[int] = typer.Option(None, '--expected-version', help='Expected Version.'),
+        parent_entry_id: Optional[str] = typer.Option(None, '--parent-entry-id', help='Parent Entry Id.'),
+        segment_id: str = typer.Option(..., '--segment-id', help='Segment Id.'),
     ) -> None:
         """Place In Reading Order (POST /api/reading-orders/{order_id}/place)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12384,21 +12560,21 @@ def register_generated_openapi_commands(
     @target_app.command("assemble")
     def recipes_assemble_post(
         ctx: typer.Context,
-        cloud_allowed: Optional[bool] = typer.Option(None, "--cloud-allowed/--no-cloud-allowed", help="Request field: cloud_allowed."),
-        directions: Optional[str] = typer.Option(None, "--directions", help="Request field: directions."),
-        faded_pages: Optional[bool] = typer.Option(None, "--faded-pages/--no-faded-pages", help="Request field: faded_pages."),
-        job_answers: Optional[str] = typer.Option(None, "--job-answers", help="Request field: job_answers."),
-        jobs: Optional[str] = typer.Option(None, "--jobs", help="Request field: jobs."),
-        languages: str = typer.Option(..., "--languages", help="Request field: languages."),
-        layers: Optional[str] = typer.Option(None, "--layers", help="Request field: layers."),
-        loose_pages: Optional[bool] = typer.Option(None, "--loose-pages/--no-loose-pages", help="Request field: loose_pages."),
-        mac_memory_gb: Optional[float] = typer.Option(None, "--mac-memory-gb", help="Request field: mac_memory_gb."),
-        material: Optional[str] = typer.Option(None, "--material", help="Request field: material."),
-        materials: Optional[str] = typer.Option(None, "--materials", help="Request field: materials."),
-        pages: Optional[int] = typer.Option(None, "--pages", help="Request field: pages."),
-        purpose: Optional[str] = typer.Option(None, "--purpose", help="Request field: purpose."),
-        purposes: Optional[str] = typer.Option(None, "--purposes", help="Request field: purposes."),
-        scripts: str = typer.Option(..., "--scripts", help="Request field: scripts."),
+        cloud_allowed: Optional[bool] = typer.Option(None, '--cloud-allowed/--no-cloud-allowed', help='Whether a step may use a cloud model; false keeps every step on this Mac. Default: false.'),
+        directions: Optional[str] = typer.Option(None, '--directions', help='script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen) JSON.'),
+        faded_pages: Optional[bool] = typer.Option(None, '--faded-pages/--no-faded-pages', help="the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread across them) shows a faded page (source.onboard.auto.prepare-damaged-images)"),
+        job_answers: Optional[str] = typer.Option(None, '--job-answers', help='the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the step it configures (source.onboard.auto.job-answers-read) JSON.'),
+        jobs: Optional[list[str]] = typer.Option(None, '--jobs', help="jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        languages: list[str] = typer.Option(..., '--languages', help="BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        layers: Optional[list[str]] = typer.Option(None, '--layers', help="layers added beyond the purposes' (source.onboard.add-layer) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        loose_pages: Optional[bool] = typer.Option(None, '--loose-pages/--no-loose-pages', help='the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open project holds a folder of loose page images (finddocs.recipe-step)'),
+        mac_memory_gb: Optional[float] = typer.Option(None, '--mac-memory-gb', help="defaults to this machine's memory."),
+        material: Optional[str] = typer.Option(None, '--material', help='a single material, as before 2026-10-05.'),
+        materials: Optional[list[str]] = typer.Option(None, '--materials', help="handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting. A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        pages: Optional[int] = typer.Option(None, '--pages', help='roughly how many pages. Default: 0.'),
+        purpose: Optional[str] = typer.Option(None, '--purpose', help='a single purpose, as before 2026-10-05: read as a list of one.'),
+        purposes: Optional[list[str]] = typer.Option(None, '--purposes', help="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        scripts: list[str] = typer.Option(..., '--scripts', help="ISO 15924 script codes (or a script's English name) A list: repeat the flag, or give the values comma-separated, or as JSON."),
     ) -> None:
         """Assemble Recipe (POST /api/recipes/assemble)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12421,7 +12597,7 @@ def register_generated_openapi_commands(
                 "purposes": purposes,
                 "scripts": scripts,
             }, {
-                "cloud_allowed": {'type': 'boolean', 'title': 'Cloud Allowed', 'default': False, 'x-cli-required': False},
+                "cloud_allowed": {'type': 'boolean', 'title': 'Cloud Allowed', 'description': 'Whether a step may use a cloud model; false keeps every step on this Mac.', 'default': False, 'x-cli-required': False},
                 "directions": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'title': 'Directions', 'description': 'script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen)', 'x-cli-required': False},
                 "faded_pages": {'type': 'boolean', 'nullable': True, 'title': 'Faded Pages', 'description': "the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread across them) shows a faded page (source.onboard.auto.prepare-damaged-images)", 'x-cli-required': False},
                 "job_answers": {'additionalProperties': True, 'type': 'object', 'title': 'Job Answers', 'description': 'the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the step it configures (source.onboard.auto.job-answers-read)', 'x-cli-required': False},
@@ -12443,13 +12619,13 @@ def register_generated_openapi_commands(
     @target_app.command("model-candidates")
     def recipes_model_candidates_get(
         ctx: typer.Context,
-        cloud_allowed: Optional[bool] = typer.Option(None, "--cloud-allowed/--no-cloud-allowed", help="Query parameter: cloud_allowed."),
-        job: Optional[str] = typer.Option(None, "--job", help="Query parameter: job."),
-        languages: Optional[str] = typer.Option(None, "--languages", help="Query parameter: languages."),
-        mac_memory_gb: Optional[float] = typer.Option(None, "--mac-memory-gb", help="Query parameter: mac_memory_gb."),
-        material: Optional[str] = typer.Option(None, "--material", help="Query parameter: material."),
-        online: Optional[bool] = typer.Option(None, "--online/--no-online", help="Query parameter: online."),
-        scripts: str = typer.Option(..., "--scripts", help="Query parameter: scripts."),
+        cloud_allowed: Optional[bool] = typer.Option(None, '--cloud-allowed/--no-cloud-allowed', help='Cloud Allowed.'),
+        job: Optional[str] = typer.Option(None, '--job', help='Job.'),
+        languages: Optional[str] = typer.Option(None, '--languages', help='Languages.'),
+        mac_memory_gb: Optional[float] = typer.Option(None, '--mac-memory-gb', help='Mac Memory Gb.'),
+        material: Optional[str] = typer.Option(None, '--material', help='Material.'),
+        online: Optional[bool] = typer.Option(None, '--online/--no-online', help='Online.'),
+        scripts: str = typer.Option(..., '--scripts', help='Scripts.'),
     ) -> None:
         """Model Candidates (GET /api/recipes/candidates)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12469,7 +12645,7 @@ def register_generated_openapi_commands(
     @target_app.command("check")
     def recipes_check_post(
         ctx: typer.Context,
-        recipe: str = typer.Option(..., "--recipe", help="Request field: recipe."),
+        recipe: str = typer.Option(..., '--recipe', help='The recipe to check, as GET /api/recipes/project returns it. JSON.'),
     ) -> None:
         """Check (POST /api/recipes/check)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12478,7 +12654,7 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "recipe": recipe,
             }, {
-                "recipe": {'additionalProperties': True, 'type': 'object', 'title': 'Recipe', 'x-cli-required': True},
+                "recipe": {'additionalProperties': True, 'type': 'object', 'title': 'Recipe', 'description': 'The recipe to check, as GET /api/recipes/project returns it.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -12486,7 +12662,7 @@ def register_generated_openapi_commands(
     @target_app.command("derived-facts")
     def recipes_derived_facts_get(
         ctx: typer.Context,
-        scripts: Optional[str] = typer.Option(None, "--scripts", help="Query parameter: scripts."),
+        scripts: Optional[str] = typer.Option(None, '--scripts', help='Scripts.'),
     ) -> None:
         """Derived Facts (GET /api/recipes/derived)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12511,8 +12687,8 @@ def register_generated_openapi_commands(
     @target_app.command("search-languages")
     def recipes_search_languages_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        q: Optional[str] = typer.Option(None, '--q', help='Q.'),
     ) -> None:
         """Search Languages (GET /api/recipes/languages)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12538,8 +12714,8 @@ def register_generated_openapi_commands(
     @target_app.command("save-project-setup")
     def recipes_save_project_setup_put(
         ctx: typer.Context,
-        answers: Optional[str] = typer.Option(None, "--answers", help="Request field: answers."),
-        recipe: Optional[str] = typer.Option(None, "--recipe", help="Request field: recipe."),
+        answers: Optional[str] = typer.Option(None, '--answers', help="Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them. JSON."),
+        recipe: Optional[str] = typer.Option(None, '--recipe', help="The project's recipe, as POST /api/recipes/assemble returns it; null clears it. JSON."),
     ) -> None:
         """Save Project Setup (PUT /api/recipes/project)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12549,8 +12725,8 @@ def register_generated_openapi_commands(
                 "answers": answers,
                 "recipe": recipe,
             }, {
-                "answers": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Answers', 'x-cli-required': False},
-                "recipe": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Recipe', 'x-cli-required': False},
+                "answers": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Answers', 'description': "Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them.", 'x-cli-required': False},
+                "recipe": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Recipe', 'description': "The project's recipe, as POST /api/recipes/assemble returns it; null clears it.", 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -12569,7 +12745,7 @@ def register_generated_openapi_commands(
     @target_app.command("start-bakeoff")
     def recipes_start_bakeoff_post(
         ctx: typer.Context,
-        page_ids: Optional[str] = typer.Option(None, "--page-ids", help="Request field: page_ids."),
+        page_ids: Optional[list[str]] = typer.Option(None, '--page-ids', help='the sample pages; none: every page with a pass a person made. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Start Bakeoff (POST /api/recipes/project/bakeoffs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12586,7 +12762,7 @@ def register_generated_openapi_commands(
     @target_app.command("bakeoff-result")
     def recipes_bakeoff_result_get(
         ctx: typer.Context,
-        bakeoff_id: str = typer.Argument(..., help="Path parameter: bakeoff_id."),
+        bakeoff_id: str = typer.Argument(..., help='Bakeoff Id'),
     ) -> None:
         """Bakeoff Result (GET /api/recipes/project/bakeoffs/{bakeoff_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -12598,10 +12774,10 @@ def register_generated_openapi_commands(
     @target_app.command("use-bakeoff-choice")
     def recipes_use_bakeoff_choice_post(
         ctx: typer.Context,
-        bakeoff_id: str = typer.Argument(..., help="Path parameter: bakeoff_id."),
-        card: str = typer.Option(..., "--card", help="Request field: card."),
-        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
-        scope: Optional[str] = typer.Option(None, "--scope", help="Request field: scope."),
+        bakeoff_id: str = typer.Argument(..., help='Bakeoff Id'),
+        card: str = typer.Option(..., '--card', help="the candidate's card id."),
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='the folder, when the scope is a folder.'),
+        scope: Optional[str] = typer.Option(None, '--scope', help='Where the choice applies: the whole project, or one folder. One of: project, folder. Default: "project".'),
     ) -> None:
         """Use Bakeoff Choice (POST /api/recipes/project/bakeoffs/{bakeoff_id}/use)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12614,7 +12790,7 @@ def register_generated_openapi_commands(
             }, {
                 "card": {'type': 'string', 'title': 'Card', 'description': "the candidate's card id", 'x-cli-required': True},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'the folder, when the scope is a folder', 'x-cli-required': False},
-                "scope": {'type': 'string', 'enum': ['project', 'folder'], 'title': 'Scope', 'default': 'project', 'x-cli-required': False},
+                "scope": {'type': 'string', 'enum': ['project', 'folder'], 'title': 'Scope', 'description': 'Where the choice applies: the whole project, or one folder.', 'default': 'project', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -12622,9 +12798,9 @@ def register_generated_openapi_commands(
     @target_app.command("change-project-layers")
     def recipes_change_project_layers_post(
         ctx: typer.Context,
-        languages: Optional[str] = typer.Option(None, "--languages", help="Request field: languages."),
-        layers: Optional[str] = typer.Option(None, "--layers", help="Request field: layers."),
-        remove: Optional[bool] = typer.Option(None, "--remove/--no-remove", help="Request field: remove."),
+        languages: Optional[list[str]] = typer.Option(None, '--languages', help='BCP 47 language tags to add. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        layers: Optional[list[str]] = typer.Option(None, '--layers', help='layers to add, e.g. entities, graph, places, vectors. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        remove: Optional[bool] = typer.Option(None, '--remove/--no-remove', help='take these out; a layer removed before Start withdraws its proposed jobs. Default: false.'),
     ) -> None:
         """Change Project Layers (POST /api/recipes/project/layers)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12656,7 +12832,7 @@ def register_generated_openapi_commands(
     @target_app.command("run-status")
     def recipes_run_status_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Recipe Run Status (GET /api/recipes/project/runs/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -12668,7 +12844,7 @@ def register_generated_openapi_commands(
     @target_app.command("run-summary")
     def recipes_run_summary_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Recipe Run Summary (GET /api/recipes/project/runs/{job_id}/summary)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12691,7 +12867,7 @@ def register_generated_openapi_commands(
     @target_app.command("start-project")
     def recipes_start_project_post(
         ctx: typer.Context,
-        redo: Optional[str] = typer.Option(None, "--redo", help="Request field: redo."),
+        redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Start Project (POST /api/recipes/project/start)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12708,9 +12884,9 @@ def register_generated_openapi_commands(
     @target_app.command("use-installed-instead")
     def recipes_use_installed_instead_post(
         ctx: typer.Context,
-        card: Optional[str] = typer.Option(None, "--card", help="Request field: card."),
-        model: str = typer.Option(..., "--model", help="Request field: model."),
-        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
+        card: Optional[str] = typer.Option(None, '--card', help='the installed model\'s card id, as that download\'s `instead` names it. Default: "".'),
+        model: str = typer.Option(..., '--model', help='the download the plan waits for, as its `downloads` names it (`model`), or the model this Mac cannot run, as its `elsewhere` names it.'),
+        provider: Optional[str] = typer.Option(None, '--provider', help='the free place\'s provider row id, as that `elsewhere` entry\'s `instead` names it. Default: "".'),
     ) -> None:
         """Use Installed Instead (POST /api/recipes/project/start/use-instead)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12731,8 +12907,8 @@ def register_generated_openapi_commands(
     @target_app.command("use-candidate-for-step")
     def recipes_use_candidate_for_step_post(
         ctx: typer.Context,
-        card: str = typer.Option(..., "--card", help="Request field: card."),
-        step: str = typer.Option(..., "--step", help="Request field: step."),
+        card: str = typer.Option(..., '--card', help="the candidate's card id, as GET /api/recipes/candidates lists it (`id`)"),
+        step: str = typer.Option(..., '--step', help="the recipe step's id."),
     ) -> None:
         """Use Candidate For Step (POST /api/recipes/project/steps/use-candidate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12762,10 +12938,10 @@ def register_generated_openapi_commands(
     @target_app.command("routes-for-volume")
     def recipes_routes_for_volume_get(
         ctx: typer.Context,
-        local_reader: str = typer.Option(..., "--local-reader", help="Query parameter: local_reader."),
-        pages: Optional[int] = typer.Option(None, "--pages", help="Query parameter: pages."),
-        sample_pages: Optional[int] = typer.Option(None, "--sample-pages", help="Query parameter: sample_pages."),
-        teacher: str = typer.Option(..., "--teacher", help="Query parameter: teacher."),
+        local_reader: str = typer.Option(..., '--local-reader', help='Local Reader.'),
+        pages: Optional[int] = typer.Option(None, '--pages', help='Pages.'),
+        sample_pages: Optional[int] = typer.Option(None, '--sample-pages', help='Sample Pages.'),
+        teacher: str = typer.Option(..., '--teacher', help='Teacher.'),
     ) -> None:
         """Routes For Volume (GET /api/recipes/routes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12782,8 +12958,8 @@ def register_generated_openapi_commands(
     @target_app.command("search-scripts")
     def recipes_search_scripts_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        q: Optional[str] = typer.Option(None, '--q', help='Q.'),
     ) -> None:
         """Search Scripts (GET /api/recipes/scripts)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12804,15 +12980,15 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def references_list_get(
         ctx: typer.Context,
-        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
-        unbacked: Optional[bool] = typer.Option(None, "--unbacked/--no-unbacked", help="Query parameter: unbacked."),
-        verified: Optional[bool] = typer.Option(None, "--verified/--no-verified", help="Query parameter: verified."),
-        year_from: Optional[int] = typer.Option(None, "--year-from", help="Query parameter: year_from."),
-        year_to: Optional[int] = typer.Option(None, "--year-to", help="Query parameter: year_to."),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Kind.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        q: Optional[str] = typer.Option(None, '--q', help='Free-text search over reference fields.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Status.'),
+        unbacked: Optional[bool] = typer.Option(None, '--unbacked/--no-unbacked', help='Unbacked.'),
+        verified: Optional[bool] = typer.Option(None, '--verified/--no-verified', help='Verified.'),
+        year_from: Optional[int] = typer.Option(None, '--year-from', help='Year From.'),
+        year_to: Optional[int] = typer.Option(None, '--year-to', help='Year To.'),
     ) -> None:
         """List References (GET /api/references)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12834,7 +13010,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def references_delete_delete(
         ctx: typer.Context,
-        reference_id: str = typer.Argument(..., help="Path parameter: reference_id."),
+        reference_id: str = typer.Argument(..., help='Reference Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Reference (DELETE /api/references/{reference_id})."""
@@ -12849,7 +13025,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def references_get_get(
         ctx: typer.Context,
-        reference_id: str = typer.Argument(..., help="Path parameter: reference_id."),
+        reference_id: str = typer.Argument(..., help='Reference Id'),
     ) -> None:
         """Get Reference (GET /api/references/{reference_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -12861,26 +13037,26 @@ def register_generated_openapi_commands(
     @target_app.command("patch")
     def references_patch_patch(
         ctx: typer.Context,
-        reference_id: str = typer.Argument(..., help="Path parameter: reference_id."),
-        authors: Optional[str] = typer.Option(None, "--authors", help="Request field: authors."),
-        bibtex: Optional[str] = typer.Option(None, "--bibtex", help="Request field: bibtex."),
-        doi: Optional[str] = typer.Option(None, "--doi", help="Request field: doi."),
-        isbn: Optional[str] = typer.Option(None, "--isbn", help="Request field: isbn."),
-        journal_or_book: Optional[str] = typer.Option(None, "--journal-or-book", help="Request field: journal_or_book."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
-        pages: Optional[str] = typer.Option(None, "--pages", help="Request field: pages."),
-        publisher: Optional[str] = typer.Option(None, "--publisher", help="Request field: publisher."),
-        realized_as_document_id: Optional[str] = typer.Option(None, "--realized-as-document-id", help="Request field: realized_as_document_id."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
-        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
-        verification_score: Optional[float] = typer.Option(None, "--verification-score", help="Request field: verification_score."),
-        verification_source: Optional[str] = typer.Option(None, "--verification-source", help="Request field: verification_source."),
-        verified_at: Optional[str] = typer.Option(None, "--verified-at", help="Request field: verified_at."),
-        year: Optional[int] = typer.Option(None, "--year", help="Request field: year."),
+        reference_id: str = typer.Argument(..., help='Reference Id'),
+        authors: Optional[list[str]] = typer.Option(None, '--authors', help='Authors. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        bibtex: Optional[str] = typer.Option(None, '--bibtex', help='Bibtex.'),
+        doi: Optional[str] = typer.Option(None, '--doi', help='Doi.'),
+        isbn: Optional[str] = typer.Option(None, '--isbn', help='Isbn.'),
+        journal_or_book: Optional[str] = typer.Option(None, '--journal-or-book', help='Journal Or Book.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Standard BibTeX entry types for first-class references. One of: article, book, booklet, inbook, incollection, inproceedings, manual, mastersthesis, misc, phdthesis, proceedings, techreport, unpublished.'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        notes: Optional[str] = typer.Option(None, '--notes', help='Notes.'),
+        pages: Optional[str] = typer.Option(None, '--pages', help='Pages.'),
+        publisher: Optional[str] = typer.Option(None, '--publisher', help='Publisher.'),
+        realized_as_document_id: Optional[str] = typer.Option(None, '--realized-as-document-id', help='Realized As Document Id.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Lifecycle for a bibliographic reference. One of: to_find, searching, found_external, unavailable, verified, duplicate, ignore.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        title: Optional[str] = typer.Option(None, '--title', help='Title.'),
+        verification_score: Optional[float] = typer.Option(None, '--verification-score', help='Verification Score.'),
+        verification_source: Optional[str] = typer.Option(None, '--verification-source', help='Where a verification signal came from. One of: crossref, openalex, openlibrary, manual.'),
+        verified_at: Optional[str] = typer.Option(None, '--verified-at', help='Verified At.'),
+        year: Optional[int] = typer.Option(None, '--year', help='Year.'),
     ) -> None:
         """Patch Reference (PATCH /api/references/{reference_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -12936,8 +13112,9 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='registries')
         existing_apps['registries'] = target_app
 
-    @target_app.command("list-claim-kinds-custom-built-in")
-    def registries_list_claim_kinds_custom_built_in_get(
+    @target_app.command("list-claim-kinds-custom-built-in", hidden=True)
+    @target_app.command("list-claim-kinds")
+    def registries_list_claim_kinds_get(
         ctx: typer.Context,
     ) -> None:
         """List claim kinds (custom + built-in) (GET /api/registries/claim-kinds)."""
@@ -12947,15 +13124,16 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("add-a-custom-claim-kind")
-    def registries_add_a_custom_claim_kind_post(
+    @target_app.command("add-a-custom-claim-kind", hidden=True)
+    @target_app.command("create-claim-kind")
+    def registries_create_claim_kind_post(
         ctx: typer.Context,
-        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
-        key: str = typer.Option(..., "--key", help="Request field: key."),
-        label: str = typer.Option(..., "--label", help="Request field: label."),
-        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
+        color: Optional[str] = typer.Option(None, '--color', help="Hex color code for badges, e.g. '#FF8800'."),
+        description: Optional[str] = typer.Option(None, '--description', help='Optional prompt hint for extractors.'),
+        icon: Optional[str] = typer.Option(None, '--icon', help='SF Symbol name or emoji.'),
+        key: str = typer.Option(..., '--key', help='Machine-readable identifier; lowercase, no spaces.'),
+        label: str = typer.Option(..., '--label', help='Human-readable display label.'),
+        parent_key: Optional[str] = typer.Option(None, '--parent-key', help='Optional parent for hierarchical vocabularies.'),
     ) -> None:
         """Add a custom claim kind (POST /api/registries/claim-kinds)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12982,7 +13160,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-claim-kind")
     def registries_delete_claim_kind_delete(
         ctx: typer.Context,
-        value_id: str = typer.Argument(..., help="Path parameter: value_id."),
+        value_id: str = typer.Argument(..., help='Value Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Claim Kind (DELETE /api/registries/claim-kinds/{value_id})."""
@@ -12994,16 +13172,17 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("update-a-claim-kind")
-    def registries_update_a_claim_kind_patch(
+    @target_app.command("update-a-claim-kind", hidden=True)
+    @target_app.command("patch-claim-kind")
+    def registries_patch_claim_kind_patch(
         ctx: typer.Context,
-        value_id: str = typer.Argument(..., help="Path parameter: value_id."),
-        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
-        key: Optional[str] = typer.Option(None, "--key", help="Request field: key."),
-        label: Optional[str] = typer.Option(None, "--label", help="Request field: label."),
-        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
+        value_id: str = typer.Argument(..., help='Value Id'),
+        color: Optional[str] = typer.Option(None, '--color', help='Color.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        icon: Optional[str] = typer.Option(None, '--icon', help='Icon.'),
+        key: Optional[str] = typer.Option(None, '--key', help='Rename to a new key (preserves id)'),
+        label: Optional[str] = typer.Option(None, '--label', help='Label.'),
+        parent_key: Optional[str] = typer.Option(None, '--parent-key', help='Parent Key.'),
     ) -> None:
         """Update a claim kind (PATCH /api/registries/claim-kinds/{value_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13027,8 +13206,9 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("list-epistemic-statuses-custom-built-in")
-    def registries_list_epistemic_statuses_custom_built_in_get(
+    @target_app.command("list-epistemic-statuses-custom-built-in", hidden=True)
+    @target_app.command("list-epistemic-statuses")
+    def registries_list_epistemic_statuses_get(
         ctx: typer.Context,
     ) -> None:
         """List epistemic statuses (custom + built-in) (GET /api/registries/epistemic-statuses)."""
@@ -13038,15 +13218,16 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("add-a-custom-epistemic-status")
-    def registries_add_a_custom_epistemic_status_post(
+    @target_app.command("add-a-custom-epistemic-status", hidden=True)
+    @target_app.command("create-epistemic-status")
+    def registries_create_epistemic_status_post(
         ctx: typer.Context,
-        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
-        key: str = typer.Option(..., "--key", help="Request field: key."),
-        label: str = typer.Option(..., "--label", help="Request field: label."),
-        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
+        color: Optional[str] = typer.Option(None, '--color', help="Hex color code for badges, e.g. '#FF8800'."),
+        description: Optional[str] = typer.Option(None, '--description', help='Optional prompt hint for extractors.'),
+        icon: Optional[str] = typer.Option(None, '--icon', help='SF Symbol name or emoji.'),
+        key: str = typer.Option(..., '--key', help='Machine-readable identifier; lowercase, no spaces.'),
+        label: str = typer.Option(..., '--label', help='Human-readable display label.'),
+        parent_key: Optional[str] = typer.Option(None, '--parent-key', help='Optional parent for hierarchical vocabularies.'),
     ) -> None:
         """Add a custom epistemic status (POST /api/registries/epistemic-statuses)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13073,7 +13254,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-epistemic-status")
     def registries_delete_epistemic_status_delete(
         ctx: typer.Context,
-        value_id: str = typer.Argument(..., help="Path parameter: value_id."),
+        value_id: str = typer.Argument(..., help='Value Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Epistemic Status (DELETE /api/registries/epistemic-statuses/{value_id})."""
@@ -13085,16 +13266,17 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("update-an-epistemic-status")
-    def registries_update_an_epistemic_status_patch(
+    @target_app.command("update-an-epistemic-status", hidden=True)
+    @target_app.command("patch-epistemic-status")
+    def registries_patch_epistemic_status_patch(
         ctx: typer.Context,
-        value_id: str = typer.Argument(..., help="Path parameter: value_id."),
-        color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
-        key: Optional[str] = typer.Option(None, "--key", help="Request field: key."),
-        label: Optional[str] = typer.Option(None, "--label", help="Request field: label."),
-        parent_key: Optional[str] = typer.Option(None, "--parent-key", help="Request field: parent_key."),
+        value_id: str = typer.Argument(..., help='Value Id'),
+        color: Optional[str] = typer.Option(None, '--color', help='Color.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        icon: Optional[str] = typer.Option(None, '--icon', help='Icon.'),
+        key: Optional[str] = typer.Option(None, '--key', help='Rename to a new key (preserves id)'),
+        label: Optional[str] = typer.Option(None, '--label', help='Label.'),
+        parent_key: Optional[str] = typer.Option(None, '--parent-key', help='Parent Key.'),
     ) -> None:
         """Update an epistemic status (PATCH /api/registries/epistemic-statuses/{value_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13138,8 +13320,8 @@ def register_generated_openapi_commands(
     @target_app.command("add-known-library")
     def registry_add_known_library_post(
         ctx: typer.Context,
-        name: Optional[str] = typer.Option(None, "--name", help="Query parameter: name."),
-        path: str = typer.Option(..., "--path", help="Query parameter: path."),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        path: str = typer.Option(..., '--path', help='Path.'),
     ) -> None:
         """Add Known Library (POST /api/registry/add)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13165,7 +13347,7 @@ def register_generated_openapi_commands(
     @target_app.command("release-library")
     def registry_release_library_post(
         ctx: typer.Context,
-        path: str = typer.Option(..., "--path", help="Request field: path."),
+        path: str = typer.Option(..., '--path', help='Absolute path to the .fichero package to release.'),
     ) -> None:
         """Release Library (POST /api/registry/release)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13182,7 +13364,7 @@ def register_generated_openapi_commands(
     @target_app.command("resolve-known-library")
     def registry_resolve_known_library_get(
         ctx: typer.Context,
-        name: str = typer.Option(..., "--name", help="Query parameter: name."),
+        name: str = typer.Option(..., '--name', help='Name.'),
     ) -> None:
         """Resolve Known Library (GET /api/registry/resolve)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13207,8 +13389,8 @@ def register_generated_openapi_commands(
     @target_app.command("confirm-unicode-library-merge")
     def registry_confirm_unicode_library_merge_post(
         ctx: typer.Context,
-        left_path: str = typer.Option(..., "--left-path", help="Request field: left_path."),
-        right_path: str = typer.Option(..., "--right-path", help="Request field: right_path."),
+        left_path: str = typer.Option(..., '--left-path', help='Left Path.'),
+        right_path: str = typer.Option(..., '--right-path', help='Right Path.'),
     ) -> None:
         """Confirm Unicode Library Merge (POST /api/registry/unicode-collisions/merge)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13227,7 +13409,7 @@ def register_generated_openapi_commands(
     @target_app.command("update-library-access")
     def registry_update_library_access_post(
         ctx: typer.Context,
-        path: str = typer.Option(..., "--path", help="Query parameter: path."),
+        path: str = typer.Option(..., '--path', help='Path.'),
     ) -> None:
         """Update Library Access (POST /api/registry/update-access)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13241,7 +13423,7 @@ def register_generated_openapi_commands(
     @target_app.command("remove-known-library")
     def registry_remove_known_library_delete(
         ctx: typer.Context,
-        library_path: str = typer.Argument(..., help="Path parameter: library_path."),
+        library_path: str = typer.Argument(..., help='Library Path'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Known Library (DELETE /api/registry/{library_path})."""
@@ -13262,13 +13444,13 @@ def register_generated_openapi_commands(
     @target_app.command("create-checklist")
     def research_create_checklist_post(
         ctx: typer.Context,
-        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
-        items: Optional[str] = typer.Option(None, "--items", help="Request field: items."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
-        step_id: Optional[str] = typer.Option(None, "--step-id", help="Request field: step_id."),
-        task_id: Optional[str] = typer.Option(None, "--task-id", help="Request field: task_id."),
-        title: str = typer.Option(..., "--title", help="Request field: title."),
+        created_by: Optional[str] = typer.Option(None, '--created-by', help='Created By. Default: "human".'),
+        items: Optional[str] = typer.Option(None, '--items', help='Items. JSON.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        project_id: str = typer.Option(..., '--project-id', help='Project Id.'),
+        step_id: Optional[str] = typer.Option(None, '--step-id', help='Step Id.'),
+        task_id: Optional[str] = typer.Option(None, '--task-id', help='Task Id.'),
+        title: str = typer.Option(..., '--title', help='Title.'),
     ) -> None:
         """Create Checklist (POST /api/research/checklists)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13297,10 +13479,10 @@ def register_generated_openapi_commands(
     @target_app.command("toggle-checklist-item")
     def research_toggle_checklist_item_patch(
         ctx: typer.Context,
-        checklist_id: str = typer.Argument(..., help="Path parameter: checklist_id."),
-        item_id: str = typer.Argument(..., help="Path parameter: item_id."),
-        checked: bool = typer.Option(..., "--checked/--no-checked", help="Request field: checked."),
-        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
+        checklist_id: str = typer.Argument(..., help='Checklist Id'),
+        item_id: str = typer.Argument(..., help='Item Id'),
+        checked: bool = typer.Option(..., '--checked/--no-checked', help='Checked.'),
+        notes: Optional[str] = typer.Option(None, '--notes', help='Notes. Default: "".'),
     ) -> None:
         """Toggle Checklist Item (PATCH /api/research/checklists/{checklist_id}/items/{item_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13319,16 +13501,16 @@ def register_generated_openapi_commands(
     @target_app.command("create-note")
     def research_create_note_post(
         ctx: typer.Context,
-        content: str = typer.Option(..., "--content", help="Request field: content."),
-        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
-        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
-        linked_source_ids: Optional[str] = typer.Option(None, "--linked-source-ids", help="Request field: linked_source_ids."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        note_type: Optional[str] = typer.Option(None, "--note-type", help="Request field: note_type."),
-        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
-        step_id: Optional[str] = typer.Option(None, "--step-id", help="Request field: step_id."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
-        task_id: Optional[str] = typer.Option(None, "--task-id", help="Request field: task_id."),
+        content: str = typer.Option(..., '--content', help='Content.'),
+        created_by: Optional[str] = typer.Option(None, '--created-by', help='Created By. Default: "human".'),
+        linked_claim_ids: Optional[list[str]] = typer.Option(None, '--linked-claim-ids', help='Linked Claim Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_source_ids: Optional[list[str]] = typer.Option(None, '--linked-source-ids', help='Linked Source Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        note_type: Optional[str] = typer.Option(None, '--note-type', help='ResearchNoteType. One of: observation, finding, question, hypothesis, synthesis.'),
+        project_id: str = typer.Option(..., '--project-id', help='Project Id.'),
+        step_id: Optional[str] = typer.Option(None, '--step-id', help='Step Id.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        task_id: Optional[str] = typer.Option(None, '--task-id', help='Task Id.'),
     ) -> None:
         """Create Note (POST /api/research/notes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13363,7 +13545,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-note")
     def research_get_note_get(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        note_id: str = typer.Argument(..., help='Note Id'),
     ) -> None:
         """Get Note (GET /api/research/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13375,13 +13557,13 @@ def register_generated_openapi_commands(
     @target_app.command("update-note")
     def research_update_note_patch(
         ctx: typer.Context,
-        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
-        content: Optional[str] = typer.Option(None, "--content", help="Request field: content."),
-        linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
-        linked_source_ids: Optional[str] = typer.Option(None, "--linked-source-ids", help="Request field: linked_source_ids."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        note_type: Optional[str] = typer.Option(None, "--note-type", help="Request field: note_type."),
-        tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        note_id: str = typer.Argument(..., help='Note Id'),
+        content: Optional[str] = typer.Option(None, '--content', help='Content.'),
+        linked_claim_ids: Optional[list[str]] = typer.Option(None, '--linked-claim-ids', help='Linked Claim Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        linked_source_ids: Optional[list[str]] = typer.Option(None, '--linked-source-ids', help='Linked Source Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        note_type: Optional[str] = typer.Option(None, '--note-type', help='ResearchNoteType. One of: observation, finding, question, hypothesis, synthesis.'),
+        tags: Optional[list[str]] = typer.Option(None, '--tags', help='Tags. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Update Note (PATCH /api/research/notes/{note_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13408,12 +13590,12 @@ def register_generated_openapi_commands(
     @target_app.command("create-plan")
     def research_create_plan_post(
         ctx: typer.Context,
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        order_index: Optional[int] = typer.Option(None, "--order-index", help="Request field: order_index."),
-        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
-        term: Optional[str] = typer.Option(None, "--term", help="Request field: term."),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        order_index: Optional[int] = typer.Option(None, '--order-index', help='Order Index. Default: 0.'),
+        project_id: str = typer.Option(..., '--project-id', help='Project Id.'),
+        term: Optional[str] = typer.Option(None, '--term', help='Term.'),
     ) -> None:
         """Create Plan (POST /api/research/plans)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13440,7 +13622,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-plan")
     def research_get_plan_get(
         ctx: typer.Context,
-        plan_id: str = typer.Argument(..., help="Path parameter: plan_id."),
+        plan_id: str = typer.Argument(..., help='Plan Id'),
     ) -> None:
         """Get Plan (GET /api/research/plans/{plan_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13452,12 +13634,12 @@ def register_generated_openapi_commands(
     @target_app.command("update-plan")
     def research_update_plan_patch(
         ctx: typer.Context,
-        plan_id: str = typer.Argument(..., help="Path parameter: plan_id."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        order_index: Optional[int] = typer.Option(None, "--order-index", help="Request field: order_index."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        plan_id: str = typer.Argument(..., help='Plan Id'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        order_index: Optional[int] = typer.Option(None, '--order-index', help='Order Index.'),
+        status: Optional[str] = typer.Option(None, '--status', help='PlanStatus. One of: draft, active, completed, cancelled.'),
     ) -> None:
         """Update Plan (PATCH /api/research/plans/{plan_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13482,7 +13664,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-tasks")
     def research_list_tasks_get(
         ctx: typer.Context,
-        plan_id: str = typer.Argument(..., help="Path parameter: plan_id."),
+        plan_id: str = typer.Argument(..., help='Plan Id'),
     ) -> None:
         """List Tasks (GET /api/research/plans/{plan_id}/tasks)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13494,7 +13676,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-projects")
     def research_list_projects_get(
         ctx: typer.Context,
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
+        status: Optional[str] = typer.Option(None, '--status', help='Status.'),
     ) -> None:
         """List Projects (GET /api/research/projects)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13508,11 +13690,11 @@ def register_generated_openapi_commands(
     @target_app.command("create-project")
     def research_create_project_post(
         ctx: typer.Context,
-        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        library_destination_folder_id: Optional[str] = typer.Option(None, "--library-destination-folder-id", help="Request field: library_destination_folder_id."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
+        created_by: Optional[str] = typer.Option(None, '--created-by', help='Created By. Default: "human".'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        library_destination_folder_id: Optional[str] = typer.Option(None, '--library-destination-folder-id', help='Library Destination Folder Id.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
     ) -> None:
         """Create Project (POST /api/research/projects)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13537,7 +13719,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-project")
     def research_delete_project_delete(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        project_id: str = typer.Argument(..., help='Project Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Project (DELETE /api/research/projects/{project_id})."""
@@ -13552,7 +13734,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-project")
     def research_get_project_get(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        project_id: str = typer.Argument(..., help='Project Id'),
     ) -> None:
         """Get Project (GET /api/research/projects/{project_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13564,12 +13746,12 @@ def register_generated_openapi_commands(
     @target_app.command("update-project")
     def research_update_project_patch(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        library_destination_folder_id: Optional[str] = typer.Option(None, "--library-destination-folder-id", help="Request field: library_destination_folder_id."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        project_id: str = typer.Argument(..., help='Project Id'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        library_destination_folder_id: Optional[str] = typer.Option(None, '--library-destination-folder-id', help='Library Destination Folder Id.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        status: Optional[str] = typer.Option(None, '--status', help='ProjectStatus. One of: active, paused, completed, archived.'),
     ) -> None:
         """Update Project (PATCH /api/research/projects/{project_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13594,7 +13776,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-checklists")
     def research_list_checklists_get(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        project_id: str = typer.Argument(..., help='Project Id'),
     ) -> None:
         """List Checklists (GET /api/research/projects/{project_id}/checklists)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13606,8 +13788,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-notes")
     def research_list_notes_get(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
-        task_id: Optional[str] = typer.Option(None, "--task-id", help="Query parameter: task_id."),
+        project_id: str = typer.Argument(..., help='Project Id'),
+        task_id: Optional[str] = typer.Option(None, '--task-id', help='Task Id.'),
     ) -> None:
         """List Notes (GET /api/research/projects/{project_id}/notes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13621,7 +13803,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-plans")
     def research_list_plans_get(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        project_id: str = typer.Argument(..., help='Project Id'),
     ) -> None:
         """List Plans (GET /api/research/projects/{project_id}/plans)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13633,7 +13815,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-search-sources")
     def research_list_search_sources_get(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        project_id: str = typer.Argument(..., help='Project Id'),
     ) -> None:
         """List Search Sources (GET /api/research/projects/{project_id}/sources)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13645,7 +13827,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-project-tasks")
     def research_list_project_tasks_get(
         ctx: typer.Context,
-        project_id: str = typer.Argument(..., help="Path parameter: project_id."),
+        project_id: str = typer.Argument(..., help='Project Id'),
     ) -> None:
         """List Project Tasks (GET /api/research/projects/{project_id}/tasks)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13657,15 +13839,15 @@ def register_generated_openapi_commands(
     @target_app.command("create-search-source")
     def research_create_search_source_post(
         ctx: typer.Context,
-        access_status: Optional[str] = typer.Option(None, "--access-status", help="Request field: access_status."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        label: str = typer.Option(..., "--label", help="Request field: label."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        path: Optional[str] = typer.Option(None, "--path", help="Request field: path."),
-        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
-        reliability: Optional[float] = typer.Option(None, "--reliability", help="Request field: reliability."),
-        source_type: str = typer.Option(..., "--source-type", help="Request field: source_type."),
-        url: Optional[str] = typer.Option(None, "--url", help="Request field: url."),
+        access_status: Optional[str] = typer.Option(None, '--access-status', help='Access Status. Default: "public".'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        label: str = typer.Option(..., '--label', help='Label.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        path: Optional[str] = typer.Option(None, '--path', help='Path.'),
+        project_id: str = typer.Option(..., '--project-id', help='Project Id.'),
+        reliability: Optional[float] = typer.Option(None, '--reliability', help='Reliability. Default: 0.5.'),
+        source_type: str = typer.Option(..., '--source-type', help='SearchSourceType. One of: url, folder, database, api.'),
+        url: Optional[str] = typer.Option(None, '--url', help='Url.'),
     ) -> None:
         """Create Search Source (POST /api/research/sources)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13698,12 +13880,12 @@ def register_generated_openapi_commands(
     @target_app.command("create-step")
     def research_create_step_post(
         ctx: typer.Context,
-        config: Optional[str] = typer.Option(None, "--config", help="Request field: config."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        label: str = typer.Option(..., "--label", help="Request field: label."),
-        order_index: Optional[int] = typer.Option(None, "--order-index", help="Request field: order_index."),
-        task_id: str = typer.Option(..., "--task-id", help="Request field: task_id."),
-        tool: str = typer.Option(..., "--tool", help="Request field: tool."),
+        config: Optional[str] = typer.Option(None, '--config', help='Config. JSON.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        label: str = typer.Option(..., '--label', help='Label.'),
+        order_index: Optional[int] = typer.Option(None, '--order-index', help='Order Index. Default: 0.'),
+        task_id: str = typer.Option(..., '--task-id', help='Task Id.'),
+        tool: str = typer.Option(..., '--tool', help='StepTool. One of: web_search, browser_navigate, document_fetch, local_search.'),
     ) -> None:
         """Create Step (POST /api/research/steps)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13730,13 +13912,13 @@ def register_generated_openapi_commands(
     @target_app.command("update-step")
     def research_update_step_patch(
         ctx: typer.Context,
-        step_id: str = typer.Argument(..., help="Path parameter: step_id."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        error: Optional[str] = typer.Option(None, "--error", help="Request field: error."),
-        label: Optional[str] = typer.Option(None, "--label", help="Request field: label."),
-        order_index: Optional[int] = typer.Option(None, "--order-index", help="Request field: order_index."),
-        result: Optional[str] = typer.Option(None, "--result", help="Request field: result."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        step_id: str = typer.Argument(..., help='Step Id'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        error: Optional[str] = typer.Option(None, '--error', help='Error.'),
+        label: Optional[str] = typer.Option(None, '--label', help='Label.'),
+        order_index: Optional[int] = typer.Option(None, '--order-index', help='Order Index.'),
+        result: Optional[str] = typer.Option(None, '--result', help='Result. JSON.'),
+        status: Optional[str] = typer.Option(None, '--status', help='StepStatus. One of: pending, completed, failed, skipped.'),
     ) -> None:
         """Update Step (PATCH /api/research/steps/{step_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13763,12 +13945,12 @@ def register_generated_openapi_commands(
     @target_app.command("create-task")
     def research_create_task_post(
         ctx: typer.Context,
-        assigned_to: Optional[str] = typer.Option(None, "--assigned-to", help="Request field: assigned_to."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        plan_id: str = typer.Option(..., "--plan-id", help="Request field: plan_id."),
-        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
+        assigned_to: Optional[str] = typer.Option(None, '--assigned-to', help='Assigned To.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        plan_id: str = typer.Option(..., '--plan-id', help='Plan Id.'),
+        priority: Optional[int] = typer.Option(None, '--priority', help='Priority. Default: 0.'),
     ) -> None:
         """Create Task (POST /api/research/tasks)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13795,7 +13977,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-task")
     def research_get_task_get(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """Get Task (GET /api/research/tasks/{task_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13807,13 +13989,13 @@ def register_generated_openapi_commands(
     @target_app.command("update-task")
     def research_update_task_patch(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
-        assigned_to: Optional[str] = typer.Option(None, "--assigned-to", help="Request field: assigned_to."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
+        task_id: str = typer.Argument(..., help='Task Id'),
+        assigned_to: Optional[str] = typer.Option(None, '--assigned-to', help='Assigned To.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        priority: Optional[int] = typer.Option(None, '--priority', help='Priority.'),
+        status: Optional[str] = typer.Option(None, '--status', help='TaskStatus. One of: pending, in_progress, completed, blocked, cancelled.'),
     ) -> None:
         """Update Task (PATCH /api/research/tasks/{task_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -13840,7 +14022,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-steps")
     def research_list_steps_get(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """List Steps (GET /api/research/tasks/{task_id}/steps)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13852,10 +14034,10 @@ def register_generated_openapi_commands(
     @target_app.command("execute-browser-navigate")
     def research_execute_browser_navigate_post(
         ctx: typer.Context,
-        screenshot: Optional[bool] = typer.Option(None, "--screenshot/--no-screenshot", help="Request field: screenshot."),
-        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
-        url: str = typer.Option(..., "--url", help="Request field: url."),
-        wait_for_selectors: Optional[str] = typer.Option(None, "--wait-for-selectors", help="Request field: wait_for_selectors."),
+        screenshot: Optional[bool] = typer.Option(None, '--screenshot/--no-screenshot', help='Screenshot. Default: false.'),
+        timeout_seconds: Optional[int] = typer.Option(None, '--timeout-seconds', help='Timeout Seconds. Default: 30.'),
+        url: str = typer.Option(..., '--url', help='Url.'),
+        wait_for_selectors: Optional[list[str]] = typer.Option(None, '--wait-for-selectors', help='Wait For Selectors. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Execute Browser Navigate (POST /api/research/tools/browser-navigate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13878,11 +14060,11 @@ def register_generated_openapi_commands(
     @target_app.command("browser-save")
     def research_browser_save_post(
         ctx: typer.Context,
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        parent_folder_id: Optional[str] = typer.Option(None, "--parent-folder-id", help="Request field: parent_folder_id."),
-        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
-        suggested_name: Optional[str] = typer.Option(None, "--suggested-name", help="Request field: suggested_name."),
-        url: str = typer.Option(..., "--url", help="Request field: url."),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        parent_folder_id: Optional[str] = typer.Option(None, '--parent-folder-id', help='Parent Folder Id.'),
+        project_id: str = typer.Option(..., '--project-id', help='Project Id.'),
+        suggested_name: Optional[str] = typer.Option(None, '--suggested-name', help='Suggested Name.'),
+        url: str = typer.Option(..., '--url', help='Url.'),
     ) -> None:
         """Browser Save (POST /api/research/tools/browser-save)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13907,10 +14089,10 @@ def register_generated_openapi_commands(
     @target_app.command("execute-document-fetch")
     def research_execute_document_fetch_post(
         ctx: typer.Context,
-        create_as_source: Optional[bool] = typer.Option(None, "--create-as-source/--no-create-as-source", help="Request field: create_as_source."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        project_id: str = typer.Option(..., "--project-id", help="Request field: project_id."),
-        url: str = typer.Option(..., "--url", help="Request field: url."),
+        create_as_source: Optional[bool] = typer.Option(None, '--create-as-source/--no-create-as-source', help='Create As Source. Default: true.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        project_id: str = typer.Option(..., '--project-id', help='Project Id.'),
+        url: str = typer.Option(..., '--url', help='Url.'),
     ) -> None:
         """Execute Document Fetch (POST /api/research/tools/document-fetch)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13933,11 +14115,11 @@ def register_generated_openapi_commands(
     @target_app.command("execute-web-search")
     def research_execute_web_search_post(
         ctx: typer.Context,
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        max_results: Optional[int] = typer.Option(None, "--max-results", help="Request field: max_results."),
-        query: str = typer.Option(..., "--query", help="Request field: query."),
-        source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Request field: source_ids."),
-        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        max_results: Optional[int] = typer.Option(None, '--max-results', help='Max Results. Default: 10.'),
+        query: str = typer.Option(..., '--query', help='Query.'),
+        source_ids: Optional[list[str]] = typer.Option(None, '--source-ids', help='Source Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        timeout_seconds: Optional[int] = typer.Option(None, '--timeout-seconds', help='Timeout Seconds. Default: 30.'),
     ) -> None:
         """Execute Web Search (POST /api/research/tools/web-search)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13968,15 +14150,15 @@ def register_generated_openapi_commands(
     @target_app.command("set")
     def rights_set_post(
         ctx: typer.Context,
-        conditions: Optional[str] = typer.Option(None, "--conditions", help="Request field: conditions."),
-        consent: Optional[str] = typer.Option(None, "--consent", help="Request field: consent."),
-        holders: Optional[str] = typer.Option(None, "--holders", help="Request field: holders."),
-        labels: Optional[str] = typer.Option(None, "--labels", help="Request field: labels."),
-        model_use: Optional[str] = typer.Option(None, "--model-use", help="Request field: model_use."),
-        readers: Optional[str] = typer.Option(None, "--readers", help="Request field: readers."),
-        restricted: Optional[bool] = typer.Option(None, "--restricted/--no-restricted", help="Request field: restricted."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
-        target_kind: str = typer.Option(..., "--target-kind", help="Request field: target_kind."),
+        conditions: Optional[str] = typer.Option(None, '--conditions', help='Conditions.'),
+        consent: Optional[str] = typer.Option(None, '--consent', help='Consent. JSON.'),
+        holders: Optional[list[str]] = typer.Option(None, '--holders', help='Holders. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        labels: Optional[list[str]] = typer.Option(None, '--labels', help='Labels. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        model_use: Optional[str] = typer.Option(None, '--model-use', help='Where a segment may be sent (`source.rights.model-use`), strictest first. One of: none, local, cloud.'),
+        readers: Optional[list[str]] = typer.Option(None, '--readers', help='Readers. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        restricted: Optional[bool] = typer.Option(None, '--restricted/--no-restricted', help='Restricted. Default: false.'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Target Id. Default: "library".'),
+        target_kind: str = typer.Option(..., '--target-kind', help='RightsTarget. One of: library, document, segment.'),
     ) -> None:
         """Set Rights (POST /api/rights)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14009,8 +14191,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-effective")
     def rights_get_effective_get(
         ctx: typer.Context,
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
-        target_kind: str = typer.Option(..., "--target-kind", help="Query parameter: target_kind."),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Target Id.'),
+        target_kind: str = typer.Option(..., '--target-kind', help='Query parameter: target_kind.'),
     ) -> None:
         """Get Effective Rights (GET /api/rights/effective)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14025,7 +14207,7 @@ def register_generated_openapi_commands(
     @target_app.command("withdraw")
     def rights_withdraw_post(
         ctx: typer.Context,
-        record_id: str = typer.Argument(..., help="Path parameter: record_id."),
+        record_id: str = typer.Argument(..., help='Record Id'),
     ) -> None:
         """Withdraw Rights (POST /api/rights/{record_id}/withdraw)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14040,11 +14222,12 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='sandbox')
         existing_apps['sandbox'] = target_app
 
-    @target_app.command("grant-the-running-engine-access-to-a-security-scoped-library-folder")
-    def sandbox_grant_the_running_engine_access_to_a_security_scoped_library_folder_post(
+    @target_app.command("grant-the-running-engine-access-to-a-security-scoped-library-folder", hidden=True)
+    @target_app.command("create-security-scoped-access")
+    def sandbox_create_security_scoped_access_post(
         ctx: typer.Context,
-        bookmark: str = typer.Option(..., "--bookmark", help="Request field: bookmark."),
-        path: str = typer.Option(..., "--path", help="Request field: path."),
+        bookmark: str = typer.Option(..., '--bookmark', help='Base64-encoded app-scoped security-scoped bookmark data, minted by the app with NSURL.bookmarkData(options: .withSecurityScope). Same encoding as the FICHERO_LIBRARY_BOOKMARKS spawn payload.'),
+        path: str = typer.Option(..., '--path', help='Absolute path of the library folder the bookmark resolves to.'),
     ) -> None:
         """Grant the running engine access to a security-scoped library folder (POST /api/sandbox/security-scoped-access)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14069,10 +14252,10 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def schedules_list_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
-        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Query parameter: workflow_id."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Status.'),
+        workflow_id: Optional[str] = typer.Option(None, '--workflow-id', help='Workflow Id.'),
     ) -> None:
         """List Schedules (GET /api/schedules)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14089,13 +14272,13 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def schedules_create_post(
         ctx: typer.Context,
-        batch_items: Optional[str] = typer.Option(None, "--batch-items", help="Request field: batch_items."),
-        config: str = typer.Option(..., "--config", help="Request field: config."),
-        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
-        max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        use_batch: Optional[bool] = typer.Option(None, "--use-batch/--no-use-batch", help="Request field: use_batch."),
-        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
+        batch_items: Optional[str] = typer.Option(None, '--batch-items', help='Batch input items. JSON.'),
+        config: str = typer.Option(..., '--config', help='Schedule configuration request. JSON.'),
+        inputs: Optional[str] = typer.Option(None, '--inputs', help='Workflow inputs. JSON.'),
+        max_concurrent: Optional[int] = typer.Option(None, '--max-concurrent', help='Max concurrent batch items. Default: 5.'),
+        name: str = typer.Option(..., '--name', help='Display name for the schedule.'),
+        use_batch: Optional[bool] = typer.Option(None, '--use-batch/--no-use-batch', help='Use batch execution. Default: false.'),
+        workflow_id: str = typer.Option(..., '--workflow-id', help='ID of workflow to execute.'),
     ) -> None:
         """Create Schedule (POST /api/schedules)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14124,7 +14307,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def schedules_delete_delete(
         ctx: typer.Context,
-        schedule_id: str = typer.Argument(..., help="Path parameter: schedule_id."),
+        schedule_id: str = typer.Argument(..., help='Schedule Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Schedule (DELETE /api/schedules/{schedule_id})."""
@@ -14139,7 +14322,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def schedules_get_get(
         ctx: typer.Context,
-        schedule_id: str = typer.Argument(..., help="Path parameter: schedule_id."),
+        schedule_id: str = typer.Argument(..., help='Schedule Id'),
     ) -> None:
         """Get Schedule (GET /api/schedules/{schedule_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -14151,14 +14334,14 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def schedules_update_put(
         ctx: typer.Context,
-        schedule_id: str = typer.Argument(..., help="Path parameter: schedule_id."),
-        batch_items: Optional[str] = typer.Option(None, "--batch-items", help="Request field: batch_items."),
-        config: Optional[str] = typer.Option(None, "--config", help="Request field: config."),
-        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
-        max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        use_batch: Optional[bool] = typer.Option(None, "--use-batch/--no-use-batch", help="Request field: use_batch."),
-        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Request field: workflow_id."),
+        schedule_id: str = typer.Argument(..., help='Schedule Id'),
+        batch_items: Optional[str] = typer.Option(None, '--batch-items', help='Batch input items. JSON.'),
+        config: Optional[str] = typer.Option(None, '--config', help='Schedule configuration request. JSON.'),
+        inputs: Optional[str] = typer.Option(None, '--inputs', help='Workflow inputs. JSON.'),
+        max_concurrent: Optional[int] = typer.Option(None, '--max-concurrent', help='Max concurrent batch items.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Display name for the schedule.'),
+        use_batch: Optional[bool] = typer.Option(None, '--use-batch/--no-use-batch', help='Use batch execution.'),
+        workflow_id: Optional[str] = typer.Option(None, '--workflow-id', help='ID of workflow to execute.'),
     ) -> None:
         """Update Schedule (PUT /api/schedules/{schedule_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -14187,7 +14370,7 @@ def register_generated_openapi_commands(
     @target_app.command("pause")
     def schedules_pause_post(
         ctx: typer.Context,
-        schedule_id: str = typer.Argument(..., help="Path parameter: schedule_id."),
+        schedule_id: str = typer.Argument(..., help='Schedule Id'),
     ) -> None:
         """Pause Schedule (POST /api/schedules/{schedule_id}/pause)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14199,7 +14382,7 @@ def register_generated_openapi_commands(
     @target_app.command("resume")
     def schedules_resume_post(
         ctx: typer.Context,
-        schedule_id: str = typer.Argument(..., help="Path parameter: schedule_id."),
+        schedule_id: str = typer.Argument(..., help='Schedule Id'),
     ) -> None:
         """Resume Schedule (POST /api/schedules/{schedule_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14211,8 +14394,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-runs")
     def schedules_get_runs_get(
         ctx: typer.Context,
-        schedule_id: str = typer.Argument(..., help="Path parameter: schedule_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        schedule_id: str = typer.Argument(..., help='Schedule Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Get Schedule Runs (GET /api/schedules/{schedule_id}/runs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14226,7 +14409,7 @@ def register_generated_openapi_commands(
     @target_app.command("trigger")
     def schedules_trigger_post(
         ctx: typer.Context,
-        schedule_id: str = typer.Argument(..., help="Path parameter: schedule_id."),
+        schedule_id: str = typer.Argument(..., help='Schedule Id'),
     ) -> None:
         """Trigger Schedule (POST /api/schedules/{schedule_id}/trigger)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14244,18 +14427,18 @@ def register_generated_openapi_commands(
     @target_app.command("enhanced")
     def search_enhanced_post(
         ctx: typer.Context,
-        compile: Optional[bool] = typer.Option(None, "--compile/--no-compile", help="Request field: compile."),
-        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
-        highlight_results: Optional[bool] = typer.Option(None, "--highlight-results/--no-highlight-results", help="Request field: highlight_results."),
-        include: Optional[str] = typer.Option(None, "--include", help="Request field: include."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
-        min_score: Optional[float] = typer.Option(None, "--min-score", help="Request field: min_score."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Request field: offset."),
-        query: str = typer.Option(..., "--query", help="Request field: query."),
-        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
-        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Request field: sort_by."),
-        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Request field: sort_direction."),
-        use_fuzzy_match: Optional[bool] = typer.Option(None, "--use-fuzzy-match/--no-use-fuzzy-match", help="Request field: use_fuzzy_match."),
+        compile: Optional[bool] = typer.Option(None, '--compile/--no-compile', help='Compile. Default: false.'),
+        filters: Optional[str] = typer.Option(None, '--filters', help='Filters. JSON.'),
+        highlight_results: Optional[bool] = typer.Option(None, '--highlight-results/--no-highlight-results', help='Highlight Results. Default: true.'),
+        include: Optional[str] = typer.Option(None, '--include', help='Include. JSON.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit. Default: 10.'),
+        min_score: Optional[float] = typer.Option(None, '--min-score', help='Min Score. Default: 0.55.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset. Default: 0.'),
+        query: str = typer.Option(..., '--query', help='Query.'),
+        search_type: Optional[str] = typer.Option(None, '--search-type', help='Search Type. Default: "hybrid".'),
+        sort_by: Optional[str] = typer.Option(None, '--sort-by', help='Sort By. Default: "relevance".'),
+        sort_direction: Optional[str] = typer.Option(None, '--sort-direction', help='Sort Direction. Default: "desc".'),
+        use_fuzzy_match: Optional[bool] = typer.Option(None, '--use-fuzzy-match/--no-use-fuzzy-match', help='Use Fuzzy Match. Default: false.'),
     ) -> None:
         """Enhanced Search (POST /api/search)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14294,7 +14477,7 @@ def register_generated_openapi_commands(
     @target_app.command("embed-document")
     def search_embed_document_post(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Embed Document (POST /api/search/embed/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -14303,14 +14486,15 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("explain-a-query")
-    def search_explain_a_query_post(
+    @target_app.command("explain-a-query", hidden=True)
+    @target_app.command("explain")
+    def search_explain_post(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
-        query: str = typer.Option(..., "--query", help="Request field: query."),
-        rag_mode: Optional[str] = typer.Option(None, "--rag-mode", help="Request field: rag_mode."),
-        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
-        show_scores: Optional[bool] = typer.Option(None, "--show-scores/--no-show-scores", help="Request field: show_scores."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit. Default: 10.'),
+        query: str = typer.Option(..., '--query', help='Search query to explain.'),
+        rag_mode: Optional[str] = typer.Option(None, '--rag-mode', help='RAG search modes with different precision/recall tradeoffs. One of: conservative, balanced, speculative.'),
+        search_type: Optional[str] = typer.Option(None, '--search-type', help='Types of search performed. One of: semantic, fulltext, hybrid.'),
+        show_scores: Optional[bool] = typer.Option(None, '--show-scores/--no-show-scores', help='Include relevance scores. Default: true.'),
     ) -> None:
         """Explain a search query (POST /api/search/explain)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14332,13 +14516,14 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("explain-by-path")
-    def search_explain_by_path_get(
+    @target_app.command("explain-by-path", hidden=True)
+    @target_app.command("explain-path")
+    def search_explain_path_get(
         ctx: typer.Context,
-        query: str = typer.Argument(..., help="Path parameter: query."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        rag_mode: Optional[str] = typer.Option(None, "--rag-mode", help="Query parameter: rag_mode."),
-        search_type: Optional[str] = typer.Option(None, "--search-type", help="Query parameter: search_type."),
+        query: str = typer.Argument(..., help='Query'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        rag_mode: Optional[str] = typer.Option(None, '--rag-mode', help='Query parameter: rag_mode.'),
+        search_type: Optional[str] = typer.Option(None, '--search-type', help='Query parameter: search_type.'),
     ) -> None:
         """Explain search by path (GET /api/search/explain/{query})."""
         def op_call(client: FicheroClient) -> Any:
@@ -14354,7 +14539,7 @@ def register_generated_openapi_commands(
     @target_app.command("keyword-cloud")
     def search_keyword_cloud_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Keyword Cloud (GET /api/search/keywords)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14412,14 +14597,14 @@ def register_generated_openapi_commands(
     @target_app.command("save")
     def search_save_post(
         ctx: typer.Context,
-        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
-        is_smart_search: Optional[bool] = typer.Option(None, "--is-smart-search/--no-is-smart-search", help="Request field: is_smart_search."),
-        query: str = typer.Option(..., "--query", help="Request field: query."),
-        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
-        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Request field: sort_by."),
-        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Request field: sort_direction."),
-        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
+        filters: Optional[str] = typer.Option(None, '--filters', help='Filters. JSON.'),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path. Default: "/".'),
+        is_smart_search: Optional[bool] = typer.Option(None, '--is-smart-search/--no-is-smart-search', help='Is Smart Search. Default: true.'),
+        query: str = typer.Option(..., '--query', help='Query.'),
+        search_type: Optional[str] = typer.Option(None, '--search-type', help='Search Type. Default: "hybrid".'),
+        sort_by: Optional[str] = typer.Option(None, '--sort-by', help='Sort By. Default: "relevance".'),
+        sort_direction: Optional[str] = typer.Option(None, '--sort-direction', help='Sort Direction. Default: "desc".'),
+        sort_order: Optional[int] = typer.Option(None, '--sort-order', help='Sort Order. Default: 0.'),
     ) -> None:
         """Save Search (POST /api/search/saved)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14450,7 +14635,7 @@ def register_generated_openapi_commands(
     @target_app.command("reorder-saved-searches")
     def search_reorder_saved_searches_post(
         ctx: typer.Context,
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Query parameter: folder_path."),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path.'),
         body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
         body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
     ) -> None:
@@ -14467,7 +14652,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-saved")
     def search_delete_saved_delete(
         ctx: typer.Context,
-        search_id: str = typer.Argument(..., help="Path parameter: search_id."),
+        search_id: str = typer.Argument(..., help='Search Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Saved Search (DELETE /api/search/saved/{search_id})."""
@@ -14482,14 +14667,14 @@ def register_generated_openapi_commands(
     @target_app.command("update-saved")
     def search_update_saved_put(
         ctx: typer.Context,
-        search_id: str = typer.Argument(..., help="Path parameter: search_id."),
-        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
-        is_smart_search: Optional[bool] = typer.Option(None, "--is-smart-search/--no-is-smart-search", help="Request field: is_smart_search."),
-        query: Optional[str] = typer.Option(None, "--query", help="Request field: query."),
-        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
-        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Request field: sort_by."),
-        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Request field: sort_direction."),
+        search_id: str = typer.Argument(..., help='Search Id'),
+        filters: Optional[str] = typer.Option(None, '--filters', help='Filters. JSON.'),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path.'),
+        is_smart_search: Optional[bool] = typer.Option(None, '--is-smart-search/--no-is-smart-search', help='Is Smart Search.'),
+        query: Optional[str] = typer.Option(None, '--query', help='Query.'),
+        search_type: Optional[str] = typer.Option(None, '--search-type', help='Search Type.'),
+        sort_by: Optional[str] = typer.Option(None, '--sort-by', help='Sort By.'),
+        sort_direction: Optional[str] = typer.Option(None, '--sort-direction', help='Sort Direction.'),
     ) -> None:
         """Update Saved Search (PUT /api/search/saved/{search_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -14518,7 +14703,7 @@ def register_generated_openapi_commands(
     @target_app.command("duplicate-saved")
     def search_duplicate_saved_post(
         ctx: typer.Context,
-        search_id: str = typer.Argument(..., help="Path parameter: search_id."),
+        search_id: str = typer.Argument(..., help='Search Id'),
     ) -> None:
         """Duplicate Saved Search (POST /api/search/saved/{search_id}/duplicate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14541,18 +14726,18 @@ def register_generated_openapi_commands(
     @target_app.command("streaming")
     def search_streaming_post(
         ctx: typer.Context,
-        compile: Optional[bool] = typer.Option(None, "--compile/--no-compile", help="Request field: compile."),
-        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
-        highlight_results: Optional[bool] = typer.Option(None, "--highlight-results/--no-highlight-results", help="Request field: highlight_results."),
-        include: Optional[str] = typer.Option(None, "--include", help="Request field: include."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
-        min_score: Optional[float] = typer.Option(None, "--min-score", help="Request field: min_score."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Request field: offset."),
-        query: str = typer.Option(..., "--query", help="Request field: query."),
-        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
-        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Request field: sort_by."),
-        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Request field: sort_direction."),
-        use_fuzzy_match: Optional[bool] = typer.Option(None, "--use-fuzzy-match/--no-use-fuzzy-match", help="Request field: use_fuzzy_match."),
+        compile: Optional[bool] = typer.Option(None, '--compile/--no-compile', help='Compile. Default: false.'),
+        filters: Optional[str] = typer.Option(None, '--filters', help='Filters. JSON.'),
+        highlight_results: Optional[bool] = typer.Option(None, '--highlight-results/--no-highlight-results', help='Highlight Results. Default: true.'),
+        include: Optional[str] = typer.Option(None, '--include', help='Include. JSON.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit. Default: 10.'),
+        min_score: Optional[float] = typer.Option(None, '--min-score', help='Min Score. Default: 0.55.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset. Default: 0.'),
+        query: str = typer.Option(..., '--query', help='Query.'),
+        search_type: Optional[str] = typer.Option(None, '--search-type', help='Search Type. Default: "hybrid".'),
+        sort_by: Optional[str] = typer.Option(None, '--sort-by', help='Sort By. Default: "relevance".'),
+        sort_direction: Optional[str] = typer.Option(None, '--sort-direction', help='Sort Direction. Default: "desc".'),
+        use_fuzzy_match: Optional[bool] = typer.Option(None, '--use-fuzzy-match/--no-use-fuzzy-match', help='Use Fuzzy Match. Default: false.'),
     ) -> None:
         """Streaming Search (POST /api/search/stream)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14597,13 +14782,13 @@ def register_generated_openapi_commands(
     @target_app.command("list-in-scope")
     def segments_list_in_scope_get(
         ctx: typer.Context,
-        document_ids: Optional[str] = typer.Option(None, "--document-ids", help="Query parameter: document_ids."),
-        include_furniture: Optional[bool] = typer.Option(None, "--include-furniture/--no-include-furniture", help="Query parameter: include_furniture."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
-        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+        document_ids: Optional[str] = typer.Option(None, '--document-ids', help="Comma-separated document ids to list segments for. Either this or `parent_id`; `parent_id` resolves to a folder's descendants."),
+        include_furniture: Optional[bool] = typer.Option(None, '--include-furniture/--no-include-furniture', help='Include running heads, folio numbers and catchwords.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Restrict to one segment kind (region, line, word, ...)'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Page size; bounded on purpose.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        parent_id: Optional[str] = typer.Option(None, '--parent-id', help='A folder (or page-bearing document): its descendants are the scope.'),
+        pass_id: Optional[str] = typer.Option(None, '--pass-id', help='Restrict to one pass.'),
     ) -> None:
         """List Segments In Scope (GET /api/segments)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14623,7 +14808,7 @@ def register_generated_openapi_commands(
     @target_app.command("update-many")
     def segments_update_many_patch(
         ctx: typer.Context,
-        updates: str = typer.Option(..., "--updates", help="Request field: updates."),
+        updates: str = typer.Option(..., '--updates', help='One change per segment, each with its id and version. JSON.'),
     ) -> None:
         """Update Segments Many (PATCH /api/segments)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14632,7 +14817,7 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "updates": updates,
             }, {
-                "updates": {'items': {'$ref': '#/components/schemas/SegmentAttributeUpdate'}, 'type': 'array', 'minItems': 1, 'title': 'Updates', 'x-cli-required': True},
+                "updates": {'items': {'$ref': '#/components/schemas/SegmentAttributeUpdate'}, 'type': 'array', 'minItems': 1, 'title': 'Updates', 'description': 'One change per segment, each with its id and version.', 'x-cli-required': True},
             }, required=True)
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14640,13 +14825,13 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def segments_create_post(
         ctx: typer.Context,
-        anchor: str = typer.Option(..., "--anchor", help="Request field: anchor."),
-        baseline: Optional[str] = typer.Option(None, "--baseline", help="Request field: baseline."),
-        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
-        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
-        kind_raw: Optional[str] = typer.Option(None, "--kind-raw", help="Request field: kind_raw."),
-        parent_segment_id: Optional[str] = typer.Option(None, "--parent-segment-id", help="Request field: parent_segment_id."),
-        pass_id: str = typer.Option(..., "--pass-id", help="Request field: pass_id."),
+        anchor: str = typer.Option(..., '--anchor', help='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own. JSON.'),
+        baseline: Optional[str] = typer.Option(None, '--baseline', help="The line's baseline as [[x, y], ...] points in page coordinates. JSON."),
+        document_id: str = typer.Option(..., '--document-id', help='The document (page) the segment is on.'),
+        kind: str = typer.Option(..., '--kind', help="The segment's kind: region, line, word, ..."),
+        kind_raw: Optional[str] = typer.Option(None, '--kind-raw', help='The kind as the source format named it (e.g. a PAGE XML region type).'),
+        parent_segment_id: Optional[str] = typer.Option(None, '--parent-segment-id', help="The segment this one sits inside (a line's region)."),
+        pass_id: str = typer.Option(..., '--pass-id', help='The pass (layer) the segment joins.'),
     ) -> None:
         """Create Segment (POST /api/segments)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14662,12 +14847,12 @@ def register_generated_openapi_commands(
                 "pass_id": pass_id,
             }, {
                 "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': True},
-                "baseline": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Baseline', 'x-cli-required': False},
-                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
-                "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
-                "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'x-cli-required': False},
-                "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'x-cli-required': False},
-                "pass_id": {'type': 'string', 'title': 'Pass Id', 'x-cli-required': True},
+                "baseline": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Baseline', 'description': "The line's baseline as [[x, y], ...] points in page coordinates.", 'x-cli-required': False},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'description': 'The document (page) the segment is on.', 'x-cli-required': True},
+                "kind": {'type': 'string', 'title': 'Kind', 'description': "The segment's kind: region, line, word, ...", 'x-cli-required': True},
+                "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'description': 'The kind as the source format named it (e.g. a PAGE XML region type).', 'x-cli-required': False},
+                "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'description': "The segment this one sits inside (a line's region).", 'x-cli-required': False},
+                "pass_id": {'type': 'string', 'title': 'Pass Id', 'description': 'The pass (layer) the segment joins.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14675,9 +14860,9 @@ def register_generated_openapi_commands(
     @target_app.command("create-bulk")
     def segments_create_bulk_post(
         ctx: typer.Context,
-        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
-        pass_id: str = typer.Option(..., "--pass-id", help="Request field: pass_id."),
-        segments: str = typer.Option(..., "--segments", help="Request field: segments."),
+        document_id: str = typer.Option(..., '--document-id', help='The document (page) the segments are on.'),
+        pass_id: str = typer.Option(..., '--pass-id', help='The pass (layer) the segments join.'),
+        segments: str = typer.Option(..., '--segments', help='The segments to create, each with its kind and anchor. JSON.'),
     ) -> None:
         """Create Segments Bulk (POST /api/segments/bulk)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14688,9 +14873,9 @@ def register_generated_openapi_commands(
                 "pass_id": pass_id,
                 "segments": segments,
             }, {
-                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
-                "pass_id": {'type': 'string', 'title': 'Pass Id', 'x-cli-required': True},
-                "segments": {'items': {'$ref': '#/components/schemas/SegmentSpec'}, 'type': 'array', 'title': 'Segments', 'x-cli-required': True},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'description': 'The document (page) the segments are on.', 'x-cli-required': True},
+                "pass_id": {'type': 'string', 'title': 'Pass Id', 'description': 'The pass (layer) the segments join.', 'x-cli-required': True},
+                "segments": {'items': {'$ref': '#/components/schemas/SegmentSpec'}, 'type': 'array', 'title': 'Segments', 'description': 'The segments to create, each with its kind and anchor.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14698,9 +14883,9 @@ def register_generated_openapi_commands(
     @target_app.command("carry-across-match")
     def segments_carry_across_match_post(
         ctx: typer.Context,
-        expected_versions: str = typer.Option(..., "--expected-versions", help="Request field: expected_versions."),
-        kinds: str = typer.Option(..., "--kinds", help="Request field: kinds."),
-        match_id: str = typer.Option(..., "--match-id", help="Request field: match_id."),
+        expected_versions: str = typer.Option(..., '--expected-versions', help="Each matched segment's version as last read, {segment_id: version}. JSON."),
+        kinds: list[str] = typer.Option(..., '--kinds', help='What to carry: readings, annotations, ... A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        match_id: str = typer.Option(..., '--match-id', help='The match to carry across.'),
     ) -> None:
         """Carry Across Match (POST /api/segments/carry)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14711,9 +14896,9 @@ def register_generated_openapi_commands(
                 "kinds": kinds,
                 "match_id": match_id,
             }, {
-                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'x-cli-required': True},
-                "kinds": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Kinds', 'x-cli-required': True},
-                "match_id": {'type': 'string', 'title': 'Match Id', 'x-cli-required': True},
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': "Each matched segment's version as last read, {segment_id: version}.", 'x-cli-required': True},
+                "kinds": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Kinds', 'description': 'What to carry: readings, annotations, ...', 'x-cli-required': True},
+                "match_id": {'type': 'string', 'title': 'Match Id', 'description': 'The match to carry across.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14721,9 +14906,9 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def segments_delete_post(
         ctx: typer.Context,
-        expected_versions: str = typer.Option(..., "--expected-versions", help="Request field: expected_versions."),
-        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
-        segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
+        expected_versions: str = typer.Option(..., '--expected-versions', help="Each segment's version as last read, {segment_id: version}; a changed segment is refused. JSON."),
+        reason: Optional[str] = typer.Option(None, '--reason', help='A short note about the delete (kept in the audit log).'),
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The segments to delete. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Delete Segments (POST /api/segments/delete)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14734,9 +14919,9 @@ def register_generated_openapi_commands(
                 "reason": reason,
                 "segment_ids": segment_ids,
             }, {
-                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'x-cli-required': True},
-                "reason": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
-                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': "Each segment's version as last read, {segment_id: version}; a changed segment is refused.", 'x-cli-required': True},
+                "reason": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Reason', 'description': 'A short note about the delete (kept in the audit log).', 'x-cli-required': False},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'description': 'The segments to delete.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14744,11 +14929,11 @@ def register_generated_openapi_commands(
     @target_app.command("list-document")
     def segments_list_document_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        area: Optional[str] = typer.Option(None, "--area", help="Query parameter: area."),
-        artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Query parameter: artifact_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
-        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        area: Optional[str] = typer.Option(None, '--area', help="Restrict to a rectangle, 'x,y,w,h' in image fractions (an anchor's rect form) -- every segment whose box intersects it comes back."),
+        artifact_id: Optional[str] = typer.Option(None, '--artifact-id', help="Restrict to one artifact's boxes, or one real pass's source artifact."),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Restrict to one segment kind (region, line, word, ...)'),
+        pass_id: Optional[str] = typer.Option(None, '--pass-id', help='Restrict to one pass (legacy:<artifact_id>, or a real pass id)'),
     ) -> None:
         """List Document Segments (GET /api/segments/document/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -14765,8 +14950,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-document-matches")
     def segments_list_document_matches_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        state: Optional[str] = typer.Option(None, "--state", help="Query parameter: state."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        state: Optional[str] = typer.Option(None, '--state', help='proposed, accepted or rejected; all when omitted.'),
     ) -> None:
         """List Document Matches (GET /api/segments/document/{doc_id}/matches)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14780,11 +14965,11 @@ def register_generated_openapi_commands(
     @target_app.command("get-document-text")
     def segments_get_document_text_get(
         ctx: typer.Context,
-        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        include_furniture: Optional[bool] = typer.Option(None, "--include-furniture/--no-include-furniture", help="Query parameter: include_furniture."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
-        order: Optional[str] = typer.Option(None, "--order", help="Query parameter: order."),
-        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+        document_id: str = typer.Argument(..., help='Document Id'),
+        include_furniture: Optional[bool] = typer.Option(None, '--include-furniture/--no-include-furniture', help='Include running heads, folio numbers and catchwords.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Which kind of reading to join.'),
+        order: Optional[str] = typer.Option(None, '--order', help="Follow a named reading order (its id). Omit for box order, which is what the answer's `order: null` reports."),
+        pass_id: Optional[str] = typer.Option(None, '--pass-id', help='Read a named pass instead of the working one.'),
     ) -> None:
         """Get Document Text (GET /api/segments/document/{document_id}/text)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14801,10 +14986,10 @@ def register_generated_openapi_commands(
     @target_app.command("propose-match")
     def segments_propose_match_post(
         ctx: typer.Context,
-        certainty: Optional[float] = typer.Option(None, "--certainty", help="Request field: certainty."),
-        from_segment_id: str = typer.Option(..., "--from-segment-id", help="Request field: from_segment_id."),
-        note: Optional[str] = typer.Option(None, "--note", help="Request field: note."),
-        to_segment_id: str = typer.Option(..., "--to-segment-id", help="Request field: to_segment_id."),
+        certainty: Optional[float] = typer.Option(None, '--certainty', help='How sure the proposer is, 0 to 1.'),
+        from_segment_id: str = typer.Option(..., '--from-segment-id', help='One end of the match.'),
+        note: Optional[str] = typer.Option(None, '--note', help='A short note about the match (kept in the audit log).'),
+        to_segment_id: str = typer.Option(..., '--to-segment-id', help='The other end of the match.'),
     ) -> None:
         """Propose Match (POST /api/segments/matches)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14816,10 +15001,10 @@ def register_generated_openapi_commands(
                 "note": note,
                 "to_segment_id": to_segment_id,
             }, {
-                "certainty": {'type': 'number', 'nullable': True, 'title': 'Certainty', 'x-cli-required': False},
-                "from_segment_id": {'type': 'string', 'title': 'From Segment Id', 'x-cli-required': True},
-                "note": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Note', 'x-cli-required': False},
-                "to_segment_id": {'type': 'string', 'title': 'To Segment Id', 'x-cli-required': True},
+                "certainty": {'type': 'number', 'nullable': True, 'title': 'Certainty', 'description': 'How sure the proposer is, 0 to 1.', 'x-cli-required': False},
+                "from_segment_id": {'type': 'string', 'title': 'From Segment Id', 'description': 'One end of the match.', 'x-cli-required': True},
+                "note": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Note', 'description': 'A short note about the match (kept in the audit log).', 'x-cli-required': False},
+                "to_segment_id": {'type': 'string', 'title': 'To Segment Id', 'description': 'The other end of the match.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14827,7 +15012,7 @@ def register_generated_openapi_commands(
     @target_app.command("accept-match")
     def segments_accept_match_post(
         ctx: typer.Context,
-        match_id: str = typer.Argument(..., help="Path parameter: match_id."),
+        match_id: str = typer.Argument(..., help='Match Id'),
     ) -> None:
         """Accept Match (POST /api/segments/matches/{match_id}/accept)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14839,7 +15024,7 @@ def register_generated_openapi_commands(
     @target_app.command("reject-match")
     def segments_reject_match_post(
         ctx: typer.Context,
-        match_id: str = typer.Argument(..., help="Path parameter: match_id."),
+        match_id: str = typer.Argument(..., help='Match Id'),
     ) -> None:
         """Reject Match (POST /api/segments/matches/{match_id}/reject)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14851,9 +15036,9 @@ def register_generated_openapi_commands(
     @target_app.command("merge")
     def segments_merge_post(
         ctx: typer.Context,
-        expected_versions: str = typer.Option(..., "--expected-versions", help="Request field: expected_versions."),
-        keep_id: str = typer.Option(..., "--keep-id", help="Request field: keep_id."),
-        segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
+        expected_versions: str = typer.Option(..., '--expected-versions', help="Each segment's version as last read, {segment_id: version}; a changed segment is refused. JSON."),
+        keep_id: str = typer.Option(..., '--keep-id', help='The segment that survives the merge.'),
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The segments to merge. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Merge Segments (POST /api/segments/merge)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14864,9 +15049,9 @@ def register_generated_openapi_commands(
                 "keep_id": keep_id,
                 "segment_ids": segment_ids,
             }, {
-                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'x-cli-required': True},
-                "keep_id": {'type': 'string', 'title': 'Keep Id', 'x-cli-required': True},
-                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': "Each segment's version as last read, {segment_id: version}; a changed segment is refused.", 'x-cli-required': True},
+                "keep_id": {'type': 'string', 'title': 'Keep Id', 'description': 'The segment that survives the merge.', 'x-cli-required': True},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'description': 'The segments to merge.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14874,10 +15059,10 @@ def register_generated_openapi_commands(
     @target_app.command("create-pass")
     def segments_create_pass_post(
         ctx: typer.Context,
-        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        run_id: Optional[str] = typer.Option(None, "--run-id", help="Request field: run_id."),
-        source_artifact_id: Optional[str] = typer.Option(None, "--source-artifact-id", help="Request field: source_artifact_id."),
+        document_id: str = typer.Option(..., '--document-id', help='The document (page) the new pass belongs to.'),
+        name: str = typer.Option(..., '--name', help="The pass's name, as the Layers list shows it."),
+        run_id: Optional[str] = typer.Option(None, '--run-id', help='The run that produced this pass, when a run did.'),
+        source_artifact_id: Optional[str] = typer.Option(None, '--source-artifact-id', help='The artifact the pass was read from, when it came from one.'),
     ) -> None:
         """Create Pass (POST /api/segments/passes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14889,10 +15074,10 @@ def register_generated_openapi_commands(
                 "run_id": run_id,
                 "source_artifact_id": source_artifact_id,
             }, {
-                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
-                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
-                "run_id": {'type': 'string', 'nullable': True, 'title': 'Run Id', 'x-cli-required': False},
-                "source_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Source Artifact Id', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'description': 'The document (page) the new pass belongs to.', 'x-cli-required': True},
+                "name": {'type': 'string', 'title': 'Name', 'description': "The pass's name, as the Layers list shows it.", 'x-cli-required': True},
+                "run_id": {'type': 'string', 'nullable': True, 'title': 'Run Id', 'description': 'The run that produced this pass, when a run did.', 'x-cli-required': False},
+                "source_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Source Artifact Id', 'description': 'The artifact the pass was read from, when it came from one.', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14900,7 +15085,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-pass")
     def segments_delete_pass_delete(
         ctx: typer.Context,
-        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
+        pass_id: str = typer.Argument(..., help='Pass Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Pass (DELETE /api/segments/passes/{pass_id})."""
@@ -14915,8 +15100,8 @@ def register_generated_openapi_commands(
     @target_app.command("set-pass-ground-truth")
     def segments_set_pass_ground_truth_put(
         ctx: typer.Context,
-        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
-        ground_truth: bool = typer.Option(..., "--ground-truth/--no-ground-truth", help="Request field: ground_truth."),
+        pass_id: str = typer.Argument(..., help='Pass Id'),
+        ground_truth: bool = typer.Option(..., '--ground-truth/--no-ground-truth', help='True marks the pass ground truth; false unmarks it.'),
     ) -> None:
         """Set Pass Ground Truth (PUT /api/segments/passes/{pass_id}/ground-truth)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14925,7 +15110,7 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "ground_truth": ground_truth,
             }, {
-                "ground_truth": {'type': 'boolean', 'title': 'Ground Truth', 'x-cli-required': True},
+                "ground_truth": {'type': 'boolean', 'title': 'Ground Truth', 'description': 'True marks the pass ground truth; false unmarks it.', 'x-cli-required': True},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14933,7 +15118,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-pass-original")
     def segments_get_pass_original_get(
         ctx: typer.Context,
-        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
+        pass_id: str = typer.Argument(..., help='Pass Id'),
     ) -> None:
         """Get Pass Original (GET /api/segments/passes/{pass_id}/original)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14945,10 +15130,10 @@ def register_generated_openapi_commands(
     @target_app.command("split")
     def segments_split_post(
         ctx: typer.Context,
-        at_offset: Optional[int] = typer.Option(None, "--at-offset", help="Request field: at_offset."),
-        expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
-        parts: Optional[str] = typer.Option(None, "--parts", help="Request field: parts."),
-        segment_id: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+        at_offset: Optional[int] = typer.Option(None, '--at-offset', help="Split at this character of the line's reading instead of giving parts."),
+        expected_version: int = typer.Option(..., '--expected-version', help="The segment's version as last read; a changed segment is refused."),
+        parts: Optional[str] = typer.Option(None, '--parts', help='The parts to split it into, each with its own anchor (or give at_offset). Default: []. JSON.'),
+        segment_id: str = typer.Option(..., '--segment-id', help='The segment to split.'),
     ) -> None:
         """Split Segment (POST /api/segments/split)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14960,10 +15145,10 @@ def register_generated_openapi_commands(
                 "parts": parts,
                 "segment_id": segment_id,
             }, {
-                "at_offset": {'type': 'integer', 'nullable': True, 'title': 'At Offset', 'x-cli-required': False},
-                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
-                "parts": {'items': {'$ref': '#/components/schemas/SegmentSplitPart'}, 'type': 'array', 'title': 'Parts', 'default': [], 'x-cli-required': False},
-                "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
+                "at_offset": {'type': 'integer', 'nullable': True, 'title': 'At Offset', 'description': "Split at this character of the line's reading instead of giving parts.", 'x-cli-required': False},
+                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'description': "The segment's version as last read; a changed segment is refused.", 'x-cli-required': True},
+                "parts": {'items': {'$ref': '#/components/schemas/SegmentSplitPart'}, 'type': 'array', 'title': 'Parts', 'description': 'The parts to split it into, each with its own anchor (or give at_offset).', 'default': [], 'x-cli-required': False},
+                "segment_id": {'type': 'string', 'title': 'Segment Id', 'description': 'The segment to split.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14971,8 +15156,8 @@ def register_generated_openapi_commands(
     @target_app.command("undelete")
     def segments_undelete_post(
         ctx: typer.Context,
-        order_entries: Optional[str] = typer.Option(None, "--order-entries", help="Request field: order_entries."),
-        segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
+        order_entries: Optional[str] = typer.Option(None, '--order-entries', help='The reading-order entries the delete took out, written back where they were. JSON.'),
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The deleted segments to bring back. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Undelete Segments (POST /api/segments/undelete)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14982,8 +15167,8 @@ def register_generated_openapi_commands(
                 "order_entries": order_entries,
                 "segment_ids": segment_ids,
             }, {
-                "order_entries": {'items': {'$ref': '#/components/schemas/SegmentOrderEntryParams'}, 'type': 'array', 'title': 'Order Entries', 'x-cli-required': False},
-                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
+                "order_entries": {'items': {'$ref': '#/components/schemas/SegmentOrderEntryParams'}, 'type': 'array', 'title': 'Order Entries', 'description': 'The reading-order entries the delete took out, written back where they were.', 'x-cli-required': False},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'description': 'The deleted segments to bring back.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14991,7 +15176,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def segments_get_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
     ) -> None:
         """Get Segment (GET /api/segments/{segment_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -15003,18 +15188,18 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def segments_update_put(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
-        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
-        baseline: Optional[str] = typer.Option(None, "--baseline", help="Request field: baseline."),
-        direction: Optional[str] = typer.Option(None, "--direction", help="Request field: direction."),
-        expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
-        is_furniture: Optional[bool] = typer.Option(None, "--is-furniture/--no-is-furniture", help="Request field: is_furniture."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
-        kind_raw: Optional[str] = typer.Option(None, "--kind-raw", help="Request field: kind_raw."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        parent_segment_id: Optional[str] = typer.Option(None, "--parent-segment-id", help="Request field: parent_segment_id."),
-        script: Optional[str] = typer.Option(None, "--script", help="Request field: script."),
-        segment_id_2: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
+        anchor: Optional[str] = typer.Option(None, '--anchor', help='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own. JSON.'),
+        baseline: Optional[str] = typer.Option(None, '--baseline', help="The line's new baseline as [[x, y], ...] points. JSON."),
+        direction: Optional[str] = typer.Option(None, '--direction', help="The segment's writing direction."),
+        expected_version: int = typer.Option(..., '--expected-version', help="The segment's version as last read; a changed segment is refused."),
+        is_furniture: Optional[bool] = typer.Option(None, '--is-furniture/--no-is-furniture', help='True marks the segment as page furniture (running heads, folio numbers).'),
+        kind: Optional[str] = typer.Option(None, '--kind', help="The segment's new kind."),
+        kind_raw: Optional[str] = typer.Option(None, '--kind-raw', help='The kind as the source format named it.'),
+        language: Optional[str] = typer.Option(None, '--language', help="The segment's language, a BCP 47 tag."),
+        parent_segment_id: Optional[str] = typer.Option(None, '--parent-segment-id', help='The segment this one now sits inside.'),
+        script: Optional[str] = typer.Option(None, '--script', help="The segment's script, an ISO 15924 code."),
+        segment_id_2: str = typer.Option(..., '--segment-id', help='The segment to change.'),
     ) -> None:
         """Update Segment (PUT /api/segments/{segment_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -15034,28 +15219,29 @@ def register_generated_openapi_commands(
                 "segment_id": segment_id,
             }, {
                 "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
-                "baseline": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Baseline', 'x-cli-required': False},
-                "direction": {'type': 'string', 'nullable': True, 'title': 'Direction', 'x-cli-required': False},
-                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
-                "is_furniture": {'type': 'boolean', 'nullable': True, 'title': 'Is Furniture', 'x-cli-required': False},
-                "kind": {'type': 'string', 'nullable': True, 'title': 'Kind', 'x-cli-required': False},
-                "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'x-cli-required': False},
-                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
-                "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'x-cli-required': False},
-                "script": {'type': 'string', 'nullable': True, 'title': 'Script', 'x-cli-required': False},
-                "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
+                "baseline": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Baseline', 'description': "The line's new baseline as [[x, y], ...] points.", 'x-cli-required': False},
+                "direction": {'type': 'string', 'nullable': True, 'title': 'Direction', 'description': "The segment's writing direction.", 'x-cli-required': False},
+                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'description': "The segment's version as last read; a changed segment is refused.", 'x-cli-required': True},
+                "is_furniture": {'type': 'boolean', 'nullable': True, 'title': 'Is Furniture', 'description': 'True marks the segment as page furniture (running heads, folio numbers).', 'x-cli-required': False},
+                "kind": {'type': 'string', 'nullable': True, 'title': 'Kind', 'description': "The segment's new kind.", 'x-cli-required': False},
+                "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'description': 'The kind as the source format named it.', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The segment's language, a BCP 47 tag.", 'x-cli-required': False},
+                "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'description': 'The segment this one now sits inside.', 'x-cli-required': False},
+                "script": {'type': 'string', 'nullable': True, 'title': 'Script', 'description': "The segment's script, an ISO 15924 code.", 'x-cli-required': False},
+                "segment_id": {'type': 'string', 'title': 'Segment Id', 'description': 'The segment to change.', 'x-cli-required': True},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("a-s-picture-cut-to-its-shape")
-    def segments_a_s_picture_cut_to_its_shape_get(
+    @target_app.command("a-s-picture-cut-to-its-shape", hidden=True)
+    @target_app.command("get-picture")
+    def segments_get_picture_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
-        margin: Optional[float] = typer.Option(None, "--margin", help="Query parameter: margin."),
-        mask: Optional[bool] = typer.Option(None, "--mask/--no-mask", help="Query parameter: mask."),
-        size: Optional[int] = typer.Option(None, "--size", help="Query parameter: size."),
-        straighten: Optional[bool] = typer.Option(None, "--straighten/--no-straighten", help="Query parameter: straighten."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
+        margin: Optional[float] = typer.Option(None, '--margin', help='Extra room around the shape, as a fraction of its own size.'),
+        mask: Optional[bool] = typer.Option(None, '--mask/--no-mask', help='Make everything outside the polygon transparent.'),
+        size: Optional[int] = typer.Option(None, '--size', help='Largest edge in pixels; the default is bounded, not unlimited.'),
+        straighten: Optional[bool] = typer.Option(None, '--straighten/--no-straighten', help='Level the line along its baseline.'),
     ) -> None:
         """A segment's picture, cut to its shape (GET /api/segments/{segment_id}/picture)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15072,8 +15258,8 @@ def register_generated_openapi_commands(
     @target_app.command("list-readings")
     def segments_list_readings_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
-        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='Restrict to one reading kind.'),
     ) -> None:
         """List Segment Readings (GET /api/segments/{segment_id}/readings)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15087,9 +15273,9 @@ def register_generated_openapi_commands(
     @target_app.command("choose-reading")
     def segments_choose_reading_post(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
-        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
-        representation_id: str = typer.Option(..., "--representation-id", help="Request field: representation_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
+        kind: str = typer.Option(..., '--kind', help='The kind of reading chosen (e.g. transcription).'),
+        representation_id: str = typer.Option(..., '--representation-id', help='The reading to make the one that counts.'),
     ) -> None:
         """Choose Segment Reading (POST /api/segments/{segment_id}/readings/choice)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15099,8 +15285,8 @@ def register_generated_openapi_commands(
                 "kind": kind,
                 "representation_id": representation_id,
             }, {
-                "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
-                "representation_id": {'type': 'string', 'title': 'Representation Id', 'x-cli-required': True},
+                "kind": {'type': 'string', 'title': 'Kind', 'description': 'The kind of reading chosen (e.g. transcription).', 'x-cli-required': True},
+                "representation_id": {'type': 'string', 'title': 'Representation Id', 'description': 'The reading to make the one that counts.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -15108,7 +15294,7 @@ def register_generated_openapi_commands(
     @target_app.command("reference")
     def segments_reference_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
     ) -> None:
         """Segment Reference (GET /api/segments/{segment_id}/reference)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15120,9 +15306,9 @@ def register_generated_openapi_commands(
     @target_app.command("restore-version")
     def segments_restore_version_post(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
-        expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
-        version: int = typer.Option(..., "--version", help="Request field: version."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
+        expected_version: int = typer.Option(..., '--expected-version', help="The segment's current version as last read; a changed segment is refused."),
+        version: int = typer.Option(..., '--version', help='The earlier version to bring back.'),
     ) -> None:
         """Restore Segment Version (POST /api/segments/{segment_id}/restore-version)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15132,8 +15318,8 @@ def register_generated_openapi_commands(
                 "expected_version": expected_version,
                 "version": version,
             }, {
-                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
-                "version": {'type': 'integer', 'title': 'Version', 'x-cli-required': True},
+                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'description': "The segment's current version as last read; a changed segment is refused.", 'x-cli-required': True},
+                "version": {'type': 'integer', 'title': 'Version', 'description': 'The earlier version to bring back.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -15141,7 +15327,7 @@ def register_generated_openapi_commands(
     @target_app.command("statements")
     def segments_statements_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
     ) -> None:
         """Segment Statements (GET /api/segments/{segment_id}/statements)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15153,7 +15339,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-versions")
     def segments_list_versions_get(
         ctx: typer.Context,
-        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        segment_id: str = typer.Argument(..., help='Segment Id'),
     ) -> None:
         """List Segment Versions (GET /api/segments/{segment_id}/versions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15196,33 +15382,33 @@ def register_generated_openapi_commands(
     @target_app.command("set-ai-defaults")
     def settings_set_ai_defaults_put(
         ctx: typer.Context,
-        audio_model: Optional[str] = typer.Option(None, "--audio-model", help="Request field: audio_model."),
-        audio_provider: Optional[str] = typer.Option(None, "--audio-provider", help="Request field: audio_provider."),
-        embeddings_model: Optional[str] = typer.Option(None, "--embeddings-model", help="Request field: embeddings_model."),
-        embeddings_provider: Optional[str] = typer.Option(None, "--embeddings-provider", help="Request field: embeddings_provider."),
-        large_model: Optional[str] = typer.Option(None, "--large-model", help="Request field: large_model."),
-        large_provider: Optional[str] = typer.Option(None, "--large-provider", help="Request field: large_provider."),
-        local_model: Optional[str] = typer.Option(None, "--local-model", help="Request field: local_model."),
-        max_tokens: Optional[str] = typer.Option(None, "--max-tokens", help="Request field: max_tokens."),
-        medium_model: Optional[str] = typer.Option(None, "--medium-model", help="Request field: medium_model."),
-        medium_provider: Optional[str] = typer.Option(None, "--medium-provider", help="Request field: medium_provider."),
-        primary_language: Optional[str] = typer.Option(None, "--primary-language", help="Request field: primary_language."),
-        prompt_prefix: Optional[str] = typer.Option(None, "--prompt-prefix", help="Request field: prompt_prefix."),
-        small_model: Optional[str] = typer.Option(None, "--small-model", help="Request field: small_model."),
-        small_provider: Optional[str] = typer.Option(None, "--small-provider", help="Request field: small_provider."),
-        temperature: Optional[str] = typer.Option(None, "--temperature", help="Request field: temperature."),
-        text_model: Optional[str] = typer.Option(None, "--text-model", help="Request field: text_model."),
-        text_provider: Optional[str] = typer.Option(None, "--text-provider", help="Request field: text_provider."),
-        video_model: Optional[str] = typer.Option(None, "--video-model", help="Request field: video_model."),
-        video_provider: Optional[str] = typer.Option(None, "--video-provider", help="Request field: video_provider."),
-        vision_large_model: Optional[str] = typer.Option(None, "--vision-large-model", help="Request field: vision_large_model."),
-        vision_large_provider: Optional[str] = typer.Option(None, "--vision-large-provider", help="Request field: vision_large_provider."),
-        vision_medium_model: Optional[str] = typer.Option(None, "--vision-medium-model", help="Request field: vision_medium_model."),
-        vision_medium_provider: Optional[str] = typer.Option(None, "--vision-medium-provider", help="Request field: vision_medium_provider."),
-        vision_model: Optional[str] = typer.Option(None, "--vision-model", help="Request field: vision_model."),
-        vision_provider: Optional[str] = typer.Option(None, "--vision-provider", help="Request field: vision_provider."),
-        vision_small_model: Optional[str] = typer.Option(None, "--vision-small-model", help="Request field: vision_small_model."),
-        vision_small_provider: Optional[str] = typer.Option(None, "--vision-small-provider", help="Request field: vision_small_provider."),
+        audio_model: Optional[str] = typer.Option(None, '--audio-model', help='Audio Model.'),
+        audio_provider: Optional[str] = typer.Option(None, '--audio-provider', help='Audio Provider.'),
+        embeddings_model: Optional[str] = typer.Option(None, '--embeddings-model', help='Embeddings Model.'),
+        embeddings_provider: Optional[str] = typer.Option(None, '--embeddings-provider', help='Embeddings Provider.'),
+        large_model: Optional[str] = typer.Option(None, '--large-model', help='Large Model.'),
+        large_provider: Optional[str] = typer.Option(None, '--large-provider', help='Large Provider.'),
+        local_model: Optional[str] = typer.Option(None, '--local-model', help='Local Model.'),
+        max_tokens: Optional[str] = typer.Option(None, '--max-tokens', help='Max Tokens.'),
+        medium_model: Optional[str] = typer.Option(None, '--medium-model', help='Medium Model.'),
+        medium_provider: Optional[str] = typer.Option(None, '--medium-provider', help='Medium Provider.'),
+        primary_language: Optional[str] = typer.Option(None, '--primary-language', help='Primary Language.'),
+        prompt_prefix: Optional[str] = typer.Option(None, '--prompt-prefix', help='Prompt Prefix.'),
+        small_model: Optional[str] = typer.Option(None, '--small-model', help='Small Model.'),
+        small_provider: Optional[str] = typer.Option(None, '--small-provider', help='Small Provider.'),
+        temperature: Optional[str] = typer.Option(None, '--temperature', help='Temperature.'),
+        text_model: Optional[str] = typer.Option(None, '--text-model', help='Text Model.'),
+        text_provider: Optional[str] = typer.Option(None, '--text-provider', help='Text Provider.'),
+        video_model: Optional[str] = typer.Option(None, '--video-model', help='Video Model.'),
+        video_provider: Optional[str] = typer.Option(None, '--video-provider', help='Video Provider.'),
+        vision_large_model: Optional[str] = typer.Option(None, '--vision-large-model', help='Vision Large Model.'),
+        vision_large_provider: Optional[str] = typer.Option(None, '--vision-large-provider', help='Vision Large Provider.'),
+        vision_medium_model: Optional[str] = typer.Option(None, '--vision-medium-model', help='Vision Medium Model.'),
+        vision_medium_provider: Optional[str] = typer.Option(None, '--vision-medium-provider', help='Vision Medium Provider.'),
+        vision_model: Optional[str] = typer.Option(None, '--vision-model', help='Vision Model.'),
+        vision_provider: Optional[str] = typer.Option(None, '--vision-provider', help='Vision Provider.'),
+        vision_small_model: Optional[str] = typer.Option(None, '--vision-small-model', help='Vision Small Model.'),
+        vision_small_provider: Optional[str] = typer.Option(None, '--vision-small-provider', help='Vision Small Provider.'),
     ) -> None:
         """Set Ai Defaults (PUT /api/settings/ai-defaults)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15313,9 +15499,9 @@ def register_generated_openapi_commands(
     @target_app.command("set-compute-preferences")
     def settings_set_compute_preferences_put(
         ctx: typer.Context,
-        device: Optional[str] = typer.Option(None, "--device", help="Request field: device."),
-        effective: Optional[str] = typer.Option(None, "--effective", help="Request field: effective."),
-        priority: Optional[str] = typer.Option(None, "--priority", help="Request field: priority."),
+        device: Optional[str] = typer.Option(None, '--device', help='Device. One of: auto, cpu, gpu. Default: "auto".'),
+        effective: Optional[str] = typer.Option(None, '--effective', help='Effective. JSON.'),
+        priority: Optional[str] = typer.Option(None, '--priority', help='Priority. One of: fast, balanced, background. Default: "balanced".'),
     ) -> None:
         """Set Compute Preferences (PUT /api/settings/compute)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15347,16 +15533,16 @@ def register_generated_openapi_commands(
     @target_app.command("create-model-profile")
     def settings_create_model_profile_post(
         ctx: typer.Context,
-        api_base: Optional[str] = typer.Option(None, "--api-base", help="Request field: api_base."),
-        extra: Optional[str] = typer.Option(None, "--extra", help="Request field: extra."),
-        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
-        local_only: Optional[bool] = typer.Option(None, "--local-only/--no-local-only", help="Request field: local_only."),
-        model: str = typer.Option(..., "--model", help="Request field: model."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        params: Optional[str] = typer.Option(None, "--params", help="Request field: params."),
-        privacy: Optional[str] = typer.Option(None, "--privacy", help="Request field: privacy."),
-        provider: str = typer.Option(..., "--provider", help="Request field: provider."),
-        role: Optional[str] = typer.Option(None, "--role", help="Request field: role."),
+        api_base: Optional[str] = typer.Option(None, '--api-base', help='Api Base.'),
+        extra: Optional[str] = typer.Option(None, '--extra', help='Extra. JSON.'),
+        id: Optional[str] = typer.Option(None, '--id', help='Id.'),
+        local_only: Optional[bool] = typer.Option(None, '--local-only/--no-local-only', help='Local Only. Default: false.'),
+        model: str = typer.Option(..., '--model', help='Model.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        params: Optional[str] = typer.Option(None, '--params', help='LLM parameters supported by the current LLMConfig surface. JSON.'),
+        privacy: Optional[str] = typer.Option(None, '--privacy', help='Privacy policy attached to a named model profile. One of: standard, local_only, private.'),
+        provider: str = typer.Option(..., '--provider', help='Provider.'),
+        role: Optional[str] = typer.Option(None, '--role', help='Intended use/capability for a named model profile. One of: general, text, vision, audio, video, embeddings.'),
     ) -> None:
         """Create Model Profile (POST /api/settings/model-profiles)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15391,7 +15577,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-model-profile")
     def settings_delete_model_profile_delete(
         ctx: typer.Context,
-        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+        profile_id: str = typer.Argument(..., help='Profile Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Model Profile (DELETE /api/settings/model-profiles/{profile_id})."""
@@ -15406,7 +15592,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-model-profile")
     def settings_get_model_profile_get(
         ctx: typer.Context,
-        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+        profile_id: str = typer.Argument(..., help='Profile Id'),
     ) -> None:
         """Get Model Profile (GET /api/settings/model-profiles/{profile_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -15418,16 +15604,16 @@ def register_generated_openapi_commands(
     @target_app.command("update-model-profile")
     def settings_update_model_profile_put(
         ctx: typer.Context,
-        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
-        api_base: Optional[str] = typer.Option(None, "--api-base", help="Request field: api_base."),
-        extra: Optional[str] = typer.Option(None, "--extra", help="Request field: extra."),
-        local_only: Optional[bool] = typer.Option(None, "--local-only/--no-local-only", help="Request field: local_only."),
-        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        params: Optional[str] = typer.Option(None, "--params", help="Request field: params."),
-        privacy: Optional[str] = typer.Option(None, "--privacy", help="Request field: privacy."),
-        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
-        role: Optional[str] = typer.Option(None, "--role", help="Request field: role."),
+        profile_id: str = typer.Argument(..., help='Profile Id'),
+        api_base: Optional[str] = typer.Option(None, '--api-base', help='Api Base.'),
+        extra: Optional[str] = typer.Option(None, '--extra', help='Extra. JSON.'),
+        local_only: Optional[bool] = typer.Option(None, '--local-only/--no-local-only', help='Local Only.'),
+        model: Optional[str] = typer.Option(None, '--model', help='Model.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        params: Optional[str] = typer.Option(None, '--params', help='LLM parameters supported by the current LLMConfig surface. JSON.'),
+        privacy: Optional[str] = typer.Option(None, '--privacy', help='Privacy policy attached to a named model profile. One of: standard, local_only, private.'),
+        provider: Optional[str] = typer.Option(None, '--provider', help='Provider.'),
+        role: Optional[str] = typer.Option(None, '--role', help='Intended use/capability for a named model profile. One of: general, text, vision, audio, video, embeddings.'),
     ) -> None:
         """Update Model Profile (PUT /api/settings/model-profiles/{profile_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -15471,8 +15657,8 @@ def register_generated_openapi_commands(
     @target_app.command("set-sparql-endpoints")
     def settings_set_sparql_endpoints_put(
         ctx: typer.Context,
-        endpoints: Optional[str] = typer.Option(None, "--endpoints", help="Request field: endpoints."),
-        selected_url: Optional[str] = typer.Option(None, "--selected-url", help="Request field: selected_url."),
+        endpoints: Optional[str] = typer.Option(None, '--endpoints', help='Endpoints. JSON.'),
+        selected_url: Optional[str] = typer.Option(None, '--selected-url', help='URL of the endpoint the enrichment uses by default. Default: "https://query.wikidata.org/sparql".'),
     ) -> None:
         """Set Sparql Endpoints (PUT /api/settings/sparql-endpoints)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15508,13 +15694,13 @@ def register_generated_openapi_commands(
     @target_app.command("declare")
     def signs_declare_post(
         ctx: typer.Context,
-        code_point: Optional[str] = typer.Option(None, "--code-point", help="Request field: code_point."),
-        list_references: Optional[str] = typer.Option(None, "--list-references", help="Request field: list_references."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
-        picture_segment_id: str = typer.Option(..., "--picture-segment-id", help="Request field: picture_segment_id."),
-        variant: Optional[str] = typer.Option(None, "--variant", help="Request field: variant."),
-        variant_of: Optional[str] = typer.Option(None, "--variant-of", help="Request field: variant_of."),
+        code_point: Optional[str] = typer.Option(None, '--code-point', help='Code Point.'),
+        list_references: Optional[str] = typer.Option(None, '--list-references', help='List References. JSON.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+        notes: Optional[str] = typer.Option(None, '--notes', help='Notes.'),
+        picture_segment_id: str = typer.Option(..., '--picture-segment-id', help='Picture Segment Id.'),
+        variant: Optional[str] = typer.Option(None, '--variant', help='Variant.'),
+        variant_of: Optional[str] = typer.Option(None, '--variant-of', help='Variant Of.'),
     ) -> None:
         """Declare Sign (POST /api/signs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15543,7 +15729,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-instances")
     def signs_list_instances_get(
         ctx: typer.Context,
-        sign_id: str = typer.Argument(..., help="Path parameter: sign_id."),
+        sign_id: str = typer.Argument(..., help='Sign Id'),
     ) -> None:
         """List Sign Instances (GET /api/signs/{sign_id}/instances)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15555,7 +15741,7 @@ def register_generated_openapi_commands(
     @target_app.command("withdraw")
     def signs_withdraw_post(
         ctx: typer.Context,
-        sign_id: str = typer.Argument(..., help="Path parameter: sign_id."),
+        sign_id: str = typer.Argument(..., help='Sign Id'),
     ) -> None:
         """Withdraw Sign (POST /api/signs/{sign_id}/withdraw)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15573,10 +15759,10 @@ def register_generated_openapi_commands(
     @target_app.command("put")
     def source_settings_put_put(
         ctx: typer.Context,
-        key: str = typer.Option(..., "--key", help="Request field: key."),
-        level: str = typer.Option(..., "--level", help="Request field: level."),
-        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
-        value: Optional[str] = typer.Option(None, "--value", help="Request field: value."),
+        key: str = typer.Option(..., '--key', help='Key.'),
+        level: str = typer.Option(..., '--level', help='Level.'),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='Target Id.'),
+        value: Optional[str] = typer.Option(None, '--value', help='Value.'),
     ) -> None:
         """Put Source Setting (PUT /api/source-settings)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15599,8 +15785,8 @@ def register_generated_openapi_commands(
     @target_app.command("resolve")
     def source_settings_resolve_get(
         ctx: typer.Context,
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
-        segment_id: Optional[str] = typer.Option(None, "--segment-id", help="Query parameter: segment_id."),
+        document_id: Optional[str] = typer.Option(None, '--document-id', help='The document, when no segment.'),
+        segment_id: Optional[str] = typer.Option(None, '--segment-id', help='The segment to resolve for.'),
     ) -> None:
         """Resolve Source Settings (GET /api/source-settings/resolve)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15632,11 +15818,11 @@ def register_generated_openapi_commands(
     @target_app.command("upsert")
     def sources_upsert_post(
         ctx: typer.Context,
-        document_type: Optional[str] = typer.Option(None, "--document-type", help="Request field: document_type."),
-        file_path: str = typer.Option(..., "--file-path", help="Request field: file_path."),
-        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        title: str = typer.Option(..., "--title", help="Request field: title."),
+        document_type: Optional[str] = typer.Option(None, '--document-type', help='Document Type. Default: "source".'),
+        file_path: str = typer.Option(..., '--file-path', help='File Path.'),
+        id: Optional[str] = typer.Option(None, '--id', help='Id.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        title: str = typer.Option(..., '--title', help='Title.'),
     ) -> None:
         """Upsert Source (POST /api/sources)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15661,7 +15847,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def sources_delete_delete(
         ctx: typer.Context,
-        source_id: str = typer.Argument(..., help="Path parameter: source_id."),
+        source_id: str = typer.Argument(..., help='Source Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Source (DELETE /api/sources/{source_id})."""
@@ -15676,7 +15862,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def sources_get_get(
         ctx: typer.Context,
-        source_id: str = typer.Argument(..., help="Path parameter: source_id."),
+        source_id: str = typer.Argument(..., help='Source Id'),
     ) -> None:
         """Get Source (GET /api/sources/{source_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -15688,12 +15874,12 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def sources_update_put(
         ctx: typer.Context,
-        source_id: str = typer.Argument(..., help="Path parameter: source_id."),
-        document_type: Optional[str] = typer.Option(None, "--document-type", help="Request field: document_type."),
-        file_path: str = typer.Option(..., "--file-path", help="Request field: file_path."),
-        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        title: str = typer.Option(..., "--title", help="Request field: title."),
+        source_id: str = typer.Argument(..., help='Source Id'),
+        document_type: Optional[str] = typer.Option(None, '--document-type', help='Document Type. Default: "source".'),
+        file_path: str = typer.Option(..., '--file-path', help='File Path.'),
+        id: Optional[str] = typer.Option(None, '--id', help='Id.'),
+        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
+        title: str = typer.Option(..., '--title', help='Title.'),
     ) -> None:
         """Update Source (PUT /api/sources/{source_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -15752,7 +15938,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-display-image")
     def storage_get_display_image_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Get Display Image (GET /api/storage/display/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -15775,8 +15961,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-snapshots")
     def storage_get_snapshots_get(
         ctx: typer.Context,
-        include_expired: Optional[bool] = typer.Option(None, "--include-expired/--no-include-expired", help="Query parameter: include_expired."),
-        library_name: Optional[str] = typer.Option(None, "--library-name", help="Query parameter: library_name."),
+        include_expired: Optional[bool] = typer.Option(None, '--include-expired/--no-include-expired', help='Include Expired.'),
+        library_name: Optional[str] = typer.Option(None, '--library-name', help='Library Name.'),
     ) -> None:
         """Get Snapshots (GET /api/storage/snapshots)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15791,12 +15977,12 @@ def register_generated_openapi_commands(
     @target_app.command("create-snapshot")
     def storage_create_snapshot_post(
         ctx: typer.Context,
-        auto_expire_days: Optional[int] = typer.Option(None, "--auto-expire-days", help="Query parameter: auto_expire_days."),
-        initiator: Optional[str] = typer.Option(None, "--initiator", help="Query parameter: initiator."),
-        initiator_id: Optional[str] = typer.Option(None, "--initiator-id", help="Query parameter: initiator_id."),
-        library_path: str = typer.Option(..., "--library-path", help="Query parameter: library_path."),
-        reason: Optional[str] = typer.Option(None, "--reason", help="Query parameter: reason."),
-        run_id: Optional[str] = typer.Option(None, "--run-id", help="Query parameter: run_id."),
+        auto_expire_days: Optional[int] = typer.Option(None, '--auto-expire-days', help='Auto Expire Days.'),
+        initiator: Optional[str] = typer.Option(None, '--initiator', help='Query parameter: initiator.'),
+        initiator_id: Optional[str] = typer.Option(None, '--initiator-id', help='Initiator Id.'),
+        library_path: str = typer.Option(..., '--library-path', help='Path to the .fichero package.'),
+        reason: Optional[str] = typer.Option(None, '--reason', help='Reason for the snapshot.'),
+        run_id: Optional[str] = typer.Option(None, '--run-id', help='Run Id.'),
     ) -> None:
         """Create Snapshot (POST /api/storage/snapshots)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15815,7 +16001,7 @@ def register_generated_openapi_commands(
     @target_app.command("remove-snapshot")
     def storage_remove_snapshot_delete(
         ctx: typer.Context,
-        snapshot_id: str = typer.Argument(..., help="Path parameter: snapshot_id."),
+        snapshot_id: str = typer.Argument(..., help='Snapshot Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Remove Snapshot (DELETE /api/storage/snapshots/{snapshot_id})."""
@@ -15830,7 +16016,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-snapshot")
     def storage_get_snapshot_get(
         ctx: typer.Context,
-        snapshot_id: str = typer.Argument(..., help="Path parameter: snapshot_id."),
+        snapshot_id: str = typer.Argument(..., help='Snapshot Id'),
     ) -> None:
         """Get Snapshot (GET /api/storage/snapshots/{snapshot_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -15842,8 +16028,8 @@ def register_generated_openapi_commands(
     @target_app.command("pin-snapshot")
     def storage_pin_snapshot_patch(
         ctx: typer.Context,
-        snapshot_id: str = typer.Argument(..., help="Path parameter: snapshot_id."),
-        pinned: Optional[bool] = typer.Option(None, "--pinned/--no-pinned", help="Query parameter: pinned."),
+        snapshot_id: str = typer.Argument(..., help='Snapshot Id'),
+        pinned: Optional[bool] = typer.Option(None, '--pinned/--no-pinned', help='Pinned.'),
     ) -> None:
         """Pin Snapshot (PATCH /api/storage/snapshots/{snapshot_id}/pin)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15857,7 +16043,7 @@ def register_generated_openapi_commands(
     @target_app.command("restore-library-snapshot")
     def storage_restore_library_snapshot_post(
         ctx: typer.Context,
-        snapshot_id: str = typer.Argument(..., help="Path parameter: snapshot_id."),
+        snapshot_id: str = typer.Argument(..., help='Snapshot Id'),
     ) -> None:
         """Restore Library Snapshot (POST /api/storage/snapshots/{snapshot_id}/restore)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15869,7 +16055,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-source-file")
     def storage_get_source_file_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Get Source File (GET /api/storage/source/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -15892,7 +16078,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-thumbnail")
     def storage_get_thumbnail_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
     ) -> None:
         """Get Thumbnail (GET /api/storage/thumbnail/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -15907,8 +16093,9 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='sync-folders')
         existing_apps['sync-folders'] = target_app
 
-    @target_app.command("the-project-s-synced-and-their-state")
-    def sync_folders_the_project_s_synced_and_their_state_get(
+    @target_app.command("the-project-s-synced-and-their-state", hidden=True)
+    @target_app.command("list")
+    def sync_folders_list_get(
         ctx: typer.Context,
     ) -> None:
         """The project's synced folders and their state (GET /api/sync-folders)."""
@@ -15918,12 +16105,13 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("tie-the-project-to-a-on-the-engine-s-disk")
-    def sync_folders_tie_the_project_to_a_on_the_engine_s_disk_post(
+    @target_app.command("tie-the-project-to-a-on-the-engine-s-disk", hidden=True)
+    @target_app.command("tie")
+    def sync_folders_tie_post(
         ctx: typer.Context,
-        formats: str = typer.Option(..., "--formats", help="Request field: formats."),
-        mode: Optional[str] = typer.Option(None, "--mode", help="Request field: mode."),
-        path: str = typer.Option(..., "--path", help="Request field: path."),
+        formats: list[str] = typer.Option(..., '--formats', help='What to write there: pagexml, alto and/or tei (may be none when the folder is kept arranged) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        mode: Optional[str] = typer.Option(None, '--mode', help='index: files stay where they are; keep-arranged: Fichero also moves and renames files inside the folder to follow the project\'s folders. One of: index, keep-arranged. Default: "index".'),
+        path: str = typer.Option(..., '--path', help="A full path to a folder on the engine's disk; made if it is not there."),
     ) -> None:
         """Tie the project to a folder on the engine's disk (POST /api/sync-folders)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15941,8 +16129,9 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("documents-holding-the-same-file-of-a-synced-a-dry-run-nothing-changes")
-    def sync_folders_documents_holding_the_same_file_of_a_synced_a_dry_run_nothing_changes_get(
+    @target_app.command("documents-holding-the-same-file-of-a-synced-a-dry-run-nothing-changes", hidden=True)
+    @target_app.command("get-duplicates")
+    def sync_folders_get_duplicates_get(
         ctx: typer.Context,
     ) -> None:
         """Documents holding the same file of a synced folder (a dry run: nothing changes) (GET /api/sync-folders/duplicates)."""
@@ -15952,10 +16141,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("send-duplicates-of-a-synced-s-files-to-the-trash-undoable")
-    def sync_folders_send_duplicates_of_a_synced_s_files_to_the_trash_undoable_post(
+    @target_app.command("send-duplicates-of-a-synced-s-files-to-the-trash-undoable", hidden=True)
+    @target_app.command("remove-duplicates")
+    def sync_folders_remove_duplicates_post(
         ctx: typer.Context,
-        document_ids: str = typer.Option(..., "--document-ids", help="Request field: document_ids."),
+        document_ids: list[str] = typer.Option(..., '--document-ids', help='documents to send to the trash, each one the dry run lists under `remove`. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Send duplicates of a synced folder's files to the trash (undoable) (POST /api/sync-folders/duplicates/remove)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15969,10 +16159,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("untie-a-synced-its-files-stay-on-disk")
-    def sync_folders_untie_a_synced_its_files_stay_on_disk_delete(
+    @target_app.command("untie-a-synced-its-files-stay-on-disk", hidden=True)
+    @target_app.command("untie")
+    def sync_folders_untie_delete(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Untie a synced folder (its files stay on disk) (DELETE /api/sync-folders/{folder_id})."""
@@ -15984,10 +16175,11 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("what-keeping-the-arranged-would-move-now-a-dry-run-nothing-moves")
-    def sync_folders_what_keeping_the_arranged_would_move_now_a_dry_run_nothing_moves_get(
+    @target_app.command("what-keeping-the-arranged-would-move-now-a-dry-run-nothing-moves", hidden=True)
+    @target_app.command("get-arrangement")
+    def sync_folders_get_arrangement_get(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
     ) -> None:
         """What keeping the folder arranged would move now (a dry run: nothing moves) (GET /api/sync-folders/{folder_id}/arrangement)."""
         def op_call(client: FicheroClient) -> Any:
@@ -15996,10 +16188,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("whether-intake-is-on-and-what-it-would-bring-in")
-    def sync_folders_whether_intake_is_on_and_what_it_would_bring_in_get(
+    @target_app.command("whether-intake-is-on-and-what-it-would-bring-in", hidden=True)
+    @target_app.command("get-intake")
+    def sync_folders_get_intake_get(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
     ) -> None:
         """Whether intake is on, and what it would bring in (GET /api/sync-folders/{folder_id}/intake)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16008,11 +16201,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("switch-intake-on-or-off-for-a-synced")
-    def sync_folders_switch_intake_on_or_off_for_a_synced_put(
+    @target_app.command("switch-intake-on-or-off-for-a-synced", hidden=True)
+    @target_app.command("put-intake")
+    def sync_folders_put_intake_put(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        on: bool = typer.Option(..., "--on/--no-on", help="Request field: on."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
+        on: bool = typer.Option(..., '--on/--no-on', help='Take files in from the folder: their edits come in as passes.'),
     ) -> None:
         """Switch intake on or off for a synced folder (PUT /api/sync-folders/{folder_id}/intake)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16026,11 +16220,12 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("keep-a-synced-as-index-or-keep-arranged")
-    def sync_folders_keep_a_synced_as_index_or_keep_arranged_put(
+    @target_app.command("keep-a-synced-as-index-or-keep-arranged", hidden=True)
+    @target_app.command("put-mode")
+    def sync_folders_put_mode_put(
         ctx: typer.Context,
-        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
-        mode: str = typer.Option(..., "--mode", help="Request field: mode."),
+        folder_id: str = typer.Argument(..., help='Folder Id'),
+        mode: str = typer.Option(..., '--mode', help='index or keep-arranged. One of: index, keep-arranged.'),
     ) -> None:
         """Keep a synced folder as Index or Keep arranged (PUT /api/sync-folders/{folder_id}/mode)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16050,13 +16245,14 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='tasks')
         existing_apps['tasks'] = target_app
 
-    @target_app.command("list-background")
-    def tasks_list_background_get(
+    @target_app.command("list-background", hidden=True)
+    @target_app.command("list")
+    def tasks_list_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
-        task_type: Optional[str] = typer.Option(None, "--task-type", help="Query parameter: task_type."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Maximum items to return.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Number of items to skip.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Filter by status (pending, running, completed, failed, cancelled)'),
+        task_type: Optional[str] = typer.Option(None, '--task-type', help='Filter by task type (reindex, metrics, repair)'),
     ) -> None:
         """List background tasks (GET /api/tasks)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16070,12 +16266,13 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("create-knowledge-graph-metrics-job")
-    def tasks_create_knowledge_graph_metrics_job_post(
+    @target_app.command("create-knowledge-graph-metrics-job", hidden=True)
+    @target_app.command("create-kg-metrics")
+    def tasks_create_kg_metrics_post(
         ctx: typer.Context,
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
-        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
+        name: Optional[str] = typer.Option(None, '--name', help='Optional display name for the task.'),
+        options: Optional[str] = typer.Option(None, '--options', help='Task-specific options. JSON.'),
+        priority: Optional[int] = typer.Option(None, '--priority', help='Priority (lower = higher priority) Default: 0.'),
     ) -> None:
         """Create knowledge graph metrics job (POST /api/tasks/kg-metrics)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16096,7 +16293,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-kg-metrics-data")
     def tasks_get_kg_metrics_data_get(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """Get KG metrics data (GET /api/tasks/kg-metrics/{task_id}/data)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16105,12 +16302,13 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("trigger-metrics-recomputation")
-    def tasks_trigger_metrics_recomputation_post(
+    @target_app.command("trigger-metrics-recomputation", hidden=True)
+    @target_app.command("create-metrics")
+    def tasks_create_metrics_post(
         ctx: typer.Context,
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
-        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
+        name: Optional[str] = typer.Option(None, '--name', help='Optional display name for the task.'),
+        options: Optional[str] = typer.Option(None, '--options', help='Task-specific options. JSON.'),
+        priority: Optional[int] = typer.Option(None, '--priority', help='Priority (lower = higher priority) Default: 0.'),
     ) -> None:
         """Trigger metrics recomputation (POST /api/tasks/metrics)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16131,7 +16329,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-metrics-data")
     def tasks_get_metrics_data_get(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """Get metrics data (GET /api/tasks/metrics/{task_id}/data)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16140,12 +16338,13 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("create-frame-re-anchor-job")
-    def tasks_create_frame_re_anchor_job_post(
+    @target_app.command("create-frame-re-anchor-job", hidden=True)
+    @target_app.command("create-reanchor")
+    def tasks_create_reanchor_post(
         ctx: typer.Context,
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
-        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
+        name: Optional[str] = typer.Option(None, '--name', help='Optional display name for the task.'),
+        options: Optional[str] = typer.Option(None, '--options', help='Task-specific options. JSON.'),
+        priority: Optional[int] = typer.Option(None, '--priority', help='Priority (lower = higher priority) Default: 0.'),
     ) -> None:
         """Create frame re-anchor job (POST /api/tasks/reanchor)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16163,12 +16362,13 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("create-reindex-job")
-    def tasks_create_reindex_job_post(
+    @target_app.command("create-reindex-job", hidden=True)
+    @target_app.command("create-reindex")
+    def tasks_create_reindex_post(
         ctx: typer.Context,
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
-        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
+        name: Optional[str] = typer.Option(None, '--name', help='Optional display name for the task.'),
+        options: Optional[str] = typer.Option(None, '--options', help='Task-specific options. JSON.'),
+        priority: Optional[int] = typer.Option(None, '--priority', help='Priority (lower = higher priority) Default: 0.'),
     ) -> None:
         """Create reindex job (POST /api/tasks/reindex)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16189,7 +16389,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-reindex-progress")
     def tasks_get_reindex_progress_get(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """Get reindex progress (GET /api/tasks/reindex/{task_id}/progress)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16198,12 +16398,13 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("create-vector-repair-job")
-    def tasks_create_vector_repair_job_post(
+    @target_app.command("create-vector-repair-job", hidden=True)
+    @target_app.command("create-vector-repair")
+    def tasks_create_vector_repair_post(
         ctx: typer.Context,
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
-        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
+        name: Optional[str] = typer.Option(None, '--name', help='Optional display name for the task.'),
+        options: Optional[str] = typer.Option(None, '--options', help='Task-specific options. JSON.'),
+        priority: Optional[int] = typer.Option(None, '--priority', help='Priority (lower = higher priority) Default: 0.'),
     ) -> None:
         """Create vector repair job (POST /api/tasks/vector-repair)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16224,7 +16425,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-vector-repair-progress")
     def tasks_get_vector_repair_progress_get(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """Get vector repair progress (GET /api/tasks/vector-repair/{task_id}/progress)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16233,10 +16434,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("delete-completed")
-    def tasks_delete_completed_delete(
+    @target_app.command("delete-completed", hidden=True)
+    @target_app.command("delete")
+    def tasks_delete_delete(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete completed task (DELETE /api/tasks/{task_id})."""
@@ -16248,10 +16450,11 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-status")
-    def tasks_get_status_get(
+    @target_app.command("get-status", hidden=True)
+    @target_app.command("get")
+    def tasks_get_get(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """Get task status (GET /api/tasks/{task_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -16260,10 +16463,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("cancel-pending")
-    def tasks_cancel_pending_post(
+    @target_app.command("cancel-pending", hidden=True)
+    @target_app.command("cancel")
+    def tasks_cancel_post(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """Cancel pending task (POST /api/tasks/{task_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16275,7 +16479,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-result")
     def tasks_get_result_get(
         ctx: typer.Context,
-        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+        task_id: str = typer.Argument(..., help='Task Id'),
     ) -> None:
         """Get task result (GET /api/tasks/{task_id}/result)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16304,7 +16508,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def topics_get_get(
         ctx: typer.Context,
-        topic_id: str = typer.Argument(..., help="Path parameter: topic_id."),
+        topic_id: str = typer.Argument(..., help='Topic Id'),
     ) -> None:
         """Get Topic (GET /api/topics/{topic_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -16319,10 +16523,11 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='training')
         existing_apps['training'] = target_app
 
-    @target_app.command("a-job-s-phase-and-outcome")
-    def training_a_job_s_phase_and_outcome_get(
+    @target_app.command("a-job-s-phase-and-outcome", hidden=True)
+    @target_app.command("job-status")
+    def training_job_status_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """A training job's phase and outcome (GET /api/training/jobs/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -16331,10 +16536,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("stop-a-job-cancels-its-job-on-hugging-face")
-    def training_stop_a_job_cancels_its_job_on_hugging_face_post(
+    @target_app.command("stop-a-job-cancels-its-job-on-hugging-face", hidden=True)
+    @target_app.command("cancel-job")
+    def training_cancel_job_post(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Stop a training job (cancels its Job on Hugging Face) (POST /api/training/jobs/{job_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16343,21 +16549,22 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("train-a-kraken-reader-on-hugging-face-jobs")
-    def training_train_a_kraken_reader_on_hugging_face_jobs_post(
+    @target_app.command("train-a-kraken-reader-on-hugging-face-jobs", hidden=True)
+    @target_app.command("start-kraken")
+    def training_start_kraken_post(
         ctx: typer.Context,
-        base: Optional[str] = typer.Option(None, "--base", help="Request field: base."),
-        batch_size: Optional[int] = typer.Option(None, "--batch-size", help="Request field: batch_size."),
-        display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
-        flavor: Optional[str] = typer.Option(None, "--flavor", help="Request field: flavor."),
-        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        not_for_release: Optional[bool] = typer.Option(None, "--not-for-release/--no-not-for-release", help="Request field: not_for_release."),
-        pages_may_leave: Optional[bool] = typer.Option(None, "--pages-may-leave/--no-pages-may-leave", help="Request field: pages_may_leave."),
-        release_note: Optional[str] = typer.Option(None, "--release-note", help="Request field: release_note."),
-        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
-        teacher: str = typer.Option(..., "--teacher", help="Request field: teacher."),
-        timeout: Optional[str] = typer.Option(None, "--timeout", help="Request field: timeout."),
+        base: Optional[str] = typer.Option(None, '--base', help='The Kraken reader to start from (a model id); none trains from nothing.'),
+        batch_size: Optional[int] = typer.Option(None, '--batch-size', help="Lines per step, as on this Mac; none: the largest measured to fit the hardware's GPU (8 on a 16 GB T4), else ketos's 16."),
+        display_name: Optional[str] = typer.Option(None, '--display-name', help='Display Name.'),
+        flavor: Optional[str] = typer.Option(None, '--flavor', help='Hugging Face hardware. Default: "t4-small".'),
+        held_out_ids: Optional[list[str]] = typer.Option(None, '--held-out-ids', help='Pages kept home as the test; never sent. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help='A short name for the trained reader\'s file. Default: "reader".'),
+        not_for_release: Optional[bool] = typer.Option(None, '--not-for-release/--no-not-for-release', help='The trained model may not be released. Default: true.'),
+        pages_may_leave: Optional[bool] = typer.Option(None, '--pages-may-leave/--no-pages-may-leave', help="The person's yes for these pages to go to Hugging Face. Default: false."),
+        release_note: Optional[str] = typer.Option(None, '--release-note', help='Release Note.'),
+        scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages whose teacher-read lines are the lessons. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        teacher: str = typer.Option(..., '--teacher', help='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.'),
+        timeout: Optional[str] = typer.Option(None, '--timeout', help='The Job\'s time limit; always sent (the service\'s default is 30 minutes). Default: "4h".'),
     ) -> None:
         """Train a Kraken reader on Hugging Face Jobs (POST /api/training/kraken)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16393,20 +16600,21 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("train-a-kraken-reader-on-this-mac-gently")
-    def training_train_a_kraken_reader_on_this_mac_gently_post(
+    @target_app.command("train-a-kraken-reader-on-this-mac-gently", hidden=True)
+    @target_app.command("start-kraken-here")
+    def training_start_kraken_here_post(
         ctx: typer.Context,
-        base: Optional[str] = typer.Option(None, "--base", help="Request field: base."),
-        batch_size: Optional[int] = typer.Option(None, "--batch-size", help="Request field: batch_size."),
-        display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
-        epochs: Optional[int] = typer.Option(None, "--epochs", help="Request field: epochs."),
-        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        not_for_release: Optional[bool] = typer.Option(None, "--not-for-release/--no-not-for-release", help="Request field: not_for_release."),
-        pages_may_leave: Optional[bool] = typer.Option(None, "--pages-may-leave/--no-pages-may-leave", help="Request field: pages_may_leave."),
-        release_note: Optional[str] = typer.Option(None, "--release-note", help="Request field: release_note."),
-        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
-        teacher: str = typer.Option(..., "--teacher", help="Request field: teacher."),
+        base: Optional[str] = typer.Option(None, '--base', help='The Kraken reader to start from (a model id); none trains from nothing.'),
+        batch_size: Optional[int] = typer.Option(None, '--batch-size', help='Lines per step; small keeps memory down on a 16 GB Mac. Default: 4.'),
+        display_name: Optional[str] = typer.Option(None, '--display-name', help='Display Name.'),
+        epochs: Optional[int] = typer.Option(None, '--epochs', help='A fixed number of epochs; none stops when it stops improving.'),
+        held_out_ids: Optional[list[str]] = typer.Option(None, '--held-out-ids', help='Pages kept home as the test; never sent. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        name: Optional[str] = typer.Option(None, '--name', help='A short name for the trained reader\'s file. Default: "reader".'),
+        not_for_release: Optional[bool] = typer.Option(None, '--not-for-release/--no-not-for-release', help='The trained model may not be released. Default: true.'),
+        pages_may_leave: Optional[bool] = typer.Option(None, '--pages-may-leave/--no-pages-may-leave', help="The person's yes for these pages to go to Hugging Face. Default: false."),
+        release_note: Optional[str] = typer.Option(None, '--release-note', help='Release Note.'),
+        scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages whose teacher-read lines are the lessons. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        teacher: str = typer.Option(..., '--teacher', help='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.'),
     ) -> None:
         """Train a Kraken reader on this Mac, gently (POST /api/training/kraken/here)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16440,10 +16648,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("one-trained-model-s-inspector-facts")
-    def training_one_trained_model_s_inspector_facts_get(
+    @target_app.command("one-trained-model-s-inspector-facts", hidden=True)
+    @target_app.command("trained-model-inspector")
+    def training_trained_model_inspector_get(
         ctx: typer.Context,
-        model: str = typer.Option(..., "--model", help="Query parameter: model."),
+        model: str = typer.Option(..., '--model', help='The model id: kraken-trained-<job> or fichero-trained/<name>.'),
     ) -> None:
         """One trained model's Inspector facts (GET /api/training/model)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16454,8 +16663,9 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("the-models-fichero-trained-or-fine-tuned-as-the-node-lists-them")
-    def training_the_models_fichero_trained_or_fine_tuned_as_the_node_lists_them_get(
+    @target_app.command("the-models-fichero-trained-or-fine-tuned-as-the-node-lists-them", hidden=True)
+    @target_app.command("list-trained-models")
+    def training_list_trained_models_get(
         ctx: typer.Context,
     ) -> None:
         """The models Fichero trained or fine-tuned, as the training node lists them (GET /api/training/models)."""
@@ -16465,10 +16675,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("make-a-project-s-trained-model-global-usable-in-every-project")
-    def training_make_a_project_s_trained_model_global_usable_in_every_project_post(
+    @target_app.command("make-a-project-s-trained-model-global-usable-in-every-project", hidden=True)
+    @target_app.command("make-trained-model-global")
+    def training_make_trained_model_global_post(
         ctx: typer.Context,
-        model: str = typer.Option(..., "--model", help="Request field: model."),
+        model: str = typer.Option(..., '--model', help="The project's model: kraken-trained-<job> or fichero-trained/<name>."),
     ) -> None:
         """Make a project's trained model global (usable in every project) (POST /api/training/models/make-global)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16482,16 +16693,17 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("ask-a-palaeographer-for-its-reasons-or-review-on-each-checked-line")
-    def training_ask_a_palaeographer_for_its_reasons_or_review_on_each_checked_line_post(
+    @target_app.command("ask-a-palaeographer-for-its-reasons-or-review-on-each-checked-line", hidden=True)
+    @target_app.command("start-gathering-reasons")
+    def training_start_gathering_reasons_post(
         ctx: typer.Context,
-        checked: str = typer.Option(..., "--checked", help="Request field: checked."),
-        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        model: str = typer.Option(..., "--model", help="Request field: model."),
-        prompt_file: Optional[str] = typer.Option(None, "--prompt-file", help="Request field: prompt_file."),
-        provider: str = typer.Option(..., "--provider", help="Request field: provider."),
-        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
+        checked: str = typer.Option(..., '--checked', help='The model id of the CHECKED pass (its lines and their right readings).'),
+        held_out_ids: Optional[list[str]] = typer.Option(None, '--held-out-ids', help='Pages kept as the test: never asked about. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        model: str = typer.Option(..., '--model', help='The teacher: a reasoning vision model, e.g. Qwen3-VL-8B-Thinking.'),
+        prompt_file: Optional[str] = typer.Option(None, '--prompt-file', help="The recipe's prompt file; none uses Fichero's own."),
+        provider: str = typer.Option(..., '--provider', help="The teacher's provider, e.g. openrouter, gemini, omlx."),
+        scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages whose checked lines are asked about. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Ask a palaeographer for its reasons (or review) on each checked line (POST /api/training/reasons)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16517,14 +16729,15 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("measure-answer-only-against-reasoning-students-on-held-out-checked-pages")
-    def training_measure_answer_only_against_reasoning_students_on_held_out_checked_pages_post(
+    @target_app.command("measure-answer-only-against-reasoning-students-on-held-out-checked-pages", hidden=True)
+    @target_app.command("start-reasons-ab")
+    def training_start_reasons_ab_post(
         ctx: typer.Context,
-        checked: str = typer.Option(..., "--checked", help="Request field: checked."),
-        contenders: str = typer.Option(..., "--contenders", help="Request field: contenders."),
-        held_out_ids: str = typer.Option(..., "--held-out-ids", help="Request field: held_out_ids."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        noise_band: Optional[float] = typer.Option(None, "--noise-band", help="Request field: noise_band."),
+        checked: str = typer.Option(..., '--checked', help='The model id of the CHECKED pass: the right readings.'),
+        contenders: str = typer.Option(..., '--contenders', help='The answer-only student, the reasoning students, the teacher and a cheap baseline. JSON.'),
+        held_out_ids: list[str] = typer.Option(..., '--held-out-ids', help='The held-out checked pages: no arm trained on them. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        language: Optional[str] = typer.Option(None, '--language', help='Language.'),
+        noise_band: Optional[float] = typer.Option(None, '--noise-band', help='A reasoning student is adopted only if it beats the answer-only one by more than this CER. Default: 0.005.'),
     ) -> None:
         """Measure answer-only against reasoning students on held-out checked pages (POST /api/training/reasons-ab)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16546,10 +16759,11 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("the-reasons-a-b-s-scores-and-verdicts")
-    def training_the_reasons_a_b_s_scores_and_verdicts_get(
+    @target_app.command("the-reasons-a-b-s-scores-and-verdicts", hidden=True)
+    @target_app.command("reasons-ab-status")
+    def training_reasons_ab_status_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """The reasons A/B's scores and verdicts (GET /api/training/reasons-ab/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -16558,10 +16772,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("a-reasons-job-s-counts-in-words-and-numbers")
-    def training_a_reasons_job_s_counts_in_words_and_numbers_get(
+    @target_app.command("a-reasons-job-s-counts-in-words-and-numbers", hidden=True)
+    @target_app.command("reasons-job-status")
+    def training_reasons_job_status_get(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """A reasons job's counts in words and numbers (GET /api/training/reasons/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -16570,10 +16785,11 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("stop-a-reasons-job-no-further-lines-are-asked-about")
-    def training_stop_a_reasons_job_no_further_lines_are_asked_about_post(
+    @target_app.command("stop-a-reasons-job-no-further-lines-are-asked-about", hidden=True)
+    @target_app.command("cancel-reasons-job")
+    def training_cancel_reasons_job_post(
         ctx: typer.Context,
-        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        job_id: str = typer.Argument(..., help='Job Id'),
     ) -> None:
         """Stop a reasons job (no further lines are asked about) (POST /api/training/reasons/{job_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16582,46 +16798,48 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("what-a-set-from-these-pages-would-hold-and-the-flagged-lines-it-leaves-out")
-    def training_what_a_set_from_these_pages_would_hold_and_the_flagged_lines_it_leaves_out_get(
+    @target_app.command("what-a-set-from-these-pages-would-hold-and-the-flagged-lines-it-leaves-out", hidden=True)
+    @target_app.command("preview-set")
+    def training_preview_set_get(
         ctx: typer.Context,
-        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Query parameter: held_out_ids."),
-        scope_ids: str = typer.Option(..., "--scope-ids", help="Query parameter: scope_ids."),
-        teacher: str = typer.Option(..., "--teacher", help="Query parameter: teacher."),
+        held_out_ids: Optional[list[str]] = typer.Option(None, '--held-out-ids', help='Pages kept home as the test. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages whose teacher-read lines are the lessons. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        teacher: str = typer.Option(..., '--teacher', help='The model whose line readings are the lessons.'),
     ) -> None:
         """What a training set from these pages would hold, and the flagged lines it leaves out (GET /api/training/set)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/training/set"
             params = {
-                "held_out_ids": held_out_ids,
-                "scope_ids": scope_ids,
+                "held_out_ids": _list_values(held_out_ids),
+                "scope_ids": _list_values(scope_ids),
                 "teacher": teacher,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("train-a-vision-model-with-lora-on-hugging-face-jobs-landed-here-as-mlx")
-    def training_train_a_vision_model_with_lora_on_hugging_face_jobs_landed_here_as_mlx_post(
+    @target_app.command("train-a-vision-model-with-lora-on-hugging-face-jobs-landed-here-as-mlx", hidden=True)
+    @target_app.command("start-vision-lora")
+    def training_start_vision_lora_post(
         ctx: typer.Context,
-        all_lines: Optional[bool] = typer.Option(None, "--all-lines/--no-all-lines", help="Request field: all_lines."),
-        arm: Optional[str] = typer.Option(None, "--arm", help="Request field: arm."),
-        base_licence: Optional[str] = typer.Option(None, "--base-licence", help="Request field: base_licence."),
-        base_repo: Optional[str] = typer.Option(None, "--base-repo", help="Request field: base_repo."),
-        display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
-        epochs: Optional[int] = typer.Option(None, "--epochs", help="Request field: epochs."),
-        flavor: Optional[str] = typer.Option(None, "--flavor", help="Request field: flavor."),
-        held_out_ids: Optional[str] = typer.Option(None, "--held-out-ids", help="Request field: held_out_ids."),
-        keep_merged_here: Optional[bool] = typer.Option(None, "--keep-merged-here/--no-keep-merged-here", help="Request field: keep_merged_here."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        max_trace_cer: Optional[float] = typer.Option(None, "--max-trace-cer", help="Request field: max_trace_cer."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        not_for_release: Optional[bool] = typer.Option(None, "--not-for-release/--no-not-for-release", help="Request field: not_for_release."),
-        pages_may_leave: Optional[bool] = typer.Option(None, "--pages-may-leave/--no-pages-may-leave", help="Request field: pages_may_leave."),
-        rank: Optional[int] = typer.Option(None, "--rank", help="Request field: rank."),
-        release_note: Optional[str] = typer.Option(None, "--release-note", help="Request field: release_note."),
-        scope_ids: str = typer.Option(..., "--scope-ids", help="Request field: scope_ids."),
-        teacher: str = typer.Option(..., "--teacher", help="Request field: teacher."),
-        timeout: Optional[str] = typer.Option(None, "--timeout", help="Request field: timeout."),
+        all_lines: Optional[bool] = typer.Option(None, '--all-lines/--no-all-lines', help='Train an A/B arm on every line it has, not only the lines every reasoning arm covers. Default: false.'),
+        arm: Optional[str] = typer.Option(None, '--arm', help='What the student learns to write (#4642): the checked transcription alone, with a palaeographer\'s reasons, with its thinking, or a review of a draft. Reasons come from the episode ledger (training.reasons); the answer is always the checked text. One of: answer, why, thinking, review. Default: "answer".'),
+        base_licence: Optional[str] = typer.Option(None, '--base-licence', help="The base's licence, carried on the card; none: from Fichero's list of vision bases, or 'not checked'."),
+        base_repo: Optional[str] = typer.Option(None, '--base-repo', help='The bf16 base on the Hub: any image-text-to-text model (Qwen3-VL 8B by default; Qwen2.5-VL 7B, chandra and others are valid). Default: "Qwen/Qwen3-VL-8B-Instruct".'),
+        display_name: Optional[str] = typer.Option(None, '--display-name', help='Display Name.'),
+        epochs: Optional[int] = typer.Option(None, '--epochs', help='Epochs. Default: 2.'),
+        flavor: Optional[str] = typer.Option(None, '--flavor', help='Hugging Face hardware; none chooses the cheapest that fits a 7B LoRA.'),
+        held_out_ids: Optional[list[str]] = typer.Option(None, '--held-out-ids', help='Pages kept home as the test; never sent. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        keep_merged_here: Optional[bool] = typer.Option(None, '--keep-merged-here/--no-keep-merged-here', help="Also keep the merged Hugging Face weights on this Mac (~17 GB for 8B); they are always kept in the job's bucket. Default: false."),
+        language: Optional[str] = typer.Option(None, '--language', help="The pages' language, given to the student as the line reader gives it."),
+        max_trace_cer: Optional[float] = typer.Option(None, '--max-trace-cer', help="A palaeographer's reasons are kept only where its own reading of the line is within this CER of the checked one. Default: 0.1."),
+        name: Optional[str] = typer.Option(None, '--name', help='A short name: the model lands as fichero-trained/<name>. Default: "student".'),
+        not_for_release: Optional[bool] = typer.Option(None, '--not-for-release/--no-not-for-release', help='The trained model may not be released. Default: true.'),
+        pages_may_leave: Optional[bool] = typer.Option(None, '--pages-may-leave/--no-pages-may-leave', help="The person's yes for these pages to go to Hugging Face. Default: false."),
+        rank: Optional[int] = typer.Option(None, '--rank', help='Rank. Default: 16.'),
+        release_note: Optional[str] = typer.Option(None, '--release-note', help='Release Note.'),
+        scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages whose teacher-read lines are the lessons. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        teacher: str = typer.Option(..., '--teacher', help='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.'),
+        timeout: Optional[str] = typer.Option(None, '--timeout', help='The Job\'s time limit; always sent. Default: "8h".'),
     ) -> None:
         """Train a vision model with LoRA on Hugging Face Jobs, landed here as MLX (POST /api/training/vision-lora)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16680,10 +16898,10 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def triggers_list_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
-        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Query parameter: workflow_id."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        status: Optional[str] = typer.Option(None, '--status', help='Status.'),
+        workflow_id: Optional[str] = typer.Option(None, '--workflow-id', help='Workflow Id.'),
     ) -> None:
         """List Triggers (GET /api/triggers)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16700,12 +16918,12 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def triggers_create_post(
         ctx: typer.Context,
-        config: str = typer.Option(..., "--config", help="Request field: config."),
-        inputs_template: Optional[str] = typer.Option(None, "--inputs-template", help="Request field: inputs_template."),
-        max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        use_batch: Optional[bool] = typer.Option(None, "--use-batch/--no-use-batch", help="Request field: use_batch."),
-        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
+        config: str = typer.Option(..., '--config', help='Trigger configuration request. JSON.'),
+        inputs_template: Optional[str] = typer.Option(None, '--inputs-template', help='Template for workflow inputs with placeholders. JSON.'),
+        max_concurrent: Optional[int] = typer.Option(None, '--max-concurrent', help='Max concurrent batch items. Default: 5.'),
+        name: str = typer.Option(..., '--name', help='Display name for the trigger.'),
+        use_batch: Optional[bool] = typer.Option(None, '--use-batch/--no-use-batch', help='Batch multiple files. Default: true.'),
+        workflow_id: str = typer.Option(..., '--workflow-id', help='ID of workflow to execute.'),
     ) -> None:
         """Create Trigger (POST /api/triggers)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16732,7 +16950,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def triggers_delete_delete(
         ctx: typer.Context,
-        trigger_id: str = typer.Argument(..., help="Path parameter: trigger_id."),
+        trigger_id: str = typer.Argument(..., help='Trigger Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Trigger (DELETE /api/triggers/{trigger_id})."""
@@ -16747,7 +16965,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def triggers_get_get(
         ctx: typer.Context,
-        trigger_id: str = typer.Argument(..., help="Path parameter: trigger_id."),
+        trigger_id: str = typer.Argument(..., help='Trigger Id'),
     ) -> None:
         """Get Trigger (GET /api/triggers/{trigger_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -16759,13 +16977,13 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def triggers_update_put(
         ctx: typer.Context,
-        trigger_id: str = typer.Argument(..., help="Path parameter: trigger_id."),
-        config: Optional[str] = typer.Option(None, "--config", help="Request field: config."),
-        inputs_template: Optional[str] = typer.Option(None, "--inputs-template", help="Request field: inputs_template."),
-        max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        use_batch: Optional[bool] = typer.Option(None, "--use-batch/--no-use-batch", help="Request field: use_batch."),
-        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Request field: workflow_id."),
+        trigger_id: str = typer.Argument(..., help='Trigger Id'),
+        config: Optional[str] = typer.Option(None, '--config', help='Trigger configuration request. JSON.'),
+        inputs_template: Optional[str] = typer.Option(None, '--inputs-template', help='Template for workflow inputs. JSON.'),
+        max_concurrent: Optional[int] = typer.Option(None, '--max-concurrent', help='Max concurrent batch items.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Display name for the trigger.'),
+        use_batch: Optional[bool] = typer.Option(None, '--use-batch/--no-use-batch', help='Batch multiple files.'),
+        workflow_id: Optional[str] = typer.Option(None, '--workflow-id', help='ID of workflow to execute.'),
     ) -> None:
         """Update Trigger (PUT /api/triggers/{trigger_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -16792,8 +17010,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-executions")
     def triggers_get_executions_get(
         ctx: typer.Context,
-        trigger_id: str = typer.Argument(..., help="Path parameter: trigger_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        trigger_id: str = typer.Argument(..., help='Trigger Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Get Trigger Executions (GET /api/triggers/{trigger_id}/executions)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16807,7 +17025,7 @@ def register_generated_openapi_commands(
     @target_app.command("pause")
     def triggers_pause_post(
         ctx: typer.Context,
-        trigger_id: str = typer.Argument(..., help="Path parameter: trigger_id."),
+        trigger_id: str = typer.Argument(..., help='Trigger Id'),
     ) -> None:
         """Pause Trigger (POST /api/triggers/{trigger_id}/pause)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16819,7 +17037,7 @@ def register_generated_openapi_commands(
     @target_app.command("resume")
     def triggers_resume_post(
         ctx: typer.Context,
-        trigger_id: str = typer.Argument(..., help="Path parameter: trigger_id."),
+        trigger_id: str = typer.Argument(..., help='Trigger Id'),
     ) -> None:
         """Resume Trigger (POST /api/triggers/{trigger_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16848,10 +17066,10 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def users_create_post(
         ctx: typer.Context,
-        display_name: str = typer.Option(..., "--display-name", help="Request field: display_name."),
-        is_owner: Optional[bool] = typer.Option(None, "--is-owner/--no-is-owner", help="Request field: is_owner."),
-        password: str = typer.Option(..., "--password", help="Request field: password."),
-        username: str = typer.Option(..., "--username", help="Request field: username."),
+        display_name: str = typer.Option(..., '--display-name', help='Display Name.'),
+        is_owner: Optional[bool] = typer.Option(None, '--is-owner/--no-is-owner', help='Is Owner. Default: false.'),
+        password: str = typer.Option(..., '--password', help='Password.'),
+        username: str = typer.Option(..., '--username', help='Username.'),
     ) -> None:
         """Create User (POST /api/users)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16874,7 +17092,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def users_delete_delete(
         ctx: typer.Context,
-        user_id: str = typer.Argument(..., help="Path parameter: user_id."),
+        user_id: str = typer.Argument(..., help='User Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete User (DELETE /api/users/{user_id})."""
@@ -16889,11 +17107,11 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def users_update_patch(
         ctx: typer.Context,
-        user_id: str = typer.Argument(..., help="Path parameter: user_id."),
-        active: Optional[bool] = typer.Option(None, "--active/--no-active", help="Request field: active."),
-        display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
-        is_owner: Optional[bool] = typer.Option(None, "--is-owner/--no-is-owner", help="Request field: is_owner."),
-        password: Optional[str] = typer.Option(None, "--password", help="Request field: password."),
+        user_id: str = typer.Argument(..., help='User Id'),
+        active: Optional[bool] = typer.Option(None, '--active/--no-active', help='Active.'),
+        display_name: Optional[str] = typer.Option(None, '--display-name', help='Display Name.'),
+        is_owner: Optional[bool] = typer.Option(None, '--is-owner/--no-is-owner', help='Is Owner.'),
+        password: Optional[str] = typer.Option(None, '--password', help='Password.'),
     ) -> None:
         """Update User (PATCH /api/users/{user_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -16922,11 +17140,11 @@ def register_generated_openapi_commands(
     @target_app.command("document")
     def view_document_get(
         ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-        artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Query parameter: artifact_id."),
-        compare_types: Optional[str] = typer.Option(None, "--compare-types", help="Query parameter: compare_types."),
-        pages: Optional[str] = typer.Option(None, "--pages", help="Query parameter: pages."),
-        representation: Optional[str] = typer.Option(None, "--representation", help="Query parameter: representation."),
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        artifact_id: Optional[str] = typer.Option(None, '--artifact-id', help='Artifact Id.'),
+        compare_types: Optional[str] = typer.Option(None, '--compare-types', help='Compare Types.'),
+        pages: Optional[str] = typer.Option(None, '--pages', help='Pages.'),
+        representation: Optional[str] = typer.Option(None, '--representation', help='Representation.'),
     ) -> None:
         """Document View (GET /view/document/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -16985,8 +17203,8 @@ def register_generated_openapi_commands(
     @target_app.command("compare-runs")
     def workflow_execution_compare_runs_get(
         ctx: typer.Context,
-        left: str = typer.Option(..., "--left", help="Query parameter: left."),
-        right: str = typer.Option(..., "--right", help="Query parameter: right."),
+        left: str = typer.Option(..., '--left', help='Thread id of the first run.'),
+        right: str = typer.Option(..., '--right', help='Thread id of the second run.'),
     ) -> None:
         """Compare Workflow Runs (GET /api/workflow-execution/comparisons)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17001,18 +17219,18 @@ def register_generated_openapi_commands(
     @target_app.command("execute")
     def workflow_execution_execute_post(
         ctx: typer.Context,
-        checkpoint_ns: Optional[str] = typer.Option(None, "--checkpoint-ns", help="Request field: checkpoint_ns."),
-        force_new: Optional[bool] = typer.Option(None, "--force-new/--no-force-new", help="Request field: force_new."),
-        force_recompute: Optional[bool] = typer.Option(None, "--force-recompute/--no-force-recompute", help="Request field: force_recompute."),
-        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
-        interrupt_after: Optional[str] = typer.Option(None, "--interrupt-after", help="Request field: interrupt_after."),
-        interrupt_before: Optional[str] = typer.Option(None, "--interrupt-before", help="Request field: interrupt_before."),
-        model_override: Optional[str] = typer.Option(None, "--model-override", help="Request field: model_override."),
-        provider_override: Optional[str] = typer.Option(None, "--provider-override", help="Request field: provider_override."),
-        selection: Optional[str] = typer.Option(None, "--selection", help="Request field: selection."),
-        skip_cache: Optional[bool] = typer.Option(None, "--skip-cache/--no-skip-cache", help="Request field: skip_cache."),
-        thread_id: Optional[str] = typer.Option(None, "--thread-id", help="Request field: thread_id."),
-        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
+        checkpoint_ns: Optional[str] = typer.Option(None, '--checkpoint-ns', help='Checkpoint namespace, for a sub-workflow. Default: "".'),
+        force_new: Optional[bool] = typer.Option(None, '--force-new/--no-force-new', help='Force New. Default: false.'),
+        force_recompute: Optional[bool] = typer.Option(None, '--force-recompute/--no-force-recompute', help='Run it again for real: bypass every cache. Default: false.'),
+        inputs: Optional[str] = typer.Option(None, '--inputs', help="The workflow's inputs, a JSON object. JSON."),
+        interrupt_after: Optional[list[str]] = typer.Option(None, '--interrupt-after', help='Interrupt After. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        interrupt_before: Optional[list[str]] = typer.Option(None, '--interrupt-before', help='Interrupt Before. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        model_override: Optional[str] = typer.Option(None, '--model-override', help='Run every step with this model.'),
+        provider_override: Optional[str] = typer.Option(None, '--provider-override', help='Run every step on this provider.'),
+        selection: Optional[str] = typer.Option(None, '--selection', help='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data. JSON.'),
+        skip_cache: Optional[bool] = typer.Option(None, '--skip-cache/--no-skip-cache', help='Skip Cache. Default: false.'),
+        thread_id: Optional[str] = typer.Option(None, '--thread-id', help="Continue this run's thread; made up when not given."),
+        workflow_id: str = typer.Option(..., '--workflow-id', help='The workflow to run.'),
     ) -> None:
         """Execute Workflow (POST /api/workflow-execution/execute)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17032,18 +17250,18 @@ def register_generated_openapi_commands(
                 "thread_id": thread_id,
                 "workflow_id": workflow_id,
             }, {
-                "checkpoint_ns": {'type': 'string', 'title': 'Checkpoint Ns', 'default': '', 'x-cli-required': False},
+                "checkpoint_ns": {'type': 'string', 'title': 'Checkpoint Ns', 'description': 'Checkpoint namespace, for a sub-workflow.', 'default': '', 'x-cli-required': False},
                 "force_new": {'type': 'boolean', 'title': 'Force New', 'default': False, 'x-cli-required': False},
-                "force_recompute": {'type': 'boolean', 'title': 'Force Recompute', 'default': False, 'x-cli-required': False},
-                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'x-cli-required': False},
+                "force_recompute": {'type': 'boolean', 'title': 'Force Recompute', 'description': 'Run it again for real: bypass every cache.', 'default': False, 'x-cli-required': False},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'description': "The workflow's inputs, a JSON object.", 'x-cli-required': False},
                 "interrupt_after": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt After', 'x-cli-required': False},
                 "interrupt_before": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt Before', 'x-cli-required': False},
-                "model_override": {'type': 'string', 'nullable': True, 'title': 'Model Override', 'x-cli-required': False},
-                "provider_override": {'type': 'string', 'nullable': True, 'title': 'Provider Override', 'x-cli-required': False},
+                "model_override": {'type': 'string', 'nullable': True, 'title': 'Model Override', 'description': 'Run every step with this model.', 'x-cli-required': False},
+                "provider_override": {'type': 'string', 'nullable': True, 'title': 'Provider Override', 'description': 'Run every step on this provider.', 'x-cli-required': False},
                 "selection": {'properties': {'kind': {'$ref': '#/components/schemas/SelectionKind'}, 'ids': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids'}}, 'type': 'object', 'required': ['kind'], 'title': 'WorkflowSelection', 'description': 'The declared scope of a run.\n\nValidation is the whole point: this is the first place in the system that\ncan say "that request does not describe a coherent selection" and refuse,\nrather than running and discovering the scope was wrong from its effects\non real archival data.', 'x-cli-required': False},
                 "skip_cache": {'type': 'boolean', 'title': 'Skip Cache', 'default': False, 'x-cli-required': False},
-                "thread_id": {'type': 'string', 'nullable': True, 'title': 'Thread Id', 'x-cli-required': False},
-                "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'x-cli-required': True},
+                "thread_id": {'type': 'string', 'nullable': True, 'title': 'Thread Id', 'description': "Continue this run's thread; made up when not given.", 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'description': 'The workflow to run.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -17051,9 +17269,9 @@ def register_generated_openapi_commands(
     @target_app.command("list-runs-route")
     def workflow_execution_list_runs_route_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        status: Optional[list[str]] = typer.Option(None, '--status', help='Filter to these statuses (e.g. ?status=failed). Omit for every non-deleted run, newest first. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """List Workflow Runs Route (GET /api/workflow-execution/runs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17061,7 +17279,7 @@ def register_generated_openapi_commands(
             params = {
                 "limit": limit,
                 "offset": offset,
-                "status": status,
+                "status": _list_values(status),
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -17069,8 +17287,8 @@ def register_generated_openapi_commands(
     @target_app.command("delete-runs-route")
     def workflow_execution_delete_runs_route_post(
         ctx: typer.Context,
-        statuses: Optional[str] = typer.Option(None, "--statuses", help="Request field: statuses."),
-        thread_ids: Optional[str] = typer.Option(None, "--thread-ids", help="Request field: thread_ids."),
+        statuses: Optional[list[str]] = typer.Option(None, '--statuses', help="Delete every non-deleted run whose status is one of these (e.g. ['failed'] for 'Clear Failed') A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        thread_ids: Optional[list[str]] = typer.Option(None, '--thread-ids', help='Explicit run ids to delete. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Delete Workflow Runs Route (POST /api/workflow-execution/runs/delete)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17089,7 +17307,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-threads")
     def workflow_execution_list_threads_get(
         ctx: typer.Context,
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """List Threads (GET /api/workflow-execution/threads)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17103,7 +17321,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete-thread")
     def workflow_execution_delete_thread_delete(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Thread (DELETE /api/workflow-execution/threads/{thread_id})."""
@@ -17118,7 +17336,7 @@ def register_generated_openapi_commands(
     @target_app.command("cancel")
     def workflow_execution_cancel_post(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
     ) -> None:
         """Cancel Workflow (POST /api/workflow-execution/threads/{thread_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17130,7 +17348,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-thread-diagram-png")
     def workflow_execution_get_thread_diagram_png_get(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
     ) -> None:
         """Get Thread Diagram Png (GET /api/workflow-execution/threads/{thread_id}/diagram.png)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17142,7 +17360,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-thread-diagram-svg")
     def workflow_execution_get_thread_diagram_svg_get(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
     ) -> None:
         """Get Thread Diagram Svg (GET /api/workflow-execution/threads/{thread_id}/diagram.svg)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17154,8 +17372,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-thread-episodes")
     def workflow_execution_get_thread_episodes_get(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Get Thread Episodes (GET /api/workflow-execution/threads/{thread_id}/episodes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17169,8 +17387,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-thread-history")
     def workflow_execution_get_thread_history_get(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
     ) -> None:
         """Get Thread History (GET /api/workflow-execution/threads/{thread_id}/history)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17184,7 +17402,7 @@ def register_generated_openapi_commands(
     @target_app.command("pause")
     def workflow_execution_pause_post(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
     ) -> None:
         """Pause Workflow (POST /api/workflow-execution/threads/{thread_id}/pause)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17196,7 +17414,7 @@ def register_generated_openapi_commands(
     @target_app.command("read-pages-again")
     def workflow_execution_read_pages_again_post(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
     ) -> None:
         """Read Pages Again (POST /api/workflow-execution/threads/{thread_id}/read-again)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17208,9 +17426,9 @@ def register_generated_openapi_commands(
     @target_app.command("resume")
     def workflow_execution_resume_post(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
-        answer: Optional[str] = typer.Option(None, "--answer", help="Request field: answer."),
-        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
+        answer: Optional[str] = typer.Option(None, '--answer', help='The answer to the question the run paused on.'),
+        inputs: Optional[str] = typer.Option(None, '--inputs', help='New inputs for the paused run. JSON.'),
     ) -> None:
         """Resume Workflow (POST /api/workflow-execution/threads/{thread_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17220,8 +17438,8 @@ def register_generated_openapi_commands(
                 "answer": answer,
                 "inputs": inputs,
             }, {
-                "answer": {'nullable': True, 'title': 'Answer', 'x-cli-required': False},
-                "inputs": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Inputs', 'x-cli-required': False},
+                "answer": {'nullable': True, 'title': 'Answer', 'description': 'The answer to the question the run paused on.', 'x-cli-required': False},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Inputs', 'description': 'New inputs for the paused run.', 'x-cli-required': False},
             }, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -17229,7 +17447,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-run")
     def workflow_execution_get_run_get(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
     ) -> None:
         """Get Workflow Run (GET /api/workflow-execution/threads/{thread_id}/run)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17241,8 +17459,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-thread-status")
     def workflow_execution_get_thread_status_get(
         ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
-        view: Optional[str] = typer.Option(None, "--view", help="Query parameter: view."),
+        thread_id: str = typer.Argument(..., help='Thread Id'),
+        view: Optional[str] = typer.Option(None, '--view', help="`summary` leaves out the run's whole state (hundreds of KB for a fanned-out run) and keeps `progress`: the current step and per-file outcome counts (#5401)."),
     ) -> None:
         """Get Thread Status (GET /api/workflow-execution/threads/{thread_id}/status)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17256,7 +17474,7 @@ def register_generated_openapi_commands(
     @target_app.command("clear-cache")
     def workflow_execution_clear_cache_delete(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Clear Workflow Cache (DELETE /api/workflow-execution/workflows/{workflow_id}/cache)."""
@@ -17271,7 +17489,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-cache-stats")
     def workflow_execution_get_cache_stats_get(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
     ) -> None:
         """Get Workflow Cache Stats (GET /api/workflow-execution/workflows/{workflow_id}/cache/stats)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17283,7 +17501,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-code")
     def workflow_execution_get_code_get(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
     ) -> None:
         """Get Workflow Code (GET /api/workflow-execution/workflows/{workflow_id}/code)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17295,8 +17513,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-visualization")
     def workflow_execution_get_visualization_get(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
-        xray: Optional[bool] = typer.Option(None, "--xray/--no-xray", help="Query parameter: xray."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
+        xray: Optional[bool] = typer.Option(None, '--xray/--no-xray', help='Xray.'),
     ) -> None:
         """Get Workflow Visualization (GET /api/workflow-execution/workflows/{workflow_id}/visualization)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17313,11 +17531,11 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='workflows')
         existing_apps['workflows'] = target_app
 
-    @target_app.command("list")
-    def workflows_list_get(
+    @target_app.command("list-workflows")
+    def workflows_list_workflows_get(
         ctx: typer.Context,
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Query parameter: folder_path."),
-        summary: Optional[bool] = typer.Option(None, "--summary/--no-summary", help="Query parameter: summary."),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path.'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help='Summary.'),
     ) -> None:
         """List Workflows (GET /api/workflows)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17332,21 +17550,21 @@ def register_generated_openapi_commands(
     @target_app.command("create")
     def workflows_create_post(
         ctx: typer.Context,
-        created_at: Optional[str] = typer.Option(None, "--created-at", help="Request field: created_at."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        edges: Optional[str] = typer.Option(None, "--edges", help="Request field: edges."),
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
-        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
-        input_source: Optional[str] = typer.Option(None, "--input-source", help="Request field: input_source."),
-        max_retries: Optional[int] = typer.Option(None, "--max-retries", help="Request field: max_retries."),
-        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        nodes: Optional[str] = typer.Option(None, "--nodes", help="Request field: nodes."),
-        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
-        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
-        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
-        updated_at: Optional[str] = typer.Option(None, "--updated-at", help="Request field: updated_at."),
-        version: Optional[str] = typer.Option(None, "--version", help="Request field: version."),
+        created_at: Optional[str] = typer.Option(None, '--created-at', help='Created At.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        edges: Optional[str] = typer.Option(None, '--edges', help='Edges. JSON.'),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path. Default: "/".'),
+        id: Optional[str] = typer.Option(None, '--id', help='Unique workflow identifier.'),
+        input_source: Optional[str] = typer.Option(None, '--input-source', help='Input Source. One of: collection, current_selection. Default: "collection".'),
+        max_retries: Optional[int] = typer.Option(None, '--max-retries', help='Max Retries. Default: 3.'),
+        model: Optional[str] = typer.Option(None, '--model', help='Model. Default: "gpt-4o".'),
+        name: str = typer.Option(..., '--name', help='Display name.'),
+        nodes: Optional[str] = typer.Option(None, '--nodes', help='Nodes. JSON.'),
+        provider: Optional[str] = typer.Option(None, '--provider', help='Provider. Default: "openai".'),
+        sort_order: Optional[int] = typer.Option(None, '--sort-order', help='Sort Order. Default: 0.'),
+        timeout_seconds: Optional[int] = typer.Option(None, '--timeout-seconds', help='Timeout Seconds. Default: 300.'),
+        updated_at: Optional[str] = typer.Option(None, '--updated-at', help='Updated At.'),
+        version: Optional[str] = typer.Option(None, '--version', help='Version. Default: "1.0".'),
     ) -> None:
         """Create Workflow (POST /api/workflows)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17402,8 +17620,8 @@ def register_generated_openapi_commands(
     @target_app.command("import")
     def workflows_import_post(
         ctx: typer.Context,
-        description: Optional[str] = typer.Option(None, "--description", help="Query parameter: description."),
-        name: Optional[str] = typer.Option(None, "--name", help="Query parameter: name."),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
         body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
         body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
     ) -> None:
@@ -17432,7 +17650,7 @@ def register_generated_openapi_commands(
     @target_app.command("reorder")
     def workflows_reorder_post(
         ctx: typer.Context,
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Query parameter: folder_path."),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path.'),
         body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
         body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
     ) -> None:
@@ -17471,7 +17689,7 @@ def register_generated_openapi_commands(
     @target_app.command("get-tool")
     def workflows_get_tool_get(
         ctx: typer.Context,
-        tool_name: str = typer.Argument(..., help="Path parameter: tool_name."),
+        tool_name: str = typer.Argument(..., help='Tool Name'),
     ) -> None:
         """Get Tool (GET /api/workflows/tools/{tool_name})."""
         def op_call(client: FicheroClient) -> Any:
@@ -17483,9 +17701,9 @@ def register_generated_openapi_commands(
     @target_app.command("create-node")
     def workflows_create_node_post(
         ctx: typer.Context,
-        tool_name: str = typer.Argument(..., help="Path parameter: tool_name."),
-        position_x: Optional[float] = typer.Option(None, "--position-x", help="Query parameter: position_x."),
-        position_y: Optional[float] = typer.Option(None, "--position-y", help="Query parameter: position_y."),
+        tool_name: str = typer.Argument(..., help='Tool Name'),
+        position_x: Optional[float] = typer.Option(None, '--position-x', help='Position X.'),
+        position_y: Optional[float] = typer.Option(None, '--position-y', help='Position Y.'),
     ) -> None:
         """Create Node (POST /api/workflows/tools/{tool_name}/create-node)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17500,8 +17718,8 @@ def register_generated_openapi_commands(
     @target_app.command("get-tool-prompt")
     def workflows_get_tool_prompt_post(
         ctx: typer.Context,
-        tool_name: str = typer.Argument(..., help="Path parameter: tool_name."),
-        config: Optional[str] = typer.Option(None, "--config", help="Request field: config."),
+        tool_name: str = typer.Argument(..., help='Tool Name'),
+        config: Optional[str] = typer.Option(None, '--config', help='Config. Default: {}. JSON.'),
     ) -> None:
         """Get Tool Prompt (POST /api/workflows/tools/{tool_name}/prompt)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17518,7 +17736,7 @@ def register_generated_openapi_commands(
     @target_app.command("delete")
     def workflows_delete_delete(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Workflow (DELETE /api/workflows/{workflow_id})."""
@@ -17533,7 +17751,7 @@ def register_generated_openapi_commands(
     @target_app.command("get")
     def workflows_get_get(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
     ) -> None:
         """Get Workflow (GET /api/workflows/{workflow_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -17545,12 +17763,12 @@ def register_generated_openapi_commands(
     @target_app.command("patch")
     def workflows_patch_patch(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
-        format: Optional[str] = typer.Option(None, "--format", help="Request field: format."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description.'),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path.'),
+        format: Optional[str] = typer.Option(None, '--format', help='Format.'),
+        name: Optional[str] = typer.Option(None, '--name', help='Name.'),
+        sort_order: Optional[int] = typer.Option(None, '--sort-order', help='Sort Order.'),
     ) -> None:
         """Patch Workflow (PATCH /api/workflows/{workflow_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -17575,22 +17793,22 @@ def register_generated_openapi_commands(
     @target_app.command("update")
     def workflows_update_put(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
-        created_at: Optional[str] = typer.Option(None, "--created-at", help="Request field: created_at."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        edges: Optional[str] = typer.Option(None, "--edges", help="Request field: edges."),
-        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
-        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
-        input_source: Optional[str] = typer.Option(None, "--input-source", help="Request field: input_source."),
-        max_retries: Optional[int] = typer.Option(None, "--max-retries", help="Request field: max_retries."),
-        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        nodes: Optional[str] = typer.Option(None, "--nodes", help="Request field: nodes."),
-        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
-        sort_order: Optional[int] = typer.Option(None, "--sort-order", help="Request field: sort_order."),
-        timeout_seconds: Optional[int] = typer.Option(None, "--timeout-seconds", help="Request field: timeout_seconds."),
-        updated_at: Optional[str] = typer.Option(None, "--updated-at", help="Request field: updated_at."),
-        version: Optional[str] = typer.Option(None, "--version", help="Request field: version."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
+        created_at: Optional[str] = typer.Option(None, '--created-at', help='Created At.'),
+        description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
+        edges: Optional[str] = typer.Option(None, '--edges', help='Edges. JSON.'),
+        folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path. Default: "/".'),
+        id: Optional[str] = typer.Option(None, '--id', help='Unique workflow identifier.'),
+        input_source: Optional[str] = typer.Option(None, '--input-source', help='Input Source. One of: collection, current_selection. Default: "collection".'),
+        max_retries: Optional[int] = typer.Option(None, '--max-retries', help='Max Retries. Default: 3.'),
+        model: Optional[str] = typer.Option(None, '--model', help='Model. Default: "gpt-4o".'),
+        name: str = typer.Option(..., '--name', help='Display name.'),
+        nodes: Optional[str] = typer.Option(None, '--nodes', help='Nodes. JSON.'),
+        provider: Optional[str] = typer.Option(None, '--provider', help='Provider. Default: "openai".'),
+        sort_order: Optional[int] = typer.Option(None, '--sort-order', help='Sort Order. Default: 0.'),
+        timeout_seconds: Optional[int] = typer.Option(None, '--timeout-seconds', help='Timeout Seconds. Default: 300.'),
+        updated_at: Optional[str] = typer.Option(None, '--updated-at', help='Updated At.'),
+        version: Optional[str] = typer.Option(None, '--version', help='Version. Default: "1.0".'),
     ) -> None:
         """Update Workflow (PUT /api/workflows/{workflow_id})."""
         def op_call(client: FicheroClient) -> Any:
@@ -17635,7 +17853,7 @@ def register_generated_openapi_commands(
     @target_app.command("duplicate")
     def workflows_duplicate_post(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
     ) -> None:
         """Duplicate Workflow (POST /api/workflows/{workflow_id}/duplicate)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17647,13 +17865,13 @@ def register_generated_openapi_commands(
     @target_app.command("estimate-cost")
     def workflows_estimate_cost_post(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
-        estimated_input_tokens_per_file: Optional[int] = typer.Option(None, "--estimated-input-tokens-per-file", help="Request field: estimated_input_tokens_per_file."),
-        estimated_output_tokens_per_file: Optional[int] = typer.Option(None, "--estimated-output-tokens-per-file", help="Request field: estimated_output_tokens_per_file."),
-        file_count: Optional[int] = typer.Option(None, "--file-count", help="Request field: file_count."),
-        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
-        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
-        selected_doc_ids: Optional[str] = typer.Option(None, "--selected-doc-ids", help="Request field: selected_doc_ids."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
+        estimated_input_tokens_per_file: Optional[int] = typer.Option(None, '--estimated-input-tokens-per-file', help='Tokens sent per file. Default: 1200.'),
+        estimated_output_tokens_per_file: Optional[int] = typer.Option(None, '--estimated-output-tokens-per-file', help='Tokens returned per file. Default: 300.'),
+        file_count: Optional[int] = typer.Option(None, '--file-count', help='How many files the run reads (used when no selection is given). Default: 1.'),
+        model: Optional[str] = typer.Option(None, '--model', help='The model to price.'),
+        provider: Optional[str] = typer.Option(None, '--provider', help='The provider to price.'),
+        selected_doc_ids: Optional[list[str]] = typer.Option(None, '--selected-doc-ids', help='The selection the run will read; a folder counts its pages. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Estimate Workflow Cost (POST /api/workflows/{workflow_id}/estimate-cost)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17667,12 +17885,12 @@ def register_generated_openapi_commands(
                 "provider": provider,
                 "selected_doc_ids": selected_doc_ids,
             }, {
-                "estimated_input_tokens_per_file": {'type': 'integer', 'title': 'Estimated Input Tokens Per File', 'default': 1200, 'x-cli-required': False},
-                "estimated_output_tokens_per_file": {'type': 'integer', 'title': 'Estimated Output Tokens Per File', 'default': 300, 'x-cli-required': False},
-                "file_count": {'type': 'integer', 'title': 'File Count', 'default': 1, 'x-cli-required': False},
-                "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'x-cli-required': False},
-                "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
-                "selected_doc_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Selected Doc Ids', 'x-cli-required': False},
+                "estimated_input_tokens_per_file": {'type': 'integer', 'title': 'Estimated Input Tokens Per File', 'description': 'Tokens sent per file.', 'default': 1200, 'x-cli-required': False},
+                "estimated_output_tokens_per_file": {'type': 'integer', 'title': 'Estimated Output Tokens Per File', 'description': 'Tokens returned per file.', 'default': 300, 'x-cli-required': False},
+                "file_count": {'type': 'integer', 'title': 'File Count', 'description': 'How many files the run reads (used when no selection is given).', 'default': 1, 'x-cli-required': False},
+                "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'description': 'The model to price.', 'x-cli-required': False},
+                "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'description': 'The provider to price.', 'x-cli-required': False},
+                "selected_doc_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Selected Doc Ids', 'description': 'The selection the run will read; a folder counts its pages.', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -17680,7 +17898,7 @@ def register_generated_openapi_commands(
     @target_app.command("export")
     def workflows_export_get(
         ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
+        workflow_id: str = typer.Argument(..., help='Workflow Id'),
     ) -> None:
         """Export Workflow (GET /api/workflows/{workflow_id}/export)."""
         def op_call(client: FicheroClient) -> Any:
