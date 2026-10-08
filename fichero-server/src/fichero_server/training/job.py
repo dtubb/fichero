@@ -345,6 +345,9 @@ def register_job_kinds() -> None:
 
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="remote",
-                           name="Train a model", cancel=request_cancel)
+                           name="Train a model", cancel=request_cancel,
+                           # Its row follows one Job on Hugging Face; run again, it would follow that
+                           # same ended Job. A new training is started instead (#5356).
+                           no_retry="A training on Hugging Face is not retried in place: start a new training")
     if CONVERT_KIND not in jobs.KINDS:
         jobs.register_kind(CONVERT_KIND, None, model=None, qos=set_utility_qos, name="Convert a model for MLX")

@@ -751,6 +751,18 @@ async def cancel_job(
     return _control_job(db, ctx, "job.cancel", {"job_id": job_id})
 
 
+@router.post("/jobs/{job_id}/retry", response_model=JobStateResponse)
+async def retry_job(
+    job_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> JobStateResponse:
+    """Run a failed or stopped job again: it goes back to waiting and carries on from its own
+    checkpoint where it keeps one. A page a workflow run waits for, a training on Hugging Face, or
+    work that is already waiting again cannot be retried here (409, with the reason)."""
+    return _control_job(db, ctx, "job.retry", {"job_id": job_id})
+
+
 def _invert_job_pause(before: dict | None, after: dict | None, ctx: ActionContext):
     return ("job.pause", {"job_id": (after or {})["id"], "paused": (before or {}).get("state") == "paused"})
 
@@ -773,6 +785,18 @@ def _action_job_cancel(db: Database, params: JobControlParams, ctx: ActionContex
 
     before = job_queue._job_row(db, params.job_id)[1]
     state = job_queue.cancel_job(db, params.job_id)
+    return {"id": params.job_id, "state": state}, ChangeSpec(
+        domains=["activity"], target_ids=[params.job_id], before={"state": before},
+        after={"id": params.job_id, "state": state}, emit_type="job.updated",
+    )
+
+
+@action("job.retry", JobControlParams, domains=["activity"])
+def _action_job_retry(db: Database, params: JobControlParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    before = job_queue._job_row(db, params.job_id)[1]
+    state = job_queue.retry_job(db, params.job_id)
     return {"id": params.job_id, "state": state}, ChangeSpec(
         domains=["activity"], target_ids=[params.job_id], before={"state": before},
         after={"id": params.job_id, "state": state}, emit_type="job.updated",

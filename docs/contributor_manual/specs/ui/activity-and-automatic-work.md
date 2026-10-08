@@ -915,8 +915,14 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/jobs/test_sub_workflows_are_child_runs.py`). The window's rows carry
   Pause or Resume and Stop through these routes (2026-10-04, `ActivityTableTests`
   `testActivityWindowTable_pauseOnAStepRowSetsThatOneRowsState`; not yet seen in the app); a job of
-  its own from the jobs read has none yet. Still a gap: retry, and pausing every waiting job of one kind at once; and kinds keep stop routes of their own
-  beside it (`activity.pause.one-start-stop`).
+  its own from the jobs read has none yet. Built (2026-10-08): retry, `POST /api/activity/jobs/{id}/retry`
+  (`job.retry`): a failed or stopped job goes back to waiting with its attempts cleared and carries on from
+  its own checkpoint; refused, with the reason, for work a run hands in (retry the run), a training on
+  Hugging Face (start a new one) and work already waiting again. Stop on its row now reaches a running
+  check, line check, tie-text, reading at scale and gathering of reasons. Every kind is pinned to the four
+  controls (`fichero-server/tests/unit/jobs/test_every_kind_has_its_controls.py`). Still a gap: pausing
+  every waiting job of one kind at once; a running reasons A/B cannot be stopped; and kinds keep stop
+  routes of their own beside it (`activity.pause.one-start-stop`).
 - `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
   boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for. Owned
   by `activity.run.stop-reaches-in-flight-calls`; this line points there.
@@ -924,8 +930,9 @@ and node, not by job); a retry action for failed pages.
   and retry are audited actions, reachable from the window, MCP and the command line. Built: the
   global pause is the audited, undoable action `background.pause` (`fichero-server/tests/unit/jobs/test_job_queue.py`); per job, `job.pause`
   (undoable) and `job.cancel`; MCP tools `fichero_jobs`, `fichero_pause_background_work`,
-  `fichero_job_pause`, `fichero_job_cancel` (`fichero-mcp/tests/test_mcp_server.py`). Still a gap:
-  retry.
+  `fichero_job_pause`, `fichero_job_cancel` (`fichero-mcp/tests/test_mcp_server.py`); retry is the
+  action `job.retry` (2026-10-08), reachable from MCP and the command line through the tools generated
+  from its route. Still a gap: a retry control in the window.
 - `activity.pause.one-start-stop` — **[PARTIAL]** (#5356) every kind of job is started, paused,
   resumed, cancelled and retried through one pair of routes and actions (`/api/activity/jobs/{id}/…`,
   `job.pause`, `job.cancel`); a kind's own routes are callers of it or are retired. Built: pause and
@@ -933,7 +940,7 @@ and node, not by job); a retry action for failed pages.
   own pause and stop routes (`/api/workflow-execution/…`), training its own cancel
   (`/api/training/jobs/{id}/cancel`), gathering reasons its own (`/api/training/reasons/{id}/cancel`),
   batches their own (`/api/batches/{id}/pause|cancel`), each beside the job route; and there is no
-  start or retry on it.
+  start on it (retry is, 2026-10-08).
 
 ### D. Throttling
 

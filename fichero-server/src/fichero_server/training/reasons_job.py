@@ -114,7 +114,7 @@ def run_ab(db: Any, subject: str) -> dict[str, Any]:
 def register_job_kinds() -> None:
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="remote",
-                           name="Gather a palaeographer's reasons")
+                           name="Gather a palaeographer's reasons", cancel=request_cancel)  # Stop on its row (#5356)
     if KIND_AB not in jobs.KINDS or jobs.KINDS[KIND_AB].run is None:
         jobs.register_kind(KIND_AB, lambda db, subject: run_ab(db, subject), model=None, lane="remote",
                            name="Measure the reasons A/B")

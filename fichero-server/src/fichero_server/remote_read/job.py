@@ -303,4 +303,5 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
 
 def register_job_kinds() -> None:
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
-        jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="remote", name="Read at scale")
+        jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="remote", name="Read at scale",
+                           cancel=request_cancel)  # Stop on its row cancels the running shards (#5356)
