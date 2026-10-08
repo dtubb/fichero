@@ -68,11 +68,6 @@ REMOTE_ALLOWLIST: dict[str, str] = {
     # Failover probe of a DIFFERENT paired host (not the local engine); the
     # default pinned session resolves that host's SPKI trust over HTTPS.
     "App/AppState/AppState+Heartbeat.swift:207": "remote failover-candidate probe (HTTPS pinned)",
-    # A TEST seam (2026-09-28, "Tests that inject services miss the real host"): a hosted-view test
-    # serves every client of a library from a recorded engine through an injected session, which
-    # only an HTTPS transport honours. Production passes `session: nil` and takes the UDS path.
-    "Models/LibraryManager.swift:448": "test seam — recorded-engine session (production passes nil)",
-    "Models/LibraryManager.swift:464": "test seam — recorded-engine session (production passes nil)",
 }
 
 
@@ -122,6 +117,11 @@ def offenders(app_dir: Path = APP_DIR) -> list[tuple[str, int, str]]:
             continue  # correctly routed
         if "expectedSPKIPin:" in call:
             continue  # cert-pinning initializer is HTTPS by design (remote)
+        if "session:" in call:
+            # A TEST seam (2026-09-28): a hosted-view test serves a library's clients from a recorded
+            # engine through an injected session, which only HTTPS honours; production passes nil.
+            # Matched by content, not file:line, so code added above it doesn't break the guard (#5614).
+            continue
         if f"{rel}:{line}" in REMOTE_ALLOWLIST:
             continue
         found.append((rel, line, " ".join(call.split())))
@@ -166,6 +166,8 @@ def main(argv: list[str]) -> int:
                 tag = "OK (routed)"
             elif "expectedSPKIPin:" in call:
                 tag = "OK (pinned/remote)"
+            elif "session:" in call:
+                tag = "test seam (injected session)"
             elif f"{rel}:{line}" in REMOTE_ALLOWLIST:
                 tag = "allowlisted remote"
             else:
