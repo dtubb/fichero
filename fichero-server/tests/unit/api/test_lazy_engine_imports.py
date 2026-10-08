@@ -87,7 +87,11 @@ HEAVY_MODULES = [
 # 802 from 2026-10-07 (#5576, #5577): `recipes.run_view` holds the recipe run's stage and summary models, the
 # response schema of `GET /api/activity/jobs/{id}` and the recipe run routes, so it loads with them (pydantic
 # only; its work is imported when a run is read).
-MODULE_BUDGET = 802
+# 803 from 2026-10-07 (#5368, #5586): `llm.places` (stdlib only, ~150 lines) holds the one loopback rule,
+# which `llm.local_inference` imports at module level and re-exports as `is_loopback_url`; the local
+# inference route loads that at app build. Diffed module-for-module against fbc922203: it is the only
+# addition, and it brings no other module with it.
+MODULE_BUDGET = 803
 
 
 def _run(code: str) -> str:
