@@ -365,6 +365,30 @@ final class RecipeSetupStore {
         }
     }
 
+    /// Use for This Step on any candidate the finder lists (#5612, `source.find.app-card-actions`): the
+    /// engine sets it as the step's reader, kept as the project's override, and saves the recipe
+    /// (audited, undoable); the changed step replaces its own in place, as with `useInstead`.
+    func useCandidate(_ candidate: Components.Schemas.ModelCandidate, forStep step: String) async {
+        do {
+            switch try await client.api.useCandidateForStepApiRecipesProjectStepsUseCandidatePost(
+                body: .json(.init(step: step, card: candidate.id))
+            ) {
+            case .ok(let success):
+                if let recipe = try success.body.json.recipe {
+                    adoptEngineRecipe(try JSONEncoder().encode(recipe))
+                }
+            case .unprocessableContent(let error):
+                errorMessage = (try? error.body.json)?.detail?.description
+                    ?? "The engine would not use \(candidate.name) for this step."
+            case .undocumented(let code, _):
+                errorMessage = "Could not use \(candidate.name) (HTTP \(code))."
+            }
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not use \(candidate.name): \(error.localizedDescription)"
+        }
+    }
+
     /// Run the model this Mac cannot run at the free place the plan offers (#5592,
     /// `ai.where.fallback-free-and-asked`): only on this press, the engine sets the same model at that
     /// place on the steps and saves the recipe; the changed steps replace theirs in place, and Ready
@@ -684,6 +708,12 @@ extension RecipeSetupStore {
     /// (shown as such, never invented here).
     func job(for step: Components.Schemas.RecipeStep) -> Components.Schemas.JobInfo? {
         jobs[step.job]
+    }
+
+    /// Whether a job reads the material into text, as the registry says (`JobInfo.reads_material`,
+    /// #5612): the finder's readers are for these steps. False for a job the registry does not know.
+    func readsMaterial(_ job: String) -> Bool {
+        jobs[job]?.readsMaterial ?? false
     }
 
     /// What explains a job: its topic in the registry, or nil when the job names

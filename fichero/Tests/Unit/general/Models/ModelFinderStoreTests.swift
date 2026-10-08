@@ -4,8 +4,8 @@
 //
 //  The model finder (#5611, `source.find.app-*`): the store reads the engine's candidates
 //  through the generated client, follows the online search through Activity's job list (never a
-//  poller of its own), downloads a found reader through the one download route, and Use for This
-//  Step sends the plan's own offer through setup's use-instead. Driven through the generated client
+//  poller of its own), downloads a candidate by the download the engine names for it, and Use for
+//  This Step sends any candidate through setup's use-candidate (#5612). Driven through the generated client
 //  against a stub scoped to this suite's own host, recording what each path was sent.
 //
 
@@ -78,13 +78,17 @@ private nonisolated enum FinderJSON {
     {"id":"kraken:catmus@1","name":"CATMuS Medieval","source":"shipped",
      "offered_because":"a card that ships with Fichero","pin":{"zenodo":"10.5281/zenodo.1"},
      "jobs":["read-a-line"],"open_licence":true,"size":"0.02 GB","size_gb":0.02,
-     "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":1}
+     "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":1,
+     "runs_where":"this_mac"}
     """
     static let found = """
     {"id":"mlx:hf/example/ocr-mlx@main","name":"Example OCR","source":"hugging-face",
      "offered_because":"reads handwriting; lists Spanish","pin":{"hf":"example/ocr-mlx","revision":"main"},
      "jobs":["read-a-line"],"licence":"cc-by-nc-4.0","open_licence":false,"size":"size not stated",
-     "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":2}
+     "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":2,
+     "installed":false,"runs_where":"this_mac",
+     "download":{"runtime":"mlx","model":"Example-OCR","action":"model.download",
+                 "params":{"runtime":"mlx","model":"Example-OCR"}}}
     """
 
     static func list(_ items: [String], searchJob: String? = nil) -> String {
@@ -226,13 +230,14 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertEqual(store.candidates.count, 2)
     }
 
-    /// WHY (`source.find.app-card-actions`): Download goes through the one download route by the repo
-    /// the engine pinned, so the found reader lands in the model store the rules read; a shipped card
-    /// has no Download here (its pin is not a download id the route accepts).
-    func testDownloadPostsTheFoundReadersRepoToTheDownloadRoute() async throws {
+    /// WHY (`source.find.app-card-actions`, #5612): Download goes through the one download route by the
+    /// runtime and model the engine names in the candidate's `download` (the Start plan's own action),
+    /// never a repo the app reads out of the pin; a candidate with no `download` has nothing to press,
+    /// and pressing it anyway sends nothing.
+    func testDownloadPostsTheCandidatesOwnDownloadToTheDownloadRoute() async throws {
         FinderMockURLProtocol.reset { request in
             if request.url?.path.hasPrefix("/api/local-models/download") == true {
-                return (200, #"{"status":"queued","model_type":"mlx","model_id":"example/ocr-mlx","job_id":"dl-1"}"#)
+                return (200, #"{"status":"queued","model_type":"mlx","model_id":"Example-OCR","job_id":"dl-1"}"#)
             }
             return (200, FinderJSON.list([FinderJSON.shipped, FinderJSON.found]))
         }
@@ -240,23 +245,69 @@ final class ModelFinderStoreTests: XCTestCase {
         await store.load(Self.query)
         let shipped = try XCTUnwrap(store.candidates.first)
         let found = try XCTUnwrap(store.candidates.last)
-        XCTAssertNil(ModelFinderStore.downloadRepo(of: shipped))
+        XCTAssertNil(shipped.download)
 
+        await store.download(shipped)
         await store.download(found)
 
-        let posts = FinderMockURLProtocol.requests(to: "/api/local-models/download/mlx/example/ocr-mlx")
-        XCTAssertEqual(posts.count, 1)
-        XCTAssertEqual(posts.first?.method, "POST")
+        XCTAssertEqual(FinderMockURLProtocol.requests(to: "/api/local-models/download/mlx/Example-OCR").count, 1)
+        XCTAssertEqual(FinderMockURLProtocol.requests(to: "/api/local-models/download/mlx/Example-OCR").first?.method,
+                       "POST")
+        XCTAssertEqual(FinderMockURLProtocol.requests(to: "/api/local-models/download/mlx/example/ocr-mlx").count, 0)
         XCTAssertTrue(store.downloading.contains(found.id))
+        XCTAssertFalse(store.downloading.contains(shipped.id))
         XCTAssertNil(store.errorMessage)
     }
 
-    /// WHY (`source.find.app-card-actions`): Use for This Step is offered only where the Start plan
-    /// offers that installed reader instead of the step's download, and sends exactly that offer
-    /// (the download's model and the card) to use-instead, setup's one code path.
-    func testUseForStepPostsThePlansOfferToUseInstead() async throws {
+    /// WHY (`source.find.app-card-says`, #5612): the card says, in words, whether the model is already
+    /// here and where it runs, from the engine's `installed` and `runs_where`; nothing when the engine
+    /// says nothing (a Kraken reader the run fetches).
+    func testCardSaysWhetherItIsHereAndWhereItRuns() async throws {
+        FinderMockURLProtocol.reset { _ in (200, FinderJSON.list([FinderJSON.shipped, FinderJSON.found])) }
+        let store = ModelFinderStore(client: makeClient())
+        await store.load(Self.query)
+        let shipped = try XCTUnwrap(store.candidates.first)
+        let found = try XCTUnwrap(store.candidates.last)
+        XCTAssertEqual(ModelFinderCard.facts(found),
+                       "Found on Hugging Face · size not stated · Not on this Mac yet · Runs on this Mac · licence: cc-by-nc-4.0")
+        XCTAssertEqual(ModelFinderCard.facts(shipped), "Ships with Fichero · 0.02 GB · Runs on this Mac")
+        XCTAssertEqual(ModelFinderStore.installedWords(true), "On this Mac")
+        XCTAssertEqual(ModelFinderStore.placeWords("own_machine"), "Runs on a machine of yours")
+        XCTAssertEqual(ModelFinderStore.placeWords("provider"), "Runs at the provider")
+    }
+
+    /// WHY (#5612): Find a Reader… is offered on the steps the engine's registry says read the material
+    /// (`reads_material`), not on a list of job ids the app keeps and would let drift.
+    func testReaderStepsComeFromTheJobRegistry() async throws {
         FinderMockURLProtocol.reset { request in
-            if request.url?.path == "/api/recipes/project/start/use-instead" {
+            guard request.url?.path == "/api/recipes/jobs" else { return (404, "{}") }
+            func job(_ id: String, _ reads: Bool) -> String {
+                """
+                {"id":"\(id)","name":"\(id)","description":"","topic":"\(id)","layer":"reading","takes":[],
+                 "gives":[],"compare":"","settings":[],"since":"2026.10.03","reads_material":\(reads)}
+                """
+            }
+            let items = [job("read-a-page", true), job("transcribe-speech", true), job("correct", false)]
+            return (200, "{\"items\":[\(items.joined(separator: ","))],\"count\":3}")
+        }
+        let setup = RecipeSetupStore(client: makeClient())
+        await setup.loadJobs()
+        XCTAssertTrue(setup.readsMaterial("read-a-page"))
+        XCTAssertTrue(setup.readsMaterial("transcribe-speech"), "the registry's word, not a list kept here")
+        XCTAssertFalse(setup.readsMaterial("correct"))
+        XCTAssertFalse(setup.readsMaterial("unknown-job"))
+    }
+
+    /// WHY (`source.find.app-card-actions`, #5612): Use for This Step works on ANY candidate, not only
+    /// the Start plan's installed offer: it sends the step and the card to use-candidate, setup's one
+    /// code path, and a refusal is shown rather than swallowed.
+    func testUseForStepPostsAnyCandidateToUseCandidate() async throws {
+        FinderMockURLProtocol.reset { request in
+            if request.url?.path == "/api/recipes/project/steps/use-candidate" {
+                let body = String(bytes: request.bodyOrStream(), encoding: .utf8) ?? ""
+                if body.contains("\"lines\"") {
+                    return (422, #"{"detail":"Example OCR does not do the step 'lines' (find-lines)"}"#)
+                }
                 return (200, #"{"answers":null,"recipe":null}"#)
             }
             return (200, FinderJSON.list([FinderJSON.shipped, FinderJSON.found]))
@@ -264,27 +315,21 @@ final class ModelFinderStoreTests: XCTestCase {
         let client = makeClient()
         let store = ModelFinderStore(client: client)
         await store.load(Self.query)
-        let shipped = try XCTUnwrap(store.candidates.first)
         let found = try XCTUnwrap(store.candidates.last)
-        let downloadJSON = """
-        {"runtime":"mlx","model":"qwen-ocr","steps":["read"],"size_mb":5000,"action":"model.download",
-         "params":{"runtime":"mlx","model":"qwen-ocr"},"name":"Qwen OCR",
-         "instead":[{"card":"kraken:catmus@1","model":"catmus","name":"CATMuS Medieval","licence":""}]}
-        """
-        let download = try JSONDecoder().decode(Components.Schemas.StartDownload.self, from: Data(downloadJSON.utf8))
-
-        XCTAssertNil(ModelFinderStore.insteadOffer(for: found, step: "read", downloads: [download]))
-        XCTAssertNil(ModelFinderStore.insteadOffer(for: shipped, step: "lines", downloads: [download]))
-        let offer = try XCTUnwrap(ModelFinderStore.insteadOffer(for: shipped, step: "read", downloads: [download]))
-
         let setup = RecipeSetupStore(client: client)
-        await setup.useInstead(offer.download, offer.installed)
 
-        let posts = FinderMockURLProtocol.requests(to: "/api/recipes/project/start/use-instead")
+        await setup.useCandidate(found, forStep: "read")
+
+        let posts = FinderMockURLProtocol.requests(to: "/api/recipes/project/steps/use-candidate")
         XCTAssertEqual(posts.count, 1)
         XCTAssertEqual(posts.first?.method, "POST")
         let body = try XCTUnwrap(JSONSerialization.jsonObject(with: posts.first?.body ?? Data()) as? [String: Any])
-        XCTAssertEqual(body["model"] as? String, "qwen-ocr")
-        XCTAssertEqual(body["card"] as? String, "kraken:catmus@1")
+        XCTAssertEqual(body["step"] as? String, "read")
+        XCTAssertEqual(body["card"] as? String, "mlx:hf/example/ocr-mlx@main")
+        XCTAssertNil(setup.errorMessage)
+
+        await setup.useCandidate(found, forStep: "lines")
+        XCTAssertEqual(FinderMockURLProtocol.requests(to: "/api/recipes/project/steps/use-candidate").count, 2)
+        XCTAssertTrue(setup.errorMessage?.contains("Example OCR") == true, setup.errorMessage ?? "no refusal shown")
     }
 }

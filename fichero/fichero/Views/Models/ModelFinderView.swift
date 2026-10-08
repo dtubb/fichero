@@ -15,7 +15,7 @@ struct ModelFinderView: View {
     /// Set Up…'s step, when the finder was opened beside one: Use for This Step is offered there.
     var step: Step?
 
-    /// A step in Set Up… › Ready, with setup's own store (its Start plan and `useInstead`).
+    /// A step in Set Up… › Ready, with setup's own store (its recipe and `useCandidate`).
     struct Step {
         let id: String
         let setup: RecipeSetupStore
@@ -103,25 +103,32 @@ struct ModelFinderCard: View {
 
     @ViewBuilder
     private var actions: some View {
-        if let step, let offer = ModelFinderStore.insteadOffer(
-            for: candidate, step: step.id, downloads: step.setup.downloads
-        ) {
-            Button("Use for This Step") {
-                Task { await step.setup.useInstead(offer.download, offer.installed) }
+        HStack(spacing: 6) {
+            if store.downloading.contains(candidate.id) {
+                Text("Downloading…").font(.callout).foregroundStyle(.secondary)
+            } else if candidate.download != nil {
+                Button("Download") { Task { await store.download(candidate) } }
+                    .controlSize(.small)
+                    .help("Download it to this Mac; Activity shows the download")
             }
-            .controlSize(.small)
-        } else if store.downloading.contains(candidate.id) {
-            Text("Downloading…").font(.callout).foregroundStyle(.secondary)
-        } else if ModelFinderStore.downloadRepo(of: candidate) != nil {
-            Button("Download") { Task { await store.download(candidate) } }
+            if let step {
+                // Any candidate: the engine refuses, in words, one that does not do the step's job.
+                Button("Use for This Step") {
+                    Task { await step.setup.useCandidate(candidate, forStep: step.id) }
+                }
                 .controlSize(.small)
-                .help("Download it to this Mac; Activity shows the download")
+                .help("Read this step with it; a model still to download is then a download Start offers")
+            }
         }
     }
 
-    /// "Found on Hugging Face · 1.2 GB · licence: cc-by-nc-4.0".
+    /// "Found on Hugging Face · 1.2 GB · Not on this Mac yet · Runs on this Mac · licence: cc-by-nc-4.0".
     static func facts(_ candidate: Components.Schemas.ModelCandidate) -> String {
         var parts = [ModelFinderStore.sourceWords(candidate.source.rawValue), candidate.size]
+        if let installed = ModelFinderStore.installedWords(candidate.installed) {
+            parts.append(installed)
+        }
+        parts.append(ModelFinderStore.placeWords(candidate.runsWhere.rawValue))
         if !candidate.openLicence, let licence = candidate.licence, !licence.isEmpty {
             parts.append("licence: \(licence)")
         }
@@ -159,12 +166,16 @@ extension ModelFinderStore {
           {"id":"kraken:catmus@1","name":"CATMuS Medieval","source":"shipped",
            "offered_because":"a card that ships with Fichero","pin":{"zenodo":"10.5281/zenodo.1"},
            "jobs":["read-a-line"],"open_licence":true,"size":"0.02 GB","size_gb":0.02,
-           "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":1},
+           "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":1,
+           "runs_where":"this_mac"},
           {"id":"mlx:hf/example/ocr-mlx@main","name":"Example OCR (MLX)","source":"hugging-face",
            "offered_because":"reads handwriting; lists Spanish; an MLX build this Mac runs",
            "pin":{"hf":"example/ocr-mlx","revision":"main"},"jobs":["read-a-line"],"licence":"cc-by-nc-4.0",
            "open_licence":false,"size":"size not stated",
-           "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":2}],
+           "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":2,
+           "installed":false,"runs_where":"this_mac",
+           "download":{"runtime":"mlx","model":"example-ocr","action":"model.download",
+                       "params":{"runtime":"mlx","model":"example-ocr"}}}],
          "sources":[{"source":"shipped","state":"read","count":1,"detail":"the cards that ship with Fichero"},
           {"source":"hugging-face","state":"cached","count":1,"detail":"the readers earlier searches found"}]}
         """

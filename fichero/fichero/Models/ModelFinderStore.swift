@@ -22,9 +22,8 @@ final class ModelFinderStore {
         var material: String = "handwriting"
     }
 
-    /// The jobs the engine's finder answers for (`recipes/assemble.READING_JOBS`); any other job is
-    /// refused (422) in the engine's words. Setup offers Find a Reader… only on these steps.
-    nonisolated static let readerJobs: Set<String> = ["read-a-line", "read-a-page"]
+    /// The job a query asks for when none is named. Which jobs the finder answers for is the engine's
+    /// (`JobInfo.readsMaterial`, read through `RecipeSetupStore.readsMaterial`), never a list kept here.
     nonisolated static let readingJob = "read-a-line"
     /// The online search's job kind (`recipes/discovery.SEARCH_KIND`), as Activity lists it.
     nonisolated static let searchKind = "find-models"
@@ -114,14 +113,15 @@ final class ModelFinderStore {
         await read(online: true)
     }
 
-    /// Download a found Hugging Face reader through the one download route
-    /// (`POST /api/local-models/download/mlx/{repo}`); the card says Downloading… and Activity shows
-    /// the job. Only a candidate with a `downloadRepo` has the action.
+    /// Download a candidate's model through the one download route
+    /// (`POST /api/local-models/download/{runtime}/{model}`), by the runtime and model its `download`
+    /// names (#5612); the card says Downloading… and Activity shows the job. A candidate the engine
+    /// names no download for (here already, fetched by the run, or run elsewhere) has no action.
     func download(_ candidate: Components.Schemas.ModelCandidate) async {
-        guard let repo = Self.downloadRepo(of: candidate) else { return }
+        guard let download = candidate.download else { return }
         do {
             let response = try await client.api.downloadModelApiLocalModelsDownloadModelTypeModelIdPost(
-                path: .init(modelType: "mlx", modelId: repo)
+                path: .init(modelType: download.runtime, modelId: download.model)
             )
             switch response {
             case .ok:
@@ -137,30 +137,24 @@ final class ModelFinderStore {
         }
     }
 
-    /// The Hub repository a found reader downloads by (its `pin`), as the model store knows a kept
-    /// Hugging Face reader (#5593); nil for every other source, which the finder cannot download yet
-    /// (`source.find.app-card-actions` residue).
-    static func downloadRepo(of candidate: Components.Schemas.ModelCandidate) -> String? {
-        guard candidate.source.rawValue == "hugging-face", candidate.refused == nil,
-              let raw = candidate.pin.additionalProperties.value["hf"], let repo = raw as? String,
-              !repo.isEmpty else { return nil }
-        return repo
+    /// Whether the candidate's model is on this Mac, in words (`installed`); nil where the engine says
+    /// nothing is downloaded first (a Kraken reader the run fetches, a cloud model).
+    static func installedWords(_ installed: Bool?) -> String? {
+        switch installed {
+        case true?: "On this Mac"
+        case false?: "Not on this Mac yet"
+        case nil: nil
+        }
     }
 
-    /// The Start plan's offer of this candidate, installed, instead of the download a step waits for
-    /// (`downloads[].instead`, #5583): Use for This Step sends exactly that offer through setup's
-    /// `useInstead`. Nil when the plan offers no such choice for the step.
-    static func insteadOffer(
-        for candidate: Components.Schemas.ModelCandidate,
-        step: String,
-        downloads: [Components.Schemas.StartDownload]
-    ) -> (download: Components.Schemas.StartDownload, installed: Components.Schemas.StartInstead)? {
-        for download in downloads where download.steps.contains(step) {
-            if let installed = (download.instead ?? []).first(where: { $0.card == candidate.id }) {
-                return (download, installed)
-            }
+    /// Where a candidate runs, in words (`runs_where`, the places of `llm/places.py`).
+    static func placeWords(_ place: String) -> String {
+        switch place {
+        case "this_mac": "Runs on this Mac"
+        case "own_machine": "Runs on a machine of yours"
+        case "provider": "Runs at the provider"
+        default: place
         }
-        return nil
     }
 
     /// Where a candidate came from, in words.

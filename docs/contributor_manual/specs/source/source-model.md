@@ -545,7 +545,12 @@ level it was made for.
   later run's proposal replaces one nobody answered, never a kind a person chose; a person choosing
   another kind sets the proposal aside. The artifact stays as the run's record. Pinned by
   `fichero-server/tests/unit/workflows/test_attributes_cite.py` (the real classify run with a stub
-  model, and the routes). Not built: the app's Accept / Reject in the Inspector; Find the Documents'
+  model, and the routes). *Built 2026-10-08 (app, #5600), not yet seen:* the Inspector's Class
+  section shows a waiting kind (`ProposedKind`, read from the node's `metadata`): the kind the model
+  named, what it said and which run (its tool and model), with Accept and Reject
+  (`EntityService.acceptProposedKind` / `rejectProposedKind`); after either the node is read again
+  into `DocumentStore` in place (`refreshDocumentsByIds`), so its kind and proposal change where they
+  are shown; pinned by `fichero/Tests/Unit/general/Models/ProposedKindTests.swift`. Not built: Find the Documents'
   kinds keep their own proposal (`finddocs.*`); `classify_text` and `classify_script` still write
   only their artifact.*
 - `source.extract.catalogue-never-overwrites-text` — **[OK]** (#5365; #5599) the catalogue's
