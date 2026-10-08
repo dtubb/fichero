@@ -119,6 +119,16 @@ def _build_library(tmp_path: Path):
         data={"items": [{"name": "Joseph Antonio Asprilla", "role": "compareciente"}]},
     )
     db.save(artifact)
+    # A scoped search reads the entity, not the artifact copy (#5597).
+    from fichero_server.models.knowledge import EntityType, KnowledgeEntity
+
+    db.save(
+        KnowledgeEntity(
+            canonical_name="Joseph Antonio Asprilla",
+            entity_type=EntityType.person,
+            source_document_ids=["fix-asprilla-001"],
+        )
+    )
 
     return db, package_path
 

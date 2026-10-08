@@ -3688,6 +3688,18 @@ class Database(DatabaseEmbeddingMixin):
         ).fetchone()
         return row[0] if row else None
 
+    def live_document_identity_rows(self, document_ids: Sequence[str]) -> list[tuple]:
+        """(id, name, doc_type, file_type) for each document in `document_ids` that is not deleted."""
+        ids = [doc_id for doc_id in dict.fromkeys(document_ids) if doc_id]
+        if not ids:
+            return []
+        placeholders = ",".join(f"$d{i}" for i in range(len(ids)))
+        return self._execute(
+            f"SELECT id, name, doc_type, file_type FROM documents "
+            f"WHERE id IN ({placeholders}) AND deleted_at IS NULL",
+            {f"d{i}": doc_id for i, doc_id in enumerate(ids)},
+        ).fetchall()
+
     def artifact_entity_document_matches(
         self,
         *,
