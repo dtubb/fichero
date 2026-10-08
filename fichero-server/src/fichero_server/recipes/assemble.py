@@ -61,7 +61,16 @@ assert set(PURPOSES) == set(PURPOSE_STEPS)
 #: Purposes that offer tools rather than running by themselves after Start (section 7b, screen 7).
 TOOL_PURPOSES = frozenset({"edit-corpus", "decipher", "not-sure"})
 #: The kinds of material setup offers as checkboxes, in the order the default reader is taken from.
-MATERIALS: tuple[str, ...] = ("handwriting", "print", "typescript")
+#: "text" is material that is already text (Markdown, plain text, Word, a PDF with a text layer, notes from a
+#: note-taking app): nothing reads it (`source.recipe.text-material-is-not-read`, #5553).
+MATERIALS: tuple[str, ...] = ("handwriting", "print", "typescript", "text")
+#: The materials a reader reads (a reading step gets one reader per kind ticked).
+READ_MATERIALS: tuple[str, ...] = tuple(m for m in MATERIALS if m != "text")
+#: The jobs that make a page's text from its picture: a project whose material is all text runs none of them, and
+#: its plan starts at what was ticked after reading (search, names, ...) (#5553).
+READING_THE_PICTURE = frozenset({"split-pages", "prepare-the-image", "find-regions", "find-lines", "put-in-order",
+                                 "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
+                                 "tie-text-to-lines", "correct", "train-a-model"})
 #: Jobs that read the material: they get one reader per kind of material ticked.
 READING_JOBS = frozenset({"read-a-line", "read-a-page"})
 #: Finding the documents in a box of loose pages, after reading (`finddocs.recipe-step`, #5550).
@@ -509,6 +518,10 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
     jobs = set(purpose_jobs(a.purposes))
     jobs |= {j for layer in a.layers for j in layer_jobs(layer)}
     jobs |= {j for j in a.jobs if j in STEP_ORDER}
+    already_text = set(a.materials) == {"text"}
+    if already_text:
+        # Nothing to read: the plan starts at what comes after reading (#5553).
+        jobs -= READING_THE_PICTURE
     if a.loose_pages and jobs & READING_JOBS:
         jobs.add(FIND_DOCUMENTS)
     if a.faded_pages and jobs & (READING_JOBS | {"find-lines"}):
@@ -518,7 +531,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
     train_ticked = "train-a-model" in jobs
     jobs.discard("train-a-model")
     jobs_in_order = sorted(jobs, key=STEP_ORDER.index)
-    if (train_ticked or a.pages >= TRAIN_OFFERED_FROM_PAGES) and jobs_in_order:
+    if (train_ticked or a.pages >= TRAIN_OFFERED_FROM_PAGES) and jobs_in_order and not already_text:
         # Training sits after what it learns from and before the checks and output.
         tail = [j for j in jobs_in_order if STEP_ORDER.index(j) > STEP_ORDER.index("train-a-model")]
         jobs_in_order = [j for j in jobs_in_order if j not in tail] + ["train-a-model"] + tail
@@ -550,11 +563,12 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
             continue
         choice = _choose(job, cards, a)
         step: dict[str, Any] = {"id": job, "job": job, **_topic(job)}
-        if len(a.materials) > 1 and job in READING_JOBS:
+        read = [m for m in a.materials if m in READ_MATERIALS]  # material already text has no reader (#5553)
+        if len(read) > 1 and job in READING_JOBS:
             # One reader per kind of material ticked; the step's own model is the default kind's,
             # until a folder or page override says which applies where (`source.onboard.material-any-mix`).
             step["material"] = a.material
-            step["readers"] = [{"material": m, **_chosen(_choose(job, cards, a, m))} for m in a.materials]
+            step["readers"] = [{"material": m, **_chosen(_choose(job, cards, a, m))} for m in read]
         step.update(_chosen(choice))
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
         if answer and a.job_answers.get(answer) not in (None, "", []):
@@ -583,4 +597,8 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         "by_hand": left_by_hand,
         "gaps": notes,
         "cloud_options": cloud_options,
+        # What Ready says when there is nothing to read (#5553).
+        **({"already_text": "The material is already text: nothing to read"
+                            + (f"; the plan starts at {_topic(jobs_in_order[0]).get('title', jobs_in_order[0])}."
+                               if jobs_in_order else ".")} if already_text else {}),
     }

@@ -1127,11 +1127,13 @@ plan's peak memory across steps. Ready shows none of it.
 - `source.onboard.auto.train-offer-comes` — **[GAP]** (#5440) when a project's corrected lines reach a
   train step's `offered_when` threshold, the offer appears by itself, with where, time and cost. Today
   nothing watches the count and the app never reads `offered`.
-- `source.onboard.auto.text-needs-no-reading` — **[GAP]** (#5553, as
+- `source.onboard.auto.text-needs-no-reading` — **[PARTIAL]** (#5553, as
   `source.recipe.text-material-is-not-read`) material that is already text is a kind of its own. Its
   recipe starts from text (`STARTS_WITH` includes the page's text), its language is detected from the
   text, no script or material is asked, and the plan goes straight to names, dates, organising and
-  search.
+  search. Built: the material `text`, read off the sample when unset, and its recipe starting from the page's
+  text (see `source.recipe.text-material-is-not-read`). Not built: the language detected from the text; setup
+  still asks a language and a script.
 - `source.onboard.auto.job-answers-read` — **[PARTIAL]** (#5478, #5574) the answers given under a purpose
   (which kinds of names, which gazetteer, how far to normalise) are read by the steps they configure.
   Built: saved as `answers.job_answers`; each becomes its step's setting (`start.JOB_ANSWER_SETTINGS`), at
@@ -1964,12 +1966,21 @@ Moved from `ai/local-runtimes.md` on 2026-10-04 (the card has one home). Each re
 - `source.model.coverage-two-ways` — **[GAP]** (#4948) a card states its coverage of a script: the
   LOOVE tokenizer tiers for a language or vision-language model, the share of the script's
   exemplar characters in its character set for Kraken or Tesseract, or "unknown".
-- `source.recipe.text-material-is-not-read` — **[GAP]** (#5553) material that is already text (Markdown,
+- `source.recipe.text-material-is-not-read` — **[PARTIAL]** (#5553) material that is already text (Markdown,
   plain text, Word, a PDF with a text layer, notes from Tinderbox, DEVONthink or Bookends) gets no reading
   step: the plan goes straight to search and whatever else was ticked, and Ready says the notes are already
   text. A project whose purpose is finding related material asks for no transcription. Scans of printed or
   typed pages are read by Tesseract first; Kraken or a vision model is offered only when the check on a few
   pages shows Tesseract misses.
+  Built: `text` is a material (`assemble.MATERIALS`); a project of text alone gets none of the jobs that make
+  text from a picture (lines, readers, corrections, training), its recipe starts from the page's text
+  (`jobs.starts_with`, so search, names and statements pass the check) and `/assemble` returns `already_text`,
+  the sentence Ready shows. Unset, the material is `text` when every page of the open project's sample is a
+  text file or a PDF page whose text layer the import kept (`prepare.sample_is_text`); a scanned PDF page is
+  read. Beside other materials, text gets no reader. Tested in
+  `fichero-server/tests/unit/recipes/test_text_material_not_read.py`. Not built: Tesseract first for printed
+  scans (#4948); a mixed project's read step still reads every page, including those already text; the app
+  offers no "already text" checkbox yet.
 - `source.model.tesseract-provider` — **[GAP]** (#4948) Tesseract is a provider row in the AI
   settings: its binary is built into the app, each language's data is downloaded on demand as
   data with a card of its own, and it can read whole pages or cut lines.

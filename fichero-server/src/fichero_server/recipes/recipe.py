@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fichero_server.recipes.jobs import get_job, unmet_inputs
+from fichero_server.recipes.jobs import get_job, starts_with, unmet_inputs
 
 #: The newest recipe schema this Fichero reads. A newer one is refused, not guessed at.
 SCHEMA_VERSION = 1
@@ -127,7 +127,10 @@ def check_recipe(recipe: dict[str, Any], folder: Path | None = None) -> list[str
         if step.get("prompt"):
             _check_prompt(label, folder, step["prompt"], out)
 
-    out.extend(unmet_inputs([s.get("job", "") for s in steps]))
+    # Material that is already text starts with the page's text, so its recipe needs no reading step (#5553).
+    material = (recipe.get("suits") or {}).get("material")
+    out.extend(unmet_inputs([s.get("job", "") for s in steps],
+                            starts_with=starts_with([material] if isinstance(material, str) else material)))
     return out
 
 

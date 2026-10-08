@@ -20,6 +20,9 @@ from fichero_server.recipes.topics import Topic, get_topic
 
 # The kinds of thing that flow between jobs. A page image is what every project starts with.
 STARTS_WITH = frozenset({"page_image"})
+#: Material that is already text (born-digital notes, a PDF with a text layer) starts with the page's text as
+#: well, so its recipe needs no reading step (`source.recipe.text-material-is-not-read`, #5553).
+TEXT_STARTS_WITH = STARTS_WITH | {"page_reading"}
 #: A `takes` entry may name kinds joined by "|": any one of them meets it (`source.chain.checked-before-run`).
 READING = "line_readings|page_reading"
 
@@ -112,7 +115,8 @@ _job("find-statements", {READING, "mentions"}, {"claims"}, "graph", _LIST, ("mod
 _job("work-out-dates", {"mentions"}, {"dates"}, "graph", _LIST)
 _job("link-to-authorities", {"mentions"}, {"authority_links"}, "graph", _LIST, ("sources",))
 _job("place-in-a-gazetteer", {"mentions"}, {"places"}, "places", _LIST, ("gazetteer",))
-_job("make-a-vector", {"line_readings"}, {"vectors"}, "vectors",
+# The embed job embeds the page's text, read line by line or given whole (`page_text_cache`, #5553).
+_job("make-a-vector", {READING}, {"vectors"}, "vectors",
      "each model's top results for a few of your own questions", ("model",))
 _job("describe-for-the-catalogue", {"line_readings"}, {"metadata_values"}, "catalogue", _LIST, ("fields",))
 _job("extract-to-a-table", {"line_readings"}, {"table_rows"}, "structure", _LIST, ("fields",))
@@ -125,6 +129,12 @@ _job("train-a-model", {"line_readings", "lines"}, {"model_card"}, "train",
 _job("check", {READING}, {"verdicts"}, "check", _LIST, ("layer", "model", "prompt"))
 _job("export", {READING}, {"files"}, "output", "the files side by side", ("formats", "folder"))
 _job("publish", {"files"}, {"published"}, "output", "the published pages side by side", ("where",))
+
+
+def starts_with(materials) -> frozenset[str]:
+    """What a project of these materials starts with: the page's text as well only when all of it is already text."""
+    given = set(materials or ())
+    return TEXT_STARTS_WITH if given and given <= {"text"} else STARTS_WITH
 
 
 def unmet_inputs(step_jobs: list[str], *, starts_with: frozenset[str] = STARTS_WITH) -> list[str]:

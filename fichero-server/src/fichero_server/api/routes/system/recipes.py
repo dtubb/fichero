@@ -103,8 +103,11 @@ class AssembleRequest(BaseModel):
         "and refused in words otherwise (source.onboard.language-stored-as-tag)"))
     scripts: list[str] = Field(min_length=1, description="ISO 15924 script codes (or a script's English name)")
     materials: list[str] = Field(default_factory=list, description=(
-        "handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader "
-        "per kind (source.onboard.material-any-mix)"))
+        "handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read "
+        "(source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, "
+        "a PDF with a text layer): a project of text alone gets no reading step "
+        "(source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample "
+        "is already text, else handwriting"))
     material: Optional[str] = Field(default=None, description="a single material, as before 2026-10-05")
     jobs: list[str] = Field(default_factory=list, description="jobs ticked on their own, beyond the purposes' "
                             "(GET /api/recipes/jobs)")
@@ -242,6 +245,9 @@ class AssembledRecipe(BaseModel):
     overrides: Optional[list[dict[str, Any]]] = Field(default=None, description=(
         "the open project's saved overrides (Use This, for the project or a folder), kept so a recipe proposed "
         "again and saved keeps them; a project-scope one has already set its step's reader"))
+    already_text: Optional[str] = Field(default=None, description=(
+        "set when the material is all already text: what Ready says, that there is nothing to read and where the "
+        "plan starts (source.recipe.text-material-is-not-read)"))
 
 
 def _this_machine_memory_gb() -> float:
@@ -466,6 +472,13 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
         from fichero_server.recipes.prepare import sample_shows_faded
 
         answers = {**answers, "faded_pages": sample_shows_faded(db_manager.get_database(str(library)))}
+    if not answers.get("materials") and not answers.get("material") and library is not None:
+        # Unset: text when every page of the sample is already text (a note, or a PDF page with a text layer, #5553).
+        from fichero_server.db.manager import db_manager
+        from fichero_server.recipes.prepare import sample_is_text
+
+        if sample_is_text(db_manager.get_database(str(library))):
+            answers = {**answers, "materials": ["text"]}
     a = _answers(answers)
     recipe = assemble(a, known_cards(a))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
@@ -541,6 +554,7 @@ async def assemble_recipe(
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
         steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
         cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
+        already_text=recipe.get("already_text"),
     )
 
 
@@ -650,15 +664,15 @@ async def model_candidates(
     Refused (422), in words, for an unknown script, language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
-    from fichero_server.recipes.assemble import MATERIALS, READING_JOBS, _rank_key, _refusal
+    from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _rank_key, _refusal
     from fichero_server.recipes.discovery import NO_PROJECT, discover, egress_allowed
     from fichero_server.recipes.names import resolve_language, resolve_script
 
     if job not in READING_JOBS:
         raise HTTPException(status_code=422, detail=f"discovery finds readers: job must be one of "
                                                     f"{', '.join(sorted(READING_JOBS))}")
-    if material not in MATERIALS:
-        raise HTTPException(status_code=422, detail=f"material must be one of {', '.join(MATERIALS)}")
+    if material not in READ_MATERIALS:
+        raise HTTPException(status_code=422, detail=f"material must be one of {', '.join(READ_MATERIALS)}")
     try:
         script_codes = frozenset(resolve_script(s) for s in scripts.split(",") if s.strip())
         tags = frozenset(resolve_language(t) for t in languages.split(",") if t.strip())

@@ -47564,7 +47564,7 @@
             },
             "type": "array",
             "title": "Materials",
-            "description": "handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader per kind (source.onboard.material-any-mix)"
+            "description": "handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting"
           },
           "material": {
             "type": "string",
@@ -47723,6 +47723,12 @@
             "nullable": true,
             "title": "Overrides",
             "description": "the open project's saved overrides (Use This, for the project or a folder), kept so a recipe proposed again and saved keeps them; a project-scope one has already set its step's reader"
+          },
+          "already_text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Already Text",
+            "description": "set when the material is all already text: what Ready says, that there is nothing to read and where the plan starts (source.recipe.text-material-is-not-read)"
           }
         },
         "type": "object",

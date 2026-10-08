@@ -67,7 +67,7 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
     materials = _list(out.pop("materials", None)) + _list(out.pop("material", None))
     unknown = [m for m in materials if m not in MATERIALS]
     if unknown:
-        problems.append(f"Material is handwriting, print or typescript, not {', '.join(map(repr, unknown))}.")
+        problems.append(f"Material is handwriting, print, typescript or text (already text), not {', '.join(map(repr, unknown))}.")
     out["materials"] = [m for m in MATERIALS if m in materials] + unknown or ["handwriting"]
     if "languages" in out:
         out["languages"] = list(dict.fromkeys(keep_or_refuse(v, resolve_language) for v in _list(out["languages"])))
