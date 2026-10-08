@@ -670,6 +670,21 @@ workflow by hand: a hand run is a job like any other.
   `testActivityWindowRowShowsReason_aWaitingJobSaysWhatItWaitsFor`). Not yet seen in the app.
   Still a gap: no row carries its lane (neither the `jobs` table nor `JobTree` nor `BackgroundJob`
   has it, `api/routes/system/activity.py:127-146`).
+- `activity.waiting-says-why` — **[PARTIAL]** (#5606) a waiting row says what it truly waits for
+  now, and never has no reason: paused by you, when paused; the throttle's reason only while the
+  throttle gives it now ("Waiting: you're using the Mac" only while the Mac reads as in use, the
+  same reading as `machine.in_use`); thumbnails first ("Waiting: thumbnails are made first",
+  #5585); the lane and what holds it ("Waiting for the model lane: Paleographer Review is
+  reading", the holder named by the run it reads for, else by its kind); a reason the job recorded
+  itself; else its turn on its lane. The import's "Processing imported pages" row, while none of
+  its stages runs, is `waiting` with the same reason. Before: a throttle scan's words stayed on
+  the rows after the Mac went idle (embeds said "you're using the Mac" with `in_use` false while
+  a recipe's reading held the lane), and the import's row sat at 100 of 406 with reason null.
+  Built: one function decides every waiting row's reason when it is read (`execution/jobs.py`
+  `waiting_reason`), used by the jobs list, a run's waiting reason and the import's row. Tested
+  through `GET /api/activity/jobs` with the real lanes, a lane held by a real page of a run
+  (`fichero-server/tests/unit/jobs/test_waiting_says_why.py`). Not yet seen in the app. Still a
+  gap: the job tree (`GET /api/activity/jobs/{id}`) shows a page's stored reason.
 - `activity.popover.summary` — **[PARTIAL]** (#5415) the toolbar popover is a summary, not a list:
   what is running, what is waiting and the main reason why, the last three errors, and the Mac's
   state (memory pressure, heat, battery, in use), read from the engine. CPU and GPU percentages
