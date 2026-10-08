@@ -2546,6 +2546,7 @@ _TIMEOUT_MARKERS = (
     "connection reset",
     "connection aborted",
     "server disconnected",
+    "stopped answering",
 )
 _RATE_LIMIT_MARKERS = ("rate limit", "rate_limit", "429", "quota", "too many requests")
 

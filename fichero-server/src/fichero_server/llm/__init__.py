@@ -1389,8 +1389,14 @@ async def model_call_slot(config: LLMConfig, *, library: str | None = None,
     a call waiting for the lane. A request the server died under says so, with its last output."""
     provider = (config.provider or "").strip().lower()
     async with _lane_call_slot(config, library=library, subject=subject):
-        if provider != "omlx":
+        if not _streams_locally(config):
             yield
+            return
+        if provider != "omlx":
+            try:
+                yield
+            except Exception as exc:
+                raise _stopped_answering(exc) or exc
             return
         from fichero_server.llm.local_inference import local_read_slot
 
@@ -1399,10 +1405,41 @@ async def model_call_slot(config: LLMConfig, *, library: str | None = None,
             try:
                 yield
             except Exception as exc:
-                stopped = await _local_server_stopped(exc)
+                stopped = await _local_server_stopped(exc) or _stopped_answering(exc)
                 if stopped is None:
                     raise
                 raise stopped from exc
+
+
+def _streams_locally(config: LLMConfig) -> bool:
+    """A model served on this Mac over the OpenAI shape (the engine's MLX server, Ollama, LM Studio):
+    its calls stream and are judged by progress, not wall time (#5537)."""
+    return (config.provider or "").strip().lower() in _KEYLESS_OPENAI_COMPATIBLE
+
+
+def _call_budget(config: LLMConfig) -> float | None:
+    """The wall-clock cap on one model call: none for a local model, whose stream is judged by progress
+    instead (`local_inference.LOCAL_NO_PROGRESS_SECONDS`, #5537); a cloud call keeps its cap."""
+    return None if _streams_locally(config) else _compute_timeout(config, "langchain")
+
+
+def _stopped_answering(exc: BaseException) -> Exception | None:
+    """The cause when a local model's stream went quiet for the no-progress window (#5537): "the model
+    stopped answering for N s", never a bare "ReadTimeout". None for any other failure."""
+    import httpx
+    import openai
+
+    from fichero_server.llm import local_inference
+
+    seen: BaseException | None = exc
+    for _ in range(5):
+        if seen is None:
+            return None
+        if isinstance(seen, (httpx.TimeoutException, openai.APITimeoutError)):
+            return local_inference.LocalModelStoppedAnsweringError(
+                local_inference.LOCAL_NO_PROGRESS_SECONDS)
+        seen = seen.__cause__ or seen.__context__
+    return None
 
 
 def _local_reads_at_once(config: LLMConfig) -> int | None:
@@ -1556,6 +1593,10 @@ def _coerce_batch_item_exception(
     config: LLMConfig,
     exc: BaseException,
 ) -> BaseException:
+    if _streams_locally(config):
+        stopped = _stopped_answering(exc)
+        if stopped is not None:
+            return stopped
     try:
         _raise_provider_quota_error(config, exc)
     except ProviderQuotaError as quota_exc:
@@ -1588,7 +1629,7 @@ async def _call_model_abatch(
     inputs: list[Any],
     config: LLMConfig,
 ) -> list[Any]:
-    budget = _compute_timeout(config, "langchain")
+    budget = _call_budget(config)
     batch_config = None
     max_concurrency = _batch_max_concurrency(config)
     if max_concurrency is not None:
@@ -1821,7 +1862,7 @@ async def chat(
         # every ainvoke in asyncio.wait_for so a stuck call eventually
         # surfaces a TimeoutError that chat_with_fallback / structured
         # callers can route around.
-        budget = _compute_timeout(config, "langchain")
+        budget = _call_budget(config)
         try:
             async with _remote_llm_call_slot(config):
                 response = await asyncio.wait_for(
@@ -2736,7 +2777,7 @@ async def vision(
 
     # Hard wall-clock timeout (#2228, mirrors chat() #844 robustness). Some
     # vision providers ignore the LangChain `timeout` kwarg under keepalive.
-    budget = _compute_timeout(config, "langchain")
+    budget = _call_budget(config)
     try:
         async with _remote_llm_call_slot(config):
             response = await asyncio.wait_for(
@@ -3377,8 +3418,11 @@ async def chat_structured(
     # Guarded on real pydantic models: LangChain chat models are pydantic and
     # copy cheaply (client objects are shared by reference); test doubles are
     # not and must pass through untouched.
+    # A local model keeps its stream: it is how a slow answer is told from a stopped one (#5537), and
+    # the chunk-merge doubling above is OpenRouter's, not a local server's.
     if (
         isinstance(model, BaseModel)
+        and not _streams_locally(config)
         and getattr(model, "disable_streaming", None) is not True
     ):
         model = model.model_copy(update={"disable_streaming": True})
@@ -3460,7 +3504,7 @@ async def chat_structured(
     # Wall-clock timeout (#844 robustness, mirrors chat()). Some
     # backends ignore the per-model timeout kwarg under HTTP keepalive;
     # asyncio.wait_for is the backstop.
-    budget = _compute_timeout(config, "langchain")
+    budget = _call_budget(config)
     try:
         async with _remote_llm_call_slot(config):
             result = await asyncio.wait_for(
@@ -4677,8 +4721,24 @@ def _build_langchain_model(config: LLMConfig) -> Any:
 
         base_url = config.api_base or _OPENAI_COMPATIBLE_BASE_URLS[provider]
         effective_key = api_key
-        if provider in _KEYLESS_OPENAI_COMPATIBLE and not effective_key:
-            effective_key = provider  # placeholder — local servers ignore it
+        params = dict(common_params)
+        if provider in _KEYLESS_OPENAI_COMPATIBLE:
+            if not effective_key:
+                effective_key = provider  # placeholder — local servers ignore it
+            # A model served on this Mac is judged by progress, not wall time (#5537): every call
+            # streams (ainvoke and abatch gather the stream), the HTTP read timeout is the time
+            # allowed between two pieces of the answer, and there is no wall-clock cap
+            # (`_call_budget`). No client-side retries: a request that went quiet is said as "the
+            # model stopped answering" (`model_call_slot`) and the page is read once more
+            # (`page_retry`); ten silent retries were ten times the wait.
+            from fichero_server.llm import local_inference
+
+            params.update(
+                streaming=True,
+                stream_usage=True,
+                timeout=local_inference.LOCAL_NO_PROGRESS_SECONDS,
+                max_retries=0,
+            )
         return ChatOpenAI(
             model=model_name,
             api_key=effective_key,
@@ -4689,7 +4749,7 @@ def _build_langchain_model(config: LLMConfig) -> Any:
                 model_name=model_name,
                 api_key=effective_key,
             ),
-            **common_params,
+            **params,
         )
 
     # Azure OpenAI — different param shape (azure_endpoint + api_version).

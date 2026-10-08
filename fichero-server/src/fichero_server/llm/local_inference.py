@@ -311,6 +311,24 @@ class LocalModelServerStoppedError(RuntimeError):
     server's last output, and the page is read once more after the server restarts (`page_retry`)."""
 
 
+#: How long a call to a model served on this Mac may go with nothing new before it fails (#5537).
+#: Every local call streams; while tokens arrive it runs on, however long the answer (its token
+#: ceiling bounds it). The window also covers reading the prompt before the first token, which a long
+#: review prompt with a page image takes tens of seconds on a 3B-7B on a busy Mac.
+#: ponytail: one fixed window. Ceiling: a prompt that takes longer than this to read before its first
+#: token (a very long prompt on a swapping 8 GB Mac) fails as "stopped answering". Upgrade path: ask the
+#: server for its prompt-reading progress, or scale the window by prompt size from a measured rate.
+LOCAL_NO_PROGRESS_SECONDS = 120.0
+
+
+class LocalModelStoppedAnsweringError(RuntimeError):
+    """Nothing new arrived from a local model for `LOCAL_NO_PROGRESS_SECONDS` (#5537). A passing cause:
+    the page is read once more before it fails (`page_retry`)."""
+
+    def __init__(self, seconds: float) -> None:
+        super().__init__(f"the model stopped answering for {seconds:g} s (no new text arrived)")
+
+
 def _pid_alive(pid: Any) -> bool:
     if not isinstance(pid, int) or pid <= 0:
         return True  # nothing to look at: trust the handle
