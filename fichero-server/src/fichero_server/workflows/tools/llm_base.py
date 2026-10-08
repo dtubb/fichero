@@ -390,6 +390,12 @@ class LLMToolConfig:
     # disable per-node in the config to force a re-run.
     skip_if_artifact_exists: bool = True
 
+    # The kind of reading this output IS (`source.extract.text-outputs-are-readings`, #5599): when
+    # set, the saved text is also written as a reading of that kind on the node it was made from
+    # (`representation.create`, derived from the artifact, under the run), so whatever looks for a
+    # translation finds one. The artifact stays as the record of the run. None = not a reading.
+    reading_kind: str | None = None
+
 
 def find_existing_artifact(
     document_id: str | None,
@@ -691,6 +697,14 @@ def _save_artifact_sync(
         db.save(artifact)
         artifact_id = artifact.id
         logger.info(f"Created {tool_config.artifact_type} artifact {artifact_id}")
+        if tool_config.reading_kind and (content or "").strip():
+            # A core write: a reading that fails to land is a lost output, so it surfaces (below).
+            from fichero_server.llm.working_lines import write_readings
+
+            write_readings(
+                db, document_id=resolved_doc_id, readings=[(None, content)], artifact_id=artifact_id,
+                run_id=task_id, kind=tool_config.reading_kind, library_path=library_path,
+            )
 
         # Update Document.page_content if configured — but NEVER clobber
         # user-edited page_content. The API update route sets

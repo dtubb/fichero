@@ -8,6 +8,7 @@ Inherits from vision_base.py - the flexible catch-all for any vision task.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import Any
 
 from fichero_server.workflows.types import State
@@ -45,9 +46,28 @@ TOOL_CONFIG = VisionToolConfig(
     skip_if_artifact_exists=False,
 )
 
-# Analyze has no additional config - it uses all BASE + VISION config
-# The prompt is required though
-ANALYZE_CONFIG = {}  # Empty - all options inherited
+# Analyze uses all BASE + VISION config (the prompt is required), plus the kind of reading a
+# preset's answer IS (#5599): the historical presets translate, modernise and summarise, and an
+# answer that is a translation is saved as one, not as an "analysis".
+ANALYZE_CONFIG = {
+    "reading_kind": {
+        "type": "string",
+        "description": (
+            "The kind of reading the answer is (translation, normalized_text, regest...). Set, "
+            "the answer is a reading of that kind on the page and its artifact carries that "
+            "type; unset, it is an 'analysis' artifact."
+        ),
+        "x-hidden": True,
+    },
+}
+
+
+def tool_config_for(reading_kind: str | None) -> VisionToolConfig:
+    """The save config for one run: an answer that is a reading is filed as that reading's kind
+    (artifact and reading), and no longer copied into `metadata["analysis"]`."""
+    if not reading_kind:
+        return TOOL_CONFIG
+    return replace(TOOL_CONFIG, artifact_type=reading_kind, reading_kind=reading_kind, metadata_field=None)
 
 
 # =============================================================================
@@ -119,7 +139,7 @@ async def analyze(
         llm_config=llm_config,
         library_path=state.get("library_path", ""),
         task_id=state.get("task_id"),
-        tool_config=TOOL_CONFIG,
+        tool_config=tool_config_for(inputs.get("reading_kind")),
         # Vision-specific
         vision_mode="llm",  # Analyze always uses LLM
         max_image_dimension=inputs.get("max_image_dimension", 2048),

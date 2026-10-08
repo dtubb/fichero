@@ -101,17 +101,18 @@ def write_readings(
     db: Any,
     *,
     document_id: str,
-    readings: list[tuple[str, str]],
+    readings: list[tuple[str | None, str]],
     artifact_id: str | None,
-    run_id: str,
+    run_id: str | None,
     actor: str = "system",
     kind: str = "transcription",
     library_path: str | None = None,
 ) -> list[str]:
     """Each `(segment_id, text)` written as a reading of that line (`representation.create`), derived from
     the reader's page artifact (whose provider and model say who read it), under `run_id`: a machine's
-    reading, `workflow`, never a person's. An empty text writes nothing: a line read as nothing has not
-    been given words. Returns the readings' ids."""
+    reading, `workflow`, never a person's. A segment id of None is a reading of the node itself (a
+    translation of a page with no lines, a folder's description, #5599). An empty text writes nothing: a
+    line read as nothing has not been given words. Returns the readings' ids."""
     import fichero_server.api.routes.document.content_representations  # noqa: F401  (representation.create)
     from fichero_server.actions.registry import ActionContext, registry
 

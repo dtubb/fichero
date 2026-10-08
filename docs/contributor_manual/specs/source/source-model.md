@@ -441,10 +441,19 @@ level it was made for.
   page become table rows on their lines, each date a mention.
 - `source.extract.tables-on-cells` — **[GAP]** (#5490) a table is a logical unit; each row and cell
   names its segments; the table view and the CSV are read from it.
-- `source.extract.text-outputs-are-readings` — **[BROKEN]** (#3325, #5490; #5599 for the
-  `analysis` presets) a translation, modernisation or regest is a reading of its kind on the lines
-  (or on the page when it has no lines), never an artifact; the historical presets stop filing a
-  translation as `analysis`.
+- `source.extract.text-outputs-are-readings` — **[PARTIAL]** (#3325, #5490; #5599 for the
+  `analysis` presets) *Built (#5599): a tool's save config names the kind of reading its output is
+  (`LLMToolConfig.reading_kind`), and the one artifact save writes that reading on the node it was
+  made from (`representation.create`, derived from the run's artifact, under the run). Translate,
+  Translate Text and Translate Review write a `translation` reading; the three historical presets name
+  theirs on the Analyze step (`translation`, `normalized_text`, and a new seeded kind `regest`), file
+  their artifact under that kind instead of `analysis`, and no longer copy it into
+  `metadata["analysis"]`. Pinned by `fichero-server/tests/unit/workflows/
+  test_text_outputs_are_readings.py` (each preset through the real runner, read back through
+  `GET /api/content-representations/document/{id}`). Not built: the reading on the page's lines
+  rather than on the page (#3325); the run's artifact is still saved beside it as its record.* A
+  translation, modernisation or regest is a reading of its kind on the lines (or on the page when it
+  has no lines), never an artifact; the historical presets stop filing a translation as `analysis`.
 - `source.extract.places-one-home` — **[BROKEN]** (#5597) a place's coordinates live on its
   entity; a document's map points are worked out from its place mentions; the `geo` artifact and
   `metadata.geo_points` are retired.
@@ -454,8 +463,13 @@ level it was made for.
 - `source.extract.kinds-proposed-as-prototypes` — **[GAP]** (#5550) a document's kind, whether from
   Find the Documents or `classify`, is a proposed prototype on the node, accepted by a person, not a
   `classification` artifact.
-- `source.extract.catalogue-never-overwrites-text` — **[BROKEN]** (#5365; #5599) the catalogue's
+- `source.extract.catalogue-never-overwrites-text` — **[OK]** (#5365; #5599) the catalogue's
   narrative is a reading of kind description on the folder, never written into its `page_content`.
+  *Built (#5599): `catalogue.py` writes the narrative through the one reading writer, derived from
+  the `catalogue.narrative` artifact; a re-run retracts the machine description it replaces, so the
+  folder is described once. Pinned by `fichero-server/tests/unit/workflows/
+  test_text_outputs_are_readings.py` (the shipped Catalogue preset through the real runner). Libraries
+  whose folders already hold an earlier run's narrative as their text are not rewritten.*
 - `source.extract.shown-as-layers` — **[GAP]** (#1659, #5418) names, statements, quotations, dates,
   entries and table cells each have a layer in the Preview, drawn on their segments, with the empty
   case said.
@@ -488,7 +502,7 @@ level it was made for.
   registered tool (144) declares what it writes and where it attaches in
   `workflows/tool_outputs.py`, stamped on `ToolDef` and served read-only as `writes` / `anchors_at`
   on `GET /api/workflows/tools`; `scripts/check_tool_outputs_declared.py` fails an undeclared tool
-  and an artifact-only tool missing from its baseline (38 known gaps, each naming its slice), pinned
+  and an artifact-only tool missing from its baseline (34 known gaps after #5599, each naming its slice), pinned
   by `fichero-server/tests/unit/scripts/test_check_tool_outputs_declared.py`. Not built: the
   table above generated from the declarations.* Every registered tool declares which record kinds
   it writes (pass, reading, mention, statement, unit, attribute, node, rendition); a guard fails a

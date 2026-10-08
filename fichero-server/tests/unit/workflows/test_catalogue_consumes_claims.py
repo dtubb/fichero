@@ -17,7 +17,7 @@ import pytest
 
 from fichero_server.models.knowledge import EntityType
 from fichero_server.llm import LLMConfig
-from fichero_server.models import Document, DocType, FileType, Artifact
+from fichero_server.models import Document, DocType, FileType, Artifact, ContentRepresentation
 
 
 @pytest.fixture
@@ -258,9 +258,15 @@ class TestCatalogueArtifactPlacement:
         target_artifacts = db.query(Artifact, document_id=container_doc.id)
         assert any(a.artifact_type == "catalogue.narrative" for a in target_artifacts)
 
+        # #5599: the narrative is a description reading of the folder; its own text is untouched.
         target_doc = db.get(Document, container_doc.id)
         assert target_doc is not None
-        assert target_doc.page_content == "Resumen narrative."
+        assert target_doc.page_content != "Resumen narrative."
+        assert [
+            r.content
+            for r in db.query(ContentRepresentation, document_id=container_doc.id)
+            if r.kind == "description"
+        ] == ["Resumen narrative."]
 
     @pytest.mark.asyncio
     async def test_catalogue_artifact_lands_on_pdf_doc_when_pdf_selected(
@@ -308,7 +314,12 @@ class TestCatalogueArtifactPlacement:
 
         target_doc = db.get(Document, pdf_doc.id)
         assert target_doc is not None
-        assert target_doc.page_content == "Resumen narrative."
+        assert target_doc.page_content != "Resumen narrative."
+        assert [
+            r.content
+            for r in db.query(ContentRepresentation, document_id=pdf_doc.id)
+            if r.kind == "description"
+        ] == ["Resumen narrative."]
 
         folder_artifacts = db.query(Artifact, document_id=container_doc.id)
         assert not any(a.artifact_type == "catalogue.narrative" for a in folder_artifacts)

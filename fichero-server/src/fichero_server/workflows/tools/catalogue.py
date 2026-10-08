@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import logging
 import re
-from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fichero_server.workflows.types import State, PortDef, DataType
@@ -433,6 +432,43 @@ def _resolve_write_target(
     return docs[0] if docs else None
 
 
+def _describe_container(
+    db: Any,
+    container_id: str,
+    narrative: str,
+    narrative_artifact_id: str | None,
+    replaced_artifact_ids: list[str],
+    *,
+    run_id: str | None,
+    library_path: str,
+) -> list[str]:
+    """Write the catalogue's narrative as a reading of kind ``description`` on the container
+    (`source.extract.catalogue-never-overwrites-text`, #5599), through the one reading writer, and
+    retract the machine readings made from the narrative artifacts this run replaced, so a re-run
+    describes the folder once rather than once per run. A reading a person corrected is a new reading
+    of its own and is never retracted here. Returns the new reading's ids."""
+    import fichero_server.api.routes.document.content_representations  # noqa: F401  (representation.*)
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.llm.working_lines import write_readings
+    from fichero_server.models import ContentRepresentation, ProvenanceKind
+
+    replaced = set(replaced_artifact_ids)
+    if replaced:
+        ctx = ActionContext(actor="system", run_id=run_id, library_path=library_path, is_bootstrap=True)
+        for row in db.query(ContentRepresentation, document_id=container_id):
+            if (
+                row.kind == "description"
+                and row.retracted_at is None
+                and row.derived_from_artifact_id in replaced
+                and row.provenance_kind is not ProvenanceKind.human
+            ):
+                registry.invoke(db, "representation.retract", {"representation_id": row.id}, ctx)
+    return write_readings(
+        db, document_id=container_id, readings=[(None, narrative)], artifact_id=narrative_artifact_id,
+        run_id=run_id, kind="description", library_path=library_path,
+    )
+
+
 # =============================================================================
 # Tool Registration
 # =============================================================================
@@ -711,15 +747,14 @@ async def catalogue(
             # is that its evidence now includes ActionAudit, which is what
             # records an `artifact.update` (see curation_guard.audited_row_ids).
             from fichero_server.models import Artifact as ArtifactModel
-            from fichero_server.workflows.curation_guard import (
-                record_conflict,
-                sweep_replaceable,
-            )
+            from fichero_server.workflows.curation_guard import sweep_replaceable
+
             replacement_content = {
                 "catalogue.narrative": markdown,
                 "catalogue.timeline": timeline_md,
                 "catalogue.keywords": keywords_md,
             }
+            swept_artifact_ids: list[str] = []
             preserved_artifact_ids: list[str] = []
             try:
                 prior = [
@@ -728,7 +763,7 @@ async def catalogue(
                     if (a.artifact_type or "") == "catalogue"
                     or (a.artifact_type or "").startswith("catalogue.")
                 ]
-                _deleted, preserved_artifact_ids = sweep_replaceable(
+                swept_artifact_ids, preserved_artifact_ids = sweep_replaceable(
                     db,
                     prior,
                     reason="a Catalogue re-run would have replaced this corrected artifact",
@@ -788,6 +823,7 @@ async def catalogue(
                 ("catalogue.timeline", timeline_md),
                 ("catalogue.keywords", keywords_md),
             ]
+            narrative_artifact_id: str | None = None
             for atype, content in artifacts_to_save:
                 if not content:
                     continue
@@ -802,37 +838,20 @@ async def catalogue(
                 )
                 db.save(a)
                 saved_artifact_ids.append(a.id)
+                if atype == "catalogue.narrative":
+                    narrative_artifact_id = a.id
 
-            # Folder's page_content shows the narrative (the headline) — but
-            # never over text a person has edited. llm_base has honoured this
-            # flag for pages since #672; this write bypassed llm_base entirely,
-            # so the guard held everywhere except the flagship path. Same
-            # function, same answer, both callers.
-            from fichero_server.workflows.curation_guard import (
-                page_content_is_user_edited,
+            # The narrative is a DESCRIPTION READING of the container, never its text
+            # (`source.extract.catalogue-never-overwrites-text`, #5599): the folder's own
+            # page_content stays exactly what it was.
+            _describe_container(
+                db, container.id, markdown, narrative_artifact_id, swept_artifact_ids,
+                run_id=run_id, library_path=library_path,
             )
 
-            if page_content_is_user_edited(container):
-                if record_conflict(
-                    container,
-                    proposal={"page_content": markdown, "provider": provider, "model": model},
-                    reason="a Catalogue re-run would have replaced edited page_content",
-                ):
-                    container.updated_at = utc_now()
-                    db.save(container)
-                logger.info(
-                    "Catalogue: left edited page_content on container %s; the "
-                    "re-run's narrative is recorded beside it",
-                    container.id,
-                )
-            else:
-                container.page_content = markdown
-                container.updated_at = utc_now()
-                db.save(container)
-
             logger.info(
-                f"Catalogue: saved {len(saved_artifact_ids)} artifacts on container "
-                f"{container.id} ({container.name}); updated page_content"
+                f"Catalogue: saved {len(saved_artifact_ids)} artifacts and a description "
+                f"reading on container {container.id} ({container.name})"
             )
             if saved_artifact_ids:
                 emit_workflow_artifact_changes(

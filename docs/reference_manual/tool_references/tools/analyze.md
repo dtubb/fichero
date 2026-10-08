@@ -56,6 +56,7 @@ Custom vision analysis
 | `prompt` | string | — | Custom prompt. |
 | `provider_name` | string | — | LLM provider. One of: openai, anthropic, google, ollama, lmstudio, groq, together, deepseek, mistral, openrouter, dashscope, xai, perplexity, fireworks, deepl. |
 | `quality_gate` | boolean | yes | Stop the run if output is unreadable. |
+| `reading_kind` | string | — | The kind of reading the answer is (translation, normalized_text, regest...). Set, the answer is a reading of that kind on the page and its artifact carries that type; unset, it is an 'analysis' artifact. (Not shown in the editor.) |
 | `reference_values` | object | — | Known values to match. (Not shown in the editor.) |
 | `save_to_db` | boolean | yes | Save to library. |
 | `save_to_file` | boolean | no | Export to file. |

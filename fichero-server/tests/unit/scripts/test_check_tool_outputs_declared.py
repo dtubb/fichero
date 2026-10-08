@@ -118,7 +118,7 @@ class TestTheRealRegistry:
         assert transcribe is not None
         assert transcribe.writes == ["artifact", "page_text", "pass", "reading"]
         assert transcribe.anchors_at == "segment"
-        assert get_tool_def("translate").writes == ["artifact"]
+        assert get_tool_def("translate").writes == ["artifact", "reading"]  # #5599
 
     def test_the_tools_list_route_serves_the_declaration(self):
         from fichero_server.api.routes.workflow.workflows import _tool_to_response

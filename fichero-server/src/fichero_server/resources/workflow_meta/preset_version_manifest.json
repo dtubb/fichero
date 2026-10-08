@@ -108,16 +108,16 @@
   "sha256": "552c1cf86f77976bd55774826cbd18c86ac4bf2f1b2aa323a176c56dccb54933"
  },
  "paleo_modernizacion.json": {
-  "preset_version": 2,
-  "sha256": "766e8fe71e1ead4bab29f86739365481d5df87d0c16300721e326451980304c3"
+  "preset_version": 3,
+  "sha256": "8d9952d69e6336c762b64833db5b94da89d81f3705e9bed6bb9ec52bbf651974"
  },
  "paleo_regesto.json": {
-  "preset_version": 2,
-  "sha256": "825ff9da575cd3eaa4867d43cc86853dfce394ae498cedfaf91e685972d09c5f"
+  "preset_version": 3,
+  "sha256": "992a495c3bc93649ae01bb7e588c372c42feeddc67325c92e0d25e034c9ec1cc"
  },
  "paleo_translate_english.json": {
-  "preset_version": 2,
-  "sha256": "43e848ab861dcc4c12f61b775bca327c5639f9823dfeca43b574940dbb7cf82f"
+  "preset_version": 3,
+  "sha256": "d5530644db44af874c04d5882ad594a9e55b04caf80f598dcf8f259537309e57"
  },
  "prepare_images_for_ocr.json": {
   "preset_version": 1,

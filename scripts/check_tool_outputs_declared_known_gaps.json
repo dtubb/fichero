@@ -1,5 +1,4 @@
 {
-  "analyze": "the historical presets (translate to English, modernizacion, regesto) save an 'analysis' artifact; a translation, modernisation or regest becomes a reading of its kind (#5599)",
   "caption": "a caption is text about the page; it becomes a description reading on the page or its regions (#5599)",
   "classify": "a document's kind is a proposed prototype on the node, not a 'classification' artifact (#5600)",
   "classify_script": "the script class (Transcribe Auto-detect) is an attribute of the page, not a 'script_classification' artifact (#5600)",
@@ -33,8 +32,5 @@
   "summarize_folder": "a folder's summary is a description reading on the folder (#5599)",
   "table_extract": "a table is a logical unit whose rows and cells name their segments; the table view and CSV read it (#5603)",
   "tags": "tags are attribute values of the node (#5600)",
-  "text_translate": "a translation is a reading of kind translation on the lines (or the page), not an artifact (#5599)",
-  "text_translate_review": "a reviewed translation is a reading of kind translation on the lines (#5599)",
-  "timeline": "the timeline is the time view over date mentions, not a markdown artifact (#5603)",
-  "translate": "a translation is a reading of kind translation on the lines (or the page), not an artifact (#5599)"
+  "timeline": "the timeline is the time view over date mentions, not a markdown artifact (#5603)"
 }
