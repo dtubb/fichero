@@ -403,6 +403,13 @@ def run(db: Any, subject: str) -> dict[str, Any]:
     return result
 
 
+def _request_cancel(db: Any, job_id: str) -> str:
+    from fichero_server.checking.job import request_cancel
+
+    return request_cancel(db, job_id)
+
+
 def register_job_kinds() -> None:
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
-        jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, name="Tie the page text to its lines")
+        jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, name="Tie the page text to its lines",
+                           cancel=_request_cancel)  # Stop on its row reaches a running one (#5356)

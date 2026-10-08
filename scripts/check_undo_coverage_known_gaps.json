@@ -449,5 +449,6 @@
   "POST /api/find-documents/proposals/{proposal_id}/accept": "finddocs.accept is audited and undoable in the engine (one undo of its audit_id restores the folder, prototypes and canvas; test_find_documents_to_spec); the app's Edit > Undo does not reach it until the app surface is built (#5550)",
   "POST /api/find-documents/proposals/{proposal_id}/reject": "finddocs.reject is audited and undoable in the engine (finddocs.restate); the app's Edit > Undo does not reach it until the app surface is built (#5550)",
   "POST /api/documents/{doc_id}/proposed-kind/accept": "audited and undoable in the engine (document.assign_prototype; one undo of its audit_id restores the node and the proposal; test_attributes_cite); the app's Accept, and its undo wiring, are not built yet (#5600)",
-  "POST /api/documents/{doc_id}/proposed-kind/reject": "audited and undoable in the engine (document.reject_proposed_kind inverts to document.restore; test_attributes_cite); the app's Reject, and its undo wiring, are not built yet (#5600)"
+  "POST /api/documents/{doc_id}/proposed-kind/reject": "audited and undoable in the engine (document.reject_proposed_kind inverts to document.restore; test_attributes_cite); the app's Reject, and its undo wiring, are not built yet (#5600)",
+  "POST /api/activity/jobs/{job_id}/retry": "a retry is not undone: it runs the job again, and a retried job is stopped like any other with the cancel route (job.retry is audited); the app has no per-job control yet (#5356)"
 }

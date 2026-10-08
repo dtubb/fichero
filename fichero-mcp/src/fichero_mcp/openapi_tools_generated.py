@@ -285,6 +285,14 @@ def fichero_activity_set_job_paused(
     return _rt.call("PUT", f"/api/activity/jobs/{job_id}/paused", json=_rt.body({"paused": paused}))
 
 
+def fichero_activity_retry_job(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    'Retry Job\n\nRun a failed or stopped job again: it goes back to waiting and carries on from its own\ncheckpoint where it keeps one. A page a workflow run waits for, a training on Hugging Face, or\nwork that is already waiting again cannot be retried here (409, with the reason).\n\nRoute: POST /api/activity/jobs/{job_id}/retry (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/activity/jobs/{job_id}/retry")
+
+
 def fichero_activity_get_metrics_summary(
     *,
     hours: Annotated[Optional[int], Field(description='Hours')] = None,
@@ -2064,6 +2072,14 @@ def fichero_documents_list_roots(
 ) -> Any:
     'List Roots\n\nList root documents (no parent).\n\nRoute: GET /api/documents/roots (toolset `documents`; reads).'
     return _rt.call("GET", "/api/documents/roots", params={"sort_by": sort_by, "sort_direction": sort_direction})
+
+
+def fichero_documents_get_run_history(
+    *,
+    ids: Annotated[list[str], Field(description="the documents to read, e.g. a table's visible rows")],
+) -> Any:
+    'Get Run History\n\nWhat has been run on each document (#5434): its job rows (thumbnails, embeddings, names, line\nfinding, page reads, …) and the workflow runs recorded on it, newest first, with the model and\nprovider as recorded, the outcome and an absolute time. One call for many documents.\n\nRoute: GET /api/documents/run-history (toolset `documents`; reads).'
+    return _rt.call("GET", "/api/documents/run-history", params={"ids": ids})
 
 
 def fichero_documents_list_deleted(
@@ -8488,6 +8504,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_cancel_job", "activity", "POST", "/api/activity/jobs/{job_id}/cancel", fichero_activity_cancel_job),
     GeneratedTool("fichero_activity_get_job_log", "activity", "GET", "/api/activity/jobs/{job_id}/log", fichero_activity_get_job_log),
     GeneratedTool("fichero_activity_set_job_paused", "activity", "PUT", "/api/activity/jobs/{job_id}/paused", fichero_activity_set_job_paused),
+    GeneratedTool("fichero_activity_retry_job", "activity", "POST", "/api/activity/jobs/{job_id}/retry", fichero_activity_retry_job),
     GeneratedTool("fichero_activity_get_metrics_summary", "activity", "GET", "/api/activity/metrics/summary", fichero_activity_get_metrics_summary),
     GeneratedTool("fichero_activity_get_recent_activities", "activity", "GET", "/api/activity/recent", fichero_activity_get_recent_activities),
     GeneratedTool("fichero_activity_get_stats", "activity", "GET", "/api/activity/stats", fichero_activity_get_stats),
@@ -8657,6 +8674,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_backfill_pdf_pages", "documents", "POST", "/api/documents/pdfs/backfill-pages", fichero_documents_backfill_pdf_pages),
     GeneratedTool("fichero_documents_reorder", "documents", "POST", "/api/documents/reorder", fichero_documents_reorder),
     GeneratedTool("fichero_documents_list_roots", "documents", "GET", "/api/documents/roots", fichero_documents_list_roots),
+    GeneratedTool("fichero_documents_get_run_history", "documents", "GET", "/api/documents/run-history", fichero_documents_get_run_history),
     GeneratedTool("fichero_documents_list_deleted", "documents", "GET", "/api/documents/trash", fichero_documents_list_deleted),
     GeneratedTool("fichero_documents_list_workspaces", "documents", "GET", "/api/documents/workspaces", fichero_documents_list_workspaces),
     GeneratedTool("fichero_documents_delete", "documents", "DELETE", "/api/documents/{doc_id}", fichero_documents_delete),

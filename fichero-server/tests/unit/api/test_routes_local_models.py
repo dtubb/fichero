@@ -106,7 +106,11 @@ def _audio_runtime(ready: bool) -> dict:
 
 
 class TestDownloadModel:
-    def test_download_valid_whisper_model(self, client):
+    def test_download_valid_whisper_model(self, client, monkeypatch):
+        from fichero_server.llm import local_models
+
+        # The download is a job now: its run is stubbed so no test ever fetches a real model.
+        monkeypatch.setattr(local_models, "_run_download", lambda subject: None)
         with patch("fichero_server.llm.local_models.LocalModelManager"):
             with patch("fichero_server.llm.local_models.WHISPER_MODELS", {"base": {}}):
                 with patch(
@@ -115,7 +119,35 @@ class TestDownloadModel:
                 ):
                     r = client.post("/api/local-models/download/whisper/base")
         assert r.status_code == 200
-        assert r.json()["status"] == "downloading"
+        assert r.json()["status"] == "queued"
+
+    def test_whisper_and_embeddings_downloads_are_rows_in_activity(self, client, db, monkeypatch):
+        """WHY (`activity.every-worker-is-a-row`, #5359): Whisper and embeddings models downloaded
+        on FastAPI's BackgroundTasks, seen only in Settings and failing where nobody looked. They are
+        `download-model` jobs now, like a spaCy pipeline: shown, paused, and failed with a reason."""
+        from fichero_server.execution import jobs
+        from fichero_server.llm import local_models
+
+        fetched: list[tuple[str, str]] = []
+        monkeypatch.setattr(local_models.LocalModelManager, "download_model",
+                            lambda self, kind, name: fetched.append((kind, name)))
+        monkeypatch.setitem(local_models._DOWNLOADABLE, "whisper", {"base": {}})
+        embeddings = next(iter(local_models.EMBEDDINGS_MODELS))
+        jobs.set_paused(True)
+        try:
+            with patch("fichero_server.llm.local_models.WHISPER_MODELS", {"base": {}}), patch(
+                    "fichero_server.llm.whisper_runtime.audio_runtime_status", return_value=_audio_runtime(True)):
+                whisper = client.post("/api/local-models/download/whisper/base").json()
+            embed = client.post(f"/api/local-models/download/embeddings/{embeddings}").json()
+            rows = dict(db.execute_fetchall("SELECT subject, state FROM jobs WHERE kind = 'download-model'"))
+            assert rows == {"whisper:base": "waiting", f"embeddings:{embeddings}": "waiting"}
+            assert whisper["job_id"] and embed["job_id"] and embed["status"] == "queued"
+            for subject in rows:  # withdrawn before the pause lifts: no test fetches a real model
+                jobs.cancel_job(db, jobs.job_id_for(db, "download-model", subject))
+        finally:
+            jobs.set_paused(False)
+        local_models._run_download(f"embeddings:{embeddings}")
+        assert fetched == [("embeddings", embeddings)]
 
     def test_whisper_download_is_refused_when_no_transcriber_is_installed(self, client):
         """Queueing work that cannot run is how this surface failed silently.

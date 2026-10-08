@@ -216,7 +216,9 @@ def _check(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> d
         done.append(doc.id)
         detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
         detail["checked_so_far"] = {"docs": done, "counts": counts, "flagged": flagged, "missing": missing}
-        jobs.save_detail(db, job_id, json.dumps(detail))
+        # The reason says how far it has got, so Activity shows progress while it runs (#5524).
+        jobs.save_detail(db, job_id, json.dumps(detail),
+                         reason=f"Checking lines against the page with {request.model}: {words(counts)} so far")
     return {"counts": counts, "flagged": flagged, "missing": missing, "stopped": stopped,
             "thresholds": {"neighbours": NEIGHBOURS, "shift_margin": SHIFT_MARGIN, "shift_floor": SHIFT_FLOOR,
                            "low": LOW, "policy": POLICY}}
@@ -243,6 +245,13 @@ def run(db: Any, subject: str) -> dict[str, Any]:
     return result
 
 
+def _request_cancel(db: Any, job_id: str) -> str:
+    from fichero_server.checking.job import request_cancel
+
+    return request_cancel(db, job_id)
+
+
 def register_job_kinds() -> None:
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
-        jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, name="Check lines against the page")
+        jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, name="Check lines against the page",
+                           cancel=_request_cancel)  # Stop on its row reaches a running one (#5356)

@@ -649,6 +649,18 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("retry-job")
+    def activity_retry_job_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+    ) -> None:
+        """Retry Job (POST /api/activity/jobs/{job_id}/retry)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/jobs/{job_id}/retry"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-metrics-summary")
     def activity_get_metrics_summary_get(
         ctx: typer.Context,
@@ -4482,6 +4494,20 @@ def register_generated_openapi_commands(
             params = {
                 "sort_by": sort_by,
                 "sort_direction": sort_direction,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-run-history")
+    def documents_get_run_history_get(
+        ctx: typer.Context,
+        ids: str = typer.Option(..., "--ids", help="Query parameter: ids."),
+    ) -> None:
+        """Get Run History (GET /api/documents/run-history)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/run-history"
+            params = {
+                "ids": ids,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

@@ -79,7 +79,8 @@ _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.impor
                  "fichero_server.remote_read.job", "fichero_server.training.reasons_job",
                  "fichero_server.training.local", "fichero_server.sync_folder", "fichero_server.checking.job",
                  "fichero_server.recipes.runner", "fichero_server.training.evaluation",
-                 "fichero_server.kept_export", "fichero_server.recipes.discovery")
+                 "fichero_server.kept_export", "fichero_server.recipes.discovery",
+                 "fichero_server.api.routes.kg.review")
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
 #: never holds the local ML lane.
@@ -160,6 +161,9 @@ class Kind:
     pause: Callable[["Database", str, bool], str] | None = None
     #: Made before heavy local work queued after it (`activity.lane.thumbnails-first`, #5585).
     first: bool = False
+    #: Why a finished one of these cannot be retried in place, in words, or None when it can
+    #: (`activity.pause.per-job`, #5356): retry runs the kind's own `run` again on its row.
+    no_retry: str | None = None
 
 
 KINDS: dict[str, Kind] = {}
@@ -168,11 +172,12 @@ KINDS: dict[str, Kind] = {}
 def register_kind(kind: str, run: Callable[["Database", str], Any] | None, *, model: str | None,
                   qos: Callable[[], None] = set_background_qos, lane: str = "local-ml",
                   name: str | None = None, cancel: Callable[["Database", str], str] | None = None,
-                  pause: Callable[["Database", str, bool], str] | None = None, first: bool = False) -> None:
+                  pause: Callable[["Database", str, bool], str] | None = None, first: bool = False,
+                  no_retry: str | None = None) -> None:
     if lane not in LANES:
         raise ValueError(f"no lane {lane!r}")
     KINDS[kind] = Kind(run=run, model=model, qos=qos, lane=lane, name=name, cancel=cancel, pause=pause,
-                       first=first)
+                       first=first, no_retry=no_retry)
 
 
 def kind_name(kind: str) -> str:
@@ -1024,6 +1029,21 @@ def find_jobs(db: "Database", *, kinds: list[str], states: list[str] | None = No
     return [dict(zip(names, row)) for row in rows]
 
 
+def jobs_on_subjects(db: "Database", subjects: list[str]) -> list[dict[str, Any]]:
+    """Every job whose subject is one of these (a page's stages and the pages a run handed in name
+    their document as their subject), newest first, in one statement per 500 subjects
+    (`activity.document.what-has-been-run`, #5434)."""
+    _ensure(db)
+    names = ("id", "kind", "subject", "model", "state", "reason", "parent_id", "created_at", "started_at",
+             "finished_at")
+    rows: list[dict[str, Any]] = []
+    for chunk in _chunks(list(dict.fromkeys(subjects)), 500):
+        marks = ", ".join("?" for _ in chunk)
+        rows += [dict(zip(names, row)) for row in db.execute_fetchall(
+            f"SELECT {', '.join(names)} FROM jobs WHERE subject IN ({marks})", chunk)]
+    return rows
+
+
 def delete_job(db: "Database", job_id: str) -> None:
     """Forget one finished job's row."""
     db.execute("DELETE FROM jobs WHERE id = ?", [job_id])
@@ -1089,6 +1109,34 @@ def cancel_job(db: "Database", job_id: str) -> str:
         return "cancelled" if _scheduler.withdraw(db, handed_in[1]) else "running"
     cancel_waiting(db, job_id)
     return "cancelled"
+
+
+def retry_job(db: "Database", job_id: str) -> str:
+    """Run a failed or stopped job again (`activity.pause.per-job`, #5356): its row goes back to
+    waiting with its attempts cleared, and its kind's `run` takes it up again, from its own
+    checkpoint where it keeps one. A stop asked of its last attempt is forgotten. Refused (ValueError,
+    in words) for a page or step a workflow run waits for (the run is retried, not its page), for a
+    kind that says why it cannot be, and where the same work already waits. Any other state is
+    returned unchanged."""
+    kind, state = _job_row(db, job_id)
+    registered = KINDS.get(kind)
+    if registered is None or registered.run is None:
+        raise ValueError("This is work a workflow run (or a training) handed in and waits for: retry that instead")
+    if registered.no_retry:
+        raise ValueError(registered.no_retry)
+    if state not in ("failed", "cancelled"):
+        return state
+    subject = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [job_id])[0]
+    if db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'paused') "
+                           "AND id <> ?", [kind, subject, job_id]):
+        raise ValueError("The same work is already waiting to run")
+    detail = json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0] or "{}")
+    detail.pop("cancel", None)
+    db.execute("UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, "
+               "detail = ? WHERE id = ?", [json.dumps(detail) if detail else None, job_id])
+    key = _key(db)
+    db.add_after_commit_hook(lambda: _scheduler.wake(key))
+    return "waiting"
 
 
 def is_paused() -> bool:

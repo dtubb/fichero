@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from fichero_server.core.timeutil import utc_now
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -46,14 +46,17 @@ router = APIRouter(prefix="/kg/review")
 RETRAIN_EVERY_N_LABELS = 10
 
 
-def _maybe_trigger_retrain(db: Database, background_tasks: BackgroundTasks) -> None:
-    """If we've crossed the next RETRAIN_EVERY_N_LABELS multiple of
-    labelled pairs, enqueue a PyKEEN training run.
+#: The retrain as a job kind (#5359): a row in Activity, held by the pause, kept across a quit.
+RETRAIN_KIND = "retrain-link-predictor"
 
-    Runs as a FastAPI background task so the accept/reject HTTP
-    response doesn't block on a 30-second train. Failures are logged
-    inside the background task itself — the API endpoint always
-    returns the immediate decision result.
+
+def _maybe_trigger_retrain(db: Database) -> None:
+    """If we've crossed the next RETRAIN_EVERY_N_LABELS multiple of
+    labelled pairs, queue a PyKEEN training run.
+
+    A queued job on the local model lane (#5359; it was a FastAPI background task nobody could see),
+    so the accept/reject HTTP response doesn't block on a 30-second train, and a run of decisions
+    while one waits is the same job. A failure fails the job, with its reason.
     """
     try:
         decided = [
@@ -65,25 +68,34 @@ def _maybe_trigger_retrain(db: Database, background_tasks: BackgroundTasks) -> N
                 "review queue: %d labels accumulated — triggering PyKEEN retrain",
                 len(decided),
             )
-            background_tasks.add_task(_run_retrain, db)
+            from fichero_server.execution import jobs
+
+            register_job_kinds()
+            jobs.enqueue(db, RETRAIN_KIND, "library")
     except Exception as exc:
         logger.warning("auto-retrain trigger failed: %s", exc)
 
 
-def _run_retrain(db: Database) -> None:
-    """Background-thread PyKEEN retrain. Logs only."""
-    try:
-        from fichero_server.knowledge.pykeen_predictor import train_model
-        stats = train_model(db)
-        logger.info(
-            "auto-retrain: %s — triples=%s, entities=%s, relations=%s",
-            "trained" if stats.get("trained") else "skipped",
-            stats.get("triples"),
-            stats.get("entities"),
-            stats.get("relations"),
-        )
-    except Exception as exc:
-        logger.error("auto-retrain failed: %s", exc)
+def _run_retrain(db: Database, _subject: str = "library") -> None:
+    """The job: retrain the PyKEEN link predictor. A failure raises, so its row says why."""
+    from fichero_server.knowledge.pykeen_predictor import train_model
+
+    stats = train_model(db)
+    logger.info(
+        "auto-retrain: %s — triples=%s, entities=%s, relations=%s",
+        "trained" if stats.get("trained") else "skipped",
+        stats.get("triples"),
+        stats.get("entities"),
+        stats.get("relations"),
+    )
+
+
+def register_job_kinds() -> None:
+    from fichero_server.execution import jobs
+
+    if RETRAIN_KIND not in jobs.KINDS:
+        jobs.register_kind(RETRAIN_KIND, lambda db, subject: _run_retrain(db, subject), model=None,
+                           name="Retrain the link predictor")
 
 
 class ReviewPairResponse(BaseModel):
@@ -390,14 +402,13 @@ def _action_accept_pair(
 )
 async def accept_pair(
     pair_id: str,
-    background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database_for_write),
     actor: str = Depends(request_actor),
 ) -> AcceptResponse:
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
     result = registry.invoke(db, "review.accept", {"pair_id": pair_id}, ctx)
     response = AcceptResponse.model_validate(result.result)
-    _maybe_trigger_retrain(db, background_tasks)
+    _maybe_trigger_retrain(db)
     return response
 
 
@@ -495,13 +506,12 @@ def _action_reject_pair(
 )
 async def reject_pair(
     pair_id: str,
-    background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database_for_write),
     actor: str = Depends(request_actor),
 ) -> RejectResponse:
     ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
     result = registry.invoke(db, "review.reject", {"pair_id": pair_id}, ctx)
-    _maybe_trigger_retrain(db, background_tasks)
+    _maybe_trigger_retrain(db)
     return RejectResponse.model_validate(result.result)
 
 

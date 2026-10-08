@@ -111,3 +111,46 @@ def test_nothing_is_reread_where_the_library_does_not_read_names(db, test_packag
     monkeypatch.setattr(nlp_draft, "auto_nlp_enabled", lambda: True)
     page_text_cache.reread_names_after_commit(db, doc.id)
     assert _places(db) == {"Quibdó"}
+
+
+class TestTheReReadIsAJobOfItsOwn:
+    """WHY (`activity.auto.reextract-on-change`, #5361): the re-read of a corrected page's names
+    ran inside the re-embed job (a failed embed shared its fate) and, after a direct text edit, on
+    a raw daemon thread nobody could see, pause or resume after a quit. It is now its own queued
+    row, written with the change, shown in Activity, and only where the library reads names."""
+
+    @staticmethod
+    def _queued(db):
+        return [tuple(row) for row in db.execute_fetchall(
+            "SELECT subject, state FROM jobs WHERE kind = ?", [page_text_cache.REREAD_NAMES_KIND])]
+
+    def test_a_direct_text_edit_queues_one_visible_reread(self, db, client, monkeypatch):
+        from fichero_server.execution import jobs
+
+        monkeypatch.setattr(nlp_draft, "auto_nlp_enabled", lambda: True)
+        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: None)
+        doc = _page(db, "Quito 1810.")
+        jobs.set_paused(True)
+        try:
+            for text in ("Quibdó 1810.", "Quibdó 1811."):
+                assert client.put(f"/api/documents/{doc.id}", json={"page_content": text}).status_code == 200
+            assert self._queued(db) == [(doc.id, "waiting")]  # two edits, one job
+            [shown] = [j for j in client.get("/api/activity/jobs").json()["jobs"]
+                       if j["task_type"] == page_text_cache.REREAD_NAMES_KIND]
+            assert shown["name"] == "Read names again after a correction"
+        finally:
+            jobs.set_paused(False)
+
+    def test_nothing_is_queued_where_the_library_does_not_read_names(self, db, monkeypatch):
+        monkeypatch.setattr(nlp_draft, "auto_nlp_enabled", lambda: False)
+        doc = _page(db, "Quito 1810.")
+        page_text_cache.queue_reread_names(db, [doc.id])
+        assert self._queued(db) == []
+
+    def test_the_reembed_job_no_longer_reads_names(self, db, monkeypatch):
+        doc = _page(db, "Quito 1810.")
+        reread: list[str] = []
+        monkeypatch.setattr(page_text_cache, "reread_names_after_commit", lambda d, i: reread.append(i))
+        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: None)
+        page_text_cache._reembed(db, doc.id)
+        assert reread == []

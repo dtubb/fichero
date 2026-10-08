@@ -481,13 +481,21 @@ workflow by hand: a hand run is a job like any other.
   `ask-a-model`, chat's calls included), embeddings (`embed`, `make-a-vector`, the reindex task),
   the NLP draft at import (`nlp-draft`), the task kinds, synced-folder writes and reads, training here
   and on Hugging Face (`train-on-this-mac`, `train-a-model`), reading at scale (`read-at-scale`),
-  gathering reasons, converting a model, workflow runs, steps and batches. **Not yet rows:** the
+  gathering reasons, converting a model, workflow runs, steps and batches, downloads of spaCy,
+  Whisper and embeddings models (`download-model`; Whisper and embeddings since 2026-10-08, they ran on
+  FastAPI `BackgroundTasks`, `fichero-server/tests/unit/api/test_routes_local_models.py`) and the
+  link-predictor retrain after review decisions (`retrain-link-predictor`, 2026-10-08,
+  `fichero-server/tests/unit/kg/test_review_queue.py`). **Not yet rows:** the
   built-in Apple calls (Vision, Foundation Models: `llm.model_call_slot` takes no slot for a
   built-in provider), spaCy, Whisper and other non-model tools inside a workflow (only their step
-  is a row), the NLP re-read after a correction (inside the re-embed row), ACENET jobs (not sent:
-  `remote_read/slurm.py` describes them), model downloads, installs, runtime provisioning and model
-  loads (`activity.global-work-is-the-macs`), conversion on open, ingest progress and
-  `/api/search/reindex`.
+  is a row), ACENET jobs (not sent:
+  `remote_read/slurm.py` describes them), MLX model downloads and the Kraken model fetch (in-memory
+  jobs of the Mac's model stores, `llm/mlx_model_store.py`, `llm/local_model_catalog.py`), runtime
+  provisioning (`llm/mlx_runtime.py`) and model loads (`activity.global-work-is-the-macs`), conversion
+  on open (`maintenance/conversion_on_open.py`, a thread), ingest progress (`api/routes/ingest/core.py`,
+  `BackgroundTasks`), legacy chains (`api/routes/workflow/chains.py`, → #4949), the companion thumbnail
+  or display picture warmed after a picture request (`api/routes/system/storage.py`), and the inline
+  re-embed of a direct text edit (`activity.auto.reembed-on-change`).
 - `activity.remote-under-its-step` — **[GAP]** (#5240, #5353) a remote job a run starts (a Hugging
   Face Job, a cluster job) is a child of the step that sent it, its far-side state its own row's;
   today reading at scale and training are top-level rows of their own.
@@ -514,7 +522,7 @@ workflow by hand: a hand run is a job like any other.
   `/api/activity/jobs`, not a route or list of its own. Built: everything that is a row
   (`activity.every-worker-is-a-row`) is listed there, with its state and reason
   (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`, `fichero-server/tests/unit/jobs/test_tasks_on_the_lane.py`). Still a gap: ingest
-  progress, conversion on open, `/api/search/reindex` and model downloads report elsewhere.
+  progress, conversion on open and model downloads report elsewhere.
 - `activity.kraken-mlx-inference-visible` — **[PARTIAL]** (#5359) Kraken and MLX
   inference shows as its workflow run's row, failures with their reason; which page it is on, and
   "waiting for Kraken", are not shown. Built (2026-10-03): every Kraken page a workflow reads
@@ -533,9 +541,11 @@ workflow by hand: a hand run is a job like any other.
   correction is a queued, visible job, not a raw daemon thread. Built (2026-10-03): kind
   `make-a-vector`, written in the correction's own transaction, shown by `/api/activity/jobs`,
   held by the pause, run by the scheduler (`fichero-server/tests/unit/jobs/test_job_queue.py`).
-- `activity.one-reindex` — **[BROKEN]** (#5363) there are two reindexes: task-queue
-  `REINDEX` and `/api/search/reindex` on FastAPI `BackgroundTasks` (`search/core.py:1559`), the
-  second invisible and unresumable.
+- `activity.one-reindex` — **[OK]** (#5363) there is one reindex: `/api/search/reindex`
+  queues the task queue's `reindex` job, the same one `/api/tasks/reindex` queues, so it shows in
+  Activity, obeys the pause and survives a quit, and asking twice while it waits is one job. Built
+  (2026-10-08): it used to run on FastAPI `BackgroundTasks`, invisible and unresumable
+  (`fichero-server/tests/unit/api/test_routes_search.py`).
 - `activity.legacy-chain-retired` — **[BROKEN]** (→ #4949) `/chains/{id}/execute` runs with "no thread
   ids, no SSE, no activity records" (`chains.py:814`).
 
@@ -615,7 +625,7 @@ workflow by hand: a hand run is a job like any other.
   `testJobsPollRefusalReachesTheFooterAndClearsOnTheNextGoodPoll`).
 - `activity.window.what-it-made` — **[GAP]** (→ #5245) a finished job opens the list of what it made
   and can be taken back (`safety/run-take-back.md`).
-- `activity.document.what-has-been-run` — **[GAP]** (#5434) the reverse of
+- `activity.document.what-has-been-run` — **[PARTIAL]** (#5434) the reverse of
   `activity.window.what-it-made`: each document has a history of every step that has touched it
   (split, lines, read, names, statements, check). Each entry gives the model, the provider, the
   time (`activity.window.absolute-times`), the cost (null unless priced) and the outcome, as
@@ -623,8 +633,16 @@ workflow by hand: a hand run is a job like any other.
   - the library table's **Done** column, one badge per step that has run with its outcome;
   - the document Inspector's "What has been run" section, newest first.
   The read is batched for the visible rows, never one call per row. It is built from job rows and
-  run records, and nothing is stored only for display. Gap: the `jobs` table has no document key
-  (`execution/jobs.py:85-111`); a page job names its document only in `subject`.
+  run records, and nothing is stored only for display. Built (2026-10-08): the engine read,
+  `GET /api/documents/run-history?ids=…` — for many documents in one call, each document's job rows
+  (those named after it in `subject`: its pictures, embeddings, names, line finding and page reads,
+  with the model the row recorded, the state, the reason and the job it ran under) and the workflow runs
+  recorded on it (model and provider as recorded), newest first, with an absolute UTC time and cost
+  null; a document the caller may not read is withheld and counted
+  (`fichero-server/tests/unit/api/test_document_run_history.py`). No schema change: the join is on
+  `subject`. Still a gap: the Done column and the Inspector section (Swift), cost for priced runs,
+  the provider of a job row (only its model is recorded), and job rows whose subject is not a document
+  id (a page read from a file with no document names the file).
 - `activity.window.measures` — **[PARTIAL]** (#5415) the measures that matter, per run, step and
   page, rolled up the tree, are the table's main columns: **time to run, cost, greenhouse gas, images
   run and steps run**. Built in the engine: each node of `GET /api/activity/jobs/{id}` has `seconds`,
@@ -914,8 +932,14 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/jobs/test_sub_workflows_are_child_runs.py`). The window's rows carry
   Pause or Resume and Stop through these routes (2026-10-04, `ActivityTableTests`
   `testActivityWindowTable_pauseOnAStepRowSetsThatOneRowsState`; not yet seen in the app); a job of
-  its own from the jobs read has none yet. Still a gap: retry, and pausing every waiting job of one kind at once; and kinds keep stop routes of their own
-  beside it (`activity.pause.one-start-stop`).
+  its own from the jobs read has none yet. Built (2026-10-08): retry, `POST /api/activity/jobs/{id}/retry`
+  (`job.retry`): a failed or stopped job goes back to waiting with its attempts cleared and carries on from
+  its own checkpoint; refused, with the reason, for work a run hands in (retry the run), a training on
+  Hugging Face (start a new one) and work already waiting again. Stop on its row now reaches a running
+  check, line check, tie-text, reading at scale and gathering of reasons. Every kind is pinned to the four
+  controls (`fichero-server/tests/unit/jobs/test_every_kind_has_its_controls.py`). Still a gap: pausing
+  every waiting job of one kind at once; a running reasons A/B cannot be stopped; and kinds keep stop
+  routes of their own beside it (`activity.pause.one-start-stop`).
 - `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
   boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for. Owned
   by `activity.run.stop-reaches-in-flight-calls`; this line points there.
@@ -923,8 +947,9 @@ and node, not by job); a retry action for failed pages.
   and retry are audited actions, reachable from the window, MCP and the command line. Built: the
   global pause is the audited, undoable action `background.pause` (`fichero-server/tests/unit/jobs/test_job_queue.py`); per job, `job.pause`
   (undoable) and `job.cancel`; MCP tools `fichero_jobs`, `fichero_pause_background_work`,
-  `fichero_job_pause`, `fichero_job_cancel` (`fichero-mcp/tests/test_mcp_server.py`). Still a gap:
-  retry.
+  `fichero_job_pause`, `fichero_job_cancel` (`fichero-mcp/tests/test_mcp_server.py`); retry is the
+  action `job.retry` (2026-10-08), reachable from MCP and the command line through the tools generated
+  from its route. Still a gap: a retry control in the window.
 - `activity.pause.one-start-stop` — **[PARTIAL]** (#5356) every kind of job is started, paused,
   resumed, cancelled and retried through one pair of routes and actions (`/api/activity/jobs/{id}/…`,
   `job.pause`, `job.cancel`); a kind's own routes are callers of it or are retired. Built: pause and
@@ -932,7 +957,7 @@ and node, not by job); a retry action for failed pages.
   own pause and stop routes (`/api/workflow-execution/…`), training its own cancel
   (`/api/training/jobs/{id}/cancel`), gathering reasons its own (`/api/training/reasons/{id}/cancel`),
   batches their own (`/api/batches/{id}/pause|cancel`), each beside the job route; and there is no
-  start or retry on it.
+  start on it (retry is, 2026-10-08).
 
 ### D. Throttling
 
@@ -1067,10 +1092,12 @@ and node, not by job); a retry action for failed pages.
   read (`nlp_text_sha`), so unchanged pages and the open-time resume never re-read; a re-run
   extraction workflow misses the cache on changed text
   (`fichero-server/tests/unit/api/test_names_follow_a_correction.py`,
-  `fichero-server/tests/unit/workflows/test_cache_key_follows_the_page_text.py`). The re-read runs
-  inside the correction's queued re-embed job (`actions/page_text_cache.py:380-391`). Still a gap:
-  it is not a row of its own, and claims from LLM workflows are not withdrawn when the workflow
-  re-runs.
+  `fichero-server/tests/unit/workflows/test_cache_key_follows_the_page_text.py`). Built
+  (2026-10-08): the re-read is a job of its own, `read-names-again`, queued in the change's own
+  transaction by a reading correction and by a direct text edit (no more daemon thread), one
+  waiting job per page, shown in Activity and held by the pause; nothing is queued where the
+  library does not read names (`fichero-server/tests/unit/api/test_names_follow_a_correction.py`).
+  Still a gap: claims from LLM workflows are not withdrawn when the workflow re-runs.
 - `activity.derived.names-its-inputs` — **[PARTIAL]** (→ #4925, #5360) pictures,
   search entries, vectors and word analysis name what they were made from (`source.derived.recomputable`);
   claims name their page and offsets but not the text version; entity mentions and NLP drafts name

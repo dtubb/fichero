@@ -433,6 +433,18 @@
         "response_model": "JobStateResponse"
       },
       {
+        "method": "POST",
+        "path": "/activity/jobs/{job_id}/retry",
+        "operation_id": "retry_job_api_activity_jobs__job_id__retry_post",
+        "summary": "Retry Job",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "JobStateResponse"
+      },
+      {
         "method": "GET",
         "path": "/activity/metrics/summary",
         "operation_id": "get_activity_metrics_summary_api_activity_metrics_summary_get",
@@ -2982,6 +2994,22 @@
         ],
         "request_model": null,
         "response_model": "fichero_server__models__DocumentListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/run-history",
+        "operation_id": "get_run_history_api_documents_run_history_get",
+        "summary": "Get Run History",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "ids",
+            "required": true,
+            "type": "array"
+          }
+        ],
+        "request_model": null,
+        "response_model": "RunHistoryResponse"
       },
       {
         "method": "GET",
