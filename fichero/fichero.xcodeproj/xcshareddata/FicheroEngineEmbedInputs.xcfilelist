@@ -450,6 +450,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/promp
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/prompts/statements.prompt.md
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/recipe.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/topics.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/sorting.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/start.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/__init__.py

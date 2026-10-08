@@ -55,6 +55,22 @@ class _StubHandler(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(length) or b"{}")
         type(self).requests.append({"path": self.path, "host": self.headers.get("Host"),
                                     "model": body.get("model")})
+        if body.get("stream"):  # a local call streams (#5537): answer as an OpenAI-compatible server does
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            base = {"id": "chatcmpl-stub", "object": "chat.completion.chunk", "created": 0,
+                    "model": body.get("model") or "stub"}
+            for chunk in ({"choices": [{"index": 0, "delta": {"role": "assistant", "content": STUB_REPLY},
+                                        "finish_reason": None}]},
+                          {"choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
+                          {"choices": [], "usage": {"prompt_tokens": 11, "completion_tokens": 7,
+                                                    "total_tokens": 18}}):
+                self.wfile.write(f"data: {json.dumps({**base, **chunk})}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            return
         payload = {
             "id": "chatcmpl-stub", "object": "chat.completion", "created": 0,
             "model": body.get("model") or "stub",
