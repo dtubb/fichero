@@ -226,8 +226,8 @@ async def test_a_server_that_dies_mid_read_names_it_logs_its_output_and_the_page
         await process.stop()
 
     cause = str(raised.value)
-    assert cause.startswith("The local model server stopped while reading: ")
-    assert "Insufficient Memory" in cause
+    # In words; the server's output is in the logs, never the reason (#5606).
+    assert cause == "The local model server stopped while reading this page"
     assert "error occurred during streaming" not in cause.lower()
     assert page_retry.is_passing_cause(cause)
     logged = "\n".join(r.getMessage() for r in caplog.records)

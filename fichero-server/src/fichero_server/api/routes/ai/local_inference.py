@@ -296,6 +296,8 @@ async def shutdown_managed_local_inference_services() -> None:
     _IDLE_TIMERS.clear()
     for manager in list(_MANAGERS.values()):
         if manager.profile.managed_by_app:
+            # A page reading on it says the engine was shutting down, not that its server died (#5606).
+            manager.process.stopped_for_shutdown = True
             await manager.stop()
 
 

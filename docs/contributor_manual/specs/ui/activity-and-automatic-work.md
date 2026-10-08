@@ -683,8 +683,23 @@ workflow by hand: a hand run is a job like any other.
   Built: one function decides every waiting row's reason when it is read (`execution/jobs.py`
   `waiting_reason`), used by the jobs list, a run's waiting reason and the import's row. Tested
   through `GET /api/activity/jobs` with the real lanes, a lane held by a real page of a run
-  (`fichero-server/tests/unit/jobs/test_waiting_says_why.py`). Not yet seen in the app. Still a
-  gap: the job tree (`GET /api/activity/jobs/{id}`) shows a page's stored reason.
+  (`fichero-server/tests/unit/jobs/test_waiting_says_why.py`). Not yet seen in the app. The job
+  tree (`GET /api/activity/jobs/{id}`) asks the same function for each waiting row it returns
+  (`activity.list-and-tree-agree`).
+- `activity.list-and-tree-agree` — **[PARTIAL]** (#5606) a row has one state and one reason, whichever
+  surface reads it: the jobs list (`GET /api/activity/jobs`) and the job tree
+  (`GET /api/activity/jobs/{id}`) give every row the same state and reason, decided in one place
+  (a waiting row's reason by `waiting_reason`, as `activity.waiting-says-why` says). A recipe run
+  (`run-a-recipe`) that the engine's restart interrupted reads the same in both while it waits
+  (paused, or for its lane) and after it carries on. Before: after a restart a recipe run's tree
+  said "waiting — Interrupted; carries on" while the list gave the same row as running with reason
+  null. Built: one function gives a row's state and reason (`execution/jobs.py` `state_and_reason`:
+  a waiting row's reason from `waiting_reason`, any other row's as stored); a recipe run's both
+  surfaces take it from `_recipe_state` (`api/routes/system/activity.py`: that, and while it runs,
+  what its running stage waits for); the tree's other waiting rows from `state_and_reason`. Tested
+  through `GET /api/activity/jobs` and the tree with the real recipes lane: a run interrupted by
+  the engine's own `resume`, read while paused, as it carries on and while it runs
+  (`fichero-server/tests/unit/jobs/test_activity_one_truth_5606.py`). Not yet seen in the app.
 - `activity.popover.summary` — **[PARTIAL]** (#5415) the toolbar popover is a summary, not a list:
   what is running, what is waiting and the main reason why, the last three errors, and the Mac's
   state (memory pressure, heat, battery, in use), read from the engine. CPU and GPU percentages

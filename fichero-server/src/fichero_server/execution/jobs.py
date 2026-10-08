@@ -223,6 +223,38 @@ def note_usage(entry: dict[str, Any]) -> None:
     db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
 
 
+def note_call_log(message: str, *, level: str = "info") -> None:
+    """A line for the log of this task's model call (#5606: a model server's last output), kept on the row
+    of the slot it holds and read by the job's log (`GET /api/activity/jobs/{id}/log`), never in its reason.
+    Nothing outside a slot (the engine's own log has it)."""
+    held = _call_row.get()
+    if held is None or not _holding.get():
+        return
+    db, job_id = held
+    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])
+    detail = json.loads(row[0]) if row and row[0] else {}
+    detail.setdefault("log", []).append({"at": utc_now().isoformat(), "level": level, "message": message})
+    db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
+
+
+def logged_lines(db: "Database", job_ids: list[str]) -> list[tuple[str, dict[str, Any]]]:
+    """The lines `note_call_log` kept on these rows, as (row id, {"at", "level", "message"})."""
+    if not job_ids:
+        return []
+    _ensure(db)
+    rows = db.execute_fetchall(
+        f"SELECT id, detail FROM jobs WHERE id IN ({', '.join('?' for _ in job_ids)}) AND detail LIKE ?",
+        [*job_ids, '%"log"%'])
+    out = []
+    for job_id, detail in rows:
+        try:
+            entries = json.loads(detail).get("log") or []
+        except (TypeError, ValueError, AttributeError):
+            continue
+        out.extend((job_id, entry) for entry in entries if isinstance(entry, dict) and entry.get("message"))
+    return out
+
+
 def note_call_reason(reason: str | None) -> None:
     """Why this task's model call is not running yet (waiting for memory to load its model, #5537),
     said on the row of the slot it holds, so the run and Activity show it. Nothing outside a slot."""
@@ -1171,6 +1203,21 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
     if run_after is not None and ensure_utc(run_after) > ensure_utc(utc_now()):
         return "Waiting a moment after the last change"
     return f"Waiting for its turn on {words}"
+
+
+def state_and_reason(db: "Database", job_id: str) -> tuple[str, str | None] | None:
+    """One row's state and reason as every surface shows it (#5606: the list and the tree gave a recipe run
+    "running" with no reason and "waiting — Interrupted; carries on" at once): a waiting row's reason as
+    `waiting_reason` decides it, any other row's as stored. None when there is no such row."""
+    _ensure(db)
+    row = db.execute_fetchone(
+        "SELECT kind, state, reason, created_at, run_after FROM jobs WHERE id = ?", [job_id])
+    if row is None:
+        return None
+    kind, state, reason, created_at, run_after = row
+    if state == "waiting":
+        reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
+    return state, reason
 
 
 def waiting_reason_of(db: "Database", kinds: list[str]) -> str | None:
