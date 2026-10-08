@@ -160,7 +160,6 @@ def test_the_kinds_of_names_reach_the_names_step(client, db, pages, tmp_path, en
     """source.onboard.auto.job-answers-read: "the answers given under a purpose (which kinds of names, ...) are read
     by the steps they configure." The kinds ticked under the purpose become the names step's setting when the recipe
     is assembled, and, read from the saved answers, the sections its entity extraction finds when it runs."""
-    from fichero_server.api.routes.workflow import chains
     from fichero_server.llm import local_models
 
     answers = {"purposes": ["entities"], "languages": ["es"], "scripts": ["Latn"], "mac_memory_gb": 64,
