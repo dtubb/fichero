@@ -1275,7 +1275,9 @@ def _why_omitted(
 #:     it are not read twice (#5224); a person's older-format correction ranks as a person's (#5222).
 #: 12: the cache also keeps the page's STANDING text, deletions left out, for search (#5179); the
 #:     derivation itself is unchanged, the bump re-derives every page once so each gains it.
-DERIVATION_VERSION = 12
+#: 13: a checked or better-measured machine reading counts over a newer rough one (#5558), so a page's
+#:     text can change; the bump re-derives every page once.
+DERIVATION_VERSION = 13
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 #: Re-pinned without a bump for #5467: the working pass is read through `working_pass`; a page
@@ -1283,7 +1285,7 @@ DERIVATION_VERSION = 12
 #: unconverted result derives nothing the cache stores (`page_text_cache._derives_text`).
 #: Re-pinned without a bump for #5522: a pass whose result the read checker flagged waits to be
 #: chosen. No result carried a flag before #5522, so no cached page's text changes.
-DERIVATION_SOURCE_SHA256 = "8496a792507741c53dd50204c987260c8c4d47aed8c0ebd272552347560f8bfa"
+DERIVATION_SOURCE_SHA256 = "91d4c0c3ae00e9540c3806c4411bd904893954c6f9edb82730758e7f826fdb50"
 
 
 def derivation_source_digest() -> str:
