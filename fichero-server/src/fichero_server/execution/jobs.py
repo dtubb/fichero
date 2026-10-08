@@ -531,6 +531,13 @@ def _key(db: "Database") -> str:
     return DatabaseManager._cache_key(Path(db.path).parent)
 
 
+def _still_open(db: "Database") -> bool:
+    """Whether this connection is still its project's open one (not closed, nor replaced by a reopen)."""
+    from fichero_server.db.manager import db_manager
+
+    return db_manager.open_database(_key(db)) is db
+
+
 def _ensure(db: "Database") -> None:
     db.execute(_SCHEMA)
     key = str(db.path)
@@ -747,9 +754,14 @@ async def run_on_lane(library_path: str | None, kind: str, subject: str, *, mode
     return await _wait_for_lane(db, future, asyncio.wrap_future(future), run_id)
 
 
+#: Why handed-in work stops waiting when its project closes (#5608): no lane looks at a closed project.
+CLOSED_BEFORE_RUN = "Interrupted: the project was closed before this work ran"
+
+
 async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future", run_id: str | None) -> Any:
     """Wait for `signal`, withdrawing the job and raising `WorkflowCancelled` if the run is
-    stopped while the job is still waiting for the lane."""
+    stopped while the job is still waiting for the lane, or `JobCancelled` if its project closes
+    (#5608: it waited for good, a lane never looks at a closed project)."""
     while True:
         done, _ = await asyncio.wait({signal}, timeout=STOP_POLL_SECONDS)
         if done:
@@ -761,10 +773,12 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
                 if _pause_requested(run_id):
                     raise WorkflowPaused(run_id)
             return signal.result()
-        if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future):
+        if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future, reason=_run_stopped(run_id)):
             from fichero_server.execution.cancellation import WorkflowCancelled
 
             raise WorkflowCancelled(run_id)
+        if not _still_open(db) and _scheduler.withdraw(db, future, reason=CLOSED_BEFORE_RUN):
+            raise JobCancelled(CLOSED_BEFORE_RUN)
         if run_id and _pause_requested(run_id) and _scheduler.withdraw(db, future, reason="Paused with its run"):
             from fichero_server.execution.cancellation import WorkflowPaused
 
@@ -777,6 +791,10 @@ def _run_stopped(run_id: str | None, db: "Database | None" = None) -> str | None
     and a branch can still reach the lane after that)."""
     if not run_id:
         return None
+    from fichero_server.workflows.run_account import closed_mid_run
+
+    if closed_mid_run(run_id):  # its project closed while it ran (#5608): not a person's Stop
+        return CLOSED_BEFORE_RUN
     if _stop_requested(run_id):
         return "Stopped by you"
     if _pause_requested(run_id):
@@ -1371,8 +1389,12 @@ class _Scheduler:
         job_id = future.job_id  # type: ignore[attr-defined]
         with self._lock:
             self._attached.pop(job_id, None)
-        db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? "
-                   "WHERE id = ? AND state = 'waiting'", [reason, utc_now(), job_id])
+        try:
+            db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? "
+                       "WHERE id = ? AND state = 'waiting'", [reason, utc_now(), job_id])
+        except Exception:  # noqa: BLE001 -- its project closed (#5608): the row is settled when it opens (`resume`)
+            if _still_open(db):
+                raise
         return True
 
     def someone_is_waiting(self, lane: str = "local-ml") -> bool:
@@ -1381,8 +1403,16 @@ class _Scheduler:
             return any(entry[2] == lane for entry in self._attached.values())
 
     def _fail_attached(self, exc: BaseException) -> None:
+        """Every handed-in work still waiting hears `exc`, but a page of a run its project's close stopped
+        (#5608): its run stops it as a Stop does (`_wait_for_lane`), so the run does not count it as a page
+        that failed."""
+        from fichero_server.workflows.run_account import closed_mid_run
+
         with self._lock:
-            waiting, self._attached = self._attached, {}
+            waiting = {job: entry for job, entry in self._attached.items()
+                       if not (entry[3] and closed_mid_run(entry[3]))}
+            for job in waiting:
+                del self._attached[job]
         for _fn, future, _lane, _run in waiting.values():
             if not future.done():
                 future.set_exception(exc)

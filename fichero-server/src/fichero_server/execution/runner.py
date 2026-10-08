@@ -266,6 +266,9 @@ def _workflow_event_timeline(events: WorkflowEventHub) -> list[dict[str, Any]]:
 
 def _set_workflow_state(thread_id: str, state: dict[str, Any]) -> None:
     """Update the state of a running workflow."""
+    from fichero_server.workflows.run_account import run_started
+
+    run_started(thread_id)  # a run (again) on this thread: a close before it no longer holds its record (#5608)
     _running_workflows[thread_id] = state
     _cap_workflow_state_registry()
 

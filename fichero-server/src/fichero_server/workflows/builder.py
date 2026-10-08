@@ -2183,6 +2183,10 @@ def _make_parallel_node_function(
             })
 
         except Exception as e:
+            if isinstance(e, WorkflowCancelled) or _run_cancelled():
+                # The page was stopped with its run (Stop, or its project closing, #5608) while it waited for
+                # the lane: not done, not a page that failed.
+                return _with_chaining(_cancelled_result(), failed=True, error="cancelled")
             error_msg = str(e)
             print(f"[PARALLEL] [{index + 1}/{total}] ERROR: {error_msg}")
             logger.error(f"Parallel processing failed for {file_path}: {e}")

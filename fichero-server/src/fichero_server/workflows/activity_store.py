@@ -1184,7 +1184,14 @@ class ActivityStore:
         ``run_usage`` is the run's own accounting — tokens, model calls and
         cost — written on EVERY terminal path, not just success. A run that
         failed halfway still spent the money it spent (2026-09-03).
+
+        A run whose project was closed while it ran (#5608) keeps its state: the runner's end after the close
+        (its pages stopped by the close) is not how it ended; the project's next open marks it interrupted.
         """
+        from fichero_server.workflows.run_account import closed_mid_run
+
+        if closed_mid_run(thread_id):
+            status = error = completed_at = None
 
         def _update():
             conn = connect_utc(self.db_path)

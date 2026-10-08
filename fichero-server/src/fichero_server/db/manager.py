@@ -581,9 +581,24 @@ def _stop_conversion(package_path: str | None) -> None:
 def _stop_jobs(package_path: str | None) -> None:
     """Stop a library's job threads BEFORE its connection closes (#5503), outside the manager lock
     (a job may be opening a library): they forget it, and a lane left with no library ends. Opening
-    it again resumes its jobs (`jobs.resume`). None: every library, the engine shutting down."""
-    from fichero_server.execution import jobs
+    it again resumes its jobs (`jobs.resume`). None: every library, the engine shutting down.
 
+    First its runs in flight are stopped and noted (#5608, `run_account.closing_runs`), before a job thread
+    could let one end in words that are not how it ended: opening it again marks them interrupted."""
+    from fichero_server.execution import jobs
+    from fichero_server.workflows.run_account import closing_runs
+
+    keys = [package_path] if package_path is not None else db_manager.open_library_paths()
+    for key in keys:
+        db = db_manager.open_database(key)
+        if db is None:
+            continue
+        try:
+            stopped = closing_runs(db)
+            if stopped:
+                logger.warning("Closing %s stopped %d run(s) in flight: %s", key, len(stopped), stopped)
+        except Exception:
+            logger.exception("Could not stop the runs in flight of %s", key)
     jobs.stop(package_path)
 
 

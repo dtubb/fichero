@@ -528,6 +528,25 @@ routes and a project opened through the database manager.
   back to waiting and carry on, as before (`activity.durable.poison-item`); a recipe run carries on and
   skips the pages its steps already did. Not built: the interrupted run is not resumed in place from its
   checkpoint (`activity.durable.lease-not-fail`); its pages not done are read by a new run.
+- `compute.run.interrupted-on-close` — **[OK]** (#5608) a project closed while one of its runs is in flight
+  (its pages waiting for a lane, or reading) ends that run as interrupted, said with when: on the project's
+  next open its record, its row and its steps' rows in Activity, and its account say "Interrupted: the
+  project was closed at HH:MM, before this run finished", by the same open-time marking as
+  `compute.run.interrupted-on-start`. At the close the run leaves the engine's live set (so the open does not
+  take it for a run still going), is asked to stop, and its own later writes do not end it otherwise; a page
+  still waiting for a lane in a closed project stops waiting at once (never waits for a lane that no longer
+  looks at its project). A recipe run never waits on a dead child: its wait on a step's run returns when the
+  project closed or when the run's row has ended (any end: done, failed, cancelled), and the recipe run then
+  carries on with its next step or ends saying why; a recipe run in flight at the close is resumed on the next
+  open ("Interrupted; carries on", `activity.durable.poison-item`) and its step reads the pages not done. Seen
+  on the demo engine (2026-10-08): the pages failed "The engine closed every project", the run's record stayed
+  running and the recipe run waited on it for an hour after the project was open again. A page stopped with
+  its run (a Stop, or the close) while it waited counts as not done, not as a page that failed. Built:
+  `run_account.closing_runs` (called as the database manager stops a library's jobs, one project or every
+  one), `jobs._wait_for_lane`, `recipes/runner._until_ended`. Tests:
+  `fichero-server/tests/unit/jobs/test_closed_mid_run_5608.py` (the project closed, and every project closed,
+  with a run's pages waiting for a held lane; a recipe run closed mid-step carries on at the next open; a
+  recipe run whose step's row ended otherwise moves on and says why).
 - `compute.run.retry-passing-cause-once` — **[OK]** (#5555) a page that fails for a passing cause — its model
   server still loading, starting or not ready, a memory wait that ran out, a dropped connection — is read
   once more, 10 s later, before it counts as failed (`workflows/page_retry.py`). Never for a cause another

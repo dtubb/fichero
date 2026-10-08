@@ -148,14 +148,52 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     except Exception as exc:  # noqa: BLE001 -- the run's own preflight says why; the recipe records it
         return thread_id, "failed", str(getattr(exc, "detail", exc))
 
-    async def go() -> None:
+    async def go() -> dict[str, Any] | None:
         await _record_step_run_accepted(db, thread_id, workflow, request)
         jobs.set_parent(db, thread_id, parent)
-        await _run_step_workflow(thread_id=thread_id, workflow=workflow, request=request, db=db)
+        return await _until_ended(db, thread_id, asyncio.ensure_future(
+            _run_step_workflow(thread_id=thread_id, workflow=workflow, request=request, db=db)))
 
-    asyncio.run(go())
+    dead = asyncio.run(go())
+    _closed_stops_the_recipe(db, thread_id)
+    if dead is not None:  # the run's row ended and the run never came back: its row says how
+        return thread_id, ("done" if dead["state"] == "done" else "failed"), dead["reason"] or dead["state"]
     status, error = _step_run_outcome(thread_id)
     return thread_id, ("done" if status == "completed" else "failed"), error
+
+
+#: How long a step's run may go on after its row has ended (its last writes, its documents settled) before the
+#: recipe stops waiting on it (#5608).
+_DEAD_CHILD_GRACE_SECONDS = 30.0
+
+
+async def _until_ended(db: Any, child: str, run: "asyncio.Future") -> dict[str, Any] | None:
+    """Wait for a step's run, never on a dead one (#5608): None when the run returns; its row when the row ended
+    (done, failed, cancelled) or its project closed, and the run did not return within the grace after."""
+    ended_at: float | None = None
+    while True:
+        done, _ = await asyncio.wait({run}, timeout=_CHECK_POLL_SECONDS)
+        if done:
+            run.result()
+            return None
+        row = jobs.read_job(db, child) if jobs._still_open(db) else {"state": "cancelled",
+                                                                      "reason": jobs.CLOSED_BEFORE_RUN}
+        if row is None or row["state"] not in ("done", "failed", "cancelled"):
+            ended_at = None
+            continue
+        ended_at = ended_at or time.monotonic()
+        if time.monotonic() - ended_at >= _DEAD_CHILD_GRACE_SECONDS:
+            return row
+
+
+def _closed_stops_the_recipe(db: Any, child: str | None = None) -> None:
+    """A step ended because its project closed or is closing (#5608): the recipe run stops here, its row left
+    running (not failed: nothing it did failed), and the project's next open carries it on (`jobs.resume`,
+    "Interrupted; carries on"); no step runs on a closed project."""
+    from fichero_server.workflows.run_account import closed_mid_run
+
+    if not jobs._still_open(db) or (child is not None and closed_mid_run(child)):
+        raise jobs.JobOutOfReach("Interrupted: the project was closed; carries on when it opens again")
 
 
 def _run_by_reader(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[str, str], parent: str,
@@ -239,9 +277,11 @@ def _run_prepare(db: Any, documents: list[str], parent: str,
 
 
 def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
-    """The card's own job, a child of the recipe's row, waited on until it ends."""
+    """The card's own job, a child of the recipe's row, waited on until it ends (any end), or until its project
+    closes (#5608)."""
     jobs.set_parent(db, child, parent)
     while True:
+        _closed_stops_the_recipe(db)
         row = jobs.read_job(db, child)
         if row["state"] in ("done", "failed", "cancelled"):
             return child, row["state"], row["reason"] if row["state"] != "done" else None
