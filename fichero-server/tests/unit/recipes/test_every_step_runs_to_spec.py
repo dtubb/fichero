@@ -182,7 +182,7 @@ def test_the_kinds_of_names_reach_the_names_step(client, db, pages, tmp_path, en
 
     class Finder:
         async def extract(self, text, *, language=None):
-            return [SimpleNamespace(name=n, type=t, aliases=[]) for n, t in
+            return [SimpleNamespace(name=n, type=t, aliases=[], metadata={}) for n, t in
                     (("Juan Pérez", "person"), ("Quito", "location"), ("Cabildo de Quito", "organization"))]
 
     monkeypatch.setattr(local_models, "spacy_pipeline_available", lambda name: True)
