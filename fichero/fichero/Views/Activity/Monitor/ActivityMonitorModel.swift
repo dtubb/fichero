@@ -75,15 +75,16 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         }
     }
 
-    /// What a row's Pause, Resume and Stop buttons offer.
+    /// What a row's Pause, Resume, Stop and Retry buttons offer.
     enum Control: String, Identifiable {
-        case pause, resume, stop
+        case pause, resume, stop, retry
         var id: String { rawValue }
         var label: String {
             switch self {
             case .pause: "Pause"
             case .resume: "Resume"
             case .stop: "Stop"
+            case .retry: "Retry"
             }
         }
         var systemImage: String {
@@ -91,6 +92,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
             case .pause: "pause.fill"
             case .resume: "play.fill"
             case .stop: "stop.fill"
+            case .retry: "arrow.counterclockwise"
             }
         }
     }
@@ -281,13 +283,18 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// What Pause and Stop offer on this row: nothing on a finished row, or a
     /// row with no job behind it.
     var controls: [Control] {
-        guard jobId != nil else { return [] }
         switch phase {
-        case .running, .waiting: return [.pause, .stop]
-        case .paused: return [.resume, .stop]
-        case .failed, .cancelled, .done: return []
+        case .running, .waiting: return jobId == nil ? [] : [.pause, .stop]
+        case .paused: return jobId == nil ? [] : [.resume, .stop]
+        // #5356: a failed or stopped row, a job of its own too, offers Retry.
+        case .failed, .cancelled: return retryJobId == nil ? [] : [.retry]
+        case .done: return []
         }
     }
+
+    /// The job Retry acts on (`POST /api/activity/jobs/{id}/retry`): the row's
+    /// own job, or a job of its own's id from the jobs read.
+    var retryJobId: String? { jobId ?? ownJobId }
 
     // MARK: - Sort keys (non-optional, so a column can sort on them)
 

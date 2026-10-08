@@ -640,7 +640,12 @@ workflow by hand: a hand run is a job like any other.
   recorded on it (model and provider as recorded), newest first, with an absolute UTC time and cost
   null; a document the caller may not read is withheld and counted
   (`fichero-server/tests/unit/api/test_document_run_history.py`). No schema change: the join is on
-  `subject`. Still a gap: the Done column and the Inspector section (Swift), cost for priced runs,
+  `subject`. Built (2026-10-08, app): the document Inspector's Source › Info shows "What has been run",
+  newest first, each entry's name, outcome, model and provider, absolute time, reason and cost when
+  priced, read through the project's `RunHistoryStore` in one call for many documents, each document's
+  key set on its own (`fichero/Tests/Unit/general/Models/RunHistoryStoreTests.swift`; not yet seen in
+  the app). Still a gap: the Done column (the library table has no batched per-visible-row read to
+  mirror, so it is more than a column), cost for priced runs,
   the provider of a job row (only its model is recorded), and job rows whose subject is not a document
   id (a page read from a file with no document names the file).
 - `activity.window.measures` — **[PARTIAL]** (#5415) the measures that matter, per run, step and
@@ -843,7 +848,8 @@ of the job tree (`GET /api/activity/jobs/{id}`) and one filtered read of its log
    elapsed; tokens and cost as the table shows them (null stays blank, never "$0"); the peak
    memory of the engine and of the model servers during the run, from the run's usage record; a
    figure the engine did not measure is left out.
-6. **Actions.** Pause or Resume, Stop (the row's own job routes, `activity.pause.per-job`);
+6. **Actions.** Pause or Resume, Stop, Retry on a failed or stopped row (the row's own job routes,
+   `activity.pause.per-job`);
    *Read the N pages that failed again*; *Open the page* on a page row, *Show the pages* on a step
    or run row (the Library selects them); *Show the trace* on a run row, which opens the existing
    `RunTraceSheet` as a sheet; *Show what it made* (`activity.window.what-it-made`). An action
@@ -937,7 +943,13 @@ and node, not by job); a retry action for failed pages.
   its own checkpoint; refused, with the reason, for work a run hands in (retry the run), a training on
   Hugging Face (start a new one) and work already waiting again. Stop on its row now reaches a running
   check, line check, tie-text, reading at scale and gathering of reasons. Every kind is pinned to the four
-  controls (`fichero-server/tests/unit/jobs/test_every_kind_has_its_controls.py`). Still a gap: pausing
+  controls (`fichero-server/tests/unit/jobs/test_every_kind_has_its_controls.py`). Built (2026-10-08,
+  app): a failed or stopped row in the window, a job of its own too, offers Retry through this route; the
+  engine's answer is set on that one row in place, and a refusal is shown in the engine's words
+  (`ActivityTableTests` `testActivityWindowTable_retryOnAFailedPageRowSetsThatOneRowsState`,
+  `testActivityWindowTable_aRefusedRetrySaysTheEnginesWordsAndChangesNothing`,
+  `testActivityWindowTable_aStoppedJobOfItsOwnOffersRetryButARunningOneDoesNot`; not yet seen in the
+  app). Still a gap: pausing
   every waiting job of one kind at once; a running reasons A/B cannot be stopped; and kinds keep stop
   routes of their own beside it (`activity.pause.one-start-stop`).
 - `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
@@ -949,7 +961,7 @@ and node, not by job); a retry action for failed pages.
   (undoable) and `job.cancel`; MCP tools `fichero_jobs`, `fichero_pause_background_work`,
   `fichero_job_pause`, `fichero_job_cancel` (`fichero-mcp/tests/test_mcp_server.py`); retry is the
   action `job.retry` (2026-10-08), reachable from MCP and the command line through the tools generated
-  from its route. Still a gap: a retry control in the window.
+  from its route, and from the window's Retry on a failed or stopped row (2026-10-08).
 - `activity.pause.one-start-stop` — **[PARTIAL]** (#5356) every kind of job is started, paused,
   resumed, cancelled and retried through one pair of routes and actions (`/api/activity/jobs/{id}/…`,
   `job.pause`, `job.cancel`); a kind's own routes are callers of it or are retired. Built: pause and

@@ -203,6 +203,10 @@ class LibraryManager {
         /// folder's Inspector shows its state, intake and Untie from here.
         @ObservationIgnored lazy var syncFolderStore = SyncFolderStore(client: ficheroClient)
 
+        /// What has been run on this project's documents (#5434): the document Inspector's
+        /// "What has been run" section reads it from here.
+        @ObservationIgnored lazy var runHistoryStore = RunHistoryStore(client: ficheroClient)
+
         /// This project's kept exports (#5485): setup's Kept exported screen keeps them, and the
         /// project's Inspector lists them with Write Now and Remove.
         @ObservationIgnored lazy var keptExportStore = KeptExportStore(client: ficheroClient)

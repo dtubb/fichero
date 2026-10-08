@@ -231,12 +231,14 @@ struct ActivityMonitorWindow: View {
     /// Pause, Resume or Stop one row's job through the audited job actions;
     /// the engine's answer is set on that row in place.
     private func act(_ control: ActivityMonitorRow.Control, on row: ActivityMonitorRow) async {
-        guard let jobId = row.jobId, let store = library(for: row.libraryId)?.activityStore else { return }
+        guard let jobId = control == .retry ? row.retryJobId : row.jobId,
+              let store = library(for: row.libraryId)?.activityStore else { return }
         let failure: String?
         switch control {
         case .pause: failure = await store.setJobPaused(jobId: jobId, paused: true, runThreadId: row.runThreadId)
         case .resume: failure = await store.setJobPaused(jobId: jobId, paused: false, runThreadId: row.runThreadId)
         case .stop: failure = await store.cancelJob(jobId: jobId, runThreadId: row.runThreadId)
+        case .retry: failure = await store.retryJob(jobId: jobId, runThreadId: row.runThreadId)
         }
         notice = failure.map { "Couldn't \(control.label.lowercased()) \(row.name): \($0)" }
     }
