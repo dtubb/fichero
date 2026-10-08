@@ -569,11 +569,26 @@ level it was made for.
   document's date lives today), and the map reads `metadata.geo_points`, a copy; moving it onto place
   entities is `places-one-home` (#5597), not a few lines.*
 - `source.extract.run-on-any-level` — **[PARTIAL]** (#4949; #5604) *Built: documents, a folder,
-  a collection, and a region node with its own crop.* A run's selection can also be a set of segments
+  a collection, a region node with its own crop; a `group` selection (its member documents in the
+  group's own order); and a `segments` selection at any level, each segment resolved by the files
+  source (`sources.segment_work_units`) to its picture cut by the one cutter
+  (`media/segment_pictures.py`) and its counting reading. Only the readers wired to a segment
+  (`tool_outputs.SEGMENT_READERS`: Transcribe, Handwriting, Caption, Describe) run on one; any other
+  step is refused before the run in words ("Classify runs on pages, not on a line"), never run on the
+  whole page. Pinned by `fichero-server/tests/unit/workflows/test_run_on_any_level_5604.py`. Not built:
+  a logical unit as a selection; text steps (translate, clean) on a segment's reading; the segment's
+  outline mask and straightening for a reader.* A run's selection can also be a set of segments
   at any level (regions, lines, words, signs), a group of documents (a case), or a logical unit; the
   server resolves it, and each node is given what it needs for that level: the segment's picture cut
   to its shape, its chosen reading, or both (`source.chain.segments-to-any-reader`).
-- `source.extract.outputs-attach-at-their-level` — **[GAP]** (#5490; #5604) a result made from a
+- `source.extract.outputs-attach-at-their-level` — **[PARTIAL]** (#5490; #5604) *Built: a reader
+  run on a segment writes what it read as a reading ON that segment (a transcription, or the step's
+  reading kind such as a description), never the page's text; the run's artifact stays on the page as
+  `segment.<type>` with no boxes, so nothing that takes a page's transcription from its artifacts
+  takes a line's (`llm_base._write_segment_reading`; pinned by
+  `fichero-server/tests/unit/workflows/test_run_on_any_level_5604.py`). Not built: mentions and
+  statements found on a segment run (the extractors are not wired to a segment).* A
+  result made from a
   segment attaches to that segment (a reading, a mention); one made from a document or group attaches
   there (an attribute value, a description reading); `Artifact` is kept as the record of a run, not as
   the home of what it found.

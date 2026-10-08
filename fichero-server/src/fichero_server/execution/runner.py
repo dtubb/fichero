@@ -1452,11 +1452,19 @@ async def _run_workflow_in_background(
             # inputs carry the flag, so the recorded scope must honor it too or
             # Activity would claim the run touched every descendant (2026-09-06).
             expand_folders = bool((request.inputs or {}).get("expand_folders", True))
+            from fichero_server.workflows.selection import (  # noqa: PLC0415
+                SelectionKind,
+                selection_document_ids,
+            )
+
             resolved_scope = resolve_run_scope(
                 db,
-                list(selection.ids) if selection else None,
+                selection_document_ids(db, selection) if selection else None,
                 expand_folders=expand_folders,
             )
+            if selection is not None and selection.kind is SelectionKind.segments:
+                # The pages are the scope; the segments are what was pointed at on them (#5604).
+                resolved_scope["segment_ids"] = list(selection.ids)
             if selection is not None:
                 # What the user pointed AT, as declared. `kinds` records what
                 # each requested id turned out to be in the DB; this records
@@ -1689,7 +1697,16 @@ async def _run_workflow_in_background(
         # #4467 empty-target guard could not catch it either: that guard fires
         # only when there is no selection at all, and here there was one.
         if request.selection is not None:
-            initial_state["selected_doc_ids"] = list(request.selection.ids)
+            # Segments (#5604) are run on the pages they are on, each on its own picture: the pages
+            # scope the run, the segment ids say what is read on them (`sources.files_tool`).
+            from fichero_server.workflows.selection import (  # noqa: PLC0415
+                SelectionKind,
+                selection_document_ids,
+            )
+
+            initial_state["selected_doc_ids"] = selection_document_ids(db, request.selection)
+            if request.selection.kind is SelectionKind.segments:
+                initial_state["selected_segment_ids"] = list(request.selection.ids)
         # #4313: the run's thread_id IS the run id. Tools read task_id from
         # state when saving artifacts (Artifact.run_id), and the fan-out Send
         # payloads already propagate it — so every artifact a live run

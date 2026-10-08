@@ -102,6 +102,7 @@ from fichero_server.workflows.tools.llm_base import (
     save_file_artifact as save_artifact,
     save_to_file as llm_save_to_file,
 )
+from fichero_server.workflows.selection import segment_target_of
 from fichero_server.workflows.tools._doc_lookup import (
     find_document_by_path,
     iter_document_lookup_paths,
@@ -3704,7 +3705,9 @@ async def process_vision(
         for _i in range(len(files)):
             _doc = documents[_i] if _i < len(documents) else None
             _doc_id = _doc.get("id") if isinstance(_doc, dict) else None
-            if _doc_id:
+            # Two segments of one page are two reads, each written on its own segment (#5604),
+            # never joined into the page's text.
+            if _doc_id and segment_target_of(_doc) is None:
                 _fan_in_indices_by_doc.setdefault(str(_doc_id), []).append(_i)
         _fan_in_indices_by_doc = {
             doc_id: idxs for doc_id, idxs in _fan_in_indices_by_doc.items() if len(idxs) > 1
@@ -3806,6 +3809,14 @@ async def process_vision(
     page_doc_dict_by_index: list[dict | None] = []
     if documents:
         for index, doc in enumerate(documents):
+            if segment_target_of(doc) is not None:
+                # A segment (#5604): its picture is the file, so nothing of the page's (its text,
+                # its PDF page, its stored transcription) stands in for reading it.
+                existing_text_by_index.append("")
+                page_doc_id_by_index.append(doc.get("id"))
+                page_index_by_index.append(None)
+                page_doc_dict_by_index.append(doc)
+                continue
             if isinstance(doc, dict):
                 metadata = doc.get("metadata") if isinstance(doc.get("metadata"), dict) else {}
                 raw_transcription = metadata.get("transcription")
@@ -4083,7 +4094,12 @@ async def process_vision(
                 values.append(None)
                 return _outcome()
             doc_id_for_file = _page_doc_id or resolve_path_to_doc(path_to_doc, file_path)
-            if library_path and doc_id_for_file:
+            # A segment's own picture (#5604) is read as it is: the page's edited image never
+            # replaces it, and the page's cached read never answers for it.
+            _segment_target = segment_target_of(
+                page_doc_dict_by_index[file_index] if file_index < len(page_doc_dict_by_index) else None
+            )
+            if library_path and doc_id_for_file and _segment_target is None:
                 from fichero_server.db import db_manager
                 from fichero_server.models import Document
                 from fichero_server.db.storage import resolve_edited_source
@@ -4363,6 +4379,7 @@ async def process_vision(
             if (
                 not pdf_layer_used
                 and not force_ocr
+                and _segment_target is None
                 and tool_config.skip_if_artifact_exists
                 and save_to_db
                 and library_path
@@ -5352,7 +5369,8 @@ async def process_vision(
 
                 _onto_pass = (
                     page_geometry.metadata.get(READ_ONTO_PASS)
-                    if vision_mode == "kraken" and page_geometry is not None else None
+                    if vision_mode == "kraken" and page_geometry is not None and _segment_target is None
+                    else None
                 )
                 if _onto_pass:
                     effective_artifact_data = {**(effective_artifact_data or {}), READ_ONTO_PASS: _onto_pass}

@@ -191,6 +191,13 @@ class CreateBatchRequest(BaseModel):
             ExecuteWorkflowRequest,
         )
 
+        from fichero_server.workflows.selection import SelectionKind  # noqa: PLC0415
+
+        if self.selection is not None and self.selection.kind is SelectionKind.segments:
+            # A batch item is scoped by document ids; a segment run is checked and resolved by the
+            # execute route (#5604), and is never re-read here as a list of documents.
+            raise ValueError("a batch runs on documents; run segments with POST /api/workflow-execution/execute")
+
         validated: list[dict[str, Any]] = []
         for index, item in enumerate(self.items):
             inputs = dict(item or {})

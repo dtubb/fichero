@@ -595,6 +595,51 @@ def split_script_classification(content: str) -> tuple[str, str | None]:
     return cleaned.strip("\n"), note
 
 
+#: The artifact types whose text IS a reading of what was read (the transcription), when the step
+#: names no other reading kind.
+_TRANSCRIBING_ARTIFACT_TYPES = frozenset({"transcription", "handwriting"})
+
+
+def _write_segment_reading(
+    db: Any,
+    segment_target: dict,
+    content: str,
+    data: dict | None,
+    tool_config: LLMToolConfig,
+    document_id: str,
+    artifact_id: str,
+    task_id: str | None,
+    library_path: str,
+) -> None:
+    """What a step read from a segment's picture, written as a reading ON that segment (#5604).
+
+    Its kind is the step's reading kind (a description, a translation), or a transcription for a
+    reader whose output is the text itself. A flagged read (#5522) writes nothing, as on a page. A
+    step that writes no reading cannot be run on a segment: the execute route refuses it before the
+    run, and reaching here anyway is a defect, so it raises rather than saving nothing.
+    """
+    from fichero_server.llm.read_guard import READ_FLAG_KEY
+    from fichero_server.llm.working_lines import write_readings
+
+    if READ_FLAG_KEY in (data or {}):
+        return
+    kind = tool_config.reading_kind or (
+        "transcription"
+        if tool_config.update_page_content or tool_config.artifact_type in _TRANSCRIBING_ARTIFACT_TYPES
+        else None
+    )
+    if kind is None:
+        raise ValueError(
+            f"{tool_config.artifact_type} writes no reading, so it cannot be run on a "
+            f"{segment_target.get('level') or 'segment'}"
+        )
+    cleaned, _script_note = split_script_classification(content or "")
+    write_readings(
+        db, document_id=document_id, readings=[(segment_target["segment_id"], cleaned)],
+        artifact_id=artifact_id, run_id=task_id, kind=kind, library_path=library_path,
+    )
+
+
 def _save_artifact_sync(
     doc: object | None,
     document_id: str | None,
@@ -655,6 +700,21 @@ def _save_artifact_sync(
             return None
         resolved_doc_id = doc.id
 
+        # A read of a SEGMENT (#5604, `source.extract.outputs-attach-at-their-level`): the work unit's
+        # document is its page standing for it. The run's record is kept on the page under its own
+        # type (`segment.<type>`, so nothing that takes a page's transcription from its artifacts
+        # takes a line's for it) with no boxes (measured on the cut-out, not the page); what was read
+        # is written as a reading on the segment below, and nothing is written onto the page.
+        from fichero_server.workflows.selection import segment_target_of
+
+        segment_target = segment_target_of(doc)
+        artifact_type = tool_config.artifact_type
+        if segment_target is not None:
+            artifact_type = f"segment.{tool_config.artifact_type}"
+            data = {**(data or {}), "segment_id": segment_target["segment_id"],
+                    "segment_level": segment_target.get("level")}
+            ocr_geometry = None
+
         # Provenance (#4313): the live runner puts the run's thread_id into
         # state as task_id, so run_id ties the artifact to its workflow run;
         # the builder's node wrappers stamp the executing node into the
@@ -694,7 +754,7 @@ def _save_artifact_sync(
         artifact = Artifact(
             document_id=resolved_doc_id,
             source_document_id=resolved_doc_id,
-            artifact_type=tool_config.artifact_type,
+            artifact_type=artifact_type,
             content=content,
             data=data,
             ocr_geometry=ocr_geometry,
@@ -707,7 +767,11 @@ def _save_artifact_sync(
         )
         db.save(artifact)
         artifact_id = artifact.id
-        logger.info(f"Created {tool_config.artifact_type} artifact {artifact_id}")
+        logger.info(f"Created {artifact_type} artifact {artifact_id}")
+        if segment_target is not None:
+            _write_segment_reading(db, segment_target, content, data, tool_config,
+                                   resolved_doc_id, artifact_id, task_id, library_path)
+            return artifact_id
         if tool_config.reading_kind and (content or "").strip():
             # A core write: a reading that fails to land is a lost output, so it surfaces (below).
             from fichero_server.llm.working_lines import write_readings

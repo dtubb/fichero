@@ -89,7 +89,8 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     "merge_geometry": _d("segment", "pass", "reading", "artifact"),
     # page text (update_page_content=True); a result with boxes also becomes a pass (#5222)
     "transcribe": _d("segment", "page_text", "pass", "reading", "artifact"),
-    "handwriting": _d("page", "page_text", "artifact"),
+    # run on a segment (#5604), its read is a reading on that segment
+    "handwriting": _d("segment", "page_text", "reading", "artifact"),
     "transcribe_review": _d("page", "page_text", "artifact"),
     "audio_transcribe": _d("document", "page_text", "artifact"),
     "video_describe": _d("document", "page_text", "artifact"),
@@ -156,8 +157,8 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     # analyze node that names none still writes only an 'analysis' artifact
     "analyze": _d("page", "reading", "artifact"),
     # descriptions: a caption or a description of the page is a `description` reading of it
-    "caption": _d("page", "reading", "artifact"),
-    "describe": _d("page", "reading", "artifact"),
+    "caption": _d("segment", "reading", "artifact"),  # on a segment when run on one (#5604)
+    "describe": _d("segment", "reading", "artifact"),
     # a summary is a `description` reading on what it summarises (`summarize` runs summarize_file)
     "summarize": _d("document", "reading", "artifact"),
     "summarize_file": _d("document", "reading", "artifact"),
@@ -246,3 +247,22 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
 def declaration_for(tool_name: str) -> OutputDeclaration | None:
     """The tool's declaration, or None when it has none (the guard fails that)."""
     return TOOL_OUTPUTS.get(tool_name)
+
+
+# ── Which steps run on a segment (#5604, `source.extract.run-on-any-level`) ─────
+#
+# A step declared at page or document level cannot be given a segment, unless it is a reader wired
+# to take one: these read the segment's own picture (cut to it, `media/segment_pictures.py`) through
+# `process_vision`, and what they read is written as a reading ON the segment (`llm_base`'s save,
+# `outputs-attach-at-their-level`), never as the page's text. Any other step is refused with words
+# before the run starts.
+
+#: The sources that resolve a segment selection (`sources.files_tool`; `selection` calls it).
+SEGMENT_SOURCES = frozenset({"files", "selection"})
+#: The readers wired to a segment: each declares a reading or the page's text, and reads a picture.
+SEGMENT_READERS = frozenset({"transcribe", "handwriting", "caption", "describe"})
+
+
+def runs_on_segments(tool_name: str) -> bool:
+    """Whether a step of this tool can be run on a segment selection."""
+    return tool_name in SEGMENT_SOURCES or tool_name in SEGMENT_READERS

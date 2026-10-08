@@ -343,7 +343,11 @@ async def transcribe(
     # page nobody chose (it read a Spanish hand as Cyrillic). And never when the
     # reader IS Apple Vision: that reading is the transcription itself, and a
     # second copy is not a reading anyone asked for.
-    if inputs.get("regions_first", False) and files and not _reader_is_apple_vision(
+    # Never on a segment's picture (#5604): regions found on a cut-out would be written onto the page.
+    from fichero_server.workflows.selection import segment_target_of  # noqa: PLC0415
+
+    on_segments = any(segment_target_of(doc) for doc in (documents or []))
+    if inputs.get("regions_first", False) and files and not on_segments and not _reader_is_apple_vision(
         vision_mode, llm_config
     ):
         from fichero_server.workflows.tools.detect_regions import (  # noqa: PLC0415

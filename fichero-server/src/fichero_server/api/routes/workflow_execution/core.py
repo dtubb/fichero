@@ -336,6 +336,19 @@ async def execute_workflow(
 
         _validate_workflow_for_execution(workflow, request, db)
 
+        # #5604: a run on segments or a group is checked against the project and the workflow's
+        # steps before it starts; a step that runs on pages is refused in words, never run on the
+        # whole page it was pointed into.
+        from fichero_server.workflows.selection import (  # noqa: PLC0415
+            SelectionRefused,
+            refuse_unfit_selection,
+        )
+
+        try:
+            refuse_unfit_selection(db, workflow.nodes, request.selection)
+        except SelectionRefused as refused:
+            raise HTTPException(status_code=400, detail=str(refused)) from refused
+
         logger.debug(
             "[EXECUTE] workflow=%s id=%s nodes=%s edges=%s",
             workflow.name,
