@@ -303,11 +303,16 @@ parallel pattern to keep.
   it fails if any function in `mcp/tools.py` writes to the database outside
   `registry.invoke` unless explicitly allowlisted, and the allowlist (the "bypass list") is
   now EMPTY — a synthetic case proves the scan still catches a real bypass, so an empty list
-  reads as "nothing bypasses," not as a broken detector. Still PARTIAL, not OK: this is scoped
-  to `mcp/tools.py` specifically, not a general "every capability the CLI/agent surface
-  exposes has a matching registered action" guardrail across the whole app — the broader
-  invariant this behavior's id names is still only a design intent, not a checked property
-  everywhere. Pinned:
+  reads as "nothing bypasses," not as a broken detector. **The CLI half is now pinned too**
+  (#4847): a parsed scan of `fichero-cli/src` fails on any in-process route to a capability:
+  an import of the database, the registry or a route function, or a `db.save`/`db.delete`.
+  The CLI may take only types, `*_via_http` importers and a short, reasoned module allowlist
+  (transport, formatting, local manifest and file work), so it changes a library only over
+  HTTP. Still PARTIAL, not OK: over HTTP, the CLI and MCP can still reach the seven routes
+  `audit.every-mutating-route-uses-the-registry` lists as bypassing the registry, and the
+  capability-list diff against the registry (Open question 2) is not built. Pinned:
+  `fichero-cli/tests/test_cli_reaches_capabilities_only_over_http.py` (incl. a synthetic
+  bypass case),
   `test_mcp_tools_write_through_registry.py::test_no_function_writes_to_the_db_outside_registry_invoke_unless_allowlisted`,
   `::test_the_five_reconciled_tools_are_not_in_the_bypass_list`,
   `::test_the_scan_itself_would_catch_a_real_bypass`,
@@ -412,7 +417,7 @@ parallel pattern to keep.
 | Guardrail (Swift-style Python AST scan) | y | every mutating KG/entity route calls `registry.invoke` | `scripts/check_routes_use_action_layer.py` + `fichero-server/tests/unit/scripts/test_check_routes_use_action_layer.py` |
 | Backend (pytest) | y | undo/redo generic contract, actor cannot be forged, non-undoable says so | `test_routes_entity_curation.py` |
 | Backend (pytest) | y | an action-layer touch protects an NLP draft row from purge | `test_nlp_draft_purge_action.py::TestF2IndependentTouchProtection` |
-| MCP / CLI | y (MCP only) | MCP write/delete tools reach capabilities only via `registry.invoke`, source-scan enforced | `test_mcp_tools_write_through_registry.py`, `test_mcp_kg_write_attribution.py` (`audit.only-the-action-surface-reaches-capabilities`, [PARTIAL] — CLI/agent surface beyond MCP still unchecked) |
+| MCP / CLI | y | MCP write/delete tools reach capabilities only via `registry.invoke`; the CLI only over HTTP; both source-scan enforced | `test_mcp_tools_write_through_registry.py`, `test_mcp_kg_write_attribution.py`, `fichero-cli/tests/test_cli_reaches_capabilities_only_over_http.py` (`audit.only-the-action-surface-reaches-capabilities`, [PARTIAL] — the seven bypassing routes and the capability-list diff remain) |
 | OpenAPI diff | n | no dedicated regression test for the three wrapping traps | — (Open Questions) |
 
 Hard-gate: `audit.every-mutating-route-uses-the-registry` (the guardrail exists and is wired
