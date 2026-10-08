@@ -8870,6 +8870,16 @@
         "response_model": "ProjectSetup"
       },
       {
+        "method": "POST",
+        "path": "/recipes/project/steps/use-candidate",
+        "operation_id": "use_candidate_for_step_api_recipes_project_steps_use_candidate_post",
+        "summary": "Use Candidate For Step",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "UseCandidateRequest",
+        "response_model": "ProjectSetup"
+      },
+      {
         "method": "GET",
         "path": "/recipes/purposes",
         "operation_id": "list_purposes_api_recipes_purposes_get",

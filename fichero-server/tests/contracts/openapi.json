@@ -13723,6 +13723,70 @@
         }
       }
     },
+    "/api/recipes/project/steps/use-candidate": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Use Candidate For Step",
+        "description": "Use this candidate for the step: any model the finder lists (shipped, installed, Kraken's repository or a\nHugging Face reader an earlier search kept) becomes the step's reader, kept as a project-scope override by the\npath use-instead and Use This take, through `project.save_setup` (audited, undoable) (#5612,\n`source.find.app-card-actions`). A model still to download is then a download the Start plan offers. Refused\n(422) for a card Fichero does not know here, a step the recipe lacks, or a card that does not do its job.",
+        "operationId": "use_candidate_for_step_api_recipes_project_steps_use_candidate_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UseCandidateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSetup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/layers": {
       "post": {
         "tags": [
@@ -49662,6 +49726,49 @@
         "title": "CancelResponse",
         "description": "Response from POST /threads/{thread_id}/cancel (#1127).\n\n``partial_results_preserved`` is always True for now \u2014 the issue's\ninvariant is that artifacts and entities written before the cancel\nstay in place. Future work could add a soft-rollback option that\ndeletes per-thread writes; for now we surface the contract clearly\nin the response shape."
       },
+      "CandidateDownload": {
+        "properties": {
+          "runtime": {
+            "type": "string",
+            "title": "Runtime",
+            "description": "mlx or spacy"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "the model's id in that runtime"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "the action to invoke (model.download, a download-model job on the network lane)"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          }
+        },
+        "type": "object",
+        "required": [
+          "runtime",
+          "model",
+          "action",
+          "params"
+        ],
+        "title": "CandidateDownload",
+        "description": "The action that downloads a candidate's model (as `StartDownload.action`/`params`)."
+      },
+      "CandidatePlace": {
+        "type": "string",
+        "enum": [
+          "this_mac",
+          "own_machine",
+          "provider"
+        ],
+        "title": "CandidatePlace",
+        "description": "Where a model runs (`llm.places`): the places the AI settings use."
+      },
       "CandidateSource": {
         "properties": {
           "source": {
@@ -63451,6 +63558,12 @@
           "since": {
             "type": "string",
             "title": "Since"
+          },
+          "reads_material": {
+            "type": "boolean",
+            "title": "Reads Material",
+            "description": "whether the job reads the material into text (a reader's job: the finder's candidates are for it, #5612)",
+            "default": false
           }
         },
         "type": "object",
@@ -68750,6 +68863,21 @@
             "nullable": true,
             "title": "Refused",
             "description": "the rules' first reason it cannot do the job here"
+          },
+          "installed": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Installed",
+            "description": "whether its model is already on this Mac (an MLX model in the store, a spaCy pipeline, a bundled Kraken model); null where nothing is downloaded first (a Kraken reader the run fetches, a cloud model) (#5612)"
+          },
+          "download": {
+            "$ref": "#/components/schemas/CandidateDownload",
+            "nullable": true,
+            "description": "the action that downloads its model, as the Start plan's downloads name it; null when there is nothing to download first (#5612)"
+          },
+          "runs_where": {
+            "$ref": "#/components/schemas/CandidatePlace",
+            "description": "where it runs: this Mac, a machine of the person's own, or the provider that runs it (llm.places, #5612)"
           }
         },
         "type": "object",
@@ -68763,7 +68891,8 @@
           "open_licence",
           "size",
           "measured",
-          "in_recipe_rules"
+          "in_recipe_rules",
+          "runs_where"
         ],
         "title": "ModelCandidate",
         "description": "One reader candidate as a card: where it came from, why it is offered, what it states, and what\nthe rules make of it for the project's scripts, languages and material."
@@ -87469,6 +87598,28 @@
         },
         "type": "object",
         "title": "UpdateUserRequest"
+      },
+      "UseCandidateRequest": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step",
+            "description": "the recipe step's id"
+          },
+          "card": {
+            "type": "string",
+            "title": "Card",
+            "description": "the candidate's card id, as GET /api/recipes/candidates lists it (`id`)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "step",
+          "card"
+        ],
+        "title": "UseCandidateRequest",
+        "description": "Set a found candidate as a step's reader (#5612)."
       },
       "UseInsteadRequest": {
         "properties": {

@@ -436,6 +436,7 @@
   "POST /api/recipes/project/bakeoffs": "not undoable by design: the bake-off is the evaluation job (evaluation.run, audited, undoable=False); a score is a result, kept as a dated comparison record",
   "POST /api/recipes/project/bakeoffs/{bakeoff_id}/use": "undone through project.save_setup (audited, undoable), which this route invokes to write the override; the guard sees the route, not the action it calls",
   "POST /api/recipes/project/start/use-instead": "undone through project.save_setup (audited, undoable), which this route invokes to write the override (#5583); the guard sees the route, not the action it calls",
+  "POST /api/recipes/project/steps/use-candidate": "undone through project.save_setup (audited, undoable), which this route invokes to write the override (#5612); the guard sees the route, not the action it calls",
   "POST /api/evaluation/runs": "not undoable by design (evaluation.run, audited, undoable=False): a score is a result, not an edit; it is appended to each model's card as a dated record, never replacing an earlier one",
   "POST /api/check/runs": "not undoable by design (check.run, audited, undoable=False): the checker's calls were made; each verdict is a dated record, and a corrected reading is undone like any reading (representation.retract)",
   "POST /api/check/runs/{job_id}/cancel": "not undoable by design (check.cancel, audited, undoable=False): start a new run to check the remaining proposals",

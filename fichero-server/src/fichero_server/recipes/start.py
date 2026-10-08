@@ -505,12 +505,40 @@ def use_instead(recipe: dict[str, Any] | None, downloads: list[dict[str, Any]], 
         repo = mlx_model_for(step.get("model") or {})
         if step.get("id") not in offer["steps"] or not repo or store.canonical_id(repo) != model:
             continue
-        sid = step["id"]
-        override = {"step": sid, "scope": "project", "folder_id": None, "model": dict(card.pin), "card": card.id,
-                    "runs_on": card.runs_on, "because": because, "at": now}
-        out["overrides"] = [o for o in out.get("overrides") or []
-                            if (o.get("step"), o.get("scope"), o.get("folder_id")) != (sid, "project", None)]
-        out["overrides"].append(override)
+        _keep_choice(out, step["id"], card, because, now)
+    return apply_project_overrides(out, [card])
+
+
+def _keep_choice(recipe: dict[str, Any], sid: str, card: Any, because: str, now: str) -> None:
+    """Keep the person's choice of `card` for step `sid` as its project-scope override, replacing any earlier one:
+    the one way a chosen reader is kept (Use This, use-instead, a found candidate). Changes `recipe` in place."""
+    override = {"step": sid, "scope": "project", "folder_id": None, "model": dict(card.pin), "card": card.id,
+                "runs_on": card.runs_on, "because": because, "at": now}
+    recipe["overrides"] = [o for o in recipe.get("overrides") or []
+                           if (o.get("step"), o.get("scope"), o.get("folder_id")) != (sid, "project", None)]
+    recipe["overrides"].append(override)
+
+
+def use_candidate(recipe: dict[str, Any] | None, step_id: str, card: Any, *, now: str) -> dict[str, Any]:
+    """The recipe with any found candidate `card` set as step `step_id`'s reader, kept as a project-scope override
+    by the path use-instead and Use This take (#5612, `source.find.app-card-actions`). The press is the person's
+    deliberate choice: the rules' refusals (a licence, a script its card does not state) do not stop it, but a card
+    that does not do the step's job does. ValueError, in words."""
+    import copy
+
+    from fichero_server.recipes.bakeoff import apply_project_overrides
+
+    if not recipe:
+        raise ValueError("this project has no recipe yet: run setup first")
+    out = copy.deepcopy(recipe)
+    step = next((s for s in out.get("steps") or [] if s.get("id") == step_id), None)
+    if step is None:
+        raise ValueError(f"this project's recipe has no step {step_id!r}")
+    if step.get("job") not in card.jobs:
+        raise ValueError(f"{card.note.strip().rstrip('.') or card.id} does not do the step {step_id!r} "
+                         f"({step.get('job')}): it does {', '.join(sorted(card.jobs)) or 'no job'}")
+    because = f"chosen by you from the models found ({card.offered_because or card.source})"
+    _keep_choice(out, step_id, card, because, now)
     return apply_project_overrides(out, [card])
 
 

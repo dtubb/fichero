@@ -6080,6 +6080,15 @@ def fichero_recipes_use_installed_instead(
     return _rt.call("POST", "/api/recipes/project/start/use-instead", json=_rt.body({"card": card, "model": model}))
 
 
+def fichero_recipes_use_candidate_for_step(
+    *,
+    card: Annotated[str, Field(description="the candidate's card id, as GET /api/recipes/candidates lists it (`id`)")],
+    step: Annotated[str, Field(description="the recipe step's id.")],
+) -> Any:
+    "Use Candidate For Step\n\nUse this candidate for the step: any model the finder lists (shipped, installed, Kraken's repository or a\nHugging Face reader an earlier search kept) becomes the step's reader, kept as a project-scope override by the\npath use-instead and Use This take, through `project.save_setup` (audited, undoable) (#5612,\n`source.find.app-card-actions`). A model still to download is then a download the Start plan offers. Refused\n(422) for a card Fichero does not know here, a step the recipe lacks, or a card that does not do its job.\n\nRoute: POST /api/recipes/project/steps/use-candidate (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/steps/use-candidate", json=_rt.body({"card": card, "step": step}))
+
+
 def fichero_recipes_list_purposes(
 ) -> Any:
     'List Purposes\n\nThe purposes setup offers as checkboxes, in order, each with its label, whether it runs by\nitself and the jobs it proposes (`source.onboard.purpose-first`).\n\nRoute: GET /api/recipes/purposes (toolset `recipes`; reads).'
@@ -9072,6 +9081,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_get_start_plan", "recipes", "GET", "/api/recipes/project/start", fichero_recipes_get_start_plan),
     GeneratedTool("fichero_recipes_start_project", "recipes", "POST", "/api/recipes/project/start", fichero_recipes_start_project),
     GeneratedTool("fichero_recipes_use_installed_instead", "recipes", "POST", "/api/recipes/project/start/use-instead", fichero_recipes_use_installed_instead),
+    GeneratedTool("fichero_recipes_use_candidate_for_step", "recipes", "POST", "/api/recipes/project/steps/use-candidate", fichero_recipes_use_candidate_for_step),
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
     GeneratedTool("fichero_recipes_routes_for_volume", "recipes", "GET", "/api/recipes/routes", fichero_recipes_routes_for_volume),
     GeneratedTool("fichero_recipes_search_scripts", "recipes", "GET", "/api/recipes/scripts", fichero_recipes_search_scripts),

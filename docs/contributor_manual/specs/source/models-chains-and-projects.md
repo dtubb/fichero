@@ -2885,12 +2885,17 @@ Finding models
   Downloading… and Activity shows the job); **Use for This Step** in Set Up… only where the Start plan
   offers that installed card instead of the step's pending download (`downloads[].instead`), through
   `POST /api/recipes/project/start/use-instead` (setup's own `useInstead`, one code path); and **Search
-  Online** for the whole list (`online=true`). *Residue, owed by the engine before the rest can be
-  built:* a candidate carries no download action of its own (a shipped MLX card's `pin` names its Hub
-  repo, which the download route refuses; a Kraken record downloads by another route), no installed
-  flag for a shipped card, and no place it runs (`source.find.model-and-where-it-runs`, #5582); and no
-  route sets an arbitrary candidate as a step's reader (Use This takes only a bake-off's scored
-  candidate, use-instead only the plan's installed offer).
+  Online** for the whole list (`online=true`). **Built 2026-10-08 (engine, #5612):** each candidate
+  carries `download` (the action that downloads it, `model.download` with its runtime and id, as the
+  Start plan's `downloads` name it; null when it is here, the run fetches it, or it runs elsewhere),
+  `installed` (an MLX model in this Mac's store, a spaCy pipeline, a bundled Kraken model; null where
+  nothing is downloaded first) and `runs_where` (`this_mac`, `own_machine` or `provider`, `llm.places`);
+  `POST /api/recipes/project/steps/use-candidate` (`{step, card}`) sets any listed candidate as a step's
+  reader, kept as a project-scope override by the path use-instead takes, through `project.save_setup`
+  (audited, undoable); `GET /api/recipes/jobs` says which jobs read the material (`reads_material`).
+  Pinned by `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py`. *Residue:* the
+  app still reads `pin.hf` for Download, offers Use for This Step only on the plan's `instead`, and
+  copies the reading jobs; a Kraken reader has no download action (the run fetches it).
 - `source.find.app-searching-line` — **[GAP]** (#5611) after Search Online the finder says
   "Searching online…" with the job's reason, observed through the project's `ActivityStore` (the one
   poller of `GET /api/activity/jobs`) by the job's id (`search_job.id`, or the `find-models` kind's

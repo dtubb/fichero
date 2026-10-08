@@ -184,6 +184,58 @@ def mark_installed(cards) -> list[Card]:
     return out
 
 
+def candidate_installed(card: Card) -> bool | None:
+    """Whether a candidate's model is already on this Mac (#5612): an MLX model in this Mac's store (`installed`, set
+    by `mark_installed`), a spaCy pipeline, a Kraken model bundled with Fichero; None where a person downloads
+    nothing first (a Kraken reader the run fetches, a cloud model)."""
+    if card.installed is not None:
+        return card.installed
+    if set(card.pin) <= {"spacy", "version"} and "spacy" in card.pin:
+        from fichero_server.llm.local_models import spacy_pipeline_available
+
+        return bool(spacy_pipeline_available(str(card.pin["spacy"])))
+    if card.pin.get("kraken_version") == "bundled" or "builtin" in card.pin:
+        return True
+    return None
+
+
+def candidate_download(card: Card) -> dict[str, Any] | None:
+    """The action that downloads a candidate's model, as the Start plan's `downloads` name it (`model.download` with
+    its runtime and id, #5612), or None when there is nothing to download first: it is here already, the run fetches
+    it (a Kraken reader), or it runs elsewhere."""
+    from fichero_server.recipes.cards import mlx_model_for
+
+    if not card.local or candidate_installed(card) is not False:
+        return None
+    repo = mlx_model_for(card.pin)
+    if repo:
+        from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+        runtime, model = "mlx", get_mlx_model_store().canonical_id(repo)
+    elif "spacy" in card.pin:
+        runtime, model = "spacy", str(card.pin["spacy"])
+    else:
+        return None
+    return {"runtime": runtime, "model": model, "action": "model.download",
+            "params": {"runtime": runtime, "model": model}}
+
+
+def candidate_place(card: Card) -> str:
+    """Where a candidate runs, in the places the AI settings use (`llm.places`, #5612): this Mac, a machine of the
+    person's own (a cluster, or a model server off this Mac), or the provider that runs it."""
+    from types import SimpleNamespace
+
+    from fichero_server.llm.places import OWN_MACHINE, PROVIDER, THIS_MAC, place_of
+
+    if card.runs_on == "this-mac":
+        return THIS_MAC
+    if card.runs_on == "cluster":
+        return OWN_MACHINE
+    if card.runs_on.startswith("cloud:"):
+        return place_of(SimpleNamespace(provider=card.runs_on.split(":", 1)[1], api_base=None))
+    return PROVIDER
+
+
 def _is_open(licence: str) -> bool:
     from fichero_server.recipes.cards import is_open_licence
 

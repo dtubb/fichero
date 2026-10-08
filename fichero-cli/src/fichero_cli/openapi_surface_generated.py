@@ -12642,6 +12642,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("use-candidate-for-step")
+    def recipes_use_candidate_for_step_post(
+        ctx: typer.Context,
+        card: str = typer.Option(..., "--card", help="Request field: card."),
+        step: str = typer.Option(..., "--step", help="Request field: step."),
+    ) -> None:
+        """Use Candidate For Step (POST /api/recipes/project/steps/use-candidate)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/steps/use-candidate"
+            params = None
+            payload = _build_json_payload({
+                "card": card,
+                "step": step,
+            }, {
+                "card": {'type': 'string', 'title': 'Card', 'description': "the candidate's card id, as GET /api/recipes/candidates lists it (`id`)", 'x-cli-required': True},
+                "step": {'type': 'string', 'title': 'Step', 'description': "the recipe step's id", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-purposes")
     def recipes_list_purposes_get(
         ctx: typer.Context,
