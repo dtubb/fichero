@@ -1000,9 +1000,20 @@ plan's peak memory across steps. Ready shows none of it.
   left, the time left at its pace and what its pages wait for. The run's node in
   `GET /api/activity/jobs/{id}` carries `stages`, its reason says what it waits for (another recipe run,
   memory), and `/api/recipes/project/runs[/{id}]` carry the same accounts with `waiting_for`; a stage's
-  run changing re-reads the recipe run's tree, so the details follow live. Pinned as above. *Not built:*
-  waiting on a download (a run never waits for one; Start is refused until it is here); a panel in the
-  project window itself (the details open in the Activity Details window).
+  run changing re-reads the recipe run's tree, so the details follow live. Pinned as above.
+  **Built 2026-10-08 (app), not yet seen:** the project window shows the run itself, in a strip along the
+  bottom of the content column (beneath the library's bottom bar; `ProjectRunStripView`, the detail
+  column's bottom inset). The project's `ActivityStore` follows the first recipe run its jobs poll
+  (`GET /api/activity/jobs`, the one poll Activity already makes) lists running, waiting or paused
+  (`projectRunId`; never the `waiting:run-a-recipe` row that stands for several), reads its tree once
+  (`GET /api/activity/jobs/{id}`), and re-reads it as its row, a stage run's row or the change stream
+  moves. The strip says, in the details' own words (`ActivityDetails.stages`): the running stage by name
+  and its place ("Transcribe (Kraken) · stage 1 of 3"), its run account's pages done, failed and left
+  (`pages_done`/`pages_failed`/`pages_left`), the time left (`estimate_seconds_left`) and what its pages
+  wait for (`waiting_reason`, else the run's reason); before a stage runs, what the run waits for (its
+  reason). Show Details opens the recipe run's Activity details. Nothing is counted in the app. Pinned
+  by `fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift`. *Not built:* waiting on a download
+  (a run never waits for one; Start is refused until it is here).
 - `source.onboard.auto.results-summary` — **[PARTIAL]** (#5577) when a run ends, the project says what
   it made: pages read, lines, names by kind, dates, statements, documents and groups proposed, pages
   failed (with Read Again) and steps skipped (with their fixes). Each figure opens what it counts.
@@ -1011,9 +1022,16 @@ plan's peak memory across steps. Ready shows none of it.
   reading, names by kind and dates (the document knowledge graph's own grouping), statements, each
   stage's failed pages with its offer and Read Again (the run account's, the existing read-again route),
   the skipped steps with their fixes (Open Set Up…), and the stages that did not run. The recipe run's
-  Activity details show it as What this run made. Pinned as above. *Not built:* lines; documents and
-  groups proposed (`documents_proposed` is null until Find the Documents runs as a stage, #5574); each
-  figure opening what it counts.
+  Activity details show it as What this run made. Pinned as above. **Built 2026-10-08 (app), not yet
+  seen:** when the run ends (it leaves the jobs poll and its tree, read once more, carries `summary`),
+  the project window's strip (see `source.onboard.auto.lands-on-the-run`) stays with "Recipe run
+  finished", "failed" or "stopped" and the summary in one line, the details' own lines joined ("Read 2
+  of 2 pages · Names: 1 People · 1 Places · 1 date · 1 statement"); each stage whose pages failed offers
+  its run's Read Again (`ActivityStore.readPagesAgain`, the read-again route); Show Details opens the
+  Activity details with the rest (skipped steps and their fixes); Close puts the strip away for that
+  run. Pinned by `fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift`. *Not built:* lines;
+  documents and groups proposed (`documents_proposed` is null until Find the Documents runs as a stage,
+  #5574); each figure opening what it counts.
 - `source.onboard.auto.failed-pages-roll-up` — **[PARTIAL]** (#5555) the recipe run's own row counts
   the pages that failed inside its steps and offers Read Again for them. Built: per workflow run
   (`compute.run.read-failed-again`). Not built: on the recipe's row, which today says "Done" when every

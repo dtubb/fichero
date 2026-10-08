@@ -130,6 +130,13 @@ final class ActivityStore: ChangeEventConsumer {
     /// The log of a row and the rows under it (#5561), newest last, keyed by
     /// the row's job id: one key patched, and only when it changed.
     private(set) var jobLogs: [String: [ActivityJobLogLine]] = [:]
+    /// The recipe run the project window's strip shows (#5576, #5577): the
+    /// project's running recipe run, seen on the jobs poll, and once it ends,
+    /// that run until the person puts it away. Its words are its tree's
+    /// (`runTrees[projectRunId]`), the record the Activity details read.
+    private(set) var projectRunId: String?
+    /// Runs the person put away: never shown on the strip again.
+    @ObservationIgnored private var putAwayRunIds: Set<String> = []
     /// How often the jobs endpoint is polled. Loopback + a point-in-time read,
     /// so 2s is live enough for a progress bar without adding real load.
     private let jobsPollInterval: Duration = .seconds(2)
@@ -183,6 +190,7 @@ final class ActivityStore: ChangeEventConsumer {
                 for job in snapshot.jobs where runTrees[job.id] != nil && before[job.id] != job {
                     scheduleTreeRead(threadId: job.id)
                 }
+                rereadRecipeRuns(holdingStagesChangedFrom: before, to: snapshot.jobs)
                 // One that left the list has ended (done is not listed): its tree is read once more,
                 // so its details say how it ended (a recipe run's summary, #5577).
                 let listed = Set(snapshot.jobs.map(\.id))
@@ -191,6 +199,7 @@ final class ActivityStore: ChangeEventConsumer {
                 }
                 backgroundJobs = snapshot.jobs
             }
+            await followProjectRun(in: snapshot.jobs)
             if processCpuPercent != snapshot.processCpuPercent { processCpuPercent = snapshot.processCpuPercent }
             if cpuCount != snapshot.cpuCount { cpuCount = snapshot.cpuCount }
             if backgroundPaused != snapshot.paused { backgroundPaused = snapshot.paused }
@@ -618,6 +627,39 @@ extension ActivityStore {
         runTrees.compactMap { key, tree in
             tree.kind == "run-a-recipe" && tree.children.contains { $0.id == threadId } ? key : nil
         }
+    }
+
+    /// The engine's kind for a recipe run (`recipes/runner.KIND`).
+    static let recipeRunKind = "run-a-recipe"
+
+    /// Follow the project's running recipe run on the strip (#5576): the first
+    /// one the jobs poll lists running, waiting or paused (never the row that
+    /// stands for several waiting ones), its tree read once. Later reads are
+    /// the poll's and the change stream's; when it ends and leaves the list its
+    /// tree is read once more, which carries what it made (#5577).
+    func followProjectRun(in jobs: [ActivityJob]) async {
+        guard let live = jobs.first(where: { job in
+            job.taskType == Self.recipeRunKind && job.parentId == nil && !job.id.hasPrefix("waiting:")
+                && (job.state.isActive || job.state == .waiting) && !putAwayRunIds.contains(job.id)
+        }) else { return }
+        if projectRunId != live.id { projectRunId = live.id }
+        await loadRunTree(threadId: live.id)
+    }
+
+    /// A recipe run's stage (a workflow run) whose row on the jobs poll moved
+    /// re-reads the recipe run's tree, so the project's strip and its details
+    /// follow the stage's pages (#5576), as a change-stream frame naming it does.
+    private func rereadRecipeRuns(holdingStagesChangedFrom before: [String: ActivityJob], to jobs: [ActivityJob]) {
+        for job in jobs where before[job.id] != job {
+            for key in recipeRunTrees(holdingStage: job.id) { scheduleTreeRead(threadId: key) }
+        }
+    }
+
+    /// The person put the strip away: that run is not shown on it again.
+    func putAwayProjectRun() {
+        guard let id = projectRunId else { return }
+        putAwayRunIds.insert(id)
+        projectRunId = nil
     }
 
     /// The key of the tree that holds `jobId`: its run's thread id, or the
