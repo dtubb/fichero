@@ -459,8 +459,19 @@ level it was made for.
   from its heading, recorded with its status and conflicts. Not built: the heading as a date mention
   on its line.* The page's date is a date mention on the heading's line, and the document's date
   columns are worked out from it.
-- `source.extract.date-run-taken-back` — **[GAP]** (#5597) a run's writes to a document's date
-  are recorded under the run and undone when the run is taken back, as its readings are.
+- `source.extract.date-run-taken-back` — **[PARTIAL]** (#5597) a run's writes to a document's date
+  are recorded under the run and undone when the run is taken back, as its readings are. *Built:
+  Work Out Dates writes a page's four date columns only through the audited, undoable
+  `document.write_extracted_date` action under the run's id (`date_extract._write_date`); undoing
+  those rows (`POST /api/actions/audit/{id}/undo`, newest first) puts each page's previous date
+  back, an empty one included. A person's date wins: the run never changes its columns (a
+  disagreement is recorded beside it, and taken back with the run), a machine write that would
+  replace it is kept and says so, and a date a person (or a later run) set after the run is kept
+  when the run is taken back. Redo puts the run's date back. Tests:
+  `fichero-server/tests/unit/workflows/test_date_run_taken_back_5597.py` (the shipped preset through
+  the real runner; the person's date and the take-back through the routes). Left: the run's `dates`
+  artifacts are still saved bare and stay after a take-back; taking a whole run back as one step
+  is #5245.*
 - `source.extract.entries-are-units` — **[PARTIAL]** (#5467; #5601) *Built: entry nodes with a
   date, a region and a prototype. Built (#5601): on a page tied to its lines, the one splitter
   (`diary_entries.split_pages_into_entries`) records the lines each entry covers, in order

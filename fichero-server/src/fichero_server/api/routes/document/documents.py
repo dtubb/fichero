@@ -3276,6 +3276,96 @@ def _action_set_document_date(
     return doc.model_dump(mode="json"), spec
 
 
+#: The four columns a page's date is kept in; what a machine writes and what taking it back restores.
+DATE_FIELDS = ("date_original", "date_jdn", "date_jdn_end", "date_meta")
+
+
+def date_fields(doc: Document) -> dict:
+    return {name: getattr(doc, name) for name in DATE_FIELDS}
+
+
+class DocumentWriteExtractedDateParams(BaseModel):
+    """Params for document.write_extracted_date — a run's write to a page's date columns (#5597).
+
+    ``expected`` is what the four columns must hold for the write to happen: a run passes what it
+    read, and taking the run back passes what the run left, so a date changed since (by a person or
+    a later run) is kept, never written over."""
+
+    doc_id: str = Field(description="Document id whose date columns are written")
+    date_original: str | None = None
+    date_jdn: int | None = None
+    date_jdn_end: int | None = None
+    date_meta: dict | None = None
+    expected: dict | None = Field(
+        default=None, description="The date columns this write replaces; a page holding anything else is kept."
+    )
+
+
+def _invert_write_extracted_date(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Taking the write back puts the page's previous date columns back (an empty date included),
+    through the same action, expecting what the write left."""
+    if not before or not after:
+        return None
+    return (
+        "document.write_extracted_date",
+        {"doc_id": before["doc_id"], **before["date"], "expected": after["date"]},
+    )
+
+
+@action(
+    "document.write_extracted_date",
+    DocumentWriteExtractedDateParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_write_extracted_date,
+)
+def _action_write_extracted_date(
+    db: Database, params: DocumentWriteExtractedDateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Work Out Dates' one write to a page's date (`source.extract.date-run-taken-back`, #5597):
+    recorded under the run, so taking the run back restores each page's previous date.
+
+    A person's date wins (`date_meta.source == "user"`, set by ``document.set_date``): a write
+    that would change its columns, or claim it was not a person's, is refused and the page kept
+    (Work Out Dates records a disagreement as ``extraction_conflict`` beside the person's date,
+    which keeps both). A page whose columns no longer hold ``expected`` is kept the same way. A
+    kept page is said so in the result (``kept``), and its audit row has nothing to take back."""
+    from fichero_server.core.timeutil import utc_now as _utc_now
+
+    doc = db.get(Document, params.doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {params.doc_id}")
+    current = date_fields(doc)
+    wanted = {name: getattr(params, name) for name in DATE_FIELDS}
+    kept = None
+    if params.expected is not None and {n: params.expected.get(n) for n in DATE_FIELDS} != current:
+        kept = "the page's date changed since; it is kept"
+    elif (current["date_meta"] or {}).get("source") == "user" and (
+        (wanted["date_meta"] or {}).get("source") != "user"
+        or any(wanted[n] != current[n] for n in ("date_original", "date_jdn", "date_jdn_end"))
+    ):
+        kept = "a person set this page's date; it is kept"
+    if kept is not None:
+        spec = ChangeSpec(domains=["document"], target_ids=[doc.id])
+        return {"document_id": doc.id, "written": False, "kept": kept, **current}, spec
+
+    for name, value in wanted.items():
+        setattr(doc, name, value)
+    doc.updated_at = _utc_now()
+    db.save(doc)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        before={"doc_id": doc.id, "date": current},
+        after={"doc_id": doc.id, "date": wanted},
+        emit_type="document.updated",
+        document_ids=[doc.id],
+    )
+    return {"document_id": doc.id, "written": True, "kept": None, **wanted}, spec
+
+
 class DocumentSetLanguageParams(BaseModel):
     """Params for document.set_language — the user's language override (#2092).
 
