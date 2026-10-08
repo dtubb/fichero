@@ -2396,6 +2396,16 @@ def update_document_impl(
         merged_metadata["page_content_user_edited_at"] = utc_now().isoformat()
         update_data["metadata"] = merged_metadata
 
+    # A page's kind changed here is a person's correction: the sorting job never overwrites it (#5578).
+    from fichero_server.recipes import sorting
+
+    incoming_attrs = update_data.get("attributes")
+    existing_attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+    if isinstance(incoming_attrs, dict) and incoming_attrs.get(sorting.KIND) not in (
+        None, existing_attrs.get(sorting.KIND)
+    ):
+        update_data["attributes"] = {**incoming_attrs, sorting.SET_BY: sorting.BY_PERSON}
+
     for field, value in update_data.items():
         setattr(doc, field, value)
 

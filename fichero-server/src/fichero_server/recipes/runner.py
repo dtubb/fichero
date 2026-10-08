@@ -28,6 +28,7 @@ import asyncio
 import json
 import time
 import uuid
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -153,6 +154,27 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     return thread_id, ("done" if status == "completed" else "failed"), error
 
 
+def _run_by_reader(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[str, str], parent: str,
+                   step: dict[str, Any]) -> tuple[str, str, str | None]:
+    """A reading card with a reader per kind (#5578): one workflow run per reader, each page read by
+    `readers[kind]` when the recipe has one for its kind, else by the card's own reader. Each run is listed on the
+    step (`readers`); the step's child is the first run that failed, else the first."""
+    groups: dict[str | None, list[str]] = {}
+    for doc_id in documents:
+        kind = kinds.get(doc_id)
+        groups.setdefault(kind if kind in card["readers"] else None, []).append(doc_id)
+    ran = []
+    for kind, pages in groups.items():
+        child, state, why = _run_workflow(db, {**card, **card["readers"][kind]} if kind else card, pages, parent)
+        ran.append({"material": kind, "pages": len(pages), "model": (card["readers"][kind] if kind else card)
+                    ["model_override"], "child_id": child, "state": state, "why": why})
+    step["readers"] = ran
+    failed = [r for r in ran if r["state"] != "done"]
+    first = (failed or ran)[0]
+    why = "; ".join(f"{r['pages']} {r['material'] or 'other'} pages: {r['why'] or r['state']}" for r in failed)
+    return first["child_id"], first["state"], why or None
+
+
 def _run_check(db: Any, card: dict[str, Any], documents: list[str], parent: str,
                started_by: str) -> tuple[str, str, str | None]:
     from fichero_server.checking import job as check_job
@@ -257,20 +279,27 @@ def run(db: Any, subject: str) -> dict[str, Any]:
         if not redo.intersection(card["steps"]):
             documents, done = split_done(db, card, documents)
             step["already_done"] = done
+        kinds: dict[str, str] = {}
         if card.get("job") in _NOT_ON_BLANK_VERSOS and documents:
-            # The backs of leaves, blank as their images show, are not lined or read (#5579).
-            from fichero_server.finddocs.job import blank_versos
+            # The pages sorted by kind (#5578); blank ones, the backs of leaves as their images show or a page a
+            # person called blank, are not lined or read (#5579).
+            from fichero_server.recipes import sorting
 
-            versos = blank_versos(db, documents)
-            if versos:
-                documents = [d for d in documents if d not in versos]
-                step["blank_versos"] = len(versos)
+            kinds = sorting.kinds(db, documents, list(card.get("readers") or {}))
+            blank = [d for d in documents if kinds.get(d) == sorting.BLANK]
+            if blank:
+                documents = [d for d in documents if kinds.get(d) != sorting.BLANK]
+                step["blank_versos"] = len(blank)
+            if card.get("readers"):
+                step["kinds"] = dict(sorted(Counter(kinds.get(d) or "unsorted" for d in documents).items()))
         if not documents:
             step.update(state="done", child_id=None, why="already done on every page")
             continue
         step["state"] = "running"
         jobs.save_detail(db, job_id, json.dumps(detail), reason=f"Running step {named}")
-        if card["card"] == "workflow":
+        if card["card"] == "workflow" and card.get("readers"):
+            child, state, why = _run_by_reader(db, card, documents, kinds, job_id, step)
+        elif card["card"] == "workflow":
             child, state, why = _run_workflow(db, card, documents, job_id)
         elif card["card"] == "check":
             child, state, why = _run_check(db, card, documents, job_id, started_by)

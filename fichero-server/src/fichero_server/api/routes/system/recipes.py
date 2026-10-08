@@ -735,6 +735,15 @@ class StartRecord(BaseModel):
     job_id: Optional[str] = Field(default=None, description="the recipe run Start queued (`run-a-recipe`)")
 
 
+class StartReader(BaseModel):
+    """The shipped workflow and model that read one kind of page (#5578)."""
+
+    workflow: str
+    workflow_id: str
+    provider_override: Optional[str] = None
+    model_override: Optional[str] = None
+
+
 class StartRun(BaseModel):
     """One card Start runs, in order: a shipped workflow, a check run, or the project's synced folder."""
 
@@ -769,6 +778,9 @@ class StartRun(BaseModel):
     gives: list[str] = Field(default_factory=list, description="the kinds of thing it gives the steps after it")
     tool_config: Optional[dict[str, dict[str, Any]]] = Field(default=None, description=(
         "settings from setup's answers this run gives its workflow's tools, by tool (which kinds of names)"))
+    readers: Optional[dict[str, StartReader]] = Field(default=None, description=(
+        "a reading card's reader per kind of page (handwriting, print, typescript; #5578): a page sorted as that "
+        "kind is read by it, any other page by this card's own model"))
 
 
 class StartInstead(BaseModel):

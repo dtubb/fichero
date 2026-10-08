@@ -20,6 +20,18 @@ from pydantic import BaseModel, Field
 from fichero_server.workflows.run_account import PageFailure, RunAccount
 
 
+class StageReader(BaseModel):
+    """One reader's workflow run in a stage with a reader per kind (#5578)."""
+
+    material: Optional[str] = Field(default=None, description="the kind it read; null: the stage's own reader, for "
+                                    "pages of a kind the recipe has no reader for")
+    pages: int
+    model: Optional[str] = None
+    child_id: Optional[str] = None
+    state: str
+    why: Optional[str] = None
+
+
 class RecipeRunStep(BaseModel):
     """One stage of a recipe run: the card that carries one or more recipe steps."""
 
@@ -32,6 +44,14 @@ class RecipeRunStep(BaseModel):
     account: Optional[RunAccount] = Field(default=None, description=(
         "a workflow stage's run account (#5555): its pages done, failed and left, the time left and what its "
         "pages wait for; null for a stage that has not started or is not a workflow run"))
+    blank_versos: Optional[int] = Field(default=None, description=(
+        "pages a lining or reading stage left out as blank (the back of a written leaf, or a page a person called "
+        "blank, #5579); null when none"))
+    kinds: Optional[dict[str, int]] = Field(default=None, description=(
+        "a stage with a reader per kind: the pages it read, by kind (handwriting, print, typescript; 'unsorted' "
+        "for a page with no image to sort, #5578)"))
+    readers: Optional[list[StageReader]] = Field(default=None, description=(
+        "a stage with a reader per kind: one workflow run per reader (#5578)"))
 
 
 class SkippedStep(BaseModel):

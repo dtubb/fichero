@@ -75414,6 +75414,30 @@
             "$ref": "#/components/schemas/RunAccount",
             "nullable": true,
             "description": "a workflow stage's run account (#5555): its pages done, failed and left, the time left and what its pages wait for; null for a stage that has not started or is not a workflow run"
+          },
+          "blank_versos": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Blank Versos",
+            "description": "pages a lining or reading stage left out as blank (the back of a written leaf, or a page a person called blank, #5579); null when none"
+          },
+          "kinds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Kinds",
+            "description": "a stage with a reader per kind: the pages it read, by kind (handwriting, print, typescript; 'unsorted' for a page with no image to sort, #5578)"
+          },
+          "readers": {
+            "items": {
+              "$ref": "#/components/schemas/StageReader"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Readers",
+            "description": "a stage with a reader per kind: one workflow run per reader (#5578)"
           }
         },
         "type": "object",
@@ -82952,6 +82976,46 @@
         "title": "StageFailures",
         "description": "The pages one workflow stage could not do, and its offer to read them again."
       },
+      "StageReader": {
+        "properties": {
+          "material": {
+            "type": "string",
+            "nullable": true,
+            "title": "Material",
+            "description": "the kind it read; null: the stage's own reader, for pages of a kind the recipe has no reader for"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "child_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Child Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "why": {
+            "type": "string",
+            "nullable": true,
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "state"
+        ],
+        "title": "StageReader",
+        "description": "One reader's workflow run in a stage with a reader per kind (#5578)."
+      },
       "StartDownload": {
         "properties": {
           "runtime": {
@@ -83203,6 +83267,35 @@
         "title": "StartPlan",
         "description": "What pressing Start would run, on how many pages, and every reason it cannot yet."
       },
+      "StartReader": {
+        "properties": {
+          "workflow": {
+            "type": "string",
+            "title": "Workflow"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "provider_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider Override"
+          },
+          "model_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Override"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow",
+          "workflow_id"
+        ],
+        "title": "StartReader",
+        "description": "The shipped workflow and model that read one kind of page (#5578)."
+      },
       "StartRecord": {
         "properties": {
           "started_at": {
@@ -83397,6 +83490,15 @@
             "nullable": true,
             "title": "Tool Config",
             "description": "settings from setup's answers this run gives its workflow's tools, by tool (which kinds of names)"
+          },
+          "readers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StartReader"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Readers",
+            "description": "a reading card's reader per kind of page (handwriting, print, typescript; #5578): a page sorted as that kind is read by it, any other page by this card's own model"
           }
         },
         "type": "object",
