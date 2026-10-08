@@ -32,6 +32,16 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(autouse=True)
+def _close_the_library(tmp_path):
+    """Close the library `_new_library` opens: `process_vision` runs pages as jobs there, and
+    closing stops the job lane they woke, so no lane thread outlives the test (#5607)."""
+    yield
+    from fichero_server.db import db_manager
+
+    db_manager.close_database(tmp_path / "lib.fichero")
+
+
 def _make_pdf_with_text(path: Path, pages: list[str]) -> None:
     fitz = pytest.importorskip("fitz")
     doc = fitz.open()

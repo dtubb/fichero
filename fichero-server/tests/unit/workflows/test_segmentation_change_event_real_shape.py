@@ -105,6 +105,16 @@ def _load_detect_regions_kraken_workflow_def():
 
 
 @pytest.fixture(autouse=True)
+def _close_seeded_library(tmp_path):
+    """Close the library each test seeds, which stops its job lanes (#5607).
+
+    Autouse and asking only for tmp_path, so it is torn down after monkeypatch has
+    put the real `db_manager.get_database` back."""
+    yield
+    db_manager.close_database(tmp_path / "segment-real-shape.fichero")
+
+
+@pytest.fixture(autouse=True)
 def _stub_kraken_segmenter(monkeypatch):
     """The lowest seam: Kraken's own model/binary call, never process_vision."""
     import fichero_server.llm.kraken_runtime as kraken_runtime

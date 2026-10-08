@@ -29,9 +29,11 @@ private final class BakeoffMockURLProtocol: URLProtocol {
             stream.open()
             var data = Data()
             var buffer = [UInt8](repeating: 0, count: 4096)
-            while stream.hasBytesAvailable {
+            // Until the stream ends, not while `hasBytesAvailable`: that can be false before the
+            // client's writer thread has put the first bytes in (#5607).
+            while true {
                 let count = stream.read(&buffer, maxLength: buffer.count)
-                if count <= 0 { break }
+                guard count > 0 else { break }
                 data.append(buffer, count: count)
             }
             stream.close()
