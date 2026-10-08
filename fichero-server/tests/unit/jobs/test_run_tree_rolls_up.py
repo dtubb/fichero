@@ -106,3 +106,19 @@ def test_activity_jobs_are_a_tree__errors_and_time_roll_up(client, db, pages, cl
     assert entities["failed"] == 1
     assert all(c["seconds"] >= 0.2 for c in _calls(tree) if c["state"] == "done")
     assert entities["seconds"] >= max(c["seconds"] for c in entities["children"])
+
+
+def test_activity_job_tree_to_a_depth__rows_below_are_left_out_counts_kept(client, db, pages, cloud):
+    """`activity.job-tree-to-a-depth` (#5605): "`?depth=1` returns a run and its steps; each step keeps its
+    rolled-up counts and says how many children it left out." A 214-page run's whole tree was 235k characters."""
+    whole = _finished_tree(client, db, pages, "gpt-4o-mini")
+    run = whole["id"]
+    cut = client.get(f"/api/activity/jobs/{run}", params={"depth": 1}).json()
+    assert [s["id"] for s in cut["children"]] == [s["id"] for s in whole["children"]]
+    for step, full in zip(cut["children"], whole["children"]):
+        assert step["children"] == [] and step["children_omitted"] == len(full["children"])
+        assert (step["done"], step["total"], step["failed"]) == (full["done"], full["total"], full["failed"])
+    assert sum(s["children_omitted"] for s in cut["children"]) > 0, "the run's model calls are rows under its steps"
+    root = client.get(f"/api/activity/jobs/{run}", params={"depth": 0}).json()
+    assert root["children"] == [] and root["children_omitted"] == len(whole["children"])
+    assert (root["done"], root["total"]) == (whole["done"], whole["total"])

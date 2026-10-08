@@ -596,11 +596,14 @@ def register_generated_openapi_commands(
     def activity_get_job_tree_get(
         ctx: typer.Context,
         job_id: str = typer.Argument(..., help="Path parameter: job_id."),
+        depth: Optional[int] = typer.Option(None, "--depth", help="Query parameter: depth."),
     ) -> None:
         """Get Job Tree (GET /api/activity/jobs/{job_id})."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/activity/jobs/{job_id}"
-            params = None
+            params = {
+                "depth": depth,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

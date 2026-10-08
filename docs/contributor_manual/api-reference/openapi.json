@@ -339,7 +339,7 @@
           "activity"
         ],
         "summary": "Get Job Tree",
-        "description": "One job and everything under it, with progress rolled up (`activity.jobs-are-a-tree`): a\nworkflow run (its id is its thread id), its steps, and the pages each step handed to a lane,\neach with its state and why.",
+        "description": "One job and everything under it, with progress rolled up (`activity.jobs-are-a-tree`): a\nworkflow run (its id is its thread id), its steps, and the pages each step handed to a lane,\neach with its state and why. A large run's pages are thousands of rows: an agent asks for a `depth`\n(`activity.job-tree-to-a-depth`, #5605).",
         "operationId": "get_job_tree_api_activity_jobs__job_id__get",
         "parameters": [
           {
@@ -350,6 +350,19 @@
               "type": "string",
               "title": "Job Id"
             }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "nullable": true,
+              "description": "levels below this job to include (1: a run and its steps); every row keeps its rolled-up counts and says how many children it left out. Omitted: the whole tree, every page",
+              "title": "Depth"
+            },
+            "description": "levels below this job to include (1: a run and its steps); every row keeps its rolled-up counts and says how many children it left out. Omitted: the whole tree, every page"
           }
         ],
         "responses": {
@@ -63476,6 +63489,12 @@
             },
             "type": "array",
             "title": "Children"
+          },
+          "children_omitted": {
+            "type": "integer",
+            "title": "Children Omitted",
+            "description": "children left out because the tree was asked for to a `depth`; this row's counts still include them",
+            "default": 0
           }
         },
         "type": "object",

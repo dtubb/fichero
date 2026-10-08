@@ -449,6 +449,11 @@ workflow by hand: a hand run is a job like any other.
   its reason), its `tokens`, and its `cost_usd` from the vendored price list, null unless every
   call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Chat's model calls are rows too, outside any run
   (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). A batch is a job whose children are its runs (`fichero-server/tests/unit/jobs/test_batches_are_jobs.py`).
+- `activity.job-tree-to-a-depth` — **[OK]** (#5605) `GET /api/activity/jobs/{id}?depth=N` returns the job
+  and N levels under it (`depth=1`: a run and its steps); each row it cuts keeps its rolled-up counts and
+  says how many children it left out (`children_omitted`). Without `depth`, the whole tree. An agent reads a
+  large run this way: a 214-page recipe run's whole tree was 235k characters, over an MCP answer's size
+  (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`).
 - `activity.jobs-follow-the-graph` — **[PARTIAL]** (#5353, #5415) a run's tree follows the
   path its graph took: one step for every node that ran, in order; a conditional route shows the
   branch taken and the branches skipped (as skipped, not absent); parallel branches are siblings

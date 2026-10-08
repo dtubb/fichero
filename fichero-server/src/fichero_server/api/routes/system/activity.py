@@ -221,6 +221,8 @@ class JobTree(BaseModel):
     # A recipe run that has ended: what it made (#5577, GET /api/recipes/project/runs/{id}/summary).
     summary: Optional[RecipeRunSummary] = None
     children: list["JobTree"] = Field(default_factory=list)
+    children_omitted: int = Field(0, description=(
+        "children left out because the tree was asked for to a `depth`; this row's counts still include them"))
 
 
 class BackgroundPauseRequest(BaseModel):
@@ -472,10 +474,17 @@ async def list_background_jobs(
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
-async def get_job_tree(job_id: str, db: Database = Depends(get_library_database)) -> JobTree:
+async def get_job_tree(
+    job_id: str,
+    depth: Optional[int] = Query(None, ge=0, description=(
+        "levels below this job to include (1: a run and its steps); every row keeps its rolled-up counts and "
+        "says how many children it left out. Omitted: the whole tree, every page")),
+    db: Database = Depends(get_library_database),
+) -> JobTree:
     """One job and everything under it, with progress rolled up (`activity.jobs-are-a-tree`): a
     workflow run (its id is its thread id), its steps, and the pages each step handed to a lane,
-    each with its state and why."""
+    each with its state and why. A large run's pages are thousands of rows: an agent asks for a `depth`
+    (`activity.job-tree-to-a-depth`, #5605)."""
     from fichero_server.execution import jobs as job_queue
 
     found = job_queue.tree(db, job_id)
@@ -498,7 +507,18 @@ async def get_job_tree(job_id: str, db: Database = Depends(get_library_database)
                 found["reason"] = account.waiting_reason
     elif found["kind"] == "run-a-recipe":
         await _recipe_run(db, found)
+    if depth is not None:
+        _cut(found, depth)
     return JobTree.model_validate(found)
+
+
+def _cut(node: dict[str, Any], depth: int) -> None:
+    """Leave out the rows more than `depth` levels below `node`; the counts were rolled up before."""
+    if depth == 0:
+        node["children_omitted"], node["children"] = len(node["children"]), []
+        return
+    for child in node["children"]:
+        _cut(child, depth - 1)
 
 
 async def _recipe_run(db: Database, found: dict[str, Any]) -> None:
