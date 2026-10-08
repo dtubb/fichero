@@ -171,8 +171,8 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     # Markdown / HTML / SVG are readings of those kinds; LaTeX and CSV write only the artifact
     "convert": _d("page", "reading", "artifact"),
     # ── attributes that cite their run (#5600, `LLMToolConfig.attribute_key`) ──
-    # the kind is proposed as the node's prototype (`document.assign_prototype`), citing the run in
-    # `metadata.attribute_sources`; a kind a person chose is kept
+    # the kind is PROPOSED as the node's prototype (`metadata.proposed_attributes`), citing the run, for a
+    # person to accept (then `document.assign_prototype`) or reject; a kind a person chose is kept
     "classify": _d("page", "attribute", "artifact"),
     # the scene type and its details are page attributes (`scene`, `scene_<field>`), citing the run
     "scene": _d("page", "attribute", "artifact"),

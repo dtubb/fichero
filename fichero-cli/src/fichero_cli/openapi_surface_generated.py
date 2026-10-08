@@ -4864,6 +4864,30 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("accept-the-kind-a-run-proposed-for-this-node")
+    def documents_accept_the_kind_a_run_proposed_for_this_node_post(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+    ) -> None:
+        """Accept the kind a run proposed for this node (POST /api/documents/{doc_id}/proposed-kind/accept)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/proposed-kind/accept"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("reject-the-kind-a-run-proposed-for-this-node")
+    def documents_reject_the_kind_a_run_proposed_for_this_node_post(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+    ) -> None:
+        """Reject the kind a run proposed for this node (POST /api/documents/{doc_id}/proposed-kind/reject)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/proposed-kind/reject"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("assign-prototype")
     def documents_assign_prototype_put(
         ctx: typer.Context,
@@ -5905,7 +5929,7 @@ def register_generated_openapi_commands(
                 "accept_above": accept_above,
                 "scope_ids": scope_ids,
             }, {
-                "accept_above": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Accept Above', 'description': 'Accept, as the run ends, every proposed document at least this confident; none leaves all for a person.', 'x-cli-required': False},
+                "accept_above": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Accept Above', 'description': "Accept, as the run ends, every proposed document at least this confident (left out: 0.95, the project's default, ruled 2026-10-08); null leaves all for a person.", 'default': 0.95, 'x-cli-required': False},
                 "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Scope Ids', 'description': 'Folders, or a selection of pages (each with its folder).', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

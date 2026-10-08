@@ -68,7 +68,8 @@ async def start_find_documents(
     """Queue one background job: each folder's loose pages are paired into leaves, and documents, their kinds
     and their groups are proposed from the text already read, with evidence and a confidence; blank versos and
     second shots are reported, not made documents. The proposals are stored; nothing in the source changes.
-    With `accept_above`, the documents at least that sure are accepted as the run ends."""
+    As the run ends, the documents at least `accept_above` sure are accepted (left out: 0.95, the project's
+    default); the rest wait for a person. `accept_above: null` leaves them all for a person."""
     try:
         job_id = registry.invoke(db, "finddocs.run", request.model_dump(), ctx).result["job_id"]
     except LookupError as exc:

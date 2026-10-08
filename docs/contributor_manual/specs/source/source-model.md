@@ -531,14 +531,23 @@ level it was made for.
   (quality, style, safety, colours, language) still write only their artifact.*
 - `source.extract.kinds-proposed-as-prototypes` — **[PARTIAL]** (#5550; #5600) a document's kind,
   whether from Find the Documents or `classify`, is a proposed prototype on the node, accepted by a
-  person, not a `classification` artifact. *Built (#5600): `classify` assigns its answer as the
-  node's prototype through the audited `document.assign_prototype` (the prototype made through
-  `classification.create` when the project has none of that name), its source the run, the record
-  and what the model said; a kind a person chose is kept, and a later run replaces only a run's. The
-  artifact stays as the run's record. Pinned by `fichero-server/tests/unit/workflows/
-  test_attributes_cite.py`. Not built: a run's kind is assigned at once rather than held for a
-  person to accept (it is marked `by: machine` until a person sets it); `classify_text` and
-  `classify_script` still write only their artifact.*
+  person, not a `classification` artifact. **Ruled by the maintainer 2026-10-08: a run's kind is
+  proposed for the person to accept, not assigned.** *Built (#5600): `classify` records its answer
+  as a proposed kind on the node (`metadata.proposed_attributes.prototype`, shown by `GET
+  /api/documents/{id}`: the prototype key, the model's label, `state: proposed`, and its evidence —
+  the run, its record (artifact) and what the model said); nothing is assigned and no prototype is
+  made until a person answers. `POST /api/documents/{id}/proposed-kind/accept` assigns it through
+  the audited `document.assign_prototype` (the prototype made through `classification.create` when
+  the project has none of that name), its source the run with `accepted_by` the person, so no later
+  run proposes over it; `POST /api/documents/{id}/proposed-kind/reject` (the audited
+  `document.reject_proposed_kind`) keeps it marked `rejected`, and the same kind is not proposed
+  again. Each answer is undone as one (`/api/actions/audit/{id}/undo` puts the proposal back). A
+  later run's proposal replaces one nobody answered, never a kind a person chose; a person choosing
+  another kind sets the proposal aside. The artifact stays as the run's record. Pinned by
+  `fichero-server/tests/unit/workflows/test_attributes_cite.py` (the real classify run with a stub
+  model, and the routes). Not built: the app's Accept / Reject in the Inspector; Find the Documents'
+  kinds keep their own proposal (`finddocs.*`); `classify_text` and `classify_script` still write
+  only their artifact.*
 - `source.extract.catalogue-never-overwrites-text` — **[OK]** (#5365; #5599) the catalogue's
   narrative is a reading of kind description on the folder, never written into its `page_content`.
   *Built (#5599): `catalogue.py` writes the narrative through the one reading writer, derived from

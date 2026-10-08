@@ -285,5 +285,7 @@
   "GET /api/find-documents/proposals/{proposal_id}": "Find the Documents (#5550): engine, CLI and MCP (the find-documents toolset) first; the app's Organise > Find the Documents, its proposals on the canvas and Accept/Reject are not built yet",
   "POST /api/find-documents/proposals/{proposal_id}/accept": "Find the Documents (#5550): engine, CLI and MCP (the find-documents toolset) first; the app's Organise > Find the Documents, its proposals on the canvas and Accept/Reject are not built yet",
   "POST /api/find-documents/proposals/{proposal_id}/reject": "Find the Documents (#5550): engine, CLI and MCP (the find-documents toolset) first; the app's Organise > Find the Documents, its proposals on the canvas and Accept/Reject are not built yet",
-  "GET /api/recipes/project/runs/{job_id}/summary": "store missing by design (#5577): the app reads the same summary on the recipe run's node of GET /api/activity/jobs/{job_id}; this route serves the CLI and MCP"
+  "GET /api/recipes/project/runs/{job_id}/summary": "store missing by design (#5577): the app reads the same summary on the recipe run's node of GET /api/activity/jobs/{job_id}; this route serves the CLI and MCP",
+  "POST /api/documents/{doc_id}/proposed-kind/accept": "a run's proposed kind (#5600): engine, CLI and MCP first; the app's Accept in the Inspector is not built yet",
+  "POST /api/documents/{doc_id}/proposed-kind/reject": "a run's proposed kind (#5600): engine, CLI and MCP first; the app's Reject in the Inspector is not built yet"
 }
