@@ -734,6 +734,16 @@ def _run_download(subject: str) -> None:
     if runtime not in _DOWNLOADABLE:
         raise ValueError(f"no download for {subject!r}")
     LocalModelManager().download_model(runtime, name)
+    say_installed(runtime, name)
+
+
+def say_installed(runtime: str, model: str) -> None:
+    """A model finished downloading: every window hears `model.installed` (with its runtime and model), so a Start
+    plan that waited for it reads itself again and drops the download (`source.onboard.auto.installed-model-first`,
+    #5583). The plan itself is worked out afresh on each read; this is only the cue. Best-effort: never raises."""
+    from fichero_server.api.change_stream import emit_change_all_libraries
+
+    emit_change_all_libraries(type="model.installed", metadata={"runtime": runtime, "model": model})
 
 
 def enqueue_download(db, runtime: str, name: str, *, started_by: str = "owner") -> str:

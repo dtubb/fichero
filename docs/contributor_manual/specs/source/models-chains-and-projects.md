@@ -1156,8 +1156,12 @@ plan's peak memory across steps. Ready shows none of it.
   `start.local_models_to_download`, `start.use_instead`, `POST /api/recipes/project/start/use-instead`, the
   `mlx` runtime on `POST /api/local-models/download/{runtime}/{model}` and `model.download`; Ready's
   `RecipeDownloadRows` and `RecipeSetupStore.useInstead`; tested in
-  `fichero-server/tests/unit/recipes/test_installed_model_first_to_spec.py`. *Not built:* the plan reading
-  again by itself when the MLX download finishes) a step's local model that is not on
+  `fichero-server/tests/unit/recipes/test_installed_model_first_to_spec.py`. **Built 2026-10-08 (engine):** the
+  plan is worked out afresh on every read from what is on this Mac now, so once a download it waits for finishes
+  its `downloads` drops it and a refusal that was only that download clears; and the finished download says so
+  on every window's change stream (`model.installed`, with its `runtime` and `model`; an MLX model from this
+  Mac's model store, a spaCy pipeline from its `download-model` job), the app's cue to read the plan again.
+  *Not built:* the app reading the plan again on `model.installed`) a step's local model that is not on
   this Mac never refuses Start in words the person must answer by editing the recipe. (1) When the rules
   propose a recipe, a model already on this Mac wins over one that must be downloaded, among the cards the
   rules accept for the step, after accuracy (each card's `installed`; the reason says "already on this

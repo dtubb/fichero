@@ -130,3 +130,73 @@ def test_source_onboard_auto_installed_model_first_when_proposing(client, mac, m
     step = proposed()
     assert step["model"]["hf"] == SEVEN["hf"], step["reasons"]
     assert "already on this Mac" in step["reasons"]
+
+
+def _heard(queue, seconds: float = 10.0) -> list[Any]:
+    """The change events a window subscribed with `queue` heard within `seconds`, once one arrives."""
+    import time
+
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if not queue.empty():
+            heard = []
+            while not queue.empty():
+                heard.append(queue.get_nowait())
+            return heard
+        time.sleep(0.05)
+    return []
+
+
+def test_source_onboard_auto_installed_model_first__the_plan_drops_a_finished_download(client, db, pages, mac,
+                                                                                       monkeypatch):
+    """source.onboard.auto.installed-model-first (#5583): "the plan re-reading itself when the MLX download
+    finishes". Download, pressed in Ready (the plan's own `model.download` through the download route), fetches the
+    model; when it is complete every window hears `model.installed` (its runtime and model), the cue to read the plan
+    again, and the plan read again offers no download and refuses nothing: the refusal was only the download."""
+    from fichero_server.api import change_stream as cs
+
+    hub = cs._ChangeHub()
+    monkeypatch.setattr(cs, "_change_hub", hub)
+    window = hub.subscribe("/lib/window.fichero")
+
+    async def fetched(job, spec):  # the fetch itself (a subprocess with the MLX runtime): the files arrive
+        mac.installed.add(spec.model_id)
+        job.state = "completed"
+
+    monkeypatch.setattr(mac, "_run_download", fetched)
+    _save(client, _recipe(None, LINES, READ, CORRECT), cloud_allowed=False)
+    plan = client.get("/api/recipes/project/start").json()
+    [download] = [d for d in plan["downloads"] if d["runtime"] == "mlx"]
+    assert plan["refusals"], "Start waits for the download"
+
+    params = download["params"]
+    r = client.post(f"/api/local-models/download/{params['runtime']}/{params['model']}")
+    assert r.status_code == 200, r.text
+
+    heard = [e for e in _heard(window) if e.type == "model.installed"]
+    assert [e.metadata for e in heard] == [{"runtime": "mlx", "model": "Qwen2.5-VL-7B"}], heard
+    plan = client.get("/api/recipes/project/start").json()
+    assert plan["downloads"] == [] and plan["refusals"] == [], plan
+    assert next(w for w in plan["workflows"] if w["steps"] == ["correct"])["model_override"] == SEVEN["hf"]
+
+
+def test_a_finished_download_model_job_says_so(monkeypatch):
+    """The same word when a `download-model` job (a spaCy pipeline the plan waits for) finishes; none when it fails."""
+    from fichero_server.api import change_stream as cs
+    from fichero_server.llm import local_models
+
+    hub = cs._ChangeHub()
+    monkeypatch.setattr(cs, "_change_hub", hub)
+    window = hub.subscribe("/lib/window.fichero")
+    monkeypatch.setattr(local_models.LocalModelManager, "download_model", lambda self, runtime, name: None)
+    local_models._run_download("spacy:es_core_news_md")
+    [event] = _heard(window)
+    assert (event.type, event.metadata) == ("model.installed", {"runtime": "spacy", "model": "es_core_news_md"})
+
+    def broken(self, runtime, name):
+        raise RuntimeError("the network went away")
+
+    monkeypatch.setattr(local_models.LocalModelManager, "download_model", broken)
+    with pytest.raises(RuntimeError):
+        local_models._run_download("spacy:es_core_news_md")
+    assert _heard(window, 0.3) == []

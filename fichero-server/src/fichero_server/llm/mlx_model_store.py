@@ -403,8 +403,17 @@ class MLXModelStore:
         )
         self._jobs[job.job_id] = job
         self._model_jobs[model_id] = job.job_id
-        self._job_tasks[job.job_id] = asyncio.create_task(self._run_download(job, spec))
+        self._job_tasks[job.job_id] = asyncio.create_task(self._download_then_say(job, spec))
         return job
+
+    async def _download_then_say(self, job: ManagedModelDownloadJob, spec: ManagedModelSpec) -> None:
+        """The download, then, once it is complete, the word every window waits for (`model.installed`): a Start
+        plan that waited for it reads itself again (`source.onboard.auto.installed-model-first`, #5583)."""
+        await self._run_download(job, spec)
+        if job.state == "completed":
+            from fichero_server.llm.local_models import say_installed
+
+            say_installed("mlx", spec.model_id)
 
     def job(self, job_id: str) -> ManagedModelDownloadJob | None:
         return self._jobs.get(job_id)
