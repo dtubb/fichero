@@ -16508,6 +16508,54 @@
         }
       }
     },
+    "/api/documents/run-history": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Run History",
+        "description": "What has been run on each document (#5434): its job rows (thumbnails, embeddings, names, line\nfinding, page reads, \u2026) and the workflow runs recorded on it, newest first, with the model and\nprovider as recorded, the outcome and an absolute time. One call for many documents.",
+        "operationId": "get_run_history_api_documents_run_history_get",
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "the documents to read, e.g. a table's visible rows",
+              "title": "Ids"
+            },
+            "description": "the documents to read, e.g. a table's visible rows"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}": {
       "get": {
         "tags": [
@@ -78515,6 +78563,124 @@
           "comparable"
         ],
         "title": "RunComparisonResponse"
+      },
+      "RunHistoryEntry": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "job",
+              "workflow_run"
+            ],
+            "title": "Source",
+            "description": "job: a row of the job queue named after the document; workflow_run: a run recorded on it"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "the job kind (thumbnail, embed, nlp-draft, find-lines, read-a-page, \u2026) or 'workflow'"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "what it was, in words"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "its outcome or where it is: done, failed, cancelled, waiting, running, paused"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model",
+            "description": "the model as recorded when it ran"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider",
+            "description": "the provider as recorded when it ran"
+          },
+          "cost": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost",
+            "description": "null unless priced"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "At",
+            "description": "when it finished, else started, else was asked for (UTC)"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id",
+            "description": "the job it ran under (a step, a run)"
+          },
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id"
+          },
+          "thread_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Thread Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "source",
+          "kind",
+          "name",
+          "state"
+        ],
+        "title": "RunHistoryEntry",
+        "description": "One thing run on a document, as recorded when it ran (`activity.document.what-has-been-run`)."
+      },
+      "RunHistoryResponse": {
+        "properties": {
+          "items": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/RunHistoryEntry"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Items"
+          },
+          "withheld": {
+            "type": "integer",
+            "title": "Withheld",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "RunHistoryResponse",
+        "description": "What has been run on each asked-for document, newest first."
       },
       "RunOffer": {
         "properties": {

@@ -2997,6 +2997,22 @@
       },
       {
         "method": "GET",
+        "path": "/documents/run-history",
+        "operation_id": "get_run_history_api_documents_run_history_get",
+        "summary": "Get Run History",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "ids",
+            "required": true,
+            "type": "array"
+          }
+        ],
+        "request_model": null,
+        "response_model": "RunHistoryResponse"
+      },
+      {
+        "method": "GET",
         "path": "/documents/trash",
         "operation_id": "list_deleted_documents_api_documents_trash_get",
         "summary": "List Deleted Documents",

@@ -625,7 +625,7 @@ workflow by hand: a hand run is a job like any other.
   `testJobsPollRefusalReachesTheFooterAndClearsOnTheNextGoodPoll`).
 - `activity.window.what-it-made` — **[GAP]** (→ #5245) a finished job opens the list of what it made
   and can be taken back (`safety/run-take-back.md`).
-- `activity.document.what-has-been-run` — **[GAP]** (#5434) the reverse of
+- `activity.document.what-has-been-run` — **[PARTIAL]** (#5434) the reverse of
   `activity.window.what-it-made`: each document has a history of every step that has touched it
   (split, lines, read, names, statements, check). Each entry gives the model, the provider, the
   time (`activity.window.absolute-times`), the cost (null unless priced) and the outcome, as
@@ -633,8 +633,16 @@ workflow by hand: a hand run is a job like any other.
   - the library table's **Done** column, one badge per step that has run with its outcome;
   - the document Inspector's "What has been run" section, newest first.
   The read is batched for the visible rows, never one call per row. It is built from job rows and
-  run records, and nothing is stored only for display. Gap: the `jobs` table has no document key
-  (`execution/jobs.py:85-111`); a page job names its document only in `subject`.
+  run records, and nothing is stored only for display. Built (2026-10-08): the engine read,
+  `GET /api/documents/run-history?ids=…` — for many documents in one call, each document's job rows
+  (those named after it in `subject`: its pictures, embeddings, names, line finding and page reads,
+  with the model the row recorded, the state, the reason and the job it ran under) and the workflow runs
+  recorded on it (model and provider as recorded), newest first, with an absolute UTC time and cost
+  null; a document the caller may not read is withheld and counted
+  (`fichero-server/tests/unit/api/test_document_run_history.py`). No schema change: the join is on
+  `subject`. Still a gap: the Done column and the Inspector section (Swift), cost for priced runs,
+  the provider of a job row (only its model is recorded), and job rows whose subject is not a document
+  id (a page read from a file with no document names the file).
 - `activity.window.measures` — **[PARTIAL]** (#5415) the measures that matter, per run, step and
   page, rolled up the tree, are the table's main columns: **time to run, cost, greenhouse gas, images
   run and steps run**. Built in the engine: each node of `GET /api/activity/jobs/{id}` has `seconds`,

@@ -2074,6 +2074,14 @@ def fichero_documents_list_roots(
     return _rt.call("GET", "/api/documents/roots", params={"sort_by": sort_by, "sort_direction": sort_direction})
 
 
+def fichero_documents_get_run_history(
+    *,
+    ids: Annotated[list[str], Field(description="the documents to read, e.g. a table's visible rows")],
+) -> Any:
+    'Get Run History\n\nWhat has been run on each document (#5434): its job rows (thumbnails, embeddings, names, line\nfinding, page reads, …) and the workflow runs recorded on it, newest first, with the model and\nprovider as recorded, the outcome and an absolute time. One call for many documents.\n\nRoute: GET /api/documents/run-history (toolset `documents`; reads).'
+    return _rt.call("GET", "/api/documents/run-history", params={"ids": ids})
+
+
 def fichero_documents_list_deleted(
     *,
     limit: Annotated[Optional[int], Field(description='Max results (no limit if not specified)')] = None,
@@ -8656,6 +8664,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_backfill_pdf_pages", "documents", "POST", "/api/documents/pdfs/backfill-pages", fichero_documents_backfill_pdf_pages),
     GeneratedTool("fichero_documents_reorder", "documents", "POST", "/api/documents/reorder", fichero_documents_reorder),
     GeneratedTool("fichero_documents_list_roots", "documents", "GET", "/api/documents/roots", fichero_documents_list_roots),
+    GeneratedTool("fichero_documents_get_run_history", "documents", "GET", "/api/documents/run-history", fichero_documents_get_run_history),
     GeneratedTool("fichero_documents_list_deleted", "documents", "GET", "/api/documents/trash", fichero_documents_list_deleted),
     GeneratedTool("fichero_documents_list_workspaces", "documents", "GET", "/api/documents/workspaces", fichero_documents_list_workspaces),
     GeneratedTool("fichero_documents_delete", "documents", "DELETE", "/api/documents/{doc_id}", fichero_documents_delete),

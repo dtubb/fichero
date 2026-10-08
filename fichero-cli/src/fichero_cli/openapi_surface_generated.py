@@ -4498,6 +4498,20 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-run-history")
+    def documents_get_run_history_get(
+        ctx: typer.Context,
+        ids: str = typer.Option(..., "--ids", help="Query parameter: ids."),
+    ) -> None:
+        """Get Run History (GET /api/documents/run-history)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/run-history"
+            params = {
+                "ids": ids,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-deleted")
     def documents_list_deleted_get(
         ctx: typer.Context,

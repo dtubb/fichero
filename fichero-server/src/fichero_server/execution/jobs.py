@@ -1029,6 +1029,21 @@ def find_jobs(db: "Database", *, kinds: list[str], states: list[str] | None = No
     return [dict(zip(names, row)) for row in rows]
 
 
+def jobs_on_subjects(db: "Database", subjects: list[str]) -> list[dict[str, Any]]:
+    """Every job whose subject is one of these (a page's stages and the pages a run handed in name
+    their document as their subject), newest first, in one statement per 500 subjects
+    (`activity.document.what-has-been-run`, #5434)."""
+    _ensure(db)
+    names = ("id", "kind", "subject", "model", "state", "reason", "parent_id", "created_at", "started_at",
+             "finished_at")
+    rows: list[dict[str, Any]] = []
+    for chunk in _chunks(list(dict.fromkeys(subjects)), 500):
+        marks = ", ".join("?" for _ in chunk)
+        rows += [dict(zip(names, row)) for row in db.execute_fetchall(
+            f"SELECT {', '.join(names)} FROM jobs WHERE subject IN ({marks})", chunk)]
+    return rows
+
+
 def delete_job(db: "Database", job_id: str) -> None:
     """Forget one finished job's row."""
     db.execute("DELETE FROM jobs WHERE id = ?", [job_id])

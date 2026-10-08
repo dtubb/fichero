@@ -7,12 +7,13 @@ CRUD operations for Document model.
 import asyncio
 import logging
 import tempfile
+from datetime import datetime, timezone
 from enum import Enum
 
-from fichero_server.core.timeutil import utc_now
+from fichero_server.core.timeutil import ensure_utc, utc_now
 from fichero_server.core.naturalsort import natural_key
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -832,6 +833,78 @@ async def list_deleted_documents(
     docs, withheld = readable(_ordered_by_sort_order(_list_documents(db, only_deleted=True)))
     items = docs[offset : offset + limit] if limit is not None else docs[offset:]
     return DocumentListResponse(items=items, count=len(items), withheld=withheld)
+
+
+class RunHistoryEntry(BaseModel):
+    """One thing run on a document, as recorded when it ran (`activity.document.what-has-been-run`)."""
+
+    document_id: str
+    source: Literal["job", "workflow_run"] = Field(
+        description="job: a row of the job queue named after the document; workflow_run: a run recorded on it")
+    kind: str = Field(description="the job kind (thumbnail, embed, nlp-draft, find-lines, read-a-page, …) or 'workflow'")
+    name: str = Field(description="what it was, in words")
+    state: str = Field(description="its outcome or where it is: done, failed, cancelled, waiting, running, paused")
+    reason: str | None = None
+    model: str | None = Field(None, description="the model as recorded when it ran")
+    provider: str | None = Field(None, description="the provider as recorded when it ran")
+    cost: float | None = Field(None, description="null unless priced")
+    at: datetime | None = Field(None, description="when it finished, else started, else was asked for (UTC)")
+    job_id: str | None = None
+    parent_id: str | None = Field(None, description="the job it ran under (a step, a run)")
+    workflow_id: str | None = None
+    thread_id: str | None = None
+
+
+class RunHistoryResponse(BaseModel):
+    """What has been run on each asked-for document, newest first."""
+
+    items: dict[str, list[RunHistoryEntry]]
+    withheld: int = 0
+
+
+def _when(value: Any) -> datetime | None:
+    if value is None or isinstance(value, datetime):
+        return ensure_utc(value) if value is not None else None
+    try:
+        return ensure_utc(datetime.fromisoformat(str(value)))
+    except ValueError:
+        return None
+
+
+@router.get("/run-history", response_model=RunHistoryResponse)
+async def get_run_history(
+    ids: list[str] = Query(..., description="the documents to read, e.g. a table's visible rows"),
+    db: Database = Depends(get_library_database),
+    readable=Depends(readable_rows),
+) -> RunHistoryResponse:
+    """What has been run on each document (#5434): its job rows (thumbnails, embeddings, names, line
+    finding, page reads, …) and the workflow runs recorded on it, newest first, with the model and
+    provider as recorded, the outcome and an absolute time. One call for many documents."""
+    from fichero_server.execution import jobs
+
+    found = [doc for doc in (db.get(Document, i) for i in dict.fromkeys(ids)) if doc is not None]
+    docs, withheld = readable(found)
+    items: dict[str, list[RunHistoryEntry]] = {doc.id: [] for doc in docs}
+    for row in await asyncio.to_thread(jobs.jobs_on_subjects, db, list(items)):
+        items[row["subject"]].append(RunHistoryEntry(
+            document_id=row["subject"], source="job", kind=row["kind"], name=jobs.kind_name(row["kind"]),
+            state=row["state"], reason=row["reason"], model=row["model"],
+            at=_when(row["finished_at"] or row["started_at"] or row["created_at"]),
+            job_id=row["id"], parent_id=row["parent_id"]))
+    for doc in docs:
+        for run in doc.workflow_runs or []:
+            if not isinstance(run, dict) or not run.get("workflow_id"):
+                continue
+            items[doc.id].append(RunHistoryEntry(
+                document_id=doc.id, source="workflow_run", kind="workflow",
+                name=run.get("workflow_name") or run["workflow_id"], state="done",
+                model=run.get("model"), provider=run.get("provider"),
+                at=_when(run.get("completed_at") or run.get("started_at")),
+                workflow_id=run["workflow_id"], thread_id=run.get("thread_id")))
+    never = datetime.min.replace(tzinfo=timezone.utc)
+    for entries in items.values():
+        entries.sort(key=lambda e: e.at or never, reverse=True)
+    return RunHistoryResponse(items=items, withheld=withheld)
 
 
 @router.get("/{doc_id}")
