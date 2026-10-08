@@ -2842,6 +2842,15 @@ Finding models
   (`model_type` `mlx`) and every Kraken reader downloaded or trained (`model_type` `kraken`), read
   from the one local catalogue Settings lists (`local_inference.installed_local_model_entries`), not
   a second list. `model_type=mlx` or `kraken` narrows it to those.
+- `source.find.repository-reader-named` — **[OK]** (#5617; built 2026-10-08: `discovery.repository_record`,
+  `discovery.record_words`, `kraken_runtime.recognition_model_bytes`, the repository readers in
+  `llm/local_model_catalog.py`; pinned by `fichero-server/tests/unit/recipes/test_reader_cards_5617.py`) a
+  Kraken reader downloaded from the repository is named by its record's title, never only by its DOI, and its
+  note says what the record states: its languages and scripts by name, the material (print, handwriting,
+  typescript) and the period its words name, then where it came from (the DOI). Its size is the record's,
+  else its downloaded file's, never 0. Read from the repository listing discovery kept (no network); with no
+  listing kept, it is named by its DOI and its note says the record has not been read. A repository candidate's
+  reason (`GET /api/recipes/candidates`) carries the same words.
 - `source.find.installed-count` — **[OK]** (#5519) every complete MLX vision model in this engine's
   model store that no shipped card pins (a catalogue model, one Fichero trained, one found in the
   store) is a reader candidate with a card made from its own metadata: its config says it reads

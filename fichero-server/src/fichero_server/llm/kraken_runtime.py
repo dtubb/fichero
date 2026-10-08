@@ -208,6 +208,21 @@ def recognition_model_path(model_id: str, home: Path | None = None) -> str | Non
     return str(marker.parent / path) if path else None
 
 
+def recognition_model_bytes(model_id: str, home: Path | None = None) -> int:
+    """The size on disk of an installed reader's model file (a folder's files summed); 0 when it is not there
+    (#5617: a downloaded reader's size is its file's when its record does not state one)."""
+    path = recognition_model_path(model_id, home)
+    if not path:
+        return 0
+    p = Path(path)
+    try:
+        if p.is_dir():
+            return sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+        return p.stat().st_size if p.is_file() else 0
+    except OSError:
+        return 0
+
+
 #: A Kraken reader named by its record in Kraken's model repository (HTRMoPo, on Zenodo), not only
 #: the catalogue's short list: `kraken-zenodo-<record number>` (#5388 follow-up, 2026-10-03).
 _ZENODO_READER = re.compile(r"^kraken-zenodo-(\d+)$")
@@ -1237,6 +1252,7 @@ __all__ = [
     "is_recognition_model_installed",
     "recognition_data_home",
     "recognition_model_dir",
+    "recognition_model_bytes",
     "recognition_model_path",
     "resolve_recognition_model",
     "remove_recognition_model",

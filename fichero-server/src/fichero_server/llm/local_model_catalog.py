@@ -144,27 +144,38 @@ def kraken_catalog_entries() -> list[Any]:
         )
     # Readers downloaded from Kraken's model repository by their record (`kraken-zenodo-<n>`, #5519): installed
     # here, so listed as installed readers like the shortlist's (#5584).
+    # Named and noted from its repository record as discovery kept it (#5617), never only by its DOI.
+    from fichero_server.recipes.discovery import record_words, repository_record
+
     for marker in sorted(kr.recognition_model_dir().glob("kraken-zenodo-*.installed")):
         model_id = marker.name[: -len(".installed")]
         if model_id in kr.KRAKEN_RECOGNITION_MODELS:
             continue
-        spec = kr.recognition_spec(model_id) or {}
+        doi = str((kr.recognition_spec(model_id) or {}).get("doi") or model_id)
+        record = repository_record(doi)
+        stated = record_words(record) if record else ""
+        if record is None:
+            note = f"From Kraken's model repository (DOI {doi}); its record has not been read on this Mac."
+        else:
+            note = (f"Reads {stated}. " if stated else "Its record states no language, script or period. ") + \
+                f"From Kraken's model repository (DOI {doi})."
+        on_disk = kr.recognition_model_bytes(model_id)
         entries.append(
             _make_entry(
                 provider_type=ProviderType.kraken,
                 model_id=model_id,
-                display_name=str(spec.get("display_name") or f"Kraken reader {spec.get('doi') or model_id}"),
+                display_name=str((record or {}).get("summary") or f"Kraken reader {doi}"),
                 capabilities=["recognition"],
                 installed=True,
-                download_size_bytes=0,
-                disk_usage_bytes=0,
+                download_size_bytes=int((record or {}).get("size_bytes") or 0) or on_disk,
+                disk_usage_bytes=on_disk,
                 min_memory_bytes=None,
                 memory_class=None,
                 supported=True,
                 unsupported_reason=None if installed else "Kraken is not bundled in this build.",
-                note=f"Downloaded from Kraken's model repository (DOI {spec.get('doi')})." if spec.get("doi") else None,
+                note=note,
                 tested_status="untested",
-                license_label="user-managed",
+                license_label=str((record or {}).get("licence") or "user-managed"),
                 source=_source(True),
             )
         )
