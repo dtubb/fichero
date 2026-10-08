@@ -221,6 +221,15 @@ struct DocumentInspectorInfoTab: View {
                     entityService: currentLibrary?.entityService
                 )
             }
+            // A kind a run proposed, waiting for the person's answer (#5600).
+            if let proposal = ProposedKind(metadata: document.metadata) {
+                ProposedKindRow(
+                    documentId: document.id,
+                    proposal: proposal,
+                    entityService: currentLibrary?.entityService,
+                    reread: { id in await documentStore.refreshDocumentsByIds([id]) }
+                )
+            }
         }
     }
 

@@ -29,6 +29,44 @@ extension EntityService {
         }
     }
 
+    // MARK: - A run's proposed kind (#5600)
+
+    /// Accept the kind a run proposed for this node (`POST /api/documents/{id}/proposed-kind/accept`):
+    /// the engine assigns it, its source the run, accepted by this person (audited, undoable).
+    @discardableResult
+    func acceptProposedKind(documentId: String) async throws -> Components.Schemas.ProposedKindAnswer {
+        let response = try await client.api.acceptProposedKindApiDocumentsDocIdProposedKindAcceptPost(
+            path: .init(docId: documentId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Reject the kind a run proposed (`POST /api/documents/{id}/proposed-kind/reject`): the node's kind
+    /// is unchanged and the same kind is not proposed again (audited, undoable).
+    @discardableResult
+    func rejectProposedKind(documentId: String) async throws -> Components.Schemas.ProposedKindAnswer {
+        let response = try await client.api.rejectProposedKindApiDocumentsDocIdProposedKindRejectPost(
+            path: .init(docId: documentId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     // MARK: - Prototype-declared attributes (datasets Stage 1)
 
     /// One attribute declaration resolved from the prototype chain.

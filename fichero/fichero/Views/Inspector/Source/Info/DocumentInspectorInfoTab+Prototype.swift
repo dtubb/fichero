@@ -83,6 +83,11 @@ struct DocumentPrototypePicker: View {
             selectedKey = initialKey
             await reloadPrototypes()
         }
+        // The node read again (an accepted proposed kind, #5600): its kind, and a prototype made for it.
+        .onChange(of: initialKey) { _, key in
+            selectedKey = key
+            Task { await reloadPrototypes() }
+        }
         .sheet(isPresented: $showTypeEditor) {
             PrototypeEditorSheet(entityService: entityService) {
                 Task { await reloadPrototypes() }
