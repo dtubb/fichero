@@ -1680,7 +1680,9 @@ Built 2026-10-07 for readers (#5519, `source.find.installed-count`, `source.find
 `source.find.hub-runs-here`, `source.find.rules-see-candidates`): sources 1 (MLX vision models), 2 and 3,
 through `GET /api/recipes/candidates`. Built 2026-10-08 (#5593): a found Hub reader is kept, chosen by the
 rules and offered as a download (`source.find.found-reader-downloads`), and "no model fits" names the nearest
-candidates (`source.onboard.nothing-fits-names-nearest`). Still owed: installed Kraken readers outside the
+candidates (`source.onboard.nothing-fits-names-nearest`). Built 2026-10-08 (#5594): only readers are taken from the
+Hub (chat builds counted as left out), an unstated size says so, and the online search is an Activity job
+(`source.find.online-search-is-a-job`). Still owed: installed Kraken readers outside the
 repository, spaCy pipelines, YOLO weights.
 
 **Training layout models (YOLO) and tables (proposed, maintainer 2026-10-05, #5525).**
@@ -2829,6 +2831,28 @@ Finding models
   answers. Since #5593 (2026-10-08) what a search finds is kept and the rules choose from it
   (`in_recipe_rules: true`; `source.find.found-reader-downloads`). Residue: the Hub's listing states
   no size or memory for a found build.*
+- `source.find.hub-readers-only` — **[OK]** (#5594; built 2026-10-08: `discovery.reads_text`, `left_out` in `keep_hub` and the source; pinned by `fichero-server/tests/unit/recipes/test_hub_discovery_quality_5594.py`) a Hugging Face result is a reader candidate only
+  when its listing says it reads text from images: published as image-to-text, or a vision-language
+  model (image-text-to-text) whose tags or name say OCR, HTR, text recognition or document reading. A
+  chat build (tagged or named uncensored, abliterated, decensored or heretic, or a vision chat model with
+  no OCR use) is never listed, whatever its task; how many were left out is counted (`left_out` on the
+  Hugging Face source) and said in its detail. *Test:* a listing mixing an OCR model, a VLM tagged OCR and
+  an abliterated chat model offers the first two and says one was left out.
+- `source.find.unknown-size-said` — **[OK]** (#5594; built 2026-10-08: `ModelCandidate.size`, null `size_gb`/`memory_gb` in `api/routes/system/recipes.py`; pinned by `fichero-server/tests/unit/recipes/test_hub_discovery_quality_5594.py`) a candidate whose size or memory its listing does
+  not state says "size not stated" (`size`), and its `size_gb`/`memory_gb` are null, never 0.0 GB.
+- `source.find.reason-names-fit` — **[PARTIAL]** (#5594; built 2026-10-08: `discovery._hf_card`; pinned by `fichero-server/tests/unit/recipes/test_hub_discovery_quality_5594.py`. *Residue: a script is read only from the words Fraktur and Kuzushiji in a listing's tags or name; other scripts stay unstated.*) a found reader's reason says why it fits the
+  project in words: what it reads (OCR, handwriting, a script such as Fraktur where its tags or name say
+  so), the project's languages it lists by name, and that it is an MLX build this Mac runs; never only
+  "tagged de".
+- `source.find.online-search-is-a-job` — **[PARTIAL]** (#5594; built 2026-10-08 (engine): the `find-models` kind, `discovery.search`/`search_online`, `search_job` on `ModelCandidateList`; pinned by `fichero-server/tests/unit/recipes/test_hub_discovery_quality_5594.py`, `test_model_discovery.py` and `test_reader_choice_for_scripts_to_spec.py`. *Residue: its progress is said in words (the query it is on), not as a count Activity can draw; the app's setup screen and the CLI are not yet seen polling the job.*) the online search (Kraken's repository and
+  Hugging Face) runs as an Activity job (`find-models`, on the network lane, a person waiting on it) of the
+  open project, never inside the request: `GET /api/recipes/candidates?online=true` answers at once with what
+  is cached and the job (`search_job`: id, state, reason), the job says what it is searching as it goes and
+  keeps what it found (its detail, and the model store's `discovery/` files), and a later call returns the
+  fresh list with the job done. A search for the same languages done within a day is not run again; one
+  waiting or running is reused. With no project open the online search is not run and the source says why.
+  *Test:* the cold call returns before the Hub answers, with the job id; Activity lists the job; once it is
+  done the next call lists what it found.
 - `source.find.rules-see-candidates` — **[OK]** (#5519) setup's assembly, the bake-off and Use This
   choose from the shipped, installed and cached repository cards (never the network), ranked by the
   same fixed order, so a Japanese, Chinese or Fraktur project gets a reader where one is installed or

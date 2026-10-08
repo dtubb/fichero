@@ -24,10 +24,16 @@ reader candidates from three more places, each turned into a `Card` the same rul
   the network; one the rules choose is offered as a download through this Mac's model store (`hub_spec`,
   #5593, `source.find.found-reader-downloads`).
 
-The network is reached only when a caller asks (`online`), never at import time, and never when the engine
-works offline (`llm.is_local_only`, the egress setting). Offline, discovery offers what is installed and
-what was cached. Every candidate whose accuracy is not measured on the project says it is unmeasured
-until a bake-off measures it.
+A Hub result is a reader only when its listing says so (`reads_text`, #5594): published as image-to-text,
+or a vision-language model whose tags or name say OCR use; a chat build (uncensored, abliterated, heretic)
+is never listed, only counted as left out. A size the listing does not state stays zero on the card and is
+said as not stated.
+
+The network is reached only when a caller asks (`online`), never at import time, never when the engine
+works offline (`llm.is_local_only`, the egress setting), and never inside a request: the online search is
+the open project's `find-models` job on the network lane (#5594, `search`), and `discover` reads only what
+is installed and what the searches kept. Every candidate whose accuracy is not measured on the project
+says it is unmeasured until a bake-off measures it.
 """
 from __future__ import annotations
 
@@ -35,7 +41,7 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from fichero_server.recipes.assemble import Answers, Card
 
@@ -319,15 +325,81 @@ def repository_cards(rows: list[dict[str, Any]], seed: tuple[Card, ...] | list[C
 # --- Hugging Face --------------------------------------------------------------------------------------
 
 
-def _hf_card(model: dict[str, Any], why: str) -> Card:
+#: Words (tags, or parts of the repository's name) that mark a chat build, never a reader, whatever task it
+#: is published under (#5594: 'uncensored', 'abliterated' and 'Heretic' builds were offered for Fraktur).
+CHAT_BUILD_WORDS = frozenset({"uncensored", "abliterated", "decensored", "heretic", "unrestricted"})
+#: Words that say a vision-language model reads text: its OCR use (#5594, `source.find.hub-readers-only`).
+OCR_WORDS = frozenset({"ocr", "htr", "text-recognition", "textline_recognition", "text recognition", "handwriting",
+                       "handwritten", "handwriting-recognition", "document-understanding", "document-ocr"})
+#: Script words a reader's tags or name may state, as ISO 15924 codes.
+_SCRIPT_WORDS = {"fraktur": "Latf", "kuzushiji": "Jpan"}
+
+
+def _words(model: dict[str, Any]) -> frozenset[str]:
+    """A listing's tags and the parts of its repository's name, lower-cased."""
+    name = str(model.get("modelId") or model.get("id") or "").rsplit("/", 1)[-1].lower()
+    return frozenset({str(t).lower() for t in model.get("tags") or []} | set(re.split(r"[^a-z0-9]+", name)))
+
+
+def reads_text(model: dict[str, Any]) -> str | None:
+    """What a Hub listing reads, in words, when it is a reader; None for anything else (#5594,
+    `source.find.hub-readers-only`). Decided from its listing alone (`pipeline_tag`, `tags`, its name):
+    published as image-to-text (not a captioner), or a vision-language model (image-text-to-text) whose
+    tags or name say OCR use. A chat build is never a reader, whatever its task."""
+    words = _words(model)
+    if words & CHAT_BUILD_WORDS:
+        return None
+    ocr = bool(words & OCR_WORDS)
+    if model.get("pipeline_tag") == "image-to-text" and (ocr or "image-captioning" not in words):
+        return "an OCR model (image-to-text)" if ocr else "reads text from images (image-to-text)"
+    if model.get("pipeline_tag") == "image-text-to-text" and ocr:
+        return "a vision-language model made for OCR"
+    return None
+
+
+def _hub_material(words: frozenset[str]) -> frozenset[str]:
+    found = set()
+    if words & {"htr", "handwriting", "handwritten", "handwriting-recognition", "manuscript", "manuscripts"}:
+        found.add("handwriting")
+    if words & {"print", "printed", "newspaper", "newspapers"}:
+        found.add("print")
+    return frozenset(found)
+
+
+def _hub_tags(model: dict[str, Any]) -> frozenset[str] | None:
+    return _tags([t for t in model.get("tags") or [] if re.fullmatch(r"[a-z]{2,3}", str(t))])
+
+
+def _hf_card(model: dict[str, Any], what: str, how: str, wanted: frozenset[str],
+             languages: frozenset[str] | None = None) -> Card:
+    """A Hub reader's card. Its reason says why it fits (#5594, `source.find.reason-names-fit`): what it
+    reads, the script and material its listing states, the project's languages it lists by name, and how
+    it runs here. Its size and memory are not in the listing: zero here, said as not stated."""
+    from fichero_server.recipes.names import language_name, script_name
+
     repo = str(model.get("modelId") or model.get("id"))
     tags = [str(t) for t in model.get("tags") or []]
+    words = _words(model)
     licence = next((t.split(":", 1)[1] for t in tags if t.startswith("license:")), "")
-    langs = _tags([t for t in tags if re.fullmatch(r"[a-z]{2,3}", t)])
+    langs = _hub_tags(model) or languages
+    scripts = frozenset(code for word, code in _SCRIPT_WORDS.items() if word in words)
+    material = _hub_material(words)
+    why = [what]
+    if scripts:
+        why.append("made for " + " and ".join(script_name(c) for c in sorted(scripts)))
+    if material:
+        why.append("for " + " and ".join(sorted(material)))
+    listed = sorted(wanted & langs) if langs else []
+    if listed:
+        why.append("lists " + ", ".join(language_name(t) for t in listed))
+    elif wanted:
+        why.append("does not list your languages")
+    why.append(how)
     return Card(
-        id=f"mlx:hf/{repo}@main", pin={"hf": repo, "revision": "main"}, jobs=READER_JOBS, scripts=None,
-        languages=langs, material=frozenset(), open_licence=_is_open(licence), trainable=True,
-        licence=licence, note=repo.rsplit("/", 1)[-1], source="hugging-face", offered_because=why,
+        id=f"mlx:hf/{repo}@main", pin={"hf": repo, "revision": "main"}, jobs=READER_JOBS,
+        scripts=covered_scripts(scripts) if scripts else None, languages=langs, material=material,
+        open_licence=_is_open(licence), trainable=True, licence=licence, note=repo.rsplit("/", 1)[-1],
+        source="hugging-face", offered_because="; ".join(why),
     )
 
 
@@ -341,73 +413,108 @@ def _gguf_only(model: dict[str, Any]) -> bool:
     return ("gguf" in tags or model.get("library_name") == "gguf") and not _runs_on_mlx(model)
 
 
-async def search_hugging_face(languages: frozenset[str]) -> list[Card]:
-    """Reader candidates on the Hub for these languages, only builds this Mac can run, each saying why it
-    is offered. Network: call only behind the egress check. Raises the Hub fetch's error."""
+async def search_hugging_face(languages: frozenset[str],
+                              progress: Callable[[str], None] = lambda _: None) -> tuple[list[Card], int]:
+    """(reader candidates on the Hub for these languages, how many builds this Mac runs were left out as
+    not readers). Only builds this Mac can run, only readers by their listing (`reads_text`), each saying
+    why it fits. `progress` is told each query in words. Network: call only behind the egress check.
+    Raises the Hub fetch's error."""
     from fichero_server.api.routes.ai.models import _fetch_hf_models
 
     filters = [[lang.split("-")[0]] for lang in sorted(languages)] or [[]]
     found: dict[str, Card] = {}
+    left_out: set[str] = set()
     originals: list[tuple[dict[str, Any], str]] = []
+    queries, asked = len(HF_READER_TASKS) * len(filters) * 2, 0
     for task in HF_READER_TASKS:
         for tags in filters:
-            said = f"tagged {', '.join(tags)}" if tags else "any language"
-            for m in await _fetch_hf_models(task=task, tags=["mlx", *tags], limit=HF_LIMIT):
-                if _runs_on_mlx(m) and not _gguf_only(m):
-                    repo = str(m.get("modelId") or m.get("id"))
-                    found.setdefault(repo, _hf_card(m, f"an MLX build on Hugging Face ({task}, {said}): "
-                                                       "runs on this Mac's MLX server"))
-            for m in await _fetch_hf_models(task=task, tags=tags or None, limit=HF_LIMIT):
-                if not _runs_on_mlx(m) and not _gguf_only(m) and "safetensors" in (m.get("tags") or []):
-                    originals.append((m, f"{task}, {said}"))
-    for original, said in originals[:HF_CONVERSIONS_LOOKED_UP]:
+            for mlx in (True, False):
+                asked += 1
+                progress(f"Searching Hugging Face ({task}, query {asked} of {queries})")
+                listing = await _fetch_hf_models(task=task, tags=["mlx", *tags] if mlx else (tags or None),
+                                                 limit=HF_LIMIT)
+                for m in listing:
+                    what = reads_text(m)
+                    if mlx and _runs_on_mlx(m) and not _gguf_only(m):
+                        repo = str(m.get("modelId") or m.get("id"))
+                        if what is None:
+                            left_out.add(repo)
+                        else:
+                            found.setdefault(repo, _hf_card(
+                                m, what, "an MLX build on Hugging Face that runs on this Mac", languages))
+                    elif (not mlx and what is not None and not _runs_on_mlx(m) and not _gguf_only(m)
+                          and "safetensors" in (m.get("tags") or [])):
+                        originals.append((m, what))
+    for original, what in originals[:HF_CONVERSIONS_LOOKED_UP]:
         repo = str(original.get("modelId") or original.get("id"))
+        progress(f"Looking up the MLX conversion of {repo}")
         for m in await _fetch_hf_models(tags=["mlx", f"base_model:{repo}"], limit=5):
             if _runs_on_mlx(m) and not _gguf_only(m):
                 conversion = str(m.get("modelId") or m.get("id"))
-                card = _hf_card(m, f"the MLX conversion of {repo} (safetensors on Hugging Face, {said}), "
-                                   "which runs on this Mac's MLX server")
-                if card.languages is None:
-                    card = _with_languages(card, _tags([t for t in original.get("tags") or []
-                                                         if re.fullmatch(r"[a-z]{2,3}", str(t))]))
-                found.setdefault(conversion, card)
+                if _words(m) & CHAT_BUILD_WORDS:
+                    left_out.add(conversion)
+                    continue
+                found.setdefault(conversion, _hf_card(
+                    m, what, f"the MLX conversion of {repo} (safetensors on Hugging Face), which runs on this Mac",
+                    languages, _hub_tags(original)))
                 break
-    return sorted(found.values(), key=lambda c: c.id)
+    return sorted(found.values(), key=lambda c: c.id), len(left_out - set(found))
 
 
-def _with_languages(card: Card, languages: frozenset[str] | None) -> Card:
-    from dataclasses import replace
-
-    return replace(card, languages=languages)
-
-
-def cached_hub() -> dict[str, dict[str, Any]]:
-    """The Hub readers the searches found, {repo: row}, each row with the languages it was found for."""
+def _hub_file() -> dict[str, Any]:
     try:
         data = json.loads((_store_root() / HUB_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
-    found = data.get("found") if isinstance(data, dict) else None
+    return data if isinstance(data, dict) else {}
+
+
+def cached_hub() -> dict[str, dict[str, Any]]:
+    """The Hub readers the searches found, {repo: row}, each row with the languages it was found for."""
+    found = _hub_file().get("found")
     return found if isinstance(found, dict) else {}
 
 
-def keep_hub(cards: list[Card], languages: frozenset[str]) -> None:
-    """Keep what a Hub search for these languages found, beside what earlier searches found (#5593)."""
-    if not cards or not languages:
+def _languages_key(languages: frozenset[str]) -> str:
+    return ",".join(sorted(languages)) or "any"
+
+
+def hub_left_out(languages: frozenset[str]) -> int | None:
+    """How many builds the last Hub search for these languages left out as not readers (#5594); None when
+    no search for them was kept."""
+    count = (_hub_file().get("left_out") or {}).get(_languages_key(languages))
+    return int(count) if isinstance(count, int) else None
+
+
+def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) -> None:
+    """Keep what a Hub search for these languages found, beside what earlier searches found (#5593), and how
+    many it left out (#5594). A reader an earlier search found for these languages that this one did not find
+    is no longer kept for them (a chat build kept before the reader rule is gone after the next search)."""
+    if not languages:
         return
+    data = _hub_file()
     found = cached_hub()
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    found_now = {str(card.pin["hf"]) for card in cards}
+    for repo, row in list(found.items()):
+        if repo not in found_now:
+            row["found_for"] = sorted(set(row.get("found_for") or ()) - languages)
+            if not row["found_for"]:
+                del found[repo]
     for card in cards:
         repo = str(card.pin["hf"])
         before = found.get(repo) or {}
         found[repo] = {"repo": repo, "languages": sorted(card.languages) if card.languages else None,
-                       "licence": card.licence, "note": card.note, "offered_because": card.offered_because,
-                       "size_gb": card.size_gb, "found_for": sorted({*before.get("found_for", []), *languages}),
-                       "found_at": now}
+                       "scripts": sorted(card.scripts) if card.scripts else None,
+                       "material": sorted(card.material), "licence": card.licence, "note": card.note,
+                       "offered_because": card.offered_because, "size_gb": card.size_gb,
+                       "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now}
+    left = dict(data.get("left_out") or {})
+    left[_languages_key(languages)] = left_out
     folder = _store_root()
     folder.mkdir(parents=True, exist_ok=True)
     tmp = folder / f".{HUB_FILE}.tmp"
-    tmp.write_text(json.dumps({"found": found}, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.write_text(json.dumps({"found": found, "left_out": left}, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(folder / HUB_FILE)
 
 
@@ -420,8 +527,9 @@ def hub_cards(languages: frozenset[str] | None, skip_repos: set[str] = frozenset
         if repo in skip_repos or (languages is not None and not languages & set(row.get("found_for") or ())):
             continue
         out.append(Card(
-            id=f"mlx:hf/{repo}@main", pin={"hf": repo, "revision": "main"}, jobs=READER_JOBS, scripts=None,
-            languages=_tags(row.get("languages")), material=frozenset(),
+            id=f"mlx:hf/{repo}@main", pin={"hf": repo, "revision": "main"}, jobs=READER_JOBS,
+            scripts=frozenset(row["scripts"]) if row.get("scripts") else None,
+            languages=_tags(row.get("languages")), material=frozenset(row.get("material") or ()),
             open_licence=_is_open(str(row.get("licence") or "")), trainable=True,
             size_gb=float(row.get("size_gb") or 0), licence=str(row.get("licence") or ""),
             note=str(row.get("note") or repo.rsplit("/", 1)[-1]), source="hugging-face",
@@ -482,12 +590,17 @@ def egress_allowed() -> bool:
     return not is_local_only()
 
 
-async def discover(a: Answers, *, online: bool) -> tuple[list[Card], list[dict[str, Any]]]:
-    """(every candidate card, what each source did). Reaches the network only when `online` and the
-    egress check allows it; the repository listing is fetched again only when the cached one is a day
-    old. Hugging Face cards come last and only from a search made now."""
-    import asyncio
+#: Why the online search did not run when no project is open: its job is one of a project's (#5594).
+NO_PROJECT = "the online search runs as an Activity job of an open project: open a project to search"
 
+
+def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
+             not_searched: str | None = None) -> tuple[list[Card], list[dict[str, Any]]]:
+    """(every candidate card, what each source did), never reaching the network: the shipped cards, the
+    installed models, and the repository listing and Hub readers the online search kept (#5594: the search
+    itself is a job, `find-models`). `search` is that job's row when `online` asked for one: while it runs the
+    two online sources say they are being searched, and once it is done they say what it found. `not_searched`
+    says why no search was made when one was asked for (no project open)."""
     from fichero_server.recipes.cards import all_seed_cards
 
     seed = all_seed_cards()
@@ -498,45 +611,156 @@ async def discover(a: Answers, *, online: bool) -> tuple[list[Card], list[dict[s
     installed = installed_cards(seed)
     sources.append({"source": "installed", "state": "read", "count": len(installed),
                     "detail": "MLX vision models complete in this engine's model store"})
-    allowed = online and egress_allowed()
-    offline_why = ("this engine works offline (local-only), so nothing was fetched" if online
-                   else "not searched: ask with online=true to search it")
+    if online and not egress_allowed():
+        why, quiet = "this engine works offline (local-only), so nothing was fetched", "offline"
+    elif online:
+        why, quiet = not_searched or "being searched", "not-searched"
+    else:
+        why, quiet = "not searched: ask with online=true to search it", "not-searched"
     cached = cached_repository()
-    state, detail = "cached", ""
-    if allowed and _stale(cached):
-        try:
-            cached = await asyncio.to_thread(refresh_repository)
-            state = "searched"
-        except Exception as exc:  # the network or the repository failed: say so, keep the cache
-            state, detail = "failed", f"the repository could not be read ({exc}); "
     if cached is None:
         repo_cards: list[Card] = []
-        state = state if state == "failed" else ("offline" if online else "not-searched")
-        detail += offline_why if state != "failed" else "nothing is cached"
+        repo_source = {"source": "kraken-repository", "state": quiet, "count": 0, "detail": why}
     else:
         repo_cards = repository_cards(cached["records"], seed, a.languages)
-        detail += f"Kraken's model repository on Zenodo, as fetched {cached['fetched_at']}"
-    sources.append({"source": "kraken-repository", "state": state, "count": len(repo_cards), "detail": detail})
-    hf_cards: list[Card] = []
-    pinned = _pinned_repos([*seed, *installed])
-    if allowed:
-        try:
-            searched = await search_hugging_face(a.languages)
-            # Kept, so the rules choose from them for these languages without the network (#5593).
-            keep_hub(searched, a.languages)
-            hf_cards = mark_installed(c for c in searched if str(c.pin["hf"]) not in pinned)
-            sources.append({"source": "hugging-face", "state": "searched", "count": len(hf_cards),
-                            "detail": "image-to-text and image-text-to-text models by language tag; MLX "
-                                      "builds only, never GGUF"})
-        except Exception as exc:  # HTTPException from the one Hub fetch, or the network
-            sources.append({"source": "hugging-face", "state": "failed", "count": 0,
-                            "detail": f"the Hub could not be searched ({getattr(exc, 'detail', exc)})"})
+        repo_source = {"source": "kraken-repository", "state": "cached", "count": len(repo_cards),
+                       "detail": f"Kraken's model repository on Zenodo, as fetched {cached['fetched_at']}"}
+    hf_cards = mark_installed(hub_cards(a.languages, _pinned_repos([*seed, *installed])))
+    left_out = hub_left_out(a.languages) or 0
+    if hf_cards or hub_left_out(a.languages) is not None:
+        hub_source = {"source": "hugging-face", "state": "cached", "count": len(hf_cards), "left_out": left_out,
+                      "detail": "the readers earlier searches found for these languages" + _left_out_words(left_out)}
     else:
-        hf_cards = mark_installed(hub_cards(a.languages, pinned))
-        if hf_cards:
-            sources.append({"source": "hugging-face", "state": "cached", "count": len(hf_cards),
-                            "detail": "the readers earlier searches found for these languages"})
-        else:
-            sources.append({"source": "hugging-face", "state": "offline" if online else "not-searched",
-                            "count": 0, "detail": offline_why})
+        hub_source = {"source": "hugging-face", "state": quiet, "count": 0, "detail": why}
+    if search is not None:
+        _say_search(search, repo_source, hub_source)
+    sources += [repo_source, hub_source]
     return [*shipped, *installed, *repo_cards, *hf_cards], sources
+
+
+def _left_out_words(left_out: int) -> str:
+    if not left_out:
+        return ""
+    return f"; {left_out} build{'s' if left_out != 1 else ''} left out: chat models, not readers"
+
+
+def _say_search(search: dict[str, Any], *rows: dict[str, Any]) -> None:
+    """The online sources as the search job leaves them: being searched, what it found, or why it failed."""
+    state = search.get("state")
+    if state in ("waiting", "running", "paused"):
+        doing = search.get("reason") or "waiting for the network lane"
+        for row in rows:
+            row["state"] = "searching"
+            row["detail"] = (f"being searched now (Activity job {search['id']}: {doing}); "
+                             f"{'showing what was kept before' if row['count'] else 'nothing kept yet'}")
+        return
+    if state == "failed":
+        for row in rows:
+            row["state"], row["detail"] = "failed", f"the search failed ({search.get('reason') or 'no reason'})"
+        return
+    try:
+        done = json.loads(search.get("detail") or "{}").get("sources") or {}
+    except ValueError:
+        done = {}
+    for row in rows:
+        said = done.get(row["source"])
+        if said:
+            row["state"], row["detail"] = said["state"], said["detail"]
+
+
+# --- the online search, as an Activity job (#5594) ------------------------------------------------------
+
+#: The job kind: a person waits on it, on the network lane (`source.find.online-search-is-a-job`).
+SEARCH_KIND = "find-models"
+
+
+def register_job_kinds() -> None:
+    from fichero_server.core.background_compute import set_utility_qos
+    from fichero_server.execution import jobs
+
+    if SEARCH_KIND not in jobs.KINDS or jobs.KINDS[SEARCH_KIND].run is None:
+        jobs.register_kind(SEARCH_KIND, _run_search, model=None, lane="network", qos=set_utility_qos,
+                           name="Find reading models online")
+
+
+def _subject(languages: frozenset[str]) -> str:
+    return f"languages:{_languages_key(languages)}"
+
+
+def _languages_of(subject: str) -> frozenset[str]:
+    key = subject.partition(":")[2]
+    return frozenset() if key in ("", "any") else frozenset(key.split(","))
+
+
+def search(db: Any, languages: frozenset[str]) -> dict[str, Any]:
+    """The search job for these languages (its row: id, state, reason, detail, finished_at): the one waiting
+    or running, or one done within a day; otherwise a new one, queued on the network lane with a person
+    waiting on it. Never reaches the network itself."""
+    from fichero_server.core.timeutil import ensure_utc
+    from fichero_server.execution import jobs
+
+    register_job_kinds()
+    subject = _subject(languages)
+    latest = jobs.job_id_for(db, SEARCH_KIND, subject)
+    row = jobs.find_jobs(db, kinds=[SEARCH_KIND], job_id=latest)[0] if latest else None
+    if row is not None:
+        if row["state"] in ("waiting", "running", "paused"):
+            return row
+        finished = row["finished_at"]
+        if (row["state"] == "done" and finished is not None
+                and datetime.now(timezone.utc) - ensure_utc(finished) < REFRESH_AFTER):
+            return row
+    job_id = jobs.enqueue(db, SEARCH_KIND, subject, started_by="owner", watched=True)
+    return jobs.find_jobs(db, kinds=[SEARCH_KIND], job_id=job_id)[0]
+
+
+def _run_search(db: Any, subject: str) -> dict[str, Any]:
+    """The job's work: search, keep what was found, and keep what each source did on the job's row."""
+    from fichero_server.execution import jobs
+
+    job_id = jobs.current_job_id() or jobs.job_id_for(db, SEARCH_KIND, subject)
+
+    def say(words: str) -> None:
+        jobs.save_detail(db, job_id, json.dumps({"doing": words}, ensure_ascii=False), reason=words)
+
+    result = search_online(_languages_of(subject), progress=say)
+    jobs.save_detail(db, job_id, json.dumps(result, ensure_ascii=False))
+    failed = [s["detail"] for s in result["sources"].values() if s["state"] == "failed"]
+    if len(failed) == len(result["sources"]):
+        raise RuntimeError("; ".join(failed))
+    return result
+
+
+def search_online(languages: frozenset[str], progress: Callable[[str], None] = lambda _: None) -> dict[str, Any]:
+    """Fetch Kraken's repository listing when the kept one is a day old, and search Hugging Face for these
+    languages, keeping both in the model store's `discovery/` folder; return what each source did. Network:
+    run only as the `find-models` job. Refused when this engine works offline."""
+    import asyncio
+
+    if not egress_allowed():
+        raise RuntimeError("this engine works offline (local-only), so nothing was searched")
+    sources: dict[str, dict[str, Any]] = {}
+    cached = cached_repository()
+    if _stale(cached):
+        progress("Reading Kraken's model repository on Zenodo")
+        try:
+            cached = refresh_repository()
+            sources["kraken-repository"] = {"state": "searched", "detail": (
+                f"Kraken's model repository on Zenodo, fetched {cached['fetched_at']}")}
+        except Exception as exc:  # the network or the repository failed: say so, keep the cache
+            sources["kraken-repository"] = {"state": "failed",
+                                            "detail": f"the repository could not be read ({exc})"}
+    else:
+        sources["kraken-repository"] = {"state": "cached", "detail": (
+            f"Kraken's model repository on Zenodo, as fetched {cached['fetched_at']} (fetched again after a day)")}
+    try:
+        found, left_out = asyncio.run(search_hugging_face(languages, progress))
+        keep_hub(found, languages, left_out)
+        sources["hugging-face"] = {"state": "searched", "count": len(found), "left_out": left_out, "detail": (
+            f"{len(found)} reader{'s' if len(found) != 1 else ''} found: image-to-text models and vision-language "
+            "models made for OCR, by language tag; MLX builds only, never GGUF" + _left_out_words(left_out))}
+    except Exception as exc:  # HTTPException from the one Hub fetch, or the network
+        sources["hugging-face"] = {"state": "failed",
+                                   "detail": f"the Hub could not be searched ({getattr(exc, 'detail', exc)})"}
+    return {"languages": sorted(languages), "searched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "sources": sources}

@@ -100,6 +100,22 @@ def _candidates(client, **params):
     return body, {c["id"]: c for c in body["items"]}, {s["source"]: s for s in body["sources"]}
 
 
+def _searched(client, db, **params):
+    """An online listing as a person gets it (#5594): the call starts the search job, and the call after the job is
+    done lists what it found."""
+    import time
+
+    from fichero_server.execution import jobs
+
+    first, _, _ = _candidates(client, online="true", **params)
+    deadline = time.monotonic() + 30
+    while jobs.find_jobs(db, kinds=[discovery.SEARCH_KIND], job_id=first["search_job"]["id"])[0]["state"] not in (
+            "done", "failed"):
+        assert time.monotonic() < deadline, "the search job did not finish"
+        time.sleep(0.05)
+    return _candidates(client, online="true", **params)
+
+
 # --- installed models count ---------------------------------------------------------------------------
 
 
@@ -163,8 +179,8 @@ def test_an_installed_model_is_run_and_scored_like_a_catalogue_one(client, store
 # --- Kraken's repository ------------------------------------------------------------------------------
 
 
-def test_kraken_repository_readers_for_fraktur_are_found_cached_and_ranked(client, store, repository):
-    body, items, sources = _candidates(client, scripts="Latf", languages="sv", online="true")
+def test_kraken_repository_readers_for_fraktur_are_found_cached_and_ranked(client, db, store, repository):
+    body, items, sources = _searched(client, db, scripts="Latf", languages="sv")
     assert sources["kraken-repository"]["state"] == "searched" and repository == [1]
 
     swedish = items["kraken:zenodo/10.5281/zenodo.20702142@pinned"]
@@ -186,12 +202,13 @@ def test_kraken_repository_readers_for_fraktur_are_found_cached_and_ranked(clien
     assert "not your languages" in again["kraken:zenodo/10.5281/zenodo.20702142@pinned"]["offered_because"]
 
 
-def test_after_a_search_the_recipe_has_a_fraktur_and_a_kuzushiji_reader_instead_of_a_gap(client, store, repository):
+def test_after_a_search_the_recipe_has_a_fraktur_and_a_kuzushiji_reader_instead_of_a_gap(client, db, store,
+                                                                                          repository):
     gap = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": ["de"],
                                                      "scripts": ["Latf"], "mac_memory_gb": 32}).json()
     assert next(s for s in gap["steps"] if s["job"] == "read-a-line").get("gap")
 
-    _candidates(client, scripts="Latf", online="true")
+    _searched(client, db, scripts="Latf")
     for scripts, languages in ((["Latf"], ["de"]), (["Jpan"], ["ja"])):
         r = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": languages,
                                                        "scripts": scripts, "mac_memory_gb": 32})
@@ -203,8 +220,8 @@ def test_after_a_search_the_recipe_has_a_fraktur_and_a_kuzushiji_reader_instead_
 # --- Hugging Face -------------------------------------------------------------------------------------
 
 
-def test_the_hub_search_offers_only_builds_this_mac_runs_each_saying_why(client, store, repository, hub):
-    body, items, sources = _candidates(client, scripts="Jpan", languages="ja", online="true")
+def test_the_hub_search_offers_only_builds_this_mac_runs_each_saying_why(client, db, store, repository, hub):
+    body, items, sources = _searched(client, db, scripts="Jpan", languages="ja")
     assert sources["hugging-face"]["state"] == "searched"
     found = {i: c for i, c in items.items() if c["source"] == "hugging-face"}
     assert "mlx:hf/mlx-community/GLM-OCR-4bit@main" in found
@@ -217,8 +234,10 @@ def test_the_hub_search_offers_only_builds_this_mac_runs_each_saying_why(client,
     # `source.find.found-reader-downloads`): each is ranked, or refused with its reason.
     assert all(c["offered_because"] and c["in_recipe_rules"] is True for c in found.values())
     assert all((c["rule_rank"] is None) == (c["refused"] is not None) for c in found.values())
-    lfm = found["mlx:hf/LiquidAI/LFM2.5-VL-3B-MLX-4bit@main"]
-    assert lfm["open_licence"] is False and "licence" in lfm["refused"]  # license:other
+    # Readers only (#5594): the vision chat models (LFM2.5-VL, Mistral Small, the 'Heretic'/'abliterated' builds)
+    # are left out and counted, never listed.
+    assert not any("LFM2.5-VL" in i or "Mistral" in i or "eretic" in i or "ncensored" in i for i in found)
+    assert sources["hugging-face"]["left_out"] >= 5 and "left out" in sources["hugging-face"]["detail"]
     # Asked by task and language tag, never by keyword, and MLX by its tag.
     assert "image-to-text|mlx,ja" in hub and all("mlx" in k or k.endswith("|ja") for k in hub)
 
