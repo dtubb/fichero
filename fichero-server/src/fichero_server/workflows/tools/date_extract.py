@@ -23,6 +23,7 @@ from typing import Any
 
 import ftfy
 
+from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.core.naturalsort import natural_key
 from fichero_server.core.timeutil import utc_now
 from fichero_server.db import db_manager
@@ -146,6 +147,18 @@ def _carried(meta: dict[str, Any] | None, jdn: int | None, years: list[int],
         return jdn if span[0] <= jdn <= span[1] else None
     year = jdn_to_gregorian(jdn)[0]
     return jdn if not years or year in years else None
+
+
+def _write_date(db: Any, doc: Document, fields: dict[str, Any], ctx: ActionContext) -> None:
+    """A page's date columns are written through the one audited action, under the run
+    (`source.extract.date-run-taken-back`, #5597), expecting what was read; `doc` then holds what
+    the page holds (a page changed since, or a person's date, is kept as it is)."""
+    from fichero_server.api.routes.document.documents import DATE_FIELDS, date_fields
+
+    written = registry.invoke(db, "document.write_extracted_date",
+                              {"doc_id": doc.id, **fields, "expected": date_fields(doc)}, ctx).result
+    for name in DATE_FIELDS:
+        setattr(doc, name, written[name])
 
 
 def _summary_row(record: dict[str, Any]) -> dict[str, Any]:
@@ -310,6 +323,10 @@ async def date_extract_tool(
     project_languages = _project_languages(library_path)
 
     db = db_manager.get_database(library_path)
+    # Every write to a page's date is recorded under this run, so taking the run back puts each
+    # page's previous date back (#5597).
+    ctx = ActionContext(actor="system", run_id=state.get("task_id"), library_path=str(library_path),
+                        is_bootstrap=True)
     results: list[dict[str, Any]] = []
     dated = undated = none_found = 0
     changed_ids: list[str] = []
@@ -427,9 +444,8 @@ async def date_extract_tool(
                     "found_at": utc_now().isoformat(),
                 }
             if new_meta != existing_meta:
-                doc.date_meta = new_meta
-                doc.updated_at = utc_now()
-                db.save(doc)
+                _write_date(db, doc, {"date_original": doc.date_original, "date_jdn": doc.date_jdn,
+                                      "date_jdn_end": doc.date_jdn_end, "date_meta": new_meta}, ctx)
 
             record = {
                 "document_id": doc.id,
@@ -455,21 +471,20 @@ async def date_extract_tool(
             changed_ids.append(doc.id)
             continue
         if parsed is not None:
-            doc.date_original = parsed.original
-            doc.date_jdn = parsed.jdn
-            doc.date_jdn_end = parsed.jdn_end
-            doc.date_meta = parsed.as_meta()
+            fields = {
+                "date_original": parsed.original,
+                "date_jdn": parsed.jdn,
+                "date_jdn_end": parsed.jdn_end,
+                "date_meta": parsed.as_meta(),
+            }
             dated += 1
         else:
             # Columns stay NULL (sort falls back to created_at); date_meta
             # records WHICH kind of nothing this is.
-            doc.date_original = None
-            doc.date_jdn = None
-            doc.date_jdn_end = None
             # source distinguishes "the MANUSCRIPT says n.d." read by
             # extraction from the same status asserted by a user in
             # document.set_date (source: user) — different claims, kept apart.
-            doc.date_meta = {
+            meta = {
                 "status": status,
                 "source": "extracted",
                 "extracted_at": utc_now().isoformat(),
@@ -477,17 +492,17 @@ async def date_extract_tool(
             # A refused heading ("Feb 31") or a non-entry page is a finding the
             # person can see, not the same as finding nothing (#5514).
             if finding.invalid:
-                doc.date_meta["invalid"] = finding.invalid
+                meta["invalid"] = finding.invalid
             if finding.non_entry:
-                doc.date_meta["non_entry"] = finding.non_entry
+                meta["non_entry"] = finding.non_entry
             if finding.ambiguous:
-                doc.date_meta["ambiguous"] = finding.ambiguous
+                meta["ambiguous"] = finding.ambiguous
+            fields = {"date_original": None, "date_jdn": None, "date_jdn_end": None, "date_meta": meta}
             if status == STATUS_UNDATED_EXPLICIT:
                 undated += 1
             else:
                 none_found += 1
-        doc.updated_at = utc_now()
-        db.save(doc)
+        _write_date(db, doc, fields, ctx)
         changed_ids.append(doc.id)
 
         record = {
