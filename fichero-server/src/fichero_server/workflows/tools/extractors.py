@@ -2257,17 +2257,34 @@ class _QuoteAnchor:
     meta: dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def anchor_for(self, document_id: str, start: int, end: int) -> SourceAnchor | None:
-        """The line the span starts on, the reading measured, the span within that reading."""
-        from fichero_server.checking.tie_text import lines_under
+        return line_anchor(self.lines, document_id, start, end)
 
-        under = lines_under(self.lines, start, end)
-        if not under:
-            return None
-        first = under[0]
-        return SourceAnchor(document_id=document_id, segment_id=first.segment_id,
-                            representation_id=first.representation_id,
-                            char_start=max(start, first.start) - first.start,
-                            char_end=min(end, first.end) - first.start)
+
+def line_anchor(lines: list[Any], document_id: str, start: int, end: int) -> SourceAnchor | None:
+    """A span `[start, end)` of a page text, on the line it starts on (`lines` from `tie_text.line_spans`
+    over the same text): the segment, the reading the tie gave it, and the span within that reading. None
+    when the span is on no tied line."""
+    from fichero_server.checking.tie_text import lines_under
+
+    under = lines_under(lines, start, end)
+    if not under:
+        return None
+    first = under[0]
+    return SourceAnchor(document_id=document_id, segment_id=first.segment_id,
+                        representation_id=first.representation_id,
+                        char_start=max(start, first.start) - first.start,
+                        char_end=min(end, first.end) - first.start)
+
+
+def _on_line(anchor: SourceAnchor | None, on_line: SourceAnchor | None) -> SourceAnchor | None:
+    """`anchor` (perhaps a rectangle the model gave) with the line's segment, reading and span added."""
+    if on_line is None:
+        return anchor
+    if anchor is None:
+        return on_line
+    return anchor.model_copy(update={"segment_id": on_line.segment_id,
+                                     "representation_id": on_line.representation_id,
+                                     "char_start": on_line.char_start, "char_end": on_line.char_end})
 
 
 def _anchor_quotation(
@@ -2372,6 +2389,73 @@ def _speaker_mention(
     return said
 
 
+# A name found is a mention (`source.extract.names-as-mentions`, #5488): each place the page writes it, as
+# a supporting source on the entity with its span in the page text, and, when the page text is tied to its
+# lines (`checking.tie_text.line_spans`), the line and the reading the span is on, so the line's
+# "what is said here" read (`GET /api/segments/{id}/statements`) finds it. A local NER model gives its
+# spans; a language model's name is found in the text as written, exactly, never guessed. A name looked
+# for and not found is kept on the page unanchored and says so.
+NAME_NOT_WRITTEN = "the name is not written in the page text"
+
+
+def name_spans(text: str, forms: Any) -> list[tuple[int, int]]:
+    """Every place one of `forms` is written in `text`, exactly and as whole words; the longest form wins
+    where two overlap. A model's name that the page does not write is not looked for loosely."""
+    taken: list[tuple[int, int]] = []
+    for form in sorted({str(f).strip() for f in forms if f and str(f).strip()}, key=len, reverse=True):
+        for m in _re.finditer(r"(?<!\w)" + _re.escape(form) + r"(?!\w)", text):
+            if not any(m.start() < e and s < m.end() for s, e in taken):
+                taken.append(m.span())
+    return sorted(taken)
+
+
+def write_mentions(
+    db: Any,
+    entity_id: str,
+    document_id: str,
+    text: str,
+    spans: list[tuple[int, int]],
+    lines: list[Any],
+    *,
+    name: str,
+    page_label: str | None = None,
+) -> int:
+    """Write the entity's mentions on this page: one supporting source per span of `text`, on its line when
+    `lines` has one. A span already recorded is rewritten (a page tied since names its line now). No spans:
+    the name is kept unanchored with `mention_unanchored_reason`, unless the entity already has a mention on
+    this page. Returns the number of mentions on a line."""
+    from fichero_server.models.knowledge import KnowledgeEntity, SourceSupport
+
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        return 0
+    supports = list(entity.source_supports)
+    on_page = [s for s in supports if s.source_document_id == document_id]
+    on_lines = 0
+    if spans:
+        new = []
+        for start, end in spans:
+            anchor = line_anchor(lines, document_id, start, end)
+            on_lines += anchor is not None
+            new.append(SourceSupport(source_document_id=document_id, source_page_label=page_label,
+                                     source_excerpt=text[start:end], source_char_start=start,
+                                     source_char_end=end, source_anchor=anchor))
+        keys = {(start, end) for start, end in spans}
+        kept = [s for s in supports if s.source_document_id != document_id or (
+            (s.source_char_start, s.source_char_end) not in keys
+            and not (s.model_extra or {}).get("mention_unanchored_reason"))]
+        supports = kept + new
+    elif not any(s.source_char_start is not None for s in on_page) and not any(
+            (s.model_extra or {}).get("mention_unanchored_reason") for s in on_page):
+        supports.append(SourceSupport(source_document_id=document_id, source_page_label=page_label,
+                                      source_excerpt=name, mention_unanchored_reason=NAME_NOT_WRITTEN))
+    else:
+        return 0
+    entity.source_supports = supports
+    db.save(entity)
+    return on_lines
+
+
 def _write_kg_rows(
     db,
     section: dict[str, Any],
@@ -2425,6 +2509,21 @@ def _write_kg_rows(
 
     entity_type = section.get("entity_type")
     page_excerpt = source_excerpt  # rename for clarity below
+    # The page text the offsets below are in (the stored excerpt is the head of the chunk), and its tied
+    # lines, looked up once and only when a span needs them (#5488, #4932).
+    page_text = (grounding_text if grounding_text and (not page_excerpt or grounding_text.startswith(page_excerpt))
+                 else page_excerpt) or ""
+    tied_lines: list[Any] | None = None
+
+    def page_lines() -> list[Any]:
+        nonlocal tied_lines
+        if tied_lines is None:
+            from fichero_server.checking.tie_text import line_spans
+
+            tied_lines = line_spans(db, container_id, page_text)
+        return tied_lines
+
+    named_on_page: set[str] = set()
 
     # Build the alias index ONCE per section (#1119). Cheaper than per-claim;
     # rebuilt next section so newly-upserted entities are included for the
@@ -2992,19 +3091,15 @@ def _write_kg_rows(
             if quote.start is not None:
                 meta["source_text"] = meta["quote_text"]
                 excerpt = meta["quote_text"]
-                on_line = quote.anchor_for(container_id, quote.start, quote.end)
-                if on_line is not None:
-                    source_anchor = (
-                        source_anchor.model_copy(update={
-                            "segment_id": on_line.segment_id,
-                            "representation_id": on_line.representation_id,
-                            "char_start": on_line.char_start,
-                            "char_end": on_line.char_end,
-                        })
-                        if source_anchor is not None else on_line
-                    )
+                source_anchor = _on_line(source_anchor,
+                                         quote.anchor_for(container_id, quote.start, quote.end))
             else:
                 excerpt = meta.get("quote_context") or excerpt
+        elif char_start is not None and page_text:
+            # Any other statement whose words were found on the page rests on the line they start on
+            # (`source.extract.statements-on-segments`, #4932): the same tie seam the quotation uses.
+            source_anchor = _on_line(source_anchor,
+                                     line_anchor(page_lines(), container_id, char_start, char_end))
 
         # Two-axis classification on every claim:
         #   epistemic_status — how firmly asserted (tentative/confirmed/rejected)
@@ -3247,6 +3342,14 @@ def _write_kg_rows(
         if quote is not None:
             meta.update(_speaker_mention(db, quote, entity_id, canonical, container_id, page_label))
             quote_kw["speaker_name"] = canonical
+        elif page_text and entity_id not in named_on_page:
+            # The name's mentions on this page, each on its line (#5488).
+            named_on_page.add(entity_id)
+            raw_name = str(item.get("name") or item.get("nombre") or "").strip()
+            write_mentions(db, entity_id, container_id, page_text,
+                           name_spans(page_text, [raw_name, canonical,
+                                                  *(aliases if isinstance(aliases, list) else [])]),
+                           page_lines(), name=canonical, page_label=page_label)
         # #1119 — reverse alias scan over claim text + predicate + excerpt.
         # Subject entity is already in entity_ids; the scan extends with
         # any OTHER known entities mentioned. Example: "Chocó is part of

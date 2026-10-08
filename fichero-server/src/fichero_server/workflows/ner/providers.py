@@ -214,8 +214,13 @@ class SpacyNERProvider(BaseNERProvider):
         # The pinned pipeline and no other (`runtime.spacy.pin-is-honoured`).
         spans = spacy_ner.extract_entities(text, language=effective_language, model=self.model_name)
         clustered = spacy_ner.cluster_aliases(spans)
+        by_form = {(span.fichero_type, span.text): span for span in spans}
         records: list[ExtractedEntity] = []
         for canonical, aliases in clustered.items():
+            # Every place the cluster's names are written, kept for the mentions (#5488).
+            members = [canonical, *(by_form.get((canonical.fichero_type, a)) for a in aliases)]
+            written = sorted({tuple(at) for m in members if m is not None
+                              for at in (m.occurrences or ((m.start, m.end),))})
             records.append(
                 _record(
                     name=canonical.text,
@@ -225,7 +230,7 @@ class SpacyNERProvider(BaseNERProvider):
                     confidence=0.99,
                     source_offsets=(canonical.start, canonical.end),
                     aliases=aliases,
-                    metadata={"label": canonical.label},
+                    metadata={"label": canonical.label, "spans": [list(at) for at in written]},
                 )
             )
         return records

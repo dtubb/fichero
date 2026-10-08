@@ -37,7 +37,7 @@ from fichero_server.workflows.tools.extract_all import (
     _entities_only_is_empty,
     _entity_schema_in_prompt,
 )
-from fichero_server.workflows.tools.extractors import _SECTIONS
+from fichero_server.workflows.tools.extractors import _SECTIONS, name_spans, write_mentions
 from fichero_server.workflows.tools.import_artifacts import _coerce_documents
 from fichero_server.workflows.tools.progress import emit_progress_event
 from fichero_server.workflows.tools.sources import files_tool
@@ -283,6 +283,7 @@ async def extract_entities_only(
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
     """Run the shared Stage-1 entity extractor and persist entity rows only."""
+    from fichero_server.checking.tie_text import line_spans
     library_path = state.get("library_path", "")
     if not library_path:
         return {
@@ -368,6 +369,7 @@ async def extract_entities_only(
     asserted_by = run_attribution(getattr(llm_config, "provider", None), getattr(llm_config, "model", None),
                                   state.get("task_id"))
     mentions_processed = 0
+    mentions_on_lines = 0
     created = 0
     reused = 0
     suppressed = 0
@@ -408,7 +410,10 @@ async def extract_entities_only(
 
         # (canonical_name, entity_type, aliases) to upsert, from whichever
         # extractor this run selected. The upsert loop below is shared.
-        mentions: list[tuple[str, Any, list[str]]] = []
+        # The fourth element is where the name is written in the text (#5488): the local NER model's own
+        # spans, or None for a language model's name, which is then found in the text as written.
+        mentions: list[tuple[str, Any, list[str], list[tuple[int, int]] | None]] = []
+        text = record["text"]
         if use_local_ner:
             spans = await ner_provider.extract(
                 record["text"], language=resolution.language
@@ -420,9 +425,12 @@ async def extract_entities_only(
                 entity_type = _ENTITY_TYPES.get(section_key)
                 if entity_type is None:
                     continue
-                mentions.append(
-                    (str(span.name or "").strip(), entity_type, list(span.aliases or []))
-                )
+                written = (span.metadata or {}).get("spans") or (
+                    [span.source_offsets] if span.source_offsets else [])
+                mentions.append((
+                    str(span.name or "").strip(), entity_type, list(span.aliases or []),
+                    [(int(s), int(e)) for s, e in written if 0 <= int(s) < int(e) <= len(text)],
+                ))
             if not mentions and len(record["text"].strip()) > 200:
                 logger.warning(
                     "extract_entities_only: spaCy NER found no entities for %s (%d chars)",
@@ -454,11 +462,13 @@ async def extract_entities_only(
                             str(entity.name or "").strip(),
                             entity_type,
                             list(getattr(entity, "aliases", []) or []),
+                            None,
                         )
                     )
 
         written_entity_ids: list[str] = []
-        for canonical_name, entity_type, aliases in mentions:
+        lines = line_spans(db, record["doc_id"], text) if mentions else []
+        for canonical_name, entity_type, aliases, written in mentions:
             if not canonical_name:
                 continue
             mentions_processed += 1
@@ -474,6 +484,12 @@ async def extract_entities_only(
                 suppressed += 1
                 continue
             written_entity_ids.append(entity_id)
+            # Each place the name is written is a mention, on its line when the page is tied (#5488).
+            mentions_on_lines += write_mentions(
+                db, entity_id, record["doc_id"], text,
+                written if written is not None else name_spans(text, [canonical_name, *aliases]),
+                lines, name=canonical_name, page_label=None,
+            )
             if entity_id in known_entity_ids:
                 reused += 1
             else:
@@ -501,6 +517,8 @@ async def extract_entities_only(
     summary = {
         "documents_processed": processed,
         "entity_mentions_processed": mentions_processed,
+        # Names written on a line of a page tied to its lines (#5488).
+        "mentions_on_lines": mentions_on_lines,
         "entities_created": created,
         "entities_reused": reused,
         "entities_suppressed": suppressed,

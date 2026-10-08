@@ -34,7 +34,8 @@ import logging
 import re
 import threading
 import unicodedata
-from dataclasses import dataclass
+import dataclasses
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -194,6 +195,10 @@ class EntitySpan:
     start: int
     end: int
     label: str  # raw spaCy label, kept for downstream inspection
+    #: Every place this name is written in the input text, as (start, end), the first one included, each
+    #: cut to the name where a person's span ran on into a descriptor (#5488: a name found is a mention
+    #: per occurrence). Not part of the span's identity.
+    occurrences: tuple[tuple[int, int], ...] = field(default=(), compare=False)
 
 
 # Model preference PER LANGUAGE, best first. `md` before `sm` for the two
@@ -441,6 +446,7 @@ def extract_entities(text: str, language: str | None = None, model: str | None =
         doc = nlp(text)
 
         seen: dict[tuple[str, str], EntitySpan] = {}
+        written: dict[tuple[str, str], list[tuple[int, int]]] = {}
         for ent in doc.ents:
             fichero_type = label_map.get(ent.label_)
             if not fichero_type:
@@ -455,6 +461,9 @@ def extract_entities(text: str, language: str | None = None, model: str | None =
                 # same person's mentions collapse to one entity, not fragment.
                 name = trim_person_name(name)
             key = (name, fichero_type)
+            # The name's own stretch: a span that ran on past the trimmed name is cut back to it.
+            end = ent.start_char + len(name) if name and ent.text.startswith(name) else ent.end_char
+            written.setdefault(key, []).append((ent.start_char, end))
             if key in seen:
                 # Keep the earliest occurrence — the LLM later sees this
                 # one span and can include the parenthetical variants
@@ -467,7 +476,7 @@ def extract_entities(text: str, language: str | None = None, model: str | None =
                 end=ent.end_char,
                 label=ent.label_,
             )
-    return list(seen.values())
+    return [dataclasses.replace(span, occurrences=tuple(written[key])) for key, span in seen.items()]
 
 
 def cluster_aliases(spans: list[EntitySpan]) -> dict[EntitySpan, list[str]]:
