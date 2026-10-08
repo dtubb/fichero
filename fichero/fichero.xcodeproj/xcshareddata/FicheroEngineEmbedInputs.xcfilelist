@@ -355,6 +355,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/model_recommendations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/model_types.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/multilingual.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/orchestration_policy.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/places.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/prompts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/provider_validation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/providers.py

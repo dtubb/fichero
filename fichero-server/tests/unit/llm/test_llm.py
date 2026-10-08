@@ -1289,6 +1289,8 @@ async def test_collect_usage_records_chat_usage_metadata() -> None:
             # the cheaper cache rate (2026-09-03).
             "cache_read_tokens": 0,
             "estimated": False,
+            # Where it ran (llm/places.py, #5586).
+            "place": "provider",
         }
     ]
 
@@ -1353,6 +1355,7 @@ async def test_collect_usage_records_structured_usage_metadata() -> None:
             "total_tokens": 165,
             "cache_read_tokens": 0,
             "estimated": False,
+            "place": "provider",
             "method": "function_calling",
         }
     ]

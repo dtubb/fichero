@@ -306,21 +306,27 @@ it needs the maintainer's ruling (question 1).
 
 ### A. Places
 
-- `ai.where.place-is-by-address` — **[BROKEN]** (#5586) whether a place keeps pages on this
+- `ai.where.place-is-by-address` — **[OK]** (#5586) whether a place keeps pages on this
   Mac, which lane it uses and whether it is free are worked out from its address (loopback or
   in-process = this Mac; an address the person added as theirs = own machine; anything else = the
-  company or cluster that runs it), never from the provider type. Today `ollama`/`lmstudio` are
-  local by type (`llm/providers.py:161-190`), so a remote Ollama skips the egress check
-  (`llm/__init__.py:1210-1222`), takes the `local-ml` lane (`:1500`, `execution/jobs.py:1093`) and
-  prices as free (`llm/usage.py:46-60`). *Test:* an `ollama` row at `http://10.0.0.5:11434` is
-  refused for a project that keeps pages here, runs on the `network` lane, and is shown as "your
-  machine".
-- `ai.where.row-address-reaches-runs` — **[BROKEN]** (#5587) a provider row's Server URL is
-  the address every call to that row uses, in a workflow run as in chat and the model list. Today
-  workflow `LLMConfig`s carry no `api_base` (`workflows/builder.py:270,298,306,326,551`), so runs call
-  the default localhost while Settings lists the remote server's models
-  (`api/routes/ai/provider_models.py:360-369`). *Test:* a run with an `ollama` row whose URL is a
-  stub server reaches the stub.
+  company or cluster that runs it), never from the provider type. Built: one rule,
+  `llm/places.py` (`place_of`: loopback, `::1`, `localhost` or a unix socket = this Mac; a model
+  server type elsewhere = `own_machine`; a cloud type stays the provider's even behind a loopback
+  proxy, which may forward), read by the local-only gate, the lane (`local-ml` vs `network`, in
+  `model_call_slot` and a page read), the vision pool and pricing (a call off this Mac records its
+  `place` and is unpriced, never $0); the providers route names each row's `place`. The project's
+  own rule is slice 2 (`.one-egress-gate`); Settings showing it is `.settings-lists-places`.
+  *Test:* `fichero-server/tests/unit/llm/test_where_models_run.py` (an `ollama` row at
+  `http://10.0.0.5:11434` is refused under local-only, a run at an address off loopback takes the
+  `network` lane and is unpriced, the route says `own_machine`).
+- `ai.where.row-address-reaches-runs` — **[OK]** (#5587) a provider row's Server URL is
+  the address every call to that row uses, in a workflow run as in chat and the model list. Built:
+  one lookup (`llm/places.py` `row_server_url`/`with_row_address`) used by a node's resolved
+  config (`workflows/builder.py` `_resolve_node_llm_config`), chat (`_chat_config`, which read the
+  library database before), the model list (`provider_models._configured_api_base`) and the model
+  factory (`get_langchain_model`, an Ollama/LM Studio root gaining its `/v1`). *Test:*
+  `fichero-server/tests/unit/llm/test_where_models_run.py::test_a_run_reaches_the_row_server_url_off_this_mac`
+  (a run with an `ollama` row whose URL is a stub server off loopback reaches the stub).
 - `ai.where.one-list-of-places` — **[GAP]** (#5454, #5238) one engine list of places (this Mac,
   each endpoint row, Hugging Face Jobs, each cluster), each with kind, egress class, account state,
   cost model and lane (2.2); the four vocabularies of 1.4 (11) map onto it.
@@ -391,15 +397,18 @@ it needs the maintainer's ruling (question 1).
 - `ai.where.batch-sends-ask-the-project` — **[PARTIAL]** (#5239) a training or reading package is
   sent only when the project's rule allows that place; today a per-request `pages_may_leave`
   suffices (`training/job.py:90-92`, `remote_read/job.py:99-101`).
-- `ai.where.no-first-provider-fallback` — **[BROKEN]** (#5368) a node with no model refuses,
-  naming what to set; today it takes the first enabled provider with a model
-  (`workflows/builder.py:313-328`), which may be a cloud one.
+- `ai.where.no-first-provider-fallback` — **[OK]** (#5368) a node with no model refuses,
+  naming what to set (the step, or the category default in Settings > AI > Defaults); it no longer
+  takes the first enabled provider with a model, which may be a cloud one. *Test:*
+  `fichero-server/tests/unit/llm/test_where_models_run.py::test_a_step_with_no_model_refuses_rather_than_take_the_first_provider`,
+  `fichero-server/tests/unit/workflows/test_builder_llm_config.py`.
 
 ### E. One job model, wherever it runs
 
 - `ai.where.lane-from-the-place` — **[PARTIAL]** (#5353, #5358) the lane is the place's: this Mac
   and model servers on it → `local-ml`; other endpoints → `network`, shared per place; batch →
-  `remote`. Built with provider type in place of place (`llm/__init__.py:1500`).
+  `remote`. Built: `local-ml` vs `network` by the place's address (`llm/places.py`, #5586). Not
+  built: the `network` share per place (it is per provider) and the `remote` lane for batch.
 - `ai.where.every-runtime-on-a-lane` — **[PARTIAL]** (#5353, #5370) every model call is a row on a
   lane; local Whisper (`workflows/tools/audio_base.py:128-168`) and Apple's bridge
   (`llm/__init__.py:1485-1488`) take none today.

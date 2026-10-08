@@ -15,7 +15,6 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero_server.db.app import get_app_db
 from fichero_server.security.keychain import get_api_key
 from fichero_server.llm.providers import get_provider_info
 from fichero_server.llm.model_types import infer_vision_support, is_batch_only_model
@@ -281,6 +280,9 @@ class ProviderResponse(BaseModel):
     sort_order: int
     has_api_key: bool
     created_at: str
+    place: str = "provider"
+    """Where this row's models run, by its address (`llm.places.place_of`, #5586): `this_mac`,
+    `own_machine` (a server at an address off this Mac: "your machine") or `provider`."""
 
 
 class ProviderListResponse(BaseModel):
@@ -358,15 +360,11 @@ class UserModelListResponse(BaseModel):
 
 
 def _configured_api_base(provider_type: str, default: str) -> str:
-    """Return the first configured api_base for provider_type, else default."""
-    try:
-        app_db = get_app_db()
-        for provider in app_db.list_providers():
-            if provider.provider_type.value == provider_type and provider.api_base:
-                return provider.api_base.rstrip("/")
-    except Exception as exc:
-        logger.debug("Provider api_base lookup failed for %s: %s", provider_type, exc)
-    return default.rstrip("/")
+    """Return the first configured api_base for provider_type, else default: the row's Server URL
+    by the one lookup a call uses (`llm.places.row_server_url`, #5587)."""
+    from fichero_server.llm.places import row_server_url
+
+    return (row_server_url(provider_type) or default).rstrip("/")
 
 
 # ---------------------------------------------------------------------------

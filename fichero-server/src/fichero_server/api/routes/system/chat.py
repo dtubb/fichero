@@ -28,7 +28,6 @@ from fichero_server.models import (
     DocType,
     Document,
     Model as ModelModel,
-    Provider as ProviderModel,
 )
 from fichero_server.api.routes.document.documents import (
     WorkspaceCuratedItem,
@@ -426,22 +425,20 @@ def _chat_config(db: Database, provider: str = None, model: str = None):
                     )
                 model = info.default_model
 
-    # Get provider info for API base
-    provider_db = db.query(ProviderModel, provider_type=provider)
-    api_base = provider_db[0].api_base if provider_db else None
-
     # LLMConfig only — get_langchain_model resolves to the module-level
     # passthrough above, which tests patch. A local import of it here would
     # shadow that patch (#3950).
     from fichero_server.llm import LLMConfig  # noqa: PLC0415
+    from fichero_server.llm.places import with_row_address  # noqa: PLC0415
 
-    return LLMConfig(
+    # The provider row's Server URL (app.duckdb, where rows live; not the library), by the one rule
+    # a workflow run uses too (#5587).
+    return with_row_address(LLMConfig(
         provider=provider,
         model=model,
         temperature=0.7,
         max_tokens=2048,
-        api_base=api_base,
-    )
+    ))
 
 
 async def _ask(llm: Any, messages: list, *, config: Any, ctx: ActionContext) -> Any:

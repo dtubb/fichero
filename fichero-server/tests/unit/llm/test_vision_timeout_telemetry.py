@@ -97,6 +97,7 @@ async def test_vision_records_usage_when_present() -> None:
     assert result == "a tree"
     mock_record.assert_called_once_with(
         cfg.provider, cfg.model, "vision",
+        place="provider",  # where it ran (llm/places.py, #5586)
         input_tokens=10,
         output_tokens=5,
         total_tokens=15,

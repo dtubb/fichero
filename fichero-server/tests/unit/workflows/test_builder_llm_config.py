@@ -228,70 +228,28 @@ def test_transcribe_node_without_override_uses_vision_category_default(monkeypat
     assert resolved.model == "apple-vision"
 
 
-def test_apple_included_in_vision_provider_fallback(monkeypatch):
-    """#2243: Apple must be included in the last-resort provider scan for
-    vision nodes so Catalogue/Transcribe work out of the box when only Apple
-    Intelligence is configured.  Before the fix Apple was unconditionally in
-    llm_unsupported and was skipped even for vision tools."""
-    node = NodeDef(id="n1", tool="transcribe", config={})
-    workflow_cfg = LLMConfig(provider="", model="")
+def test_no_model_anywhere_refuses_rather_than_take_the_first_provider(monkeypatch):
+    """`ai.where.no-first-provider-fallback` (#5368): with no model on the node, the workflow or
+    Settings, the node refuses, naming what to set. An enabled provider with a model (here a
+    cloud one) is never picked for it; this used to be the last resort (#704, #2243)."""
+    import pytest
 
-    providers = [
-        SimpleNamespace(
-            id="apple-provider",
-            enabled=True,
-            provider_type=SimpleNamespace(value="apple"),
-        ),
-    ]
-    models_by_provider = {
-        "apple-provider": [SimpleNamespace(model_id="apple-intelligence", enabled=True)],
-    }
-    fake_db = SimpleNamespace(
-        get_default_model_for_category=lambda _category: None,
-        get_default_model=lambda: None,
-        list_providers=lambda: providers,
-        list_models=lambda provider_id: models_by_provider[provider_id],
-    )
-    monkeypatch.setattr(
-        "fichero_server.workflows.builder.get_tool_def",
-        lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
-    )
-    monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: fake_db)
-
-    resolved = _resolve_node_llm_config(node, workflow_cfg)
-    assert resolved.provider == "apple"
-    assert resolved.model == "apple-intelligence"
-
-
-def test_apple_excluded_from_llm_text_provider_fallback(monkeypatch):
-    """Apple must remain excluded from the last-resort provider scan for text/LLM
-    nodes — llm.chat() has no Foundation Models adapter, so Apple can only serve
-    vision calls.  When Apple is first and OpenAI second, a text node must
-    skip Apple and fall back to OpenAI."""
     node = NodeDef(id="n1", tool="summarize", config={})
     workflow_cfg = LLMConfig(provider="", model="")
 
     providers = [
         SimpleNamespace(
-            id="apple-provider",
-            enabled=True,
-            provider_type=SimpleNamespace(value="apple"),
-        ),
-        SimpleNamespace(
             id="openai-provider",
             enabled=True,
             provider_type=SimpleNamespace(value="openai"),
+            api_base=None,
         ),
     ]
-    models_by_provider = {
-        "apple-provider": [SimpleNamespace(model_id="apple-intelligence", enabled=True)],
-        "openai-provider": [SimpleNamespace(model_id="gpt-4o-mini", enabled=True)],
-    }
     fake_db = SimpleNamespace(
         get_default_model_for_category=lambda _category: None,
         get_default_model=lambda: None,
         list_providers=lambda: providers,
-        list_models=lambda provider_id: models_by_provider[provider_id],
+        list_models=lambda _provider_id: [SimpleNamespace(model_id="gpt-4o-mini", enabled=True)],
     )
     monkeypatch.setattr(
         "fichero_server.workflows.builder.get_tool_def",
@@ -299,9 +257,8 @@ def test_apple_excluded_from_llm_text_provider_fallback(monkeypatch):
     )
     monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: fake_db)
 
-    resolved = _resolve_node_llm_config(node, workflow_cfg)
-    assert resolved.provider == "openai"
-    assert resolved.model == "gpt-4o-mini"
+    with pytest.raises(ValueError, match="No model is set for this step.*Settings > AI"):
+        _resolve_node_llm_config(node, workflow_cfg)
 
 
 def test_non_llm_tool_keeps_workflow_config(monkeypatch):

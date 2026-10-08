@@ -14,15 +14,16 @@ from uuid import uuid4
 import pytest
 
 from fichero_server.db import db_manager
-from fichero_server.llm import LLMConfig, _is_local_or_builtin_provider, chat, chat_structured
+from fichero_server.llm import LLMConfig, chat, chat_structured
+from fichero_server.llm.places import runs_on_this_mac
 from fichero_server.models import Artifact, DocType, Document
 from fichero_server.llm.providers import ProviderType, get_provider_info
 from fichero_server.workflows.tools import extract_all as extract_all_module
 
 
 def test_mock_registers_as_local_and_builtin():
-    """mock inherits every free / no-PAID gate via _is_local_or_builtin_provider."""
-    assert _is_local_or_builtin_provider("mock") is True
+    """mock inherits every free / no-PAID gate: it runs on this Mac (llm/places.py)."""
+    assert runs_on_this_mac(LLMConfig(provider="mock", model="mock")) is True
 
     info = get_provider_info("mock")
     assert info is not None

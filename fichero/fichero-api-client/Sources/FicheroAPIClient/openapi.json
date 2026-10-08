@@ -73922,6 +73922,11 @@
           "created_at": {
             "type": "string",
             "title": "Created At"
+          },
+          "place": {
+            "type": "string",
+            "title": "Place",
+            "default": "provider"
           }
         },
         "type": "object",
