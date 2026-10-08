@@ -251,19 +251,22 @@ parallel pattern to keep.
   `undoable=False` — the generic undo endpoint 409s on anything but merge/split, and the action
   registration honestly does not claim an undo capability the endpoint cannot deliver. Pinned:
   `test_routes_entity_curation.py::TestLinkAuthorityAction::test_not_undoable_no_regression_from_bare_route`.
-- `audit.every-mutating-op-has-an-undo-surface-or-says-why-not` — **[BROKEN]** (#4907) every
+- `audit.every-mutating-op-has-an-undo-surface-or-says-why-not` — **[PARTIAL]** (#4907) every
   mutating operation should either be reachable through the generic undo endpoint or have a
   recorded reason it deliberately is not — an unlabeled gap is indistinguishable from an
-  oversight. A guardrail enforces this, `scripts/check_undo_coverage.py`, and it is currently
-  RED: 5 new mutating operations with no undo surface —
-  `POST /api/hpc/clusters/{cluster_id}/test`, `POST /api/kg/entity-curation/enrich/import`,
-  `POST /api/kg/entity-curation/enrich/preview`, `POST /api/local-models/kraken/install`,
-  `PUT /api/settings/sparql-endpoints`. Not traced to a commit this week — an older, separate
-  feature area (HPC/local-model settings), not the KG action-layer sweep this spec otherwise
-  tracks. Distinct from `audit.non-undoable-actions-say-so` above, which is about ONE verified-
-  correct example (an action that DOES honestly declare itself non-undoable) — this behavior is
-  the general rule the guardrail checks across every route, currently failing on five of them.
-  *Test:* the guardrail itself.
+  oversight. A guardrail enforces this, `scripts/check_undo_coverage.py`, against the baseline
+  `scripts/check_undo_coverage_known_gaps.json`; it is green. The five operations the
+  2026-09-19 review found (#4907) now each record the true reason: the HPC cluster test and
+  the Wikidata enrich preview write nothing (dry-run probe, read-only fetch); the Kraken
+  install is a no-op since Kraken is bundled; the SPARQL-endpoint list is an app preference,
+  undone by setting it again like the other settings routes; enrich import is audited through
+  `entity.enrich_import` but registered not undoable (no batch claim-delete inverse yet; each
+  imported claim is removed by its own undoable `claim.delete`). Still PARTIAL, not OK: many
+  older baseline entries still carry a generic "no undo registration" reason rather than a
+  decided one. Distinct from `audit.non-undoable-actions-say-so` above, which is about ONE
+  verified-correct example. *Test:* the guardrail itself, plus
+  `scripts/test_check_undo_coverage.py::test_each_reviewed_gap_records_why_it_is_not_undoable`
+  and `::test_enrich_import_is_honestly_not_undoable_in_the_registry`.
 
 ### E. Only the action surface reaches a capability
 
