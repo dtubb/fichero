@@ -170,3 +170,31 @@ class TestTheScanStillSeesTheWholeSurface:
     def test_undo_registering_files_are_still_found(self):
         """If this drops to zero the guard has gone blind, which is worse than red."""
         assert len(check_undo_coverage.UNDO_SOURCES) >= 8
+
+
+#: #4907: the five operations the 2026-09-19 review found with no undo surface. Each must stay
+#: in the baseline with the reason it is not undoable, never the generic "pre-existing drift".
+_REVIEWED_4907 = (
+    "POST /api/hpc/clusters/{cluster_id}/test",
+    "POST /api/kg/entity-curation/enrich/import",
+    "POST /api/kg/entity-curation/enrich/preview",
+    "POST /api/local-models/kraken/install",
+    "PUT /api/settings/sparql-endpoints",
+)
+
+
+def test_each_reviewed_gap_records_why_it_is_not_undoable():
+    known = check_undo_coverage.KNOWN_GAPS
+    for endpoint in _REVIEWED_4907:
+        reason = known.get(endpoint, "")
+        assert reason, f"{endpoint} has no recorded reason"
+        assert "pre-existing drift" not in reason, f"{endpoint}: {reason}"
+
+
+def test_enrich_import_is_honestly_not_undoable_in_the_registry():
+    """The baseline's reason for enrich/import is only true while the action says so."""
+    from fichero_server.actions.registry import registry
+    import fichero_server.api.routes.kg.entity_curation  # noqa: F401 -- registers the action
+
+    assert registry.get("entity.enrich_import").undoable is False
+    assert registry.get("claim.delete").undoable is True

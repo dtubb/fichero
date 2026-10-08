@@ -30,8 +30,6 @@ from fichero_server.models.knowledge import (
     DocumentCitation,
     KnowledgeClaim,
     KnowledgeEntity,
-    MutationLog,
-    MutationOperationType,
     Note,
 )
 from fichero_server.models import Artifact, DocType, Document, FileType, Status
@@ -2781,8 +2779,10 @@ def batch_exclude_documents_impl(
     """Toggle exclude-from-processing on multiple documents.
 
     Returns ``(updated_ids, before_snapshots)``. De-duplicates input ids; raises
-    404 on the first unknown id (matching the route). Writes a per-document
-    ``MutationLog`` row as before, and returns before-snapshots for action undo.
+    404 on the first unknown id (matching the route). Returns before-snapshots
+    for action undo. Writes NO ``MutationLog`` row: #4864
+    (audit.one-operation-has-one-undo) -- ``document.batch_exclude``'s own
+    ActionAudit is the one trail, its inverse the one undo.
     """
     seen: set[str] = set()
     updated_ids: list[str] = []
@@ -2799,23 +2799,10 @@ def batch_exclude_documents_impl(
         before_snapshots.append(before)
         if request.scope == DocumentExclusionScope.search:
             doc.exclude_from_search = request.excluded
-            changed_field = "exclude_from_search"
         else:
             doc.exclude_from_processing = request.excluded
-            changed_field = "exclude_from_processing"
         doc.updated_at = utc_now()
         db.save(doc)
-        db.save(
-            MutationLog(
-                entity_type="Document",
-                entity_id=doc.id,
-                operation=MutationOperationType.update,
-                before_state=before,
-                after_state=doc.model_dump(mode="json"),
-                changed_fields=[changed_field],
-                created_by=request.reason or "batch_exclude_documents",
-            )
-        )
         updated_ids.append(doc.id)
     return updated_ids, before_snapshots
 

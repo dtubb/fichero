@@ -99,7 +99,7 @@ parallel pattern to keep.
   `::test_invoke_validates_params`, `::test_invoke_unknown_action_raises`,
   `::TestActionsRegistryRoute::test_invoke_via_route_writes_audit`,
   `::TestEntityMergeAction::test_merge_via_registry_effect_and_audit`.
-- `audit.actor-cannot-be-forged` — **[PARTIAL]** (#3129, #2980, #4844, fixed for #4843's specific finding by
+- `audit.actor-cannot-be-forged` — **[OK]** (#3129, #2980, #4844, fixed for #4843's specific finding by
   8aa6c8e12) `POST /api/actions/invoke` rejects a request body that sets `actor`/
   `origin_window` directly (`InvokeActionRequest.reject_deprecated_fields`, → #3285); the real
   actor is derived exclusively from authenticated request state (`action_context()` →
@@ -109,10 +109,12 @@ parallel pattern to keep.
   .updated_by` field stays on the request model for compatibility, but its value is now
   IGNORED — the route stores `updated_by=actor` (`inclusion.py:63,71`), never
   `request.updated_by`; a test sends a forged name and reads the real actor back from the
-  stored row. Verified at HEAD: no code path reads `request.updated_by` for the write. Still
-  PARTIAL, not OK: the `POST /api/actions/invoke` guard itself remains untested — no test
-  drives the route with a forged `actor` and asserts the rejection; that half is still filed
-  as #4844. Pinned: `test_routes_kg_inclusion.py::test_forged_updated_by_is_ignored`.
+  stored row. Verified at HEAD: no code path reads `request.updated_by` for the write. The
+  `POST /api/actions/invoke` guard is now driven through the route too (#4844): a body naming
+  `actor` or `origin_window` gets a 422, the action never runs and no audit row is written;
+  the same call without the field runs under the request's actor. Pinned:
+  `test_routes_kg_inclusion.py::test_forged_updated_by_is_ignored`,
+  `security/test_invoke_actor_cannot_be_forged.py`.
 - `audit.undo-redo-is-generic` — **[OK]** one endpoint (`POST
   /api/actions/audit/{audit_id}/undo`) reverses any undoable action via its own declared
   `invert()`, and redoes an inverse by replaying the ORIGINAL forward action's recorded
@@ -124,8 +126,8 @@ parallel pattern to keep.
   Pinned:
   `test_action_registry.py::TestEntityMergeAction::test_undo_reverses_merge`,
   `::test_unmerge_undo_remerges_same_entities`.
-- `audit.one-operation-has-one-undo` — **[BROKEN]** (#4864) one operation has ONE undo, and
-  every undo of it gives the SAME result. Today an entity delete writes two trails.
+- `audit.one-operation-has-one-undo` — **[OK]** (#4864) one operation has ONE undo, and
+  every undo of it gives the SAME result. Before #4864 an entity delete wrote two trails.
   `delete_entity_impl` is reached through the registered, undoable `entity.delete` action,
   whose inverse `entity.restore` brings back the entity AND its claims' snapshot; the same
   function also writes a plain `MutationLog` row on every call, which feeds the older `POST
@@ -139,9 +141,16 @@ parallel pattern to keep.
   and can invert, it refuses with an error that names the action-layer undo, rather than
   restoring half the state; a refusal is loud and loses nothing, a partial restore is silent
   and corrupts curated links. Every other `MutationLog` writer is audited for the same
-  duplication before the narrowing is called complete. Second, open (see Open questions):
-  whether the older route then retires, or becomes a thin caller of the registry's undo, and
-  when the second trail stops being written.
+  duplication before the narrowing is called complete. Second (ruled 2026-10-04, see Open
+  questions): the second trail stops being written for those operations. **Built:** the three
+  registered, undoable actions that wrote a duplicate row — `entity.delete`, `claim.delete`,
+  `document.batch_exclude` — now write their `ActionAudit` and NO `MutationLog` row
+  (`delete_entity_impl`/`delete_claim_impl` take `write_mutation_log=False` from the action;
+  `batch_exclude_documents_impl` no longer writes one). The older route stays only for rows
+  with no undoable action behind them (the document-delete cascade, the NLP-draft purge, the
+  two non-undoable curation batch actions, migrations) and still refuses an owned row an older
+  build already wrote. Pinned: `test_mutations.py::TestOneOperationHasOneUndo` (incl.
+  `::test_an_owned_operation_writes_one_trail_not_two`, one case per action).
 - `audit.action-record-not-best-effort` — **[PARTIAL]** (#4845) the `ActionAudit` write happens
   inside the same transaction as the mutation and is NOT best-effort — if the audit write
   fails, the whole action fails (`registry.py:220-233`). The change-stream broadcast that
@@ -172,21 +181,25 @@ parallel pattern to keep.
   and `generate_heuristic_predictions` reclassified BY-DESIGN, not fixed — its body only reads
   and returns, POST only because its parameters travel in the body).
 
-  **The 9 remaining violations, verified against the live allowlist
-  (`scripts/routes_action_layer_allowlist.json`) rather than assumed from the old count:**
-  `entity_curation.py`'s `refresh_external_authority` and `enrich_import`;
-  `mutations.py::undo_mutation`; `predictions.py::apply_prediction_run`; `pykeen.py`'s `train`,
-  `delete_trained_model`, `verify_prediction`; `rebuild.py`'s `reset_kg`/`rebuild_kg`
-  (destructive).
+  **The 7 remaining violations (re-run 2026-10-08; `enrich_import` moved onto
+  `entity.enrich_import`, `reset_kg` no longer exists).** None is a mechanical wrap, so each
+  waits on a decision, and the allowlist records why:
+  - `rebuild.py::rebuild_kg`, `pykeen.py::train`, `predictions.py::apply_prediction_run` are
+    long synchronous work; inside `registry.invoke` they would hold the library write
+    transaction. They need a job-shaped action.
+  - `pykeen.py`'s `delete_trained_model` and `verify_prediction` write the PyKEEN model store
+    on disk, not the library, and have no library database for the audit row.
+  - `entity_curation.py::refresh_external_authority` is a network fetch plus an upsert of the
+    authority-snapshot cache. Either audit the cache write or call it a cache (by-design).
+  - `mutations.py::undo_mutation` is ruled to retire (2026-10-04). It now serves only rows with
+    no undoable action behind them (`audit.one-operation-has-one-undo`).
 
-  **The 5 by-design routes** (one more than the 4 this behavior first found):
-  `render.py::render_paragraph`, `sparql.py`'s `sparql_query`/`sparql_query_legacy`,
-  `entity_curation.py::enrich_preview` (all as before), plus
-  `predictions.py::generate_heuristic_predictions` (new this pass, see above).
+  **The 5 by-design routes:** `render.py::render_paragraph`, `sparql.py`'s
+  `sparql_query`/`sparql_query_legacy`, `entity_curation.py::enrich_preview`,
+  `predictions.py::generate_heuristic_predictions`.
 
-  This behavior is the guardrail's own home; it stays BROKEN until the guardrail reports zero
-  unallowlisted violations — the count has now shrunk twice (20 → 15 → 9), which is the
-  tracked-debt trend this line exists to hold the fixers to, not a point-in-time snapshot.
+  This behavior is the guardrail's own home. It stays BROKEN until the guardrail reports zero
+  unallowlisted violations. The count has shrunk 20 → 15 → 9 → 7.
   Pinned: `test_check_routes_use_action_layer.py` (unchanged suite, all 13 tests), plus the
   new landings' own tests — `test_review_actions.py`, `test_routes_kg_inclusion.py`,
   `test_action_layer_batch3.py` (`TestClaimEmbedAction`, `TestEntityEmbedAction`,
@@ -242,19 +255,22 @@ parallel pattern to keep.
   `undoable=False` — the generic undo endpoint 409s on anything but merge/split, and the action
   registration honestly does not claim an undo capability the endpoint cannot deliver. Pinned:
   `test_routes_entity_curation.py::TestLinkAuthorityAction::test_not_undoable_no_regression_from_bare_route`.
-- `audit.every-mutating-op-has-an-undo-surface-or-says-why-not` — **[BROKEN]** (#4907) every
+- `audit.every-mutating-op-has-an-undo-surface-or-says-why-not` — **[PARTIAL]** (#4907) every
   mutating operation should either be reachable through the generic undo endpoint or have a
   recorded reason it deliberately is not — an unlabeled gap is indistinguishable from an
-  oversight. A guardrail enforces this, `scripts/check_undo_coverage.py`, and it is currently
-  RED: 5 new mutating operations with no undo surface —
-  `POST /api/hpc/clusters/{cluster_id}/test`, `POST /api/kg/entity-curation/enrich/import`,
-  `POST /api/kg/entity-curation/enrich/preview`, `POST /api/local-models/kraken/install`,
-  `PUT /api/settings/sparql-endpoints`. Not traced to a commit this week — an older, separate
-  feature area (HPC/local-model settings), not the KG action-layer sweep this spec otherwise
-  tracks. Distinct from `audit.non-undoable-actions-say-so` above, which is about ONE verified-
-  correct example (an action that DOES honestly declare itself non-undoable) — this behavior is
-  the general rule the guardrail checks across every route, currently failing on five of them.
-  *Test:* the guardrail itself.
+  oversight. A guardrail enforces this, `scripts/check_undo_coverage.py`, against the baseline
+  `scripts/check_undo_coverage_known_gaps.json`; it is green. The five operations the
+  2026-09-19 review found (#4907) now each record the true reason: the HPC cluster test and
+  the Wikidata enrich preview write nothing (dry-run probe, read-only fetch); the Kraken
+  install is a no-op since Kraken is bundled; the SPARQL-endpoint list is an app preference,
+  undone by setting it again like the other settings routes; enrich import is audited through
+  `entity.enrich_import` but registered not undoable (no batch claim-delete inverse yet; each
+  imported claim is removed by its own undoable `claim.delete`). Still PARTIAL, not OK: many
+  older baseline entries still carry a generic "no undo registration" reason rather than a
+  decided one. Distinct from `audit.non-undoable-actions-say-so` above, which is about ONE
+  verified-correct example. *Test:* the guardrail itself, plus
+  `scripts/test_check_undo_coverage.py::test_each_reviewed_gap_records_why_it_is_not_undoable`
+  and `::test_enrich_import_is_honestly_not_undoable_in_the_registry`.
 
 ### E. Only the action surface reaches a capability
 
@@ -287,11 +303,16 @@ parallel pattern to keep.
   it fails if any function in `mcp/tools.py` writes to the database outside
   `registry.invoke` unless explicitly allowlisted, and the allowlist (the "bypass list") is
   now EMPTY — a synthetic case proves the scan still catches a real bypass, so an empty list
-  reads as "nothing bypasses," not as a broken detector. Still PARTIAL, not OK: this is scoped
-  to `mcp/tools.py` specifically, not a general "every capability the CLI/agent surface
-  exposes has a matching registered action" guardrail across the whole app — the broader
-  invariant this behavior's id names is still only a design intent, not a checked property
-  everywhere. Pinned:
+  reads as "nothing bypasses," not as a broken detector. **The CLI half is now pinned too**
+  (#4847): a parsed scan of `fichero-cli/src` fails on any in-process route to a capability:
+  an import of the database, the registry or a route function, or a `db.save`/`db.delete`.
+  The CLI may take only types, `*_via_http` importers and a short, reasoned module allowlist
+  (transport, formatting, local manifest and file work), so it changes a library only over
+  HTTP. Still PARTIAL, not OK: over HTTP, the CLI and MCP can still reach the seven routes
+  `audit.every-mutating-route-uses-the-registry` lists as bypassing the registry, and the
+  capability-list diff against the registry (Open question 2) is not built. Pinned:
+  `fichero-cli/tests/test_cli_reaches_capabilities_only_over_http.py` (incl. a synthetic
+  bypass case),
   `test_mcp_tools_write_through_registry.py::test_no_function_writes_to_the_db_outside_registry_invoke_unless_allowlisted`,
   `::test_the_five_reconciled_tools_are_not_in_the_bypass_list`,
   `::test_the_scan_itself_would_catch_a_real_bypass`,
@@ -396,7 +417,7 @@ parallel pattern to keep.
 | Guardrail (Swift-style Python AST scan) | y | every mutating KG/entity route calls `registry.invoke` | `scripts/check_routes_use_action_layer.py` + `fichero-server/tests/unit/scripts/test_check_routes_use_action_layer.py` |
 | Backend (pytest) | y | undo/redo generic contract, actor cannot be forged, non-undoable says so | `test_routes_entity_curation.py` |
 | Backend (pytest) | y | an action-layer touch protects an NLP draft row from purge | `test_nlp_draft_purge_action.py::TestF2IndependentTouchProtection` |
-| MCP / CLI | y (MCP only) | MCP write/delete tools reach capabilities only via `registry.invoke`, source-scan enforced | `test_mcp_tools_write_through_registry.py`, `test_mcp_kg_write_attribution.py` (`audit.only-the-action-surface-reaches-capabilities`, [PARTIAL] — CLI/agent surface beyond MCP still unchecked) |
+| MCP / CLI | y | MCP write/delete tools reach capabilities only via `registry.invoke`; the CLI only over HTTP; both source-scan enforced | `test_mcp_tools_write_through_registry.py`, `test_mcp_kg_write_attribution.py`, `fichero-cli/tests/test_cli_reaches_capabilities_only_over_http.py` (`audit.only-the-action-surface-reaches-capabilities`, [PARTIAL] — the seven bypassing routes and the capability-list diff remain) |
 | OpenAPI diff | n | no dedicated regression test for the three wrapping traps | — (Open Questions) |
 
 Hard-gate: `audit.every-mutating-route-uses-the-registry` (the guardrail exists and is wired
@@ -440,5 +461,5 @@ Design content carried into this spec; files kept, not moved:
 - `audit.one-action-layer-all-surfaces` — **[GAP]** (#4166) CLI, AppleScript, MCP, Shortcuts, Spotlight and Siri are thin adapters over the one action registry, never parallel implementations (AppleScript run verbs exist, Shortcuts and Spotlight partial).
 - `audit.one-action-layer` — **[PARTIAL]** (#1848) every capability is one typed audited action reached by UI, chat tools, App Intents and tests; the spec's audit.* behaviours track the remaining gaps.
 - `actions.drop-resolves-to-typed-action` — **[GAP]** (#3707) every drop (associate, merge, move/copy, export) resolves to a typed, audited, undoable action; artifacts, annotations and pages have no move/reparent action yet.
-- `audit.params-carry-a-digest-not-content` — **[GAP]** (#5057) every action that takes content records a digest through the `audit_params` hook, not the content (24 remain; several done in b5025161a, 90d735417).
+- `audit.params-carry-a-digest-not-content` — **[OK]** (#5057) every create action that takes content records a digest through the `audit_params` hook, not the content: all of the issue's Group A creates (`artifact.create`/`bulk_create`, `document.create`, `annotation.create`, `note.create`, `research.note.create`, `interpretation.create`, `canvas.item.create`, `bibliography.bulk_import`; `representation.create` before them), and each one's redo restores the same row through its own inverse. Left alone on purpose: the updates (`research.note.update`, `interpretation.update`, `canvas.item.update`) and `bibliography.attach`, whose redo replays the new text; `workflow.import`; the restores; the short texts that are themselves the decision (`claim.create`, `citation.create`). Pinned (each reads the persisted ActionAudit row, not the ChangeSpec): `test_routes_artifacts.py::…::test_create_audits_digests_not_the_body`, `test_document_actions.py::…::test_create_audits_a_digest_not_the_page_text`, `test_routes_annotations_actions.py::…::test_create_audits_digests_not_the_marks_content`, `test_routes_notes_actions.py::…::test_create_audits_a_digest_not_the_body`, `test_research_notes_actions.py::test_a_research_note_audits_a_digest_and_its_redo_restores_the_same_note`, `test_hermeneutics_actions.py::…::test_create_audits_digests_not_the_interpretation`, `test_canvas_item.py::test_create_audits_digests_and_redo_restores_the_same_card`, `test_routes_bibliography_bulk_persist.py::test_the_audit_row_holds_the_files_digest_not_the_file`.
 - `audit.applescript-is-a-door-onto-the-action-layer` — **[GAP]** (#5262) AppleScript engine verbs are generated from the registry/OpenAPI and run through POST /api/actions/invoke gated and audited like CLI and MCP, with front-end hooks only for app-only verbs.

@@ -921,9 +921,20 @@ def _action_update_entity(
 
 
 def delete_entity_impl(
-    db: Database, entity_id: str, *, cascade_claims: bool = False, actor: str
+    db: Database,
+    entity_id: str,
+    *,
+    cascade_claims: bool = False,
+    actor: str,
+    write_mutation_log: bool = True,
 ) -> tuple[dict, list[dict[str, str]]]:
     """Delete an entity, either cascading its claims or repointing them.
+
+    ``write_mutation_log``: #4864 (audit.one-operation-has-one-undo) -- the
+    registered ``entity.delete`` action passes False, because its own
+    ActionAudit is the one trail and ``entity.restore`` the one undo. Only
+    callers with NO undoable action behind them (the NLP-draft purge) keep
+    the older ``MutationLog`` row as their per-row trail.
 
     #4863 (kg.delete.clears-entity-links): a DELETED entity is not merely
     absorbed the way a merge's target is — it no longer exists at all — so
@@ -986,6 +997,9 @@ def delete_entity_impl(
         )
 
     db.delete(entity)
+
+    if not write_mutation_log:
+        return {"entity_id": entity_id}, claim_field_clears
 
     try:
         from fichero_server.models.knowledge import MutationLog, MutationOperationType
@@ -1057,6 +1071,7 @@ def _action_delete_entity(
         params.entity_id,
         cascade_claims=params.cascade_claims,
         actor=ctx.actor,
+        write_mutation_log=False,
     )
     spec = ChangeSpec(
         domains=["entity"],
