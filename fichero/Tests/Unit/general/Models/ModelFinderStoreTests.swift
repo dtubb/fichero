@@ -304,8 +304,9 @@ final class ModelFinderStoreTests: XCTestCase {
     func testUseForStepPostsAnyCandidateToUseCandidate() async throws {
         FinderMockURLProtocol.reset { request in
             if request.url?.path == "/api/recipes/project/steps/use-candidate" {
-                let body = String(bytes: request.bodyOrStream(), encoding: .utf8) ?? ""
-                if body.contains("\"lines\"") {
+                // The recorder has already read the body stream (it can be read once), so the second press
+                // (the 'lines' step) is the refused one by its order, not by re-reading its body.
+                if FinderMockURLProtocol.requests(to: "/api/recipes/project/steps/use-candidate").count > 1 {
                     return (422, #"{"detail":"Example OCR does not do the step 'lines' (find-lines)"}"#)
                 }
                 return (200, #"{"answers":null,"recipe":null}"#)
