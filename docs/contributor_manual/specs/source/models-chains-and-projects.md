@@ -1072,9 +1072,25 @@ plan's peak memory across steps. Ready shows none of it.
   prototypes, groups, order) are drawn on the canvas for review. Nothing in the source moves until the
   person accepts, and a project of loose material brings this stage by default. Today no purpose brings
   `find-documents-in-a-folder`, and Start has no card for it.
-- `source.onboard.auto.diary-entries` — **[GAP]** (#5581) a diary or register is split into dated
+- `source.onboard.auto.diary-entries` — **[PARTIAL]** (#5581; tested in
+  `fichero-server/tests/unit/recipes/test_diary_entries_step.py`. *Not built:* an entry that runs across a
+  page break is still two entries, one on each page (the splitter reads one page at a time); the entries are
+  ordered within their page, not across the volume by date; setup proposes the step only when it is ticked, never
+  from the material being a diary or register; the card has no row of its own in Activity and no cost in the
+  estimate; the entries are child nodes, not yet units over their lines, `source.extract.entries-are-units`,
+  #5601) a diary or register is split into dated
   entries as a recipe stage (`split-into-entries`). Each entry carries its date, the entries are ordered
-  by it, and an entry that runs across a page break is one entry.
+  by it, and an entry that runs across a page break is one entry. **At Start:** the step is a card of
+  its own (`entries`), after reading: it takes the pages' reading (`READING`, a page's or its lines'),
+  so a failed read stops it. It needs a model, the step's own (a cloud or local text model as the
+  run's provider and model, never another); a step with none is skipped with "choose-model". It runs
+  only on the pages that have text; the rest are left alone and counted. Each page is split by the
+  Diary Entries workflow's own splitter (`workflows/tools/diary_entries.split_pages_into_entries`, one
+  code path): one `entry` child per dated entry, its date as the `date` attribute, in the page's order;
+  run again, it matches the entries it made rather than making them twice. The step's account in the
+  run status (`entries`) says how many pages it split, how many had no text, and how many entries it
+  made, kept, changed and removed. The entries are not pages: they are not counted as the project's
+  material, and no later card reads them.
 - `source.onboard.auto.volumes-in-batches` — **[GAP]** (#5540) a run over several volumes goes one
   volume at a time, with every stage finished on that volume before the next volume starts. Progress is
   shown per volume.

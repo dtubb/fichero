@@ -105,7 +105,8 @@ _job("translate-transliterate-normalise", {"line_readings"}, {"line_readings"}, 
 # --- Structure and knowledge ----------------------------------------------------------------------
 # Reads the text already there (and the thumbnails), so it comes after reading (`finddocs.recipe-step`, #5550).
 _job("find-documents-in-a-folder", {READING}, {"document_groups"}, "structure", _LIST, ("accept_above",))
-_job("split-into-entries", {"line_readings"}, {"entries"}, "structure", _LIST)
+# Splits the text already read, a page's or its lines', so it comes after reading (#5581).
+_job("split-into-entries", {READING}, {"entries"}, "structure", _LIST, ("model",))
 _job("find-names-tag-words", {READING}, {"mentions"}, "entities", _LIST, ("model",))
 _job("find-statements", {READING, "mentions"}, {"claims"}, "graph", _LIST, ("model", "prompt"))
 _job("work-out-dates", {"mentions"}, {"dates"}, "graph", _LIST)

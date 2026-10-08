@@ -10,6 +10,8 @@ page, and every file that has no pages), or, after an import, over the pages tha
 * a **check** card is a check run (`checking/job.py`);
 * a **find-documents** card is a Find the Documents run (`finddocs/job.py`) over the pages' folders, accepting by
   itself only what the step's `accept_above` allows;
+* an **entries** card splits a diary or register into its dated entries with the Diary Entries splitter
+  (`workflows/tools/diary_entries.py`) and the step's model, over the pages that have text (#5581);
 * an **embed** card (search) queues the embed job (`make-a-vector`) for each page and waits for them;
 * an **export** card is the project's synced folder (`sync_folder.py`): the folder the step names is tied
   (once) and the pages are written, or a folder already tied rewrites them.
@@ -201,6 +203,29 @@ def _run_find_documents(db: Any, card: dict[str, Any], documents: list[str], par
     return _wait(db, child, parent)
 
 
+def _run_entries(db: Any, card: dict[str, Any], documents: list[str],
+                 step: dict[str, Any]) -> tuple[str | None, str, str | None]:
+    """A diary or register split into its dated entries (`source.onboard.auto.diary-entries`, #5581): the Diary
+    Entries workflow's own splitter, with the step's model, over the pages that have text. The step's account
+    (`entries`) says how many pages it split, how many had no text, and what it made of their entries."""
+    from fichero_server.llm import LLMConfig
+    from fichero_server.models import Document
+    from fichero_server.workflows.tools.diary_entries import split_pages_into_entries
+
+    pages = [page for page in (db.get(Document, doc_id) for doc_id in documents) if page is not None]
+    with_text = [page for page in pages if (page.page_content or "").strip()]
+    config = LLMConfig(provider=card["provider"], model=card["model"])
+    try:
+        _made, totals, errors, _lines = asyncio.run(split_pages_into_entries(db, with_text, config))
+    except Exception as exc:  # noqa: BLE001 -- the model's failure, in its words, on the step
+        step["entries"] = {"pages": len(with_text), "without_text": len(pages) - len(with_text)}
+        return None, "failed", f"the entries were not split: {exc}"
+    step["entries"] = {"pages": len(with_text), "without_text": len(pages) - len(with_text), **totals}
+    if errors:
+        return None, "failed", "; ".join(errors)
+    return None, "done", None
+
+
 def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
     """The card's own job, a child of the recipe's row, waited on until it ends."""
     jobs.set_parent(db, child, parent)
@@ -305,6 +330,8 @@ def run(db: Any, subject: str) -> dict[str, Any]:
             child, state, why = _run_check(db, card, documents, job_id, started_by)
         elif card["card"] == "find-documents":
             child, state, why = _run_find_documents(db, card, documents, job_id, started_by)
+        elif card["card"] == "entries":
+            child, state, why = _run_entries(db, card, documents, step)
         elif card["card"] == "publish":
             child, state, why = _run_publish(db, card)
         elif card["card"] == "embed":

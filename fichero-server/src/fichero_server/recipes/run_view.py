@@ -32,6 +32,17 @@ class StageReader(BaseModel):
     why: Optional[str] = None
 
 
+class StageEntries(BaseModel):
+    """What a stage that splits a diary or register into its dated entries did (#5581)."""
+
+    pages: int = Field(description="the pages it split: those that had text")
+    without_text: int = Field(description="the pages it left alone because they had no text")
+    created: int = Field(default=0, description="entries it made")
+    unchanged: int = Field(default=0, description="entries a run before made, found again as they were")
+    updated: int = Field(default=0, description="entries a run before made, found again changed")
+    removed: int = Field(default=0, description="entries a run before made that it no longer finds (kept, hidden)")
+
+
 class RecipeRunStep(BaseModel):
     """One stage of a recipe run: the card that carries one or more recipe steps."""
 
@@ -52,6 +63,8 @@ class RecipeRunStep(BaseModel):
         "for a page with no image to sort, #5578)"))
     readers: Optional[list[StageReader]] = Field(default=None, description=(
         "a stage with a reader per kind: one workflow run per reader (#5578)"))
+    entries: Optional[StageEntries] = Field(default=None, description=(
+        "a stage that splits a diary or register into its dated entries: its pages and entries (#5581)"))
 
 
 class SkippedStep(BaseModel):

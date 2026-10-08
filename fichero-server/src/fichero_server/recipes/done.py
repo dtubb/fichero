@@ -95,7 +95,7 @@ def material(db: Any) -> dict[str, Any]:
 
     ids = pages_for(db, {}, None)
     docs = {d.id: d for d in db.query(Document)
-            if not d.deleted_at and getattr(d, "node_kind", None) != "workflow"}
+            if not d.deleted_at and getattr(d, "node_kind", None) not in ("workflow", "entry")}
     counted: Counter[str] = Counter()
     for doc_id in ids:
         doc = docs.get(doc_id)

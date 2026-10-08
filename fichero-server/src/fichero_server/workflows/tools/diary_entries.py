@@ -622,6 +622,41 @@ async def split_page_into_entries(
     return created
 
 
+async def split_pages_into_entries(
+    db: Database,
+    pages: list[Document],
+    llm_config: LLMConfig,
+    *,
+    prototype_key: str = DEFAULT_PROTOTYPE_KEY,
+    prompt: str | None = None,
+) -> tuple[list[Document], dict[str, int], list[str], list[str]]:
+    """Split each page, in order: (entries, totals, errors, one line per entry).
+
+    The one splitter both the workflow tool and a recipe's ``split-into-entries`` step run (#5581).
+    ``totals`` counts what the run did: unchanged, updated, created and removed entries. A page with
+    no transcript is an error in words, and the other pages are still split."""
+    created: list[Document] = []
+    lines: list[str] = []
+    errors: list[str] = []
+    totals = {"unchanged": 0, "updated": 0, "created": 0, "removed": 0}
+    for page in pages:
+        try:
+            entries = await split_page_into_entries(
+                db, page, llm_config, prototype_key=prototype_key, prompt=prompt
+            )
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
+        created.extend(entries)
+        page_report = _LAST_SPLIT_REPORT.pop(page.id, None) or {}
+        for key in totals:
+            totals[key] += page_report.get(key, 0)
+        for node in entries:
+            marker = "▣" if node.region_in_parent else "·"
+            lines.append(f"{marker} {node.name} — {page.name}")
+    return created, totals, errors, lines
+
+
 @register_tool(
     name="diary_entries",
     display_name="Split Diary Entries",
@@ -700,28 +735,12 @@ async def diary_entries(
     # pages as one blob and anchored every entry to the spread's frame. A
     # container is not a unit of work.
     pages = resolve_workflow_targets(db, raw_documents)
-    created: list[Document] = []
-    lines: list[str] = []
-    errors: list[str] = []
-    totals = {"unchanged": 0, "updated": 0, "created": 0, "removed": 0}
+    prompt_override = str(inputs.get("prompt") or "").strip() or None
+    created, totals, errors, lines = await split_pages_into_entries(
+        db, pages, llm_config, prototype_key=prototype_key, prompt=prompt_override
+    )
     if not pages and raw_documents:
         errors.append(f"{len(raw_documents)} selected document(s) resolved to no pages")
-    prompt_override = str(inputs.get("prompt") or "").strip() or None
-    for page in pages:
-        try:
-            entries = await split_page_into_entries(
-                db, page, llm_config, prototype_key=prototype_key, prompt=prompt_override
-            )
-        except ValueError as exc:
-            errors.append(str(exc))
-            continue
-        created.extend(entries)
-        page_report = _LAST_SPLIT_REPORT.pop(page.id, None) or {}
-        for key in totals:
-            totals[key] += page_report.get(key, 0)
-        for node in entries:
-            marker = "▣" if node.region_in_parent else "·"
-            lines.append(f"{marker} {node.name} — {page.name}")
 
     # SAY WHAT THE RUN DID, not just what exists now. "Marked 3 completed"
     # told Daniel nothing about whether re-running had changed anything —

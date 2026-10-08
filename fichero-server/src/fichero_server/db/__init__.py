@@ -4992,21 +4992,23 @@ class Database(DatabaseEmbeddingMixin):
             )
         ]
 
+    #: Every page, and every file that has no pages. Live material only: a deleted document, a workflow stored as a
+    #: node, or a diary entry split from a page (#5581) is not a page to read, and a page's entries do not make it
+    #: a file with pages.
+    _UNIT_OF_WORK_WHERE = (
+        "d.deleted_at IS NULL AND COALESCE(d.node_kind, '') NOT IN ('workflow', 'entry') "
+        "AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND NOT EXISTS (SELECT 1 FROM documents c "
+        "WHERE c.parent_id = d.id AND c.deleted_at IS NULL AND COALESCE(c.node_kind, '') <> 'entry')))")
+
     def unit_of_work_count(self) -> int:
-        """Every page, and every file that has no pages: what a recipe's estimate counts. Live
-        material only: a deleted document, or a workflow stored as a node, is not a page to read."""
+        """Every page, and every file that has no pages: what a recipe's estimate counts (`_UNIT_OF_WORK_WHERE`)."""
         return int(self.execute_fetchall(
-            "SELECT COUNT(*) FROM documents d WHERE d.deleted_at IS NULL "
-            "AND COALESCE(d.node_kind, '') <> 'workflow' AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND "
-            "NOT EXISTS (SELECT 1 FROM documents c WHERE c.parent_id = d.id AND c.deleted_at IS NULL)))")[0][0])
+            f"SELECT COUNT(*) FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}")[0][0])
 
     def unit_of_work_ids(self) -> list[str]:
         """The ids `unit_of_work_count` counts, in creation order: what a started recipe runs over."""
         return [row[0] for row in self.execute_fetchall(
-            "SELECT d.id FROM documents d WHERE d.deleted_at IS NULL "
-            "AND COALESCE(d.node_kind, '') <> 'workflow' AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND "
-            "NOT EXISTS (SELECT 1 FROM documents c WHERE c.parent_id = d.id AND c.deleted_at IS NULL))) "
-            "ORDER BY d.created_at, d.id")]
+            f"SELECT d.id FROM documents d WHERE {self._UNIT_OF_WORK_WHERE} ORDER BY d.created_at, d.id")]
 
     def table_row_counts(self) -> dict[str, int]:
         """Every table in this library and its row count.

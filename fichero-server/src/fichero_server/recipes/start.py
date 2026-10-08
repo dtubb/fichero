@@ -39,7 +39,10 @@ _OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "f
 #: project's synced folder (`source.sync.*`).
 OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export", "publish": "publish",
                # Find the Documents: Fichero's own rules over the text already read (`finddocs.recipe-step`).
-               "find-documents-in-a-folder": "find-documents"}
+               "find-documents-in-a-folder": "find-documents",
+               # A diary or register split into its dated entries by the Diary Entries splitter, with the step's
+               # model, over the pages that have text (`source.onboard.auto.diary-entries`, #5581).
+               "split-into-entries": "entries"}
 #: Jobs that need no model.
 #: The fixes setup offers as a button for a skipped step (`RecipeStepRow.fixTitle`).
 _FIX_BUTTONS = frozenset({"choose-model", "allow-cloud"})
@@ -55,7 +58,6 @@ START_JOBS = frozenset(WORKFLOW_FOR_JOB) | frozenset(OTHER_CARDS) | {EMBED_JOB, 
 BY_HAND_FIX = {
     "prepare-the-image": "run the Prepare Images for OCR or Enhance Images workflow on the pages by hand",
     "find-regions": "run the Detect Segments (Apple Vision) workflow by hand",
-    "split-into-entries": "run the Diary Entries workflow on the volume by hand",
     "translate-transliterate-normalise": "run the Translate workflow (or Modernización, for Spanish) by hand",
     "link-to-authorities": "link each name to an authority from its Inspector",
     "place-in-a-gazetteer": "run the Extract Geo workflow by hand: it finds the places and puts them on the map",
@@ -263,6 +265,12 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                     continue
                 entry.update(layer=settings.get("layer", "readings"), provider=override[0], model=override[1],
                              prompt=step.get("prompt"))
+            elif job == "split-into-entries":
+                override = _override(pin)
+                if override is None:
+                    skip(sid, f"{label}: the entries are split by a text model, and {pin} is not one", "choose-model")
+                    continue
+                entry.update(provider=override[0], model=override[1])
             elif job == "find-documents-in-a-folder":
                 # The project's setting: None leaves every proposal for the person.
                 entry.update(accept_above=settings.get("accept_above"))
@@ -395,7 +403,7 @@ def _waits_for(download: dict[str, Any]) -> str:
 
 
 #: Jobs whose local model reads the page image; the others send it text alone.
-_TEXT_ONLY_JOBS = frozenset({"find-names-tag-words", "find-statements"})
+_TEXT_ONLY_JOBS = frozenset({"find-names-tag-words", "find-statements", "split-into-entries"})
 
 
 def _capability(run: dict[str, Any]) -> str:
