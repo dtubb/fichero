@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: you want the archivist's calendar entry for a historical document — date, place, document type, parties, action, and index terms — from the image plus any existing transcription. Writes an analysis artifact; never touches the document's text.
+Use this when: you want the archivist's calendar entry for a historical document — date, place, document type, parties, action, and index terms — from the image plus any existing transcription. Writes a regest reading on the page; never touches the document's text.
 
 | | |
 | --- | --- |
@@ -27,6 +27,7 @@ Settings this step uses:
 | Option | Value |
 | --- | --- |
 | `prompt` | Write the REGESTO (archival abstract) of this document image, the way a professional archivist calendars it. Use the existing transcription if provided as context; read the image where the context is silent. Output exactly these labelled lines: Fecha: <date as given + normalized ISO if resolvable, else [sin fecha]> Lugar: <place of issue, else [sin lugar]> Tipo documental: <carta de poder / confesión / real provisión / obligación / cuenta / carta / auto / ...> Otorgantes: <who acts, with offices> Destinatarios: <who receives/is affected> Asunto: <2-4 sentences: what the document DOES, in modern language> Personas: <every personal name, semicolon-separated, spelling as written> Lugares: <every place name> Materias: <3-6 index terms> Observaciones: <seals, rúbricas, damage, prior foliation, anything a researcher should know> Mark uncertain readings [UNCERTAIN: ...]. Do not invent — [sin datos] where the page gives nothing. |
+| `reading_kind` | regest |
 | `thinking_mode` | long |
 
 What this step asks the model:

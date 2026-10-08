@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: you want an English translation of a historical document (Spanish, Latin, or other), faithful to its legal and notarial register, with names preserved and uncertainties carried through. Writes an analysis artifact.
+Use this when: you want an English translation of a historical document (Spanish, Latin, or other), faithful to its legal and notarial register, with names preserved and uncertainties carried through. Writes a translation reading on the page.
 
 | | |
 | --- | --- |
@@ -27,6 +27,7 @@ Settings this step uses:
 | Option | Value |
 | --- | --- |
 | `prompt` | Translate this historical document into clear modern English, using the existing transcription as context if provided and the image where it is silent. Rules: translate meaning faithfully, including legal/notarial formulas (render them in standard English legal register); keep personal and place names in their original form; keep [UNCERTAIN: ...] markers where the source reading is uncertain, translating the uncertain word inside the marker; do not summarise or omit. Output only the translation. |
+| `reading_kind` | translation |
 | `thinking_mode` | medium |
 
 What this step asks the model:

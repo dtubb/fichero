@@ -1,6 +1,6 @@
 {
  "name": "Translate to English (Historical)",
- "description": "Use this when: you want an English translation of a historical document (Spanish, Latin, or other), faithful to its legal and notarial register, with names preserved and uncertainties carried through. Writes an analysis artifact.",
+ "description": "Use this when: you want an English translation of a historical document (Spanish, Latin, or other), faithful to its legal and notarial register, with names preserved and uncertainties carried through. Writes a translation reading on the page.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -12,7 +12,7 @@
   "english"
  ],
  "config": {
-  "preset_version": 2
+  "preset_version": 3
  },
  "nodes": [
   {
@@ -33,7 +33,8 @@
    "inputs": {},
    "config": {
     "prompt": "Translate this historical document into clear modern English, using the existing transcription as context if provided and the image where it is silent.\n\nRules: translate meaning faithfully, including legal/notarial formulas (render them in standard English legal register); keep personal and place names in their original form; keep [UNCERTAIN: ...] markers where the source reading is uncertain, translating the uncertain word inside the marker; do not summarise or omit. Output only the translation.",
-    "thinking_mode": "medium"
+    "thinking_mode": "medium",
+    "reading_kind": "translation"
    }
   }
  ],

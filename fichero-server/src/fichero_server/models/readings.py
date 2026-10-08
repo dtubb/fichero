@@ -70,6 +70,9 @@ BUILTIN_READING_KINDS: tuple[tuple[str, str], ...] = (
     ("world-point", "World point"),
     ("music", "Music"),
     ("drawing", "Drawing"),
+    # An archivist's calendar entry for a document (the Regesto preset, #5599): a reading of the
+    # whole document, beside its transcription, never over it. Seeded on open like the rest.
+    ("regest", "Regest"),
 )
 
 #: The levels that ship (`source.reading.level-recorded`). An OPEN list, and

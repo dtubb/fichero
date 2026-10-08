@@ -12,7 +12,8 @@ a tool that saves an artifact says ``artifact`` even where the review says that 
 ``writes`` vocabulary (the record kinds of the review's target, plus what the code has today):
 
 - ``pass``       a pass of segments (boxes become segment rows, `convert_new_results`)
-- ``reading``    text on a segment (a line's reading in a pass)
+- ``reading``    text on a segment (a line's reading in a pass), or a reading of the node itself (a
+                 translation, a regest, a folder's description; `representation.create`, #5599)
 - ``page_text``  the page's own text (`Document.page_content`), not tied to segments
 - ``mention``    a name: a `KnowledgeEntity` (or a merge of entities) found in the source
 - ``statement``  a `KnowledgeClaim` (or an interpretation resting on a passage)
@@ -134,8 +135,16 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
         f"{kind}_folder_cleanup": _d("group", "mention", "artifact")
         for kind in ("people", "places", "organizations", "dates", "events", "keywords")
     },
-    # the narrative is also written over the folder's own text (catalogue.py, #5599)
-    "catalogue": _d("group", "artifact", "page_text"),
+    # the narrative is a description reading of the folder, never its text (#5599); artifacts beside
+    "catalogue": _d("group", "reading", "artifact"),
+    # ── text outputs that are readings (#5599): a reading of the node, derived from the run's artifact
+    # (`LLMToolConfig.reading_kind`); not yet on the lines (#3325)
+    "text_translate": _d("document", "reading", "artifact"),
+    "text_translate_review": _d("document", "reading", "artifact"),
+    "translate": _d("document", "reading", "artifact"),
+    # the historical presets name their reading kind (translation, normalized_text, regest); an
+    # analyze node that names none still writes only an 'analysis' artifact
+    "analyze": _d("page", "reading", "artifact"),
     # ── a document-level artifact only (known gaps, each naming its slice) ────
     "timeline": _ARTIFACT,
     "key_people": _ARTIFACT,
@@ -150,10 +159,6 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     "classify_text": _ARTIFACT,
     "classify_script": _ARTIFACT,
     "questions": _ARTIFACT,
-    "text_translate": _ARTIFACT,
-    "text_translate_review": _ARTIFACT,
-    "translate": _ARTIFACT,
-    "analyze": _ARTIFACT,
     "extract": _ARTIFACT,
     "faces": _ARTIFACT,
     "objects": _ARTIFACT,

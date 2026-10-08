@@ -27,6 +27,7 @@ TOOL_CONFIG = LLMToolConfig(
     trigger_embedding=True,
     embedding_scope="translation",
     metadata_field="translation",
+    reading_kind="translation",
 )
 
 TRANSLATE_CONFIG = {

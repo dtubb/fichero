@@ -53,6 +53,7 @@ TOOL_CONFIG = LLMToolConfig(
     trigger_embedding=True,
     embedding_scope="translation",
     metadata_field="translation_review",
+    reading_kind="translation",
 )
 
 TEXT_TRANSLATE_REVIEW_CONFIG = {
