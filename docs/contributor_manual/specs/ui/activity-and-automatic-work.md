@@ -685,6 +685,14 @@ workflow by hand: a hand run is a job like any other.
   through `GET /api/activity/jobs` with the real lanes, a lane held by a real page of a run
   (`fichero-server/tests/unit/jobs/test_waiting_says_why.py`). Not yet seen in the app. Still a
   gap: the job tree (`GET /api/activity/jobs/{id}`) shows a page's stored reason.
+- `activity.list-and-tree-agree` — **[GAP]** (#5606) a row has one state and one reason, whichever
+  surface reads it: the jobs list (`GET /api/activity/jobs`) and the job tree
+  (`GET /api/activity/jobs/{id}`) give every row the same state and reason, decided in one place
+  (a waiting row's reason by `waiting_reason`, as `activity.waiting-says-why` says). A recipe run
+  (`run-a-recipe`) that the engine's restart interrupted reads the same in both while it waits
+  (paused, or for its lane) and after it carries on. Before: after a restart a recipe run's tree
+  said "waiting — Interrupted; carries on" while the list gave the same row as running with reason
+  null.
 - `activity.popover.summary` — **[PARTIAL]** (#5415) the toolbar popover is a summary, not a list:
   what is running, what is waiting and the main reason why, the last three errors, and the Mac's
   state (memory pressure, heat, battery, in use), read from the engine. CPU and GPU percentages
