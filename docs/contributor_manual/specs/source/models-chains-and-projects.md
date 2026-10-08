@@ -1043,7 +1043,10 @@ plan's peak memory across steps. Ready shows none of it.
   Documents' proposals as they stand now, with `documents_proposed`, `documents_accepted`, `groups_proposed`)
   and "4 entries from 2 pages" (the entries stage's account, #5581, with `entries`); a figure for a stage the
   run did not have is null and has no line (`fichero-server/tests/unit/recipes/test_run_visible_to_spec.py`).
-  *Not built:* lines (of text); the app's strip showing `lines` as given; each figure opening what it counts.
+  **Built 2026-10-08 (app), not yet seen:** the Activity details' What this run made and the project window's
+  strip show `lines` as given (`ActivityDetails.summary`; none when the engine sends none, never a line the app
+  builds), pinned by `RecipeRunVisibleTests` and `ProjectRunStripTests` against the recorded summary.
+  *Not built:* lines (of text); each figure opening what it counts.
 - `source.onboard.auto.failed-pages-roll-up` — **[PARTIAL]** (#5555) the recipe run's own row counts
   the pages that failed inside its steps and offers Read Again for them. Built: per workflow run
   (`compute.run.read-failed-again`). Not built: on the recipe's row, which today says "Done" when every
@@ -1168,7 +1171,9 @@ plan's peak memory across steps. Ready shows none of it.
   its `downloads` drops it and a refusal that was only that download clears; and the finished download says so
   on every window's change stream (`model.installed`, with its `runtime` and `model`; an MLX model from this
   Mac's model store, a spaCy pipeline from its `download-model` job), the app's cue to read the plan again.
-  *Not built:* the app reading the plan again on `model.installed`) a step's local model that is not on
+  **Built 2026-10-08 (app), not yet seen:** `RecipeSetupStore` is registered on the project's change stream
+  (domain `model`) and reads a shown plan again on `model.installed` (and on a reconnect), pinned by
+  `RecipeSetupStoreTests.modelInstalledReadsThePlanAgain`) a step's local model that is not on
   this Mac never refuses Start in words the person must answer by editing the recipe. (1) When the rules
   propose a recipe, a model already on this Mac wins over one that must be downloaded, among the cards the
   rules accept for the step, after accuracy (each card's `installed`; the reason says "already on this

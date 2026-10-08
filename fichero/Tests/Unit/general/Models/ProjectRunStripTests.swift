@@ -257,8 +257,8 @@ final class ProjectRunStripTests: XCTestCase {
         let strip = try XCTUnwrap(ProjectRunStrip(store: store), "the ended run stays on the strip")
         XCTAssertFalse(strip.isLive)
         XCTAssertEqual(strip.title, "Recipe run failed")
-        XCTAssertEqual(strip.detail, "Read 2 of 2 pages · Names: 1 People · 1 Places · 1 date · 1 statement",
-                       "one line, the summary's own words")
+        let engineLines = try XCTUnwrap((failed["summary"] as? [String: Any])?["lines"] as? [String])
+        XCTAssertEqual(strip.detail, engineLines.joined(separator: " · "), "one line, the summary's own words")
         let stage = try XCTUnwrap(strip.failed.first)
         XCTAssertEqual(stage.offer, "Read the 2 pages that failed")
         XCTAssertEqual(stage.threadId, threadId)

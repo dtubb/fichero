@@ -235,9 +235,8 @@ final class RecipeRunVisibleTests: XCTestCase {
 
         let details = try XCTUnwrap(ActivityDetails(store: store, selection: ActivitySelection(jobId: jobId, libraryId: Self.libraryId)))
         let summary = try XCTUnwrap(details.summary, "an ended run says what it made")
-        XCTAssertEqual(summary.lines.first, "Read 2 of 2 pages")
-        XCTAssertTrue(summary.lines.contains("Names: 1 People · 1 Places"), "\(summary.lines)")
-        XCTAssertTrue(summary.lines.contains("1 date · 1 statement"), "\(summary.lines)")
+        let engineLines = try XCTUnwrap((tree["summary"] as? [String: Any])?["lines"] as? [String])
+        XCTAssertEqual(summary.lines, engineLines, "the summary's lines are the engine's words, as given")
         let stage = try XCTUnwrap(summary.failed.first)
         XCTAssertEqual(stage.offer, "Read the 2 pages that failed")
         XCTAssertEqual(stage.threadId, threadId)
@@ -249,5 +248,26 @@ final class RecipeRunVisibleTests: XCTestCase {
         XCTAssertTrue(MockTransportURLProtocol.recorded().contains {
             $0.httpMethod == "POST" && $0.url?.path == "/api/workflow-execution/threads/\(threadId)/read-again"
         })
+    }
+
+    func testRecipeRunSummary_showsTheEnginesLinesAsGiven_andNoneWhenItSendsNone() async throws {
+        // WHY: the app built its own summary lines ("Read 2 of 2 pages") from the counts; the engine now
+        // says them (#5577), so a changed word in the engine shows, and no lines means no hand-built line.
+        for lines in [["Read 3 of 5 pages, two left to read"], nil] as [[String]?] {
+            let store = ActivityStore(service: ActivityService(ficheroClient: Self.client()))
+            var tree = try Self.object(Self.recorded("recipe_run_tree"))
+            var summary = try Self.object(Self.recorded("recipe_run_summary_failed"))
+            if let lines { summary["lines"] = lines } else { summary.removeValue(forKey: "lines") }
+            tree["summary"] = summary
+            let jobId = try XCTUnwrap(tree["id"] as? String)
+            MockTransportURLProtocol.reset([
+                Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200,
+                     body: try JSONSerialization.data(withJSONObject: tree))
+            ])
+            await store.loadDetails(jobId: jobId)
+            let details = try XCTUnwrap(ActivityDetails(store: store, selection: ActivitySelection(jobId: jobId, libraryId: Self.libraryId)))
+            let shown = try XCTUnwrap(details.summary, "an ended run says what it made")
+            XCTAssertEqual(shown.lines, lines ?? [], "the engine's lines as given; none when it sends none")
+        }
     }
 }
