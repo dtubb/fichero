@@ -58,6 +58,7 @@ def test_extract_entities_preset_persists_entities_and_is_idempotent(tmp_path: P
     assert first_summary == {
         "documents_processed": 2,
         "entity_mentions_processed": 4,
+        "mentions_on_lines": 0,
         "entities_created": 2,
         "entities_reused": 2,
         "entities_suppressed": 0,
@@ -74,6 +75,7 @@ def test_extract_entities_preset_persists_entities_and_is_idempotent(tmp_path: P
     assert second_summary == {
         "documents_processed": 2,
         "entity_mentions_processed": 4,
+        "mentions_on_lines": 0,
         "entities_created": 0,
         "entities_reused": 4,
         "entities_suppressed": 0,
@@ -141,6 +143,7 @@ def test_extract_entities_tool_accepts_singleton_document_payload_without_unpack
     assert result["summary"] == {
         "documents_processed": 1,
         "entity_mentions_processed": 2,
+        "mentions_on_lines": 0,
         "entities_created": 2,
         "entities_reused": 0,
         "entities_suppressed": 0,

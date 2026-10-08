@@ -64,8 +64,12 @@ def _d(anchors_at: str, *writes: str) -> OutputDeclaration:
 _NONE = _d("none", "none")
 # An Artifact row on the document and nothing else: the review's "document-level artifact only".
 _ARTIFACT = _d("document", "artifact")
-# The per-section extractors: entities + claims through `_write_kg_rows`, and the section artifact.
-_KG_AND_ARTIFACT = _d("document", "mention", "statement", "artifact")
+# The per-section extractors: entities + claims through `_write_kg_rows`, and the section artifact. Each
+# name is a mention at every place the page text writes it, and a claim whose words are found rests on
+# them; where the page text is tied to its lines both name the line and its reading (#5488, #4932).
+_KG_AND_ARTIFACT = _d("segment", "mention", "statement", "artifact")
+# Entities and claims tied to the document only (writers outside `_write_kg_rows`).
+_KG_ON_DOCUMENT = _d("document", "mention", "statement", "artifact")
 _RENDITION = _d("document", "rendition")
 _CUTS = _d("document", "node", "rendition")
 
@@ -104,7 +108,7 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     # `metadata["geo_points"]`, the `geo` artifact, and place values on the claims
     "extract_geo": _d("document", "attribute", "statement", "artifact"),
     # ── knowledge graph rows tied to the document ─────────────────────────────
-    # its quotations go through the quotes section's writer, so they sit on their lines too (#5598)
+    # through `_write_kg_rows`: names, claims and quotations on their lines when tied (#5488, #4932, #5598)
     "extract_all": _d("segment", "mention", "statement", "artifact"),
     "people_extract": _KG_AND_ARTIFACT,
     "places_extract": _KG_AND_ARTIFACT,
@@ -114,18 +118,21 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     "mines_extract": _KG_AND_ARTIFACT,
     "properties_extract": _KG_AND_ARTIFACT,
     "legal_references_extract": _KG_AND_ARTIFACT,
-    "citation_usage_extract": _KG_AND_ARTIFACT,
+    "citation_usage_extract": _KG_ON_DOCUMENT,  # its own writer (`_write_citation_usage_rows`)
     "hermeneutics_extract": _KG_AND_ARTIFACT,
     # a quotation is a statement on the quoted words' span and, where the page text is tied to its lines,
     # on the line they start on; its speaker a mention on the name's span (#5598)
     "quotes_extract": _d("segment", "mention", "statement", "artifact"),
     "keywords_extract": _KG_AND_ARTIFACT,
-    "dates_extract": _d("document", "statement", "artifact"),  # dates are claims, no entity
-    "book_index_extract": _KG_AND_ARTIFACT,
+    "dates_extract": _d("segment", "statement", "artifact"),  # dates are claims, no entity
+    "book_index_extract": _KG_ON_DOCUMENT,
     "citations_extract": _d("document", "mention", "statement"),
-    "extract_entities_only": _d("document", "mention"),
-    "extract_svo_only": _d("document", "mention", "statement"),
-    "kg_writer": _d("document", "mention", "statement"),
+    # a name is a mention at each place the page writes it (spaCy's spans, or a model's name found as
+    # written), on its line when the page is tied (#5488)
+    "extract_entities_only": _d("segment", "mention"),
+    # these two write through `_write_kg_rows`: mentions and claims on their lines when tied (#5488, #4932)
+    "extract_svo_only": _d("segment", "mention", "statement"),
+    "kg_writer": _d("segment", "mention", "statement"),
     "merge_dedup_only": _d("document", "mention", "statement"),
     "kg_persist_finalize": _d("document", "statement"),  # support counts on claims
     "interpret": _d("document", "statement"),  # interpretations of a passage
