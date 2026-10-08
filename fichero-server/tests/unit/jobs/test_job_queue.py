@@ -119,6 +119,32 @@ class TestPause:
         assert client.put("/api/activity/jobs/paused", json={"paused": False}).json() == {"paused": False}
         assert _wait_for(lambda: ran == ["page"])
 
+    def test_pause_survives_a_relaunch_and_activity_says_so(self, test_package, client, monkeypatch):
+        """WHY (#5355, `activity.pause.global-survives-relaunch`): a Mac paused at quit is paused at
+        launch. The open's own resume (interrupted jobs back to waiting) must not start them, and
+        Activity must say paused, through the same routes the window reads."""
+        ran: list[str] = []
+        _kind(monkeypatch, "t-relaunch", None, ran)
+        db = db_manager.get_database(test_package)
+        assert client.put("/api/activity/jobs/paused", json={"paused": True}).json() == {"paused": True}
+        jobs.enqueue(db, "t-relaunch", "waiting-page")
+        jobs.enqueue(db, "t-relaunch", "interrupted-page")
+        db.execute("UPDATE jobs SET state = 'running', attempts = 1 WHERE subject = 'interrupted-page'")
+
+        db_manager.close_database(test_package)  # quit
+        monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())  # a new engine process
+        db_manager.get_database(test_package)  # relaunch: the open resumes its jobs
+
+        time.sleep(0.3)
+        assert ran == []
+        body = client.get("/api/activity/jobs").json()
+        assert body["paused"] is True
+        rows = [j for j in body["jobs"] if j["task_type"] == "t-relaunch"]
+        assert rows and all((j["state"], j["reason"]) == ("waiting", "Paused by you") for j in rows)
+
+        assert client.put("/api/activity/jobs/paused", json={"paused": False}).json() == {"paused": False}
+        assert _wait_for(lambda: sorted(ran) == ["interrupted-page", "waiting-page"])
+
     def test_pausing_is_an_audited_undoable_action(self, db, client):
         """WHY: controls are actions (`activity.pause.controls-are-actions`): the window, MCP and
         the command line reach the same audited path, and Undo puts the switch back."""

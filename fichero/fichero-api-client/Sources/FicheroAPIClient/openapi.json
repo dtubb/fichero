@@ -13915,6 +13915,28 @@
         }
       }
     },
+    "/api/recipes/project/automatic": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "What Runs By Itself",
+        "description": "What runs by itself in this project, on an import and on a correction (#5362,\n`activity.auto.what-runs-by-itself`): each kind of work, whether it runs and why, read from the same\ngates the import and the correction use. Reads only.",
+        "operationId": "what_runs_by_itself_api_recipes_project_automatic_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatRunsByItself"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project/runs": {
       "get": {
         "tags": [
@@ -48405,6 +48427,48 @@
           "query"
         ],
         "title": "AuthorityRefreshRequest"
+      },
+      "AutomaticWork": {
+        "properties": {
+          "job": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job",
+            "description": "the job kind (as Activity's rows name it); null for a recipe step skipped"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "the work in words, or the skipped step's id"
+          },
+          "runs": {
+            "type": "boolean",
+            "title": "Runs",
+            "description": "whether it runs by itself"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "why it runs or does not, in words, naming the setting that decides it"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "the recipe steps it carries out, if any"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job",
+          "name",
+          "runs",
+          "why"
+        ],
+        "title": "AutomaticWork",
+        "description": "One kind of work in what runs by itself."
       },
       "BBoxCounts": {
         "properties": {
@@ -88733,6 +88797,32 @@
           "snippet"
         ],
         "title": "WebSearchResult"
+      },
+      "WhatRunsByItself": {
+        "properties": {
+          "on_add": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticWork"
+            },
+            "type": "array",
+            "title": "On Add",
+            "description": "what runs on the pages an import brings"
+          },
+          "on_correction": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticWork"
+            },
+            "type": "array",
+            "title": "On Correction",
+            "description": "what runs on a page whose text a person corrects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "on_add",
+          "on_correction"
+        ],
+        "title": "WhatRunsByItself"
       },
       "WikidataStatementModel": {
         "properties": {

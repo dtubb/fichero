@@ -77,24 +77,70 @@ def material_arrived(db: Any, document_ids: list[str]) -> str | None:
     """An import brought new material: after Start, a "just do it" project runs its recipe over it alone;
     before Start, or on a "tools" purpose, nothing runs (`source.onboard.*`). One whose recipe cannot run
     leaves a failed row saying why (`refused`, #5575). Returns the row's job id, or None when nothing was asked."""
-    from fichero_server.recipes.project import read_project_setup, read_start
-
     if not document_ids:
         return None
-    library = _library(db)
-    if read_start(library) is None:
-        return None
-    answers = read_project_setup(library)["answers"] or {}
-    # Any ticked "just do it" purpose runs the recipe over what the import brought.
-    if AUTOMATIC_PURPOSES.isdisjoint(answers.get("purposes") or ()):
-        return None
-    # Nothing runs automatically is the person's choice, not a refusal: no row at all (#5478, #5575).
-    if not (answers.get("automatic") or {}).get("runs", True):
+    if _why_no_recipe_on_add(db) is not None:
         return None
     plan = _plan(db)
     if plan["refusals"] or not plan["runs"]:
         return refused(db, plan, list(document_ids))
     return enqueue(db, plan, documents=list(document_ids), started_by="import")
+
+
+def _why_no_recipe_on_add(db: Any) -> str | None:
+    """Why an import runs no recipe at all, in words; None when it runs the recipe's plan. The one gate
+    `material_arrived` and `what_runs_by_itself` share."""
+    from fichero_server.recipes.project import read_project_setup, read_start
+
+    library = _library(db)
+    if read_start(library) is None:
+        return "Start has not been pressed: nothing in a project runs by itself before the first yes"
+    answers = read_project_setup(library)["answers"] or {}
+    # Any ticked "just do it" purpose runs the recipe over what the import brought.
+    if AUTOMATIC_PURPOSES.isdisjoint(answers.get("purposes") or ()):
+        return "no purpose that runs by itself is ticked: a tools purpose runs only by hand"
+    # Nothing runs automatically is the person's choice, not a refusal: no row at all (#5478, #5575).
+    if not (answers.get("automatic") or {}).get("runs", True):
+        return "What runs by itself is 'Nothing runs automatically'"
+    return None
+
+
+def what_runs_by_itself(db: Any) -> dict[str, list[dict[str, Any]]]:
+    """What runs by itself in this project (#5362, `activity.auto.what-runs-by-itself`): on an import
+    (`on_add`) and on a correction of a page's text (`on_correction`), each entry a job kind with its name,
+    whether it runs and why. Read from the same gates the import and the correction use: the derivative
+    stages, the NLP setting, the recipe's first yes, purposes and What runs by itself, and the Start plan's
+    runs and skipped steps. Reads only; nothing runs."""
+    from fichero_server.actions.page_text_cache import REEMBED_KIND, REREAD_NAMES_KIND
+    from fichero_server.importers.derivatives import EMBED_KIND, NLP_KIND, THUMBNAIL_KIND
+    from fichero_server.importers.nlp_draft import auto_nlp_enabled
+
+    def entry(job: str, runs: bool, why: str, steps: list[str] | None = None) -> dict[str, Any]:
+        return {"job": job, "name": jobs.kind_name(job), "runs": runs, "why": why, "steps": steps or []}
+
+    names = auto_nlp_enabled()
+    names_why = ("names are read automatically (Settings > General > Ingestion)" if names else
+                 "names are not read automatically (Settings > General > Ingestion is off)")
+    on_add = [entry(THUMBNAIL_KIND, True, "every page added gets its picture"),
+              entry(EMBED_KIND, True, "every page added is made searchable by meaning"),
+              entry(NLP_KIND, names, names_why)]
+    why_not = _why_no_recipe_on_add(db)
+    if why_not is not None:
+        on_add.append(entry(KIND, False, f"the project's recipe does not run on an import: {why_not}"))
+    else:
+        plan = _plan(db)
+        if plan["refusals"] or not plan["runs"]:
+            refusals = "; ".join(plan["refusals"]) or "nothing in this recipe can run"
+            on_add.append(entry(KIND, False, f"the project's recipe cannot run on an import: {refusals}"))
+        for run in plan["runs"]:
+            on_add.append(entry(run["job"], True, "the project's recipe runs it on what an import brings",
+                                list(run.get("steps") or [])))
+        for skipped in plan["skipped"]:
+            on_add.append({"job": None, "name": skipped["step"], "runs": False, "why": skipped["why"],
+                           "steps": [skipped["step"]]})
+    on_correction = [entry(REEMBED_KIND, True, "a corrected page is made searchable again"),
+                     entry(REREAD_NAMES_KIND, names, names_why)]
+    return {"on_add": on_add, "on_correction": on_correction}
 
 
 def refused(db: Any, plan: dict[str, Any], documents: list[str]) -> str:

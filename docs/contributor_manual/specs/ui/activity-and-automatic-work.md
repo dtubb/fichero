@@ -930,11 +930,17 @@ and node, not by job); a retry action for failed pages.
   job that started by itself, at its next boundary, and the island says so. Built (2026-10-03):
   `PUT /api/activity/jobs/paused`; while paused the scheduler starts nothing and a waiting job says
   "Paused by you"; `/api/activity/jobs` reports `paused` (`fichero-server/tests/unit/jobs/test_job_queue.py`). The derivative stages
-  are held too (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). Still a gap: the Mac control and the island, and the work not
-  yet on the queue (workflow runs started by themselves).
+  are held too (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). The engine starts no workflow run
+  by itself outside the queue (2026-10-08): a recipe run is a `recipes` job, held like any other, and
+  the schedule and file-trigger managers are never started (`init_scheduler`, `init_file_watcher`
+  have no caller). Still a gap: the Mac control and the island.
 - `activity.pause.global-survives-relaunch` — **[PARTIAL]** (#5355) a Mac paused at quit is
   paused at launch. Built: the switch is an app setting (`background_work_paused`), read by the
-  scheduler before every job (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the click-around leg.
+  scheduler before every job (`fichero-server/tests/unit/jobs/test_job_queue.py`). Pinned (2026-10-08): after a
+  relaunch the open's resume puts interrupted jobs back to waiting without starting them, and
+  `/api/activity/jobs` says `paused` and "Paused by you" until the switch is turned off
+  (`test_job_queue.py::TestPause::test_pause_survives_a_relaunch_and_activity_says_so`). Still a gap:
+  the click-around leg.
 - `activity.pause.per-job` — **[PARTIAL]** (#5356) Pause, Resume and Cancel on any row, applying
   to its children. Built (2026-10-03, 2026-10-04): any row in the `jobs` table can be paused,
   resumed and cancelled (`PUT /api/activity/jobs/{id}/paused`, `POST /api/activity/jobs/{id}/cancel`);
@@ -1076,10 +1082,11 @@ and node, not by job); a retry action for failed pages.
   checkpoints are on disk (`workflows/checkpointer.py`). Since #5555 the flip is on every open and says
   so — "Interrupted: the engine stopped at HH:MM" — and the run offers to read its pages not done as a new
   run (`compute.run.interrupted-on-start`); it is still not resumed in place.
-- `activity.durable.paused-stays-paused` — **[BROKEN]** (#5357) a paused job is still
-  paused after relaunch. Holds for rows in the `jobs` table (`fichero-server/tests/unit/jobs/test_job_queue.py`). Broken for
-  workflow runs: their rows are jobs now, but on reopen the run sweep still turns every running,
-  accepted and paused run into a failed one (`workflows/activity_store.py:1469-1472`).
+- `activity.durable.paused-stays-paused` — **[OK]** (#5357) a paused job is still
+  paused after relaunch. Holds for rows in the `jobs` table (`fichero-server/tests/unit/jobs/test_job_queue.py`) and,
+  since 2026-10-08, for workflow runs: the reopen sweep and the interrupted-run marking take only
+  running and accepted runs, a paused run is listed in Activity as paused, and its Resume carries on
+  from its checkpoint (`fichero-server/tests/unit/jobs/test_durable_5357.py`).
 - `activity.durable.poison-item` — **[PARTIAL]** (#5357) an item that fails three times is
   set aside with its reason and the job carries on. Built: a queued job interrupted by a quit or
   crash goes back to waiting and is set aside after three (`fichero-server/tests/unit/jobs/test_job_queue.py`); a job that raises fails
@@ -1088,16 +1095,30 @@ and node, not by job); a retry action for failed pages.
   inputs fingerprint already finished is skipped; today the derivative stages happen to be
   idempotent and the NLP stage skips marked pages, while re-running a workflow has three different
   behaviours (`safety/run-take-back.md`). Built: queuing a page whose stage is already waiting
-  reuses that job (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`). Still a gap: the inputs fingerprint.
+  reuses that job (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`); a paused run resumed after a
+  relaunch does not read again the page it read before the pause (`fichero-server/tests/unit/jobs/test_durable_5357.py`).
+  Still a gap: the inputs fingerprint, and a per-kind check that each queued kind is safe to run twice.
 
 ### F. Automatic processing
 
 - `activity.auto.on-add` — **[PARTIAL]** (#5362) on import, thumbnails and
   embeddings always run; the NLP draft only behind a setting that is off by default
-  (`nlp_draft.py:61`); Kraken never runs at import despite the 2026-09-04 ruling; the project's
-  chain never runs by itself.
-- `activity.auto.on-add-from-recipe` — **[GAP]** (→ #4950, #4951) what runs when a source is added is
-  what the project's recipe lists, after the first yes.
+  (`nlp_draft.py:61`); Kraken never runs at import despite the 2026-09-04 ruling. Since 2026-10-07
+  the project's recipe runs on an import after Start (`activity.auto.on-add-from-recipe`).
+- `activity.auto.on-add-from-recipe` — **[OK]** (→ #4950, #4951) what runs when a source is added is
+  what the project's recipe lists, after the first yes. Built by `runner.material_arrived`:
+  `source.onboard.just-do-it`, `source.onboard.auto.runs-by-itself-honoured`,
+  `source.onboard.auto.on-add-refusal-said` (`source/models-chains-and-projects.md`), tested in
+  `fichero-server/tests/unit/recipes/test_every_step_runs_to_spec.py` and `test_run_visible_to_spec.py`.
+- `activity.auto.what-runs-by-itself` — **[PARTIAL]** (#5362) the project says, in one engine
+  read the app and MCP can show, what runs by itself on an import and on a correction, each kind of
+  work with whether it runs and why. Built (2026-10-08, engine): `GET /api/recipes/project/automatic`
+  (`runner.what_runs_by_itself`), read from the same gates the import and the correction use
+  (pictures and search always; the NLP draft and the re-read of names by the Ingestion setting; the
+  recipe's steps by its first yes, purposes, What runs by itself and the Start plan, a skipped step
+  with the plan's why); an import after Start runs exactly the steps it names
+  (`fichero-server/tests/unit/recipes/test_what_runs_by_itself_5362.py`). Still a gap: the app's setup
+  and Activity do not show it.
 - `activity.auto.reembed-on-change` — **[PARTIAL]** (#5360) a reading or segment change
   re-derives the page text and re-embeds it. Built: the re-embed is a queued job written in the
   change's own transaction (`activity.correction-reembed-visible`, `actions/page_text_cache.py:366-376`).
@@ -1360,10 +1381,10 @@ which merges live executions with each library's history and collects a library'
   refreshToken (no wholesale run reload)" (`fichero/Tests/Unit/general/Models/ActivityStoreTests.swift:177`).
 - `activity.spinner-reflects-process-liveness` — **[BROKEN]** (#4346) a spinner means the run is
   alive and working now; after a run stops, its row has been seen keeping a spinner.
-- `activity.stale-runs-settle-across-restarts` — **[BROKEN]** (#4384, #5357) a run that died with its
-  process is settled at the next launch, and a paused or resumable run is not. The settle now
-  exists and settles too much: on reopen every running, accepted and paused run is turned into a
-  failed one (`workflows/activity_store.py:1469-1472`), although its checkpoints are on disk.
+- `activity.stale-runs-settle-across-restarts` — **[PARTIAL]** (#4384, #5357) a run that died with its
+  process is settled at the next launch, and a paused or resumable run is not. Built (2026-10-08): a
+  paused run is not settled (`fichero-server/tests/unit/jobs/test_durable_5357.py`). Still a gap: a running run is
+  still turned into a failed (interrupted) one on reopen, although its checkpoints are on disk.
 - `activity.cancellation-boundary-generalized` — **[PARTIAL]** (→ #4402) Stop's check covers every
   per-item tool loop, and Pause shares it. Owned by `activity.run.stop-reaches-in-flight-calls`.
 - `activity.standalone-window` — **[PARTIAL]** (#1264, #1559) a standalone Activity window, opened from

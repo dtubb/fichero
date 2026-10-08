@@ -1302,6 +1302,31 @@ class RecipeRuns(BaseModel):
     items: list[RecipeRunStatus]
 
 
+class AutomaticWork(BaseModel):
+    """One kind of work in what runs by itself."""
+
+    job: Optional[str] = Field(description="the job kind (as Activity's rows name it); null for a recipe step skipped")
+    name: str = Field(description="the work in words, or the skipped step's id")
+    runs: bool = Field(description="whether it runs by itself")
+    why: str = Field(description="why it runs or does not, in words, naming the setting that decides it")
+    steps: list[str] = Field(default_factory=list, description="the recipe steps it carries out, if any")
+
+
+class WhatRunsByItself(BaseModel):
+    on_add: list[AutomaticWork] = Field(description="what runs on the pages an import brings")
+    on_correction: list[AutomaticWork] = Field(description="what runs on a page whose text a person corrects")
+
+
+@router.get("/project/automatic", response_model=WhatRunsByItself)
+async def what_runs_by_itself(db: Database = Depends(get_library_database)) -> WhatRunsByItself:
+    """What runs by itself in this project, on an import and on a correction (#5362,
+    `activity.auto.what-runs-by-itself`): each kind of work, whether it runs and why, read from the same
+    gates the import and the correction use. Reads only."""
+    from fichero_server.recipes import runner
+
+    return WhatRunsByItself(**runner.what_runs_by_itself(db))
+
+
 @router.get("/project/runs", response_model=RecipeRuns)
 async def recipe_runs(db: Database = Depends(get_library_database)) -> RecipeRuns:
     """The project's recipe runs, newest first: Start's, and one for each import after it. Each stage that is a

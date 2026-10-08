@@ -6033,6 +6033,12 @@ def fichero_recipes_save_project_setup(
     return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
 
 
+def fichero_recipes_what_runs_by_itself(
+) -> Any:
+    'What Runs By Itself\n\nWhat runs by itself in this project, on an import and on a correction (#5362,\n`activity.auto.what-runs-by-itself`): each kind of work, whether it runs and why, read from the same\ngates the import and the correction use. Reads only.\n\nRoute: GET /api/recipes/project/automatic (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/project/automatic")
+
+
 def fichero_recipes_list_bakeoffs(
 ) -> Any:
     'List Bakeoffs\n\nEvery bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`),\nand whether the project has enough corrected lines to run one now (`readiness`, counted as a start is).\n\nRoute: GET /api/recipes/project/bakeoffs (toolset `recipes`; reads).'
@@ -9116,6 +9122,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),
     GeneratedTool("fichero_recipes_save_project_setup", "recipes", "PUT", "/api/recipes/project", fichero_recipes_save_project_setup),
+    GeneratedTool("fichero_recipes_what_runs_by_itself", "recipes", "GET", "/api/recipes/project/automatic", fichero_recipes_what_runs_by_itself),
     GeneratedTool("fichero_recipes_list_bakeoffs", "recipes", "GET", "/api/recipes/project/bakeoffs", fichero_recipes_list_bakeoffs),
     GeneratedTool("fichero_recipes_start_bakeoff", "recipes", "POST", "/api/recipes/project/bakeoffs", fichero_recipes_start_bakeoff),
     GeneratedTool("fichero_recipes_bakeoff_result", "recipes", "GET", "/api/recipes/project/bakeoffs/{bakeoff_id}", fichero_recipes_bakeoff_result),

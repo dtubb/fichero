@@ -72,10 +72,12 @@ _STALE_RUN_ERROR = (
     "(recovered on startup)."
 )
 
-# Recovery sweeps EVERY non-terminal status (#4316): 'running' rows whose
-# worker died, 'accepted' rows whose worker never started, and 'paused' rows
-# with no process left to resume them. Inlined as SQL fragments below.
-_SWEEPABLE_STATUSES = ("running", "accepted", "paused")
+# Recovery sweeps the statuses a dead process leaves behind (#4316): 'running'
+# rows whose worker died and 'accepted' rows whose worker never started. A
+# 'paused' run is NOT swept (#5357, `activity.durable.paused-stays-paused`): it
+# needs no process, and its Resume carries on from its checkpoint on disk, after
+# a relaunch as before one. Inlined as SQL fragments below.
+_SWEEPABLE_STATUSES = ("running", "accepted")
 _SWEEPABLE_STATUS_SQL = ", ".join(f"'{s}'" for s in _SWEEPABLE_STATUSES)
 
 _PROGRESS_EVENT_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
