@@ -446,5 +446,7 @@
   "POST /api/registry/release": "release a project (#5563) closes a connection and changes no data; undo is opening it again (any request naming it)",
   "POST /api/find-documents/runs": "not undoable by design (finddocs.run, audited, undoable=False): it stores a proposal and changes nothing in the source; an auto-accept it makes is its own finddocs.accept row, undone as one",
   "POST /api/find-documents/proposals/{proposal_id}/accept": "finddocs.accept is audited and undoable in the engine (one undo of its audit_id restores the folder, prototypes and canvas; test_find_documents_to_spec); the app's Edit > Undo does not reach it until the app surface is built (#5550)",
-  "POST /api/find-documents/proposals/{proposal_id}/reject": "finddocs.reject is audited and undoable in the engine (finddocs.restate); the app's Edit > Undo does not reach it until the app surface is built (#5550)"
+  "POST /api/find-documents/proposals/{proposal_id}/reject": "finddocs.reject is audited and undoable in the engine (finddocs.restate); the app's Edit > Undo does not reach it until the app surface is built (#5550)",
+  "POST /api/documents/{doc_id}/proposed-kind/accept": "audited and undoable in the engine (document.assign_prototype; one undo of its audit_id restores the node and the proposal; test_attributes_cite); the app's Accept, and its undo wiring, are not built yet (#5600)",
+  "POST /api/documents/{doc_id}/proposed-kind/reject": "audited and undoable in the engine (document.reject_proposed_kind inverts to document.restore; test_attributes_cite); the app's Reject, and its undo wiring, are not built yet (#5600)"
 }

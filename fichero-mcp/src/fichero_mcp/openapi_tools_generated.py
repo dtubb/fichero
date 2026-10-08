@@ -2273,6 +2273,22 @@ def fichero_documents_get_parent(
     return _rt.call("GET", f"/api/documents/{doc_id}/parent")
 
 
+def fichero_documents_accept_proposed_kind(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "Accept the kind a run proposed for this node\n\nAssign the run's proposed kind as the node's prototype (made first when the project has none of that\nname), through the audited `document.assign_prototype`: its source stays the run (its record and what\nthe model said), accepted by the caller, so no later run replaces it. 404 when no kind is waiting.\n\nRoute: POST /api/documents/{doc_id}/proposed-kind/accept (toolset `documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/documents/{doc_id}/proposed-kind/accept")
+
+
+def fichero_documents_reject_proposed_kind(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "Reject the kind a run proposed for this node\n\nDismiss the run's proposed kind (kept, marked rejected, so the same kind is not proposed again); the\nnode's kind is unchanged. One audited action, `document.reject_proposed_kind`. 404 when none is waiting.\n\nRoute: POST /api/documents/{doc_id}/proposed-kind/reject (toolset `documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/documents/{doc_id}/proposed-kind/reject")
+
+
 def fichero_documents_assign_prototype(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -2797,10 +2813,10 @@ def fichero_find_documents_reject_proposal(
 
 def fichero_find_documents_start(
     *,
-    accept_above: Annotated[Optional[float], Field(description='Accept, as the run ends, every proposed document at least this confident; none leaves all for a person.')] = None,
+    accept_above: Annotated[Optional[float], Field(description="Accept, as the run ends, every proposed document at least this confident (left out: 0.95, the project's default, ruled 2026-10-08); null leaves all for a person. Default: 0.95.")] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders, or a selection of pages (each with its folder).')],
 ) -> Any:
-    "Find the documents in folders or a selection of pages\n\nQueue one background job: each folder's loose pages are paired into leaves, and documents, their kinds\nand their groups are proposed from the text already read, with evidence and a confidence; blank versos and\nsecond shots are reported, not made documents. The proposals are stored; nothing in the source changes.\nWith `accept_above`, the documents at least that sure are accepted as the run ends.\n\nRoute: POST /api/find-documents/runs (toolset `find-documents`; changes data, as the agent account when one exists)."
+    "Find the documents in folders or a selection of pages\n\nQueue one background job: each folder's loose pages are paired into leaves, and documents, their kinds\nand their groups are proposed from the text already read, with evidence and a confidence; blank versos and\nsecond shots are reported, not made documents. The proposals are stored; nothing in the source changes.\nAs the run ends, the documents at least `accept_above` sure are accepted (left out: 0.95, the project's\ndefault); the rest wait for a person. `accept_above: null` leaves them all for a person.\n\nRoute: POST /api/find-documents/runs (toolset `find-documents`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/find-documents/runs", json=_rt.body({"accept_above": accept_above, "scope_ids": scope_ids}))
 
 
@@ -8652,6 +8668,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_upsert_page_ranges", "documents", "PUT", "/api/documents/{doc_id}/page-ranges", fichero_documents_upsert_page_ranges),
     GeneratedTool("fichero_documents_page_range_for_page", "documents", "GET", "/api/documents/{doc_id}/page-ranges/at/{page}", fichero_documents_page_range_for_page),
     GeneratedTool("fichero_documents_get_parent", "documents", "GET", "/api/documents/{doc_id}/parent", fichero_documents_get_parent),
+    GeneratedTool("fichero_documents_accept_proposed_kind", "documents", "POST", "/api/documents/{doc_id}/proposed-kind/accept", fichero_documents_accept_proposed_kind),
+    GeneratedTool("fichero_documents_reject_proposed_kind", "documents", "POST", "/api/documents/{doc_id}/proposed-kind/reject", fichero_documents_reject_proposed_kind),
     GeneratedTool("fichero_documents_assign_prototype", "documents", "PUT", "/api/documents/{doc_id}/prototype", fichero_documents_assign_prototype),
     GeneratedTool("fichero_documents_purge", "documents", "DELETE", "/api/documents/{doc_id}/purge", fichero_documents_purge),
     GeneratedTool("fichero_documents_related", "documents", "GET", "/api/documents/{doc_id}/related", fichero_documents_related),

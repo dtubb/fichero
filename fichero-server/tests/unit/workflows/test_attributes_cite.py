@@ -5,12 +5,14 @@ Spec: `docs/contributor_manual/specs/source/source-model.md`, "Extracted data, i
 
 - `source.extract.attributes-cite`: a value a run sets cites the run it came from
   (`metadata.attribute_sources`); a person's value cites nothing and outranks a machine's.
-- `source.extract.kinds-proposed-as-prototypes`: `classify`'s answer is the node's prototype, assigned
-  through the audited `document.assign_prototype`, not only a 'classification' artifact.
+- `source.extract.kinds-proposed-as-prototypes` (ruled 2026-10-08): `classify`'s answer is a PROPOSED
+  prototype on the node, with its evidence, for a person to accept (assigned through the audited
+  `document.assign_prototype`, its source the run, accepted by the person) or reject.
 
 Each run goes through the REAL background runner with only the model stubbed; the result is read where a
 person's window reads it (`GET /api/documents/{id}`, `GET /api/documents/{id}/effective-attributes`), and a
-person's choices are made through the routes (`PUT /api/documents/{id}`, `PUT /api/documents/{id}/prototype`).
+person's choices are made through the routes (`PUT /api/documents/{id}`, `PUT /api/documents/{id}/prototype`,
+`POST /api/documents/{id}/proposed-kind/accept|reject`, `POST /api/actions/audit/{id}/undo`).
 """
 
 from __future__ import annotations
@@ -72,26 +74,89 @@ def _record(db, artifact_type: str, run: str) -> Artifact:
 # ── source.extract.kinds-proposed-as-prototypes ─────────────────────────────
 
 
-def test_classify_proposes_the_kind_as_the_prototype_citing_its_run(page, client, db, monkeypatch):
-    _install_deterministic_workflow_stubs(monkeypatch)
-    _model_says(monkeypatch, "Letter")
+def _proposed(client) -> dict | None:
+    meta = _get(client, f"/api/documents/{PAGE}")["metadata"] or {}
+    return (meta.get("proposed_attributes") or {}).get("prototype")
 
-    _run_one_tool(page, "classify-letter", "classify", {})
+
+def _prototype_keys(client) -> set[str]:
+    found = _get(client, "/api/classifications?dimension=document_prototype")
+    items = found["items"] if isinstance(found, dict) else found
+    return {item["key"] for item in items}
+
+
+def test_classify_proposes_the_kind_with_its_evidence_and_assigns_nothing(page, client, db, monkeypatch):
+    _install_deterministic_workflow_stubs(monkeypatch)
+    _model_says(monkeypatch, "Deposition")
+
+    _run_one_tool(page, "classify-deposition", "classify", {})
 
     doc = _get(client, f"/api/documents/{PAGE}")
-    assert doc["prototype_key"] == "letter", "the kind is the page's prototype, not only an artifact"
-    effective = _get(client, f"/api/documents/{PAGE}/effective-attributes")
-    assert effective["prototype_key"] == "letter"
-    record = _record(db, "classification", "classify-letter")
-    source = _sources(client)["prototype"]
+    assert doc["prototype_key"] is None, "a run's kind is proposed, not assigned"
+    assert "prototype" not in _sources(client)
+    assert "deposition" not in _prototype_keys(client), "no prototype is made before a person accepts"
+    proposed = _proposed(client)
+    assert (proposed["value"], proposed["label"], proposed["state"]) == ("deposition", "Deposition", "proposed")
+    record = _record(db, "classification", "classify-deposition")
+    source = proposed["source"]
     assert source["by"] == "machine"
-    assert source["run_id"] == record.run_id
-    assert source["artifact_id"] == record.id, "the kind cites the run's record of the answer"
-    assert source["said"] == "Letter", "and what the model said"
+    assert source["run_id"] == record.run_id, "the proposal cites its run"
+    assert source["artifact_id"] == record.id, "and the run's record of the answer"
+    assert source["said"] == "Deposition", "and what the model said"
     assert source["model"] == record.model
-    prototypes = _get(client, "/api/classifications?dimension=document_prototype")
-    items = prototypes["items"] if isinstance(prototypes, dict) else prototypes
-    assert "letter" in {item["key"] for item in items}, "the proposed kind is a prototype of the project"
+
+
+def test_accepting_assigns_the_kind_with_the_run_as_its_source(page, client, db, monkeypatch):
+    _install_deterministic_workflow_stubs(monkeypatch)
+    _model_says(monkeypatch, "Deposition")
+    _run_one_tool(page, "classify-accept", "classify", {})
+    record = _record(db, "classification", "classify-accept")
+
+    r = client.post(f"/api/documents/{PAGE}/proposed-kind/accept")
+    assert r.status_code == 200, r.text
+    answer = r.json()
+    assert (answer["prototype_key"], answer["state"]) == ("deposition", "accepted") and answer["audit_id"]
+    assert _get(client, f"/api/documents/{PAGE}")["prototype_key"] == "deposition"
+    assert _get(client, f"/api/documents/{PAGE}/effective-attributes")["prototype_key"] == "deposition"
+    assert "deposition" in _prototype_keys(client), "the accepted kind is made a prototype of the project"
+    source = _sources(client)["prototype"]
+    assert (source["by"], source["run_id"], source["artifact_id"]) == ("machine", record.run_id, record.id)
+    assert source["accepted_by"], "accepted by the person"
+    assert _proposed(client)["state"] == "accepted"
+    assert client.post(f"/api/documents/{PAGE}/proposed-kind/accept").status_code == 404, "nothing waits now"
+
+    # An accepted kind is the person's: a later run proposes nothing over it.
+    _model_says(monkeypatch, "Receipt")
+    _run_one_tool(page, "classify-after-accept", "classify", OTHER_MODEL)
+    assert _get(client, f"/api/documents/{PAGE}")["prototype_key"] == "deposition"
+    assert _proposed(client)["state"] == "accepted"
+
+    # One undo of the accept puts the proposal back and the kind away.
+    undo = client.post(f"/api/actions/audit/{answer['audit_id']}/undo")
+    assert undo.status_code == 200, undo.text
+    assert _get(client, f"/api/documents/{PAGE}")["prototype_key"] is None
+    assert _proposed(client)["state"] == "proposed"
+
+
+def test_rejecting_dismisses_the_kind_and_it_is_not_proposed_again(page, client, db, monkeypatch):
+    _install_deterministic_workflow_stubs(monkeypatch)
+    _model_says(monkeypatch, "Letter")
+    _run_one_tool(page, "classify-reject", "classify", {})
+
+    r = client.post(f"/api/documents/{PAGE}/proposed-kind/reject")
+    assert r.status_code == 200, r.text
+    assert (r.json()["state"], r.json()["prototype_key"]) == ("rejected", None) and r.json()["audit_id"]
+    assert _get(client, f"/api/documents/{PAGE}")["prototype_key"] is None
+    assert _proposed(client)["state"] == "rejected", "kept, marked rejected"
+    assert client.post(f"/api/documents/{PAGE}/proposed-kind/reject").status_code == 404
+
+    _model_says(monkeypatch, "Letter")
+    _run_one_tool(page, "classify-same-again", "classify", OTHER_MODEL)
+    assert _proposed(client)["state"] == "rejected", "the kind a person rejected is not proposed again"
+
+    undo = client.post(f"/api/actions/audit/{r.json()['audit_id']}/undo")
+    assert undo.status_code == 200, undo.text
+    assert _proposed(client)["state"] == "proposed"
 
 
 def test_a_kind_a_person_chose_is_never_replaced_by_a_run(page, client, db, monkeypatch):
@@ -108,18 +173,35 @@ def test_a_kind_a_person_chose_is_never_replaced_by_a_run(page, client, db, monk
 
     assert _get(client, f"/api/documents/{PAGE}")["prototype_key"] == "deed"
     assert _sources(client)["prototype"] == {"by": "person"}
+    assert _proposed(client) is None, "nothing is proposed over a person's kind"
     _record(db, "classification", "classify-over-a-person")  # the run happened and kept its record
 
 
-def test_a_kind_a_run_proposed_is_replaced_by_a_later_run(page, client, db, monkeypatch):
+def test_a_later_run_replaces_an_unanswered_proposal(page, client, db, monkeypatch):
     _install_deterministic_workflow_stubs(monkeypatch)
     _model_says(monkeypatch, "Letter")
     _run_one_tool(page, "classify-first", "classify", {})
     _model_says(monkeypatch, "Receipt")
     _run_one_tool(page, "classify-second", "classify", OTHER_MODEL)
 
-    assert _get(client, f"/api/documents/{PAGE}")["prototype_key"] == "receipt"
-    assert _sources(client)["prototype"]["run_id"] == _record(db, "classification", "classify-second").run_id
+    assert _get(client, f"/api/documents/{PAGE}")["prototype_key"] is None
+    proposed = _proposed(client)
+    assert (proposed["value"], proposed["state"]) == ("receipt", "proposed")
+    assert proposed["source"]["run_id"] == _record(db, "classification", "classify-second").run_id
+
+
+def test_a_person_choosing_another_kind_answers_the_proposal(page, client, db, monkeypatch):
+    _install_deterministic_workflow_stubs(monkeypatch)
+    _model_says(monkeypatch, "Letter")
+    _run_one_tool(page, "classify-then-person", "classify", {})
+    client.post("/api/classifications", json={"dimension": "document_prototype", "key": "deed",
+                                              "label": "Deed"}).raise_for_status()
+    client.put(f"/api/documents/{PAGE}/prototype", json={"prototype_key": "deed"}).raise_for_status()
+
+    assert _proposed(client)["state"] == "rejected", "a person's other choice sets the proposal aside"
+    assert client.post(f"/api/documents/{PAGE}/proposed-kind/accept").status_code == 404
+
+
 
 
 # ── source.extract.attributes-cite ──────────────────────────────────────────

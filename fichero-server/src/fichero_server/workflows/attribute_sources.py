@@ -16,12 +16,26 @@ The sources sit in `metadata`, not in `attributes`, so a grid or the effective-a
 show them as fields. A run sets a key only when it is empty and nobody set it, or a machine set it: a
 person's value (and any value already there that no run claims) is never overwritten by a run. The
 page's kind from sorting keeps its own `material_set_by` (#5578).
+
+A run's KIND is not assigned: it is proposed for a person to accept (ruled 2026-10-08, #5600).
+`Document.metadata["proposed_attributes"]["prototype"]` holds it, citing the run as a value would:
+
+    {"value": "<prototype key>", "label": "<what the model named it>", "state": "proposed",
+     "source": <machine_source(...)>, "proposed_at": "<iso time>"}
+
+Accepting it assigns the prototype through the audited `document.assign_prototype`, its source the
+run with ``accepted_by`` the person (the kind is then the person's: no run proposes over it);
+rejecting it (`document.reject_proposed_kind`) sets its state to ``rejected``, and that kind is not
+proposed again. A later run's proposal replaces one nobody answered, never a kind a person chose.
+Like Find the Documents' proposals (`finddocs.*`), each answer is one audited action, undone as one.
 """
 from __future__ import annotations
 
 from typing import Any
 
 SOURCES = "attribute_sources"
+PROPOSED = "proposed_attributes"
+PROPOSED_STATE, ACCEPTED, REJECTED = "proposed", "accepted", "rejected"
 #: The key for the node's kind: `Document.prototype_key`, not an entry of `attributes`.
 PROTOTYPE = "prototype"
 BY_PERSON, BY_MACHINE = "person", "machine"
@@ -41,10 +55,11 @@ def _current(doc: Any, key: str) -> Any:
 
 
 def machine_may_set(doc: Any, key: str) -> bool:
-    """Whether a run may write `key` on `doc`: a machine set it last, or it is empty and nobody set it."""
+    """Whether a run may write (or propose) `key` on `doc`: a machine set it last and no person accepted
+    it, or it is empty and nobody set it."""
     source = sources(doc).get(key)
     if source is not None:
-        return source.get("by") == BY_MACHINE
+        return source.get("by") == BY_MACHINE and not source.get("accepted_by")
     return _current(doc, key) in (None, "", [], {})
 
 
@@ -70,6 +85,29 @@ def machine_source(
             "provider": provider, "model": model, "said": (said or "")[:500] or None, "cites": cites}
 
 
+def proposals(doc: Any) -> dict[str, dict]:
+    meta = doc.metadata if isinstance(getattr(doc, "metadata", None), dict) else {}
+    found = meta.get(PROPOSED)
+    return dict(found) if isinstance(found, dict) else {}
+
+
+def pending(doc: Any, key: str) -> dict | None:
+    """The proposal for `key` on `doc` that nobody has answered, or None."""
+    found = proposals(doc).get(key)
+    return found if isinstance(found, dict) and found.get("state") == PROPOSED_STATE else None
+
+
+def answered(metadata: Any, key: str, state: str, *, by: str | None) -> dict:
+    """`metadata` with its unanswered proposal for `key` (if any) answered `state` by `by` (a new dict)."""
+    meta = dict(metadata) if isinstance(metadata, dict) else {}
+    found = meta.get(PROPOSED) if isinstance(meta.get(PROPOSED), dict) else {}
+    current = found.get(key)
+    if not isinstance(current, dict) or current.get("state") != PROPOSED_STATE:
+        return meta
+    meta[PROPOSED] = {**found, key: {**current, "state": state, "answered_by": by}}
+    return meta
+
+
 def scene_fields(value: Any) -> dict[str, Any]:
     """A scene answer as page attributes: the scene type under ``scene``, each detail as ``scene_<field>``."""
     if isinstance(value, dict):
@@ -83,10 +121,10 @@ def scene_fields(value: Any) -> dict[str, Any]:
 def write_from_run(
     db: Any, doc: Any, *, key: str, value: Any, source: dict, library_path: str | None,
 ) -> list[str]:
-    """Write a run's answer onto `doc` as attribute values (or, for `prototype`, as the node's kind),
-    each citing `source`. Keys a person set are left alone. Returns the keys written."""
+    """Write a run's answer onto `doc` as attribute values (for `prototype`, a proposed kind waiting for a
+    person), each citing `source`. Keys a person set are left alone. Returns the keys written."""
     if key == PROTOTYPE:
-        return [PROTOTYPE] if propose_prototype(db, doc, value, source, library_path=library_path) else []
+        return [PROTOTYPE] if propose_prototype(db, doc, value, source) else []
     fields = scene_fields(value) if key == "scene" else (
         {key: value} if value not in (None, "", [], {}) else {}
     )
@@ -103,33 +141,31 @@ def write_from_run(
     return written
 
 
-def propose_prototype(db: Any, doc: Any, label: Any, source: dict, *, library_path: str | None) -> bool:
-    """The node's kind, `label`, assigned as its prototype through the audited `document.assign_prototype`
-    (the prototype made first through `classification.create` when the project has none of that name),
-    citing `source`. A kind a person chose, or one already on the node that no run set, is kept."""
+def propose_prototype(db: Any, doc: Any, label: Any, source: dict) -> bool:
+    """The node's kind, `label`, recorded as a proposed prototype citing `source`, for a person to accept
+    or reject (`source.extract.kinds-proposed-as-prototypes`, ruled 2026-10-08). Nothing is assigned and no
+    prototype is made until a person accepts. A kind a person chose (or one already on the node that no
+    run set) is never proposed over; a kind the person rejected is not proposed again; a later run's
+    proposal replaces one nobody answered."""
     if isinstance(label, (list, tuple)):
         label = next((item for item in label if str(item or "").strip()), None)
     label = str(label or "").strip()
     if not label:
         return False
+    from fichero_server.core.timeutil import utc_now
     from fichero_server.finddocs.propose import prototype_key
 
     key = prototype_key(label)
-    if not key or not machine_may_set(doc, PROTOTYPE):
+    if not key or not machine_may_set(doc, PROTOTYPE) or doc.prototype_key == key:
         return False
-    import fichero_server.api.routes.document.classifications  # noqa: F401  (classification.create)
-    import fichero_server.api.routes.document.documents  # noqa: F401  (document.assign_prototype)
-    from fichero_server.actions.registry import ActionContext, registry
-    from fichero_server.models.knowledge import ClassificationDimension, ClassificationValue
-
-    ctx = ActionContext(actor="workflow", run_id=source.get("run_id"), library_path=library_path,
-                        is_bootstrap=True)
-    known = {v.key for v in db.query(ClassificationValue)
-             if v.dimension in {ClassificationDimension.document_prototype, ClassificationDimension.node_class}}
-    if key not in known:
-        registry.invoke(db, "classification.create", {
-            "dimension": ClassificationDimension.document_prototype.value, "key": key, "label": label,
-            "description": f"Proposed by {source.get('tool') or 'a run'}"}, ctx)
-    registry.invoke(db, "document.assign_prototype", {
-        "doc_id": doc.id, "request": {"prototype_key": key}, "source": source}, ctx)
+    current = proposals(doc).get(PROTOTYPE)
+    if isinstance(current, dict) and current.get("state") == REJECTED and current.get("value") == key:
+        return False
+    meta = dict(doc.metadata) if isinstance(doc.metadata, dict) else {}
+    meta[PROPOSED] = {**proposals(doc), PROTOTYPE: {
+        "value": key, "label": label, "state": PROPOSED_STATE, "source": source,
+        "proposed_at": utc_now().isoformat()}}
+    doc.metadata = meta
+    doc.updated_at = utc_now()
+    db.save(doc)
     return True

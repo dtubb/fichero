@@ -3310,6 +3310,30 @@
         "response_model": "Document"
       },
       {
+        "method": "POST",
+        "path": "/documents/{doc_id}/proposed-kind/accept",
+        "operation_id": "accept_proposed_kind_api_documents__doc_id__proposed_kind_accept_post",
+        "summary": "Accept the kind a run proposed for this node",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ProposedKindAnswer"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/{doc_id}/proposed-kind/reject",
+        "operation_id": "reject_proposed_kind_api_documents__doc_id__proposed_kind_reject_post",
+        "summary": "Reject the kind a run proposed for this node",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ProposedKindAnswer"
+      },
+      {
         "method": "PUT",
         "path": "/documents/{doc_id}/prototype",
         "operation_id": "assign_document_prototype_api_documents__doc_id__prototype_put",

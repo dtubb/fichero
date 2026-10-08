@@ -1416,8 +1416,9 @@ def assign_document_prototype_impl(
     """Assign a prototype key to a document scope using the synchronous DB layer.
 
     Each node assigned records who chose its kind (`metadata.attribute_sources.prototype`, #5600):
-    `source` when a run proposes it, a person otherwise; a run never replaces a person's choice
-    (`workflows.attribute_sources.machine_may_set`).
+    `source` when it is a run's kind a person accepted (the run, with ``accepted_by``), a person
+    otherwise; a run never replaces a person's choice (`workflows.attribute_sources.machine_may_set`).
+    A person's choice answers a run's proposed kind waiting on the node.
     """
     from fichero_server.workflows import attribute_sources
 
@@ -1480,6 +1481,19 @@ def assign_document_prototype_impl(
         candidate.metadata = attribute_sources.with_sources(
             candidate.metadata, {attribute_sources.PROTOTYPE: chosen_by}
         )
+        proposed = attribute_sources.pending(candidate, attribute_sources.PROTOTYPE)
+        by_a_person = chosen_by.get("by") == attribute_sources.BY_PERSON or chosen_by.get("accepted_by")
+        if candidate.id == doc_id and proposed and by_a_person:
+            # A person's choice of kind answers the run's proposal waiting on this node (#5600):
+            # accepted when it is the proposed kind, set aside otherwise.
+            candidate.metadata = attribute_sources.answered(
+                candidate.metadata,
+                attribute_sources.PROTOTYPE,
+                attribute_sources.ACCEPTED
+                if proposed.get("value") == request.prototype_key
+                else attribute_sources.REJECTED,
+                by=chosen_by.get("accepted_by"),
+            )
         candidate.updated_at = utc_now()
         db.save(candidate)
         updated += 1
@@ -1509,6 +1523,72 @@ async def assign_document_prototype(
         ctx,
     )
     return PrototypeAssignResponse.model_validate(result.result)
+
+
+class ProposedKindAnswer(BaseModel):
+    """A run's proposed kind for a node, answered by a person (#5600,
+    `source.extract.kinds-proposed-as-prototypes`). The proposal itself is on the node, under
+    `metadata.proposed_attributes.prototype` of `GET /api/documents/{id}`."""
+
+    document_id: str
+    prototype_key: str | None = Field(None, description="The node's kind after the answer.")
+    state: str = Field(description="`accepted` or `rejected`.")
+    audit_id: str | None = Field(None, description="The audited action: undoing it puts the proposal back.")
+
+
+def _accepted_kind_params(db: Database, doc_id: str, ctx: "ActionContext") -> dict:
+    """`document.assign_prototype`'s params for accepting the kind waiting on `doc_id` (its prototype
+    made first when the project has none of that name)."""
+    from fichero_server.workflows import attribute_sources
+
+    proposed = attribute_sources.pending(_document_or_404(db, doc_id), attribute_sources.PROTOTYPE)
+    if not proposed:
+        raise HTTPException(status_code=404, detail=f"No proposed kind is waiting on {doc_id}")
+    key = proposed["value"]
+    known = {v.key for v in db.query(ClassificationValue)
+             if v.dimension in {ClassificationDimension.document_prototype, ClassificationDimension.node_class}}
+    if key not in known:
+        import fichero_server.api.routes.document.classifications  # noqa: F401  (classification.create)
+
+        registry.invoke(db, "classification.create", {
+            "dimension": ClassificationDimension.document_prototype.value, "key": key,
+            "label": proposed.get("label") or key,
+            "description": f"Proposed by {(proposed.get('source') or {}).get('tool') or 'a run'}"}, ctx)
+    # The existing audited assignment; its source is the run, accepted by this person.
+    return {"doc_id": doc_id, "request": {"prototype_key": key},
+            "source": {**(proposed.get("source") or {}), "accepted_by": ctx.actor or "owner"}}
+
+
+@router.post("/{doc_id}/proposed-kind/accept", response_model=ProposedKindAnswer,
+             summary="Accept the kind a run proposed for this node")
+async def accept_proposed_kind(
+    doc_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> ProposedKindAnswer:
+    """Assign the run's proposed kind as the node's prototype (made first when the project has none of that
+    name), through the audited `document.assign_prototype`: its source stays the run (its record and what
+    the model said), accepted by the caller, so no later run replaces it. 404 when no kind is waiting."""
+    params = await _run_document_write(_accepted_kind_params, db, doc_id, ctx)
+    result = await _run_document_write(registry.invoke, db, "document.assign_prototype", params, ctx)
+    return ProposedKindAnswer(document_id=doc_id, prototype_key=result.result.get("prototype_key"),
+                              state="accepted", audit_id=result.audit_id)
+
+
+@router.post("/{doc_id}/proposed-kind/reject", response_model=ProposedKindAnswer,
+             summary="Reject the kind a run proposed for this node")
+async def reject_proposed_kind(
+    doc_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> ProposedKindAnswer:
+    """Dismiss the run's proposed kind (kept, marked rejected, so the same kind is not proposed again); the
+    node's kind is unchanged. One audited action, `document.reject_proposed_kind`. 404 when none is waiting."""
+    result = await _run_document_write(
+        registry.invoke, db, "document.reject_proposed_kind", {"doc_id": doc_id}, ctx
+    )
+    return ProposedKindAnswer(document_id=doc_id, prototype_key=result.result.get("prototype_key"),
+                              state="rejected", audit_id=result.audit_id)
 
 
 @router.get("/{doc_id}/page-ranges", response_model=PageRangeListResponse)
@@ -3679,6 +3759,44 @@ def _action_assign_document_prototype(
         document_ids=scoped_ids,
     )
     return response.model_dump(mode="json"), spec
+
+
+class ProposedKindRejectParams(BaseModel):
+    doc_id: str = Field(description="The node whose proposed kind is rejected")
+
+
+@action(
+    "document.reject_proposed_kind",
+    ProposedKindRejectParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_document_prototype_snapshot,
+)
+def _action_reject_proposed_kind(
+    db: Database, params: ProposedKindRejectParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """A run's proposed kind dismissed by a person (#5600): kept, marked rejected; the kind is unchanged.
+    Undone by restoring the node as it was (the proposal waiting again)."""
+    from fichero_server.workflows import attribute_sources
+
+    doc = _document_or_404(db, params.doc_id)
+    if not attribute_sources.pending(doc, attribute_sources.PROTOTYPE):
+        raise HTTPException(status_code=404, detail=f"No proposed kind is waiting on {params.doc_id}")
+    before = doc.model_dump(mode="json")
+    doc.metadata = attribute_sources.answered(
+        doc.metadata, attribute_sources.PROTOTYPE, attribute_sources.REJECTED, by=ctx.actor or "owner"
+    )
+    doc.updated_at = utc_now()
+    db.save(doc)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        before={"documents": [before]},
+        after={"document_ids": [doc.id]},
+        emit_type="document.updated",
+        document_ids=[doc.id],
+    )
+    return {"doc_id": doc.id, "prototype_key": doc.prototype_key}, spec
 
 
 @action(

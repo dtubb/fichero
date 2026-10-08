@@ -166,11 +166,13 @@ involve the company it names. Lessons the tool must carry:
   run as background work. **Built 2026-10-07 (engine):** setup's answer `loose_pages` adds it (unset, it
   is on when the open project holds a folder of loose page images, as "Everything automatic after
   Start" lays out for a box); Start runs it as its own card (`find-documents`) under the recipe's row.
-  **Default:** propose, and accept by itself only a document at least 95% sure (the step's
-  `accept_above`, the project's setting; empty leaves every proposal for the person). *Needs the
-  maintainer's decision: confirm the default and its threshold (taken 2026-10-07 so onboarding organises
-  the clear cases by itself; one undo restores them).* Pinned by
-  `fichero-server/tests/unit/recipes/test_find_documents_step.py`.
+  **Default (ruled by the maintainer 2026-10-08):** Find the Documents accepts by itself a document at
+  least 95% sure and proposes the rest for a person. One setting, `finddocs.AUTO_ACCEPT_ABOVE`: the
+  recipe step's `accept_above` (the project's setting; empty leaves every proposal for the person) and
+  the run's own default (`POST /api/find-documents/runs` with `accept_above` left out, so the MCP tool
+  and the CLI command generated from it; `null` leaves every proposal for the person). One undo restores
+  what it accepted. Pinned by `fichero-server/tests/unit/recipes/test_find_documents_step.py` and
+  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py::test_finddocs_accepts_at_95_percent_by_default`.
 - `finddocs.teacher-on-uncertain` — **[GAP]** (#5550) a thinking vision-language model is asked only
   about uncertain boundaries, kinds or groups, with its reasons kept; never about all pages by
   default; the egress gate applies.

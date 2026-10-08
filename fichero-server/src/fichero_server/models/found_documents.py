@@ -10,6 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from fichero_server.finddocs import AUTO_ACCEPT_ABOVE
+
 #: What a proposed document or group can be in: still proposed, accepted (made a group node), or rejected.
 ProposalState = Literal["proposed", "accepted", "rejected"]
 #: What a page that is not a document's own page turned out to be.
@@ -92,9 +94,10 @@ class DocumentsProposal(BaseModel):
 class FindDocumentsRequest(BaseModel):
     scope_ids: list[str] = Field(min_length=1, description="Folders, or a selection of pages (each with its folder).")
     accept_above: float | None = Field(
-        None, ge=0.0, le=1.0,
-        description="Accept, as the run ends, every proposed document at least this confident; none leaves all "
-                    "for a person.")
+        AUTO_ACCEPT_ABOVE, ge=0.0, le=1.0,
+        description="Accept, as the run ends, every proposed document at least this confident (left out: "
+                    f"{AUTO_ACCEPT_ABOVE}, the project's default, ruled 2026-10-08); null leaves all for a "
+                    "person.")
 
 
 class FindDocumentsAcceptRequest(BaseModel):

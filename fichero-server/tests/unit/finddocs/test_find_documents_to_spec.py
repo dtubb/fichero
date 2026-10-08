@@ -91,7 +91,7 @@ def test_finddocs_job_proposes_and_changes_nothing(client, db, istmina):
     images' ink as well as the text; the folder and its pages are as they were."""
     folder = istmina["folder"]
     before = [(d.id, d.parent_id, d.sort_order, d.prototype_key) for d in _children(db, folder.id)]
-    run = _run(client, db, [folder.id])
+    run = _run(client, db, [folder.id], accept_above=None)
     assert run["state"] in ("running", "done") and "8 documents proposed" in run["reason"]
     assert "waiting for you" in run["reason"]
     (proposal_id,) = run["proposal_ids"]
@@ -118,7 +118,7 @@ def test_finddocs_accept_makes_groups_with_prototypes_and_one_undo_restores(clie
     prototype (made, since the project had none), lays the canvas out, and one undo restores the folder."""
     folder = istmina["folder"]
     before = [(d.id, d.parent_id, d.sort_order) for d in _children(db, folder.id)]
-    proposal_id = _run(client, db, [folder.id])["proposal_ids"][0]
+    proposal_id = _run(client, db, [folder.id], accept_above=None)["proposal_ids"][0]
     assert not db.query(ClassificationValue, dimension=ClassificationDimension.document_prototype, key="sentencia")
     r = client.post(f"/api/find-documents/proposals/{proposal_id}/accept", json={})
     assert r.status_code == 200, r.text
@@ -158,7 +158,7 @@ def test_finddocs_accept_above_a_confidence_and_reject_are_kept(client, db, tmp_
     for learning (`finddocs.corrections-teach`), each undone as one."""
     pages, truth, _groups = correspondence_box()
     folder, ids = _project(db, tmp_path, pages)
-    proposal_id = _run(client, db, [folder.id])["proposal_ids"][0]
+    proposal_id = _run(client, db, [folder.id], accept_above=None)["proposal_ids"][0]
     proposal = _proposal(client, proposal_id)
     assert [d["page_ids"] for d in proposal["documents"]] == [[ids[p] for p in doc] for doc in truth]
     confidences = [d["confidence"] for d in proposal["documents"]]
@@ -199,19 +199,47 @@ def test_finddocs_run_accepts_by_itself_above_its_setting(client, db, tmp_path, 
     """A run with `accept_above` (the recipe step's setting) accepts the documents that sure and leaves the rest."""
     pages, _truth, _groups = correspondence_box()
     folder, _ids = _project(db, tmp_path, pages)
-    run = _run(client, db, [folder.id], accept_above=0.95)
+    run = _run(client, db, [folder.id], accept_above=0.8)
     proposal = _proposal(client, run["proposal_ids"][0])
-    sure = [d["index"] for d in proposal["documents"] if d["confidence"] >= 0.95]
-    assert sure and len(sure) < len(proposal["documents"])
+    sure = [d["index"] for d in proposal["documents"] if d["confidence"] >= 0.8]
+    assert sure
     assert [d["index"] for d in proposal["documents"] if d["state"] == "accepted"] == sure
     assert f"{len(sure)} accepted" in run["reason"]
+
+
+def test_finddocs_accepts_at_95_percent_by_default(client, db, tmp_path, jobs_run_by_the_test):
+    """`finddocs.recipe-step` (ruled 2026-10-08, #5550): left out, a run accepts by itself every document at least
+    95% sure and proposes the rest for a person -- the route (so the MCP and CLI generated from it) and the recipe
+    step share the one setting, `finddocs.AUTO_ACCEPT_ABOVE`."""
+    from fichero_server import finddocs
+    from fichero_server.models.found_documents import FindDocumentsRequest
+
+    assert finddocs.AUTO_ACCEPT_ABOVE == 0.95
+    assert FindDocumentsRequest(scope_ids=["x"]).accept_above == finddocs.AUTO_ACCEPT_ABOVE
+    assert FindDocumentsRequest(scope_ids=["x"], accept_above=None).accept_above is None
+    pages, _truth, _groups = correspondence_box()
+    folder, _ids = _project(db, tmp_path, pages)
+    run = _run(client, db, [folder.id])  # no accept_above: the default
+    proposal = _proposal(client, run["proposal_ids"][0])
+    sure = [d["index"] for d in proposal["documents"] if d["confidence"] >= 0.95]
+    assert sure and len(sure) < len(proposal["documents"]), "the box has documents on both sides of 95%"
+    assert [d["index"] for d in proposal["documents"] if d["state"] == "accepted"] == sure
+    assert {d["state"] for d in proposal["documents"] if d["index"] not in sure} == {"proposed"}
+    assert f"{len(sure)} accepted (at least 95% sure)" in run["reason"]
+    # null leaves every document for a person.
+    again = tmp_path / "again"
+    again.mkdir()
+    folder2, _ = _project(db, again, pages)
+    waiting = _run(client, db, [folder2.id], accept_above=None)
+    assert {d["state"] for d in _proposal(client, waiting["proposal_ids"][0])["documents"]} == {"proposed"}
+    assert "waiting for you" in waiting["reason"]
 
 
 def test_finddocs_selection_and_unknown_ids(client, db, istmina):
     """A selection of pages is found within its folder; an unknown id is refused before any job is queued."""
     ids = istmina["ids"]
     chosen = [ids[p.id] for p in istmina["pages"][:18]]  # the first two judgments
-    run = _run(client, db, chosen)
+    run = _run(client, db, chosen, accept_above=None)
     proposal = _proposal(client, run["proposal_ids"][0])
     assert [d["page_ids"] for d in proposal["documents"]] == istmina["truth"][:2]
     assert client.post("/api/find-documents/runs", json={"scope_ids": ["nope"]}).status_code == 404
