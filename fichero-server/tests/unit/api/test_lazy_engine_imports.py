@@ -84,7 +84,10 @@ HEAVY_MODULES = [
 # startup (undo after a restart needs them registered), adding three small fichero_server modules
 # (finddocs, finddocs.store, finddocs.accept). The canvas picture's PIL import was made lazy the same day,
 # so PIL does not ride in at app import.
-MODULE_BUDGET = 801
+# 802 from 2026-10-07 (#5576, #5577): `recipes.run_view` holds the recipe run's stage and summary models, the
+# response schema of `GET /api/activity/jobs/{id}` and the recipe run routes, so it loads with them (pydantic
+# only; its work is imported when a run is read).
+MODULE_BUDGET = 802
 
 
 def _run(code: str) -> str:
