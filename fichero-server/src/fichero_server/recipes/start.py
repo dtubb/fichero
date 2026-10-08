@@ -123,6 +123,31 @@ def _override(pin: dict) -> tuple[str, str] | None:
     return ("omlx", model) if model else None
 
 
+def _reading_run(job: str, pin: dict) -> dict[str, Any] | None:
+    """The shipped workflow and run override that read with `pin` for a `read-a-line` or override job, or None
+    when no workflow can: a vision model reads the lines Kraken found; a Kraken reader finds and reads them; the
+    other jobs take the model as the run's override. A step's model and each of its `readers` (#5578) go here."""
+    if job == "read-a-line" and _override(pin) is not None:
+        (name, workflow_id), (provider, model) = _shipped(READ_LINES_WITH_A_MODEL), _override(pin)
+    elif job == "read-a-line":
+        reader = _kraken_reader_for(pin)
+        if reader is None:
+            return None
+        (name, workflow_id), (provider, model) = _shipped(WORKFLOW_FOR_JOB[job]), (KRAKEN_READER_PROVIDER, reader)
+    else:
+        override = _override(pin)
+        if override is None:
+            return None
+        (name, workflow_id), (provider, model) = _shipped(WORKFLOW_FOR_JOB[job]), override
+    return {"workflow": name, "workflow_id": workflow_id, "provider_override": provider, "model_override": model}
+
+
+def _with_readers(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The runs and, as runs of their own steps, each kind's reader they carry: their models are checked too."""
+    return runs + [{**run, **reader} for run in runs for reader in (run.get("readers") or {}).values()
+                   if reader["model_override"] != run.get("model_override")]
+
+
 def _uses_cloud(step: dict) -> bool:
     return str(step.get("runs_on") or "").startswith("cloud") or "cloud" in (step.get("model") or {})
 
@@ -273,28 +298,23 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             if pin.get("kraken") != "blla":
                 skip(sid, f"{label}: {name} finds lines with Kraken's blla only, not {pin}", "choose-model")
                 continue
-        elif job == "read-a-line" and _override(pin) is not None:
-            # A vision model reads the lines Kraken found: the step's own model, as the run's override.
-            entry["workflow"], entry["workflow_id"] = _shipped(READ_LINES_WITH_A_MODEL)
-            entry["provider_override"], entry["model_override"] = _override(pin)
-            if runs and runs[-1]["job"] == "find-lines":
-                entry["steps"] = runs.pop()["steps"] + entry["steps"]
-        elif job == "read-a-line":
-            reader = _kraken_reader_for(pin)
-            if reader is None:
-                skip(sid, f"{label}: the reader {pin} is not in the Kraken catalogue this Mac "
-                          "can fetch, so no workflow can read with it", "choose-model")
+        elif job == "read-a-line" or job in _OVERRIDE_JOBS:
+            reading = _reading_run(job, pin)
+            if reading is None:
+                skip(sid, f"{label}: the reader {pin} is not in the Kraken catalogue this Mac can fetch, so no "
+                          "workflow can read with it" if job == "read-a-line" else
+                          f"{label}: {name} cannot run the model {pin}", "choose-model")
                 continue
-            entry["provider_override"], entry["model_override"] = KRAKEN_READER_PROVIDER, reader
+            entry.update(reading)
+            if step.get("readers"):
+                # One reader per kind of page (#5578). A kind whose reader cannot run here, or would send pages
+                # off a Mac that keeps them, is read by the step's own reader.
+                entry["readers"] = {r["material"]: run for r in step["readers"]
+                                    if r.get("material") and r.get("model") and not (stays_local and _uses_cloud(r))
+                                    and (run := _reading_run(job, r["model"])) is not None}
             # Kraken finds its own lines before reading them: one run carries both steps.
-            if runs and runs[-1]["job"] == "find-lines":
+            if job == "read-a-line" and runs and runs[-1]["job"] == "find-lines":
                 entry["steps"] = runs.pop()["steps"] + entry["steps"]
-        elif job in _OVERRIDE_JOBS:
-            override = _override(pin)
-            if override is None:
-                skip(sid, f"{label}: {name} cannot run the model {pin}", "choose-model")
-                continue
-            entry["provider_override"], entry["model_override"] = override
         if job == "find-names-tag-words" and settings.get("kinds"):
             # Setup's kinds of names reach the entity extraction as its sections (#5478).
             sections = [_ENTITY_SECTIONS[k] for k in settings["kinds"] if k in _ENTITY_SECTIONS]
@@ -314,10 +334,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         run["takes"], run["gives"] = card_inputs([jobs_of.get(sid, "") for sid in run["steps"]])
     # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
     refusals = check_recipe(recipe)
-    downloads = missing_models(runs)
+    downloads = missing_models(_with_readers(runs))
     refusals += [f"steps {', '.join(d['steps'])} need the {d['runtime']} model {d['model']} ({d['size_mb']} MB), "
                  f"which is not on this Mac: download it first" for d in downloads]
-    refusals += local_models_this_mac_cannot_serve(runs)
+    refusals += local_models_this_mac_cannot_serve(_with_readers(runs))
     if not runs and not refusals:
         nothing = isinstance(automatic, dict) and not automatic.get("runs", True)
         refusals.append("What runs by itself is “Nothing runs automatically”: new material waits for a run by hand"

@@ -1031,17 +1031,39 @@ plan's peak memory across steps. Ready shows none of it.
   reads the sample, the teacher-line check (#5446) removes its misreads, the candidates are compared on
   it, and the winner reads the rest. All of this is jobs in the run. The person's yes for the winner is
   one question, asked where the run waits (the ruling of section 12, "Use the winner").
-- `source.onboard.auto.reader-per-material` — **[PARTIAL]** (#5478, #5578 the sorting job)
+- `source.onboard.auto.reader-per-material` — **[PARTIAL]** (#5478, #5578; tested in
+  `fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py`)
   each page is read by the reader for its kind. A cheap first job sorts the pages (handwriting, print,
-  typescript, blank) from the image, and a person's correction of a page's kind is kept. Built: the
-  recipe assembles `readers`, one per kind. Not built: the sorting, and a runner that uses anything but
-  the default reader.
+  typescript, blank) from the image, and a person's correction of a page's kind is kept. **Built
+  (#5578, engine):** the Start plan carries a reading step's `readers` as the card's `readers` (kind →
+  the workflow and model that reads it, worked out as the step's own model is; a reader that would send
+  pages off a Mac that keeps them, or that no workflow can run, is left out and its kind read by the
+  step's own reader; the readers' models are checked and offered for download as the step's are).
+  Before a card lines or reads pages, the run sorts them (`recipes/sorting.py`): a page's kind is the
+  document attribute `material`, with `material_set_by` saying who set it (`sorting`, or `person` when
+  a person changes it through the document update route); a kind already set is not worked out again,
+  and a person's is never overwritten. Blank is the blank-verso rule of Find the Documents (one code
+  path); the rest are told apart from the image by a heuristic (machine text has clean gaps between its
+  lines, handwriting does not), only when the card has `readers`. Blank pages are left out; the rest
+  are read in one workflow run per reader, each page by `readers[kind]` when the recipe has one for its
+  kind, else by the step's own reader; the step's account in the run status lists `kinds` (pages by
+  kind) and `readers` (each run, its kind, pages, model and state). *Not built:* telling print from
+  typescript (a machine-made page is the first of print, typescript the project ticked); a trained
+  classifier (the heuristic is marked `ponytail:` with that upgrade path); the sorting as its own row in
+  Activity; the app showing or correcting a page's kind.
 - `source.onboard.auto.hand-and-script-per-page` — **[GAP]** (#5456) script and hand are found per
   page and region, and each region goes to the reader that suits it (as
   `recipe.distil.script-and-hand-routed-per-region`).
-- `source.onboard.auto.blank-pages-not-read` — **[GAP]** (#5579; #5550 for pairing leaves)
+- `source.onboard.auto.blank-pages-not-read` — **[PARTIAL]** (#5579, #5578; #5550 for pairing leaves;
+  tested in `fichero-server/tests/unit/recipes/test_find_documents_step.py`
+  (`test_blank_versos_are_not_read`) and `fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py`)
   blank pages are found before reading and are not read, lined or sent to a model. Each is reported in
-  the run's account. About half of Istmina's 203 images are blank versos.
+  the run's account. About half of Istmina's 203 images are blank versos. **Built:** before a recipe
+  card lines or reads pages, the backs of leaves blank as their images show (almost no ink, right after
+  a written page of the folder: `finddocs.job.blank_versos`), and any page a person marked blank, are
+  sorted as `blank` and left out; the step's account counts them (`blank_versos`). *Not built:* a blank
+  page that is not the back of a written leaf (a folder's first page, a blank after a blank) is still
+  read; the run's account names the pages only as a count.
 - `source.onboard.auto.prepare-damaged-images` — **[GAP]** (#5580) where the sample shows faded
   or damaged pages, image preparation (contrast, deskew) is proposed as a step with a card. It runs before
   lines, and the original image is kept.
