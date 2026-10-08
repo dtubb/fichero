@@ -18,6 +18,7 @@ UI already polls, rather than pretending they are the same underneath.
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Any
 
 from fichero_server.llm.mlx_model_store import ManagedModelDownloadJob
@@ -202,7 +203,9 @@ def kraken_catalog_entries() -> list[Any]:
                 memory_class=None,
                 supported=problem is None,
                 unsupported_reason=problem,
-                note=" ".join(filter(None, [str(card.get("summary") or ""), release])),
+                # A card written before #5617 said "on 1 pages": its counts are said so they agree.
+                note=re.sub(r"\b1 (page|line|flagged line)s\b", r"1 \1",
+                            " ".join(filter(None, [str(card.get("summary") or ""), release]))),
                 tested_status="untested",
                 license_label="not for release" if card.get("not_for_release") else "user-managed",
                 source=_source(True),

@@ -2863,6 +2863,11 @@ Finding models
   megabytes) is listed as installed but unusable (`available: false`) with the reason in words ("the model file
   is empty"), its size is the file's, and it is never offered to a step (the on-device models a workflow step
   picks from leave it out).
+- `source.find.note-counts-agree` — **[OK]** (#5617; built 2026-10-08: `training.job.counted`, the trained
+  readers' notes in `llm/local_model_catalog.py`; pinned by `fichero-server/tests/unit/recipes/test_reader_cards_5617.py`)
+  a reader's note counts in words that agree with the number: "on 1 page (3 lines)", "1 page held out", never
+  "on 1 pages". A trained reader's card is written so, and a card written before (its summary kept on disk) is
+  said so when listed.
 - `source.find.installed-count` — **[OK]** (#5519) every complete MLX vision model in this engine's
   model store that no shipped card pins (a catalogue model, one Fichero trained, one found in the
   store) is a reader candidate with a card made from its own metadata: its config says it reads

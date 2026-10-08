@@ -128,3 +128,25 @@ def test_source_find_broken_reader_unusable(client, here):
     offered = set(kraken["models"])
     assert "kraken-zenodo-7933402" in offered
     assert not offered & {"kraken-trained-ad6820820952", "kraken-mccatmus"}, offered
+
+
+# -- source.find.note-counts-agree ----------------------------------------------------------------------------
+
+
+def test_source_find_note_counts_agree(client, here):
+    """source.find.note-counts-agree: "a reader's note counts in words that agree with the number: "on 1 page
+    (3 lines)", "1 page held out", never "on 1 pages". A trained reader's card is written so, and a card written
+    before (its summary kept on disk) is said so when listed.\""""
+    from fichero_server.training.job import counted
+
+    assert (counted(1, "page"), counted(3, "line"), counted(0, "page")) == ("1 page", "3 lines", "0 pages")
+    _install(here, "kraken-trained-0123456789ab", 4096)
+    record = json.loads((here / "kraken-trained-0123456789ab.installed").read_text())
+    record["trained"] = {"display_name": "sergio", "summary": (
+        "Taught by gemini on 1 pages (1 lines, none checked by a person), trained on this Mac; "
+        "1 pages held out as the test; 11 pages read before.")}
+    (here / "kraken-trained-0123456789ab.installed").write_text(json.dumps(record))
+
+    note = _kraken(client)["kraken-trained-0123456789ab"]["note"]
+    assert "on 1 page (1 line," in note and "1 page held out" in note and "11 pages" in note, note
+    assert "1 pages" not in note.replace("11 pages", "")

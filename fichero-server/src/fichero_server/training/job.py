@@ -49,6 +49,11 @@ NOT_FOR_RELEASE_NOTE = "No release was recorded for the pages it was trained on;
 CARDS: dict[str, type[_TrainRequest]] = {"kraken": TrainKrakenRequest, "vision-lora": TrainVisionLoraRequest}
 
 
+def counted(n: int, word: str) -> str:
+    """A count in words that agree with it: "1 page", "3 pages" (#5617, `source.find.note-counts-agree`)."""
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
 def _card_of(request: _TrainRequest) -> str:
     return next(name for name, model in CARDS.items() if type(request) is model)
 
@@ -225,7 +230,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             detail["batch_size"] = batch
             script, args = TRAINER, kraken_args(job_id, base_file=base_file, model_name=request.name, batch_size=batch)
         _save(db, job_id, detail, phase="sending",
-              reason=f"Sending {len(made.pages)} pages ({made.lines} lines) to Hugging Face")
+              reason=f"Sending {counted(len(made.pages), 'page')} ({counted(made.lines, 'line')}) to Hugging Face")
         try:
             target.send(data, job_id)
             far_id = target.submit(job_id, script=script, script_args=args, flavor=flavor, timeout=request.timeout)
@@ -279,9 +284,9 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     ts = detail["training_set"]
     card = {
         "display_name": request.display_name or f"{request.name} (taught by {request.teacher})",
-        "summary": (f"Taught by {request.teacher} on {ts['pages']} pages ({ts['lines']} lines, none checked "
-                    f"by a person); {len(request.held_out_ids)} pages held out as the test; "
-                    f"{ts.get('lines_left_out', 0)} flagged lines left out."),
+        "summary": (f"Taught by {request.teacher} on {counted(ts['pages'], 'page')} ({counted(ts['lines'], 'line')}, "
+                    f"none checked by a person); {counted(len(request.held_out_ids), 'page')} held out as the test; "
+                    f"{counted(ts.get('lines_left_out', 0), 'flagged line')} left out."),
         "teacher": request.teacher, "training_set": ts, "held_out": ts.get("held_out", []),
         "target": TARGET, "far_id": far_id, "flavor": flavor,
         "not_for_release": request.not_for_release,
