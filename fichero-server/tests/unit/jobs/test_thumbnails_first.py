@@ -139,3 +139,46 @@ def test_while_paused_a_persons_reading_does_not_wait_on_paused_thumbnails(test_
     _read(db, doc_ids[0], started).result(timeout=30)
     assert started
     assert [e for e in timeline if e[0] == "thumbnail"] == []
+
+
+def test_a_thumbnail_finishing_mid_look_does_not_strand_the_work_it_held(test_package, monkeypatch):
+    """WHY: the lane asked "may this embed run?" and then "is it held by a thumbnail?" as two
+    queries. A thumbnail finishing between them left the embed neither picked (held at the pick)
+    nor held (done at the second look): the library was forgotten as idle, the lane's thread
+    retired, and the import's embeds sat waiting until something else woke the lane (seen as a
+    30 s hang in test_nlp_draft_import). The held look now comes first, so the lane keeps the
+    library and looks again soon."""
+    from datetime import timedelta
+
+    from fichero_server.core.timeutil import utc_now
+
+    derivatives.register_job_kinds()
+    db = db_manager.get_database(test_package)
+    jobs._ensure(db)
+    t0 = utc_now()
+    db.execute("INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at, started_at) "
+               "VALUES ('thumb', 'thumbnail', 'p1', NULL, 'running', 1, 'automatic', ?, ?)", [t0, t0])
+    db.execute("INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) "
+               "VALUES ('emb', 'embed', 'p1', 'embedder', 'waiting', 0, 'automatic', ?)",
+               [t0 + timedelta(milliseconds=1)])
+
+    real_fetchone = db.execute_fetchone
+
+    def thumbnail_finishes_right_after_the_pick(sql, params=None):
+        row = real_fetchone(sql, params)
+        if sql.lstrip().startswith("SELECT id, kind, subject, model, created_at FROM jobs"):
+            db.execute("UPDATE jobs SET state = 'done', finished_at = ? WHERE id = 'thumb'", [utc_now()])
+        return row
+
+    monkeypatch.setattr(db, "execute_fetchone", thumbnail_finishes_right_after_the_pick)
+    scheduler = jobs._Scheduler()  # a scheduler of its own, with no threads: only its look is tested
+    lane = scheduler.lanes["local-ml"]
+    key = jobs._key(db)
+    lane.libraries.add(key)
+
+    assert scheduler._next(lane) is None  # the thumbnail was still running when it looked
+    assert key in lane.libraries, "the library was forgotten with an embed still waiting"
+    assert lane.look_again_at is not None
+    monkeypatch.setattr(db, "execute_fetchone", real_fetchone)
+    picked = scheduler._next(lane)
+    assert picked is not None and picked[2][0] == "emb"

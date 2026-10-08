@@ -27,17 +27,23 @@ class TestGetAIDefaults:
         }
         assert expected_keys.issubset(data.keys())
 
-    def test_defaults_are_empty_strings(self, client):
+    def test_fresh_install_holds_the_first_launch_defaults(self, client):
+        from fichero_server.llm.local_model_choice import machine_ai_defaults
         from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
 
         r = client.get("/api/settings/ai-defaults")
         assert r.status_code == 200
         data = r.json()
-        # Fresh db: every stored default is empty. The local model is never empty: unset, it is
-        # the catalogue model chosen for this Mac, and says why (#5520).
+        # A fresh install holds what its first launch seeds (api.main.seed_ai_defaults, #5368):
+        # FACTORY_AI_DEFAULTS less what this build lacks, i.e. machine_ai_defaults(). Every
+        # default the seed does not write stays empty. The local model is never empty: unset,
+        # it is the catalogue model chosen for this Mac, and says why (#5520).
         local, because = data.pop("local_model"), data.pop("chosen_because")
-        assert all(v == "" for v in data.values())
-        assert local in MANAGED_MLX_MODELS and set(because) == {"local_model"}
+        seeded, _why = machine_ai_defaults()
+        expected = {key.removeprefix("default_"): value for key, value in seeded.items()}
+        assert expected and set(expected) <= set(data)
+        assert data == {field: expected.get(field, "") for field in data}
+        assert local in MANAGED_MLX_MODELS and "local_model" in because and because["local_model"]
 
 
 class TestModelProfiles:

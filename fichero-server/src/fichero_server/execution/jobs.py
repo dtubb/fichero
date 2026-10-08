@@ -1689,6 +1689,18 @@ class _Scheduler:
                     [now, *params, *extra, *attached, lane.loaded_model],
                 )
 
+            # Asked BEFORE the pick, never after (#5585): a thumbnail finishing between the two would
+            # otherwise leave the work it held neither picked (still held at the pick) nor held (done
+            # at this look), and the library forgotten as idle with that work waiting until the next
+            # wake. Asked first, a thumbnail done since lets the pick below take the work.
+            held_by_first = bool(first_clause) and db.execute_fetchone(
+                f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]} LIMIT 1",
+                waiting_on_first[1]) is not None
+            if held_by_first:  # each held row says why, and the lane looks again soon (not idle)
+                db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {waiting_on_first[0]} "
+                           f"AND reason IS DISTINCT FROM ?", [FIRST_REASON, *waiting_on_first[1], FIRST_REASON])
+                due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
+                lane.look_again_at = min(lane.look_again_at or due, due)
             row = first(share_clause, share_params) if share_clause else None
             # Only a provider at its share is waiting here: it may take the spare slot, after any
             # other library's call that is within its share.
@@ -1703,14 +1715,6 @@ class _Scheduler:
                 from fichero_server.core.timeutil import ensure_utc
 
                 due = time.monotonic() + max(0.0, (ensure_utc(later) - ensure_utc(now)).total_seconds())
-                lane.look_again_at = min(lane.look_again_at or due, due)
-            held_by_first = bool(first_clause) and db.execute_fetchone(
-                f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]} LIMIT 1",
-                waiting_on_first[1]) is not None
-            if held_by_first:  # each held row says why, and the lane looks again soon (not idle)
-                db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {waiting_on_first[0]} "
-                           f"AND reason IS DISTINCT FROM ?", [FIRST_REASON, *waiting_on_first[1], FIRST_REASON])
-                due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
                 lane.look_again_at = min(lane.look_again_at or due, due)
             if row:
                 candidates.append((key, db, row, spare))
