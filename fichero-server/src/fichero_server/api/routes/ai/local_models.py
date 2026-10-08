@@ -5,7 +5,7 @@ Endpoints for managing locally-downloaded AI models (Whisper, embeddings, spaCy)
 Models are stored in ~/Library/Application Support/Fichero/models/
 """
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from fichero_server.actions.registry import ChangeSpec, action
 from pydantic import BaseModel
@@ -182,7 +182,6 @@ def disk_usage() -> DiskUsageResponse:
 def download_model(
     model_type: str,
     model_id: str,
-    background_tasks: BackgroundTasks,
     request: Request,
 ) -> DownloadStartedResponse:
     """Start downloading a model in the background.
@@ -192,7 +191,6 @@ def download_model(
         model_id: Model identifier (e.g., "base" for Whisper, "intfloat/multilingual-e5-large" for embeddings)
     """
     from fichero_server.llm.local_models import (
-        LocalModelManager,
         WHISPER_MODELS,
         EMBEDDINGS_MODELS,
     )
@@ -203,47 +201,40 @@ def download_model(
                 status_code=400,
                 detail=f"Unknown Whisper model: {model_id}. Available: {', '.join(WHISPER_MODELS.keys())}",
             )
-        # Refuse NOW rather than queueing work that cannot run. The download
-        # happens in a BackgroundTask, so a runtime with no transcriber used to
+        # Refuse NOW rather than queueing work that cannot run: a runtime with no transcriber used to
         # answer 200 "downloading" and then fail where no one could see it.
         from fichero_server.llm.whisper_runtime import audio_runtime_status
 
         runtime = audio_runtime_status()
         if not runtime["ready"]:
             raise HTTPException(status_code=409, detail=str(runtime["reason"]))
-    elif model_type in ("spacy", "mlx"):
-        # A pipeline downloads as files, as a `download-model` job on the network lane of the open library
-        # (`runtime.spacy.pipelines-download-as-data`); an MLX model through this Mac's model store, the
-        # download a Start plan offers (`source.onboard.auto.installed-model-first`).
-        from pathlib import Path as _Path
-
-        from fichero_server.actions.registry import ActionContext, registry
-        from fichero_server.api.auth import request_actor
-        from fichero_server.api.main import get_library_database_for_write
-
-        db = get_library_database_for_write(request, request.headers.get("x-fichero-library-path", ""))
-        ctx = ActionContext(actor=request_actor(request), library_path=str(_Path(db.path).parent))
-        try:
-            result = registry.invoke(db, "model.download", {"runtime": model_type, "model": model_id}, ctx)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        return DownloadStartedResponse(status="queued", model_type=model_type, model_id=model_id,
-                                       job_id=result.result["job_id"])
     elif model_type == "embeddings":
         if model_id not in EMBEDDINGS_MODELS:
             raise HTTPException(
                 status_code=400,
                 detail=f"Unknown embeddings model: {model_id}. Available: {', '.join(EMBEDDINGS_MODELS.keys())}",
             )
-    else:
+    elif model_type not in ("spacy", "mlx"):
         raise HTTPException(status_code=400, detail=f"Unknown model type: {model_type}")
 
-    mgr = LocalModelManager()
-    background_tasks.add_task(mgr.download_model, model_type, model_id)
+    # Every download is a `download-model` job on the network lane of the open library, shown in
+    # Activity (#5359; Whisper and embeddings models used to download on FastAPI's BackgroundTasks,
+    # where nobody saw them); an MLX model through this Mac's model store, the download a Start plan
+    # offers (`source.onboard.auto.installed-model-first`).
+    from pathlib import Path as _Path
 
-    return DownloadStartedResponse(
-        status="downloading", model_type=model_type, model_id=model_id
-    )
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.api.auth import request_actor
+    from fichero_server.api.main import get_library_database_for_write
+
+    db = get_library_database_for_write(request, request.headers.get("x-fichero-library-path", ""))
+    ctx = ActionContext(actor=request_actor(request), library_path=str(_Path(db.path).parent))
+    try:
+        result = registry.invoke(db, "model.download", {"runtime": model_type, "model": model_id}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return DownloadStartedResponse(status="queued", model_type=model_type, model_id=model_id,
+                                   job_id=result.result["job_id"])
 
 
 @router.delete("/{model_type}/{model_id:path}", response_model=DeleteModelResponse)

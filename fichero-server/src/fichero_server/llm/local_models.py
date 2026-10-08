@@ -716,6 +716,9 @@ class LocalModelManager:
 
 # --- The download-model job (`runtime.spacy.pipelines-download-as-data`) ------------------------------------------
 DOWNLOAD_KIND = "download-model"
+#: What a `download-model` job fetches, by runtime: each catalogue (#5359: Whisper and embeddings
+#: models too, which used to download where Activity could not see them).
+_DOWNLOADABLE = {"spacy": SPACY_MODELS, "whisper": WHISPER_MODELS, "embeddings": EMBEDDINGS_MODELS}
 
 
 def register_job_kinds() -> None:
@@ -728,16 +731,16 @@ def register_job_kinds() -> None:
 
 def _run_download(subject: str) -> None:
     runtime, _, name = subject.partition(":")
-    if runtime != "spacy":
+    if runtime not in _DOWNLOADABLE:
         raise ValueError(f"no download for {subject!r}")
-    LocalModelManager().download_spacy_model(name)
+    LocalModelManager().download_model(runtime, name)
 
 
 def enqueue_download(db, runtime: str, name: str, *, started_by: str = "owner") -> str:
     """Queue a `download-model` job on the network lane; one waiting job per model."""
     from fichero_server.execution import jobs
 
-    if runtime != "spacy" or name not in SPACY_MODELS:
+    if runtime not in _DOWNLOADABLE or name not in _DOWNLOADABLE[runtime]:
         raise ValueError(f"no download for {runtime}:{name}")
     register_job_kinds()
     return jobs.enqueue(db, DOWNLOAD_KIND, f"{runtime}:{name}", started_by=started_by, watched=True)

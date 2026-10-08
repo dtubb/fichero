@@ -87,9 +87,8 @@ class TestAcceptRejectInProcess:
         db.save(pair)
 
         import asyncio
-        from fastapi import BackgroundTasks
         result = asyncio.run(
-            kg_review.accept_pair(pair.id, BackgroundTasks(), db=db, actor="test-actor")
+            kg_review.accept_pair(pair.id, db=db, actor="test-actor")
         )
 
         # Survivor absorbed the candidate's name as alias.
@@ -124,9 +123,8 @@ class TestAcceptRejectInProcess:
         db.save(pair)
 
         import asyncio
-        from fastapi import BackgroundTasks
         result = asyncio.run(
-            kg_review.reject_pair(pair.id, BackgroundTasks(), db=db, actor="test-actor")
+            kg_review.reject_pair(pair.id, db=db, actor="test-actor")
         )
 
         # No merge happened — both entities intact.
@@ -152,15 +150,14 @@ class TestAcceptRejectInProcess:
         )
         db.save(pair)
         import asyncio
-        from fastapi import BackgroundTasks
         asyncio.run(
-            kg_review.reject_pair(pair.id, BackgroundTasks(), db=db, actor="test-actor")
+            kg_review.reject_pair(pair.id, db=db, actor="test-actor")
         )
 
         # Second reject on the same pair → 409.
         try:
             asyncio.run(
-                kg_review.reject_pair(pair.id, BackgroundTasks(), db=db, actor="test-actor")
+                kg_review.reject_pair(pair.id, db=db, actor="test-actor")
             )
             raise AssertionError("expected HTTPException")
         except HTTPException as exc:
@@ -191,12 +188,11 @@ class TestAcceptRejectInProcess:
         for p in (p_accept, p_reject, p_pending):
             db.save(p)
 
-        from fastapi import BackgroundTasks
         asyncio.run(
-            kg_review.accept_pair(p_accept.id, BackgroundTasks(), db=db, actor="test-actor")
+            kg_review.accept_pair(p_accept.id, db=db, actor="test-actor")
         )
         asyncio.run(
-            kg_review.reject_pair(p_reject.id, BackgroundTasks(), db=db, actor="test-actor")
+            kg_review.reject_pair(p_reject.id, db=db, actor="test-actor")
         )
 
         labels = asyncio.run(kg_review.list_labels(db=db))
@@ -204,3 +200,28 @@ class TestAcceptRejectInProcess:
         assert labels_by_id.get(p_accept.id) == "match"
         assert labels_by_id.get(p_reject.id) == "no_match"
         assert p_pending.id not in labels_by_id
+
+
+def test_the_retrain_after_enough_decisions_is_one_queued_job(db, monkeypatch):
+    """WHY (`activity.every-worker-is-a-row`, #5359): the PyKEEN retrain every N decisions ran on
+    FastAPI's BackgroundTasks: unseen in Activity, deaf to the pause, its failure only in a log. It
+    is now a job row; decisions while it waits make no second one."""
+    from fichero_server.api.routes.kg import review as kg_review
+    from fichero_server.execution import jobs
+
+    monkeypatch.setattr(kg_review, "RETRAIN_EVERY_N_LABELS", 1)
+    survivor, candidate = _ent(db, "Battle of Pichincha"), _ent(db, "Pichincha battle")
+    pair = EntityMatchCandidate(survivor_entity_id=survivor.id, candidate_entity_id=candidate.id,
+                                score=0.86, method=PendingMatchMethod.embedding_cosine,
+                                state=PendingMatchState.rejected)
+    db.save(pair)
+    jobs.set_paused(True)
+    try:
+        kg_review._maybe_trigger_retrain(db)
+        kg_review._maybe_trigger_retrain(db)
+        rows = db.execute_fetchall("SELECT state FROM jobs WHERE kind = ?", [kg_review.RETRAIN_KIND])
+        assert [tuple(r) for r in rows] == [("waiting",)]
+        assert jobs.kind_name(kg_review.RETRAIN_KIND) == "Retrain the link predictor"
+        jobs.cancel_job(db, jobs.job_id_for(db, kg_review.RETRAIN_KIND, "library"))  # no train in a test
+    finally:
+        jobs.set_paused(False)

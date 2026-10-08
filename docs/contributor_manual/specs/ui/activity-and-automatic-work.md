@@ -481,12 +481,21 @@ workflow by hand: a hand run is a job like any other.
   `ask-a-model`, chat's calls included), embeddings (`embed`, `make-a-vector`, the reindex task),
   the NLP draft at import (`nlp-draft`), the task kinds, synced-folder writes and reads, training here
   and on Hugging Face (`train-on-this-mac`, `train-a-model`), reading at scale (`read-at-scale`),
-  gathering reasons, converting a model, workflow runs, steps and batches. **Not yet rows:** the
+  gathering reasons, converting a model, workflow runs, steps and batches, downloads of spaCy,
+  Whisper and embeddings models (`download-model`; Whisper and embeddings since 2026-10-08, they ran on
+  FastAPI `BackgroundTasks`, `fichero-server/tests/unit/api/test_routes_local_models.py`) and the
+  link-predictor retrain after review decisions (`retrain-link-predictor`, 2026-10-08,
+  `fichero-server/tests/unit/kg/test_review_queue.py`). **Not yet rows:** the
   built-in Apple calls (Vision, Foundation Models: `llm.model_call_slot` takes no slot for a
   built-in provider), spaCy, Whisper and other non-model tools inside a workflow (only their step
   is a row), ACENET jobs (not sent:
-  `remote_read/slurm.py` describes them), model downloads, installs, runtime provisioning and model
-  loads (`activity.global-work-is-the-macs`), conversion on open and ingest progress.
+  `remote_read/slurm.py` describes them), MLX model downloads and the Kraken model fetch (in-memory
+  jobs of the Mac's model stores, `llm/mlx_model_store.py`, `llm/local_model_catalog.py`), runtime
+  provisioning (`llm/mlx_runtime.py`) and model loads (`activity.global-work-is-the-macs`), conversion
+  on open (`maintenance/conversion_on_open.py`, a thread), ingest progress (`api/routes/ingest/core.py`,
+  `BackgroundTasks`), legacy chains (`api/routes/workflow/chains.py`, → #4949), the companion thumbnail
+  or display picture warmed after a picture request (`api/routes/system/storage.py`), and the inline
+  re-embed of a direct text edit (`activity.auto.reembed-on-change`).
 - `activity.remote-under-its-step` — **[GAP]** (#5240, #5353) a remote job a run starts (a Hugging
   Face Job, a cluster job) is a child of the step that sent it, its far-side state its own row's;
   today reading at scale and training are top-level rows of their own.
