@@ -125,6 +125,12 @@ class ToolResponse(BaseModel):
     # How the tool consumes its batch: elementwise | reducing | batch
     # (ToolDef.parallelism, exposed 2026-08-19 for the ToolInfo model sync).
     parallelism: str = "batch"
+    # What the tool writes and where it attaches (#5596, read-only; the
+    # vocabularies are in fichero_server.workflows.tool_outputs). Empty /
+    # null for a tool with no declaration, which the guard
+    # scripts/check_tool_outputs_declared.py refuses.
+    writes: list[str] = []
+    anchors_at: str | None = None
 
 
 class CategoryToolsResponse(BaseModel):
@@ -437,6 +443,8 @@ def _tool_to_response(tool: ToolDef) -> ToolResponse:
         tested=tool.tested,
         requires_generative_model=tool.requires_generative_model,
         parallelism=tool.parallelism,
+        writes=list(tool.writes),
+        anchors_at=tool.anchors_at,
     )
 
 

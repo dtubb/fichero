@@ -85048,6 +85048,19 @@
             "type": "string",
             "title": "Parallelism",
             "default": "batch"
+          },
+          "writes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Writes",
+            "default": []
+          },
+          "anchors_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Anchors At"
           }
         },
         "type": "object",

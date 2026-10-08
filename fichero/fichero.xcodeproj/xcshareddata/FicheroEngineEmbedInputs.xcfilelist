@@ -629,6 +629,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/subworkflow.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/task_types.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/task_workers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tasks.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/tool_outputs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/_annotation_input.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/_doc_lookup.py

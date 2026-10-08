@@ -484,10 +484,16 @@ level it was made for.
   segment attaches to that segment (a reading, a mention); one made from a document or group attaches
   there (an attribute value, a description reading); `Artifact` is kept as the record of a run, not as
   the home of what it found.
-- `source.extract.every-output-declares-its-anchor` — **[GAP]** (#5490; #5596) every registered
-  tool declares which record kinds it writes (pass, reading, mention, statement, unit, attribute,
-  node, rendition); a guard fails a tool that writes only a document artifact without a recorded
-  reason, and the table above is generated from the declarations.
+- `source.extract.every-output-declares-its-anchor` — **[PARTIAL]** (#5490; #5596) *Built: every
+  registered tool (144) declares what it writes and where it attaches in
+  `workflows/tool_outputs.py`, stamped on `ToolDef` and served read-only as `writes` / `anchors_at`
+  on `GET /api/workflows/tools`; `scripts/check_tool_outputs_declared.py` fails an undeclared tool
+  and an artifact-only tool missing from its baseline (38 known gaps, each naming its slice), pinned
+  by `fichero-server/tests/unit/scripts/test_check_tool_outputs_declared.py`. Not built: the
+  table above generated from the declarations.* Every registered tool declares which record kinds
+  it writes (pass, reading, mention, statement, unit, attribute, node, rendition); a guard fails a
+  tool that writes only a document artifact without a recorded reason, and the table above is
+  generated from the declarations.
 
 #### Build order (slices, ranked)
 
