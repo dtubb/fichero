@@ -91,7 +91,9 @@ HEAVY_MODULES = [
 # which `llm.local_inference` imports at module level and re-exports as `is_loopback_url`; the local
 # inference route loads that at app build. Diffed module-for-module against fbc922203: it is the only
 # addition, and it brings no other module with it.
-MODULE_BUDGET = 803
+# 804 from 2026-10-08 (#5596): `workflows.tool_outputs`, the table of what every tool writes and where it
+# attaches, read when the tools register (a plain dict, standard library only).
+MODULE_BUDGET = 804
 
 
 def _run(code: str) -> str:
