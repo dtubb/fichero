@@ -12348,7 +12348,7 @@ def register_generated_openapi_commands(
                 "loose_pages": {'type': 'boolean', 'nullable': True, 'title': 'Loose Pages', 'description': 'the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open project holds a folder of loose page images (finddocs.recipe-step)', 'x-cli-required': False},
                 "mac_memory_gb": {'type': 'number', 'nullable': True, 'title': 'Mac Memory Gb', 'description': "defaults to this machine's memory", 'x-cli-required': False},
                 "material": {'type': 'string', 'nullable': True, 'title': 'Material', 'description': 'a single material, as before 2026-10-05', 'x-cli-required': False},
-                "materials": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Materials', 'description': 'handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader per kind (source.onboard.material-any-mix)', 'x-cli-required': False},
+                "materials": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Materials', 'description': "handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting", 'x-cli-required': False},
                 "pages": {'type': 'integer', 'minimum': 0.0, 'title': 'Pages', 'description': 'roughly how many pages', 'default': 0, 'x-cli-required': False},
                 "purpose": {'type': 'string', 'nullable': True, 'title': 'Purpose', 'description': 'a single purpose, as before 2026-10-05: read as a list of one', 'x-cli-required': False},
                 "purposes": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Purposes', 'description': "the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)", 'x-cli-required': False},
@@ -12638,6 +12638,26 @@ def register_generated_openapi_commands(
             }, {
                 "card": {'type': 'string', 'title': 'Card', 'description': "the installed model's card id, as that download's `instead` names it", 'x-cli-required': True},
                 "model": {'type': 'string', 'title': 'Model', 'description': 'the download the plan waits for, as its `downloads` names it (`model`)', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("use-candidate-for-step")
+    def recipes_use_candidate_for_step_post(
+        ctx: typer.Context,
+        card: str = typer.Option(..., "--card", help="Request field: card."),
+        step: str = typer.Option(..., "--step", help="Request field: step."),
+    ) -> None:
+        """Use Candidate For Step (POST /api/recipes/project/steps/use-candidate)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/steps/use-candidate"
+            params = None
+            payload = _build_json_payload({
+                "card": card,
+                "step": step,
+            }, {
+                "card": {'type': 'string', 'title': 'Card', 'description': "the candidate's card id, as GET /api/recipes/candidates lists it (`id`)", 'x-cli-required': True},
+                "step": {'type': 'string', 'title': 'Step', 'description': "the recipe step's id", 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

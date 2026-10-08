@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fichero_server.recipes.jobs import get_job, unmet_inputs
+from fichero_server.recipes.jobs import get_job, starts_with, unmet_inputs
 
 #: The newest recipe schema this Fichero reads. A newer one is refused, not guessed at.
 SCHEMA_VERSION = 1
@@ -116,7 +116,11 @@ def check_recipe(recipe: dict[str, Any], folder: Path | None = None) -> list[str
                 if name not in CONDITIONS:
                     out.append(f"{label}: {cond_key} {name!r} is not one of the allowed conditions "
                                f"({', '.join(sorted(CONDITIONS))})")
-        if "model" in step:
+        if "model" in step and step["model"] is None:
+            # A step the rules found no model for says why in the person's words, never "the model None" (#5595).
+            problem = step.get("problem") if isinstance(step.get("problem"), dict) else {}
+            out.append(f"{label}: {problem.get('sentence') or step.get('gap') or 'no model is chosen for it'}")
+        elif "model" in step:
             _check_model(label, step["model"], out)
         for alt in step.get("alternatives") or []:
             _check_model(f"{label} alternative", alt, out)
@@ -127,7 +131,10 @@ def check_recipe(recipe: dict[str, Any], folder: Path | None = None) -> list[str
         if step.get("prompt"):
             _check_prompt(label, folder, step["prompt"], out)
 
-    out.extend(unmet_inputs([s.get("job", "") for s in steps]))
+    # Material that is already text starts with the page's text, so its recipe needs no reading step (#5553).
+    material = (recipe.get("suits") or {}).get("material")
+    out.extend(unmet_inputs([s.get("job", "") for s in steps],
+                            starts_with=starts_with([material] if isinstance(material, str) else material)))
     return out
 
 

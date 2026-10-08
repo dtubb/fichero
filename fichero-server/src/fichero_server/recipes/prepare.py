@@ -86,6 +86,28 @@ def sample_shows_faded(db: Any) -> bool:
     return any(is_faded(doc.path) for doc in sample(db))
 
 
+#: Files that are text already: nothing reads them (`source.recipe.text-material-is-not-read`, #5553).
+TEXT_FILE_TYPES = frozenset({"text", "word", "docx", "epub"})
+
+
+def is_text(db: Any, doc: Any) -> bool:
+    """Whether this page or file is already text: a text file (Markdown, plain text, Word, an e-book), or a PDF's page
+    whose text layer the import kept (its `text_geometry` artifact has boxes). A scanned PDF page has none."""
+    from fichero_server.importers.ingest import PDF_TEXT_GEOMETRY_ARTIFACT
+    from fichero_server.models import Artifact
+
+    if str(getattr(doc.file_type, "value", doc.file_type) or "") in TEXT_FILE_TYPES:
+        return True
+    return any((a.data or {}).get("box_count") for a in
+               db.query(Artifact, document_id=doc.id, artifact_type=PDF_TEXT_GEOMETRY_ARTIFACT))
+
+
+def sample_is_text(db: Any) -> bool:
+    """Whether every page of the project's sample is already text: setup then reads none of it (#5553)."""
+    docs = sample(db)
+    return bool(docs) and all(is_text(db, doc) for doc in docs)
+
+
 def prepared(db: Any, doc_id: str) -> Any | None:
     """The page's prepared rendition, if it has one."""
     from fichero_server.models import Rendition

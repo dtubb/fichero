@@ -33,9 +33,34 @@ def _glottolog() -> dict[str, tuple[str, str, str, str]]:
     return rows
 
 
+#: Names scholars use that neither ISO nor Glottolog lists, by ISO 639-3 code (#5595): a search or a typed name
+#: finds the language by them too.
+ALSO_CALLED: dict[str, tuple[str, ...]] = {
+    "chu": ("Old Church Slavonic", "Church Slavonic", "Old Slavonic", "Old Bulgarian"),
+    "gez": ("Ge'ez", "Ge’ez", "Classical Ethiopic"),
+    "lzh": ("Classical Chinese",),
+    "ota": ("Ottoman",),
+}
+#: Languages a model card that lists the first also covers, because they are written as it (#5595): a Syriac
+#: reader reads Classical Syriac, which setup stores as `syc` while the cards list `syr`.
+ALSO_COVERS: dict[str, tuple[str, ...]] = {"syr": ("syc",)}
+
+
+def languages_covered(tags) -> frozenset[str]:
+    """A card's languages with those written as them (`ALSO_COVERS`)."""
+    tags = frozenset(tags)
+    return tags | {kin for t in tags for kin in ALSO_COVERS.get(t, ())}
+
+
+def _plain(name: str) -> str:
+    """A name without its parenthesised dates or note: "Old Irish (to 900)" -> "Old Irish"."""
+    return name.split(" (")[0].strip()
+
+
 @lru_cache(maxsize=1)
 def _languages() -> tuple[tuple[dict, str], ...]:
-    """Each row with the text it is searched by (its name, and Glottolog's name where that differs)."""
+    """Each row with the text it is searched by: its name, the name without its dates ("Old Irish" for "Old Irish
+    (to 900)"), Glottolog's name where that differs, and any name scholars also use (`ALSO_CALLED`)."""
     from iso639 import iter_langs
 
     glotto = _glottolog()
@@ -47,9 +72,9 @@ def _languages() -> tuple[tuple[dict, str], ...]:
             continue
         tag_of[lang.pt3] = lang.pt1 or lang.pt3
         gc = glottocode_of.get(lang.pt3)
-        also = glotto[gc][2] if gc else ""
+        names = [lang.name, _plain(lang.name), glotto[gc][2] if gc else "", *ALSO_CALLED.get(lang.pt3, ())]
         rows.append(({"code": tag_of[lang.pt3], "name": lang.name, "glottocode": gc, "level": "language"},
-                     f"{lang.name}\n{also}".lower()))
+                     "\n".join(dict.fromkeys(n for n in names if n)).lower()))
     for gc, (iso, level, name, language) in glotto.items():
         if iso in tag_of:
             continue  # listed above under its ISO name
@@ -146,7 +171,13 @@ def resolve_language(value: str) -> str:
     if found:
         named = ", ".join(f"{name} ({code})" for code, name in sorted(found.items()))
         raise ValueError(f"'{value}' names more than one language ({named}). Choose it from the list.")
-    raise ValueError(f"Fichero doesn't know the language '{value}'. Choose it from the list.")
+    script = next((row for row, text in _scripts() if word in (row["code"].lower(), text, _plain(text))), None)
+    if script:
+        raise ValueError(f"'{value}' is a script ({script['code']}), not a language: choose the language written "
+                         "in it from the list.")
+    near = [row for row in search_languages(value, 10) if row.get("level") == "language" and row.get("code")][:3]
+    hint = (" Did you mean " + " or ".join(f"{row['name']} ({row['code']})" for row in near) + "?") if near else ""
+    raise ValueError(f"Fichero doesn't know the language '{value}'.{hint} Choose it from the list.")
 
 
 def resolve_script(value: str) -> str:

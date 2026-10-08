@@ -7,6 +7,7 @@ read the same answers from the engine (four architecture rules: logic in the eng
 from __future__ import annotations
 
 import os
+from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -20,7 +21,7 @@ from fichero_server.api.main import get_library_database, get_library_database_f
 from fichero_server.db import Database
 from fichero_server.db.embeddings import search_embedder
 
-from fichero_server.recipes.assemble import PURPOSE_STEPS, PURPOSES, Answers, assemble
+from fichero_server.recipes.assemble import PURPOSE_STEPS, PURPOSES, READING_JOBS, Answers, assemble
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, SkippedStep
 
 
@@ -72,6 +73,8 @@ class JobInfo(BaseModel):
     compare: str
     settings: list[str]
     since: str
+    reads_material: bool = Field(default=False, description=(
+        "whether the job reads the material into text (a reader's job: the finder's candidates are for it, #5612)"))
 
 
 class JobListResponse(BaseModel):
@@ -85,7 +88,7 @@ async def list_jobs() -> JobListResponse:
     items = [
         JobInfo(id=j.id, name=j.name, description=j.description, topic=j.topic.id, layer=j.layer,
                 takes=sorted(j.takes), gives=sorted(j.gives), compare=j.compare,
-                settings=list(j.settings), since=j.since)
+                settings=list(j.settings), since=j.since, reads_material=j.id in READING_JOBS)
         for j in all_jobs()
     ]
     return JobListResponse(items=items, count=len(items))
@@ -103,8 +106,11 @@ class AssembleRequest(BaseModel):
         "and refused in words otherwise (source.onboard.language-stored-as-tag)"))
     scripts: list[str] = Field(min_length=1, description="ISO 15924 script codes (or a script's English name)")
     materials: list[str] = Field(default_factory=list, description=(
-        "handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader "
-        "per kind (source.onboard.material-any-mix)"))
+        "handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read "
+        "(source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, "
+        "a PDF with a text layer): a project of text alone gets no reading step "
+        "(source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample "
+        "is already text, else handwriting"))
     material: Optional[str] = Field(default=None, description="a single material, as before 2026-10-05")
     jobs: list[str] = Field(default_factory=list, description="jobs ticked on their own, beyond the purposes' "
                             "(GET /api/recipes/jobs)")
@@ -242,6 +248,9 @@ class AssembledRecipe(BaseModel):
     overrides: Optional[list[dict[str, Any]]] = Field(default=None, description=(
         "the open project's saved overrides (Use This, for the project or a folder), kept so a recipe proposed "
         "again and saved keeps them; a project-scope one has already set its step's reader"))
+    already_text: Optional[str] = Field(default=None, description=(
+        "set when the material is all already text: what Ready says, that there is nothing to read and where the "
+        "plan starts (source.recipe.text-material-is-not-read)"))
 
 
 def _this_machine_memory_gb() -> float:
@@ -466,6 +475,13 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
         from fichero_server.recipes.prepare import sample_shows_faded
 
         answers = {**answers, "faded_pages": sample_shows_faded(db_manager.get_database(str(library)))}
+    if not answers.get("materials") and not answers.get("material") and library is not None:
+        # Unset: text when every page of the sample is already text (a note, or a PDF page with a text layer, #5553).
+        from fichero_server.db.manager import db_manager
+        from fichero_server.recipes.prepare import sample_is_text
+
+        if sample_is_text(db_manager.get_database(str(library))):
+            answers = {**answers, "materials": ["text"]}
     a = _answers(answers)
     recipe = assemble(a, known_cards(a))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
@@ -541,6 +557,7 @@ async def assemble_recipe(
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
         steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
         cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
+        already_text=recipe.get("already_text"),
     )
 
 
@@ -588,6 +605,23 @@ class SearchJob(BaseModel):
     reason: Optional[str] = Field(default=None, description="what it is doing, or why it failed, in words")
 
 
+class CandidatePlace(str, Enum):
+    """Where a model runs (`llm.places`): the places the AI settings use."""
+
+    this_mac = "this_mac"
+    own_machine = "own_machine"
+    provider = "provider"
+
+
+class CandidateDownload(BaseModel):
+    """The action that downloads a candidate's model (as `StartDownload.action`/`params`)."""
+
+    runtime: str = Field(description="mlx or spacy")
+    model: str = Field(description="the model's id in that runtime")
+    action: str = Field(description="the action to invoke (model.download, a download-model job on the network lane)")
+    params: dict[str, Any]
+
+
 class ModelCandidate(BaseModel):
     """One reader candidate as a card: where it came from, why it is offered, what it states, and what
     the rules make of it for the project's scripts, languages and material."""
@@ -615,6 +649,14 @@ class ModelCandidate(BaseModel):
     rule_rank: Optional[int] = Field(default=None, description="its place by the rules' fixed order among the "
                                      "candidates they keep; null when refused or not in the rules")
     refused: Optional[str] = Field(default=None, description="the rules' first reason it cannot do the job here")
+    installed: Optional[bool] = Field(default=None, description=(
+        "whether its model is already on this Mac (an MLX model in the store, a spaCy pipeline, a bundled Kraken "
+        "model); null where nothing is downloaded first (a Kraken reader the run fetches, a cloud model) (#5612)"))
+    download: Optional[CandidateDownload] = Field(default=None, description=(
+        "the action that downloads its model, as the Start plan's downloads name it; null when there is nothing "
+        "to download first (#5612)"))
+    runs_where: CandidatePlace = Field(description=(
+        "where it runs: this Mac, a machine of the person's own, or the provider that runs it (llm.places, #5612)"))
 
 
 class ModelCandidateList(BaseModel):
@@ -650,15 +692,22 @@ async def model_candidates(
     Refused (422), in words, for an unknown script, language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
-    from fichero_server.recipes.assemble import MATERIALS, READING_JOBS, _rank_key, _refusal
-    from fichero_server.recipes.discovery import NO_PROJECT, discover, egress_allowed
+    from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _rank_key, _refusal
+    from fichero_server.recipes.discovery import (
+        NO_PROJECT,
+        candidate_download,
+        candidate_installed,
+        candidate_place,
+        discover,
+        egress_allowed,
+    )
     from fichero_server.recipes.names import resolve_language, resolve_script
 
     if job not in READING_JOBS:
         raise HTTPException(status_code=422, detail=f"discovery finds readers: job must be one of "
                                                     f"{', '.join(sorted(READING_JOBS))}")
-    if material not in MATERIALS:
-        raise HTTPException(status_code=422, detail=f"material must be one of {', '.join(MATERIALS)}")
+    if material not in READ_MATERIALS:
+        raise HTTPException(status_code=422, detail=f"material must be one of {', '.join(READ_MATERIALS)}")
     try:
         script_codes = frozenset(resolve_script(s) for s in scripts.split(",") if s.strip())
         tags = frozenset(resolve_language(t) for t in languages.split(",") if t.strip())
@@ -694,6 +743,7 @@ async def model_candidates(
         cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=True,
         rule_rank=rank.get(c.id),
         refused=None if c.id in rank else (_refusal(job, c, a, material) or (None, None))[1],
+        installed=candidate_installed(c), download=candidate_download(c), runs_where=candidate_place(c),
     ) for c in sorted(cards, key=lambda c: (rank.get(c.id, len(rank) + 1), c.id))]
     return ModelCandidateList(
         job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources],
@@ -1039,6 +1089,46 @@ async def use_installed_instead(
     try:
         recipe = use_instead(setup["recipe"], _start_plan(db)["downloads"], request.model, card,
                              now=utc_now_iso(timespec="seconds"))
+        result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ProjectSetup(**result.result)
+
+
+class UseCandidateRequest(BaseModel):
+    """Set a found candidate as a step's reader (#5612)."""
+
+    model_config = ConfigDict(extra="forbid")
+    step: str = Field(description="the recipe step's id")
+    card: str = Field(description="the candidate's card id, as GET /api/recipes/candidates lists it (`id`)")
+
+
+@router.post("/project/steps/use-candidate", response_model=ProjectSetup)
+async def use_candidate_for_step(
+    request: UseCandidateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ProjectSetup:
+    """Use this candidate for the step: any model the finder lists (shipped, installed, Kraken's repository or a
+    Hugging Face reader an earlier search kept) becomes the step's reader, kept as a project-scope override by the
+    path use-instead and Use This take, through `project.save_setup` (audited, undoable) (#5612,
+    `source.find.app-card-actions`). A model still to download is then a download the Start plan offers. Refused
+    (422) for a card Fichero does not know here, a step the recipe lacks, or a card that does not do its job."""
+    from fichero_server.core.timeutil import utc_now_iso
+    from fichero_server.recipes.start import use_candidate
+
+    library = _library(db)
+    setup = read_project_setup(library)
+    try:
+        a = _answers(setup["answers"]) if setup["answers"] else None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    card = next((c for c in known_cards(a) if c.id == request.card), None)
+    if card is None:
+        raise HTTPException(status_code=422, detail=f"{request.card} is not a model Fichero has found here: list "
+                                                    "the candidates (online, to search) and choose one of them")
+    try:
+        recipe = use_candidate(setup["recipe"], request.step, card, now=utc_now_iso(timespec="seconds"))
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

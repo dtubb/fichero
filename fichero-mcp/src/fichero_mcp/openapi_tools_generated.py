@@ -5922,7 +5922,7 @@ def fichero_recipes_assemble(
     loose_pages: Annotated[Optional[bool], Field(description='the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open project holds a folder of loose page images (finddocs.recipe-step)')] = None,
     mac_memory_gb: Annotated[Optional[float], Field(description="defaults to this machine's memory.")] = None,
     material: Annotated[Optional[str], Field(description='a single material, as before 2026-10-05.')] = None,
-    materials: Annotated[Optional[list[Any]], Field(description='handwriting, print and/or typescript, any mix; default handwriting. A reading step gets one reader per kind (source.onboard.material-any-mix)')] = None,
+    materials: Annotated[Optional[list[Any]], Field(description="handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting.")] = None,
     pages: Annotated[Optional[int], Field(description='roughly how many pages. Default: 0.')] = None,
     purpose: Annotated[Optional[str], Field(description='a single purpose, as before 2026-10-05: read as a list of one.')] = None,
     purposes: Annotated[Optional[list[Any]], Field(description="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)")] = None,
@@ -6078,6 +6078,15 @@ def fichero_recipes_use_installed_instead(
 ) -> Any:
     "Use Installed Instead\n\nUse the installed model instead: every step pinned to the model Start waits to download is set to the\ninstalled one the plan offers (`downloads[].instead`), kept as a project-scope override on the recipe (as Use\nThis keeps a bake-off's choice), through `project.save_setup` (audited, undoable)\n(`source.onboard.auto.installed-model-first`). Refused (422) for a model the plan does not wait for, or a card\nit does not offer instead.\n\nRoute: POST /api/recipes/project/start/use-instead (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/recipes/project/start/use-instead", json=_rt.body({"card": card, "model": model}))
+
+
+def fichero_recipes_use_candidate_for_step(
+    *,
+    card: Annotated[str, Field(description="the candidate's card id, as GET /api/recipes/candidates lists it (`id`)")],
+    step: Annotated[str, Field(description="the recipe step's id.")],
+) -> Any:
+    "Use Candidate For Step\n\nUse this candidate for the step: any model the finder lists (shipped, installed, Kraken's repository or a\nHugging Face reader an earlier search kept) becomes the step's reader, kept as a project-scope override by the\npath use-instead and Use This take, through `project.save_setup` (audited, undoable) (#5612,\n`source.find.app-card-actions`). A model still to download is then a download the Start plan offers. Refused\n(422) for a card Fichero does not know here, a step the recipe lacks, or a card that does not do its job.\n\nRoute: POST /api/recipes/project/steps/use-candidate (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/steps/use-candidate", json=_rt.body({"card": card, "step": step}))
 
 
 def fichero_recipes_list_purposes(
@@ -9072,6 +9081,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_get_start_plan", "recipes", "GET", "/api/recipes/project/start", fichero_recipes_get_start_plan),
     GeneratedTool("fichero_recipes_start_project", "recipes", "POST", "/api/recipes/project/start", fichero_recipes_start_project),
     GeneratedTool("fichero_recipes_use_installed_instead", "recipes", "POST", "/api/recipes/project/start/use-instead", fichero_recipes_use_installed_instead),
+    GeneratedTool("fichero_recipes_use_candidate_for_step", "recipes", "POST", "/api/recipes/project/steps/use-candidate", fichero_recipes_use_candidate_for_step),
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
     GeneratedTool("fichero_recipes_routes_for_volume", "recipes", "GET", "/api/recipes/routes", fichero_recipes_routes_for_volume),
     GeneratedTool("fichero_recipes_search_scripts", "recipes", "GET", "/api/recipes/scripts", fichero_recipes_search_scripts),

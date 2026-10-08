@@ -26,10 +26,20 @@ def _list(value: Any) -> list:
     return list(value) if isinstance(value, (list, tuple)) else [value]
 
 
+#: Scripts whose historical material is written in columns, and the way the columns run (ruled 2026-09-28, #5173:
+#: Mongolian columns left to right, Chinese and Japanese right to left). Simplified Han and Korean stay `ltr`: their
+#: material is mostly modern and horizontal. A person changes any of them in setup (#5595).
+VERTICAL_BY_DEFAULT: dict[str, str] = {"Mong": "ttb-lr", "Phag": "ttb-lr", "Hani": "ttb", "Hant": "ttb",
+                                       "Jpan": "ttb", "Hira": "ttb", "Kana": "ttb"}
+
+
 def default_direction(script: str) -> str:
-    """The direction the script is written in, as the language policy derives it."""
+    """The direction the script is written in: a vertical script's columns (`VERTICAL_BY_DEFAULT`), else as the
+    language policy derives it."""
     from fichero_server.recipes.derived import script_facts
 
+    if script in VERTICAL_BY_DEFAULT:
+        return VERTICAL_BY_DEFAULT[script]
     direction = script_facts(script)["direction"]
     return direction if direction in SETUP_DIRECTIONS else "ltr"
 
@@ -67,7 +77,7 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
     materials = _list(out.pop("materials", None)) + _list(out.pop("material", None))
     unknown = [m for m in materials if m not in MATERIALS]
     if unknown:
-        problems.append(f"Material is handwriting, print or typescript, not {', '.join(map(repr, unknown))}.")
+        problems.append(f"Material is handwriting, print, typescript or text (already text), not {', '.join(map(repr, unknown))}.")
     out["materials"] = [m for m in MATERIALS if m in materials] + unknown or ["handwriting"]
     if "languages" in out:
         out["languages"] = list(dict.fromkeys(keep_or_refuse(v, resolve_language) for v in _list(out["languages"])))

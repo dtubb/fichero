@@ -1127,11 +1127,13 @@ plan's peak memory across steps. Ready shows none of it.
 - `source.onboard.auto.train-offer-comes` — **[GAP]** (#5440) when a project's corrected lines reach a
   train step's `offered_when` threshold, the offer appears by itself, with where, time and cost. Today
   nothing watches the count and the app never reads `offered`.
-- `source.onboard.auto.text-needs-no-reading` — **[GAP]** (#5553, as
+- `source.onboard.auto.text-needs-no-reading` — **[PARTIAL]** (#5553, as
   `source.recipe.text-material-is-not-read`) material that is already text is a kind of its own. Its
   recipe starts from text (`STARTS_WITH` includes the page's text), its language is detected from the
   text, no script or material is asked, and the plan goes straight to names, dates, organising and
-  search.
+  search. Built: the material `text`, read off the sample when unset, and its recipe starting from the page's
+  text (see `source.recipe.text-material-is-not-read`). Not built: the language detected from the text; setup
+  still asks a language and a script.
 - `source.onboard.auto.job-answers-read` — **[PARTIAL]** (#5478, #5574) the answers given under a purpose
   (which kinds of names, which gazetteer, how far to normalise) are read by the steps they configure.
   Built: saved as `answers.job_answers`; each becomes its step's setting (`start.JOB_ANSWER_SETTINGS`), at
@@ -1964,12 +1966,21 @@ Moved from `ai/local-runtimes.md` on 2026-10-04 (the card has one home). Each re
 - `source.model.coverage-two-ways` — **[GAP]** (#4948) a card states its coverage of a script: the
   LOOVE tokenizer tiers for a language or vision-language model, the share of the script's
   exemplar characters in its character set for Kraken or Tesseract, or "unknown".
-- `source.recipe.text-material-is-not-read` — **[GAP]** (#5553) material that is already text (Markdown,
+- `source.recipe.text-material-is-not-read` — **[PARTIAL]** (#5553) material that is already text (Markdown,
   plain text, Word, a PDF with a text layer, notes from Tinderbox, DEVONthink or Bookends) gets no reading
   step: the plan goes straight to search and whatever else was ticked, and Ready says the notes are already
   text. A project whose purpose is finding related material asks for no transcription. Scans of printed or
   typed pages are read by Tesseract first; Kraken or a vision model is offered only when the check on a few
   pages shows Tesseract misses.
+  Built: `text` is a material (`assemble.MATERIALS`); a project of text alone gets none of the jobs that make
+  text from a picture (lines, readers, corrections, training), its recipe starts from the page's text
+  (`jobs.starts_with`, so search, names and statements pass the check) and `/assemble` returns `already_text`,
+  the sentence Ready shows. Unset, the material is `text` when every page of the open project's sample is a
+  text file or a PDF page whose text layer the import kept (`prepare.sample_is_text`); a scanned PDF page is
+  read. Beside other materials, text gets no reader. Tested in
+  `fichero-server/tests/unit/recipes/test_text_material_not_read.py`. Not built: Tesseract first for printed
+  scans (#4948); a mixed project's read step still reads every page, including those already text; the app
+  offers no "already text" checkbox yet.
 - `source.model.tesseract-provider` — **[GAP]** (#4948) Tesseract is a provider row in the AI
   settings: its binary is built into the app, each language's data is downloaded on demand as
   data with a card of its own, and it can read whole pages or cut lines.
@@ -2335,14 +2346,14 @@ Setup
   Browse… menu (ruled 2026-10-05, #5479); several can be chosen at once, each shown as a token with its name (its tag or code on
   hover) and removed with its ×. *Test:* typing "spanish" offers Spanish (es); choosing it and
   Latin shows two tokens.
-- `source.onboard.language-stored-as-tag` — **[OK]** (#5479) **Built 2026-10-05 (engine):** `PUT /api/recipes/project` and `POST /api/recipes/assemble` resolve each language to its tag (`recipes/names.resolve_language`: a tag or ISO 639 code stays a tag, a name resolves when exactly one language has it, a Glottolog-only one to `und-x-<glottocode>`) and each script to its code, and refuse anything else with 422 in words; a project already holding a word reads it as its tag where it resolves and keeps it otherwise. Saving "spanish" stores `es`, and the names step then takes the card that lists `es`; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. what setup saves for a language is
+- `source.onboard.language-stored-as-tag` — **[OK]** (#5479) **Built 2026-10-05 (engine):** `PUT /api/recipes/project` and `POST /api/recipes/assemble` resolve each language to its tag (`recipes/names.resolve_language`: a tag or ISO 639 code stays a tag, a name resolves when exactly one language has it, a Glottolog-only one to `und-x-<glottocode>`) and each script to its code, and refuse anything else with 422 in words; a project already holding a word reads it as its tag where it resolves and keeps it otherwise. Saving "spanish" stores `es`, and the names step then takes the card that lists `es`; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. **Built 2026-10-08 (#5595):** a name resolves without its dates ("Old Irish" is "Old Irish (to 900)", `sga`) and by names scholars use that ISO lacks (`names.ALSO_CALLED`: "Old Church Slavonic" `cu`, "Ge'ez" `gez`, "Classical Chinese" `lzh`); a script's name typed as a language says it is a script, and an unknown name offers the nearest languages; a card listing Syriac (`syr`) covers Classical Syriac (`syc`, `names.ALSO_COVERS`); pinned by `fichero-server/tests/unit/recipes/test_language_script_data_5595.py`. what setup saves for a language is
   its tag (`es`, `la`, a private-use tag for a Glottolog-only language) and for a script its ISO
   15924 code, never the typed word; the engine, given a word that is not a tag (a project saved
   before this, or a call from MCP or the command line), resolves it to the tag when exactly one
   language has that name and otherwise refuses in words ("Fichero doesn't know the language
   'spanish'. Choose it from the list."), never passing the word to the rules. *Test:* saving
   languages ["spanish"] stores ["es"], and the recipe proposes a reader whose card lists `es`.
-- `source.onboard.direction-chosen` — **[PARTIAL]** (#5479) **Built 2026-10-05 (engine):** the saved answers hold `directions` (script code to `ltr`, `rtl`, `ttb` or `ttb-lr`), each pre-filled from the script's derived direction and kept when changed; any other value is refused in words; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. **Built 2026-10-05 (app), not yet seen:** What it is has one direction picker per chosen script, pre-filled from the engine's derived direction, saved and sent as `directions`. *Not built: the steps reading it.* direction is chosen in setup, pre-filled from
+- `source.onboard.direction-chosen` — **[PARTIAL]** (#5479) **Built 2026-10-05 (engine):** the saved answers hold `directions` (script code to `ltr`, `rtl`, `ttb` or `ttb-lr`), each pre-filled from the script's derived direction and kept when changed (2026-10-08, #5595: a script whose historical material runs in columns pre-fills vertical, Mongolian `ttb-lr`, Han and Japanese `ttb`, as ruled 2026-09-28; Simplified Han and Korean stay `ltr`; `answers.VERTICAL_BY_DEFAULT`); any other value is refused in words; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. **Built 2026-10-05 (app), not yet seen:** What it is has one direction picker per chosen script, pre-filled from the engine's derived direction, saved and sent as `directions`. *Not built: the steps reading it.* direction is chosen in setup, pre-filled from
   each chosen script (the engine's derived fact, with where it came from) and changeable: left to
   right, right to left, top to bottom with columns right to left, or with columns left to right;
   one per script; saved on the project (`answers.directions`) and read by the steps that need it.
@@ -2874,12 +2885,17 @@ Finding models
   Downloading… and Activity shows the job); **Use for This Step** in Set Up… only where the Start plan
   offers that installed card instead of the step's pending download (`downloads[].instead`), through
   `POST /api/recipes/project/start/use-instead` (setup's own `useInstead`, one code path); and **Search
-  Online** for the whole list (`online=true`). *Residue, owed by the engine before the rest can be
-  built:* a candidate carries no download action of its own (a shipped MLX card's `pin` names its Hub
-  repo, which the download route refuses; a Kraken record downloads by another route), no installed
-  flag for a shipped card, and no place it runs (`source.find.model-and-where-it-runs`, #5582); and no
-  route sets an arbitrary candidate as a step's reader (Use This takes only a bake-off's scored
-  candidate, use-instead only the plan's installed offer).
+  Online** for the whole list (`online=true`). **Built 2026-10-08 (engine, #5612):** each candidate
+  carries `download` (the action that downloads it, `model.download` with its runtime and id, as the
+  Start plan's `downloads` name it; null when it is here, the run fetches it, or it runs elsewhere),
+  `installed` (an MLX model in this Mac's store, a spaCy pipeline, a bundled Kraken model; null where
+  nothing is downloaded first) and `runs_where` (`this_mac`, `own_machine` or `provider`, `llm.places`);
+  `POST /api/recipes/project/steps/use-candidate` (`{step, card}`) sets any listed candidate as a step's
+  reader, kept as a project-scope override by the path use-instead takes, through `project.save_setup`
+  (audited, undoable); `GET /api/recipes/jobs` says which jobs read the material (`reads_material`).
+  Pinned by `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py`. *Residue:* the
+  app still reads `pin.hf` for Download, offers Use for This Step only on the plan's `instead`, and
+  copies the reading jobs; a Kraken reader has no download action (the run fetches it).
 - `source.find.app-searching-line` — **[GAP]** (#5611) after Search Online the finder says
   "Searching online…" with the job's reason, observed through the project's `ActivityStore` (the one
   poller of `GET /api/activity/jobs`) by the job's id (`search_job.id`, or the `find-models` kind's
