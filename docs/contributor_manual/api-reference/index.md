@@ -651,6 +651,17 @@ it is on and answers `running`; a training Job is cancelled on Hugging Face. A p
 run is waiting for is paused with its run (`409`); an unknown id is `404`. MCP: `fichero_jobs`,
 `fichero_pause_background_work`, `fichero_job_pause`, `fichero_job_cancel`.
 
+`POST /api/activity/jobs/{job_id}/retry` runs a failed or stopped job again through `job.retry`
+(#5356): it goes back to waiting with its attempts cleared and carries on from its own checkpoint;
+any other state is answered unchanged. A page a workflow run handed in, a training on Hugging Face,
+or work already waiting again is refused (`409`, with the reason).
+
+`GET /api/documents/run-history?ids=<id>&ids=<id>` says what has been run on each document (#5434):
+its job rows (pictures, embeddings, names, line finding, page reads) and the workflow runs recorded
+on it, newest first, with the model and provider as recorded, the outcome, an absolute UTC time and a
+cost that is null unless priced. One call serves a table's visible rows; an unknown id is left out
+and a document the caller may not read is withheld and counted.
+
 A workflow run is a job too (#5353): its row's id is the run's thread id, each step is a child
 (`<run>:<step>`), and each page a step hands to a lane is a grandchild, named by its model (a cloud
 model's page on the network lane, capped per Mac; a local model's on the local-model lane).
