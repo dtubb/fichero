@@ -815,6 +815,24 @@ class TestReindex:
         assert r.status_code == 200
         assert r.json()["status"] == "started"
 
+    def test_reindex_is_the_one_queued_reindex_job(self, client, db):
+        """WHY (`activity.one-reindex`, #5363): this route ran a second reindex on FastAPI's
+        BackgroundTasks beside the task queue's, invisible to Activity, deaf to the pause and lost
+        on quit. It now queues the task queue's own `reindex` job: asking twice while it waits is
+        one job, and `/api/tasks` lists it."""
+        from fichero_server.execution import jobs
+
+        jobs.set_paused(True)
+        try:
+            assert client.post("/api/search/reindex").status_code == 200
+            assert client.post("/api/search/reindex").status_code == 200
+            rows = db.execute_fetchall("SELECT state FROM jobs WHERE kind = 'reindex'")
+            assert [tuple(r) for r in rows] == [("waiting",)]
+            listed = client.get("/api/tasks", params={"task_type": "reindex"})
+            assert listed.status_code == 200 and len(listed.json()["tasks"]) == 1
+        finally:
+            jobs.set_paused(False)
+
 
 # ---------------------------------------------------------------------------
 # GET /api/search/saved

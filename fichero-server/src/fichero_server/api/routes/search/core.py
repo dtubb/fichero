@@ -17,7 +17,7 @@ from fichero_server.retrieval.query_compiler import (
 from enum import Enum
 from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -1704,27 +1704,26 @@ async def keyword_cloud(
 
 
 @router.post("/reindex")
-async def reindex_all(
-    background_tasks: BackgroundTasks, db: Database = Depends(get_library_database_for_write)
-) -> ReindexStartedResponse:
+async def reindex_all(db: Database = Depends(get_library_database_for_write)) -> ReindexStartedResponse:
     """
     Rebuild search index for all documents.
 
     This runs in the background - poll /stats to check progress.
     """
+    # ONE reindex (`activity.one-reindex`, #5363): this queues the task queue's `reindex` job, the
+    # same one `/api/tasks/reindex` queues, so it shows in Activity, obeys the pause, survives a
+    # quit, and asking while one waits is the same job. It used to run on FastAPI's
+    # `BackgroundTasks`, a second reindex nobody could see, pause or resume. (The docstring is the
+    # published OpenAPI description; it is left as it was.)
+    from pathlib import Path
 
-    def do_reindex():
-        try:
-            count = db.reindex_all()
-            logger.info(f"Reindexed {count} documents")
-        except Exception as e:
-            logger.error(f"Reindex failed: {e}")
+    from fichero_server.workflows.tasks import TaskType, job_task_queue
 
-    background_tasks.add_task(do_reindex)
+    await job_task_queue(str(Path(db.path).parent)).create_task(TaskType.REINDEX, "Reindex Documents")
 
     return ReindexStartedResponse(
         status="started",
-        message="Reindex started in background. Poll /api/search/stats for progress.",
+        message="Reindex queued. Its progress shows in Activity.",
     )
 
 

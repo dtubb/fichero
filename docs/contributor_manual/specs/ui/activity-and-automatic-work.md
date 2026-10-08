@@ -484,10 +484,9 @@ workflow by hand: a hand run is a job like any other.
   gathering reasons, converting a model, workflow runs, steps and batches. **Not yet rows:** the
   built-in Apple calls (Vision, Foundation Models: `llm.model_call_slot` takes no slot for a
   built-in provider), spaCy, Whisper and other non-model tools inside a workflow (only their step
-  is a row), the NLP re-read after a correction (inside the re-embed row), ACENET jobs (not sent:
+  is a row), ACENET jobs (not sent:
   `remote_read/slurm.py` describes them), model downloads, installs, runtime provisioning and model
-  loads (`activity.global-work-is-the-macs`), conversion on open, ingest progress and
-  `/api/search/reindex`.
+  loads (`activity.global-work-is-the-macs`), conversion on open and ingest progress.
 - `activity.remote-under-its-step` — **[GAP]** (#5240, #5353) a remote job a run starts (a Hugging
   Face Job, a cluster job) is a child of the step that sent it, its far-side state its own row's;
   today reading at scale and training are top-level rows of their own.
@@ -514,7 +513,7 @@ workflow by hand: a hand run is a job like any other.
   `/api/activity/jobs`, not a route or list of its own. Built: everything that is a row
   (`activity.every-worker-is-a-row`) is listed there, with its state and reason
   (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`, `fichero-server/tests/unit/jobs/test_tasks_on_the_lane.py`). Still a gap: ingest
-  progress, conversion on open, `/api/search/reindex` and model downloads report elsewhere.
+  progress, conversion on open and model downloads report elsewhere.
 - `activity.kraken-mlx-inference-visible` — **[PARTIAL]** (#5359) Kraken and MLX
   inference shows as its workflow run's row, failures with their reason; which page it is on, and
   "waiting for Kraken", are not shown. Built (2026-10-03): every Kraken page a workflow reads
@@ -533,9 +532,11 @@ workflow by hand: a hand run is a job like any other.
   correction is a queued, visible job, not a raw daemon thread. Built (2026-10-03): kind
   `make-a-vector`, written in the correction's own transaction, shown by `/api/activity/jobs`,
   held by the pause, run by the scheduler (`fichero-server/tests/unit/jobs/test_job_queue.py`).
-- `activity.one-reindex` — **[BROKEN]** (#5363) there are two reindexes: task-queue
-  `REINDEX` and `/api/search/reindex` on FastAPI `BackgroundTasks` (`search/core.py:1559`), the
-  second invisible and unresumable.
+- `activity.one-reindex` — **[OK]** (#5363) there is one reindex: `/api/search/reindex`
+  queues the task queue's `reindex` job, the same one `/api/tasks/reindex` queues, so it shows in
+  Activity, obeys the pause and survives a quit, and asking twice while it waits is one job. Built
+  (2026-10-08): it used to run on FastAPI `BackgroundTasks`, invisible and unresumable
+  (`fichero-server/tests/unit/api/test_routes_search.py`).
 - `activity.legacy-chain-retired` — **[BROKEN]** (→ #4949) `/chains/{id}/execute` runs with "no thread
   ids, no SSE, no activity records" (`chains.py:814`).
 
