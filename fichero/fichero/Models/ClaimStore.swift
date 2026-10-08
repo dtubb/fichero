@@ -205,11 +205,14 @@ final class ClaimStore: ObservableDomainStore {
     // review-queue action wires one up believing it was proven. The lifecycle
     // transitions the review queue actually performs go through `patch`.
     //
-    // `entityService.transitionClaim` / `batchTransitionClaims` /
-    // `kgCurationService.unmergeClaims` still exist and are still banned in views
-    // by ClaimStoreRoutingTests. If a surface ever needs one, add the store action
-    // back with its caller in the same commit, so it is never again a route that
-    // exists only in theory.
+    // The hand-rolled `entityService.transitionClaim` / `batchTransitionClaims`
+    // are gone too (#5613): uncalled, and both sent `state` where the engine
+    // takes `to_state`, so the first caller would have met a 422. A transition
+    // goes through the generated client (`transitionClaimApiClaimsClaimIdTransitionPatch`,
+    // as `StatementService.reject` does). `kgCurationService.unmergeClaims` still
+    // exists and is still banned in views by ClaimStoreRoutingTests. If a surface
+    // ever needs one, add the store action back with its caller in the same
+    // commit, so it is never again a route that exists only in theory.
     //
     // `unmerge` in particular was here for #1689, the claim-unmerge UI that has
     // not been built. Whoever builds it adds the action back alongside the view

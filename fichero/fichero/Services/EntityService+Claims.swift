@@ -37,17 +37,6 @@ extension EntityService {
         )
     }
 
-    func batchTransitionClaims(
-        claimIds: [String],
-        state: String
-    ) async throws -> Data {
-        try await endpointData(
-            path: "/api/claims/batch/transition",
-            method: "POST",
-            jsonBody: ["claim_ids": claimIds, "state": state]
-        )
-    }
-
     func unreviewedClaimsQueue(limit: Int = 100, offset: Int = 0) async throws -> Data {
         try await claimsQueue(path: "/api/claims/queues/unreviewed", limit: limit, offset: offset)
     }
@@ -76,14 +65,6 @@ extension EntityService {
         try await endpointData(
             path: "/api/claims/\(claimId)/related",
             queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
-        )
-    }
-
-    func transitionClaim(_ claimId: String, state: String) async throws -> Data {
-        try await endpointData(
-            path: "/api/claims/\(claimId)/transition",
-            method: "PATCH",
-            jsonBody: ["state": state]
         )
     }
 

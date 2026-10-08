@@ -134,8 +134,10 @@ final class ClaimStoreRoutingTests: XCTestCase {
             "entityService.patchClaim(",
             "entityService.deleteClaim(",
             "entityService.createClaimLink(",
-            "entityService.transitionClaim(",
-            "entityService.batchTransitionClaims(",
+            // The transition operations themselves (#5613: the hand-rolled
+            // `entityService.transitionClaim` / `batchTransitionClaims` are deleted).
+            ".transitionClaimApiClaimsClaimIdTransitionPatch(",
+            ".batchTransitionClaimsApiClaimsBatchTransitionPost(",
             "kgCurationService.batchSetClaimCurationState(",
             "kgCurationService.mergeClaims(",
             "kgCurationService.unmergeClaims("
