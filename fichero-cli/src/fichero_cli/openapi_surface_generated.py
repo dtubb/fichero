@@ -3004,10 +3004,11 @@ def register_generated_openapi_commands(
     @target_app.command("download-a-single-document-s-bibtex-entry-as-text")
     def citations_download_a_single_document_s_bibtex_entry_as_text_get(
         ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
     ) -> None:
         """Download a single document's BibTeX entry as text (GET /api/citations/document/{document_id}.bib)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/citations/document/{document_id}.bib"
+            endpoint_path = f"/api/citations/document/{document_id}.bib"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -6968,11 +6969,12 @@ def register_generated_openapi_commands(
         region: str = typer.Argument(..., help="Path parameter: region."),
         size: str = typer.Argument(..., help="Path parameter: size."),
         rotation: str = typer.Argument(..., help="Path parameter: rotation."),
-        quality_format: str = typer.Argument(..., help="Path parameter: quality}.{format."),
+        quality: str = typer.Argument(..., help="Path parameter: quality."),
+        format: str = typer.Argument(..., help="Path parameter: format."),
     ) -> None:
         """IIIF Image Request (GET /api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format})."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality_format}"
+            endpoint_path = f"/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format}"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

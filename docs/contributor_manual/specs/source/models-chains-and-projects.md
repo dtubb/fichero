@@ -2156,6 +2156,13 @@ How a result was made
 Projects
 - `source.project.has-settings` — **[GAP]** (#4951) a project (today's library) has settings of its
   own (purpose, recipe, defaults, rules, synced folders); one never set up behaves exactly as before.
+- `source.project.setup-saves-what-is-sent` — **[OK]** (#5584; built: the `project.save_setup` action keeps a
+  part its params leave unset; tested in `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py`) saving a project's setup
+  (`PUT /api/recipes/project`, MCP `fichero_recipes_save_project_setup`) changes only the parts sent:
+  a part left out (the answers, or the recipe) is kept as it was, and a part sent as null is removed.
+  The route's description says so. An agent onboarding a project saved its recipe alone and lost
+  the answers it had saved a step before. Through MCP a part is sent only when given (the generated tool
+  drops an argument left None), so the tool keeps what it is not given and cannot remove a part.
 - `source.project.in-the-cascade` — **[GAP]** (#4951) project settings sit between the app and a
   folder in the one cascade; a folder can override them; a shown value says which level it came from.
 - `source.project.own-models` — **[GAP]** (#4951) two projects can use different models for the
@@ -2212,7 +2219,11 @@ Profiles (the defaults section of a recipe)
   a page with a transcription saved by the step's own model. The Start plan says,
   for each such step, "already done on N of M pages", and the run does only the rest, unless the person names
   the steps to redo when pressing Start. A step that cannot tell (names, statements, checks, export, publish)
-  runs on every page, and the plan says so. The pages a step runs on are worked out when it starts, so pages a
+  runs on every page, and the plan says so.
+  **[OK] (#5584; built: `recipes/done.py`; tested in `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py`):** correcting and finding names
+  can tell too: correcting, on a page with a reviewed transcription saved by the step's own model;
+  finding names, on a page some entity names as a page it was found on (a page whose text names no one
+  leaves no trace, so it is looked at again). The pages a step runs on are worked out when it starts, so pages a
   split made earlier in the same run are read like any others.
 - `source.job.publish` — **[OK]** (#5390, #2535; built: the `publish` card in `recipes/start.py` and `recipes/runner.py`; tested in `fichero-server/tests/unit/recipes/test_publish_to_spec.py`) a recipe's `publish` step writes the project as a static
   website (an 11ty project that builds with `npx @11ty/eleventy` and deploys to Netlify) through the one
@@ -2788,6 +2799,14 @@ Finding models
   readers: `GET /api/recipes/candidates` gathers the shipped, installed, Kraken-repository and Hugging
   Face candidates by job, script and language, ranked by the rules (below). Period, spaCy pipelines,
   YOLO weights and installed Kraken readers outside the repository are not searched yet.*
+- `source.find.installed-readers-listed` — **[OK]** (#5584; built: `installed_readers` in
+  `api/routes/ai/local_models.py`, and the Kraken readers downloaded from the repository joined to the
+  catalogue in `llm/local_model_catalog.py`; tested in `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py`) the local-models list
+  (`GET /api/local-models`, MCP `fichero_local_models_list`) lists the readers installed on this
+  Mac beside Whisper, embeddings and spaCy: every complete MLX vision model in the model store
+  (`model_type` `mlx`) and every Kraken reader downloaded or trained (`model_type` `kraken`), read
+  from the one local catalogue Settings lists (`local_inference.installed_local_model_entries`), not
+  a second list. `model_type=mlx` or `kraken` narrows it to those.
 - `source.find.installed-count` — **[OK]** (#5519) every complete MLX vision model in this engine's
   model store that no shipped card pins (a catalogue model, one Fichero trained, one found in the
   store) is a reader candidate with a card made from its own metadata: its config says it reads

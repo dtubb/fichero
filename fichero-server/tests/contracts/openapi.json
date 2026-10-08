@@ -13341,7 +13341,8 @@
               }
             }
           }
-        }
+        },
+        "x-fichero-reads": true
       }
     },
     "/api/recipes/check": {
@@ -13515,7 +13516,7 @@
           "recipes"
         ],
         "summary": "Save Project Setup",
-        "description": "Save the project's setup answers and recipe (audited, undoable). A null part is removed.\nThe answers are saved in today's shape: `purposes` and `materials` as lists, languages as tags\nand scripts as codes (a word is resolved to its tag, or refused), and one direction per script.\nRefused with 422 when either holds code or credentials, or an answer Fichero does not know.",
+        "description": "Save the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know.",
         "operationId": "save_project_setup_api_recipes_project_put",
         "parameters": [
           {
@@ -41998,7 +41999,7 @@
           "local-models"
         ],
         "summary": "List Local Models",
-        "description": "List all local models, optionally filtered by type.\n\nQuery params:\n    model_type: \"whisper\" or \"embeddings\" (optional, lists all if omitted)",
+        "description": "List the local models, optionally of one type: whisper, embeddings, spacy, mlx or kraken.\n\nWhisper, embeddings and spaCy list every model, downloaded or not. mlx and kraken list the readers\ninstalled on this Mac: every complete MLX vision model in the model store, and every Kraken reader\ndownloaded or trained (`source.find.installed-readers-listed`). Omitted, all of them.",
         "operationId": "list_local_models_api_local_models_get",
         "parameters": [
           {
@@ -62522,6 +62523,12 @@
             "type": "object",
             "title": "Unpaired",
             "default": {}
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "the folder document the import made (or found already there) for the folder dropped, once it has finished; null while it runs and for an import that made no one folder (`importer.folder-status-names-its-folder`, #5584)"
           }
         },
         "type": "object",

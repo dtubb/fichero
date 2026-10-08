@@ -142,6 +142,32 @@ def kraken_catalog_entries() -> list[Any]:
                 source=_source(model_installed),
             )
         )
+    # Readers downloaded from Kraken's model repository by their record (`kraken-zenodo-<n>`, #5519): installed
+    # here, so listed as installed readers like the shortlist's (#5584).
+    for marker in sorted(kr.recognition_model_dir().glob("kraken-zenodo-*.installed")):
+        model_id = marker.name[: -len(".installed")]
+        if model_id in kr.KRAKEN_RECOGNITION_MODELS:
+            continue
+        spec = kr.recognition_spec(model_id) or {}
+        entries.append(
+            _make_entry(
+                provider_type=ProviderType.kraken,
+                model_id=model_id,
+                display_name=str(spec.get("display_name") or f"Kraken reader {spec.get('doi') or model_id}"),
+                capabilities=["recognition"],
+                installed=True,
+                download_size_bytes=0,
+                disk_usage_bytes=0,
+                min_memory_bytes=None,
+                memory_class=None,
+                supported=True,
+                unsupported_reason=None if installed else "Kraken is not bundled in this build.",
+                note=f"Downloaded from Kraken's model repository (DOI {spec.get('doi')})." if spec.get("doi") else None,
+                tested_status="untested",
+                license_label="user-managed",
+                source=_source(True),
+            )
+        )
     # Readers Fichero trained (#5398): landed from a training job, with where they came from. Listed
     # like any reader; never made a default by landing (`compute.tune.not-default-until-chosen`).
     for model_id, card in kr.trained_readers():

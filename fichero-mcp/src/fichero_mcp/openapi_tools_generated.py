@@ -1406,9 +1406,11 @@ def fichero_citation_rendering_cite_document(
 
 
 def fichero_citation_rendering_cite_document_bibtex(
+    *,
+    document_id: Annotated[str, Field(description='Document Id')],
 ) -> Any:
     "Download a single document's BibTeX entry as text\n\nRoute: GET /api/citations/document/{document_id}.bib (toolset `citation-rendering`; reads)."
-    return _rt.call("GET", "/api/citations/document/{document_id}.bib")
+    return _rt.call("GET", f"/api/citations/document/{document_id}.bib")
 
 
 def fichero_citation_rendering_export_bibtex(
@@ -3316,10 +3318,11 @@ def fichero_iiif_serve_image(
     region: Annotated[str, Field(description='Region')],
     size: Annotated[str, Field(description='Size')],
     rotation: Annotated[str, Field(description='Rotation')],
-    quality_format: Annotated[str, Field(description='Path parameter quality}.{format.')],
+    quality: Annotated[str, Field(description='Quality')],
+    format: Annotated[str, Field(description='Format')],
 ) -> Any:
     'IIIF Image Request\n\nServe image region via IIIF Image API. Reference: https://iiif.io/api/image/2.1/\n\nRoute: GET /api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format} (toolset `iiif`; reads).'
-    return _rt.call("GET", f"/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality_format}")
+    return _rt.call("GET", f"/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format}")
 
 
 def fichero_images_batch_apply_operation(
@@ -4767,7 +4770,7 @@ def fichero_local_models_list(
     *,
     model_type: Annotated[Optional[str], Field(description='Model Type')] = None,
 ) -> Any:
-    'List Local Models\n\nList all local models, optionally filtered by type.\n\nQuery params:\n    model_type: "whisper" or "embeddings" (optional, lists all if omitted)\n\nRoute: GET /api/local-models (toolset `local-models`; reads).'
+    'List Local Models\n\nList the local models, optionally of one type: whisper, embeddings, spacy, mlx or kraken.\n\nWhisper, embeddings and spaCy list every model, downloaded or not. mlx and kraken list the readers\ninstalled on this Mac: every complete MLX vision model in the model store, and every Kraken reader\ndownloaded or trained (`source.find.installed-readers-listed`). Omitted, all of them.\n\nRoute: GET /api/local-models (toolset `local-models`; reads).'
     return _rt.call("GET", "/api/local-models", params={"model_type": model_type})
 
 
@@ -5909,7 +5912,7 @@ def fichero_recipes_assemble(
     purposes: Annotated[Optional[list[Any]], Field(description="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)")] = None,
     scripts: Annotated[list[Any], Field(description="ISO 15924 script codes (or a script's English name)")],
 ) -> Any:
-    "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; changes data, as the agent account when one exists)."
+    "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; reads)."
     return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "faded_pages": faded_pages, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "scripts": scripts}))
 
 
@@ -5969,7 +5972,7 @@ def fichero_recipes_save_project_setup(
     answers: Annotated[Optional[dict[str, Any]], Field(description='Answers.')] = None,
     recipe: Annotated[Optional[dict[str, Any]], Field(description='Recipe.')] = None,
 ) -> Any:
-    "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). A null part is removed.\nThe answers are saved in today's shape: `purposes` and `materials` as lists, languages as tags\nand scripts as codes (a word is resolved to its tag, or refused), and one direction per script.\nRefused with 422 when either holds code or credentials, or an answer Fichero does not know.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
+    "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
 
 

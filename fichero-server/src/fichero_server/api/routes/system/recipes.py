@@ -498,7 +498,12 @@ def _answers(answers: dict[str, Any]) -> Answers:
     )
 
 
-@router.post("/assemble", response_model=AssembledRecipe)
+#: A route that takes its question as a body but writes nothing: its generated MCP tool says it reads
+#: (`openapi.mcp.reads-say-so`, #5584).
+READS = {"x-fichero-reads": True}
+
+
+@router.post("/assemble", response_model=AssembledRecipe, openapi_extra=READS)
 async def assemble_recipe(
     request: AssembleRequest, library: Optional[Path] = Depends(_optional_library),
 ) -> AssembledRecipe:
@@ -671,13 +676,16 @@ async def save_project_setup(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ProjectSetup:
-    """Save the project's setup answers and recipe (audited, undoable). A null part is removed.
-    The answers are saved in today's shape: `purposes` and `materials` as lists, languages as tags
-    and scripts as codes (a word is resolved to its tag, or refused), and one direction per script.
-    Refused with 422 when either holds code or credentials, or an answer Fichero does not know."""
+    """Save the project's setup answers and recipe (audited, undoable). Only the parts sent change:
+    a part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed
+    (`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`
+    and `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,
+    or refused), and one direction per script. Refused with 422 when either holds code or
+    credentials, or an answer Fichero does not know."""
     try:
-        params = request.model_dump(mode="json")
-        params["answers"] = normalise_answers(params["answers"], strict=True)
+        params = request.model_dump(mode="json", exclude_unset=True)
+        if "answers" in params:
+            params["answers"] = normalise_answers(params["answers"], strict=True)
         result = registry.invoke(db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -693,7 +701,10 @@ def _invert_save_setup(before: dict | None, after: dict | None, ctx: ActionConte
 def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     library = _library(db)
     before = read_project_setup(library)
-    write_project_setup(library, params.answers, params.recipe)
+    # A part left out is kept; a part sent as null is removed (#5584).
+    sent = params.model_fields_set
+    write_project_setup(library, params.answers if "answers" in sent else before.get("answers"),
+                        params.recipe if "recipe" in sent else before.get("recipe"))
     after = read_project_setup(library)
     return after, ChangeSpec(domains=["project"], target_ids=[], before=before, after=after,
                              emit_type="project.setup_saved")

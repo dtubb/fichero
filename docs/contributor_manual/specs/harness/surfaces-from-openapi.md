@@ -105,6 +105,13 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   the agent account when one is signed in; on a single-user engine with no accounts, the owner,
   labelled `client=fichero-mcp` in the audit (#4469). Pinned by
   `fichero-mcp/tests/test_mutating_client_attribution.py`.
+- `openapi.mcp.reads-say-so` **[OK]** (#5584) a generated tool says whether it reads or changes
+  data. A GET reads; a route that takes its question as a body but writes nothing (`POST
+  /api/recipes/assemble`) is marked a read in the contract (`x-fichero-reads: true` through the
+  route's `openapi_extra`), and its tool says it reads rather than "changes data". Built: the
+  shared parse reads the mark into `Operation.reads` (`openapi_operations.py`) and
+  `generate_openapi_mcp.py` words the tool from it. Pinned, the contract's mark and the tool's words,
+  by `fichero-mcp/tests/test_mcp_reads_say_so.py`.
 - `openapi.mcp.errors-reach-the-agent` **[OK]** (#5453) a refused or failed call returns the
   engine's typed error (status and detail) as an MCP tool error. It is never an empty result.
   The error text is `{"status", "detail", "route"}` as JSON. Pinned through the MCP protocol by
@@ -126,6 +133,15 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   `fichero-server/tests/unit/api/test_run_model_trained_id.py`,
   `fichero-server/tests/unit/api/test_resolve_project_by_name.py`,
   `fichero-server/tests/unit/cli/test_cli_commands.py` and `fichero-mcp/tests/test_mcp_server.py`.
+- `openapi.cli.path-ids-positional` **[OK]** (#5584) every path parameter of a generated command
+  is positional (`fichero docs get-children <doc_id>`, as `docs get <doc_id>`), and every
+  body field and query parameter an option. The MCP tools take every argument by name, the path's
+  ids under the same names (`doc_id` for both `fichero_documents_get` and
+  `fichero_documents_get_children`). The rule already held for `get-children`; it did not for a `{name}`
+  inside a segment (`/api/citations/document/{document_id}.bib`, the IIIF image request's
+  `{quality}.{format}`), whose commands and tools sent the braces literally. Built: the shared parse
+  takes every `{name}` in the path (`openapi_operations.py`). Pinned on every generated command by
+  `fichero-cli/tests/test_cli_path_ids_positional.py`.
 
 ### C. Driving the app: AppleScript and App Intents
 
