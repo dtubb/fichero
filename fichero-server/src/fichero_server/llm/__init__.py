@@ -431,6 +431,7 @@ def _record_usage(
     cache_read_tokens: int = 0,
     estimated: bool = False,
     method: str | None = None,
+    place: str | None = None,
 ) -> None:
     """Push a usage entry to the active collector (if any) and log at
     INFO. Centralizes the logging shape so chat / chat_structured /
@@ -450,6 +451,8 @@ def _record_usage(
             # pricing can subtract it out (llm/usage.py).
             "cache_read_tokens": cache_read_tokens,
             "estimated": estimated,
+            # Where it ran (llm/places.py): a model server off this Mac is not free (#5586).
+            "place": place,
         }
         if method is not None:
             entry["method"] = method
@@ -459,7 +462,8 @@ def _record_usage(
 
     jobs.note_usage({"provider": provider, "model": model, "kind": kind, "input_tokens": input_tokens,
                      "output_tokens": output_tokens, "total_tokens": total_tokens,
-                     "cache_read_tokens": cache_read_tokens, "estimated": estimated})
+                     "cache_read_tokens": cache_read_tokens, "estimated": estimated,
+                     "place": place})
 
     marker = "~" if estimated else ""
     estimated_suffix = " (estimated)" if estimated else ""
@@ -1207,17 +1211,24 @@ def is_local_only() -> bool:
     return str(setting).strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _is_local_or_builtin_provider(provider: str) -> bool:
-    from fichero_server.llm.providers import get_provider_info
+def _place_of(config: LLMConfig) -> str:
+    """Where this call runs (llm/places.py): this Mac, the person's own machine, or a provider."""
+    from fichero_server.llm.places import place_of
 
-    info = get_provider_info((provider or "").strip().lower())
-    return bool(info and (info.is_local or info.is_builtin))
+    return place_of(config)
+
+
+def _runs_on_this_mac(config: LLMConfig) -> bool:
+    """Whether this call keeps its pages on this Mac: by its address, not its provider type (#5586)."""
+    from fichero_server.llm.places import runs_on_this_mac
+
+    return runs_on_this_mac(config)
 
 
 def _enforce_local_only_provider(config: LLMConfig, *, kind: str) -> None:
     if not is_local_only():
         return
-    if _is_local_or_builtin_provider(config.provider):
+    if _runs_on_this_mac(config):
         return
     raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind)
 
@@ -1497,12 +1508,14 @@ async def _lane_call_slot(config: LLMConfig, *, library: str | None = None,
             library, "ask-a-model",
             subject or ((node.node_label or node.node_id) if node else "a model call"),
             model=f"{provider}:{config.model}", run_id=(node.run_id or None) if node else None,
-            lane="local-ml" if info is not None and info.is_local else "network",
+            # By the place, not the provider type: an Ollama on another machine waits on the
+            # network like any remote model (#5586).
+            lane="local-ml" if _runs_on_this_mac(config) else "network",
         ):
             yield
         return
     jobs.forget_call_row()
-    if _is_local_or_builtin_provider(config.provider):
+    if _runs_on_this_mac(config):
         yield
         return
 
@@ -1519,9 +1532,9 @@ def record_call_usage(config: LLMConfig, response: Any, kind: str = "chat") -> N
     for a caller that calls a LangChain model itself (chat's agent loop)."""
     usage = usage_from_message(response)
     if usage:
-        _record_usage(config.provider, config.model, kind, input_tokens=usage["input_tokens"],
-                      output_tokens=usage["output_tokens"], total_tokens=usage["total_tokens"],
-                      cache_read_tokens=usage["cache_read_tokens"])
+        _record_usage(config.provider, config.model, kind, place=_place_of(config),
+                      input_tokens=usage["input_tokens"], output_tokens=usage["output_tokens"],
+                      total_tokens=usage["total_tokens"], cache_read_tokens=usage["cache_read_tokens"])
 
 
 @contextlib.asynccontextmanager
@@ -1530,7 +1543,7 @@ async def _remote_llm_batch_slots(
     count: int,
 ) -> AsyncIterator[None]:
     """Reserve up to ``count`` remote-call slots for one abatch chunk."""
-    if _is_local_or_builtin_provider(config.provider):
+    if _runs_on_this_mac(config):
         yield
         return
 
@@ -1546,7 +1559,7 @@ async def _remote_llm_batch_slots(
 
 
 def _batch_max_concurrency(config: LLMConfig) -> int | None:
-    if _is_local_or_builtin_provider(config.provider):
+    if _runs_on_this_mac(config):
         # A batch to the engine's own model server: as many at once as its memory allows (#5537).
         return _local_reads_at_once(config) if (config.provider or "").lower() == "omlx" else None
     return _max_inflight_llm()
@@ -1575,7 +1588,7 @@ def _record_batch_usage(
             _record_usage(
                 config.provider,
                 config.model,
-                kind,
+                kind, place=_place_of(config),
                 input_tokens=usage["input_tokens"],
                 output_tokens=usage["output_tokens"],
                 total_tokens=usage["total_tokens"],
@@ -1841,7 +1854,7 @@ async def chat(
         usage = usage_from_message(response)
         if usage:
             _record_usage(
-                config.provider, config.model, "chat",
+                config.provider, config.model, "chat", place=_place_of(config),
                 input_tokens=usage["input_tokens"],
                 output_tokens=usage["output_tokens"],
                 total_tokens=usage["total_tokens"],
@@ -2165,7 +2178,7 @@ def _log_apple_usage_estimate(
     input_tokens = estimate_token_count(prompt_text)
     output_tokens = estimate_token_count(response_text or "")
     _record_usage(
-        config.provider, config.model, kind,
+        config.provider, config.model, kind, place=_place_of(config),
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         total_tokens=input_tokens + output_tokens,
@@ -2194,7 +2207,7 @@ def _log_apple_usage_from_bridge(
         return False
 
     _record_usage(
-        config.provider, config.model, kind,
+        config.provider, config.model, kind, place=_place_of(config),
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         total_tokens=total_tokens,
@@ -2753,7 +2766,7 @@ async def vision(
     usage = usage_from_message(response)
     if usage:
         _record_usage(
-            config.provider, config.model, "vision",
+            config.provider, config.model, "vision", place=_place_of(config),
             input_tokens=usage["input_tokens"],
             output_tokens=usage["output_tokens"],
             total_tokens=usage["total_tokens"],
@@ -3499,7 +3512,7 @@ async def chat_structured(
     usage = usage_from_message(raw_message) if raw_message else None
     if usage:
         _record_usage(
-            config.provider, config.model, "structured",
+            config.provider, config.model, "structured", place=_place_of(config),
             input_tokens=usage["input_tokens"],
             output_tokens=usage["output_tokens"],
             total_tokens=usage["total_tokens"],
@@ -4675,7 +4688,10 @@ def _build_langchain_model(config: LLMConfig) -> Any:
     if provider in _OPENAI_COMPATIBLE_BASE_URLS:
         from langchain_openai import ChatOpenAI
 
-        base_url = config.api_base or _OPENAI_COMPATIBLE_BASE_URLS[provider]
+        from fichero_server.llm.places import server_address
+
+        # The one address rule (llm/places.py): an Ollama/LM Studio Server URL gains its `/v1`.
+        base_url = server_address(config) or _OPENAI_COMPATIBLE_BASE_URLS[provider]
         effective_key = api_key
         if provider in _KEYLESS_OPENAI_COMPATIBLE and not effective_key:
             effective_key = provider  # placeholder — local servers ignore it
@@ -4747,6 +4763,11 @@ def _cache_langchain_model(
 
 def get_langchain_model(config: LLMConfig) -> Any:
     """Return a cached LangChain ChatModel for one config identity."""
+    from fichero_server.llm.places import with_row_address
+
+    # The provider row's Server URL is the address every call to that row uses (#5587); part of
+    # the cache identity, so a changed Server URL is a new model.
+    config = with_row_address(config)
     api_key_identity = _resolve_api_key(config) or ""
     cache_key = _langchain_model_cache_key(
         config,

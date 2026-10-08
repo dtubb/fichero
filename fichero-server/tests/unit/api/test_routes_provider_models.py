@@ -45,7 +45,8 @@ def test_configured_api_base_prefers_matching_provider(monkeypatch):
             SimpleNamespace(provider_type=SimpleNamespace(value="anthropic"), api_base="https://other"),
         ]
     )
-    monkeypatch.setattr(routes, "get_app_db", lambda: app_db)
+    # The one row lookup a call uses too (llm/places.py, #5587).
+    monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: app_db)
 
     assert routes._configured_api_base("openai", "https://default/") == "https://configured/v1"
     assert routes._configured_api_base("google", "https://default/") == "https://default"

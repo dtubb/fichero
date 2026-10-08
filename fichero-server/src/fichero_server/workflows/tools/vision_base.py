@@ -4003,7 +4003,8 @@ async def process_vision(
                     **_vision_backoff,
                 )
 
-            from fichero_server.execution.jobs import LOCAL_MODEL_SERVERS, hold_lane
+            from fichero_server.execution.jobs import hold_lane
+            from fichero_server.llm.places import runs_on_this_mac
             from fichero_server.llm.providers import get_provider_info
 
             _provider = (effective_config.provider or "").lower()
@@ -4011,13 +4012,14 @@ async def process_vision(
             if _info is not None and _info.is_builtin:
                 return await call()  # Apple Vision and the like: the OS's own, no model of ours
             # Every page a model reads is a job, a child of its step (#5353): a model served on
-            # this Mac (MLX, Ollama, LM Studio) holds the local-model lane, so Kraken or the
-            # embedder never load beside it (#5358); a cloud model takes the network lane, whose
-            # cap is one per Mac, shared by every run (`activity.run.lane-cap-per-mac`).
+            # this Mac (MLX, Ollama, LM Studio at a loopback address) holds the local-model lane,
+            # so Kraken or the embedder never load beside it (#5358); a model off this Mac (a
+            # cloud, or an Ollama on another machine, #5586) takes the network lane, whose cap is
+            # one per Mac, shared by every run (`activity.run.lane-cap-per-mac`).
             return await hold_lane(
                 library_path, "read-a-page", doc_id_for_file or Path(file_path).name,
                 model=f"{_provider}:{effective_config.model}", work=call, run_id=task_id,
-                lane="local-ml" if _provider in LOCAL_MODEL_SERVERS else "network",
+                lane="local-ml" if runs_on_this_mac(effective_config) else "network",
             )
 
         try:

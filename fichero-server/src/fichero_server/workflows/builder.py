@@ -179,12 +179,13 @@ async def vision_slot(remote: bool = False):
 
 
 def _is_remote_model(config: LLMConfig | None) -> bool:
-    """A node whose model is a hosted provider waits on the network, not this machine (#5264)."""
+    """A node whose model runs off this Mac waits on the network, not this machine (#5264): by its
+    address, so an Ollama on another machine is remote (#5586)."""
     if config is None or not getattr(config, "provider", None):
         return False
-    from fichero_server.llm import _is_local_or_builtin_provider
+    from fichero_server.llm.places import runs_on_this_mac
 
-    return not _is_local_or_builtin_provider(config.provider)
+    return not runs_on_this_mac(config)
 
 
 def _required_llm_capability_for_category(category: str | None) -> str:
@@ -205,8 +206,11 @@ def _resolve_node_llm_config(
     path (validation.py) already prefixes the node; this makes the
     build-graph path agree. Message-only — the validation rule is untouched.
     """
+    from fichero_server.llm.places import with_row_address
+
     try:
-        return _resolve_node_llm_config_inner(node_def, workflow_llm_config)
+        # The provider row's Server URL reaches the run, as it reaches chat and the model list (#5587).
+        return with_row_address(_resolve_node_llm_config_inner(node_def, workflow_llm_config))
     except ValueError as exc:
         node_label = node_def.label or node_def.id or node_def.tool
         raise ValueError(f"Node '{node_label}' ({node_def.tool}): {exc}") from exc
@@ -220,14 +224,13 @@ def _resolve_node_llm_config_inner(
     Priority order:
       1. Node-specific provider_name/model_name (from node or node.config)
       2. Workflow-level default (workflow_llm_config)
-      3. Category default from app settings (if tool is_llm)
-      4. Any configured enabled provider + model in the app DB
+      3. Category default from app settings (if tool is_llm), then the text default
 
-    Without the final fallback, a shipped preset like Catalogue — whose LLM
-    node has no provider and which runs on a fresh install where category
-    defaults aren't set — fails with "LLM provider not configured." even
-    though the user has a working provider configured. #704 / Catalogue
-    breakage on 2026-04-24.
+    With none of these, the node refuses, naming what to set
+    (`ai.where.no-first-provider-fallback`, #5368). It once took the first
+    enabled provider with a model (#704), which could be a cloud one the
+    person never chose for this step; the factory AI defaults are seeded on
+    first launch and on Reset (#5520), so a fresh install has a default.
     """
     node_provider = node_def.provider_name or node_def.config.get("provider_name", "")
     node_model = node_def.model_name or node_def.config.get("model_name", "")
@@ -304,32 +307,17 @@ def _resolve_node_llm_config_inner(
                 node_def.id, node_def.tool, generic_default[0], generic_default[1],
             )
             return LLMConfig(provider=generic_default[0], model=generic_default[1])
-
-        # Apple is registered as a provider for Vision/Speech but llm.chat()
-        # doesn't support it yet (no Foundation Models adapter). Skip Apple
-        # for LLM (text) fallback, but keep it for vision nodes (#2243) where
-        # Apple Intelligence IS the intended out-of-the-box provider.
-        llm_unsupported = {"apple"} if required_capability != "vision" else set()
-        for provider in app_db.list_providers():
-            if not provider.enabled:
-                continue
-            if provider.provider_type.value in llm_unsupported:
-                continue
-            models = [m for m in app_db.list_models(provider.id) if m.enabled]
-            if not models:
-                continue
-            logger.warning(
-                "Node %s (tool=%s) has no provider configured and no defaults set; "
-                "falling back to first configured provider %s/%s",
-                node_def.id, node_def.tool, provider.provider_type.value, models[0].model_id,
-            )
-            return LLMConfig(
-                provider=provider.provider_type.value, model=models[0].model_id,
-            )
     except Exception as e:
-        logger.debug("Provider fallback lookup failed for %s: %s", node_def.tool, e)
+        logger.debug("Default model lookup failed for %s: %s", node_def.tool, e)
+        return workflow_llm_config
 
-    return workflow_llm_config
+    # No model on the node, the workflow or Settings: refuse rather than take whichever provider
+    # happens to be first, which may send pages to a cloud the person did not choose (#5368).
+    category = tool_def.category or "text"
+    raise ValueError(
+        f"No model is set for this step. Choose one on the step, or set the {category} "
+        "default in Settings > AI > Defaults."
+    )
 
 
 # =============================================================================

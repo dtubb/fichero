@@ -244,6 +244,14 @@ def always_present_local_providers(configured: list[Provider]) -> list[Provider]
     return rows
 
 
+def _row_place(provider_type: str, api_base: str | None) -> str:
+    """Where a row's models run, by the address its calls use (#5586)."""
+    from fichero_server.llm import LLMConfig
+    from fichero_server.llm.places import place_of
+
+    return place_of(LLMConfig(provider=provider_type, model="", api_base=api_base))
+
+
 @router.get("", response_model=ProviderListResponse)
 def list_providers(
     app_db: AppDatabase = Depends(get_app_database),
@@ -259,6 +267,7 @@ def list_providers(
             name=p.name,
             provider_type=p.provider_type.value,
             api_base=p.api_base,
+            place=_row_place(p.provider_type.value, p.api_base),
             enabled=p.enabled,
             sort_order=p.sort_order,
             # Synthetic local rows need no key; True means "no key required",
@@ -376,6 +385,7 @@ def create_provider(
         name=provider.name,
         provider_type=provider.provider_type.value,
         api_base=provider.api_base,
+        place=_row_place(provider.provider_type.value, provider.api_base),
         enabled=provider.enabled,
         sort_order=provider.sort_order,
         has_api_key=has_api_key(request.provider_type),
@@ -580,6 +590,7 @@ def _synthetic_local_provider(provider_id: str) -> ProviderResponse | None:
                 name=p.name,
                 provider_type=p.provider_type.value,
                 api_base=p.api_base,
+                place=_row_place(p.provider_type.value, p.api_base),
                 enabled=p.enabled,
                 sort_order=p.sort_order,
                 has_api_key=True,
@@ -606,6 +617,7 @@ def get_provider(
         name=provider.name,
         provider_type=provider.provider_type.value,
         api_base=provider.api_base,
+        place=_row_place(provider.provider_type.value, provider.api_base),
         enabled=provider.enabled,
         sort_order=provider.sort_order,
         has_api_key=has_api_key(provider.provider_type.value),
@@ -661,6 +673,7 @@ def update_provider(
         name=provider.name,
         provider_type=provider.provider_type.value,
         api_base=provider.api_base,
+        place=_row_place(provider.provider_type.value, provider.api_base),
         enabled=provider.enabled,
         sort_order=provider.sort_order,
         has_api_key=has_api_key(provider.provider_type.value),

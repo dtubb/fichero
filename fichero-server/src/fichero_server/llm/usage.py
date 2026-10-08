@@ -43,8 +43,12 @@ __all__ = [
 ]
 
 
-def provider_is_free(provider: str | None) -> bool:
+def provider_is_free(provider: str | None, place: str | None = None) -> bool:
     """True when calling this provider spends nothing — on-device or built-in.
+
+    ``place`` is where the call ran (``llm/places.py``): a model server type answering from
+    another machine (``own_machine``) runs on hardware the call does not account for, so it is
+    unpriced, never a $0 (#5586). None (an entry recorded before places) judges by type.
 
     Delegates to the provider registry (`is_local` / `is_builtin`), the same
     source `provider_preview._provider_is_billable` uses. A second hand-kept
@@ -59,6 +63,8 @@ def provider_is_free(provider: str | None) -> bool:
 
     info = get_provider_info(provider.strip().lower())
     if info is None:
+        return False
+    if place is not None and place != "this_mac":
         return False
     return bool(info.is_local or info.is_builtin)
 
@@ -87,6 +93,10 @@ class ModelCallUsage(BaseModel):
     character-count guess. Never inferred — set by the recording site."""
 
     method: str | None = None
+
+    place: str | None = None
+    """Where the call ran (``llm/places.py``): this_mac | own_machine | provider; None when
+    recorded before places were (#5586)."""
 
     cost_usd: float | None = None
     """None means unpriced. It never means free — see :attr:`free`."""
@@ -249,9 +259,10 @@ def price_call(entry: dict[str, Any] | ModelCallUsage) -> ModelCallUsage:
         cache_read_tokens=int(entry.get("cache_read_tokens") or 0),
         estimated=bool(entry.get("estimated")),
         method=entry.get("method"),
+        place=entry.get("place"),
     )
 
-    if provider_is_free(call.provider):
+    if provider_is_free(call.provider, call.place):
         # A defensible zero: Apple Intelligence / MLX / mock ran on this
         # machine. "$0.00" here is a claim, not a placeholder.
         return call.model_copy(update={"cost_usd": 0.0, "priced": True, "free": True})

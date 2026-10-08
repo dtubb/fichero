@@ -17,7 +17,6 @@ api/main.py::lifespan._start_bonjour 1
 api/main.py::lifespan._warm_workflow_stack 1
 api/main.py::prefetch_library_caches 1
 api/routes/ai/hpc.py::_broadcast_hpc_change 1
-api/routes/ai/provider_models.py::_configured_api_base 1
 api/routes/ai/provider_models.py::list_models_for_provider 5
 api/routes/citation/rendering.py::_metadata_for_document 2
 api/routes/document/artifacts.py::_action_translate 1
@@ -155,7 +154,6 @@ workflows/activity_store.py::_reopen_managed_library_connection 1
 workflows/builder.py::_make_node_function.node_function 2
 # #5555: the file_retry event, like the file_start/complete/error events beside it, never fails a page.
 workflows/builder.py::_make_parallel_node_function.parallel_node_function 8
-workflows/builder.py::_resolve_node_llm_config_inner 1
 workflows/cache.py::NodeCache.set 1
 workflows/completion.py::finalize_run_documents 3
 workflows/default_workflows.py::_load_preset_files 1

@@ -13,7 +13,6 @@ import threading
 from collections import deque
 from contextvars import ContextVar
 from functools import lru_cache
-import ipaddress
 import logging
 import os
 import platform
@@ -27,6 +26,7 @@ from urllib.parse import urljoin, urlparse
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StrictBool, field_validator, model_validator
 
 from fichero_server.execution.throttle import MemoryShortError
+from fichero_server.llm.places import is_loopback_url  # the one loopback rule (#5586)
 from fichero_server.llm.providers import ProviderType, get_provider_info
 
 logger = logging.getLogger(__name__)
@@ -1040,20 +1040,6 @@ class HttpxLocalHealthClient:
         if not isinstance(payload, dict):
             raise ValueError("health response must be a JSON object")
         return payload
-
-
-def is_loopback_url(url: str) -> bool:
-    """Return whether a URL targets loopback HTTP(S)."""
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        return False
-    hostname = parsed.hostname.lower()
-    if hostname == "localhost":
-        return True
-    try:
-        return ipaddress.ip_address(hostname).is_loopback
-    except ValueError:
-        return False
 
 
 def enforce_local_provider_profile(profile: LocalProviderProfile) -> None:

@@ -134,7 +134,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
     #
     # Selected only by explicit LLMConfig(provider="mock"). Registered
     # is_local + is_builtin so it inherits every free / no-PAID gate via
-    # _is_local_or_builtin_provider. No alias / preset / fallback ever
+    # llm.places.place_of (in-process: this Mac). No alias / preset / fallback ever
     # yields "mock", so it can never activate by accident — it exists so a
     # whole folder/PDF catalogue run can be debugged end-to-end (output,
     # persistence, per-page artifacts, UI) with ZERO paid LLM calls.
