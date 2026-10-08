@@ -72,6 +72,17 @@ def heavy_work_need_bytes() -> int:
     return _kraken_memory_need_bytes()
 
 
+def _two_amounts_that_differ(need: int, free: int) -> tuple[str, str]:
+    """The two amounts in GB, as `need > free` reads (#5524): one decimal, or two where one decimal
+    would round them to the same number ('needs about 2.5 GB ... has about 2.5 GB free' told the person
+    nothing was wrong). Where even two decimals agree, the free amount is shown as just under."""
+    for places in (1, 2):
+        shown = (f"{need / 1024**3:.{places}f}", f"{free / 1024**3:.{places}f}")
+        if shown[0] != shown[1]:
+            return shown
+    return shown[0], f"just under {shown[1]}"
+
+
 def memory_short(
     *,
     available_bytes: Callable[[], int | None] | None = None,
@@ -96,8 +107,9 @@ def memory_short(
     free = (available_bytes or memory_available_bytes)()
     if free is not None and free < need:
         verb = "need" if what.endswith("models") else "needs"
-        return (f"{MEMORY_REASON}: {what} {verb} about {need / 1024**3:.1f} GB "
-                f"of free memory, and this Mac has about {free / 1024**3:.1f} GB free right now")
+        need_gb, free_gb = _two_amounts_that_differ(need, free)
+        return (f"{MEMORY_REASON}: {what} {verb} about {need_gb} GB "
+                f"of free memory, and this Mac has about {free_gb} GB free right now")
     level = (pressure_level or memory_pressure_level)()
     if level is not None and level >= _PRESSURE_CRITICAL:
         return (f"{MEMORY_REASON}: this Mac's memory pressure is critical, so starting a model that "

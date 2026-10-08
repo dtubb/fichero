@@ -175,6 +175,9 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
                 "flagged": result.get("flagged", []), "thresholds": result.get("thresholds"),
                 "missing": result.get("missing", [])}
     if row["kind"] == line_check.KIND:  # the teacher-line check: its flags, by line, with the scores
+        # While it runs (or waits for memory), the pages it has finished so far (#5524): the counts were
+        # 0 until the very end, so a long check showed no progress at all.
+        result = result or detail.get("checked_so_far") or {}
         return {"job_id": job_id, "state": row["state"], "reason": row["reason"], "request": detail.get("request"),
                 "counts": result.get("counts", dict.fromkeys(line_check.COUNTS, 0)),
                 "flagged": result.get("flagged", []), "thresholds": result.get("thresholds"),

@@ -56,6 +56,10 @@ def test_a_check_stopped_for_memory_carries_on_without_a_second_verdict(client, 
 
     with pytest.raises(jobs.JobDeferred, match="memory is tight"):
         jobs._scheduler._work(db, job_id, jobs.KINDS[kind], subject, None)
+    # While it waits, the status already counts the page it finished: the counts were 0 until the end.
+    waiting = client.get(f"/api/check/runs/{job_id}").json()
+    assert waiting["counts"]["closer_to_a_neighbour"] == 1
+    assert waiting["flagged"] and {f["document_id"] for f in waiting["flagged"]} == {pages[0].id}
     jobs._scheduler._work(db, job_id, jobs.KINDS[kind], subject, None)
 
     assert len(calls) == 3 and calls[1] == calls[2]  # the refused page again, the finished one not
@@ -67,3 +71,19 @@ def test_a_check_stopped_for_memory_carries_on_without_a_second_verdict(client, 
     for flag in status["flagged"]:
         verdicts = client.get("/api/check/verdicts", params={"target_id": flag["reading_id"]}).json()["items"]
         assert len(verdicts) == 1
+
+
+@pytest.mark.parametrize("need, free, words", [
+    (2.5, 2.46, "needs about 2.50 GB of free memory, and this Mac has about 2.46 GB free"),
+    (2.5, 2.3, "needs about 2.5 GB of free memory, and this Mac has about 2.3 GB free"),
+    (2.5, 2.499, "needs about 2.50 GB of free memory, and this Mac has about just under 2.50 GB free"),
+])
+def test_the_memory_words_never_say_the_same_number_twice(need, free, words):
+    """WHY: 'Kraken needs about 2.5 GB of free memory ... this Mac has about 2.5 GB free' stopped a check
+    with a reason that read as no reason at all. The two numbers it compared are shown so they differ."""
+    from fichero_server.execution import throttle
+
+    gb = 1024**3
+    said = throttle.memory_short(available_bytes=lambda: int(free * gb), pressure_level=lambda: None,
+                                 need_bytes=int(need * gb), what="Kraken")
+    assert words in said

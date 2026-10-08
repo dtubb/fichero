@@ -216,7 +216,9 @@ def _check(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> d
         done.append(doc.id)
         detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
         detail["checked_so_far"] = {"docs": done, "counts": counts, "flagged": flagged, "missing": missing}
-        jobs.save_detail(db, job_id, json.dumps(detail))
+        # The reason says how far it has got, so Activity shows progress while it runs (#5524).
+        jobs.save_detail(db, job_id, json.dumps(detail),
+                         reason=f"Checking lines against the page with {request.model}: {words(counts)} so far")
     return {"counts": counts, "flagged": flagged, "missing": missing, "stopped": stopped,
             "thresholds": {"neighbours": NEIGHBOURS, "shift_margin": SHIFT_MARGIN, "shift_floor": SHIFT_FLOOR,
                            "low": LOW, "policy": POLICY}}
