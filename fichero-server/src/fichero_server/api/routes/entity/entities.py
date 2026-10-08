@@ -2637,3 +2637,300 @@ def _action_set_conversion(db: Database, params: UnitConversionParams, ctx: Acti
         db.save(LibrarySetting(id=key, value=params.conversion))
     after = {"unit": unit.key, "conversion": params.conversion}
     return after, ChangeSpec(domains=["entity"], target_ids=[key], before=before, after=after, emit_type="entity.updated")
+
+
+# =============================================================================
+# A mention corrected from its mark on the page (#5602; `source.extract.corrected-in-place`)
+# =============================================================================
+#
+# A mention is a supporting source on an entity at a span of a page's text (#5488), named by the page and
+# that span: `GET /api/segments/{id}/statements` lists each one on a line with its `source_char_start`
+# and `source_char_end`. A person corrects one of two ways, each ONE audited, undoable action over the
+# entities it touches: re-point it to another entity (the name is someone else), or fix its span (the
+# words are wrong). The corrected mention says a person placed it, and the span taken away is refused on
+# the entity it left, so a later extraction run (`write_mentions`) puts neither back.
+
+
+class MentionCorrectionResponse(BaseModel):
+    """Where the corrected mention now sits."""
+
+    entity_id: str
+    document_id: str
+    source_char_start: int
+    source_char_end: int
+    excerpt: str | None = None
+    #: The line the mention is on, when the page is tied; `None` when it is on no tied line.
+    segment_id: str | None = None
+    #: The action's audit row, for `POST /api/actions/audit/{audit_id}/undo`.
+    audit_id: str | None = None
+
+
+class MentionRepointRequest(BaseModel):
+    """Move the mention at this span of the page text to another entity."""
+
+    document_id: str
+    char_start: int = Field(ge=0)
+    char_end: int = Field(gt=0)
+    to_entity_id: str
+
+
+class MentionRespanRequest(BaseModel):
+    """Fix the words of the mention at `char_start`..`char_end`: it is `new_char_start`..`new_char_end`."""
+
+    document_id: str
+    char_start: int = Field(ge=0)
+    char_end: int = Field(gt=0)
+    new_char_start: int = Field(ge=0)
+    new_char_end: int = Field(gt=0)
+
+
+class MentionRepointActionParams(MentionRepointRequest):
+    entity_id: str
+
+
+class MentionRespanActionParams(MentionRespanRequest):
+    entity_id: str
+
+
+class MentionRestoreActionParams(BaseModel):
+    snapshots: list[dict[str, Any]]
+
+
+def _mention_entity(db: Database, entity_id: str) -> KnowledgeEntity:
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+    if entity.merged_into_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Entity {entity_id} was merged into {entity.merged_into_id}; correct it there",
+        )
+    return entity
+
+
+def _mention_index(entity: KnowledgeEntity, document_id: str, start: int, end: int) -> int:
+    for i, support in enumerate(entity.source_supports):
+        if (support.source_document_id, support.source_char_start, support.source_char_end) == (
+            document_id, start, end
+        ):
+            return i
+    raise HTTPException(
+        status_code=404,
+        detail=f"{entity.canonical_name} has no mention at {start}..{end} of document {document_id}",
+    )
+
+
+def _corrected_support(support: Any, actor: str, **changes: Any) -> Any:
+    from fichero_server.models.knowledge import SourceSupport
+    from fichero_server.workflows.tools.extractors import MENTION_CORRECTED_BY
+
+    data = {**support.model_dump(mode="json"), **changes}
+    data.pop("mention_unanchored_reason", None)
+    data[MENTION_CORRECTED_BY] = actor
+    data["mention_corrected_at"] = utc_now().isoformat()
+    return SourceSupport.model_validate(data)
+
+
+def _refuse_span(entity: KnowledgeEntity, document_id: str, start: int, end: int, actor: str) -> None:
+    from fichero_server.workflows.tools.extractors import MENTIONS_REFUSED
+
+    metadata = dict(entity.metadata or {})
+    refused = [r for r in metadata.get(MENTIONS_REFUSED, [])
+               if (r.get("document_id"), r.get("char_start"), r.get("char_end")) != (document_id, start, end)]
+    refused.append({"document_id": document_id, "char_start": start, "char_end": end, "by": actor,
+                    "at": utc_now().isoformat()})
+    metadata[MENTIONS_REFUSED] = refused
+    entity.metadata = metadata
+
+
+def _mention_answer(entity: KnowledgeEntity, support: Any) -> dict[str, Any]:
+    anchor = support.source_anchor
+    return MentionCorrectionResponse(
+        entity_id=entity.id,
+        document_id=support.source_document_id,
+        source_char_start=support.source_char_start,
+        source_char_end=support.source_char_end,
+        excerpt=support.source_excerpt,
+        segment_id=anchor.segment_id if anchor is not None else None,
+    ).model_dump(mode="json")
+
+
+def _mention_spec(before: list[KnowledgeEntity], after: list[KnowledgeEntity], document_id: str) -> ChangeSpec:
+    return ChangeSpec(
+        domains=["entity"],
+        target_ids=[e.id for e in after],
+        before={"entities": [e.model_dump(mode="json") for e in before]},
+        after={"entities": [e.model_dump(mode="json") for e in after]},
+        emit_type="entity.updated",
+        entity_ids=[e.id for e in after],
+        document_ids=[document_id],
+        emit_fn=_emit_entity_change_spec,
+    )
+
+
+def _invert_mention_correction(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before or not before.get("entities"):
+        return None
+    return ("mention.restore", {"snapshots": before["entities"]})
+
+
+@action(
+    "mention.repoint",
+    MentionRepointActionParams,
+    domains=["entity"],
+    undoable=True,
+    invert=_invert_mention_correction,
+)
+def _action_repoint_mention(
+    db: Database, params: MentionRepointActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    source = _mention_entity(db, params.entity_id)
+    target = _mention_entity(db, params.to_entity_id)
+    if source.id == target.id:
+        raise HTTPException(status_code=422, detail="The mention is already this entity's")
+    before = [source.model_copy(deep=True), target.model_copy(deep=True)]
+    supports = list(source.source_supports)
+    moved = supports.pop(_mention_index(source, params.document_id, params.char_start, params.char_end))
+    source.source_supports = supports
+    _refuse_span(source, params.document_id, params.char_start, params.char_end, ctx.actor)
+    corrected = _corrected_support(moved, ctx.actor)
+    # The same span already there, or a "not written on this page" placeholder, gives way to the person's.
+    target.source_supports = [
+        s for s in target.source_supports
+        if s.source_document_id != params.document_id or (
+            (s.source_char_start, s.source_char_end) != (params.char_start, params.char_end)
+            and not (s.model_extra or {}).get("mention_unanchored_reason"))
+    ] + [corrected]
+    if params.document_id not in (target.source_document_ids or []):
+        target.source_document_ids = [*(target.source_document_ids or []), params.document_id]
+    for entity in (source, target):
+        entity.updated_at = utc_now()
+        db.save(entity)
+    return _mention_answer(target, corrected), _mention_spec(before, [source, target], params.document_id)
+
+
+@action(
+    "mention.respan",
+    MentionRespanActionParams,
+    domains=["entity"],
+    undoable=True,
+    invert=_invert_mention_correction,
+)
+def _action_respan_mention(
+    db: Database, params: MentionRespanActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero_server.checking.tie_text import line_spans
+    from fichero_server.models import Document
+    from fichero_server.workflows.tools.extract_entities_only import _transcription_text
+    from fichero_server.workflows.tools.extractors import line_anchor
+
+    entity = _mention_entity(db, params.entity_id)
+    index = _mention_index(entity, params.document_id, params.char_start, params.char_end)
+    document = db.get(Document, params.document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {params.document_id}")
+    # The same page text the extractor read, which the mention's offsets count in.
+    text = _transcription_text(document, db)
+    start, end = params.new_char_start, params.new_char_end
+    if not (start < end <= len(text)) or not text[start:end].strip():
+        raise HTTPException(
+            status_code=422,
+            detail=f"{start}..{end} is not a stretch of words in the page text ({len(text)} characters)",
+        )
+    before = [entity.model_copy(deep=True)]
+    anchor = line_anchor(line_spans(db, params.document_id, text), params.document_id, start, end)
+    corrected = _corrected_support(
+        entity.source_supports[index], actor=ctx.actor, source_excerpt=text[start:end],
+        source_char_start=start, source_char_end=end,
+        source_anchor=anchor.model_dump(mode="json") if anchor is not None else None,
+    )
+    supports = list(entity.source_supports)
+    supports[index] = corrected
+    entity.source_supports = supports
+    if (start, end) != (params.char_start, params.char_end):
+        _refuse_span(entity, params.document_id, params.char_start, params.char_end, ctx.actor)
+    entity.updated_at = utc_now()
+    db.save(entity)
+    return _mention_answer(entity, corrected), _mention_spec(before, [entity], params.document_id)
+
+
+@action(
+    "mention.restore",
+    MentionRestoreActionParams,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_restore_mention(
+    db: Database, params: MentionRestoreActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Undo of a mention correction: the entities it touched, as they were."""
+    before: list[KnowledgeEntity] = []
+    after: list[KnowledgeEntity] = []
+    for snapshot in params.snapshots:
+        live = db.get(KnowledgeEntity, snapshot.get("id"))
+        if live is not None:
+            before.append(live)
+        entity = KnowledgeEntity.model_validate(snapshot)
+        entity.updated_at = utc_now()
+        db.save(entity)
+        after.append(entity)
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[e.id for e in after],
+        before={"entities": [e.model_dump(mode="json") for e in before]},
+        after={"entities": [e.model_dump(mode="json") for e in after]},
+        emit_type="entity.updated",
+        entity_ids=[e.id for e in after],
+        emit_fn=_emit_entity_change_spec,
+    )
+    return {"entity_ids": [e.id for e in after]}, spec
+
+
+def _mention_correction_answer(result: Any) -> MentionCorrectionResponse:
+    return MentionCorrectionResponse.model_validate({**result.result, "audit_id": result.audit_id})
+
+
+@router.post("/{entity_id}/mentions/repoint", response_model=MentionCorrectionResponse)
+async def repoint_mention(
+    entity_id: str,
+    request: MentionRepointRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
+) -> MentionCorrectionResponse:
+    """The name at this mark is someone else: move the mention to `to_entity_id` (#5602)."""
+    ctx = _resolve_action_ctx(
+        ctx, actor=actor, library_path=x_fichero_library_path, origin_window=x_fichero_origin_window,
+    )
+    result = registry.invoke(
+        db, "mention.repoint", {"entity_id": entity_id, **request.model_dump(mode="json")}, ctx,
+    )
+    return _mention_correction_answer(result)
+
+
+@router.post("/{entity_id}/mentions/respan", response_model=MentionCorrectionResponse)
+async def respan_mention(
+    entity_id: str,
+    request: MentionRespanRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
+) -> MentionCorrectionResponse:
+    """The words of this mention are wrong: it is `new_char_start`..`new_char_end` of the page text (#5602)."""
+    ctx = _resolve_action_ctx(
+        ctx, actor=actor, library_path=x_fichero_library_path, origin_window=x_fichero_origin_window,
+    )
+    result = registry.invoke(
+        db, "mention.respan", {"entity_id": entity_id, **request.model_dump(mode="json")}, ctx,
+    )
+    return _mention_correction_answer(result)

@@ -2640,6 +2640,31 @@ def fichero_entities_place_as_linked_places(
     return _rt.call("GET", f"/api/entities/{entity_id}/linked-places")
 
 
+def fichero_entities_repoint_mention(
+    *,
+    entity_id: Annotated[str, Field(description='Entity Id')],
+    char_end: Annotated[int, Field(description='Char End.')],
+    char_start: Annotated[int, Field(description='Char Start.')],
+    document_id: Annotated[str, Field(description='Document Id.')],
+    to_entity_id: Annotated[str, Field(description='To Entity Id.')],
+) -> Any:
+    'Repoint Mention\n\nThe name at this mark is someone else: move the mention to `to_entity_id` (#5602).\n\nRoute: POST /api/entities/{entity_id}/mentions/repoint (toolset `entities`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/entities/{entity_id}/mentions/repoint", json=_rt.body({"char_end": char_end, "char_start": char_start, "document_id": document_id, "to_entity_id": to_entity_id}))
+
+
+def fichero_entities_respan_mention(
+    *,
+    entity_id: Annotated[str, Field(description='Entity Id')],
+    char_end: Annotated[int, Field(description='Char End.')],
+    char_start: Annotated[int, Field(description='Char Start.')],
+    document_id: Annotated[str, Field(description='Document Id.')],
+    new_char_end: Annotated[int, Field(description='New Char End.')],
+    new_char_start: Annotated[int, Field(description='New Char Start.')],
+) -> Any:
+    'Respan Mention\n\nThe words of this mention are wrong: it is `new_char_start`..`new_char_end` of the page text (#5602).\n\nRoute: POST /api/entities/{entity_id}/mentions/respan (toolset `entities`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/entities/{entity_id}/mentions/respan", json=_rt.body({"char_end": char_end, "char_start": char_start, "document_id": document_id, "new_char_end": new_char_end, "new_char_start": new_char_start}))
+
+
 def fichero_entities_place_as_of(
     *,
     entity_id: Annotated[str, Field(description='Entity Id')],
@@ -8734,6 +8759,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_entities_export_biography", "entities", "GET", "/api/entities/{entity_id}/export", fichero_entities_export_biography),
     GeneratedTool("fichero_entities_inspector", "entities", "GET", "/api/entities/{entity_id}/inspector", fichero_entities_inspector),
     GeneratedTool("fichero_entities_place_as_linked_places", "entities", "GET", "/api/entities/{entity_id}/linked-places", fichero_entities_place_as_linked_places),
+    GeneratedTool("fichero_entities_repoint_mention", "entities", "POST", "/api/entities/{entity_id}/mentions/repoint", fichero_entities_repoint_mention),
+    GeneratedTool("fichero_entities_respan_mention", "entities", "POST", "/api/entities/{entity_id}/mentions/respan", fichero_entities_respan_mention),
     GeneratedTool("fichero_entities_place_as_of", "entities", "GET", "/api/entities/{entity_id}/place", fichero_entities_place_as_of),
     GeneratedTool("fichero_evaluation_start", "evaluation", "POST", "/api/evaluation/runs", fichero_evaluation_start),
     GeneratedTool("fichero_evaluation_status", "evaluation", "GET", "/api/evaluation/runs/{job_id}", fichero_evaluation_status),

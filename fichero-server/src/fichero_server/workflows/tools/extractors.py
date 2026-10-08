@@ -2409,6 +2409,25 @@ def name_spans(text: str, forms: Any) -> list[tuple[int, int]]:
     return sorted(taken)
 
 
+# A person's correction of a mention (`source.extract.corrected-in-place`, #5602) is the last word on its words:
+# a mention a person placed or fixed carries `MENTION_CORRECTED_BY`, and a span a person took away from an
+# entity (re-pointed to another) is kept in that entity's `metadata[MENTIONS_REFUSED]`. A later run computes
+# its spans as before and writes none that overlap either (person wins, as `curation_guard` does for claims).
+MENTION_CORRECTED_BY = "mention_corrected_by"
+MENTIONS_REFUSED = "mentions_refused"
+
+
+def person_ruled_spans(entity: Any, document_id: str) -> list[tuple[int, int]]:
+    """The spans of `document_id`'s page text a person has ruled on for this entity: its mentions a person
+    placed or fixed, and the spans a person took away from it."""
+    ruled = [(s.source_char_start, s.source_char_end) for s in entity.source_supports
+             if s.source_document_id == document_id and s.source_char_start is not None
+             and (s.model_extra or {}).get(MENTION_CORRECTED_BY)]
+    ruled += [(r["char_start"], r["char_end"]) for r in (entity.metadata or {}).get(MENTIONS_REFUSED, [])
+              if r.get("document_id") == document_id]
+    return ruled
+
+
 def write_mentions(
     db: Any,
     entity_id: str,
@@ -2432,6 +2451,11 @@ def write_mentions(
     supports = list(entity.source_supports)
     on_page = [s for s in supports if s.source_document_id == document_id]
     on_lines = 0
+    ruled = person_ruled_spans(entity, document_id)
+    if spans and ruled:
+        spans = [(a, b) for a, b in spans if not any(a < e and s < b for s, e in ruled)]
+        if not spans:
+            return 0  # every place this run found, a person has already ruled on
     if spans:
         new = []
         for start, end in spans:

@@ -5528,6 +5528,63 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("repoint-mention")
+    def entities_repoint_mention_post(
+        ctx: typer.Context,
+        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        char_end: int = typer.Option(..., "--char-end", help="Request field: char_end."),
+        char_start: int = typer.Option(..., "--char-start", help="Request field: char_start."),
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        to_entity_id: str = typer.Option(..., "--to-entity-id", help="Request field: to_entity_id."),
+    ) -> None:
+        """Repoint Mention (POST /api/entities/{entity_id}/mentions/repoint)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/entities/{entity_id}/mentions/repoint"
+            params = None
+            payload = _build_json_payload({
+                "char_end": char_end,
+                "char_start": char_start,
+                "document_id": document_id,
+                "to_entity_id": to_entity_id,
+            }, {
+                "char_end": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Char End', 'minimum': 0.0, 'x-cli-required': True},
+                "char_start": {'type': 'integer', 'minimum': 0.0, 'title': 'Char Start', 'x-cli-required': True},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "to_entity_id": {'type': 'string', 'title': 'To Entity Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("respan-mention")
+    def entities_respan_mention_post(
+        ctx: typer.Context,
+        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        char_end: int = typer.Option(..., "--char-end", help="Request field: char_end."),
+        char_start: int = typer.Option(..., "--char-start", help="Request field: char_start."),
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        new_char_end: int = typer.Option(..., "--new-char-end", help="Request field: new_char_end."),
+        new_char_start: int = typer.Option(..., "--new-char-start", help="Request field: new_char_start."),
+    ) -> None:
+        """Respan Mention (POST /api/entities/{entity_id}/mentions/respan)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/entities/{entity_id}/mentions/respan"
+            params = None
+            payload = _build_json_payload({
+                "char_end": char_end,
+                "char_start": char_start,
+                "document_id": document_id,
+                "new_char_end": new_char_end,
+                "new_char_start": new_char_start,
+            }, {
+                "char_end": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Char End', 'minimum': 0.0, 'x-cli-required': True},
+                "char_start": {'type': 'integer', 'minimum': 0.0, 'title': 'Char Start', 'x-cli-required': True},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "new_char_end": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'New Char End', 'minimum': 0.0, 'x-cli-required': True},
+                "new_char_start": {'type': 'integer', 'minimum': 0.0, 'title': 'New Char Start', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("place-as-of")
     def entities_place_as_of_get(
         ctx: typer.Context,

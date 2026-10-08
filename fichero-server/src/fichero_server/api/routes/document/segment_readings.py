@@ -1709,6 +1709,9 @@ class ClaimOnSegment(BaseModel):
     #: sources does.
     via: str
     excerpt: Optional[str] = None
+    #: Where on the line's reading its words are, when the anchor says.
+    char_start: Optional[int] = None
+    char_end: Optional[int] = None
 
 
 class MentionOnSegment(BaseModel):
@@ -1717,6 +1720,15 @@ class MentionOnSegment(BaseModel):
     entity_type: str
     #: What the supporting source quotes, when it does.
     excerpt: Optional[str] = None
+    #: The mention's span of the page text: what names it to correct it
+    #: (`POST /api/entities/{entity_id}/mentions/repoint` and `/respan`, #5602).
+    source_char_start: Optional[int] = None
+    source_char_end: Optional[int] = None
+    #: Its span within the line's reading, to mark it on the line.
+    char_start: Optional[int] = None
+    char_end: Optional[int] = None
+    #: True when a person placed or fixed this mention; a later run leaves it as it is.
+    corrected_by_person: bool = False
 
 
 class SegmentStatementsResponse(BaseModel):
@@ -1745,30 +1757,35 @@ async def segment_statements(
 
     claims: list[ClaimOnSegment] = []
     for claim in db.query(KnowledgeClaim, source_document_id=segment.document_id):
-        via = excerpt = None
+        via = excerpt = anchor = None
         if _names(claim.source_anchor, segment_id):
-            via, excerpt = "anchor", claim.source_excerpt
+            via, excerpt, anchor = "anchor", claim.source_excerpt, claim.source_anchor
         else:
             support = next((s for s in claim.source_supports if _names(s.source_anchor, segment_id)), None)
             if support is not None:
-                via, excerpt = "support", support.source_excerpt
+                via, excerpt, anchor = "support", support.source_excerpt, support.source_anchor
         if via:
             claims.append(ClaimOnSegment(
                 claim_id=claim.id, text=claim.text, curation_state=claim.curation_state.value,
                 confidence=claim.confidence, via=via, excerpt=excerpt,
+                char_start=anchor.char_start, char_end=anchor.char_end,
             ))
 
     mentions: list[MentionOnSegment] = []
     for entity in db.query_json_list_intersects(KnowledgeEntity, "source_document_ids", [segment.document_id]):
         if entity.merged_into_id is not None:
             continue  # a merged entity speaks through the one it was merged into
-        support = next((s for s in entity.source_supports if _names(s.source_anchor, segment_id)), None)
-        if support is not None:
+        for support in entity.source_supports:
+            if not _names(support.source_anchor, segment_id):
+                continue
             mentions.append(MentionOnSegment(
                 entity_id=entity.id, name=entity.canonical_name, entity_type=entity.entity_type.value,
-                excerpt=support.source_excerpt,
+                excerpt=support.source_excerpt, source_char_start=support.source_char_start,
+                source_char_end=support.source_char_end, char_start=support.source_anchor.char_start,
+                char_end=support.source_anchor.char_end,
+                corrected_by_person=bool((support.model_extra or {}).get("mention_corrected_by")),
             ))
 
     claims.sort(key=lambda c: (c.via != "anchor", c.text))
-    mentions.sort(key=lambda m: m.name)
+    mentions.sort(key=lambda m: (m.name, m.char_start if m.char_start is not None else -1))
     return SegmentStatementsResponse(segment_id=segment_id, claims=claims, mentions=mentions)

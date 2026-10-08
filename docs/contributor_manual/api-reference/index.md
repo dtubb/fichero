@@ -1194,7 +1194,9 @@ Each line is drawn from the route's own summary in `openapi.json`.
 **Editorial, statements and matches:**
 
 - `GET /api/editorial/segment/{segment_id}`: a segment's live editorial facts, and its counting reading.
-- `GET /api/segments/{segment_id}/statements`: what is said about a segment.
+- `GET /api/segments/{segment_id}/statements`: what is said about a segment. Each statement with its span on the line's reading (`char_start`, `char_end`); each mention with its span on the line, its span of the page text (`source_char_start`, `source_char_end`, which name it to correct it) and `corrected_by_person`.
+- `POST /api/entities/{entity_id}/mentions/repoint`: the name at a mark is someone else; the mention at `document_id` + `char_start`..`char_end` of the page text moves to `to_entity_id` (`mention.repoint`, audited, undoable; #5602). The entity it left refuses that span, so a later extraction run does not put it back.
+- `POST /api/entities/{entity_id}/mentions/respan`: the mention's words are wrong; it becomes `new_char_start`..`new_char_end` of the page text, on its line when the page is tied (`mention.respan`, audited, undoable). `422` for a span that is not words of the page text. Both answer with where the mention now sits and the `audit_id` to undo it.
 - `GET /api/segments/document/{doc_id}/matches`: the matches recorded on one page, for review.
 - `GET /api/segments/passes/{pass_id}/original`: the file an imported pass was read from, byte for byte.
 

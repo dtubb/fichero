@@ -192,6 +192,8 @@
   "POST /api/entities": "no undo registration in current tree",
   "POST /api/entities/bulk": "bulk import path - undoable=False by design; a corpus import is not undone row by row",
   "POST /api/entities/{entity_id}/aliases": "no undo registration in current tree",
+  "POST /api/entities/{entity_id}/mentions/repoint": "undoable in the engine (mention.repoint, audited with an inverse: mention.restore), undone from the audit; the app's correct-from-the-mark UI is not built yet to register it (#5602)",
+  "POST /api/entities/{entity_id}/mentions/respan": "undoable in the engine (mention.respan, audited with an inverse: mention.restore), undone from the audit; the app's correct-from-the-mark UI is not built yet to register it (#5602)",
   "POST /api/export/eleventy-site": "no user action to undo in library state; writes an external export folder",
   "POST /api/export/excel": "no undo registration in current tree",
   "POST /api/export/jsonl": "CLI/backend-only: writes an engine-local filesystem path, not SwiftUI-managed library state",

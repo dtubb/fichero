@@ -20595,6 +20595,154 @@
         }
       }
     },
+    "/api/entities/{entity_id}/mentions/repoint": {
+      "post": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Repoint Mention",
+        "description": "The name at this mark is someone else: move the mention to `to_entity_id` (#5602).",
+        "operationId": "repoint_mention_api_entities__entity_id__mentions_repoint_post",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentionRepointRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentionCorrectionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entities/{entity_id}/mentions/respan": {
+      "post": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Respan Mention",
+        "description": "The words of this mention are wrong: it is `new_char_start`..`new_char_end` of the page text (#5602).",
+        "operationId": "respan_mention_api_entities__entity_id__mentions_respan_post",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentionRespanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentionCorrectionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/export/jsonl": {
       "post": {
         "tags": [
@@ -52402,6 +52550,16 @@
             "type": "string",
             "nullable": true,
             "title": "Excerpt"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
           }
         },
         "type": "object",
@@ -68467,6 +68625,50 @@
         ],
         "title": "MarkdownFolderExportResponse"
       },
+      "MentionCorrectionResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "source_char_start": {
+            "type": "integer",
+            "title": "Source Char Start"
+          },
+          "source_char_end": {
+            "type": "integer",
+            "title": "Source Char End"
+          },
+          "excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Excerpt"
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "document_id",
+          "source_char_start",
+          "source_char_end"
+        ],
+        "title": "MentionCorrectionResponse",
+        "description": "Where the corrected mention now sits."
+      },
       "MentionOnSegment": {
         "properties": {
           "entity_id": {
@@ -68485,6 +68687,31 @@
             "type": "string",
             "nullable": true,
             "title": "Excerpt"
+          },
+          "source_char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char Start"
+          },
+          "source_char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char End"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "corrected_by_person": {
+            "type": "boolean",
+            "title": "Corrected By Person",
+            "default": false
           }
         },
         "type": "object",
@@ -68494,6 +68721,78 @@
           "entity_type"
         ],
         "title": "MentionOnSegment"
+      },
+      "MentionRepointRequest": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "char_start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "exclusiveMinimum": true,
+            "title": "Char End",
+            "minimum": 0.0
+          },
+          "to_entity_id": {
+            "type": "string",
+            "title": "To Entity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "char_start",
+          "char_end",
+          "to_entity_id"
+        ],
+        "title": "MentionRepointRequest",
+        "description": "Move the mention at this span of the page text to another entity."
+      },
+      "MentionRespanRequest": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "char_start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "exclusiveMinimum": true,
+            "title": "Char End",
+            "minimum": 0.0
+          },
+          "new_char_start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "New Char Start"
+          },
+          "new_char_end": {
+            "type": "integer",
+            "exclusiveMinimum": true,
+            "title": "New Char End",
+            "minimum": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "char_start",
+          "char_end",
+          "new_char_start",
+          "new_char_end"
+        ],
+        "title": "MentionRespanRequest",
+        "description": "Fix the words of the mention at `char_start`..`char_end`: it is `new_char_start`..`new_char_end`."
       },
       "MetadataPatchRequest": {
         "properties": {

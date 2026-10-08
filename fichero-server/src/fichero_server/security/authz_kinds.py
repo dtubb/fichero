@@ -93,7 +93,7 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "entity_id", "entity_ids", "absorbed_entity_ids", "absorbing_entity_id", "candidate_entity_id",
         "editor_entity_id", "primary_entity_id", "scribe_entity_id", "source_entity_id",
         "speaker_entity_id", "split_off_entity_ids", "subject_entity_id", "subject_of_inquiry_entity_id",
-        "survivor_entity_id", "target_entity_id", "linked_entity_id", "linked_entity_ids",
+        "survivor_entity_id", "target_entity_id", "linked_entity_id", "linked_entity_ids", "to_entity_id",
         "pattern_id", "framework_id", "value_id", "review_id", "pair_id", "reference_id",
         "authority_id", "property_id", "linked_structure_node_id", "linked_source_ids",
         "focus_id", "state_id",
