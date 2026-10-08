@@ -2298,6 +2298,9 @@ def save_claim(
     source_language: Optional[str] = None,
     quotation_kind: Optional[QuotationKind] = None,
     speaker_name: Optional[str] = None,
+    # False when the caller knows there is no speaker (an unattributed quotation, #5598): the
+    # "X said" heuristic below must not name one from the excerpt.
+    detect_speaker: bool = True,
     audience: Optional[str] = None,
     confidence_origin: Optional[str] = None,
     claim_location: Optional[str] = None,
@@ -2494,7 +2497,7 @@ def save_claim(
     # — the distinction matters when a doc has multilingual passages).
     if quotation_kind is None:
         quotation_kind = _detect_quotation_kind(sv, source_excerpt)
-    if speaker_name is None:
+    if speaker_name is None and detect_speaker:
         speaker_name = _detect_speaker(text, source_excerpt)
     if audience is None:
         audience = _detect_audience(text, source_excerpt)

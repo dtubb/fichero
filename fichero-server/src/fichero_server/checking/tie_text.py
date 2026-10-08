@@ -40,7 +40,7 @@ import json
 import unicodedata
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from fichero_server.checking.line_check import agreement
 from fichero_server.execution import jobs
@@ -337,6 +337,49 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         counts["pages_tied"] += 1
     return {"counts": counts, "flagged": flagged, "missing": missing, "stopped": stopped,
             "thresholds": {"tie": THRESHOLD, "policy": "accent-blind"}}
+
+
+class LineSpan(NamedTuple):
+    """Where one tied line's stretch sits in a page text: its segment, the reading the tie gave it, and the
+    stretch's character span in that text."""
+
+    segment_id: str
+    representation_id: str
+    start: int
+    end: int
+
+
+def line_spans(db: Any, document_id: str, text: str) -> list[LineSpan]:
+    """The page's lines as spans of `text`, through the tie (#5598, #4932; source-model.md "Extracted data,
+    integrated", slice 2): each line of the working pass whose stretch of the page reading (`page_reading`)
+    the tie wrote is found in `text`, in the lines' order, verbatim. A line not tied, or whose stretch is not
+    in `text` after the previous line's (the text is not the reading the lines were tied to), is left out:
+    a span with no line beats a span on the wrong one. Read-only."""
+    from fichero_server.api.routes.document.segment_readings import readings_of_segment
+    from fichero_server.llm.working_lines import working_lines
+
+    reading = page_reading(db, document_id)
+    found = working_lines(db, document_id) if reading is not None and text else None
+    if found is None:
+        return []
+    out: list[LineSpan] = []
+    at = 0
+    for row in found.lines:
+        stretch = next((r for r in readings_of_segment(db, row.id)
+                        if r.derived_from_artifact_id == reading.id and r.content and not r.provisional), None)
+        if stretch is None:
+            continue
+        idx = text.find(stretch.content, at)
+        if idx < 0:
+            continue
+        at = idx + len(stretch.content)
+        out.append(LineSpan(row.id, stretch.id, idx, at))
+    return out
+
+
+def lines_under(spans: list[LineSpan], start: int, end: int) -> list[LineSpan]:
+    """The lines a character span `[start, end)` of the same text sits on, in order."""
+    return [s for s in spans if s.start < end and start < s.end]
 
 
 def words(counts: dict[str, int]) -> str:

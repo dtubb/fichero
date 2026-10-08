@@ -327,7 +327,7 @@ undoable, in place); **exported** (in the record stream, PAGE/ALTO/TEI, IIIF/W3C
 | Names (people, places, organisations, events, keywords) | `KnowledgeEntity` with `source_document_ids` (`models/knowledge.py:866`) **and** per-section artifacts (`people`, `places`, `rivers`… `workflows/tools/extractors.py:1212`, `:1255`, `:1520`, `:1541`) | the document only; spaCy's spans are thrown away (`workflows/tools/extract_entities_only.py:411-425`, then `upsert_entity(source_document_id=…)` `:465-472`) | no (#1659) | entity inspector, "appears in" pages; the per-segment read finds none, since no writer names a segment (`api/routes/document/segment_readings.py:1759-1768`) | `entity.update` (audited) on the entity; the artifact copy is untouched | entities as rows with document ids only (`export_service.py:161-181`); not as `persName`/`placeName` in TEI | `people:X` reads the **artifact JSON**, not the entity (`api/routes/search/core.py:611-634`) | networks, from entities |
 | Places with coordinates | a `geo` artifact **and** `metadata["geo_points"]` on the document (`workflows/tools/geo_extract.py:41-46`) **and**, separately, `place_values` on entities and claims (`workflows/tools/_entity_writer.py:1050-1068`) | the document | no | as an artifact | `artifact.update` on the artifact only | no | no | map reads `geo_points` |
 | Statements (claims) | `KnowledgeClaim`, character offsets into the page text the extractor saw and an optional rectangle with an unstated space (`workflows/tools/extractors.py:2728-2757`, `:2735-2746`) | a page-text span; no segment, no reading id (#4932) | no | statements section on a segment (`fichero/fichero/Views/Inspector/Source/InspectorStatementsSection.swift`), empty for extracted claims for the reason above; the claim inspector shows the excerpt | `claim.patch`, `claim.transition` (audited) | record stream without offsets, anchor or time (`export_service.py:198-214`); site export as text; no W3C annotation (`api/routes/ingest/iiif.py:158-209` serves annotations only) | yes, as claims | readable paragraph; time view from `time_start` |
-| Quotations | a claim (speaker, "said", the quote as object) **and** a `quotes` artifact (`workflows/tools/extractors.py:420-449`) | the surrounding sentence's offsets, not the quoted words | no | as a claim | as a claim | as a claim | as a claim | — |
+| Quotations | a claim (speaker, "said", the quote as object) **and** a `quotes` artifact (`workflows/tools/extractors.py:420-449`) | the quoted words' offsets in the page text, and the line they start on with its reading when the page is tied (#5598); the speaker a mention on the name's span | no | as a claim | as a claim | as a claim | as a claim | — |
 | Catalogue fields (Archival Summary) | `catalogue.narrative`, `catalogue.timeline`, `catalogue.keywords`, `catalogue.chunk` artifacts on a folder chosen by a heuristic (`workflows/tools/catalogue.py:289-348`, `:786-804`), and the narrative **written into the folder's `page_content`** (`:829`); the fields are rebuilt from claims each run (`:1028-1148`) | the folder; no field cites a page | no | as artifacts | `artifact.update`; a corrected artifact survives a re-run (`:713-751`) | site export prints artifacts as text (`export_service.py:938-944`) | artifact search | the catalogue timeline is a markdown artifact, not the time view |
 | Tables (Extract Table, Extract Accounts) | a `table` artifact (`workflows/tools/table_extract.py:33`) | the document; no cell names its line or region (#5490) | no | as an artifact | `artifact.update` | as text | artifact search | not the table view |
 | Translation, modernisation, regest | `translation` artifacts (`workflows/tools/text_translate.py:54`, `translate.py:25`); the historical presets (`paleo_translate_english`, `paleo_modernizacion`, `paleo_regesto`) run `analyze` and land as an **`analysis`** artifact plus `metadata["analysis"]` (`workflows/tools/analyze.py:31-36`) | the document; a line can hold a translation reading but no tool writes one (#3325) | the document translation in the immersive view only (`layers.translation.document-artifacts-still-shown`) | as artifacts | `artifact.update` | as text | translation artifacts searched | — |
@@ -425,9 +425,19 @@ level it was made for.
   (`GET /api/segments/{id}/statements`) and the Inspector section. Not built: an extractor filling
   `segment_id` and `representation_id` on the claim's anchor.* A statement rests on the mentions it
   joins and on the segment span of its evidence.
-- `source.extract.quotes-on-their-words` — **[GAP]** (#5598) a quotation is a span on the
+- `source.extract.quotes-on-their-words` — **[OK]** (#5598) a quotation is a span on the
   quoted words themselves, with its speaker as a mention; the surrounding sentence is context, not
-  the anchor.
+  the anchor. *Built (#5598): the quotes writer (`extractors._anchor_quotation`, the quotes section of
+  Extract Quotes and Extract All) anchors the claim on the quoted words' span in the page text (the
+  sentence first, then the page, then the closest real span, labelled `quote_anchor: fuzzy`); words
+  not on the page leave the quotation unanchored with `quote_unanchored_reason`, never on the
+  sentence, which is kept as `quote_context`. Through the tie seam (`tie_text.line_spans`) the anchor
+  names the line the words start on and the reading measured, with every line covered in
+  `quote_lines`. The speaker is the model's name only (no "X said" guess); where the attributing
+  sentence writes it, it is a supporting source on the entity on its span and line, read as a mention
+  by `GET /api/segments/{id}/statements`. Pinned by `fichero-server/tests/unit/workflows/
+  test_quotes_on_their_words.py` (4 tests). The `quotes` artifact beside the claim is
+  `one-fact-one-home`'s (#5597).*
 - `source.extract.date-on-its-heading` — **[PARTIAL]** (#5518, #5557) *Built: a page's date is read
   from its heading, recorded with its status and conflicts. Not built: the heading as a date mention
   on its line.* The page's date is a date mention on the heading's line, and the document's date
