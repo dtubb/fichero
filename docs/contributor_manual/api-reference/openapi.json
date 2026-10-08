@@ -13393,7 +13393,7 @@
           "recipes"
         ],
         "summary": "Model Candidates",
-        "description": "Every reader candidate for these scripts and languages (comma-separated codes or names), from the\nshipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is reached only with `online=true`, and never when this engine works\noffline; otherwise the repository is read from its last fetch and the Hub readers from the earlier searches\nfor these languages (#5593). Refused\n(422), in words, for an unknown script, language, material or job.",
+        "description": "Every reader candidate for these scripts and languages (comma-separated codes or names), from the\nshipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is never reached inside this call: with `online=true` the search is\nthe open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier\nsearches kept; a later call lists what the job found. Never searched when this engine works offline.\nRefused (422), in words, for an unknown script, language, material or job.",
         "operationId": "model_candidates_api_recipes_candidates_get",
         "parameters": [
           {
@@ -49547,17 +49547,24 @@
             "enum": [
               "read",
               "searched",
+              "searching",
               "cached",
               "not-searched",
               "offline",
               "failed"
             ],
             "title": "State",
-            "description": "read: on this Mac; searched: fetched now; cached: from the last fetch; not-searched: online was not asked; offline: this engine works offline (local-only); failed: the fetch failed (detail says why)"
+            "description": "read: on this Mac; searched: fetched by the search job; searching: the search job is running (the count is what was kept before); cached: from the last fetch; not-searched: online was not asked (or no project is open to run the search); offline: this engine works offline (local-only); failed: the fetch failed (detail says why)"
           },
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "left_out": {
+            "type": "integer",
+            "title": "Left Out",
+            "description": "Hugging Face builds the search left out as not readers (chat models), never listed (#5594)",
+            "default": 0
           },
           "detail": {
             "type": "string",
@@ -68563,11 +68570,20 @@
           },
           "size_gb": {
             "type": "number",
-            "title": "Size Gb"
+            "nullable": true,
+            "title": "Size Gb",
+            "description": "its download size; null: not stated (#5594)"
           },
           "memory_gb": {
             "type": "number",
-            "title": "Memory Gb"
+            "nullable": true,
+            "title": "Memory Gb",
+            "description": "the memory it needs; null: not stated"
+          },
+          "size": {
+            "type": "string",
+            "title": "Size",
+            "description": "its size in words: '1.2 GB', or 'size not stated' (never 0.0 GB, #5594)"
           },
           "cer_published": {
             "type": "number",
@@ -68612,8 +68628,7 @@
           "pin",
           "jobs",
           "open_licence",
-          "size_gb",
-          "memory_gb",
+          "size",
           "measured",
           "in_recipe_rules"
         ],
@@ -68643,6 +68658,11 @@
             },
             "type": "array",
             "title": "Sources"
+          },
+          "search_job": {
+            "$ref": "#/components/schemas/SearchJob",
+            "nullable": true,
+            "description": "with online=true: the open project's search job (`find-models`, on the network lane): the call answers at once with what is kept, and a later call, once the job is done, lists what it found (#5594)"
           }
         },
         "type": "object",
@@ -79755,6 +79775,32 @@
           "interpretations"
         ],
         "title": "SearchInclude"
+      },
+      "SearchJob": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "waiting, running, done or failed, as Activity shows it"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason",
+            "description": "what it is doing, or why it failed, in words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "state"
+        ],
+        "title": "SearchJob",
+        "description": "The online search as an Activity job (#5594, `source.find.online-search-is-a-job`)."
       },
       "SearchMetrics": {
         "properties": {

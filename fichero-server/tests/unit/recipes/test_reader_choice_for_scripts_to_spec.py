@@ -16,10 +16,12 @@ test's own model store, as the engine keeps its last fetch; the Hub's answers ar
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime, timezone
 
 import pytest
 
+from fichero_server.execution import jobs
 from fichero_server.recipes import discovery
 
 PARTY = "kraken:zenodo/10.5281/zenodo.20642057@pinned"
@@ -194,8 +196,13 @@ def test_source_find_found_reader_downloads_a_tamil_reader_found_online_is_offer
     before = _reader(_assemble(client, ["ta"], ["Taml"]))
     assert before.get("model") is None, "nothing found yet: no Tamil reader"
 
-    r = client.get("/api/recipes/candidates", params={"scripts": "Taml", "languages": "ta", "online": "true",
-                                                      "mac_memory_gb": 32})
+    params = {"scripts": "Taml", "languages": "ta", "online": "true", "mac_memory_gb": 32}
+    started = client.get("/api/recipes/candidates", params=params).json()["search_job"]  # the search is a job (#5594)
+    deadline = time.monotonic() + 30
+    while jobs.find_jobs(db, kinds=[discovery.SEARCH_KIND], job_id=started["id"])[0]["state"] != "done":
+        assert time.monotonic() < deadline, "the search job did not finish"
+        time.sleep(0.05)
+    r = client.get("/api/recipes/candidates", params=params)
     found = next(c for c in r.json()["items"] if c["id"] == f"mlx:hf/{TAMIL}@main")
     assert found["in_recipe_rules"] is True and found["rule_rank"] == 1
 

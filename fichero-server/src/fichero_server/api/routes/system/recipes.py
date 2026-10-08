@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
+from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.db.embeddings import search_embedder
@@ -567,11 +568,24 @@ CardSource = Literal["shipped", "installed", "kraken-repository", "hugging-face"
 
 class CandidateSource(BaseModel):
     source: CardSource
-    state: Literal["read", "searched", "cached", "not-searched", "offline", "failed"] = Field(description=(
-        "read: on this Mac; searched: fetched now; cached: from the last fetch; not-searched: online was not "
-        "asked; offline: this engine works offline (local-only); failed: the fetch failed (detail says why)"))
+    state: Literal["read", "searched", "searching", "cached", "not-searched", "offline", "failed"] = Field(
+        description=(
+            "read: on this Mac; searched: fetched by the search job; searching: the search job is running (the "
+            "count is what was kept before); cached: from the last fetch; not-searched: online was not asked (or "
+            "no project is open to run the search); offline: this engine works offline (local-only); failed: the "
+            "fetch failed (detail says why)"))
     count: int
+    left_out: int = Field(default=0, description="Hugging Face builds the search left out as not readers (chat "
+                          "models), never listed (#5594)")
     detail: str
+
+
+class SearchJob(BaseModel):
+    """The online search as an Activity job (#5594, `source.find.online-search-is-a-job`)."""
+
+    id: str
+    state: str = Field(description="waiting, running, done or failed, as Activity shows it")
+    reason: Optional[str] = Field(default=None, description="what it is doing, or why it failed, in words")
 
 
 class ModelCandidate(BaseModel):
@@ -588,8 +602,9 @@ class ModelCandidate(BaseModel):
     languages: Optional[list[str]] = Field(default=None, description="BCP 47 tags its card states; null: unstated")
     licence: str = ""
     open_licence: bool
-    size_gb: float
-    memory_gb: float
+    size_gb: Optional[float] = Field(default=None, description="its download size; null: not stated (#5594)")
+    memory_gb: Optional[float] = Field(default=None, description="the memory it needs; null: not stated")
+    size: str = Field(description="its size in words: '1.2 GB', or 'size not stated' (never 0.0 GB, #5594)")
     cer_published: Optional[float] = Field(default=None, description="a published CER the rules rank on (only "
                                             "where the record names the project's languages)")
     cer_measured_here: Optional[float] = None
@@ -607,22 +622,36 @@ class ModelCandidateList(BaseModel):
     items: list[ModelCandidate]
     count: int
     sources: list[CandidateSource]
+    search_job: Optional[SearchJob] = Field(default=None, description=(
+        "with online=true: the open project's search job (`find-models`, on the network lane): the call answers "
+        "at once with what is kept, and a later call, once the job is done, lists what it found (#5594)"))
+
+
+def _search_job(request: Request, library_path: str, languages: frozenset[str]) -> dict[str, Any]:
+    from fichero_server.api.main import _get_library_database_for_access
+    from fichero_server.recipes.discovery import search
+
+    return search(_get_library_database_for_access(request, library_path, write=False), languages)
 
 
 @router.get("/candidates", response_model=ModelCandidateList)
 async def model_candidates(
+    request: Request,
     scripts: str, languages: str = "", material: str = "handwriting", job: str = "read-a-line",
     online: bool = False, cloud_allowed: bool = False, mac_memory_gb: Optional[float] = None,
+    library_path: Optional[str] = Depends(optional_library_path),
 ) -> ModelCandidateList:
     """Every reader candidate for these scripts and languages (comma-separated codes or names), from the
     shipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a
     card saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,
-    `source.find.by-need`). The network is reached only with `online=true`, and never when this engine works
-    offline; otherwise the repository is read from its last fetch and the Hub readers from the earlier searches
-    for these languages (#5593). Refused
-    (422), in words, for an unknown script, language, material or job."""
+    `source.find.by-need`). The network is never reached inside this call: with `online=true` the search is
+    the open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier
+    searches kept; a later call lists what the job found. Never searched when this engine works offline.
+    Refused (422), in words, for an unknown script, language, material or job."""
+    from starlette.concurrency import run_in_threadpool
+
     from fichero_server.recipes.assemble import MATERIALS, READING_JOBS, _rank_key, _refusal
-    from fichero_server.recipes.discovery import discover
+    from fichero_server.recipes.discovery import NO_PROJECT, discover, egress_allowed
     from fichero_server.recipes.names import resolve_language, resolve_script
 
     if job not in READING_JOBS:
@@ -639,7 +668,11 @@ async def model_candidates(
         raise HTTPException(status_code=422, detail="name at least one script")
     a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
                 cloud_allowed=cloud_allowed, mac_memory_gb=mac_memory_gb or _this_machine_memory_gb())
-    cards, sources = await discover(a, online=online)
+    search = None
+    if online and egress_allowed() and library_path:
+        search = await run_in_threadpool(_search_job, request, library_path, tags)
+    cards, sources = await run_in_threadpool(
+        discover, a, online=online, search=search, not_searched=None if library_path else NO_PROJECT)
     cards = [c for c in cards if job in c.jobs]
     kept = sorted((c for c in cards if _refusal(job, c, a, material) is None),
                   key=lambda c: _rank_key(c, material, a))
@@ -655,13 +688,17 @@ async def model_candidates(
         offered_because=c.offered_because or "a card that ships with Fichero", pin=dict(c.pin),
         jobs=sorted(c.jobs), scripts=sorted(c.scripts) if c.scripts is not None else None,
         languages=sorted(c.languages) if c.languages is not None else None, licence=c.licence,
-        open_licence=c.open_licence, size_gb=c.size_gb, memory_gb=c.memory_gb, cer_published=c.cer_published,
+        open_licence=c.open_licence, size_gb=c.size_gb or None,
+        memory_gb=None if not c.memory_gb and c.source == "hugging-face" else c.memory_gb,
+        size=f"{c.size_gb:g} GB" if c.size_gb else "size not stated", cer_published=c.cer_published,
         cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=True,
         rule_rank=rank.get(c.id),
         refused=None if c.id in rank else (_refusal(job, c, a, material) or (None, None))[1],
     ) for c in sorted(cards, key=lambda c: (rank.get(c.id, len(rank) + 1), c.id))]
-    return ModelCandidateList(job=job, items=items, count=len(items),
-                              sources=[CandidateSource(**s) for s in sources])
+    return ModelCandidateList(
+        job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources],
+        search_job=SearchJob(id=search["id"], state=search["state"], reason=search.get("reason"))
+        if search else None)
 
 
 # =============================================================================
