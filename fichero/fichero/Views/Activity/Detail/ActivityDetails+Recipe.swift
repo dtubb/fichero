@@ -43,7 +43,8 @@ extension ActivityDetails {
             let hasFix: Bool
         }
 
-        /// "Read 198 of 203 pages"; "Names: 120 People · 40 Places"; "35 dates · 80 statements".
+        /// The summary in the engine's words, one line per figure, shown as given (#5577):
+        /// "Read 198 of 203 pages"; "Names: 120 People · 40 Places". Empty when the engine sends none.
         let lines: [String]
         let failed: [Failed]
         let skipped: [Skipped]
@@ -94,15 +95,6 @@ extension ActivityDetails {
     /// What a recipe run's node says it made, once it has ended; nil before.
     static func summary(of node: ActivityJobNode?) -> Summary? {
         guard let summary = node?.summary else { return nil }
-        var lines = ["Read \(summary.pagesRead) of \(summary.pages) \(summary.pages == 1 ? "page" : "pages")"]
-        let names = summary.names.filter { $0.count > 0 }
-        lines.append(names.isEmpty ? "No names found"
-                     : "Names: " + names.map { "\($0.count) \($0.label)" }.joined(separator: " · "))
-        lines.append("\(summary.dates) \(summary.dates == 1 ? "date" : "dates") · "
-                     + "\(summary.statements) \(summary.statements == 1 ? "statement" : "statements")")
-        if let proposed = summary.documentsProposed {
-            lines.append("\(proposed) \(proposed == 1 ? "document" : "documents") proposed")
-        }
         let failed = summary.failed.map { stage in
             let title = node?.children.first { $0.id == stage.threadId }?.displayName
                 ?? stage.steps.joined(separator: ", ")
@@ -113,6 +105,6 @@ extension ActivityDetails {
         let skipped = summary.skipped.map {
             Summary.Skipped(id: $0.step, text: "\($0.step): \($0.why)", hasFix: $0.fix != nil)
         }
-        return Summary(lines: lines, failed: failed, skipped: skipped)
+        return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped)
     }
 }
