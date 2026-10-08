@@ -190,4 +190,5 @@ def register_job_kinds() -> None:
     line_check.register_job_kinds()
     tie_text.register_job_kinds()
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
-        jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="remote", name="Check")
+        jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="remote", name="Check",
+                           cancel=request_cancel)  # Stop on its row, or on a recipe run it is a step of (#5609)

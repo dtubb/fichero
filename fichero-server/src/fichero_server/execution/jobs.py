@@ -950,6 +950,13 @@ def resume(db: "Database") -> None:
         "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs'",
         [utc_now(), MAX_ATTEMPTS],
     )
+    # A job a person stopped that was still winding down when the engine went away is not taken up again
+    # (#5609): it ends as stopped. (A workflow run's row is settled with its record, `mark_interrupted_runs`.)
+    db.execute(
+        f"UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
+        f"WHERE state = 'running' AND reason = ? AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)})",
+        [utc_now(), STOPPING, *RUN_KINDS],
+    )
     db.execute(
         "UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on' WHERE state = 'running'"
     )
