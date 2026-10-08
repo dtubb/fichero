@@ -1,0 +1,224 @@
+"""What each registered workflow tool writes, and where it attaches (#5596).
+
+`source.extract.every-output-declares-its-anchor` (spec: `source/source-model.md`, "Extracted
+data, integrated"): every registered tool declares which record kinds it writes and the finest
+level of the archive its output attaches to. `scripts/check_tool_outputs_declared.py` fails a
+registered tool with no declaration here, and a tool that writes only a document artifact unless
+it is a known gap naming the slice issue that moves its output onto the page.
+
+Each entry was filled from what the tool's code does on 2026-10-08, not from what it should do:
+a tool that saves an artifact says ``artifact`` even where the review says that is the wrong home.
+
+``writes`` vocabulary (the record kinds of the review's target, plus what the code has today):
+
+- ``pass``       a pass of segments (boxes become segment rows, `convert_new_results`)
+- ``reading``    text on a segment (a line's reading in a pass)
+- ``page_text``  the page's own text (`Document.page_content`), not tied to segments
+- ``mention``    a name: a `KnowledgeEntity` (or a merge of entities) found in the source
+- ``statement``  a `KnowledgeClaim` (or an interpretation resting on a passage)
+- ``entry``      a logical unit: a diary entry over part of a page
+- ``table_row``  a row of a table on its lines
+- ``attribute``  a field of the node: date columns, attributes, `metadata` fields
+- ``node``       a child document (a page, a chapter, a cut, a folder of a cluster)
+- ``rendition``  an image derived from the page (a cut, an enhancement, an edit chain)
+- ``artifact``   an `Artifact` row on a document
+- ``none``       nothing in the project (in-flow transforms, sources, files written outside)
+
+``anchors_at``: the finest level the output attaches to: ``segment``, ``page``, ``document``,
+``group`` (a folder or collection) or ``none``.
+"""
+
+from __future__ import annotations
+
+from typing import NamedTuple
+
+WRITES = frozenset(
+    {
+        "pass",
+        "reading",
+        "page_text",
+        "mention",
+        "statement",
+        "entry",
+        "table_row",
+        "attribute",
+        "node",
+        "rendition",
+        "artifact",
+        "none",
+    }
+)
+ANCHORS = frozenset({"segment", "page", "document", "group", "none"})
+
+
+class OutputDeclaration(NamedTuple):
+    writes: frozenset[str]
+    anchors_at: str
+
+
+def _d(anchors_at: str, *writes: str) -> OutputDeclaration:
+    return OutputDeclaration(frozenset(writes), anchors_at)
+
+
+_NONE = _d("none", "none")
+# An Artifact row on the document and nothing else: the review's "document-level artifact only".
+_ARTIFACT = _d("document", "artifact")
+# The per-section extractors: entities + claims through `_write_kg_rows`, and the section artifact.
+_KG_AND_ARTIFACT = _d("document", "mention", "statement", "artifact")
+_RENDITION = _d("document", "rendition")
+_CUTS = _d("document", "node", "rendition")
+
+TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
+    # ── sources: choose what a run reads ──────────────────────────────────────
+    # `files` splits a PDF that has no page children yet into pages (sources.py, #2430).
+    "files": _d("document", "node"),
+    "collection": _NONE,
+    "selection": _NONE,
+    "folder": _NONE,
+    "search": _NONE,
+    "annotations_source": _NONE,  # crops into the run's scratch folder
+    "artifacts_source": _NONE,
+    # ── reading and line finding: passes of segments ──────────────────────────
+    "detect_regions": _d("segment", "pass", "reading", "artifact"),
+    "align_transcript": _d("segment", "pass", "reading", "artifact"),
+    "merge_geometry": _d("segment", "pass", "reading", "artifact"),
+    # page text (update_page_content=True); a result with boxes also becomes a pass (#5222)
+    "transcribe": _d("segment", "page_text", "pass", "reading", "artifact"),
+    "handwriting": _d("page", "page_text", "artifact"),
+    "transcribe_review": _d("page", "page_text", "artifact"),
+    "audio_transcribe": _d("document", "page_text", "artifact"),
+    "video_describe": _d("document", "page_text", "artifact"),
+    "economy_htr": _NONE,  # hands its lines to the next step (records port)
+    # ── structure: nodes ───────────────────────────────────────────────────────
+    "book_structure": _d("document", "node"),
+    "detect_structure": _d("document", "node"),
+    "split_chapters": _d("document", "node"),
+    "diary_entries": _d("page", "entry", "attribute"),
+    "organize_same_documents": _d("group", "node"),
+    "split_images": _CUTS,
+    "split_pages": _CUTS,
+    "segment_images": _CUTS,
+    # ── document fields ────────────────────────────────────────────────────────
+    "date_extract": _d("document", "attribute", "artifact"),
+    # `metadata["geo_points"]`, the `geo` artifact, and place values on the claims
+    "extract_geo": _d("document", "attribute", "statement", "artifact"),
+    # ── knowledge graph rows tied to the document ─────────────────────────────
+    "extract_all": _KG_AND_ARTIFACT,
+    "people_extract": _KG_AND_ARTIFACT,
+    "places_extract": _KG_AND_ARTIFACT,
+    "organizations_extract": _KG_AND_ARTIFACT,
+    "rivers_extract": _KG_AND_ARTIFACT,
+    "events_extract": _KG_AND_ARTIFACT,
+    "mines_extract": _KG_AND_ARTIFACT,
+    "properties_extract": _KG_AND_ARTIFACT,
+    "legal_references_extract": _KG_AND_ARTIFACT,
+    "citation_usage_extract": _KG_AND_ARTIFACT,
+    "hermeneutics_extract": _KG_AND_ARTIFACT,
+    "quotes_extract": _KG_AND_ARTIFACT,
+    "keywords_extract": _KG_AND_ARTIFACT,
+    "dates_extract": _d("document", "statement", "artifact"),  # dates are claims, no entity
+    "book_index_extract": _KG_AND_ARTIFACT,
+    "citations_extract": _d("document", "mention", "statement"),
+    "extract_entities_only": _d("document", "mention"),
+    "extract_svo_only": _d("document", "mention", "statement"),
+    "kg_writer": _d("document", "mention", "statement"),
+    "merge_dedup_only": _d("document", "mention", "statement"),
+    "kg_persist_finalize": _d("document", "statement"),  # support counts on claims
+    "interpret": _d("document", "statement"),  # interpretations of a passage
+    # page cleanup merges entities and saves the cleaned list on the page; folder cleanup on the folder
+    **{
+        f"{kind}_page_cleanup": _d("document", "mention", "artifact")
+        for kind in ("people", "places", "organizations", "dates", "events", "keywords")
+    },
+    **{
+        f"{kind}_folder_cleanup": _d("group", "mention", "artifact")
+        for kind in ("people", "places", "organizations", "dates", "events", "keywords")
+    },
+    # the narrative is also written over the folder's own text (catalogue.py, #5599)
+    "catalogue": _d("group", "artifact", "page_text"),
+    # ── a document-level artifact only (known gaps, each naming its slice) ────
+    "timeline": _ARTIFACT,
+    "key_people": _ARTIFACT,
+    "rewrite": _ARTIFACT,
+    "caption": _ARTIFACT,
+    "describe": _ARTIFACT,
+    "sentiment": _ARTIFACT,
+    "clean_text": _ARTIFACT,
+    "keywords": _ARTIFACT,
+    "tags": _ARTIFACT,
+    "classify": _ARTIFACT,
+    "classify_text": _ARTIFACT,
+    "classify_script": _ARTIFACT,
+    "questions": _ARTIFACT,
+    "text_translate": _ARTIFACT,
+    "text_translate_review": _ARTIFACT,
+    "translate": _ARTIFACT,
+    "analyze": _ARTIFACT,
+    "extract": _ARTIFACT,
+    "faces": _ARTIFACT,
+    "objects": _ARTIFACT,
+    "layout": _ARTIFACT,
+    "scene": _ARTIFACT,
+    "diagram": _ARTIFACT,
+    "style": _ARTIFACT,
+    "quality": _ARTIFACT,
+    "safety": _ARTIFACT,
+    "colors": _ARTIFACT,
+    "language_identification": _ARTIFACT,
+    "compare": _ARTIFACT,
+    "convert": _ARTIFACT,
+    "table_extract": _ARTIFACT,
+    "extract_entities": _ARTIFACT,
+    "import_artifacts": _ARTIFACT,
+    "summarize": _ARTIFACT,
+    "summarize_file": _ARTIFACT,
+    "summarize_folder": _d("group", "artifact"),
+    "summarize_collection": _d("group", "artifact"),
+    "similarity": _d("group", "artifact"),
+    # ── images: the output is an image ────────────────────────────────────────
+    "rotate_images": _RENDITION,
+    "prepare_images": _RENDITION,
+    "enhance_images": _RENDITION,
+    "denoise_images": _RENDITION,
+    "fuzzy_clean_images": _RENDITION,
+    "deskew_images": _RENDITION,
+    "remove_background_images": _RENDITION,
+    "auto_crop_border_images": _RENDITION,
+    "adaptive_binarize_images": _RENDITION,
+    "recombine_segments": _RENDITION,
+    "zoom": _NONE,  # enlarged files into the run's scratch folder
+    # ── in-flow transforms, logic, agents and outputs outside the project ─────
+    "ocr_cleanup": _NONE,
+    "text_reflow": _NONE,
+    "consistency-check": _NONE,
+    "aggregate": _NONE,
+    "detect_ai_text": _NONE,
+    "ner": _NONE,
+    "model_comparison": _NONE,
+    # A sub-workflow's and an agent's writes are those of the steps and audited actions they call.
+    "sub_workflow": _NONE,
+    "agent_coordinator": _NONE,
+    "cli_agent": _NONE,
+    "react_agent": _NONE,
+    "supervisor_agent": _NONE,
+    "swarm_agent": _NONE,
+    "research_web_search": _NONE,
+    "research_browser_navigate": _NONE,
+    "research_document_fetch": _d("document", "node"),  # optionally files the page as a source
+    "write_file": _NONE,
+    "export_documents": _NONE,
+    # Palette definitions with no implementation (registry_builtins): they cannot run.
+    **{
+        name: _NONE
+        for name in (
+            "enhance", "crop", "rotate", "segment", "custom_llm",
+            "if", "switch", "loop", "filter", "merge",
+            "to_pdf", "to_word", "to_excel", "to_json", "save_to_library", "export",
+        )
+    },
+}
+
+
+def declaration_for(tool_name: str) -> OutputDeclaration | None:
+    """The tool's declaration, or None when it has none (the guard fails that)."""
+    return TOOL_OUTPUTS.get(tool_name)

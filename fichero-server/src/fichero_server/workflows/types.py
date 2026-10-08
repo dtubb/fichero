@@ -761,6 +761,14 @@ class ToolDef(BaseModel):
     # transcription chain is tested=True today.
     tested: bool = False
 
+    # What the tool writes and where it attaches (#5596,
+    # `source.extract.every-output-declares-its-anchor`). Stamped from
+    # `workflows/tool_outputs.py` at registration; the vocabularies and the
+    # guard that fails an undeclared tool live there and in
+    # scripts/check_tool_outputs_declared.py.
+    writes: list[str] = Field(default_factory=list)
+    anchors_at: str | None = None
+
     def get_prompt(self, config: dict[str, Any] | None = None) -> str | None:
         """Get the prompt for this tool, optionally customized by config.
 

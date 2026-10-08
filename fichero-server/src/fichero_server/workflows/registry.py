@@ -25,6 +25,7 @@ from fichero_server.workflows.types import (
     DataType,
 )
 from fichero_server.workflows.registry_builtins import _register_builtin_tools
+from fichero_server.workflows.tool_outputs import declaration_for
 
 logger = logging.getLogger(__name__)
 
@@ -97,10 +98,23 @@ def _ensure_tools_loaded() -> None:
             # this replaced. A tool not in tools/__init__.py does not exist.
             from fichero_server.workflows import tools  # noqa: F401
 
+            # Built-in palette defs are installed before any decorator runs,
+            # so stamp every def once the set is complete (#5596).
+            for tool_def in _TOOL_DEFS.values():
+                _stamp_output_declaration(tool_def)
             _TOOLS_LOADED = True
             logger.debug("Loaded tool implementations")
         finally:
             _LOADING_THREAD_ID = None
+
+
+def _stamp_output_declaration(tool_def: ToolDef) -> ToolDef:
+    """Copy the tool's declared writes / anchor onto its def (#5596); undeclared stays empty."""
+    declaration = declaration_for(tool_def.name)
+    if declaration is not None:
+        tool_def.writes = sorted(declaration.writes)
+        tool_def.anchors_at = declaration.anchors_at
+    return tool_def
 
 
 def __getattr__(name: str):
@@ -177,7 +191,7 @@ def register_tool(
         ]
 
         # Store metadata
-        _TOOL_DEFS[name] = ToolDef(
+        _TOOL_DEFS[name] = _stamp_output_declaration(ToolDef(
             name=name,
             display_name=display_name,
             description=description,
@@ -199,7 +213,7 @@ def register_tool(
             requires_generative_model=requires_generative_model,
             sort_order=sort_order,
             tested=tested,
-        )
+        ))
 
         logger.debug(f"Registered tool: {name}")
         return func
