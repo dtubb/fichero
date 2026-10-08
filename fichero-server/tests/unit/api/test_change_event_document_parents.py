@@ -167,7 +167,13 @@ class TestImportPopulatesIt:
         class _DB:
             path = str(tmp_path / "lib.duckdb")
 
-        _payload, spec = core._action_import_folder(_DB(), object(), _Ctx())
+        # The folder the import made is looked up in the library (#5584); this test is about the event's parents.
+        monkeypatch.setattr(core, "_made_folder_id", lambda *a, **k: None)
+        monkeypatch.setattr(core, "import_parent_id", lambda db, parent_id: parent_id)
+        from types import SimpleNamespace
+
+        params = SimpleNamespace(parent_id=None, path=str(tmp_path))
+        _payload, spec = core._action_import_folder(_DB(), params, _Ctx())
 
         assert spec.document_ids == [d.id for d in docs]
         assert spec.document_parents == {docs[0].id: "folder-1", docs[1].id: "folder-2"}
