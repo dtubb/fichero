@@ -1,5 +1,4 @@
 {
-  "POST /api/recipes/project/steps/use-candidate": "Use for This Step on any found model (#5612): engine first, reached through the generated CLI and MCP; the app's finder still offers it only on the Start plan's installed offer (use-instead)",
   "GET /api/sync-folders/duplicates": "the dry run of the duplicate repair (#5495): engine first, reached through the generated CLI and MCP; the app's view of it is not built",
   "POST /api/sync-folders/duplicates/remove": "the duplicate repair (sync.remove_duplicates, #5495): engine first, reached through the generated CLI and MCP; the app's view of it is not built",
   "GET /api/iiif/iiif/lines/{document_id}": "served to IIIF viewers through a manifest's canvas annotations, not called by the app (#5326)",

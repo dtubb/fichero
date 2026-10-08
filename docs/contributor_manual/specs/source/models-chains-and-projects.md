@@ -2879,13 +2879,17 @@ Finding models
   repository, Hugging Face), what is measured on the project (`measured`), its licence when not open, and,
   when the rules refuse it, the rules' reason (`refused`) in place of an action. Each source's line
   (`sources[].detail`) is said once above the cards.
-- `source.find.app-card-actions` — **[GAP]** (#5611) a card's actions are only those an existing route
-  serves: **Download** for a found Hugging Face reader (`source: hugging-face`), through the one download
-  route (`POST /api/local-models/download/mlx/{repo}`, the repo its `pin` names; the card then says
-  Downloading… and Activity shows the job); **Use for This Step** in Set Up… only where the Start plan
-  offers that installed card instead of the step's pending download (`downloads[].instead`), through
-  `POST /api/recipes/project/start/use-instead` (setup's own `useInstead`, one code path); and **Search
-  Online** for the whole list (`online=true`). **Built 2026-10-08 (engine, #5612):** each candidate
+- `source.find.app-card-actions` — **[GAP]** (#5611, #5612) a card's actions are only those an existing
+  route serves: **Download** for any candidate that names a `download`, through the one download route
+  (`POST /api/local-models/download/{runtime}/{model}`, the runtime and model its `download` names; the
+  card then says Downloading… and Activity shows the job); **Use for This Step** in Set Up… on any
+  candidate, through `POST /api/recipes/project/steps/use-candidate` (setup's own `useCandidate`, which
+  replaces the step in place); and **Search Online** for the whole list (`online=true`). The card says
+  whether the model is on this Mac (`installed`) and where it runs (`runs_where`) in words, and Find a
+  Reader… is offered on the steps whose job reads the material (`JobInfo.reads_material`), never a list
+  the app keeps. **Built 2026-10-08 (app, #5612), not yet seen:** `ModelFinderStore.download`,
+  `RecipeSetupStore.useCandidate`, `ModelFinderCard.facts`; pinned by
+  `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift`. **Built 2026-10-08 (engine, #5612):** each candidate
   carries `download` (the action that downloads it, `model.download` with its runtime and id, as the
   Start plan's `downloads` name it; null when it is here, the run fetches it, or it runs elsewhere),
   `installed` (an MLX model in this Mac's store, a spaCy pipeline, a bundled Kraken model; null where
@@ -2893,9 +2897,9 @@ Finding models
   `POST /api/recipes/project/steps/use-candidate` (`{step, card}`) sets any listed candidate as a step's
   reader, kept as a project-scope override by the path use-instead takes, through `project.save_setup`
   (audited, undoable); `GET /api/recipes/jobs` says which jobs read the material (`reads_material`).
-  Pinned by `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py`. *Residue:* the
-  app still reads `pin.hf` for Download, offers Use for This Step only on the plan's `instead`, and
-  copies the reading jobs; a Kraken reader has no download action (the run fetches it).
+  Pinned by `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py`. *Residue:* a
+  Kraken reader has no download action (the run fetches it); the tag stays [GAP] until the app half is
+  seen working.
 - `source.find.app-searching-line` — **[GAP]** (#5611) after Search Online the finder says
   "Searching online…" with the job's reason, observed through the project's `ActivityStore` (the one
   poller of `GET /api/activity/jobs`) by the job's id (`search_job.id`, or the `find-models` kind's

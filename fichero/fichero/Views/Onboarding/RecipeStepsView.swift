@@ -38,7 +38,7 @@ struct RecipeStepsView: View {
                 RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil),
                               explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,
                               onFix: onFix)
-                if onFix != nil, finder != nil, ModelFinderStore.readerJobs.contains(step.job) {
+                if onFix != nil, finder != nil, store.readsMaterial(step.job) {
                     Button("Find a Reader…") { findingFor = FinderStep(id: step.id, job: step.job) }
                         .controlSize(.small)
                         .help("The readers for this project's scripts and languages, and where to get them")
