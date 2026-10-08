@@ -129,9 +129,11 @@ final class EngineWebViewSchemeHandler: NSObject, WKURLSchemeHandler {
         var data = Data()
         let bufferSize = 64 * 1024
         var buffer = [UInt8](repeating: 0, count: bufferSize)
-        while stream.hasBytesAvailable {
+        // Read until the stream ends (read returns 0) or fails, not while `hasBytesAvailable`: a body
+        // written from another thread may have no bytes yet at the first check and read as empty (#5607).
+        while true {
             let read = stream.read(&buffer, maxLength: bufferSize)
-            if read <= 0 { break }
+            guard read > 0 else { break }
             data.append(buffer, count: read)
         }
         return data.isEmpty ? nil : data
