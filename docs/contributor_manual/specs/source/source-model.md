@@ -579,7 +579,20 @@ level it was made for.
   a segment.* Selecting any extracted fact shows its source span and selects it on the page; selecting
   a segment lists every fact resting on it.
 - `source.extract.corrected-in-place` — **[PARTIAL]** (#4834; #5602) *Built: `claim.patch`,
-  `entity.update`, `document.set_date`, `artifact.update` are audited.* A person corrects a fact from
+  `entity.update`, `document.set_date`, `artifact.update` are audited. The engine half from a mark
+  (#5602): `GET /api/segments/{id}/statements` gives each mention its span on the line and in the page
+  text and says whether a person placed it, and each statement its span on the line; a name is
+  re-pointed to another entity (`mention.repoint`, `POST /api/entities/{id}/mentions/repoint`) or its
+  words fixed (`mention.respan`, `.../mentions/respan`), each one audited action undone through the
+  audit (`mention.restore`); the corrected mention carries `mention_corrected_by` and the span taken
+  away is refused on the entity it left (`metadata.mentions_refused`), and `write_mentions` writes no
+  span overlapping either, so a re-run of Extract Entities keeps the person's correction. A statement's
+  date (`claim.patch`) and its rejection (`claim.transition`) survive a re-run of its extractor, which
+  matches the corrected row. Pinned by `fichero-server/tests/unit/workflows/test_corrected_in_place.py`
+  (on a tied page, through the routes: re-point, fix a span, date and reject a statement, undo each, a
+  re-run keeps each). Not yet: the Preview layer and Inspector that call these (#1659, #5418); taking
+  a mention away altogether ("not a name"); a page date is corrected by `document.set_date`, not from
+  its heading's mark.* A person corrects a fact from
   its mark on the page or from the Inspector, through the one action for its record, and every view
   shows the correction at once because none holds a copy.
 - `source.extract.search-reads-the-record` — **[PARTIAL]** (#5597) *Built: `people:`, `places:`,

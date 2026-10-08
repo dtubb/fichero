@@ -3937,6 +3937,30 @@
         "response_model": null
       },
       {
+        "method": "POST",
+        "path": "/entities/{entity_id}/mentions/repoint",
+        "operation_id": "repoint_mention_api_entities__entity_id__mentions_repoint_post",
+        "summary": "Repoint Mention",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": "MentionRepointRequest",
+        "response_model": "MentionCorrectionResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/entities/{entity_id}/mentions/respan",
+        "operation_id": "respan_mention_api_entities__entity_id__mentions_respan_post",
+        "summary": "Respan Mention",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": "MentionRespanRequest",
+        "response_model": "MentionCorrectionResponse"
+      },
+      {
         "method": "GET",
         "path": "/entities/{entity_id}/place",
         "operation_id": "place_as_of_api_entities__entity_id__place_get",
