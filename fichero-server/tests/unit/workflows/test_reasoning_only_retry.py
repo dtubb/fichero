@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 import fichero_server.llm as llm_module
@@ -23,6 +24,16 @@ from fichero_server.workflows.tools.vision_base import VisionToolConfig, process
 
 GOLD = "En la villa de Madrid a veinte dias"
 REASONING_ONLY = "<think>I can see an old manuscript, let me work line by line…"
+
+
+@pytest.fixture(autouse=True)
+def _close_the_library(tmp_path):
+    """`process_vision` runs each page as a job in the library at tmp_path; close it, which stops
+    the job lane it woke, so no lane thread outlives the test (#5607)."""
+    yield
+    from fichero_server.db import db_manager
+
+    db_manager.close_database(tmp_path)
 
 
 def _run(tmp_path: Path, monkeypatch, responses: list[str]) -> tuple[dict, list[str]]:

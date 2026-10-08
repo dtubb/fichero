@@ -15,8 +15,9 @@ import Testing
 
 private final class RecipesMockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
-    /// What the last request carried, and how many reached the stub.
-    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    /// What the last request to each path carried (by path, so a stray request to another path
+    /// cannot overwrite the one a test reads), and how many reached the stub.
+    nonisolated(unsafe) static var bodies: [String: [String: Any]] = [:]
     nonisolated(unsafe) static var calls = 0
     nonisolated(unsafe) static var status = 200
     override static func canInit(with request: URLRequest) -> Bool {
@@ -43,7 +44,7 @@ struct RecipeSetupStoreTests {
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> RecipeSetupStore {
         RecipesMockURLProtocol.requestHandler = handler
-        RecipesMockURLProtocol.lastBody = [:]
+        RecipesMockURLProtocol.bodies = [:]
         RecipesMockURLProtocol.calls = 0
         RecipesMockURLProtocol.status = 200
         let configuration = URLSessionConfiguration.ephemeral
@@ -84,7 +85,8 @@ struct RecipeSetupStoreTests {
         let store = makeStore { request in
             #expect(request.url?.path == "/api/recipes/assemble")
             #expect(request.httpMethod == "POST")
-            RecipesMockURLProtocol.lastBody = (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:]
+            RecipesMockURLProtocol.bodies["/api/recipes/assemble"] =
+                (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:]
             return Self.reply(request, 200, Self.recipeJSON)
         }
         store.purposes = ["transcribe"]
@@ -94,11 +96,12 @@ struct RecipeSetupStoreTests {
 
         await store.assemble()
 
-        #expect(RecipesMockURLProtocol.lastBody["purposes"] as? [String] == ["transcribe"])
-        #expect(RecipesMockURLProtocol.lastBody["languages"] as? [String] == ["es"])
-        #expect(RecipesMockURLProtocol.lastBody["scripts"] as? [String] == ["Latn"])
-        #expect(RecipesMockURLProtocol.lastBody["pages"] as? Int == 1200)
-        #expect(RecipesMockURLProtocol.lastBody["cloud_allowed"] as? Bool == false, "nothing leaves this Mac unless the person said so")
+        let sent = RecipesMockURLProtocol.bodies["/api/recipes/assemble"] ?? [:]
+        #expect(sent["purposes"] as? [String] == ["transcribe"])
+        #expect(sent["languages"] as? [String] == ["es"])
+        #expect(sent["scripts"] as? [String] == ["Latn"])
+        #expect(sent["pages"] as? Int == 1200)
+        #expect(sent["cloud_allowed"] as? Bool == false, "nothing leaves this Mac unless the person said so")
         let recipe = try #require(store.recipe)
         #expect(recipe.steps.map(\.job) == ["find-lines", "correct"])
         #expect(recipe.steps.first?.reasons == ["ships inside the app"])
@@ -336,7 +339,7 @@ struct RecipeSetupStoreTests {
         let store = makeStore { request in
             if request.url?.path == "/api/recipes/project" {
                 #expect(request.httpMethod == "PUT")
-                RecipesMockURLProtocol.lastBody =
+                RecipesMockURLProtocol.bodies["/api/recipes/project"] =
                     (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:]
                 return Self.reply(request, 200, #"{"answers":{},"recipe":null}"#)
             }
@@ -350,13 +353,14 @@ struct RecipeSetupStoreTests {
         let saved = await store.save()
 
         #expect(saved)
-        let answers = try #require(RecipesMockURLProtocol.lastBody["answers"] as? [String: Any])
+        let savedBody = RecipesMockURLProtocol.bodies["/api/recipes/project"] ?? [:]
+        let answers = try #require(savedBody["answers"] as? [String: Any])
         #expect(answers["purposes"] as? [String] == ["transcribe"])
         #expect(answers["languages"] as? [String] == ["es"])
         #expect(answers["scripts"] as? [String] == ["Latn"])
         #expect(answers["cloud_allowed"] as? Bool == false)
         #expect(answers["ingest_mode"] as? String == "move")
-        let recipe = try #require(RecipesMockURLProtocol.lastBody["recipe"] as? [String: Any])
+        let recipe = try #require(savedBody["recipe"] as? [String: Any])
         #expect(recipe["id"] as? String == "generated")
         #expect((recipe["steps"] as? [Any])?.count == 2)
     }
@@ -434,9 +438,13 @@ extension URLRequest {
         defer { stream.close() }
         var data = Data()
         var buffer = [UInt8](repeating: 0, count: 4096)
-        while stream.hasBytesAvailable {
+        // Read until the stream ends (read returns 0), not while `hasBytesAvailable`: the client
+        // writes the body into this stream from another thread, so under load the first check can
+        // come before any bytes and read the body as empty; closing it then, while the writer is
+        // still writing, crashed OpenAPIURLSession's HTTPBodyOutputStreamBridge (#5607).
+        while true {
             let read = stream.read(&buffer, maxLength: buffer.count)
-            if read <= 0 { break }
+            guard read > 0 else { break }
             data.append(buffer, count: read)
         }
         return data

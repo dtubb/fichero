@@ -470,9 +470,11 @@ private extension URLRequest {
         var data = Data()
         let bufferSize = 4096
         var buffer = [UInt8](repeating: 0, count: bufferSize)
-        while stream.hasBytesAvailable {
+        // Until the stream ends, not while `hasBytesAvailable`: that can be false before the
+        // client's writer thread has put the first bytes in (#5607).
+        while true {
             let read = stream.read(&buffer, maxLength: bufferSize)
-            if read <= 0 { break }
+            guard read > 0 else { break }
             data.append(buffer, count: read)
         }
         return data

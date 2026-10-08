@@ -431,6 +431,18 @@ def _job_threads() -> set:
     return {t for t in threading.enumerate() if t.name.startswith("fichero-jobs")}
 
 
+def _lane_libraries() -> set[str]:
+    """Every library some job lane is still looking at (its key)."""
+    from fichero_server.execution import jobs
+
+    keys: set[str] = set()
+    for scheduler in list(jobs._SCHEDULERS):
+        with scheduler._lock:  # the lock `wake` and `stop` change a lane's libraries under
+            for lane in scheduler.lanes.values():
+                keys |= lane.libraries
+    return keys
+
+
 def _running_a_job(thread) -> bool:
     from fichero_server.execution import jobs
 
@@ -441,6 +453,7 @@ def _running_a_job(thread) -> bool:
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_setup(item):
     item._fichero_job_threads_before = _job_threads()
+    item._fichero_lane_libraries_before = _lane_libraries()
     return (yield)
 
 
@@ -475,9 +488,19 @@ def pytest_runtest_teardown(item, nextitem):  # noqa: ARG001
         frames = sys._current_frames()
         where = "\n".join(f"{t.name}:\n{''.join(traceback.format_stack(frames[t.ident])[-4:])}"
                           for t in alive if t.ident in frames)
+        # The leak fails THIS test, and only this one (#5607): forget the libraries it left the
+        # lanes looking at, so its threads end here instead of polling on beside the next tests
+        # (a thread reading the app database while the next test's fixture seeds it is the
+        # "Catalog write-write conflict" a later, innocent test errored with).
+        from fichero_server.execution import jobs
+
+        left_open = sorted(_lane_libraries() - getattr(item, "_fichero_lane_libraries_before", set()))
+        for key in left_open:
+            jobs.stop(key)
         pytest.fail(f"{item.nodeid} left {len(alive)} job thread(s) running after teardown: "
                     f"{', '.join(sorted(t.name for t in alive))} -- close its library "
-                    f"(db_manager.close_database/close_all) or stop the scheduler it made\n{where}",
+                    f"(db_manager.close_database/close_all) or stop the scheduler it made; "
+                    f"libraries left open: {left_open}\n{where}",
                     pytrace=False)
     return result
 
