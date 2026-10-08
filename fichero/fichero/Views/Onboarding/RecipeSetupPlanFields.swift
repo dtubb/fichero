@@ -182,6 +182,7 @@ struct RecipeStartFields: View {
                         .foregroundStyle(.orange)
                 }
                 RecipeDownloadRows(store: store)
+                RecipeElsewhereRows(store: store)
                 RecipeSkippedRows(store: store, onFix: onFix)
             } else if store.recipe != nil, store.errorMessage == nil {
                 ProgressView("Planning what Start would run…").controlSize(.small)
@@ -238,6 +239,38 @@ struct RecipeDownloadRows: View {
         let steps = download.steps.map { store.title(ofStepId: $0) }.joined(separator: ", ")
         let model = download.name ?? "\(runtime) model \(download.model)"
         return "\(model)\(size) · for \(steps)"
+    }
+}
+
+/// The models the plan's steps need that this Mac cannot run (#5592, `ai.where.fallback-free-and-asked`): under
+/// each step, "Can't run on this Mac (why)", and for each free place the plan offers, a button that runs it there,
+/// only on the press. A paid place is never offered, so it never has a button.
+struct RecipeElsewhereRows: View {
+    let store: RecipeSetupStore
+
+    var body: some View {
+        if !store.elsewhere.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(store.elsewhere, id: \.model) { entry in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entry.steps.map { store.title(ofStepId: $0) }.joined(separator: ", "))
+                            .font(.callout.weight(.medium))
+                        Text("Can't run on this Mac (\(entry.why))").font(.callout).foregroundStyle(.secondary)
+                        ForEach(entry.instead ?? [], id: \.provider) { place in
+                            Button(Self.buttonTitle(place)) {
+                                Task { await store.useFreePlace(entry, place) }
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// "Run it free at Studio Mac".
+    static func buttonTitle(_ place: Components.Schemas.StartPlaceInstead) -> String {
+        "Run it free at \(place.providerName)"
     }
 }
 

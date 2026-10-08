@@ -13665,7 +13665,7 @@
           "recipes"
         ],
         "summary": "Use Installed Instead",
-        "description": "Use the installed model instead: every step pinned to the model Start waits to download is set to the\ninstalled one the plan offers (`downloads[].instead`), kept as a project-scope override on the recipe (as Use\nThis keeps a bake-off's choice), through `project.save_setup` (audited, undoable)\n(`source.onboard.auto.installed-model-first`). Refused (422) for a model the plan does not wait for, or a card\nit does not offer instead.",
+        "description": "Use the installed model instead: every step pinned to the model Start waits to download is set to the\ninstalled one the plan offers (`downloads[].instead`), kept as a project-scope override on the recipe (as Use\nThis keeps a bake-off's choice), through `project.save_setup` (audited, undoable)\n(`source.onboard.auto.installed-model-first`). Refused (422) for a model the plan does not wait for, or a card\nit does not offer instead. With `provider`: every step pinned to the model this Mac cannot run is set to the same\nmodel at that free place the plan offers (`elsewhere[].instead`), the same way; refused (422) for a place the\nplan does not offer, a paid one included (`ai.where.fallback-free-and-asked`).",
         "operationId": "use_installed_instead_api_recipes_project_start_use_instead_post",
         "parameters": [
           {
@@ -83557,6 +83557,58 @@
         "title": "StartDownload",
         "description": "A model a step needs that is not on this Mac, and the action that downloads it."
       },
+      "StartElsewhere": {
+        "properties": {
+          "runtime": {
+            "type": "string",
+            "title": "Runtime"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "why this Mac cannot run it"
+          },
+          "said": {
+            "type": "string",
+            "title": "Said",
+            "description": "what its refusal adds: the free place offered, or why none is"
+          },
+          "instead": {
+            "items": {
+              "$ref": "#/components/schemas/StartPlaceInstead"
+            },
+            "type": "array",
+            "title": "Instead",
+            "description": "the same model at places that cost nothing, each used only when the person presses it (POST /api/recipes/project/start/use-instead with `provider`); a paid place is never offered"
+          }
+        },
+        "type": "object",
+        "required": [
+          "runtime",
+          "model",
+          "name",
+          "steps",
+          "why",
+          "said"
+        ],
+        "title": "StartElsewhere",
+        "description": "A model a step is pinned to that this Mac cannot run, and the free places offered instead (#5592)."
+      },
       "StartEstimate": {
         "properties": {
           "pages": {
@@ -83667,6 +83719,57 @@
         "title": "StartInstead",
         "description": "An installed model the plan offers instead of a download (#5583)."
       },
+      "StartPlaceInstead": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "the place's provider row id, to send to use-instead"
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name",
+            "description": "the place's name, as people read it"
+          },
+          "provider_type": {
+            "type": "string",
+            "title": "Provider Type",
+            "description": "the place's provider type"
+          },
+          "place": {
+            "type": "string",
+            "title": "Place",
+            "description": "where the place keeps the pages: own_machine or provider (llm/places.py)"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "the model's id at the place"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "its name, as people read it"
+          },
+          "free": {
+            "type": "boolean",
+            "title": "Free",
+            "description": "always True: only a free place is offered, the person's own machine or one the price list says costs nothing (ai.where.fallback-free-and-asked)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "provider_name",
+          "provider_type",
+          "place",
+          "model",
+          "name",
+          "free"
+        ],
+        "title": "StartPlaceInstead",
+        "description": "The same model at another place that costs nothing, offered for a model this Mac cannot run (#5592)."
+      },
       "StartPlan": {
         "properties": {
           "started": {
@@ -83720,6 +83823,14 @@
             "type": "array",
             "title": "Downloads",
             "description": "models the steps are pinned to that are not on this Mac, each offered as a download (source.recipe.missing-model-offered)"
+          },
+          "elsewhere": {
+            "items": {
+              "$ref": "#/components/schemas/StartElsewhere"
+            },
+            "type": "array",
+            "title": "Elsewhere",
+            "description": "models the steps are pinned to that this Mac cannot run, each with the free places offered instead, never used without the person's press (ai.where.fallback-free-and-asked)"
           },
           "estimate": {
             "$ref": "#/components/schemas/StartEstimate"
@@ -87626,22 +87737,28 @@
           "model": {
             "type": "string",
             "title": "Model",
-            "description": "the download the plan waits for, as its `downloads` names it (`model`)"
+            "description": "the download the plan waits for, as its `downloads` names it (`model`), or the model this Mac cannot run, as its `elsewhere` names it"
           },
           "card": {
             "type": "string",
             "title": "Card",
-            "description": "the installed model's card id, as that download's `instead` names it"
+            "description": "the installed model's card id, as that download's `instead` names it",
+            "default": ""
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "the free place's provider row id, as that `elsewhere` entry's `instead` names it",
+            "default": ""
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "model",
-          "card"
+          "model"
         ],
         "title": "UseInsteadRequest",
-        "description": "Use an installed model instead of downloading the one the plan waits for (#5583)."
+        "description": "Use an installed model instead of downloading the one the plan waits for (#5583), or the same model at a free\nplace instead of on this Mac, which cannot run it (#5592). Exactly one of `card` and `provider`."
       },
       "UserListResponse": {
         "properties": {

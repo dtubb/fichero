@@ -6073,11 +6073,12 @@ def fichero_recipes_start_project(
 
 def fichero_recipes_use_installed_instead(
     *,
-    card: Annotated[str, Field(description="the installed model's card id, as that download's `instead` names it.")],
-    model: Annotated[str, Field(description='the download the plan waits for, as its `downloads` names it (`model`)')],
+    card: Annotated[Optional[str], Field(description='the installed model\'s card id, as that download\'s `instead` names it. Default: "".')] = None,
+    model: Annotated[str, Field(description='the download the plan waits for, as its `downloads` names it (`model`), or the model this Mac cannot run, as its `elsewhere` names it.')],
+    provider: Annotated[Optional[str], Field(description='the free place\'s provider row id, as that `elsewhere` entry\'s `instead` names it. Default: "".')] = None,
 ) -> Any:
-    "Use Installed Instead\n\nUse the installed model instead: every step pinned to the model Start waits to download is set to the\ninstalled one the plan offers (`downloads[].instead`), kept as a project-scope override on the recipe (as Use\nThis keeps a bake-off's choice), through `project.save_setup` (audited, undoable)\n(`source.onboard.auto.installed-model-first`). Refused (422) for a model the plan does not wait for, or a card\nit does not offer instead.\n\nRoute: POST /api/recipes/project/start/use-instead (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/start/use-instead", json=_rt.body({"card": card, "model": model}))
+    "Use Installed Instead\n\nUse the installed model instead: every step pinned to the model Start waits to download is set to the\ninstalled one the plan offers (`downloads[].instead`), kept as a project-scope override on the recipe (as Use\nThis keeps a bake-off's choice), through `project.save_setup` (audited, undoable)\n(`source.onboard.auto.installed-model-first`). Refused (422) for a model the plan does not wait for, or a card\nit does not offer instead. With `provider`: every step pinned to the model this Mac cannot run is set to the same\nmodel at that free place the plan offers (`elsewhere[].instead`), the same way; refused (422) for a place the\nplan does not offer, a paid one included (`ai.where.fallback-free-and-asked`).\n\nRoute: POST /api/recipes/project/start/use-instead (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/start/use-instead", json=_rt.body({"card": card, "model": model, "provider": provider}))
 
 
 def fichero_recipes_use_candidate_for_step(

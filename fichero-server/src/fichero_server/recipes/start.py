@@ -352,13 +352,18 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     every = _with_readers(runs)  # each step's readers per kind are fetched and checked like its own model (#5578)
     downloads = missing_models(every) + local_models_to_download(every)
     refusals += [_waits_for(d) for d in downloads]
-    refusals += local_models_this_mac_cannot_serve(every)
+    cannot = local_models_this_mac_cannot_serve(every)
+    elsewhere = places_elsewhere(every, stays_local=stays_local)
+    for entry in elsewhere:  # the refusal of a model this Mac cannot run says what other place, if any, is offered
+        head = f"steps {', '.join(entry['steps'])} cannot run on this Mac"
+        cannot = [f"{r} {entry['said']}" if r.startswith(head) else r for r in cannot]
+    refusals += cannot
     if not runs and not refusals:
         nothing = isinstance(automatic, dict) and not automatic.get("runs", True)
         refusals.append("What runs by itself is “Nothing runs automatically”: new material waits for a run by hand"
                         if nothing else "nothing in this recipe can run yet: every step is skipped (see why)")
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
-            "offered": offered, "refusals": refusals, "downloads": downloads}
+            "offered": offered, "refusals": refusals, "downloads": downloads, "elsewhere": elsewhere}
 
 
 def card_inputs(step_jobs: list[str]) -> tuple[list[str], list[str]]:
@@ -560,6 +565,123 @@ def local_models_this_mac_cannot_serve(runs: list[dict[str, Any]]) -> list[str]:
         if problem is not None and problem.kind != "not-installed":
             out.append(f"steps {', '.join(run['steps'])} cannot run on this Mac: {problem}")
     return out
+
+
+def places_elsewhere(runs: list[dict[str, Any]], *, stays_local: bool) -> list[dict[str, Any]]:
+    """For each local model this Mac cannot run (its card says this Mac's memory cannot), the other places that
+    run the same model and cost nothing, each offered in `instead` to choose in one press (`use_place_instead`),
+    never used without it (`ai.where.fallback-free-and-asked`, #5592). A place is one of the person's provider
+    rows, enabled, off this Mac, that lists the model by the same id; it is free when it is the person's own machine,
+    or when the price list says its input and output cost nothing. A paid place, or one whose price is not known, is never offered; a project that
+    keeps its pages on this Mac is offered no other place. `said` is the sentence its refusal adds."""
+    from fichero_server.llm import local_model_choice
+
+    store = local_model_choice._store()
+    out: dict[str, dict[str, Any]] = {}
+    for run in runs:
+        model = _local_model(run)
+        if model is None:
+            continue
+        problem = local_model_choice.local_model_problem(model, _capability(run), store=store)
+        if problem is None or problem.kind != "cannot-run":
+            continue
+        model_id = store.canonical_id(model)
+        if model_id in out:
+            out[model_id]["steps"] += run["steps"]
+            continue
+        spec = store.spec(model_id)
+        free, paid = ([], []) if stays_local else _places_running({model, model_id, spec.repo_id})
+        if stays_local:
+            said = "This project keeps its pages on this Mac, so no other place is offered."
+        elif free:
+            said = (f"Or run it free at {' or '.join(p['provider_name'] for p in free)} instead, "
+                    "if you choose to (Set Up… › Ready).")
+        elif paid:
+            said = (f"{' and '.join(paid)} {'runs' if len(paid) == 1 else 'run'} it, but not free: a step moves to "
+                    "another place only when that place is free, and only when you choose it.")
+        else:
+            said = "No other place you have set up runs it free."
+        out[model_id] = {"runtime": "mlx", "model": model_id, "name": spec.display_name, "steps": list(run["steps"]),
+                         "why": str(problem), "said": said, "instead": free}
+    return list(out.values())
+
+
+def _places_running(ids: set[str]) -> tuple[list[dict[str, Any]], list[str]]:
+    """(the free places, the names of the paid or unpriced ones) among the person's enabled provider rows off this
+    Mac that list the model by one of `ids`. The person's own machine (`own_machine`) is free; any other place is
+    free only by the price list's word (input and output cost 0), never a guess: a row's own stated cost, or no
+    price at all, is not free."""
+    from fichero_server.db.app import get_app_db
+    from fichero_server.llm import LLMConfig, usage
+    from fichero_server.llm.places import OWN_MACHINE, THIS_MAC, place_of
+
+    app_db = get_app_db()
+    free, paid = [], []
+    for row in app_db.list_providers():
+        ptype = row.provider_type.value
+        place = place_of(LLMConfig(provider=ptype, model="", api_base=row.api_base))
+        if not row.enabled or place == THIS_MAC:
+            continue
+        listed = next((m for m in app_db.list_models(row.id) if m.enabled and m.model_id in ids), None)
+        if listed is None:
+            continue
+        price = usage._registry_entry(listed.model_id, ptype) or {}
+        # The person's own machine costs nothing (ruled 2026-10-08); a company's place is free only at $0 listed.
+        if place == OWN_MACHINE or (price.get("input_cost_per_token") == 0
+                                    and price.get("output_cost_per_token") == 0):
+            free.append({"model": listed.model_id, "name": listed.name or listed.model_id, "provider": row.id, "provider_name": row.name, "provider_type": ptype, "place": place,
+                         "free": True})
+        else:
+            paid.append(row.name)
+    return free, paid
+
+
+def use_place_instead(recipe: dict[str, Any] | None, elsewhere: list[dict[str, Any]], model: str, provider: str, *,
+                      now: str) -> dict[str, Any]:
+    """The recipe with the free place `provider` (a provider row id) set, as a project-scope override, on every step
+    pinned to the model this Mac cannot run that the plan offers it for (`ai.where.fallback-free-and-asked`, #5592):
+    the same model, at that place. The press is the person's choice; nothing moves a step to another place without
+    it. ValueError, in words, when the plan offers no such place."""
+    import copy
+
+    from fichero_server.llm import local_model_choice
+    from fichero_server.recipes.assemble import Card
+    from fichero_server.recipes.bakeoff import apply_project_overrides
+    from fichero_server.recipes.cards import mlx_model_for
+
+    if not recipe:
+        raise ValueError("this project has no recipe yet: run setup first")
+    offer = next((e for e in elsewhere if e["model"] == model), None)
+    if offer is None:
+        raise ValueError(f"{model} is not a model this project's Start finds this Mac cannot run")
+    chosen = next((i for i in offer["instead"] if i["provider"] == provider), None)
+    if chosen is None:
+        raise ValueError(f"that place is not one offered free for {offer['name']}: a step moves to another place "
+                         "only when that place is free")
+    store = local_model_choice._store()
+    out = copy.deepcopy(recipe)
+    because = (f"chosen by you: {offer['name']} at {chosen['provider_name']}, free, because this Mac cannot run it "
+               f"({offer['why']})")
+    cards = []
+    for step in out.get("steps") or []:
+        repo = mlx_model_for(step.get("model") or {})
+        if step.get("id") not in offer["steps"] or not repo or store.canonical_id(repo) != model:
+            continue
+        was = step.get("card") or {}
+        card = Card(id=f"cloud:{chosen['provider_type']}/{chosen['model']}@{provider}",
+                    pin={"cloud": chosen["provider_type"], "model": chosen["model"]}, jobs=frozenset({step["job"]}),
+                    scripts=None, languages=None, material=frozenset(), runs_on=f"cloud:{chosen['provider_type']}",
+                    open_licence=bool(was.get("open_licence", True)), licence=str(was.get("licence") or ""),
+                    note=f"{offer['name']} at {chosen['provider_name']} (free)")
+        cards.append(card)
+        sid = step["id"]
+        override = {"step": sid, "scope": "project", "folder_id": None, "model": dict(card.pin), "card": card.id,
+                    "runs_on": card.runs_on, "place": chosen["place"], "provider": provider, "free": True,
+                    "because": because, "at": now}
+        out["overrides"] = [o for o in out.get("overrides") or []
+                            if (o.get("step"), o.get("scope"), o.get("folder_id")) != (sid, "project", None)]
+        out["overrides"].append(override)
+    return apply_project_overrides(out, cards)
 
 
 def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
