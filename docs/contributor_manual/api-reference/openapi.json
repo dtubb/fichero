@@ -76273,6 +76273,32 @@
             "title": "Documents Proposed",
             "description": "the documents Find the Documents proposed; null when it did not run in this run"
           },
+          "documents_accepted": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Documents Accepted",
+            "description": "of those, the ones accepted (by the run's own setting, or by a person since); null as above"
+          },
+          "groups_proposed": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Groups Proposed",
+            "description": "the groups (a case, a correspondence) Find the Documents proposed; null as above"
+          },
+          "entries": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Entries",
+            "description": "the dated entries the entries stage split the pages into (made, or found again); null when it did not run in this run"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines",
+            "description": "the summary in the engine's words, one line per figure, shown as given"
+          },
           "failed": {
             "items": {
               "$ref": "#/components/schemas/StageFailures"

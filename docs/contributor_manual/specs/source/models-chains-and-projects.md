@@ -1029,9 +1029,14 @@ plan's peak memory across steps. Ready shows none of it.
   of 2 pages · Names: 1 People · 1 Places · 1 date · 1 statement"); each stage whose pages failed offers
   its run's Read Again (`ActivityStore.readPagesAgain`, the read-again route); Show Details opens the
   Activity details with the rest (skipped steps and their fixes); Close puts the strip away for that
-  run. Pinned by `fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift`. *Not built:* lines;
-  documents and groups proposed (`documents_proposed` is null until Find the Documents runs as a stage,
-  #5574); each figure opening what it counts.
+  run. Pinned by `fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift`. **Built 2026-10-08
+  (engine):** the summary says itself in the engine's words, `lines`, one per figure, and the app shows them as
+  given: "Read 2 of 2 pages", "Names: 1 People · 1 Places" (or "No names found"), "1 date · 1 statement", and,
+  when the run had those stages, "3 documents proposed, 2 accepted" and "1 group proposed" (Find the
+  Documents' proposals as they stand now, with `documents_proposed`, `documents_accepted`, `groups_proposed`)
+  and "4 entries from 2 pages" (the entries stage's account, #5581, with `entries`); a figure for a stage the
+  run did not have is null and has no line (`fichero-server/tests/unit/recipes/test_run_visible_to_spec.py`).
+  *Not built:* lines (of text); the app's strip showing `lines` as given; each figure opening what it counts.
 - `source.onboard.auto.failed-pages-roll-up` — **[PARTIAL]** (#5555) the recipe run's own row counts
   the pages that failed inside its steps and offers Read Again for them. Built: per workflow run
   (`compute.run.read-failed-again`). Not built: on the recipe's row, which today says "Done" when every

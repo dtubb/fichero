@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from fichero_server.execution import jobs
+from tests.unit.recipes.test_diary_entries_step import splitter  # noqa: F401  (fixture)
 from tests.unit.recipes.test_recipe_execution_to_spec import (  # noqa: F401  (fixtures: engine, pages)
     _finished,
     _import,
@@ -158,6 +159,9 @@ def test_source_onboard_auto_results_summary(client, db, pages, tmp_path, engine
     assert summary["failed"] == [] and summary["pages_failed"] == 0
     skipped = {s["step"]: s["fix"] for s in summary["skipped"]}
     assert skipped["check"] == "allow-cloud" and skipped["names"] == "choose-model"
+    # In the engine's words, one line per figure, shown as given; no line for a stage the run did not have.
+    assert summary["lines"] == ["Read 2 of 2 pages", "Names: 1 People · 1 Places", "1 date · 1 statement"]
+    assert (summary["documents_proposed"], summary["groups_proposed"], summary["entries"]) == (None, None, None)
     tree = client.get(f"/api/activity/jobs/{job_id}").json()
     assert tree["summary"] == summary, "Activity's details show the same summary"
 
@@ -183,3 +187,36 @@ def test_source_onboard_auto_results_summary(client, db, pages, tmp_path, engine
 
 def test_summary_of_no_run_is_404(client, db):
     assert client.get("/api/recipes/project/runs/nope/summary").status_code == 404
+
+
+def test_source_onboard_auto_results_summary__documents_groups_and_entries(client, db, pages, tmp_path, engine,
+                                                                           splitter):
+    """source.onboard.auto.results-summary (#5577): "documents and groups proposed" by Find the Documents, as its
+    proposals stand, and the entries the entries stage split the pages into (#5581), as figures and as lines in the
+    engine's words."""
+    from fichero_server.finddocs import store as finddocs_store
+
+    entries = {"id": "entries", "job": "split-into-entries", "model": {"cloud": "openai", "model": "gpt-5"},
+               "runs_on": "cloud:openai"}
+    find = {"id": "find", "job": "find-documents-in-a-folder", "model": {"builtin": "document-finder"},
+            "settings": {"accept_above": 0.0}}
+    lines = {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"}}
+    read = {"id": "read", "job": "read-a-line", "model": {"zenodo": "10.5281/zenodo.13788177"}}
+    _save(client, _recipe(tmp_path, lines, read, entries, find))
+    job_id = _start(client)
+    run = _finished(client, job_id)
+    assert run["state"] == "done", run
+    summary = client.get(f"/api/recipes/project/runs/{job_id}/summary").json()
+
+    proposals = finddocs_store.proposals(db)
+    proposed = sum(len(p.documents) for p in proposals)
+    groups = sum(len(p.groups) for p in proposals)
+    assert proposed >= 1
+    assert (summary["documents_proposed"], summary["documents_accepted"], summary["groups_proposed"]) == \
+        (proposed, proposed, groups), "accepted by the run's own setting (everything at or above 0)"
+    assert summary["entries"] == 4  # two dated entries on each of the two pages
+    docs = "document" if proposed == 1 else "documents"
+    assert summary["lines"][3:] == [f"{proposed} {docs} proposed, {proposed} accepted",
+                                    f"{groups} {'group' if groups == 1 else 'groups'} proposed",
+                                    "4 entries from 2 pages"]
+    assert client.get(f"/api/activity/jobs/{job_id}").json()["summary"]["lines"] == summary["lines"]
