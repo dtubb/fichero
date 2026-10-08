@@ -254,9 +254,10 @@ def fichero_activity_set_background_paused(
 def fichero_activity_get_job_tree(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
+    depth: Annotated[Optional[int], Field(description='levels below this job to include (1: a run and its steps); every row keeps its rolled-up counts and says how many children it left out. Omitted: the whole tree, every page')] = None,
 ) -> Any:
-    'Get Job Tree\n\nOne job and everything under it, with progress rolled up (`activity.jobs-are-a-tree`): a\nworkflow run (its id is its thread id), its steps, and the pages each step handed to a lane,\neach with its state and why.\n\nRoute: GET /api/activity/jobs/{job_id} (toolset `activity`; reads).'
-    return _rt.call("GET", f"/api/activity/jobs/{job_id}")
+    "Get Job Tree\n\nOne job and everything under it, with progress rolled up (`activity.jobs-are-a-tree`): a\nworkflow run (its id is its thread id), its steps, and the pages each step handed to a lane,\neach with its state and why. A large run's pages are thousands of rows: an agent asks for a `depth`\n(`activity.job-tree-to-a-depth`, #5605).\n\nRoute: GET /api/activity/jobs/{job_id} (toolset `activity`; reads)."
+    return _rt.call("GET", f"/api/activity/jobs/{job_id}", params={"depth": depth})
 
 
 def fichero_activity_cancel_job(

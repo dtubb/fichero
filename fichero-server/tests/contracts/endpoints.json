@@ -386,7 +386,13 @@
         "path_params": [
           "job_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "depth",
+            "required": false,
+            "type": "integer"
+          }
+        ],
         "request_model": null,
         "response_model": "JobTree"
       },
