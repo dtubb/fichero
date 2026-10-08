@@ -5326,8 +5326,12 @@ async def process_vision(
                 if _read_flag is not None:
                     effective_artifact_data = {**(effective_artifact_data or {}), READ_FLAG_KEY: _read_flag}
                     _save_tool_config = dataclasses.replace(
-                        tool_config, update_page_content=False, trigger_embedding=False, reading_kind=None
+                        tool_config, update_page_content=False, trigger_embedding=False, reading_kind=None,
+                        attribute_key=None,
                     )
+                # The model's answer, parsed and matched to the step's choices, is what an attribute
+                # tool writes onto the node (#5600); the artifact keeps the raw answer.
+                _attribute_value = parsed if _save_tool_config.attribute_key else None
                 # Set proper provider/model labels for local processing
                 save_config = effective_config
                 if pdf_layer_used:
@@ -5504,6 +5508,7 @@ async def process_vision(
                             custom_metadata=custom_metadata,
                             document=_preloaded_doc,
                             promote_page_content_only_if_empty=(vision_mode == "kraken"),
+                            attribute_value=_attribute_value,
                         )
                         if artifact_id:
                             result["artifact_id"] = artifact_id
@@ -5529,6 +5534,7 @@ async def process_vision(
                         custom_metadata=custom_metadata,
                         document=_preloaded_doc,
                         promote_page_content_only_if_empty=(vision_mode == "kraken"),
+                        attribute_value=_attribute_value,
                     )
                     if artifact_id:
                         result["artifact_id"] = artifact_id

@@ -34,6 +34,8 @@ TOOL_CONFIG = VisionToolConfig(
     trigger_embedding=False,
     supports_apple_vision=False,
     metadata_field="doc_type",
+    # The kind is proposed as the node's prototype, citing this run (#5600); the artifact is its record.
+    attribute_key="prototype",
 )
 
 DEFAULT_CATEGORIES = [

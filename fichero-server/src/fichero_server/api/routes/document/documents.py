@@ -1408,9 +1408,17 @@ async def batch_exclude_documents(
 
 
 def assign_document_prototype_impl(
-    db: Database, doc_id: str, request: "PrototypeAssignRequest"
+    db: Database, doc_id: str, request: "PrototypeAssignRequest", *, source: dict | None = None
 ) -> tuple[PrototypeAssignResponse, list[str]]:
-    """Assign a prototype key to a document scope using the synchronous DB layer."""
+    """Assign a prototype key to a document scope using the synchronous DB layer.
+
+    Each node assigned records who chose its kind (`metadata.attribute_sources.prototype`, #5600):
+    `source` when a run proposes it, a person otherwise; a run never replaces a person's choice
+    (`workflows.attribute_sources.machine_may_set`).
+    """
+    from fichero_server.workflows import attribute_sources
+
+    chosen_by = source or {"by": attribute_sources.BY_PERSON}
     _document_or_404(db, doc_id)
     if (
         request.page_start is not None
@@ -1466,6 +1474,9 @@ def assign_document_prototype_impl(
             if request.page_end is not None and candidate.sequence > request.page_end:
                 continue
         candidate.prototype_key = request.prototype_key
+        candidate.metadata = attribute_sources.with_sources(
+            candidate.metadata, {attribute_sources.PROTOTYPE: chosen_by}
+        )
         candidate.updated_at = utc_now()
         db.save(candidate)
         updated += 1
@@ -2406,6 +2417,21 @@ def update_document_impl(
     ):
         update_data["attributes"] = {**incoming_attrs, sorting.SET_BY: sorting.BY_PERSON}
 
+    # Any attribute (or kind) a person adds, changes or removes here is theirs: it cites nothing and a
+    # later run never overwrites it (#5600, `source.extract.attributes-cite`).
+    from fichero_server.workflows import attribute_sources
+
+    person_keys: dict[str, dict] = {}
+    if isinstance(incoming_attrs, dict):
+        person_keys.update(attribute_sources.person_changed(existing_attrs, update_data["attributes"]))
+        person_keys.pop(sorting.SET_BY, None)
+    if "prototype_key" in update_data and update_data["prototype_key"] != doc.prototype_key:
+        person_keys[attribute_sources.PROTOTYPE] = {"by": attribute_sources.BY_PERSON}
+    if person_keys:
+        update_data["metadata"] = attribute_sources.with_sources(
+            update_data.get("metadata", doc.metadata), person_keys
+        )
+
     for field, value in update_data.items():
         setattr(doc, field, value)
 
@@ -2950,6 +2976,10 @@ class DocumentNoteDeleteParams(BaseModel):
 class PrototypeAssignActionParams(BaseModel):
     doc_id: str = Field(description="Document id to assign a prototype to")
     request: PrototypeAssignRequest = Field(description="Prototype assignment spec")
+    source: dict | None = Field(
+        default=None,
+        description="A run's citation for the kind it proposes (#5600); None = a person's choice",
+    )
 
 
 class PageRangeUpsertActionParams(BaseModel):
@@ -3543,7 +3573,9 @@ def _action_assign_document_prototype(
         candidate.id: candidate.model_dump(mode="json")
         for candidate in _list_documents(db, include_deleted=True)
     }
-    response, scoped_ids = assign_document_prototype_impl(db, params.doc_id, params.request)
+    response, scoped_ids = assign_document_prototype_impl(
+        db, params.doc_id, params.request, source=params.source
+    )
     before_docs = [before_by_id[candidate_id] for candidate_id in scoped_ids if candidate_id in before_by_id]
     spec = ChangeSpec(
         domains=["document"],

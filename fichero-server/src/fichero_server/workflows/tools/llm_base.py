@@ -396,6 +396,12 @@ class LLMToolConfig:
     # translation finds one. The artifact stays as the record of the run. None = not a reading.
     reading_kind: str | None = None
 
+    # The attribute of the node this output IS (`source.extract.attributes-cite`, #5600): when set, the
+    # answer is also written as that attribute's value on the node it was made from, citing the run
+    # (`workflows.attribute_sources`); a value a person set is never overwritten. ``prototype`` is the
+    # node's kind, proposed as its prototype (`kinds-proposed-as-prototypes`). None = not an attribute.
+    attribute_key: str | None = None
+
 
 def find_existing_artifact(
     document_id: str | None,
@@ -488,6 +494,7 @@ async def save_artifact(
     custom_metadata: dict | None = None,
     document: object | None = None,
     promote_page_content_only_if_empty: bool = False,
+    attribute_value: Any = None,
 ) -> str | None:
     """Save LLM result to database.
 
@@ -510,6 +517,8 @@ async def save_artifact(
             McCATMuS) cannot overwrite a good existing transcription in place
             (curation persists). Default False keeps the trusted-LLM overwrite
             behaviour unchanged.
+        attribute_value: the model's parsed answer, written as ``tool_config.attribute_key``
+            (None writes no attribute).
 
     Returns:
         Artifact ID if saved, None otherwise
@@ -556,6 +565,7 @@ async def save_artifact(
         custom_metadata,
         ocr_geometry,
         promote_page_content_only_if_empty,
+        attribute_value,
     )
 
 
@@ -599,6 +609,7 @@ def _save_artifact_sync(
     custom_metadata: dict | None,
     ocr_geometry: OCRGeometryResult | None,
     promote_page_content_only_if_empty: bool = False,
+    attribute_value: Any = None,
 ) -> str | None:
     """Synchronous DB-write + embed core of :func:`save_artifact`.
 
@@ -705,6 +716,20 @@ def _save_artifact_sync(
                 db, document_id=resolved_doc_id, readings=[(None, content)], artifact_id=artifact_id,
                 run_id=task_id, kind=tool_config.reading_kind, library_path=library_path,
             )
+        if tool_config.attribute_key and attribute_value not in (None, ""):
+            # A core write, like the reading: the answer is the node's attribute (or kind), citing this run.
+            # Only a model's answer is: a passthrough of the page's own text passes no value.
+            from fichero_server.workflows import attribute_sources
+
+            attribute_sources.write_from_run(
+                db, doc, key=tool_config.attribute_key, value=attribute_value,
+                source=attribute_sources.machine_source(
+                    tool=tool_config.artifact_type, step=step_name, run_id=task_id, artifact_id=artifact_id,
+                    provider=artifact.provider, model=artifact.model, said=content,
+                ),
+                library_path=library_path,
+            )
+            doc = db.get(Document, resolved_doc_id) or doc
 
         # Update Document.page_content if configured — but NEVER clobber
         # user-edited page_content. The API update route sets
@@ -881,6 +906,7 @@ async def save_file_artifact(
     custom_metadata: dict | None = None,
     document: object | None = None,
     promote_page_content_only_if_empty: bool = False,
+    attribute_value: Any = None,
 ) -> str | None:
     """File-oriented entry point to ``save_artifact`` for media/file tools.
 
@@ -913,6 +939,7 @@ async def save_file_artifact(
         custom_metadata=custom_metadata,
         document=document,
         promote_page_content_only_if_empty=promote_page_content_only_if_empty,
+        attribute_value=attribute_value,
     )
 
 
