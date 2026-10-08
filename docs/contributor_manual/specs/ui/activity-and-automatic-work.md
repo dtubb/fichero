@@ -640,7 +640,12 @@ workflow by hand: a hand run is a job like any other.
   recorded on it (model and provider as recorded), newest first, with an absolute UTC time and cost
   null; a document the caller may not read is withheld and counted
   (`fichero-server/tests/unit/api/test_document_run_history.py`). No schema change: the join is on
-  `subject`. Still a gap: the Done column and the Inspector section (Swift), cost for priced runs,
+  `subject`. Built (2026-10-08, app): the document Inspector's Source › Info shows "What has been run",
+  newest first, each entry's name, outcome, model and provider, absolute time, reason and cost when
+  priced, read through the project's `RunHistoryStore` in one call for many documents, each document's
+  key set on its own (`fichero/Tests/Unit/general/Models/RunHistoryStoreTests.swift`; not yet seen in
+  the app). Still a gap: the Done column (the library table has no batched per-visible-row read to
+  mirror, so it is more than a column), cost for priced runs,
   the provider of a job row (only its model is recorded), and job rows whose subject is not a document
   id (a page read from a file with no document names the file).
 - `activity.window.measures` — **[PARTIAL]** (#5415) the measures that matter, per run, step and
