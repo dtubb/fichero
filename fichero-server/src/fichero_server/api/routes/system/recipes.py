@@ -119,6 +119,10 @@ class AssembleRequest(BaseModel):
         "the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them "
         "then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open "
         "project holds a folder of loose page images (finddocs.recipe-step)"))
+    faded_pages: Optional[bool] = Field(default=None, description=(
+        "the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, "
+        "keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread "
+        "across them) shows a faded page (source.onboard.auto.prepare-damaged-images)"))
     job_answers: dict[str, Any] = Field(default_factory=dict, description=(
         "the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the "
         "step it configures (source.onboard.auto.job-answers-read)"))
@@ -437,6 +441,12 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
         # Default on for a project that holds a folder of loose page images (§7b, "Everything automatic after
         # Start": a box is organised as a stage of the run); an answer of False turns it off.
         answers = {**answers, "loose_pages": _holds_loose_pages(library)}
+    if answers.get("faded_pages") is None and library is not None:
+        # Measured on the project's sample: a faded page there proposes preparing the images (#5580).
+        from fichero_server.db.manager import db_manager
+        from fichero_server.recipes.prepare import sample_shows_faded
+
+        answers = {**answers, "faded_pages": sample_shows_faded(db_manager.get_database(str(library)))}
     a = _answers(answers)
     recipe = assemble(a, known_cards(a))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
@@ -482,6 +492,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
         pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
+        faded_pages=bool(a.get("faded_pages")),
         job_answers=dict(a.get("job_answers") or {}),
         search_embedder=search_embedder(),
     )

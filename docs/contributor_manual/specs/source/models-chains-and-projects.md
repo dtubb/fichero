@@ -1064,9 +1064,21 @@ plan's peak memory across steps. Ready shows none of it.
   sorted as `blank` and left out; the step's account counts them (`blank_versos`). *Not built:* a blank
   page that is not the back of a written leaf (a folder's first page, a blank after a blank) is still
   read; the run's account names the pages only as a count.
-- `source.onboard.auto.prepare-damaged-images` — **[GAP]** (#5580) where the sample shows faded
+- `source.onboard.auto.prepare-damaged-images` — **[PARTIAL]** (#5580; tested in
+  `fichero-server/tests/unit/recipes/test_prepare_images_step.py`) where the sample shows faded
   or damaged pages, image preparation (contrast, deskew) is proposed as a step with a card. It runs before
-  lines, and the original image is kept.
+  lines, and the original image is kept. **Built:** setup measures a sample of the open project's pages (up to
+  ten, spread from first to last; `recipes/prepare.py`): a page whose grey spread (darkest 1% to lightest 1%) is
+  under 100 of 255 is faded, a near-empty one is blank, not faded. Where one is faded (or the answers say
+  `faded_pages`, or `prepare-the-image` is ticked), a recipe that lines or reads gets the step, after any split and
+  before lines, with Fichero's own measure (no model to choose, on this Mac). Start runs it as its own card
+  (`prepare`): each faded page gets a new rendition (`prepared`, the page's own frame, never primary) with its
+  contrast raised; the clear and blank pages are left alone; the original file is never written to. Lines and
+  reading (Kraken, Apple Vision, a vision model reading a page) read the prepared rendition in place of the
+  original; a page already prepared is not prepared again; the run's account (`prepared`) counts what it prepared
+  and left alone. *Not built:* deskew (a straightened picture is not the page's frame, so the lines found on it
+  would not map back until a rendition can carry its transform to the lines); stains, holes and uneven light are
+  not measured; the measure is not yet judged by reading (`prep.judged-by-reading`).
 - `source.onboard.auto.organise-is-a-stage` — **[GAP]** (#5550) Find the Documents is a recipe stage
   that runs after names and dates, on any material, images or text. Its proposals (boundaries, kinds as
   prototypes, groups, order) are drawn on the canvas for review. Nothing in the source moves until the

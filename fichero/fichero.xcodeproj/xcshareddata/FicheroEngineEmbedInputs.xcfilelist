@@ -437,6 +437,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/done.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/layers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/names.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/project.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/recipe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/routes.py

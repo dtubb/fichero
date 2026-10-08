@@ -12277,6 +12277,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         cloud_allowed: Optional[bool] = typer.Option(None, "--cloud-allowed/--no-cloud-allowed", help="Request field: cloud_allowed."),
         directions: Optional[str] = typer.Option(None, "--directions", help="Request field: directions."),
+        faded_pages: Optional[bool] = typer.Option(None, "--faded-pages/--no-faded-pages", help="Request field: faded_pages."),
         job_answers: Optional[str] = typer.Option(None, "--job-answers", help="Request field: job_answers."),
         jobs: Optional[str] = typer.Option(None, "--jobs", help="Request field: jobs."),
         languages: str = typer.Option(..., "--languages", help="Request field: languages."),
@@ -12297,6 +12298,7 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "cloud_allowed": cloud_allowed,
                 "directions": directions,
+                "faded_pages": faded_pages,
                 "job_answers": job_answers,
                 "jobs": jobs,
                 "languages": languages,
@@ -12312,6 +12314,7 @@ def register_generated_openapi_commands(
             }, {
                 "cloud_allowed": {'type': 'boolean', 'title': 'Cloud Allowed', 'default': False, 'x-cli-required': False},
                 "directions": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'title': 'Directions', 'description': 'script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen)', 'x-cli-required': False},
+                "faded_pages": {'type': 'boolean', 'nullable': True, 'title': 'Faded Pages', 'description': "the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread across them) shows a faded page (source.onboard.auto.prepare-damaged-images)", 'x-cli-required': False},
                 "job_answers": {'additionalProperties': True, 'type': 'object', 'title': 'Job Answers', 'description': 'the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the step it configures (source.onboard.auto.job-answers-read)', 'x-cli-required': False},
                 "jobs": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Jobs', 'description': "jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)", 'x-cli-required': False},
                 "languages": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Languages', 'description': "BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag)", 'x-cli-required': True},

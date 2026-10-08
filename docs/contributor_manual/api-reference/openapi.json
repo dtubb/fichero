@@ -47493,6 +47493,12 @@
             "title": "Loose Pages",
             "description": "the material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them then finds the documents among them, accepting by itself only the clearest; unset, it is on when the open project holds a folder of loose page images (finddocs.recipe-step)"
           },
+          "faded_pages": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Faded Pages",
+            "description": "the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread across them) shows a faded page (source.onboard.auto.prepare-damaged-images)"
+          },
           "job_answers": {
             "additionalProperties": true,
             "type": "object",
@@ -75443,6 +75449,11 @@
             "$ref": "#/components/schemas/StageEntries",
             "nullable": true,
             "description": "a stage that splits a diary or register into its dated entries: its pages and entries (#5581)"
+          },
+          "prepared": {
+            "$ref": "#/components/schemas/StagePrepared",
+            "nullable": true,
+            "description": "a stage that prepares faded pages before lines: how many it prepared and left alone (#5580)"
           }
         },
         "type": "object",
@@ -83025,6 +83036,33 @@
         ],
         "title": "StageFailures",
         "description": "The pages one workflow stage could not do, and its offer to read them again."
+      },
+      "StagePrepared": {
+        "properties": {
+          "prepared": {
+            "type": "integer",
+            "title": "Prepared",
+            "description": "faded pages given a prepared rendition, their contrast raised"
+          },
+          "clear": {
+            "type": "integer",
+            "title": "Clear",
+            "description": "pages left alone: clear enough, or blank"
+          },
+          "no_image": {
+            "type": "integer",
+            "title": "No Image",
+            "description": "pages with no image to look at (a PDF's page, a text file)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prepared",
+          "clear",
+          "no_image"
+        ],
+        "title": "StagePrepared",
+        "description": "What a stage that prepares faded pages did (#5580)."
       },
       "StageReader": {
         "properties": {
