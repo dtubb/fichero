@@ -213,9 +213,12 @@ def test_the_hub_search_offers_only_builds_this_mac_runs_each_saying_why(client,
     # A safetensors original is offered as its MLX conversion, saying so.
     sarashina = found["mlx:hf/tokimoa/sarashina2.2-ocr-mlx-4bit@main"]
     assert "MLX conversion of sbintuitions/sarashina2.2-ocr" in sarashina["offered_because"]
-    assert all(c["offered_because"] and c["in_recipe_rules"] is False and c["rule_rank"] is None
-               for c in found.values())
-    assert found["mlx:hf/LiquidAI/LFM2.5-VL-3B-MLX-4bit@main"]["open_licence"] is False  # license:other
+    # Found readers join the rules since they download like a catalogue model (#5593,
+    # `source.find.found-reader-downloads`): each is ranked, or refused with its reason.
+    assert all(c["offered_because"] and c["in_recipe_rules"] is True for c in found.values())
+    assert all((c["rule_rank"] is None) == (c["refused"] is not None) for c in found.values())
+    lfm = found["mlx:hf/LiquidAI/LFM2.5-VL-3B-MLX-4bit@main"]
+    assert lfm["open_licence"] is False and "licence" in lfm["refused"]  # license:other
     # Asked by task and language tag, never by keyword, and MLX by its tag.
     assert "image-to-text|mlx,ja" in hub and all("mlx" in k or k.endswith("|ja") for k in hub)
 

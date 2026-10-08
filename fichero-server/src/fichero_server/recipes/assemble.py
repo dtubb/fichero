@@ -290,31 +290,126 @@ def _sentence(code: str, job: str, a: Answers, material: str) -> str:
     return f"The {noun} that fits needs more memory than this Mac has."
 
 
+#: How many nearest readers a "nothing fits" problem names (`source.onboard.nothing-fits-names-nearest`).
+NEAREST = 3
+#: A script's parent: the script a variant of it is filed under (Fraktur and Gaelic are Latin; Simplified and
+#: Traditional Han are Han; the Syriac and Arabic styles their script). ISO 15924 data, not a model's name.
+_PARENT = {"Latf": "Latn", "Latg": "Latn", "Hans": "Hani", "Hant": "Hani", "Syre": "Syrc", "Syrj": "Syrc",
+           "Syrn": "Syrc", "Aran": "Arab", "Cyrs": "Cyrl"}
+#: A script's parts, where ISO 15924 names a whole made of others (Japanese is Han plus the kana).
+_PARTS = {"Jpan": frozenset({"Hani", "Hira", "Kana", "Hrkt"}), "Kore": frozenset({"Hang", "Hani"}),
+          "Hrkt": frozenset({"Hira", "Kana"})}
+
+
+def _family(code: str) -> str:
+    """The script a code belongs to for "a related script": its parent, else itself."""
+    return _PARENT.get(code, code)
+
+
+def _related_scripts(scripts: frozenset[str]) -> frozenset[str]:
+    """The asked scripts with their parents and their parts: what a reader made for them may also state."""
+    out = set(scripts) | {_PARENT[s] for s in scripts if s in _PARENT}
+    for s in scripts:
+        out |= _PARTS.get(s, frozenset())
+    return frozenset(out)
+
+
+def made_for_script(card: Card, a: Answers | None) -> bool:
+    """Whether `card` is a reader made for the project's script (`source.recipe.script-reader-first`): it states
+    scripts, each the asked one, its parent or one of its parts; it lists the project's languages; and it states
+    a published CER. A card trained on many scripts is generic however low its own CER."""
+    if a is None or not a.scripts or card.scripts is None or card.cer_published is None:
+        return False
+    if a.languages and (card.languages is None or not a.languages <= card.languages):
+        return False
+    return card.scripts <= _related_scripts(a.scripts)
+
+
+def _name(card: Card) -> str:
+    """A card as a person reads it: its note's first clause, short; never its id."""
+    words = (card.note or "").strip().split(". ")[0].strip().rstrip(".")
+    return words if len(words) <= 60 else words[:57].rstrip() + "…"
+
+
+def _nearest(job: str, cards: list[Card], a: Answers, material: str) -> list[dict[str, str]]:
+    """Up to `NEAREST` refused readers closest to fitting, in words (`source.onboard.nothing-fits-names-nearest`):
+    one for the asked script refused for another reason (another material, memory, licence, the cloud), then one
+    for a related script (Han for Traditional Han), then one listing the project's language."""
+    from fichero_server.recipes.names import language_name, script_name
+
+    families = {_family(s) for s in _related_scripts(a.scripts)}
+    ranked: list[tuple[int, tuple, Card, str]] = []
+    for card in cards:
+        if job not in card.jobs or not card.note or card.scripts is None:
+            continue
+        refused = _refusal(job, card, a, material)
+        if refused is None:
+            continue
+        if refused[0] != "no-model-for-script":
+            why, tier = refused[1], 0
+        elif {_family(s) for s in card.scripts} & families:
+            # Named by the scripts it states, a whole (Japanese) rather than its parts (Han, kana).
+            parts = {p for s in card.scripts for p in _PARTS.get(s, ())}
+            shown = sorted(card.scripts - parts)[:2]
+            # "Japanese", not "Japanese (alias for Han + Hiragana + Katakana)".
+            why, tier = f"reads {_and([script_name(s).split(' (')[0] for s in shown])}, a related script", 1
+        elif a.languages and card.languages and a.languages & card.languages:
+            why, tier = (f"lists {_and([language_name(t) for t in sorted(a.languages & card.languages)])}, "
+                         "in another script"), 2
+        else:
+            continue
+        ranked.append((tier, _rank_key(card, material, a), card, why))
+    ranked.sort(key=lambda r: (r[0], r[1]))
+    seen: set[str] = set()
+    out = []
+    for _, _, card, why in ranked:
+        if _name(card) in seen:
+            continue
+        seen.add(_name(card))
+        out.append({"card": card.id, "name": _name(card), "why": why})
+        if len(out) == NEAREST:
+            break
+    return out
+
+
 def _problem(job: str, cards: list[Card], a: Answers, material: str, detail: str) -> dict[str, Any]:
     """The step's one problem (`source.onboard.says-no-model`): the refusal of the card that got
-    furthest through the rules, as a code, a sentence and its fixes; the rules' own reason in `detail`."""
+    furthest through the rules, as a code, a short sentence naming the nearest readers, and its fixes; the rules'
+    own reason, short, in `detail`, and every refused card in `refused` (`source.onboard.nothing-fits-names-nearest`)."""
+    refusals = [(c, r) for c in cards if job in c.jobs and (r := _refusal(job, c, a, material)) is not None]
     codes = [r[0] for c in cards if (r := _refusal(job, c, a, material)) is not None]
     code = max(codes, key=_CONSTRAINTS.index, default="no-model-for-job")
     fixes = list(_FIXES[code])
+    nearest = _nearest(job, cards, a, material)
+    sentence = _sentence(code, job, a, material)
+    if nearest:
+        sentence += " Nearest: " + "; ".join(f"{n['name']} ({n['why']})" for n in nearest) + "."
     # `kind`, not `code`: a recipe refuses any key named code (`recipe._FORBIDDEN_KEYS`), and this one is saved.
-    return {"kind": code, "sentence": _sentence(code, job, a, material), "fix": fixes[0], "fixes": fixes,
-            "detail": detail}
+    return {"kind": code, "sentence": sentence, "fix": fixes[0], "fixes": fixes, "detail": detail,
+            "nearest": nearest,
+            "refused": [{"card": c.id, "why": r[1]} for c, r in sorted(refusals, key=lambda cr: cr[0].id)]}
 
 
-def _accuracy(card: Card) -> float:
-    cer = card.cer_measured_here if card.cer_measured_here is not None else card.cer_published
-    return cer if cer is not None else 1.0
+def _material_rank(card: Card, material: str) -> int:
+    """0: its card states the material; 1: it states none; 2: it states another."""
+    return 0 if material in card.material else 1 if not card.material else 2
 
 
-def _rank_key(card: Card, material: str) -> tuple:
-    """The fixed order (section 8): accuracy in one-point bands, then local before remote, cheaper,
-    faster, lower carbon, trainable, smaller, and the card id so ties are deterministic. The
-    material soft rule ranks a reader made for the material first; then a model already on this Mac
-    comes before one to download (`source.onboard.auto.installed-model-first`, #5583)."""
-    band = int(_accuracy(card) * 100)
+def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
+    """The fixed order (section 8, `source.recipe.script-reader-first`): a measurement on the project's pages in
+    one-point bands first; then a reader made for the project's script before a generic one; then one whose card
+    states the material, then one that states none; then the published CER in one-point bands, so a published
+    CER only ranks cards of the same script tier and material; then a model already on this Mac before one to
+    download (`source.onboard.auto.installed-model-first`, #5583), local before remote, cheaper, faster, lower
+    carbon, trainable, smaller, and the card id so ties are deterministic. Without answers (the bake-off's own
+    rows) every card is one tier."""
+    measured = int(card.cer_measured_here * 100) if card.cer_measured_here is not None else 100
+    band = int((card.cer_published if card.cer_published is not None else 1.0) * 100)
     return (
+        measured,
+        0 if made_for_script(card, a) else 1,
+        _material_rank(card, material),
         band,
-        0 if material in card.material else 1,
         1 if card.installed is False else 0,
         0 if card.local else 1,
         card.cost_per_page,
@@ -330,9 +425,18 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     material = material or a.material
     kept = [c for c in cards if _refusal(job, c, a, material) is None]
     if not kept:
-        named = [c for c in cards if job in c.jobs]
-        why = "; ".join(sorted({f"{c.id}: {_hard_constraints(job, c, a, material)}" for c in named})) \
-            or "no card names this job"
+        # Short: how many cards were refused, by reason, naming the first few; each card and why is the problem's
+        # `refused` list (`source.onboard.nothing-fits-names-nearest`: the detail was a 4 KB dump of ~45 ids).
+        by_reason: dict[str, list[str]] = {}
+        for c in sorted(cards, key=lambda c: c.id):
+            if job in c.jobs:
+                by_reason.setdefault(str(_hard_constraints(job, c, a, material)), []).append(c.id)
+
+        def said(reason: str, ids: list[str]) -> str:
+            more = f", and {len(ids) - 2} more" if len(ids) > 2 else ""
+            return f"{len(ids)} {'card' if len(ids) == 1 else 'cards'}: {reason} ({', '.join(ids[:2])}{more})"
+
+        why = "; ".join(said(reason, ids) for reason, ids in sorted(by_reason.items())) or "no card names this job"
         gap = f"no model fits this step ({why})"
         return Choice(job, None, gap=gap, problem=_problem(job, cards, a, material, gap))
     # Cheapest and local first: start with the best LOCAL candidate; a remote one only when no
@@ -344,8 +448,10 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
         engine = a.search_embedder.lower()
         pool = sorted(pool, key=lambda c: (not engine or str(c.pin.get("hf", "")).lower() != engine,
                                            c.size_gb, c.id))[:1]
-    best = sorted(pool, key=lambda c: _rank_key(c, material))[0]
+    best = sorted(pool, key=lambda c: _rank_key(c, material, a))[0]
     reasons = [f"its card names this job; covers {', '.join(sorted(a.scripts))}"]
+    if made_for_script(best, a):
+        reasons.append(f"made for {', '.join(sorted(a.scripts))}")
     if best.languages is not None and job in LANGUAGE_JOBS:
         reasons.append(f"lists {', '.join(sorted(a.languages))}")
     if material in best.material:
@@ -361,7 +467,8 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     if best.installed:
         reasons.append("already on this Mac")
     elif best.installed is False:
-        reasons.append(f"to download first ({best.size_gb:g} GB)")
+        reasons.append(f"to download first ({best.size_gb:g} GB)" if best.size_gb
+                       else "to download first (its size is not stated)")
     reasons.append("runs on this Mac, free" if best.local else f"runs on {best.runs_on}")
     if best.trainable:
         reasons.append("trainable on your corrections")

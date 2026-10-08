@@ -145,6 +145,19 @@ class RecipeCard(BaseModel):
         "metadata, Kraken's model repository or a Hugging Face search (GET /api/recipes/candidates)")
 
 
+class NearestReader(BaseModel):
+    """A refused reader close to fitting a step that has none (`source.onboard.nothing-fits-names-nearest`)."""
+
+    card: str = Field(description="its card id: for the Inspector, never shown in setup's sentence")
+    name: str = Field(description="its card's name, as people read it")
+    why: str = Field(description="how near it is, in words: another material, a related script, or the language")
+
+
+class RefusedCard(BaseModel):
+    card: str
+    why: str = Field(description="the rules' first reason it cannot do the step")
+
+
 class StepProblem(BaseModel):
     """Why a step has no model, once, in words a historian reads (`source.onboard.says-no-model`)."""
 
@@ -154,7 +167,12 @@ class StepProblem(BaseModel):
     fix: str = Field(description="the fix setup offers as its button: download, choose-cloud, choose-model, "
                      "allow-cloud or accept-licence")
     fixes: list[str] = Field(description="every fix that applies, `fix` first")
-    detail: str = Field(description="the rules' own reason, model ids included: for the Inspector and the log")
+    detail: str = Field(description="the rules' own reason, short (how many cards were refused, and why): for "
+                        "the Inspector and the log")
+    nearest: list[NearestReader] = Field(default_factory=list, description=(
+        "up to three refused readers closest to fitting, the ones the sentence names "
+        "(source.onboard.nothing-fits-names-nearest)"))
+    refused: list[RefusedCard] = Field(default_factory=list, description="every card refused for the step, and why")
 
 
 class StepReader(BaseModel):
@@ -577,8 +595,8 @@ class ModelCandidate(BaseModel):
     cer_measured_here: Optional[float] = None
     measured: str = Field(description="what is measured on this project, or that it is unmeasured until a "
                           "bake-off measures it")
-    in_recipe_rules: bool = Field(description="false for a Hugging Face result: Fichero cannot download a Hub "
-                                  "model outside its catalogue yet, so the rules do not choose it")
+    in_recipe_rules: bool = Field(description="whether the rules choose from it: true for every candidate since "
+                                  "a found Hugging Face reader downloads like a catalogue model (#5593)")
     rule_rank: Optional[int] = Field(default=None, description="its place by the rules' fixed order among the "
                                      "candidates they keep; null when refused or not in the rules")
     refused: Optional[str] = Field(default=None, description="the rules' first reason it cannot do the job here")
@@ -600,7 +618,8 @@ async def model_candidates(
     shipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a
     card saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,
     `source.find.by-need`). The network is reached only with `online=true`, and never when this engine works
-    offline; otherwise the repository is read from its last fetch and the Hub is not searched. Refused
+    offline; otherwise the repository is read from its last fetch and the Hub readers from the earlier searches
+    for these languages (#5593). Refused
     (422), in words, for an unknown script, language, material or job."""
     from fichero_server.recipes.assemble import MATERIALS, READING_JOBS, _rank_key, _refusal
     from fichero_server.recipes.discovery import discover
@@ -622,9 +641,8 @@ async def model_candidates(
                 cloud_allowed=cloud_allowed, mac_memory_gb=mac_memory_gb or _this_machine_memory_gb())
     cards, sources = await discover(a, online=online)
     cards = [c for c in cards if job in c.jobs]
-    in_rules = [c for c in cards if c.source != "hugging-face"]
-    kept = sorted((c for c in in_rules if _refusal(job, c, a, material) is None),
-                  key=lambda c: _rank_key(c, material))
+    kept = sorted((c for c in cards if _refusal(job, c, a, material) is None),
+                  key=lambda c: _rank_key(c, material, a))
     rank = {c.id: i for i, c in enumerate(kept, 1)}
 
     def measured(c: Any) -> str:
@@ -638,10 +656,10 @@ async def model_candidates(
         jobs=sorted(c.jobs), scripts=sorted(c.scripts) if c.scripts is not None else None,
         languages=sorted(c.languages) if c.languages is not None else None, licence=c.licence,
         open_licence=c.open_licence, size_gb=c.size_gb, memory_gb=c.memory_gb, cer_published=c.cer_published,
-        cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=c.source != "hugging-face",
+        cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=True,
         rule_rank=rank.get(c.id),
-        refused=None if c.source == "hugging-face" or c.id in rank else (_refusal(job, c, a, material) or (None, None))[1],
-    ) for c in sorted(cards, key=lambda c: (rank.get(c.id, len(rank) + 1), c.source == "hugging-face", c.id))]
+        refused=None if c.id in rank else (_refusal(job, c, a, material) or (None, None))[1],
+    ) for c in sorted(cards, key=lambda c: (rank.get(c.id, len(rank) + 1), c.id))]
     return ModelCandidateList(job=job, items=items, count=len(items),
                               sources=[CandidateSource(**s) for s in sources])
 

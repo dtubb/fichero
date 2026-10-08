@@ -148,7 +148,7 @@ def candidates(a: Answers, cards: list[Card], *, volume: int) -> list[dict[str, 
     """The readers that take part, in rule rank, then the Tesseract baseline where it belongs."""
     material = a.material
     kept = [c for c in cards if c.runs_here and _refusal(STEP, c, a, material) is None]
-    ranked = sorted(kept, key=lambda c: _rank_key(c, material))[:TOP]
+    ranked = sorted(kept, key=lambda c: _rank_key(c, material, a))[:TOP]
     out = [_candidate(c, rule_rank=i, role="rule rank", volume=volume) for i, c in enumerate(ranked, 1)]
     print_like = [m for m in a.materials if m in TESSERACT_MATERIALS]
     if print_like:

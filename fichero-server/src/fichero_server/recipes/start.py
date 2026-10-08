@@ -220,7 +220,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             skip(sid, f"{label}: {gone['why']}", gone["fix"])
             continue
         if job not in _NO_MODEL_JOBS and (step.get("gap") or not step.get("model")):
-            skip(sid, f"{label} has no model: {step.get('gap') or 'none is named'}", "choose-model")
+            # Said as setup says it: the problem's sentence, naming the nearest readers, never the refused
+            # cards' ids (`source.onboard.nothing-fits-names-nearest`, #5593).
+            said = (step.get("problem") or {}).get("sentence") or step.get("gap") or "none is named"
+            skip(sid, f"{label} has no model: {said}", "choose-model")
             continue
         if stays_local and _uses_cloud(step):
             skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here", "allow-cloud")
@@ -401,7 +404,8 @@ def _waits_for(download: dict[str, Any]) -> str:
         return (f"steps {steps} need the {download['runtime']} model {download['model']} ({download['size_mb']} MB), "
                 f"which is not on this Mac: download it first")
     instead = [i["name"] for i in download.get("instead") or []]
-    return (f"steps {steps} wait for {download['name']} ({download['size_mb']} MB), which is not on this Mac: "
+    size = f"{download['size_mb']} MB" if download.get("size_mb") else "size not stated"
+    return (f"steps {steps} wait for {download['name']} ({size}), which is not on this Mac: "
             f"download it" + (f", or use the installed {' or '.join(instead)} instead" if instead else "")
             + " (Set Up… › Ready)")
 
@@ -443,7 +447,8 @@ def local_models_to_download(runs: list[dict[str, Any]]) -> list[dict[str, Any]]
         entry = out.get(model_id)
         if entry is None:
             out[model_id] = {"runtime": "mlx", "model": model_id, "name": spec.display_name,
-                             "steps": list(run["steps"]), "size_mb": spec.download_size_bytes // 1_000_000,
+                             # A size the Hub did not state is unknown (None), never 0 MB (#5593).
+                             "steps": list(run["steps"]), "size_mb": spec.download_size_bytes // 1_000_000 or None,
                              "action": "model.download", "params": {"runtime": "mlx", "model": model_id},
                              "instead": instead}
         else:
