@@ -397,6 +397,8 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
     from fichero_server.recipes.start import count_pages  # noqa: F401  (the same material Start counts)
 
     row = jobs.read_job(db, job_id)
+    # Said at once: working out each step's pages can take a while on a big project (#5610, #5606).
+    jobs.save_detail(db, job_id, row["detail"] or "{}", reason="Getting ready: working out which pages each step needs")
     detail = json.loads(row["detail"] or "{}")
     started_by = row["started_by"] or "owner"
     from fichero_server.recipes.done import pages_for, split_done
