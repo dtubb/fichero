@@ -134,7 +134,7 @@ final class RecipeRunVisibleTests: XCTestCase {
         let fixes = Dictionary(uniqueKeysWithValues: store.skippedSteps.map { ($0.step, $0.fix) })
         XCTAssertEqual(fixes["check"], .some("allow-cloud"), "a cloud step here: let pages leave this Mac")
         XCTAssertEqual(fixes["nameless"], .some("choose-model"), "a step with no model: choose one")
-        XCTAssertEqual(fixes["groups"], .some(nil), "no card runs it yet: no fix button")
+        XCTAssertEqual(fixes["authorities"], .some(nil), "no card runs it yet: no fix button")
         XCTAssertTrue(store.skippedSteps.allSatisfy { !$0.why.isEmpty }, "each says why")
         XCTAssertEqual(RecipeStepRow.fixTitle("allow-cloud"), "Let pages leave this Mac")
 
@@ -242,7 +242,7 @@ final class RecipeRunVisibleTests: XCTestCase {
         XCTAssertEqual(stage.offer, "Read the 2 pages that failed")
         XCTAssertEqual(stage.threadId, threadId)
         XCTAssertTrue(summary.skipped.contains { $0.id == "check" && $0.hasFix }, "a skipped step with its fix")
-        XCTAssertTrue(summary.skipped.contains { $0.id == "groups" && !$0.hasFix })
+        XCTAssertTrue(summary.skipped.contains { $0.id == "signs" && !$0.hasFix })
 
         let readAgainError = await store.readPagesAgain(runThreadId: stage.threadId)
         XCTAssertNil(readAgainError, "Read Again is the run's own route")
