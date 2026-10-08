@@ -181,21 +181,25 @@ parallel pattern to keep.
   and `generate_heuristic_predictions` reclassified BY-DESIGN, not fixed — its body only reads
   and returns, POST only because its parameters travel in the body).
 
-  **The 9 remaining violations, verified against the live allowlist
-  (`scripts/routes_action_layer_allowlist.json`) rather than assumed from the old count:**
-  `entity_curation.py`'s `refresh_external_authority` and `enrich_import`;
-  `mutations.py::undo_mutation`; `predictions.py::apply_prediction_run`; `pykeen.py`'s `train`,
-  `delete_trained_model`, `verify_prediction`; `rebuild.py`'s `reset_kg`/`rebuild_kg`
-  (destructive).
+  **The 7 remaining violations (re-run 2026-10-08; `enrich_import` moved onto
+  `entity.enrich_import`, `reset_kg` no longer exists).** None is a mechanical wrap, so each
+  waits on a decision, and the allowlist records why:
+  - `rebuild.py::rebuild_kg`, `pykeen.py::train`, `predictions.py::apply_prediction_run` are
+    long synchronous work; inside `registry.invoke` they would hold the library write
+    transaction. They need a job-shaped action.
+  - `pykeen.py`'s `delete_trained_model` and `verify_prediction` write the PyKEEN model store
+    on disk, not the library, and have no library database for the audit row.
+  - `entity_curation.py::refresh_external_authority` is a network fetch plus an upsert of the
+    authority-snapshot cache. Either audit the cache write or call it a cache (by-design).
+  - `mutations.py::undo_mutation` is ruled to retire (2026-10-04). It now serves only rows with
+    no undoable action behind them (`audit.one-operation-has-one-undo`).
 
-  **The 5 by-design routes** (one more than the 4 this behavior first found):
-  `render.py::render_paragraph`, `sparql.py`'s `sparql_query`/`sparql_query_legacy`,
-  `entity_curation.py::enrich_preview` (all as before), plus
-  `predictions.py::generate_heuristic_predictions` (new this pass, see above).
+  **The 5 by-design routes:** `render.py::render_paragraph`, `sparql.py`'s
+  `sparql_query`/`sparql_query_legacy`, `entity_curation.py::enrich_preview`,
+  `predictions.py::generate_heuristic_predictions`.
 
-  This behavior is the guardrail's own home; it stays BROKEN until the guardrail reports zero
-  unallowlisted violations — the count has now shrunk twice (20 → 15 → 9), which is the
-  tracked-debt trend this line exists to hold the fixers to, not a point-in-time snapshot.
+  This behavior is the guardrail's own home. It stays BROKEN until the guardrail reports zero
+  unallowlisted violations. The count has shrunk 20 → 15 → 9 → 7.
   Pinned: `test_check_routes_use_action_layer.py` (unchanged suite, all 13 tests), plus the
   new landings' own tests — `test_review_actions.py`, `test_routes_kg_inclusion.py`,
   `test_action_layer_batch3.py` (`TestClaimEmbedAction`, `TestEntityEmbedAction`,

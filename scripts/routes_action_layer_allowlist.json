@@ -3,14 +3,14 @@
     "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
     "function": "refresh_external_authority",
     "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "reason": "#4831, not mechanical: an async network fetch of external authority records, then an upsert of the AuthoritySnapshot cache; an action would run the fetch inside the write transaction or carry the fetched records as audit params. Needs a decision: audit the cache write, or classify it as a cache (by-design).",
     "issue": 4831
   },
   {
     "file": "fichero-server/src/fichero_server/api/routes/kg/mutations.py",
     "function": "undo_mutation",
     "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "reason": "#4831, not mechanical: ruled 2026-10-04 to retire in favour of the registry's undo; it now serves only MutationLog rows with no undoable action behind them (#4864). Wrapping an undo route in its own action would add a third trail; it goes when those rows have actions.",
     "issue": 4831
   },
   {
@@ -23,35 +23,35 @@
     "file": "fichero-server/src/fichero_server/api/routes/kg/predictions.py",
     "function": "apply_prediction_run",
     "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "reason": "#4831, not mechanical: loads a PyKEEN model and scores every claim before writing links; inside registry.invoke that work would hold the library write transaction. Needs a job-shaped action (a ruling on long-running actions).",
     "issue": 4831
   },
   {
     "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
     "function": "train",
     "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "reason": "#4831, not mechanical: synchronous PyKEEN training (30 s to minutes); inside registry.invoke it would hold the library write transaction. Needs a job-shaped action.",
     "issue": 4831
   },
   {
     "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
     "function": "delete_trained_model",
     "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "reason": "#4831, not mechanical: deletes a model from the PyKEEN inference store on disk; the route has no library database, and adding one changes its OpenAPI operation. Needs a decision on where model-store actions are audited.",
     "issue": 4831
   },
   {
     "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
     "function": "verify_prediction",
     "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "reason": "#4831, not mechanical: writes a StoredPrediction to the PyKEEN inference store, not the library; the route has no library database for the audit row. Same decision as delete_trained_model.",
     "issue": 4831
   },
   {
     "file": "fichero-server/src/fichero_server/api/routes/kg/rebuild.py",
     "function": "rebuild_kg",
     "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "reason": "#4831, not mechanical: rebuilds the derived stores (LanceDB vectors, kg.nt) from canonical rows, synchronously and at length; inside registry.invoke it would hold the write transaction. Canonical rows are not changed. Needs a job-shaped action or a by-design ruling for derived-store rebuilds.",
     "issue": 4831
   },
   {
