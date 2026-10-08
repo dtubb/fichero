@@ -185,18 +185,32 @@ class TestOneOperationHasOneUndo:
         db.save(claim)
 
         ctx = ActionContext(actor="ui", library_path="/lib/test.fichero")
-        registry.invoke(
+        result = registry.invoke(
             db, "entity.delete", {"entity_id": entity.id, "cascade_claims": False}, ctx
         )
         assert db.get(KnowledgeEntity, entity.id) is None
+        from datetime import timedelta
 
-        # The MutationLog row delete_entity_impl ALSO wrote, independent of
-        # the action layer's own ActionAudit.
-        log = next(
-            m
-            for m in db.all(MutationLog)
-            if m.entity_id == entity.id and m.operation == MutationOperationType.delete
+        from fichero_server.models import ActionAudit
+
+        audit = db.get(ActionAudit, result.audit_id)
+
+        # One trail: the action writes NO second MutationLog row any more.
+        assert not [m for m in db.all(MutationLog) if m.entity_id == entity.id]
+
+        # A row an OLDER build wrote alongside the ActionAudit (libraries
+        # carry them) is still refused, never half-restored.
+        log = MutationLog(
+            entity_type="KnowledgeEntity",
+            entity_id=entity.id,
+            operation=MutationOperationType.delete,
+            before_state={"id": entity.id, "canonical_name": "Owned", "entity_type": "person"},
+            after_state=None,
+            created_by="ui",
         )
+        # Older builds wrote the row inside execute(), just before the audit.
+        log.created_at = audit.created_at - timedelta(seconds=1)
+        db.save(log)
 
         with pytest.raises(HTTPException) as excinfo:
             asyncio.run(kg_mutations.undo_mutation(log.id, db=db, actor="someone"))
@@ -285,3 +299,28 @@ class TestOneOperationHasOneUndo:
         restored = db.get(KnowledgeClaim, claim.id)
         assert restored is not None
         assert restored.text == "Orphaned by a document delete."
+
+    @pytest.mark.parametrize("action", ["entity.delete", "claim.delete", "document.batch_exclude"])
+    def test_an_owned_operation_writes_one_trail_not_two(self, db, action):
+        """#4864: each operation the action layer owns writes its
+        ActionAudit and NO second MutationLog row -- one trail, one undo."""
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models import ActionAudit, Document
+
+        if action == "entity.delete":
+            row = KnowledgeEntity(canonical_name="One Trail", entity_type=EntityType.person)
+            params = {"entity_id": row.id}
+        elif action == "claim.delete":
+            row = KnowledgeClaim(text="One trail.", source_document_id="doc-1")
+            params = {"claim_id": row.id}
+        else:
+            row = Document(name="One trail")
+            params = {"document_ids": [row.id], "excluded": True}
+        db.save(row)
+        before_logs = len(db.all(MutationLog))
+
+        ctx = ActionContext(actor="ui", library_path="/lib/test.fichero")
+        result = registry.invoke(db, action, params, ctx)
+
+        assert db.get(ActionAudit, result.audit_id) is not None
+        assert len(db.all(MutationLog)) == before_logs

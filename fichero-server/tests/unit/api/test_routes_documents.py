@@ -1270,14 +1270,10 @@ class TestBatchExcludeDocuments:
         assert refreshed_a is not None and refreshed_a.exclude_from_processing is True
         assert refreshed_b is not None and refreshed_b.exclude_from_processing is True
 
-        logs = [
-            m
-            for m in db.query(MutationLog)
-            if m.entity_type == "Document" and m.entity_id in {doc_a.id, doc_b.id}
+        # #4864: one trail -- the action's ActionAudit, no MutationLog row.
+        assert not [
+            m for m in db.query(MutationLog) if m.entity_id in {doc_a.id, doc_b.id}
         ]
-        assert len(logs) == 2
-        assert all(m.changed_fields == ["exclude_from_processing"] for m in logs)
-        assert all(m.after_state["exclude_from_processing"] is True for m in logs)
 
     def test_batch_exclude_deduplicates_and_skips_blank_ids(self, client, db):
         doc = _make_doc(db, "Doc A")
@@ -1296,9 +1292,6 @@ class TestBatchExcludeDocuments:
         assert payload["updated"] == 1
         assert payload["document_ids"] == [doc.id]
         assert db.get(Document, doc.id).exclude_from_processing is True
-
-        logs = [m for m in db.query(MutationLog) if m.entity_id == doc.id]
-        assert len(logs) == 1
 
     def test_batch_exclude_search_scope_sets_only_the_search_flag(self, client, db):
         """#4580: scope=search toggles exclude_from_search and leaves
@@ -1319,8 +1312,6 @@ class TestBatchExcludeDocuments:
         refreshed = db.get(Document, doc.id)
         assert refreshed.exclude_from_search is True
         assert refreshed.exclude_from_processing is False
-        logs = [m for m in db.query(MutationLog) if m.entity_id == doc.id]
-        assert logs and logs[-1].changed_fields == ["exclude_from_search"]
 
     def test_search_excluded_document_never_returns_and_never_embeds(self, client, db):
         """#4580 end to end at the db layer: the one active-document gate all

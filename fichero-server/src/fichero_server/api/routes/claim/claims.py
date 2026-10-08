@@ -732,9 +732,14 @@ def record_claim_delete_rule(db: Database, claim: KnowledgeClaim, actor: str) ->
 
 
 def delete_claim_impl(
-    db: Database, claim_id: str, actor: str
+    db: Database, claim_id: str, actor: str, *, write_mutation_log: bool = True
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
     """Hard-delete a claim + its orphaning links.
+
+    ``write_mutation_log``: #4864 (audit.one-operation-has-one-undo) -- the
+    registered ``claim.delete`` action passes False (its ActionAudit is the
+    one trail, ``claim.restore`` the one undo); the NLP-draft purge, with no
+    undoable action behind it, keeps the older ``MutationLog`` row.
 
     Returns ``(claim_before, deleted_link_snapshots, affected_entity_ids)`` so
     the caller can emit + so the audited action can invert to ``claim.restore``.
@@ -746,6 +751,9 @@ def delete_claim_impl(
     affected_entity_ids = list(claim.entity_ids or [])
     deleted_links = _delete_claim_links_for_claim(db, claim_id)
     db.delete(claim)
+
+    if not write_mutation_log:
+        return before_state, deleted_links, affected_entity_ids
 
     # Mutation log row for undo. (#901)
     try:
@@ -1477,7 +1485,7 @@ def _action_delete_claim(
         if existing is not None:
             rule_ids = record_claim_delete_rule(db, existing, ctx.actor)
     before_state, deleted_links, affected_entity_ids = delete_claim_impl(
-        db, params.claim_id, ctx.actor
+        db, params.claim_id, ctx.actor, write_mutation_log=False
     )
     spec = ChangeSpec(
         domains=["claim"],

@@ -124,8 +124,8 @@ parallel pattern to keep.
   Pinned:
   `test_action_registry.py::TestEntityMergeAction::test_undo_reverses_merge`,
   `::test_unmerge_undo_remerges_same_entities`.
-- `audit.one-operation-has-one-undo` — **[BROKEN]** (#4864) one operation has ONE undo, and
-  every undo of it gives the SAME result. Today an entity delete writes two trails.
+- `audit.one-operation-has-one-undo` — **[OK]** (#4864) one operation has ONE undo, and
+  every undo of it gives the SAME result. Before #4864 an entity delete wrote two trails.
   `delete_entity_impl` is reached through the registered, undoable `entity.delete` action,
   whose inverse `entity.restore` brings back the entity AND its claims' snapshot; the same
   function also writes a plain `MutationLog` row on every call, which feeds the older `POST
@@ -139,9 +139,16 @@ parallel pattern to keep.
   and can invert, it refuses with an error that names the action-layer undo, rather than
   restoring half the state; a refusal is loud and loses nothing, a partial restore is silent
   and corrupts curated links. Every other `MutationLog` writer is audited for the same
-  duplication before the narrowing is called complete. Second, open (see Open questions):
-  whether the older route then retires, or becomes a thin caller of the registry's undo, and
-  when the second trail stops being written.
+  duplication before the narrowing is called complete. Second (ruled 2026-10-04, see Open
+  questions): the second trail stops being written for those operations. **Built:** the three
+  registered, undoable actions that wrote a duplicate row — `entity.delete`, `claim.delete`,
+  `document.batch_exclude` — now write their `ActionAudit` and NO `MutationLog` row
+  (`delete_entity_impl`/`delete_claim_impl` take `write_mutation_log=False` from the action;
+  `batch_exclude_documents_impl` no longer writes one). The older route stays only for rows
+  with no undoable action behind them (the document-delete cascade, the NLP-draft purge, the
+  two non-undoable curation batch actions, migrations) and still refuses an owned row an older
+  build already wrote. Pinned: `test_mutations.py::TestOneOperationHasOneUndo` (incl.
+  `::test_an_owned_operation_writes_one_trail_not_two`, one case per action).
 - `audit.action-record-not-best-effort` — **[PARTIAL]** (#4845) the `ActionAudit` write happens
   inside the same transaction as the mutation and is NOT best-effort — if the audit write
   fails, the whole action fails (`registry.py:220-233`). The change-stream broadcast that
