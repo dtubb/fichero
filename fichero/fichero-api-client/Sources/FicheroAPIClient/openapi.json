@@ -4720,6 +4720,79 @@
         }
       }
     },
+    "/api/segments/{segment_id}/correct": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Correct Segment Line",
+        "description": "Correct a line: the segment and its new text, nothing more (#5499, `source.reading.correct-a-line`).\n\nOne `representation.create` -- the action every correction is -- with the document, the reading it\ncorrects (the one that counts now, or the artifact text a provisional one still lives in) and the\ncompare-and-set worked out here. Audited and undoable as that action is; who corrected it is the caller,\nso a person's correction is a person's reading and counts over a machine's.",
+        "operationId": "correct_segment_line_api_segments__segment_id__correct_post",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineCorrectionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentRepresentation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{document_id}/text": {
       "get": {
         "tags": [
@@ -67067,6 +67140,34 @@
         ],
         "title": "LibraryStatsResponse",
         "description": "Response from ``GET /api/stats`` for the active library."
+      },
+      "LineCorrectionBody": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Text",
+            "description": "The line's corrected text."
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "The kind of reading corrected.",
+            "default": "transcription"
+          },
+          "expected_counting_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Expected Counting Id",
+            "description": "The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "LineCorrectionBody"
       },
       "LinkListResponse": {
         "properties": {

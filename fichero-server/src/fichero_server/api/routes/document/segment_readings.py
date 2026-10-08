@@ -754,6 +754,59 @@ async def choose_segment_reading(
     return result.result
 
 
+class LineCorrectionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1, description="The line's corrected text.")
+    kind: str = Field("transcription", description="The kind of reading corrected.")
+    expected_counting_id: Optional[str] = Field(None, description=(
+        "The reading that counted when you read the line. When another counts now, the correction is "
+        "refused (409, naming it) and nothing is written. Unset: the one that counts now."))
+
+
+@router.post("/{segment_id}/correct", response_model=ContentRepresentation)
+async def correct_segment_line(
+    segment_id: str,
+    payload: LineCorrectionBody,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ContentRepresentation:
+    """Correct a line: the segment and its new text, nothing more (#5499, `source.reading.correct-a-line`).
+
+    One `representation.create` -- the action every correction is -- with the document, the reading it
+    corrects (the one that counts now, or the artifact text a provisional one still lives in) and the
+    compare-and-set worked out here. Audited and undoable as that action is; who corrected it is the caller,
+    so a person's correction is a person's reading and counts over a machine's."""
+    from fichero_server.api.routes.document.content_representations import _live_segment  # noqa: PLC0415
+
+    try:
+        segment = _live_segment(db, segment_id)  # a provisional id refused, a merged-away one followed
+        segment_id = segment.id
+        items = readings_of_segment(db, segment_id)
+        current = counting_by_kind(db, segment_id, items).get(payload.kind)
+        counting_id = current.representation_id if current is not None else None
+        counted = next((item for item in items if item.id == counting_id), None)
+        params: dict[str, Any] = {
+            "document_id": segment.document_id,
+            "segment_id": segment_id,
+            "kind": payload.kind,
+            "content": payload.text,
+            "expected_counting_id": payload.expected_counting_id or counting_id,
+        }
+        if counted is not None and counted.provisional:
+            params["derived_from_artifact_id"] = counted.derived_from_artifact_id
+        elif counted is not None:
+            params["corrects_representation_id"] = counted.id
+        if params["expected_counting_id"] is None:
+            params.pop("expected_counting_id")
+        result = registry.invoke(db, "representation.create", params, ctx)
+    except HTTPException:
+        raise  # the stale 409 carries its own detail
+    except Exception as exc:
+        raise _as_http_error(exc) from exc
+    return ContentRepresentation.model_validate(result.result)
+
+
 # ===========================================================================
 # A page's text is WORKED OUT (`source.point.text-is-derived`)
 #

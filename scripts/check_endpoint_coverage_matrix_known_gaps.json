@@ -227,6 +227,7 @@
   "POST /api/segments/passes": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/segments/split": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/segments/undelete": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
+  "POST /api/segments/{segment_id}/correct": "the one-verb line correction for the CLI and MCP (#5499); the app's Reader writes the same representation.create through POST /api/content-representations",
   "POST /api/segments/{segment_id}/readings/choice": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/segments/{segment_id}/restore-version": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/settings/ai-defaults/repair": "no Swift call for the /api/settings/* family (6 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",

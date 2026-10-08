@@ -10352,6 +10352,18 @@
         "response_model": "SegmentRead"
       },
       {
+        "method": "POST",
+        "path": "/segments/{segment_id}/correct",
+        "operation_id": "correct_segment_line_api_segments__segment_id__correct_post",
+        "summary": "Correct Segment Line",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": "LineCorrectionBody",
+        "response_model": "ContentRepresentation"
+      },
+      {
         "method": "GET",
         "path": "/segments/{segment_id}/picture",
         "operation_id": "get_segment_picture_api_segments__segment_id__picture_get",

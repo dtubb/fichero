@@ -996,6 +996,17 @@ another, scored by Fichero's CER definition under each normalisation policy aske
   reading of somewhere else is a mistake worth a sentence rather than a silent
   write.
 
+`POST /api/segments/{segment_id}/correct`
+
+- Corrects a line: `{"text": "..."}`, with `kind` (default `transcription`) and
+  `expected_counting_id` optional. The engine fills in the document, the reading
+  corrected (the one counting now, or the file text a provisional reading still
+  lives in) and the compare-and-set, and writes one `representation.create`, so
+  the correction is audited and undone as every correction is (#5499).
+- `409` (nothing written) when another reading counts than `expected_counting_id`,
+  naming it and its text; `404` for no such segment; `422` for a provisional id
+  or empty text. Returns the new reading.
+
 ### A page's derived text
 
 `GET /api/segments/document/{document_id}/text`

@@ -7206,6 +7206,17 @@ def fichero_segments_update(
     return _rt.call("PUT", f"/api/segments/{segment_id}", json=_rt.body({"anchor": anchor, "baseline": baseline, "direction": direction, "expected_version": expected_version, "is_furniture": is_furniture, "kind": kind, "kind_raw": kind_raw, "language": language, "parent_segment_id": parent_segment_id, "script": script, "segment_id": segment_id_2}))
 
 
+def fichero_segments_correct_line(
+    *,
+    segment_id: Annotated[str, Field(description='Segment Id')],
+    expected_counting_id: Annotated[Optional[str], Field(description='The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now.')] = None,
+    kind: Annotated[Optional[str], Field(description='The kind of reading corrected. Default: "transcription".')] = None,
+    text: Annotated[str, Field(description="The line's corrected text.")],
+) -> Any:
+    "Correct Segment Line\n\nCorrect a line: the segment and its new text, nothing more (#5499, `source.reading.correct-a-line`).\n\nOne `representation.create` -- the action every correction is -- with the document, the reading it\ncorrects (the one that counts now, or the artifact text a provisional one still lives in) and the\ncompare-and-set worked out here. Audited and undoable as that action is; who corrected it is the caller,\nso a person's correction is a person's reading and counts over a machine's.\n\nRoute: POST /api/segments/{segment_id}/correct (toolset `segments`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/segments/{segment_id}/correct", json=_rt.body({"expected_counting_id": expected_counting_id, "kind": kind, "text": text}))
+
+
 def fichero_segments_get_picture(
     *,
     segment_id: Annotated[str, Field(description='Segment Id')],
@@ -9232,6 +9243,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_undelete", "segments", "POST", "/api/segments/undelete", fichero_segments_undelete),
     GeneratedTool("fichero_segments_get", "segments", "GET", "/api/segments/{segment_id}", fichero_segments_get),
     GeneratedTool("fichero_segments_update", "segments", "PUT", "/api/segments/{segment_id}", fichero_segments_update),
+    GeneratedTool("fichero_segments_correct_line", "segments", "POST", "/api/segments/{segment_id}/correct", fichero_segments_correct_line),
     GeneratedTool("fichero_segments_get_picture", "segments", "GET", "/api/segments/{segment_id}/picture", fichero_segments_get_picture),
     GeneratedTool("fichero_segments_list_readings", "segments", "GET", "/api/segments/{segment_id}/readings", fichero_segments_list_readings),
     GeneratedTool("fichero_segments_choose_reading", "segments", "POST", "/api/segments/{segment_id}/readings/choice", fichero_segments_choose_reading),

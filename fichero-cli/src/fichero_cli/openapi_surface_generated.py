@@ -15233,6 +15233,30 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("correct-line")
+    def segments_correct_line_post(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help='Segment Id'),
+        expected_counting_id: Optional[str] = typer.Option(None, '--expected-counting-id', help='The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now.'),
+        kind: Optional[str] = typer.Option(None, '--kind', help='The kind of reading corrected. Default: "transcription".'),
+        text: str = typer.Option(..., '--text', help="The line's corrected text."),
+    ) -> None:
+        """Correct Segment Line (POST /api/segments/{segment_id}/correct)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/correct"
+            params = None
+            payload = _build_json_payload({
+                "expected_counting_id": expected_counting_id,
+                "kind": kind,
+                "text": text,
+            }, {
+                "expected_counting_id": {'type': 'string', 'nullable': True, 'title': 'Expected Counting Id', 'description': 'The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now.', 'x-cli-required': False},
+                "kind": {'type': 'string', 'title': 'Kind', 'description': 'The kind of reading corrected.', 'default': 'transcription', 'x-cli-required': False},
+                "text": {'type': 'string', 'minLength': 1, 'title': 'Text', 'description': "The line's corrected text.", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("a-s-picture-cut-to-its-shape", hidden=True)
     @target_app.command("get-picture")
     def segments_get_picture_get(
