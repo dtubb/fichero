@@ -87,6 +87,18 @@ mind-palace routes, renamed to `/api/canvas`), and more.
   (chain defaults overlaid with the node's own `attributes`). Unresolvable
   prototypes return `422`, never partial data.
 
+`POST /api/documents/{doc_id}/proposed-kind/accept` and `POST /api/documents/{doc_id}/proposed-kind/reject`
+
+- Purpose: answer the kind a run proposed for a node (#5600, ruled 2026-10-08:
+  a run proposes, a person decides). `GET /api/documents/{doc_id}` shows the
+  pending proposal at `metadata.proposed_attributes.prototype` with its
+  evidence (run, artifact, model, what it said). Accept assigns the prototype
+  through `document.assign_prototype`, with the run as source and the person as
+  `accepted_by`; reject (`document.reject_proposed_kind`) keeps the proposal
+  marked rejected, so the same kind is not proposed again. Both are audited, and
+  undo puts the proposal back as waiting. Answer:
+  `{document_id, prototype_key, state, audit_id}`.
+
 `GET /api/classifications/resolved/{key}`
 
 - Purpose: one prototype's chain-merged declarations and defaults — the
