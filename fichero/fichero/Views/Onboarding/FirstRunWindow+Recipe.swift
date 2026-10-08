@@ -64,7 +64,8 @@ extension FirstRunWindow {
                         store: store,
                         onFix: { fix in handle(fix: fix, store: store) },
                         bakeoff: project.map(BakeoffSection.Context.init(project:)),
-                        keptExports: project?.keptExportStore
+                        keptExports: project?.keptExportStore,
+                        project: project
                     )
                 }
             }

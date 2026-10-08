@@ -15,6 +15,17 @@ struct RecipeStepsView: View {
     var onFix: ((String) -> Void)?
     /// Check on your pages, shown under the reading step (#4951); nil where there is no project.
     var bakeoff: BakeoffSection.Context?
+    /// The project whose model finder opens beside a reading step's model in setup (#5611,
+    /// `source.find.app-finder-three-hosts`); nil where there is no project, or in the Inspector.
+    var finder: LibraryManager.LibraryReference?
+
+    @State private var findingFor: FinderStep?
+
+    /// The step Find a Reader… was pressed beside.
+    struct FinderStep: Identifiable {
+        let id: String
+        let job: String
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -27,6 +38,11 @@ struct RecipeStepsView: View {
                 RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil),
                               explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,
                               onFix: onFix)
+                if onFix != nil, finder != nil, ModelFinderStore.readerJobs.contains(step.job) {
+                    Button("Find a Reader…") { findingFor = FinderStep(id: step.id, job: step.job) }
+                        .controlSize(.small)
+                        .help("The readers for this project's scripts and languages, and where to get them")
+                }
                 if step.job == BakeoffStore.step, let bakeoff {
                     BakeoffSection(context: bakeoff, setup: store)
                 }
@@ -40,6 +56,42 @@ struct RecipeStepsView: View {
                 }
             }
         }
+        .sheet(item: $findingFor) { step in
+            if let finder {
+                ModelFinderSheet(project: finder, setup: store, step: step) { findingFor = nil }
+            }
+        }
+    }
+}
+
+/// Set Up… › Ready's model finder for one reading step (#5611): the finder for the step's job, the
+/// project's scripts and languages and its first material, with Use for This Step where the plan
+/// offers an installed reader instead of the step's download.
+struct ModelFinderSheet: View {
+    let project: LibraryManager.LibraryReference
+    let setup: RecipeSetupStore
+    let step: RecipeStepsView.FinderStep
+    let onDone: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Find a Reader for \(setup.title(ofStepId: step.id))").font(.headline)
+            ScrollView {
+                ModelFinderView(
+                    store: project.modelFinderStore,
+                    query: .init(job: step.job, scripts: setup.scripts, languages: setup.languages,
+                                 material: setup.materials.first ?? "handwriting"),
+                    activity: project.activityStore,
+                    step: .init(id: step.id, setup: setup)
+                )
+            }
+            HStack {
+                Spacer()
+                Button("Done", action: onDone).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding()
+        .frame(minWidth: 480, minHeight: 420)
     }
 }
 

@@ -88,6 +88,8 @@ struct RecipeProposalFields: View {
     @Bindable var store: RecipeSetupStore
     /// A step problem's fix was pressed (its `fix`: download, choose-cloud, choose-model, …).
     let onFix: (String) -> Void
+    /// The project whose model finder opens beside a reading step (#5611); nil without a project.
+    var project: LibraryManager.LibraryReference?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -97,7 +99,7 @@ struct RecipeProposalFields: View {
             if store.isAssembling {
                 ProgressView()
             } else if let recipe = store.recipe {
-                RecipeStepsView(store: store, recipe: recipe, onFix: onFix)
+                RecipeStepsView(store: store, recipe: recipe, onFix: onFix, finder: project)
                 RecipeCloudQuestion(store: store)
             } else if !store.canAssemble {
                 Text("Add at least one language and one script under Your Material.")
@@ -291,6 +293,8 @@ struct RecipeReadyFields: View {
     var bakeoff: BakeoffSection.Context?
     /// The project's kept exports (Keep an export); nil without a project.
     var keptExports: KeptExportStore?
+    /// The project whose model finder opens beside a reading step (#5611); nil without a project.
+    var project: LibraryManager.LibraryReference?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -317,7 +321,7 @@ struct RecipeReadyFields: View {
     private func content(_ row: Row) -> some View {
         switch row {
         case .plan:
-            RecipeProposalFields(store: store, onFix: onFix)
+            RecipeProposalFields(store: store, onFix: onFix, project: project)
             RecipeStartFields(store: store, onFix: onFix)
         case .runsByItself:
             RecipeAutomaticFields(store: store)

@@ -5,7 +5,6 @@
   "POST /api/training/models/make-global": "Make Global (#5539): engine, CLI and MCP (fichero_training_make_trained_model_global) first; the app's Use in All Projects command on the model node is not built yet",
   "POST /api/training/kraken/here": "training on this Mac (#5397): engine, CLI and MCP (fichero_train_kraken_here) first; the app's Train a Reader sheet is not built yet",
   "GET /api/recipes/routes": "engine half of setup's routes for the volume; the app's Ready step shows them next (#4951)",
-  "GET /api/recipes/candidates": "model discovery (#5519): engine, CLI and MCP first; setup's and the Inspector's model finder that shows these candidates as cards is the app half, not built yet",
   "GET /api/settings/compute": "the Settings pane for compute priority and device is not built yet; read by Kraken now and by the job model next",
   "PUT /api/settings/compute": "the Settings pane for compute priority and device is not built yet; set from the CLI or MCP meanwhile",
   "PUT /api/activity/jobs/paused": "engine and CLI only: Pause Background Work has no Mac control yet; the Activity window's toolbar gets it (#5355)",

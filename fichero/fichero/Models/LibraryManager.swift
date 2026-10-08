@@ -194,6 +194,11 @@ class LibraryManager {
         /// Inspector, it runs as a job in Activity and is read back from here by both.
         @ObservationIgnored lazy var bakeoffStore = BakeoffStore(client: ficheroClient)
 
+        /// This project's model finder (#5611): the reader candidates the engine gathers, shown in the
+        /// project's Inspector, Set Up… › Ready and Settings › AI; its online search is this project's
+        /// `find-models` job, followed through `activityStore`.
+        @ObservationIgnored lazy var modelFinderStore = ModelFinderStore(client: ficheroClient)
+
         /// This project's synced folders (#5480, #4952): setup's Index ties a folder here, and a
         /// folder's Inspector shows its state, intake and Untie from here.
         @ObservationIgnored lazy var syncFolderStore = SyncFolderStore(client: ficheroClient)
