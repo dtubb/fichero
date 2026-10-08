@@ -121,6 +121,151 @@ class EleventySiteExportResult:
 ExportGranularity = Literal["page", "expediente-folder", "box-collection"]
 
 
+# ── The record, read once for every writer (#5603, `source.extract.exported`) ──────────────────────
+#
+# The record stream, TEI and the W3C annotation page read a mention, a claim's anchor and a document's
+# date, attributes and readings through these helpers, so the three exports cannot disagree about where
+# a name stands or who found it. Each reads the record where it lives today; none keeps a copy.
+
+
+_ANCHOR_COLUMNS = {"segment_id": None, "reading_id": None, "segment_char_start": None, "segment_char_end": None}
+
+
+def anchor_columns(anchor: Any) -> dict[str, Any]:
+    """Where a record rests on its line, flat: the segment, the reading its span was measured on, and the
+    span within that reading. All None when the anchor names no segment (a span on the page text only)."""
+    on_segment = anchor is not None and getattr(anchor, "segment_id", None)
+    return {
+        "segment_id": anchor.segment_id if on_segment else None,
+        "reading_id": anchor.representation_id if on_segment else None,
+        "segment_char_start": anchor.char_start if on_segment else None,
+        "segment_char_end": anchor.char_end if on_segment else None,
+    }
+
+
+def _made_by(attribution_chain: list[Any]) -> dict[str, Any] | None:
+    """Who put a record in the graph, from its attribution chain: the newest run (`extractor`, its
+    provider, model and run id) or person (`editor`). None when nothing says."""
+    for step in reversed(attribution_chain or []):
+        role = getattr(step.role, "value", step.role)
+        extra = step.model_extra or {}
+        if role == "extractor":
+            return {"by": "machine", "provider": step.name, "model": step.label, "run_id": extra.get("run_id")}
+        if role == "editor":
+            return {"by": "person", "name": step.name}
+    return None
+
+
+def record_mentions(db: Database, document_ids: Iterable[str]) -> list[dict[str, Any]]:
+    """Every mention of an entity on these documents (`source.extract.names-as-mentions`): each supporting
+    source the entity has on the page, with its span in the page text, the line and reading it stands on
+    when the page is tied, and why it has no place when it has none. Merged-away entities are left out:
+    their names live on the entity they were merged into."""
+    wanted = set(document_ids)
+    out: list[dict[str, Any]] = []
+    if not wanted:
+        return out
+    for entity in db.all(KnowledgeEntity):
+        if entity.merged_into_id:
+            continue
+        made_by = _made_by(entity.attribution_chain)
+        for support in entity.source_supports:
+            if support.source_document_id not in wanted:
+                continue
+            extra = support.model_extra or {}
+            start, end = support.source_char_start, support.source_char_end
+            where = f"{start}-{end}" if start is not None else "unanchored"
+            out.append({
+                "mention_id": f"{entity.id}@{support.source_document_id}:{where}",
+                "entity_id": entity.id,
+                "entity_type": entity.entity_type.value,
+                "canonical_name": entity.canonical_name,
+                "document_id": support.source_document_id,
+                "page_label": support.source_page_label,
+                "excerpt": support.source_excerpt,
+                "char_start": start,
+                "char_end": end,
+                **anchor_columns(support.source_anchor),
+                "unanchored_reason": extra.get("mention_unanchored_reason"),
+                "support_basis": getattr(support.support_basis, "value", support.support_basis),
+                "made_by": made_by,
+            })
+    out.sort(key=lambda m: (m["document_id"], m["char_start"] is None, m["char_start"] or 0, m["entity_id"]))
+    return out
+
+
+def claim_record_columns(claim: KnowledgeClaim) -> dict[str, Any]:
+    """A claim's place and date, flat: its span in the page text, its line and reading, the date it
+    states (a date claim's words as written and normalised, its time scope), and who made it."""
+    meta = claim.metadata or {}
+    return {
+        "source_char_start": claim.source_char_start,
+        "source_char_end": claim.source_char_end,
+        **anchor_columns(claim.source_anchor),
+        "date_text": meta.get("date_text"),
+        "date_normalized": meta.get("date_normalized") or None,
+        "time_start": claim.time_start,
+        "time_end": claim.time_end,
+        "time_precision": claim.time_precision,
+        "quotation_kind": getattr(claim.quotation_kind, "value", claim.quotation_kind),
+        "speaker_entity_id": claim.speaker_entity_id,
+        "provider": claim.provider,
+        "model": claim.model,
+    }
+
+
+def document_record_columns(db: Database, doc: Document) -> dict[str, Any]:
+    """A document's date (its date columns, the one place it lives, `work-out-dates`), its prototype, its
+    attribute values with who set each (`metadata.attribute_sources`, #5600), and its own readings by kind
+    (a description, a translation, a regest ... made of the whole page, #5599). A line's readings are the
+    page's text and its lines, not repeated here."""
+    from fichero_server.models import ContentRepresentation
+
+    date_meta = doc.date_meta or {}
+    sources = (doc.metadata or {}).get("attribute_sources") or {}
+    attributes = doc.attributes or {}
+    attribute_values = []
+    for key in sorted({*attributes, *sources}):
+        if key == "prototype":
+            value: Any = doc.prototype_key
+        else:
+            value = attributes.get(key)
+        source = sources.get(key) or {}
+        attribute_values.append({
+            "key": key,
+            "value": value if isinstance(value, str) or value is None else json.dumps(value, ensure_ascii=False),
+            "by": source.get("by"),
+            "tool": source.get("tool"),
+            "run_id": source.get("run_id"),
+            "provider": source.get("provider"),
+            "model": source.get("model"),
+            "cites": json.dumps(source["cites"], ensure_ascii=False) if source.get("cites") else None,
+        })
+    readings = sorted(
+        (r for r in db.query(ContentRepresentation, document_id=doc.id)
+         if r.segment_id is None and r.retracted_at is None),
+        key=lambda r: (r.kind, r.created_at),
+    )
+    return {
+        "date_original": doc.date_original,
+        "date_jdn": doc.date_jdn,
+        "date_jdn_end": doc.date_jdn_end,
+        "date_status": date_meta.get("status"),
+        "date_display": date_meta.get("display"),
+        "date_precision": date_meta.get("precision"),
+        "date_source": date_meta.get("source"),
+        "prototype": doc.prototype_key,
+        "attributes": attributes,
+        "attribute_values": attribute_values,
+        "readings": [
+            {"reading_id": r.id, "kind": r.kind, "content": r.content, "language": r.language,
+             "producer_tool": r.producer_tool, "producer_model": r.producer_model,
+             "producer_run_id": r.producer_run_id, "created_by": r.created_by}
+            for r in readings
+        ],
+    }
+
+
 def iter_export_records(
     db: Database,
     target_id: str | None = None,
@@ -153,6 +298,7 @@ def iter_export_records(
             "metadata": doc.metadata,
             "provenance_chain": doc.provenance_chain,
             "workflow_runs": doc.workflow_runs,
+            **document_record_columns(db, doc),
         }
 
     entities, claims = _knowledge_graph_rows(
@@ -211,6 +357,26 @@ def iter_export_records(
                 "source_document_id": claim.source_document_id,
                 "source_page_label": claim.source_page_label,
                 "source_excerpt": claim.source_excerpt,
+                **claim_record_columns(claim),
+            }
+
+    # Each name where the page writes it (#5603): one record per mention, in its document's scope.
+    for mention in record_mentions(db, doc_ids):
+        for scope in _knowledge_scope_records(
+            [mention["document_id"]],
+            by_id,
+            root_id,
+            granularity,
+            allowed_doc_ids=doc_ids,
+            page_label=mention["page_label"],
+        ):
+            yield {
+                "record_type": "mention",
+                "granularity": granularity,
+                **scope,
+                "id": mention["mention_id"],
+                "metadata": None,
+                **mention,
             }
 
 
@@ -1326,7 +1492,7 @@ def export_jsonl(
         raise FileExistsError(f"Export file already exists: {output_file}")
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    counts = {"document": 0, "entity": 0, "claim": 0}
+    counts = {"document": 0, "entity": 0, "claim": 0, "mention": 0}
     with output_file.open("w", encoding="utf-8") as export_file:
         for record in iter_export_records(db, target_id=target_id, recursive=recursive):
             export_file.write(json.dumps(record, ensure_ascii=False, default=str))
@@ -1357,7 +1523,7 @@ def export_parquet(
         )
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    records_by_type = {"document": [], "entity": [], "claim": []}
+    records_by_type = {"document": [], "entity": [], "claim": [], "mention": []}
     for record in iter_export_records(db, target_id=target_id, recursive=recursive):
         records_by_type[record["record_type"]].append(record)
 
@@ -1367,6 +1533,7 @@ def export_parquet(
             "document": "documents",
             "entity": "entities",
             "claim": "claims",
+            "mention": "mentions",
         }.items()
     }
     for record_type, records in records_by_type.items():
@@ -1444,6 +1611,17 @@ def _write_parquet_records(
             "page_content": None,
             "provenance_chain": None,
             "workflow_runs": None,
+            "date_original": None,
+            "date_jdn": None,
+            "date_jdn_end": None,
+            "date_status": None,
+            "date_display": None,
+            "date_precision": None,
+            "date_source": None,
+            "prototype": None,
+            "attributes": None,
+            "attribute_values": None,
+            "readings": None,
         },
         "entity": {
             **common_fields,
@@ -1467,6 +1645,35 @@ def _write_parquet_records(
             "source_document_id": None,
             "source_page_label": None,
             "source_excerpt": None,
+            **_ANCHOR_COLUMNS,
+            "source_char_start": None,
+            "source_char_end": None,
+            "date_text": None,
+            "date_normalized": None,
+            "time_start": None,
+            "time_end": None,
+            "time_precision": None,
+            "quotation_kind": None,
+            "speaker_entity_id": None,
+            "provider": None,
+            "model": None,
+        },
+        "mention": {
+            **common_fields,
+            "record_type": "mention",
+            "mention_id": None,
+            "entity_id": None,
+            "entity_type": None,
+            "canonical_name": None,
+            "document_id": None,
+            "page_label": None,
+            "excerpt": None,
+            "char_start": None,
+            "char_end": None,
+            **_ANCHOR_COLUMNS,
+            "unanchored_reason": None,
+            "support_basis": None,
+            "made_by": None,
         },
     }
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", encoding="utf-8") as source:

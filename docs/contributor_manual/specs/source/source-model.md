@@ -537,13 +537,37 @@ level it was made for.
   shows the correction at once because none holds a copy.
 - `source.extract.search-reads-the-record` — **[BROKEN]** (#5597) a scoped search (`people:`,
   `places:`…) reads entities and mentions and lands on the segment, not on artifact JSON and a page.
-- `source.extract.exported` — **[GAP]** (#5490; #5603) the record stream carries dates,
+- `source.extract.exported` — **[PARTIAL]** (#5490; #5603) the record stream carries dates,
   prototypes, attributes with their citations, mentions with their spans, and claims with their
   anchors; TEI writes names and dates inline in the lines; W3C/IIIF writes mentions and statements as
-  annotations with segment and text selectors.
+  annotations with segment and text selectors. *Built (#5603): one reader per record in
+  `export_service` (`record_mentions`, `claim_record_columns`, `document_record_columns`,
+  `anchor_columns`) that the stream, TEI and the annotation page all use. The stream (JSON Lines and
+  Parquet, now with `mentions.parquet`) gives each document its date columns (`date_original`,
+  `date_jdn`/`_end`, status, display, precision, source), its `prototype`, `attribute_values` with who set
+  each (`metadata.attribute_sources`: by, tool, run, model, cites) and its own readings by kind (not a
+  line's); each mention its entity, span in the page text, line (`segment_id`), reading (`reading_id`),
+  span in that reading, unanchored reason and the run that found it; each claim the same anchor columns,
+  its date (`date_text`, `date_normalized`, time scope), quotation kind, speaker, provider and model.
+  TEI (`page_export._record_on_lines`, `formats/tei.RECORD_MARKS`) writes a mention as
+  `persName`/`placeName`/`orgName` (other types `rs type`) with `@ref="fichero:entity:<id>"`, and a date
+  claim's words as `<date when>` inside its statement's span, only on the reading the span was measured
+  on (or one with the same words there); a line written as words or rival readings says so in the loss
+  report. `GET /api/documents/{id}/annotations.jsonld` adds each anchored mention (`identifying`, body the
+  entity) and each claim on the page (`describing`, its date as a `tagging` body), the target the line
+  with `TextPositionSelector` + `TextQuoteSelector` (and the reading), else the page with the words, the
+  `creator` the run's model (`Software`, `fichero:run:<id>`). Pinned by
+  `fichero-server/tests/unit/core/test_export_reads_the_record.py` (4 tests, through
+  `POST /api/export/parquet`, `GET /api/documents/{id}/export/tei` and the annotation page). Not built:
+  the IIIF manifest's own annotation lists, entity records naming their mentions in RDF, names on a line
+  held as words, attribute values citing a span (no writer cites one yet, `attributes-cite`), and dates
+  as mentions (`date-on-its-heading`): a document's date is exported from its columns.*
 - `source.extract.views-read-the-record` — **[PARTIAL]** (#5603) the time view, the map, the
   table view and the dataset grid read the same records (date mentions, place entities, logical units,
-  attribute values); the catalogue's markdown timeline is retired into the time view.
+  attribute values); the catalogue's markdown timeline is retired into the time view. *Not changed by
+  #5603's first slice: the time view already reads the document's date columns (the one place a
+  document's date lives today), and the map reads `metadata.geo_points`, a copy; moving it onto place
+  entities is `places-one-home` (#5597), not a few lines.*
 - `source.extract.run-on-any-level` — **[PARTIAL]** (#4949; #5604) *Built: documents, a folder,
   a collection, and a region node with its own crop.* A run's selection can also be a set of segments
   at any level (regions, lines, words, signs), a group of documents (a case), or a logical unit; the

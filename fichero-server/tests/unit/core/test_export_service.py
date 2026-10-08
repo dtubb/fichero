@@ -98,6 +98,22 @@ def test_iter_export_records_page_granularity_carries_document_provenance(db):
             "source_document_id": page.id,
             "source_page_label": "1r",
             "source_excerpt": "Pedro signed",
+            # Its place and date (#5603): none recorded on this claim, each said as empty.
+            "source_char_start": None,
+            "source_char_end": None,
+            "segment_id": None,
+            "reading_id": None,
+            "segment_char_start": None,
+            "segment_char_end": None,
+            "date_text": None,
+            "date_normalized": None,
+            "time_start": None,
+            "time_end": None,
+            "time_precision": None,
+            "quotation_kind": None,
+            "speaker_entity_id": None,
+            "provider": None,
+            "model": None,
         }
     ]
 
@@ -215,11 +231,12 @@ def test_export_parquet_uses_database_parquet_writer(db, tmp_path, monkeypatch):
 
     export_parquet(db, tmp_path / "records", target_id=root.id)
 
-    assert len(calls) == 3
+    assert len(calls) == 4
     assert {Path(output_path).name for _, output_path, _ in calls} == {
         "documents.parquet",
         "entities.parquet",
         "claims.parquet",
+        "mentions.parquet",  # each name where the page writes it (#5603)
     }
 
 
@@ -376,6 +393,18 @@ def test_iter_export_records_document_without_knowledge_rows_exports_document_on
             "metadata": {},
             "provenance_chain": [],
             "workflow_runs": [],
+            # Its date, kind, attributes and own readings (#5603): none yet, each said as empty.
+            "date_original": None,
+            "date_jdn": None,
+            "date_jdn_end": None,
+            "date_status": None,
+            "date_display": None,
+            "date_precision": None,
+            "date_source": None,
+            "prototype": None,
+            "attributes": {},
+            "attribute_values": [],
+            "readings": [],
         }
     ]
 
