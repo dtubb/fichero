@@ -8805,6 +8805,16 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/project/automatic",
+        "operation_id": "what_runs_by_itself_api_recipes_project_automatic_get",
+        "summary": "What Runs By Itself",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "WhatRunsByItself"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/project/bakeoffs",
         "operation_id": "list_bakeoffs_api_recipes_project_bakeoffs_get",
         "summary": "List Bakeoffs",

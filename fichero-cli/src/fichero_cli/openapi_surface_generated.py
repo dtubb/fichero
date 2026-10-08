@@ -12555,6 +12555,17 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("what-runs-by-itself")
+    def recipes_what_runs_by_itself_get(
+        ctx: typer.Context,
+    ) -> None:
+        """What Runs By Itself (GET /api/recipes/project/automatic)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/automatic"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-bakeoffs")
     def recipes_list_bakeoffs_get(
         ctx: typer.Context,

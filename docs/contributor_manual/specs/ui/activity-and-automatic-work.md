@@ -1103,10 +1103,22 @@ and node, not by job); a retry action for failed pages.
 
 - `activity.auto.on-add` — **[PARTIAL]** (#5362) on import, thumbnails and
   embeddings always run; the NLP draft only behind a setting that is off by default
-  (`nlp_draft.py:61`); Kraken never runs at import despite the 2026-09-04 ruling; the project's
-  chain never runs by itself.
-- `activity.auto.on-add-from-recipe` — **[GAP]** (→ #4950, #4951) what runs when a source is added is
-  what the project's recipe lists, after the first yes.
+  (`nlp_draft.py:61`); Kraken never runs at import despite the 2026-09-04 ruling. Since 2026-10-07
+  the project's recipe runs on an import after Start (`activity.auto.on-add-from-recipe`).
+- `activity.auto.on-add-from-recipe` — **[OK]** (→ #4950, #4951) what runs when a source is added is
+  what the project's recipe lists, after the first yes. Built by `runner.material_arrived`:
+  `source.onboard.just-do-it`, `source.onboard.auto.runs-by-itself-honoured`,
+  `source.onboard.auto.on-add-refusal-said` (`source/models-chains-and-projects.md`), tested in
+  `fichero-server/tests/unit/recipes/test_every_step_runs_to_spec.py` and `test_run_visible_to_spec.py`.
+- `activity.auto.what-runs-by-itself` — **[PARTIAL]** (#5362) the project says, in one engine
+  read the app and MCP can show, what runs by itself on an import and on a correction, each kind of
+  work with whether it runs and why. Built (2026-10-08, engine): `GET /api/recipes/project/automatic`
+  (`runner.what_runs_by_itself`), read from the same gates the import and the correction use
+  (pictures and search always; the NLP draft and the re-read of names by the Ingestion setting; the
+  recipe's steps by its first yes, purposes, What runs by itself and the Start plan, a skipped step
+  with the plan's why); an import after Start runs exactly the steps it names
+  (`fichero-server/tests/unit/recipes/test_what_runs_by_itself_5362.py`). Still a gap: the app's setup
+  and Activity do not show it.
 - `activity.auto.reembed-on-change` — **[PARTIAL]** (#5360) a reading or segment change
   re-derives the page text and re-embeds it. Built: the re-embed is a queued job written in the
   change's own transaction (`activity.correction-reembed-visible`, `actions/page_text_cache.py:366-376`).
