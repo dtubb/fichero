@@ -165,6 +165,16 @@ class DatabaseManager:
                     # #4426: collapse unbounded catalogue.chunk.N types.
                     migrate_catalogue_chunk_artifact_type(db.conn, db.migration_failures)
                     migrate_checkpoint_tables(db.conn, db.migration_failures)
+                    # #5599 (ruled 2026-10-08): a narrative an earlier Catalogue run wrote over a
+                    # folder's text becomes its description reading; reported in the log.
+                    try:
+                        from fichero_server.db.migrations.runner import (
+                            move_catalogue_narratives_on_open,
+                        )
+
+                        move_catalogue_narratives_on_open(db)
+                    except Exception:
+                        logger.exception("Catalogue narrative migration could not run")
 
                     # Seed default workflow presets (Transcribe, Catalogue) into
                     # the GLOBAL library only (#4102) — they're app-level presets,

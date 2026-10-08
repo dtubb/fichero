@@ -54,11 +54,12 @@ from fichero_server.models.knowledge import (
     KnowledgeClaim,
     KnowledgeEntity,
     KnowledgeClaimLink,
+    ProvenanceKind,
     SourceType,
     MutationLog,
     MutationOperationType,
 )
-from fichero_server.models import Artifact, Document, Rendition
+from fichero_server.models import Artifact, ContentRepresentation, Document, Rendition
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -1062,9 +1063,221 @@ class MigrationRunner:
             "KnowledgeEntity": KnowledgeEntity,
             "KnowledgeClaimLink": KnowledgeClaimLink,
             "Document": Document,
+            "ContentRepresentation": ContentRepresentation,
             "MutationLog": MutationLog,
         }
         return model_map.get(entity_type)
+
+    def move_catalogue_narratives_to_descriptions(
+        self, dry_run: bool = False, batch_size: int = 200
+    ) -> MigrationResult:
+        """Move a catalogue narrative an earlier run wrote over a document's text into a
+        ``description`` reading (#5599, ruled 2026-10-08,
+        `source.extract.catalogue-never-overwrites-text`).
+
+        Before #5599 the catalogue wrote its narrative into the target's ``page_content``. The
+        rule, per document whose text is EXACTLY (strip-equal) the content of one of its own
+        ``catalogue.narrative`` artifacts:
+
+        - a text a person saved (``page_content_user_edited_at``) is never touched -- left, reported;
+        - otherwise the narrative becomes a machine ``description`` reading derived from that
+          artifact, under the catalogue's run (or this migration's run when the artifact names
+          none) -- unless a live description reading already holds that text;
+        - a folder or group's text is then cleared (what it held before cannot be recovered: the
+          old write kept no copy); a file's or page's text is LEFT and reported, because a file's
+          text is its own transcription and a person has to decide what goes back there.
+
+        A text that differs from the artifact at all is a person's and is never read here.
+        Idempotent: a cleared folder no longer matches, and a left file already has its reading,
+        so a second run changes nothing. One SQL pass over the narrative artifacts (one per
+        catalogued target, never the whole document table), written in batches, one transaction
+        per batch; every change is in the mutation log under one run id, so ``rollback`` reverts it.
+        """
+        result = MigrationResult(
+            migration_name="move_catalogue_narratives_to_descriptions",
+            status=MigrationStatus.running,
+            dry_run=dry_run,
+        )
+        run_id = f"catalogue_narrative_{uuid4().hex[:8]}"
+        moved: list[str] = []
+        files_left: list[str] = []
+        edited_left: list[str] = []
+        try:
+            candidates = self._catalogue_narrative_candidates()
+            existing = self._live_description_texts([c["document_id"] for c in candidates])
+            for start in range(0, len(candidates), batch_size):
+                batch = candidates[start : start + batch_size]
+                if dry_run:
+                    for c in batch:
+                        self._classify_narrative_candidate(c, moved, files_left, edited_left)
+                    continue
+                with self.db.transaction():
+                    for c in batch:
+                        self._move_one_catalogue_narrative(
+                            c, existing, run_id, result, moved, files_left, edited_left
+                        )
+            result.migrated = len(moved)
+            result.skipped = len(files_left) + len(edited_left)
+            result.status = MigrationStatus.completed
+            result.completed_at = utc_now()
+            result.details.update({
+                "run_id": run_id,
+                "moved_document_ids": moved,
+                "left_file_document_ids": files_left,
+                "left_person_edited_document_ids": edited_left,
+                "readings_made": result.details.get("readings_made", 0),
+            })
+            if not dry_run and result.audit_id:
+                self.save_run_result(result)
+            return result
+        except Exception as exc:  # noqa: BLE001 - migration boundary
+            result.status = MigrationStatus.failed
+            result.error_message = str(exc)
+            result.completed_at = utc_now()
+            logger.exception("move_catalogue_narratives_to_descriptions failed")
+            return result
+
+    def _catalogue_narrative_candidates(self) -> list[dict]:
+        """Every document whose text is strip-equal to one of its own catalogue.narrative
+        artifacts, newest matching artifact per document. The SQL reads only the narrative
+        artifacts and the documents they hang on; the strip-compare is Python's ``str.strip``
+        (DuckDB's ``trim`` strips spaces only, and a markdown narrative ends in a newline)."""
+        tables = {
+            row[0]
+            for row in self.db.execute_fetchall(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_name IN ('documents', 'artifacts')"
+            )
+        }
+        if tables != {"documents", "artifacts"}:
+            return []
+        rows = self.db.execute_fetchall(
+            """
+            SELECT d.id, d.doc_type, d.page_content,
+                   json_extract_string(d.metadata, '$.page_content_user_edited_at'),
+                   a.id, a.content, a.run_id
+              FROM artifacts a
+              JOIN documents d ON d.id = a.document_id
+             WHERE a.artifact_type = 'catalogue.narrative'
+               AND d.page_content IS NOT NULL
+             ORDER BY d.id, a.created_at DESC
+            """
+        )
+        found: dict[str, dict] = {}
+        for doc_id, doc_type, text, edited_at, art_id, art_content, art_run in rows:
+            if doc_id in found:
+                continue
+            stripped = (text or "").strip()
+            if not stripped or stripped != (art_content or "").strip():
+                continue
+            found[doc_id] = {
+                "document_id": doc_id,
+                "doc_type": doc_type,
+                "text": stripped,
+                "person_edited": bool(edited_at),
+                "artifact_id": art_id,
+                "artifact_run_id": art_run,
+            }
+        return list(found.values())
+
+    def _live_description_texts(self, document_ids: list[str]) -> dict[str, set[str]]:
+        """The stripped text of every live description reading on these documents."""
+        if not document_ids:
+            return {}
+        exists = self.db.execute_fetchone(
+            "SELECT COUNT(*) FROM information_schema.tables "
+            "WHERE table_name = 'contentrepresentations'"
+        )[0]
+        if not exists:
+            return {}
+        texts: dict[str, set[str]] = {}
+        for start in range(0, len(document_ids), 1000):
+            chunk = document_ids[start : start + 1000]
+            rows = self.db.execute_fetchall(
+                "SELECT document_id, content FROM contentrepresentations "
+                "WHERE kind = 'description' AND retracted_at IS NULL "
+                "AND document_id IN (SELECT unnest(?))",
+                [chunk],
+            )
+            for doc_id, content in rows:
+                texts.setdefault(doc_id, set()).add((content or "").strip())
+        return texts
+
+    @staticmethod
+    def _is_container(doc_type: str | None) -> bool:
+        return doc_type in ("folder", "group")
+
+    def _classify_narrative_candidate(
+        self, c: dict, moved: list[str], files_left: list[str], edited_left: list[str]
+    ) -> str:
+        if c["person_edited"]:
+            edited_left.append(c["document_id"])
+            return "edited"
+        if self._is_container(c["doc_type"]):
+            moved.append(c["document_id"])
+            return "moved"
+        files_left.append(c["document_id"])
+        return "file"
+
+    def _move_one_catalogue_narrative(
+        self,
+        c: dict,
+        existing: dict[str, set[str]],
+        run_id: str,
+        result: MigrationResult,
+        moved: list[str],
+        files_left: list[str],
+        edited_left: list[str],
+    ) -> None:
+        outcome = self._classify_narrative_candidate(c, moved, files_left, edited_left)
+        if outcome == "edited":
+            return
+        doc_id = c["document_id"]
+        if c["text"] not in existing.get(doc_id, set()):
+            reading = ContentRepresentation(
+                document_id=doc_id,
+                kind="description",
+                content=c["text"],
+                source_anchor=SourceAnchor(document_id=doc_id),
+                derived_from_artifact_id=c["artifact_id"],
+                producer_run_id=c["artifact_run_id"] or run_id,
+                provenance_kind=ProvenanceKind.workflow,
+                created_by="system",
+            )
+            self.db.save(reading)
+            existing.setdefault(doc_id, set()).add(c["text"])
+            self._log_mutation(
+                entity_type="ContentRepresentation",
+                entity_id=reading.id,
+                operation=MutationOperationType.create,
+                after_state={
+                    "document_id": doc_id,
+                    "kind": "description",
+                    "derived_from_artifact_id": c["artifact_id"],
+                },
+                run_id=run_id,
+            )
+            result.details["readings_made"] = result.details.get("readings_made", 0) + 1
+            result.audit_id = run_id
+        if outcome != "moved":
+            return
+        doc = self.db.get(Document, doc_id)
+        if doc is None:
+            return
+        before = doc.page_content
+        doc.page_content = None
+        doc.updated_at = utc_now()
+        self.db.save(doc)
+        self._log_mutation(
+            entity_type="Document",
+            entity_id=doc_id,
+            operation=MutationOperationType.update,
+            before_state={"page_content": before},
+            after_state={"page_content": None},
+            changed_fields=["page_content"],
+            run_id=run_id,
+        )
+        result.audit_id = run_id
 
     def get_migration_status(self, run_id: str) -> dict | None:
         """Get status of a migration run from its audit logs."""
@@ -1412,3 +1625,26 @@ def migrate_claims_to_multi_source(
     runner = MigrationRunner(db)
     result = runner.migrate_claims_to_multi_source(dry_run=dry_run)
     return result.migrated, result.skipped
+
+
+def move_catalogue_narratives_on_open(db: Database) -> MigrationResult:
+    """Run `move_catalogue_narratives_to_descriptions` when a project opens, and say in the engine
+    log what it did: how many texts it moved, and how many it left and why. Quiet when there is
+    nothing to report. A failure is logged and the project still opens."""
+    result = MigrationRunner(db).move_catalogue_narratives_to_descriptions()
+    details = result.details
+    if result.status is MigrationStatus.failed:
+        logger.error("Catalogue narrative migration failed: %s", result.error_message)
+        return result
+    files_left = details.get("left_file_document_ids", [])
+    edited_left = details.get("left_person_edited_document_ids", [])
+    if result.migrated or details.get("readings_made") or files_left or edited_left:
+        logger.info(
+            "Catalogue narrative migration (#5599, run %s): moved %d folder text(s) into a "
+            "description reading and cleared them; made %d description reading(s); left %d "
+            "file(s) whose text is the narrative (a file's text is its own transcription and "
+            "what it held before cannot be recovered): %s; left %d text(s) a person saved: %s",
+            details.get("run_id"), result.migrated, details.get("readings_made", 0),
+            len(files_left), files_left[:20], len(edited_left), edited_left[:20],
+        )
+    return result
