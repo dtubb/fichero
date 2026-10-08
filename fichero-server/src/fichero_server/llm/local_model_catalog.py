@@ -116,6 +116,8 @@ def kraken_catalog_entries() -> list[Any]:
     # Recognition (HTR) models — fetched by DOI once the runtime is present.
     for model_id, spec in kr.KRAKEN_RECOGNITION_MODELS.items():
         model_installed = kr.is_recognition_model_installed(model_id)
+        # A reader on this Mac whose file is missing or empty is listed, unusable, with why (#5617).
+        problem = kr.recognition_model_problem(model_id) if model_installed else None
         entries.append(
             _make_entry(
                 provider_type=ProviderType.kraken,
@@ -129,12 +131,12 @@ def kraken_catalog_entries() -> list[Any]:
                 if model_installed else 0,
                 min_memory_bytes=None,
                 memory_class=None,
-                supported=True,
+                supported=problem is None,
                 # It needs Kraken itself importable first; the install
                 # enforces that with a typed error rather than a silent
                 # no-op. Should be unreachable in a real release (Kraken is
                 # bundled), a real "packaging is broken" signal if it fires.
-                unsupported_reason=(
+                unsupported_reason=problem or (
                     None if installed else "Kraken is not bundled in this build."
                 ),
                 note=str(spec["note"]),
@@ -162,6 +164,7 @@ def kraken_catalog_entries() -> list[Any]:
             note = (f"Reads {stated}. " if stated else "Its record states no language, script or period. ") + \
                 f"From Kraken's model repository (DOI {doi})."
         on_disk = kr.recognition_model_bytes(model_id)
+        problem = kr.recognition_model_problem(model_id)
         entries.append(
             _make_entry(
                 provider_type=ProviderType.kraken,
@@ -173,8 +176,8 @@ def kraken_catalog_entries() -> list[Any]:
                 disk_usage_bytes=on_disk,
                 min_memory_bytes=None,
                 memory_class=None,
-                supported=True,
-                unsupported_reason=None if installed else "Kraken is not bundled in this build.",
+                supported=problem is None,
+                unsupported_reason=problem or (None if installed else "Kraken is not bundled in this build."),
                 note=note,
                 tested_status="untested",
                 license_label=str((record or {}).get("licence") or "user-managed"),
@@ -185,6 +188,7 @@ def kraken_catalog_entries() -> list[Any]:
     # like any reader; never made a default by landing (`compute.tune.not-default-until-chosen`).
     for model_id, card in kr.trained_readers():
         release = "Not for release." if card.get("not_for_release") else ""
+        problem = kr.recognition_model_problem(model_id)
         entries.append(
             _make_entry(
                 provider_type=ProviderType.kraken,
@@ -193,11 +197,11 @@ def kraken_catalog_entries() -> list[Any]:
                 capabilities=["recognition"],
                 installed=True,
                 download_size_bytes=0,
-                disk_usage_bytes=int(card.get("size_bytes") or 0),
+                disk_usage_bytes=kr.recognition_model_bytes(model_id),  # the file's, not what the card claims
                 min_memory_bytes=None,
                 memory_class=None,
-                supported=True,
-                unsupported_reason=None,
+                supported=problem is None,
+                unsupported_reason=problem,
                 note=" ".join(filter(None, [str(card.get("summary") or ""), release])),
                 tested_status="untested",
                 license_label="not for release" if card.get("not_for_release") else "user-managed",

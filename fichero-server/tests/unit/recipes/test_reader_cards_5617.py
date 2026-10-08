@@ -95,3 +95,36 @@ def test_source_find_reader_size_real(client, here):
     assert rows["kraken-mccatmus"]["expected_size_mb"] == 16
     assert rows["kraken-catmus-medieval"]["size_bytes"] == 16_332_989
     assert rows["kraken-catmus-medieval"]["expected_size_mb"] == 16
+
+
+# -- source.find.broken-reader-unusable -----------------------------------------------------------------------
+
+
+def test_source_find_broken_reader_unusable(client, here):
+    """source.find.broken-reader-unusable: "a file missing, empty or cut short (under 1 KB ...) is listed as
+    installed but unusable (`available: false`) with the reason in words ("the model file is empty"), its size is
+    the file's, and it is never offered to a step (the on-device models a workflow step picks from leave it out).\""""
+    weights = _install(here, "kraken-trained-ad6820820952", 7)
+    record = json.loads((here / "kraken-trained-ad6820820952.installed").read_text())
+    record["trained"] = {"display_name": "sergio", "summary": "Taught by a reader.", "size_bytes": 7}
+    (here / "kraken-trained-ad6820820952.installed").write_text(json.dumps(record))
+    _install(here, "kraken-mccatmus", 0)
+    _install(here, "kraken-zenodo-7933402", 4096)  # a whole file: usable
+
+    rows = _kraken(client)
+    sergio = rows["kraken-trained-ad6820820952"]
+    assert sergio["is_downloaded"] is True and sergio["available"] is False
+    assert sergio["unavailable_reason"].startswith("the model file is empty") and "7 bytes" in sergio["unavailable_reason"]
+    assert sergio["size_bytes"] == 7
+    empty = rows["kraken-mccatmus"]
+    assert (empty["available"], empty["unavailable_reason"]) == (False, "the model file is empty")
+    assert rows["kraken-zenodo-7933402"]["available"] is True
+
+    weights.write_bytes(b"w" * 4096)  # trained again: usable once its file is whole
+    assert _kraken(client)["kraken-trained-ad6820820952"]["available"] is True
+    weights.write_bytes(b"")
+
+    kraken = next(p for p in client.get("/api/chat/providers").json()["items"] if p["id"] == "kraken")
+    offered = set(kraken["models"])
+    assert "kraken-zenodo-7933402" in offered
+    assert not offered & {"kraken-trained-ad6820820952", "kraken-mccatmus"}, offered

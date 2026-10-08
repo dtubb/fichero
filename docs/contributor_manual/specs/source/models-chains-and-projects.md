@@ -2856,6 +2856,13 @@ Finding models
   installed Kraken reader of the catalogue's shortlist (McCATMuS, CATMuS Medieval) lists its size on disk as its
   downloaded file's (`size_bytes`; its record's when the file cannot be read) and its download size as its
   record's (`expected_size_mb`), never 0.
+- `source.find.broken-reader-unusable` — **[OK]** (#5617; built 2026-10-08: `kraken_runtime.recognition_model_problem`,
+  the Kraken readers in `llm/local_model_catalog.py`, the on-device models `GET /api/chat/providers` offers; pinned by
+  `fichero-server/tests/unit/recipes/test_reader_cards_5617.py`) listing an installed Kraken reader (downloaded or
+  trained) checks its model file: a file missing, empty or cut short (under 1 KB; a reader's weights run to
+  megabytes) is listed as installed but unusable (`available: false`) with the reason in words ("the model file
+  is empty"), its size is the file's, and it is never offered to a step (the on-device models a workflow step
+  picks from leave it out).
 - `source.find.installed-count` — **[OK]** (#5519) every complete MLX vision model in this engine's
   model store that no shipped card pins (a catalogue model, one Fichero trained, one found in the
   store) is a reader candidate with a card made from its own metadata: its config says it reads
