@@ -71,8 +71,8 @@ REMOTE_ALLOWLIST: dict[str, str] = {
     # A TEST seam (2026-09-28, "Tests that inject services miss the real host"): a hosted-view test
     # serves every client of a library from a recorded engine through an injected session, which
     # only an HTTPS transport honours. Production passes `session: nil` and takes the UDS path.
-    "Models/LibraryManager.swift:444": "test seam — recorded-engine session (production passes nil)",
-    "Models/LibraryManager.swift:460": "test seam — recorded-engine session (production passes nil)",
+    "Models/LibraryManager.swift:448": "test seam — recorded-engine session (production passes nil)",
+    "Models/LibraryManager.swift:464": "test seam — recorded-engine session (production passes nil)",
 }
 
 
