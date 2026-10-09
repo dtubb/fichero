@@ -70,8 +70,8 @@ engine_is_current() {
     echo "Embedded engine is INCOMPLETE: the staged copy has no Kraken (app_packages/kraken) — rebuilding"
     return 1
   fi
-  if [ ! -d "$ENGINE_APP/Contents/Resources/app_packages/mlx_vlm" ]; then
-    echo "Embedded engine is INCOMPLETE: the staged copy has no MLX (app_packages/mlx_vlm) — rebuilding"
+  if [ ! -d "$ENGINE_APP/Contents/Resources/app_packages/mlx_vlm" ] || [ ! -d "$ENGINE_APP/Contents/Resources/app_packages/ultralytics" ]; then
+    echo "Embedded engine is INCOMPLETE: the staged copy has no MLX or YOLO (app_packages/mlx_vlm, ultralytics) — rebuilding"
     return 1
   fi
   # A staged engine with no bytecode is a 3-5x slower engine (#3940).

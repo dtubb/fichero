@@ -286,7 +286,7 @@ no_deps_packages = [
     "torchvision==0.29.0",  # matches torch==2.14.0, the bundle's torch at the 2026-09-20 trial
 ]
 
-# MLX bundling (#4973, ruled 2026-10-09: everything the app needs ships inside it). Installed at
+# MLX and YOLO bundling (#4973, #5638; ruled 2026-10-09: everything the app needs ships inside it). Installed at
 # BUILD time by `scripts/install_mlx_into_engine_bundle.py`, after the Kraken step, the same way:
 # never provisioned at run time (the sandboxed app could not: "Operation not permitted"). The engine
 # runs the MLX servers (mlx_lm, mlx_vlm) in its own process, not a separate Python (llm/local_inference.py).
@@ -298,6 +298,9 @@ no_deps_packages = [
     "mlx-vlm==0.6.17",
     "mlx-whisper==0.4.3",
     "mlx-audio==0.5.8",
+    # YOLO (layout and region detection, and its training), ruled in 2026-10-09. AGPL-3.0, as is Fichero.
+    # --no-deps: it declares opencv-python (the bundle has the headless build) and nvidia-ml-py (Linux GPUs).
+    "ultralytics==8.4.175",
 ]
 # What those need that the bundle lacks, resolved normally against the bundle's own pins.
 missing_packages = [
@@ -308,6 +311,10 @@ missing_packages = [
     "miniaudio>=1.61",
     "sounddevice>=0.5.3",
     "numba",
+    "matplotlib>=3.3.0",
+    "polars>=0.20.0",
+    "ultralytics-thop>=2.2.2",
+    "ultralytics-platform>=0.1.45",
 ]
 
 # Build system requirements
