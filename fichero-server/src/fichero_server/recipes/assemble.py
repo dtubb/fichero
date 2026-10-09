@@ -38,18 +38,21 @@ PURPOSE_STEPS: dict[str, tuple[str, ...]] = {
     "not-sure": (),
 }
 
-#: How setup offers each purpose: its label, and whether it runs by itself ("just do it") or offers
-#: its tools first. One list, read by setup, the Inspector and the manual (`source.onboard.purpose-first`).
+#: How setup offers each purpose: its label and one sentence, in the order setup lists them. One list, read
+#: by setup, the Inspector and the manual (`source.onboard.purpose-first`). The order and grouping were ruled
+#: by the maintainer 2026-10-09 (#5625, `source.onboard.purposes-grouped`): Transcribe, with Search under it;
+#: Translate after; the Knowledge graph with Entities and Statements as its options below it.
 PURPOSES: dict[str, tuple[str, str]] = {
-    "transcribe": ("Just transcribe", "Read every page into text you can correct."),
-    "entities": ("People, places and things", "Transcribe, then find the names in the text."),
-    "search": ("Search my sources", "Transcribe, then make the text searchable by meaning."),
-    "statements": ("Statements", "Transcribe, then find who did what to whom, each tied to its line."),
-    "knowledge-graph": ("The full knowledge graph",
-                        "Names, dates and statements, linked into one graph you can question."),
-    "map-places": ("Map places", "Find the places in the text and put them on a map."),
+    "transcribe": ("Transcribe", "Read every page into text you can correct."),
+    "search": ("Search", "Make the text searchable by meaning, not only by its words."),
     "translate-normalise": ("Translate or normalise",
                             "Transcribe, then translate, transliterate or normalise the spelling."),
+    "knowledge-graph": ("Knowledge graph",
+                        "Everything below, with dates and links to authorities, joined into one graph you can "
+                        "question and search."),
+    "entities": ("Entities", "Find the people, places and things named in the text."),
+    "statements": ("Statements", "Find who did what to whom, each tied to its line."),
+    "map-places": ("Map places", "Find the places in the text and put them on a map."),
     "quotations": ("Gather quotations", "Transcribe, then pull out the passages you are looking for."),
     "catalogue": ("Catalogue my sources", "Transcribe, then describe each source for the catalogue."),
     "tables": ("Tables and forms", "Find each table's cells, read them, and gather the rows into a table."),
@@ -58,6 +61,12 @@ PURPOSES: dict[str, tuple[str, str]] = {
     "not-sure": ("Not sure yet", "Import first; the tools are offered when you want them."),
 }
 assert set(PURPOSES) == set(PURPOSE_STEPS)
+#: A purpose shown as an option under another (#5625): still a purpose of its own, ticked on its own, but listed
+#: indented below its parent. Where the parent's jobs hold all of the option's, ticking the parent includes it.
+PURPOSE_PARENT: dict[str, str] = {"search": "transcribe", "entities": "knowledge-graph",
+                                  "statements": "knowledge-graph"}
+assert all(c in PURPOSES and p in PURPOSES and list(PURPOSES).index(p) < list(PURPOSES).index(c)
+           for c, p in PURPOSE_PARENT.items())
 #: Purposes that offer tools rather than running by themselves after Start (section 7b, screen 7).
 TOOL_PURPOSES = frozenset({"edit-corpus", "decipher", "not-sure"})
 #: The kinds of material setup offers as checkboxes, in the order the default reader is taken from.
@@ -199,6 +208,9 @@ class Answers:
     materials: tuple[str, ...] = ()
     #: Jobs ticked on their own, beyond the purposes' (section 7b: every job is a checkbox).
     jobs: tuple[str, ...] = ()
+    #: Steps the person took out of the plan on Ready (#5627, `source.onboard.plan-editable`), by job: never
+    #: proposed again while they stay out, unless a step left in needs what one gives (then it stays, saying so).
+    removed_jobs: tuple[str, ...] = ()
     #: The material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them
     #: then finds the documents among them (`finddocs.recipe-step`, #5550).
     loose_pages: bool = False
@@ -517,6 +529,42 @@ def _topic(job: str) -> dict[str, Any]:
     return {"topic": topic.id, "title": topic.title, "sentence": topic.short} if topic else {}
 
 
+def needed_by(job: str, jobs_in_order: list[str], materials=()) -> list[str]:
+    """The later steps that would lose an input if `job` were taken out of this plan: each needs a kind of thing
+    only `job` gives before it (`jobs.unmet_inputs`, the recipe check's own rule). [] when it can go."""
+    from fichero_server.recipes.jobs import get_job, starts_with
+
+    def unmet(order: list[str]) -> set[str]:
+        have, out = set(starts_with(materials)), set()
+        for j in order:
+            known = get_job(j)
+            if known is None:
+                continue
+            if any(have.isdisjoint(kind.split("|")) for kind in known.takes):
+                out.add(j)
+            have |= known.gives
+        return out
+
+    lost = unmet([j for j in jobs_in_order if j != job]) - unmet(jobs_in_order)
+    return [j for j in jobs_in_order if j in lost]
+
+
+def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dict[str, str]]]:
+    """The plan without the steps the person took out (#5627), in step order. A step a step left in needs stays
+    (it carries `needed_by`); a removed job the plan no longer has is ignored. Returns the plan and what was taken
+    out, each with its title, so Ready can offer to put it back."""
+    from fichero_server.recipes.jobs import get_job
+
+    taken_out = []
+    for job in sorted(set(a.removed_jobs) & set(jobs_in_order), key=STEP_ORDER.index, reverse=True):
+        # Latest first: taking out a step and the one that needed it, together, frees the earlier one too.
+        if not needed_by(job, jobs_in_order, a.materials):
+            jobs_in_order = [j for j in jobs_in_order if j != job]
+            known = get_job(job)
+            taken_out.append({"job": job, "title": known.name if known else job})
+    return jobs_in_order, sorted(taken_out, key=lambda t: STEP_ORDER.index(t["job"]))
+
+
 def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
     """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps. A job Start
     cannot run by itself is never a step: it is listed under `by_hand`, with why and the tool that does it by hand
@@ -543,6 +591,8 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         # Training sits after what it learns from and before the checks and output.
         tail = [j for j in jobs_in_order if STEP_ORDER.index(j) > STEP_ORDER.index("train-a-model")]
         jobs_in_order = [j for j in jobs_in_order if j not in tail] + ["train-a-model"] + tail
+    jobs_in_order, taken_out = _take_out(jobs_in_order, a)
+    needs = {job: needed_by(job, jobs_in_order, a.materials) for job in jobs_in_order}
     steps, notes = [], []
     for job in jobs_in_order:
         if job == "train-a-model":
@@ -585,6 +635,10 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
             notes.append(f"{job}: {choice.gap}")
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
         steps.append(step)
+    for step in steps:
+        if needs.get(step["job"]):
+            # Ready offers no Remove for a step a later one needs, and says which (#5627).
+            step["needed_by"] = needs[step["job"]]
     # Where a cloud model would also fit if pages could leave this Mac: setup asks the egress
     # question only when this is not empty (`source.onboard.cloud-asked-once`).
     with_cloud = Answers(**{**a.__dict__, "cloud_allowed": True})
@@ -603,6 +657,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         "purposes": list(a.purposes),
         "steps": steps,
         "by_hand": left_by_hand,
+        "removed": taken_out,
         "gaps": notes,
         "cloud_options": cloud_options,
         # What Ready says when there is nothing to read (#5553).
