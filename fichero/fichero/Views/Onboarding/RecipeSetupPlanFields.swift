@@ -22,7 +22,9 @@ struct JobQuestionFields: View {
         case "find-names-tag-words":
             VStack(alignment: .leading, spacing: 4) {
                 Text("Which kinds of names").font(.headline)
-                HStack(spacing: 14) {
+                // Wraps to the sheet's width: six fixed-size checkboxes in one row made the sheet
+                // wider than its window, cutting off the steps and Continue (#5624).
+                FlowLayout(spacing: 12) {
                     ForEach(Self.entityKinds, id: \.id) { kind in
                         Toggle(kind.title, isOn: Binding(
                             get: { store.jobAnswers.entityKinds.contains(kind.id) },

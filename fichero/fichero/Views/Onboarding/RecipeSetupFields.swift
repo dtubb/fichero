@@ -32,6 +32,8 @@ struct SetupWhereItLivesFields: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Choose a location…")
                     Text(chosenFolderText).font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
                 }
                 .tag(true)
             }
@@ -232,7 +234,7 @@ struct RecipeAboutFields: View {
             }
             Divider()
             Text("Material").font(.headline)
-            HStack(spacing: 16) {
+            FlowLayout(spacing: 16) {
                 ForEach(RecipeSetupStore.materialKinds, id: \.self) { kind in
                     Toggle(kind.capitalized, isOn: Binding(
                         get: { store.materials.contains(kind) },
@@ -379,7 +381,8 @@ private struct FlowTokens: View {
     let remove: (String) -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
+        // Wraps: many languages in one row must not widen the sheet (#5624).
+        FlowLayout(spacing: 6) {
             ForEach(codes, id: \.self) { code in
                 HStack(spacing: 4) {
                     Text(name(code))
