@@ -11,7 +11,7 @@ struct ActivityModeIndicator: Equatable {
 
     let mode: ActivityMode
     let look: Look
-    /// "Running", "Held", "Paused".
+    /// "Running", "Waiting", "Idle", "Paused" (help and accessibility; the toolbar shows the icon).
     let title: String
     let symbol: String
     /// What it means and what a click does, in words.
@@ -21,7 +21,7 @@ struct ActivityModeIndicator: Equatable {
 
     /// `whyWait` is the engine's reason heavy work is held now (`machine.why_wait`);
     /// it shows as held only while some work is waiting.
-    init(mode: ActivityMode, whyWait: String?, hasWaitingWork: Bool) {
+    init(mode: ActivityMode, whyWait: String?, hasWaitingWork: Bool, hasRunningWork: Bool = true) {
         self.mode = mode
         let why = whyWait.flatMap { $0.isEmpty ? nil : $0 }.map(Self.withoutPrefix)
         let held = why != nil && hasWaitingWork
@@ -30,30 +30,31 @@ struct ActivityModeIndicator: Equatable {
             look = .paused
             title = "Paused"
             symbol = "pause.circle.fill"
-            help = "Background work is paused. Click to go back to automatic."
+            help = "All background work is paused. Click to run it automatically again."
             primary = .automatic
         case .started:
             look = held ? .held : .running
-            title = held ? "Held" : "Running"
-            symbol = held ? "hourglass" : "play.circle.fill"
-            help = (held ? "Held: \(why ?? ""), which Start does not override. " : "")
-                + "Started: work goes ahead although you're using the Mac or it is on battery. "
-                + "Click to go back to automatic."
+            title = held ? "Waiting" : (hasRunningWork ? "Running" : "Idle")
+            symbol = held ? "hourglass" : (hasRunningWork ? "play.circle.fill" : "play.circle")
+            help = (held ? "Waiting: \(why ?? ""). Run Now cannot override this. " : "")
+                + "Running now, even while you use the Mac or it is on battery. "
+                + "Click to run automatically again."
             primary = .automatic
         case .automatic:
             look = held ? .held : .running
-            title = held ? "Held" : "Running"
-            symbol = held ? "hourglass" : "play.circle"
+            title = held ? "Waiting" : (hasRunningWork ? "Running" : "Idle")
+            symbol = held ? "hourglass" : (hasRunningWork ? "play.circle.fill" : "play.circle")
             help = held
-                ? "Held: \(why ?? ""). Click Start to go ahead anyway."
-                : "Background work runs when the Mac is free. Click Start to run it while you use the Mac too."
+                ? "Waiting: \(why ?? ""). Click to run now anyway."
+                : "Background work runs when the Mac is free. Click to run it now, even while you use the Mac."
             primary = .started
         }
     }
 
     @MainActor init(store: ActivityStore) {
         self.init(mode: store.backgroundMode, whyWait: store.machine?.whyWait,
-                  hasWaitingWork: store.backgroundJobs.contains { $0.state == .waiting })
+                  hasWaitingWork: store.backgroundJobs.contains { $0.state == .waiting },
+                  hasRunningWork: store.backgroundJobs.contains { $0.state == .running })
     }
 
     private static let throttlePrefix = "Waiting: "
@@ -77,12 +78,14 @@ struct ActivityModeButton: View {
     var body: some View {
         let indicator = indicator
         Menu {
-            Button("Start: Go Ahead While I Use the Mac", systemImage: "play.fill") { set(.started) }
-                .disabled(indicator.mode == .started)
-            Button("Automatic", systemImage: "wand.and.stars") { set(.automatic) }
-                .disabled(indicator.mode == .automatic)
-            Button("Stop: Pause All Work", systemImage: "pause.fill") { set(.paused) }
-                .disabled(indicator.mode == .paused)
+            // The current mode is ticked, as in a Mac menu (wording, maintainer 2026-10-09).
+            Picker("Background Work", selection: Binding(get: { indicator.mode }, set: { set($0) })) {
+                Text("Run Now").tag(ActivityMode.started)
+                Text("Run Automatically").tag(ActivityMode.automatic)
+                Text("Pause All").tag(ActivityMode.paused)
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
         } label: {
             ActivityModeLabel(indicator: indicator)
         } primaryAction: {
@@ -114,7 +117,8 @@ struct ActivityModeLabel: View {
 
     var body: some View {
         Label(indicator.title, systemImage: indicator.symbol)
-            .labelStyle(.titleAndIcon)
+            // An icon only, as a toolbar control; the words are in its help (maintainer 2026-10-09).
+            .labelStyle(.iconOnly)
             .foregroundStyle(indicator.look == .held ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
     }
 }

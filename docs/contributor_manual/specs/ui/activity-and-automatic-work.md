@@ -82,6 +82,13 @@ So:
   behind both (`activity.mode.start-stop`).
 - **Memory safety is never lifted**: forced work still never runs two heavy jobs at once while
   memory is tight, and the app manages that, not the person (`activity.throttle.one-heavy-when-memory-tight`).
+- **The control's words and look** (later the same day): its menu is a choice with a tick beside the
+  current mode, *Run Now*, *Run Automatically*, *Pause All*; the toolbar button is an icon only (play
+  filled while work runs, play outline while idle, an orange hourglass while work waits, pause while
+  paused), with the words in its help and accessibility label. "Held" is said *Waiting*. After
+  *Pause All* the button must say paused at once and stay so (it kept showing running, #5621).
+- **Clear Failed clears what is failed**, every failed row the window shows, and says what it
+  cleared (#5634). **The popover's Mac state is a row of symbols**, not a column of text (#5635).
 
 ## Prior art (what we build on, and what we do differently)
 
@@ -604,6 +611,22 @@ workflow by hand: a hand run is a job like any other.
   under it has no price, and nothing when no model was called, never "$0"
   (`ActivityTableTests` `testActivityWindowMeasures_theColumnsCarryTimeCostErrorsAndModelRolledUp`).
   Not yet seen in the app.
+- `activity.window.clear-failed` — **[PARTIAL]** (#5634, ruled 2026-10-09) *Clear Failed* in the
+  window's toolbar clears every failed row the window shows, in every open project and this Mac's
+  own: failed workflow runs (`workflow_run.delete` with a status filter, soft-deleted as before) and
+  failed jobs of their own (a recipe run, a model download, Detect Regions…), which are dismissed:
+  kept in the jobs table and the record, never listed again by `GET /api/activity/jobs`, so the
+  toolbar's error glyph clears too (the audited `job.clear_failed`, `POST /api/activity/jobs/clear-failed`;
+  open question 8, "failed jobs stay until dismissed"). A job retried after it was dismissed is
+  listed again. A run deleted while its execution is still in the app's memory does not come back on
+  the next reload. The window then says what it cleared ("Cleared 2 failed runs and 3 failed jobs."),
+  or that there was nothing to clear, or why it could not. Before (#5634): it deleted only workflow
+  runs, so failed jobs stayed forever, a run that failed in this session came back, and a failure
+  was silent. The button is enabled while any failed run or failed job is shown. Built
+  (2026-10-09): engine `execution/jobs.py` `clear_failed`
+  (`fichero-server/tests/unit/jobs/test_clear_failed_5634.py`); app `ActivityStore.clearFailed`
+  (`ActivityTableTests` `testActivityWindowClearFailed_*`). Not yet seen in the app; the Swift is
+  not compiled by the worker.
 - `activity.window.started-by` — **[GAP]** (#5354) a row says who or what started
   it: a person, the recipe, a schedule, a trigger, an assistant.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion
@@ -773,6 +796,20 @@ workflow by hand: a hand run is a job like any other.
   waiting job's reason (`ActivityStore.machine`; `ActivityTableTests`
   `testActivityPopoverSummary_saysThisMacsStateAndHidesAReadingTheEngineCouldNotTake`). Not yet
   seen in the app. Still a gap (#5415): nothing reads the GPU.
+- `activity.popover.mac-state-row` — **[PARTIAL]** (#5635, ruled 2026-10-09) the popover shows this
+  Mac's state as one compact row of symbols with short values, not a column of text: memory
+  (`memorychip`: OK, High, Critical), heat (`thermometer.medium`: OK, Warm, Hot, Critical), power
+  (`battery.50percent` "Battery" or `powerplug` "Power"), the person at the Mac (`person.fill` "In
+  use" or `person` "Away") and the app's CPU (`cpu`, "2%"). Each has help text and an accessibility
+  label with the full reading (for the CPU, of how many cores' worth). Only a reading that is a
+  problem is tinted: memory pressure high or critical, the Mac hot or critical. A reading the engine
+  could not take (null) is left out. The recent errors stay, three at most, each one line (its name
+  and reason, truncated), the full name and reason in its help. Built (2026-10-09):
+  `ActivityPopoverSummary.macReadings` and `ActivityMacStateRow`
+  (`Views/Activity/ActivityPopoverSummary.swift`), with a #Preview; `ActivityTableTests`
+  `testActivityPopoverSummary_saysThisMacsStateAndHidesAReadingTheEngineCouldNotTake`,
+  `testActivityPopoverSummary_aReadingIsTintedOnlyWhenItIsAProblem`. Not yet seen in the app; the
+  Swift is not compiled by the worker.
 
 ### The details view (#5561)
 
@@ -999,12 +1036,21 @@ and node, not by job); a retry action for failed pages.
   it survives relaunch like the pause. One audited, undoable action (`background.mode`,
   `PUT /api/activity/jobs/mode`) behind the main window's toolbar button and the Activity window's
   toolbar; `GET /api/activity/jobs` reports `mode`, and `machine.why_wait` is null while started
-  unless memory or heat holds. The toolbar button shows the mode at a glance: *Running* (work
-  goes ahead), *Held* (automatic, and the throttle holds waiting work now, with why in its help),
-  *Paused*. Built (2026-10-09): engine (`execution/jobs.py` `set_mode`, `execution/throttle.py`
+  unless memory or heat holds. The control's menu is an inline choice with the current mode ticked:
+  *Run Now* (started), *Run Automatically* (automatic), *Pause All* (paused); a click on the button
+  itself runs now from automatic and goes back to automatic otherwise. The toolbar button is an icon
+  only, its words in its help and accessibility label (`Background work: <state>`): *Running* (play
+  filled, work runs now), *Idle* (play outline, nothing runs), *Waiting* (orange hourglass:
+  automatic or run now, and the throttle holds waiting work now, with why in its help), *Paused*
+  (pause). The mode the button shows is the one the engine last answered: a jobs read that began
+  before a mode was set is older than the engine's answer to it and never puts the old mode back
+  (`ActivityStore.refreshBackgroundJobs`; #5621, where after Stop the button kept saying running).
+  The Activity window's button reads a project's store that polls the jobs read, so it follows a
+  change made elsewhere. Built (2026-10-09): engine (`execution/jobs.py` `set_mode`, `execution/throttle.py`
   `why_wait`), tested through the route with the real lanes (`fichero-server/tests/unit/jobs/test_start_stop_mode.py`);
   app: `ActivityModeButton` in the main toolbar and the Activity window, driven by
-  `ActivityStore.setBackgroundMode` (`ActivityTableTests` `testActivityMode_*`). Not yet seen in the app; the Swift is not compiled by the worker.
+  `ActivityStore.setBackgroundMode` (`ActivityTableTests` `testActivityMode_*`, and
+  `testActivityMode_aJobsReadBegunBeforePauseAllDoesNotPutTheOldModeBack` for the stale read). Not yet seen in the app; the Swift is not compiled by the worker.
 - `activity.throttle.recheck-when-it-clears` — **[PARTIAL]** (#5621) work held for battery, for the
   person at the Mac, or for memory or heat starts by itself once the hold clears, with no new work
   queued and nothing pressed: the model lane looks again every few seconds while it holds work, and
@@ -1532,9 +1578,9 @@ each one through a route, an action or a real run (#5429).
 
 Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · `activity.row.<jobId>.disclosure`
   `activity.toolbar.pauseAll` · `activity.toolbar.resumeAll` · `activity.filter.<name>`
-  `activity.mode.button` (main toolbar and Activity window: Start / Stop / Automatic) · `activity.details.workingOn`
+  `activity.mode.button` (main toolbar and Activity window: Run Now / Run Automatically / Pause All) · `activity.toolbar.clearFailed` · `activity.details.workingOn`
   `activity.row.<jobId>.pause` · `.resume` · `.cancel` · `.retry` · `.whatItMade`
-  `activity.group.<projectId>` · `activity.group.mac` · `activity.popover` · `activity.popover.macState`
+  `activity.group.<projectId>` · `activity.group.mac` · `activity.popover` · `activity.popover.macState` (the row) · `activity.popover.macState.<reading>` · `activity.popover.errors`
   `activity.row.<jobId>.details` · `activity.details` · `activity.details.heading` · `activity.details.state`
   `activity.details.progress` · `activity.details.failedPages` · `activity.details.log` · `activity.details.log.copy`
   `activity.details.resources` · `activity.details.retryFailed` · `activity.details.openPage` · `activity.details.showPages`

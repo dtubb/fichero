@@ -553,7 +553,7 @@ final class ActivityTableTests: XCTestCase {
         XCTAssertEqual(store.backgroundMode, .automatic)
         var indicator = ActivityModeIndicator(store: store)
         XCTAssertEqual(indicator.look, .held, "work waits and the throttle holds it")
-        XCTAssertEqual(indicator.title, "Held")
+        XCTAssertEqual(indicator.title, "Waiting")
         XCTAssertEqual(indicator.primary, .started, "a click starts it")
         XCTAssertTrue(indicator.help.contains("you're using the Mac"), "the help says why, once")
         XCTAssertFalse(indicator.help.contains("Waiting: "))
