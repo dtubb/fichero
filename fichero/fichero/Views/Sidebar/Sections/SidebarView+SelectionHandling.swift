@@ -305,16 +305,23 @@ extension SidebarView {
 extension Notification.Name {
     /// Ask the sidebar to expand, load, and select the row for a document —
     /// posted by the relaunch-restore path (and usable by any future
-    /// "Reveal in Sidebar" verb). userInfo: `documentId`.
+    /// "Reveal in Sidebar" verb). userInfo: `documentId` or `libraryId`;
+    /// `reopen: true` (a breadcrumb, #5633) also opens a node that is already selected.
     static let sidebarRevealDocument = Notification.Name("sidebarRevealDocument")
 }
 
 extension SidebarView {
+    /// Whether a reveal request came from a breadcrumb, which opens even a node already selected (#5633).
+    nonisolated static func revealReopens(_ note: Notification) -> Bool {
+        note.userInfo?["reopen"] as? Bool == true
+    }
+
     /// Expand the ancestor chain, LOAD each level so the row exists, then
     /// select through the same proposal seam a click uses. Tries each open
     /// library — `sidebarRevealPath` answers nil for a library that does not
-    /// know the document.
-    func revealDocument(_ documentId: String) async {
+    /// know the document. `reopen` (a breadcrumb, #5633): a node that is already
+    /// the selection is opened again rather than left as it is.
+    func revealDocument(_ documentId: String, reopen: Bool = false) async {
         for library in libraryManager.openLibraries {
             let store = library.documentStore
             guard let path = await store.sidebarRevealPath(to: documentId) else { continue }
@@ -324,9 +331,24 @@ extension SidebarView {
             for ancestor in path {
                 await store.cacheSidebarChildren(of: ancestor)
             }
-            applySidebarSelectionProposal([.document(documentId)])
+            openAsClicked(.document(documentId), reopen: reopen)
             return
         }
         sidebarViewLogger.info("revealDocument: \(documentId) not found in any open library")
+    }
+
+    /// Select `destination` through the click's commit seam; with `reopen`, a node that is
+    /// already the whole selection re-runs the click's handlers instead (#5633). Without this a
+    /// breadcrumb naming the selected folder did nothing: the Preview stayed on the file picked
+    /// in the Library, where a sidebar click on that folder had shown the folder.
+    func openAsClicked(_ destination: SidebarDestination, reopen: Bool) {
+        if reopen, selectionState.reopenIfSelected(destination) {
+            // The routing half of a click (`sidebarMode` / `viewMode`); ContentView answers
+            // `reopenGeneration` with the pane half (`handleSidebarSelectionChange`).
+            lastHandledSelectionDestination = nil
+            handleSelectionChange(destination, reason: "reopen")
+            return
+        }
+        applySidebarSelectionProposal([destination])
     }
 }

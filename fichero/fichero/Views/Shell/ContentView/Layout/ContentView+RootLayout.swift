@@ -391,6 +391,11 @@ extension ContentView {
             .onChange(of: sidebarSelectionState.selectedDestinations) { _, newDestinations in
                 handleSidebarMultiSelectionChange(newDestinations)
             }
+            // A breadcrumb opening the node already selected (#5633): the same pane handler a
+            // click's selection change runs below, since re-selecting it changes nothing.
+            .onChange(of: sidebarSelectionState.reopenGeneration) { _, _ in
+                handleSidebarSelectionChange(sidebarSelectionState.selectedItemId)
+            }
             .onChange(of: sidebarSelectionState.selectedItemId) { _, newFolderId in
                 selectedSidebarItemId = newFolderId
                 handleSidebarSelectionChange(newFolderId)

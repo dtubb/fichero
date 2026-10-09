@@ -134,13 +134,8 @@ extension ContentView {
                     chrome: self.previewChrome,
                     onUpToParent: parentCrumb.flatMap { (parent: PaneCrumb) -> (() -> Void)? in
                         guard parent.isNavigable, browserSelection.count <= 1 else { return nil }
-                        return {
-                            NotificationCenter.default.post(
-                                name: .sidebarRevealDocument,
-                                object: nil,
-                                userInfo: ["documentId": parent.id]
-                            )
-                        }
+                        // The same step as clicking the parent's crumb (#5633): one way to go there.
+                        return { PaneCrumb.reveal(parent) }
                     }
                 )
             },
