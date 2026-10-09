@@ -440,18 +440,178 @@ final class ActivityTableTests: XCTestCase {
         XCTAssertEqual(store.runTrees[Self.runId], before, "a refused retry changes no row")
     }
 
-    func testActivityWindowTable_aStoppedJobOfItsOwnOffersRetryButARunningOneDoesNot() {
+    func testActivityWindowTable_aStoppedJobOfItsOwnOffersRetryAndARunningOnePauseAndStop() {
         // WHY: Retry reaches every job (`job.retry`), a job of its own from the
-        // jobs read too, while Pause and Stop stay on rows with a tree node.
+        // jobs read too. Pause and Stop do too (#5621, `activity.pause.per-queue`):
+        // the import's row had none, and nothing could hold or stop it.
         let failed = ActivityMonitorRow.job(
             ActivityJob(id: "dl-1", taskType: "model-download", name: "Download a model", state: .failed),
             libraryId: Self.libraryId, projectName: nil)
         let running = ActivityMonitorRow.job(
-            ActivityJob(id: "dl-2", taskType: "model-download", name: "Download a model", state: .running),
+            ActivityJob(id: "derivatives", taskType: "derivatives", name: "Processing imported pages",
+                        current: 97, total: 146, state: .running),
+            libraryId: Self.libraryId, projectName: nil)
+        let paused = ActivityMonitorRow.job(
+            ActivityJob(id: "paused:embed", taskType: "embed", name: "Embed for search", total: 137, state: .paused),
             libraryId: Self.libraryId, projectName: nil)
         XCTAssertEqual(failed.controls, [.retry])
         XCTAssertEqual(failed.retryJobId, "dl-1", "Retry acts on the job of its own's id")
-        XCTAssertEqual(running.controls, [])
+        XCTAssertEqual(running.controls, [.pause, .stop])
+        XCTAssertEqual(running.jobId, "derivatives", "Pause and Stop act on the row's own id")
+        XCTAssertEqual(paused.controls, [.resume, .stop])
+    }
+
+    func testActivityWindowTable_pauseOnTheImportRowGoesToItsIdAndTheJobsReadFollows() async throws {
+        // WHY (#5621): Pause on the import's row reaches the engine by the row's id, and
+        // the row, which has no tree node to patch, is read again from the jobs read.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsJSON()),
+            Stub(pathContains: "/api/activity/jobs/embed/paused", method: "PUT", status: 200,
+                 body: Data(#"{"id":"embed","state":"paused"}"#.utf8))
+        ])
+        await store.refreshBackgroundJobs()
+        let failure = await store.setJobPaused(jobId: "embed", paused: true, runThreadId: nil)
+        XCTAssertNil(failure)
+        let methods = MockTransportURLProtocol.recorded().map { "\($0.httpMethod ?? "") \($0.url?.path ?? "")" }
+        XCTAssertEqual(methods.suffix(2), ["PUT /api/activity/jobs/embed/paused", "GET /api/activity/jobs"])
+    }
+
+    // MARK: - activity.mode.start-stop (#5621, ruled 2026-10-09)
+
+    private static let inUseMachine = #"{"memory_pressure":"normal","thermal_state":"nominal","on_battery":false,"#
+        + #""in_use":true,"why_wait":"Waiting: you're using the Mac"}"#
+
+    // MARK: - activity.details.what-it-works-on-now (#5623)
+
+    /// The import's row as the engine's `GET /api/activity/jobs/derivatives` gives it
+    /// (`execution/jobs.py` `queue_tree`, pinned by `test_start_stop_mode.py`).
+    private static let importTreeJSON = Data("""
+    {"id": "derivatives", "kind": "queue", "name": "Processing imported pages", "subject": "derivatives",
+     "display_name": "Processing imported pages", "state": "running", "reason": null,
+     "working_on": "Embed for search, p97.jpg", "done": 97, "total": 146, "failed": 0,
+     "children": [
+       {"id": "derivatives|thumbnail", "kind": "thumbnail", "name": "Make thumbnails", "subject": "thumbnail",
+        "display_name": "Make thumbnails", "state": "done", "done": 73, "total": 73, "failed": 0, "children": []},
+       {"id": "derivatives|embed", "kind": "embed", "name": "Embed for search", "subject": "embed",
+        "display_name": "Embed for search", "state": "running", "working_on": "p97.jpg",
+        "done": 24, "total": 73, "failed": 0,
+        "children": [
+          {"id": "e-97", "kind": "embed", "name": "Embed for search", "subject": "doc-97", "display_name": "p97.jpg",
+           "state": "running", "done": 0, "total": 1, "failed": 0, "children": []}
+        ]}
+     ]}
+    """.utf8)
+
+    func testActivityDetailsWhatItWorksOnNow_theImportRowSaysItsPageItsStagesAndOffersItsControls() async throws {
+        // WHY (#5623): selecting "Processing imported pages" showed a bar, "97 done · 0 failed · 49 left"
+        // and "Log: Nothing written for this row yet". Now it says what it works on, each stage with its
+        // state and counts, reads its log, and offers Pause and Stop beside the Start / Stop control.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200, body: Data("""
+            {"jobs": [{"id": "derivatives", "task_type": "derivatives", "name": "Processing imported pages",
+                       "library": "", "current": 97, "total": 146, "percent": 66.4, "state": "running"}],
+             "count": 1, "cpu_count": 8, "paused": false, "mode": "automatic",
+             "machine": {"memory_pressure": "warn", "on_battery": false, "in_use": true, "why_wait": null}}
+            """.utf8)),
+            Stub(pathContains: "/api/activity/jobs/derivatives", method: "GET", status: 200, body: Self.importTreeJSON),
+            Stub(pathContains: "/api/activity/jobs/derivatives/log", method: "GET", status: 200, body: Data("""
+            {"job_id": "derivatives", "lines": [
+              {"timestamp": "2026-10-09T14:00:00+00:00", "level": "info", "message": "Done: p96.jpg", "job_id": "e-96"},
+              {"timestamp": "2026-10-09T14:00:02+00:00", "level": "info", "message": "Started p97.jpg", "job_id": "e-97"}
+            ]}
+            """.utf8))
+        ])
+        await store.refreshBackgroundJobs()
+        await store.loadDetails(jobId: "derivatives")
+
+        let details = try XCTUnwrap(ActivityDetails(
+            store: store, selection: ActivitySelection(jobId: "derivatives", libraryId: Self.libraryId)))
+        XCTAssertEqual(details.workingOn, "Embed for search, p97.jpg", "what it works on now: the step and the page")
+        XCTAssertEqual(details.stages.map(\.title), ["Make thumbnails", "Embed for search"])
+        XCTAssertEqual(details.stages.map(\.state), ["Done", "Running: p97.jpg"])
+        XCTAssertEqual(details.stages.map(\.counts), ["73 done · 0 failed · 0 left", "24 done · 0 failed · 49 left"])
+        XCTAssertTrue(details.actions.contains(.control(.pause)), "the import's row can be paused")
+        XCTAssertTrue(details.actions.contains(.control(.stop)), "and stopped")
+        XCTAssertEqual(details.jobId, "derivatives", "its log is read by the row's own id")
+
+        await store.loadJobLog(jobId: details.jobId)
+        XCTAssertEqual(store.jobLogs["derivatives"]?.map(\.message), ["Done: p96.jpg", "Started p97.jpg"])
+    }
+
+    func testActivityMode_startGoesToTheEngineAndTheButtonSaysWhatItIs() async throws {
+        // WHY: plugging in did not start held work and nothing could say "run it now". The
+        // Start / Stop control sets the engine's mode with one action and shows running, held
+        // or paused at a glance, from the same jobs read the popover and the window read.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: Self.jobsJSON(machine: Self.inUseMachine))
+        ])
+        await store.refreshBackgroundJobs()
+        XCTAssertEqual(store.backgroundMode, .automatic)
+        var indicator = ActivityModeIndicator(store: store)
+        XCTAssertEqual(indicator.look, .held, "work waits and the throttle holds it")
+        XCTAssertEqual(indicator.title, "Held")
+        XCTAssertEqual(indicator.primary, .started, "a click starts it")
+        XCTAssertTrue(indicator.help.contains("you're using the Mac"), "the help says why, once")
+        XCTAssertFalse(indicator.help.contains("Waiting: "))
+
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs/mode", method: "PUT", status: 200,
+                 body: Data(#"{"mode":"started"}"#.utf8)),
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: Self.jobsJSON(machine: Self.idleMachine, mode: "started"))
+        ])
+        let failure = await store.setBackgroundMode(.started)
+        XCTAssertNil(failure)
+        XCTAssertEqual(store.backgroundMode, .started)
+        let put = try XCTUnwrap(MockTransportURLProtocol.recorded().first { $0.httpMethod == "PUT" })
+        XCTAssertEqual(put.url?.path, "/api/activity/jobs/mode")
+        let body = try XCTUnwrap(put.httpBody ?? put.httpBodyStream.map(Self.read))
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: body) as? [String: String], ["mode": "started"])
+        indicator = ActivityModeIndicator(store: store)
+        XCTAssertEqual(indicator.look, .running)
+        XCTAssertEqual(indicator.primary, .automatic, "pressed again it goes back to automatic")
+    }
+
+    func testActivityMode_theIndicatorSaysRunningHeldOrPaused() {
+        let paused = ActivityModeIndicator(mode: .paused, whyWait: nil, hasWaitingWork: true)
+        XCTAssertEqual(paused.look, .paused)
+        XCTAssertEqual(paused.title, "Paused")
+        XCTAssertEqual(paused.primary, .automatic, "a click resumes")
+        let idle = ActivityModeIndicator(
+            mode: .automatic, whyWait: "Waiting: you're using the Mac", hasWaitingWork: false)
+        XCTAssertEqual(idle.look, .running, "nothing waits, so nothing is held")
+        let memory = ActivityModeIndicator(mode: .started, whyWait: "Waiting: memory is tight", hasWaitingWork: true)
+        XCTAssertEqual(memory.look, .held, "Start never lifts the memory hold, and the button says so")
+        XCTAssertTrue(memory.help.contains("memory is tight"))
+    }
+
+    func testActivityMode_aRefusalIsSaidAndTheModeStaysAsItWas() async {
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs/mode", method: "PUT", status: 500,
+                 body: Data(#"{"detail":"boom"}"#.utf8))
+        ])
+        let failure = await store.setBackgroundMode(.paused)
+        XCTAssertNotNil(failure)
+        XCTAssertEqual(store.backgroundMode, .automatic)
+        XCTAssertFalse(store.backgroundPaused)
+    }
+
+    private static func read(_ stream: InputStream) -> Data {
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            if count <= 0 { break }
+            data.append(buffer, count: count)
+        }
+        return data
     }
 
     // MARK: - Sortable columns
@@ -547,7 +707,7 @@ final class ActivityTableTests: XCTestCase {
     private static let idleMachine =
         #"{"memory_pressure":"normal","thermal_state":"nominal","on_battery":false,"in_use":false,"why_wait":null}"#
 
-    private static func jobsJSON(paused: Bool = false, machine: String = idleMachine) -> Data {
+    private static func jobsJSON(paused: Bool = false, machine: String = idleMachine, mode: String = "automatic") -> Data {
         func job(_ id: String, _ type: String, _ name: String, _ state: String, current: Int = 0, total: Int = 0,
                  reason: String? = nil, parent: String? = nil) -> String {
             let reasonJSON = reason.map { "\"\($0)\"" } ?? "null"
@@ -569,7 +729,7 @@ final class ActivityTableTests: XCTestCase {
         ]
         return Data("""
         {"jobs":[\(jobs.joined(separator: ","))],"count":\(jobs.count),"process_cpu_percent":142.0,\
-        "cpu_count":8,"paused":\(paused),\
+        "cpu_count":8,"paused":\(paused),"mode":"\(mode)",\
         "machine":\(machine)}
         """.utf8)
     }

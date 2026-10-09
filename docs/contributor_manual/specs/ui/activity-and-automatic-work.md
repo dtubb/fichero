@@ -907,7 +907,7 @@ and node, not by job); a retry action for failed pages.
   the same way. Before: the row showed a bar, "97 done · 0 failed · 49 left" and "Log: Nothing
   written for this row yet". Built (2026-10-09): `execution/jobs.py` `queue_tree`, tested through
   the routes (`test_start_stop_mode.py`); app: the details' "Working on" line and Stages list from
-  the tree (`ActivityTableTests` `testActivityDetails_importRow*`). Not yet seen in the app.
+  the tree (`ActivityTableTests` `testActivityDetailsWhatItWorksOnNow_theImportRowSaysItsPageItsStagesAndOffersItsControls`; its Pause and Stop `testActivityWindowTable_pauseOnTheImportRowGoesToItsIdAndTheJobsReadFollows`). Not yet seen in the app; the Swift is not compiled by the worker.
 - `activity.details.one-view` — **[OK]** (#5561) the details of a selected row, whether a run,
   a step, a page or a job of its own, is one scrolling view with no tabs or sections to choose
   between; the Overview, Console, Progress, Trace and Log sections are gone. Built: `Views/Activity/Detail/ActivityDetailsView.swift`; the five sections' files are deleted (pinned: `ActivityWindowSelectionStateTests`).
@@ -976,7 +976,7 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/jobs/test_sub_workflows_are_child_runs.py`). The window's rows carry
   Pause or Resume and Stop through these routes (2026-10-04, `ActivityTableTests`
   `testActivityWindowTable_pauseOnAStepRowSetsThatOneRowsState`; not yet seen in the app); a job of
-  its own from the jobs read has none yet. Built (2026-10-08): retry, `POST /api/activity/jobs/{id}/retry`
+  its own from the jobs read has them too (2026-10-09, #5621, `activity.pause.per-queue`). Built (2026-10-08): retry, `POST /api/activity/jobs/{id}/retry`
   (`job.retry`): a failed or stopped job goes back to waiting with its attempts cleared and carries on from
   its own checkpoint; refused, with the reason, for work a run hands in (retry the run), a training on
   Hugging Face (start a new one) and work already waiting again. Stop on its row now reaches a running
@@ -1004,7 +1004,7 @@ and node, not by job); a retry action for failed pages.
   *Paused*. Built (2026-10-09): engine (`execution/jobs.py` `set_mode`, `execution/throttle.py`
   `why_wait`), tested through the route with the real lanes (`fichero-server/tests/unit/jobs/test_start_stop_mode.py`);
   app: `ActivityModeButton` in the main toolbar and the Activity window, driven by
-  `ActivityStore.setBackgroundMode` (`ActivityTableTests` `testActivityMode_*`). Not yet seen in the app.
+  `ActivityStore.setBackgroundMode` (`ActivityTableTests` `testActivityMode_*`). Not yet seen in the app; the Swift is not compiled by the worker.
 - `activity.throttle.recheck-when-it-clears` — **[PARTIAL]** (#5621) work held for battery, for the
   person at the Mac, or for memory or heat starts by itself once the hold clears, with no new work
   queued and nothing pressed: the model lane looks again every few seconds while it holds work, and

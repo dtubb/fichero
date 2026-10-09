@@ -238,6 +238,7 @@ class ActivityService {
                 processCpuPercent: body.processCpuPercent,
                 cpuCount: body.cpuCount,
                 paused: body.paused ?? false,
+                mode: ActivityMode(engine: body.mode?.rawValue),
                 machine: body.machine
             )
         case .undocumented(let statusCode, let payload):
@@ -511,6 +512,33 @@ extension ActivityService {
         switch response {
         case .accepted(let accepted):
             return try accepted.body.json.threadId
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw denial
+            }
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
+    /// Set how background work runs on this Mac (`activity.mode.start-stop`,
+    /// #5621): the audited `background.mode` action behind the Start / Stop
+    /// control. Returns the mode the engine now has.
+    func setBackgroundMode(_ mode: ActivityMode) async throws -> ActivityMode {
+        let payload: Components.Schemas.BackgroundModeRequest.ModePayload
+        switch mode {
+        case .automatic: payload = .automatic
+        case .started: payload = .started
+        case .paused: payload = .paused
+        }
+        let response = try await client.api.setBackgroundModeApiActivityJobsModePut(
+            body: .json(.init(mode: payload))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return ActivityMode(engine: try okResponse.body.json.mode.rawValue)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")

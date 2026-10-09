@@ -71,6 +71,13 @@ struct ActivityMonitorWindow: View {
         .frame(minWidth: 720, minHeight: 520)
         .accessibilityIdentifier("activity.window")
         .toolbar {
+            // The one Start / Stop control (ruled 2026-10-09, `activity.mode.start-stop`): the mode is
+            // the Mac's, so any open project's store sets and shows it.
+            ToolbarItem {
+                if let store = libraries.first?.activityStore {
+                    ActivityModeButton(store: store)
+                }
+            }
             ToolbarItem {
                 Toggle(isOn: $groupByProject) {
                     Label("Group by Project", systemImage: "square.stack.3d.up")

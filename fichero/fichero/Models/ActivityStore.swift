@@ -110,6 +110,9 @@ final class ActivityStore: ChangeEventConsumer {
     private(set) var cpuCount: Int = 0
     /// Pause Background Work is on (`activity.pause.global`), from the same read.
     private(set) var backgroundPaused = false
+    /// How background work runs (`activity.mode.start-stop`, #5621), same read:
+    /// what the Start / Stop control shows and sets.
+    private(set) var backgroundMode: ActivityMode = .automatic
     /// This Mac's state (memory, heat, battery, in use, why heavy work waits), same read.
     private(set) var machine: Components.Schemas.MachineState?
     private var jobsPollTask: Task<Void, Never>?
@@ -216,10 +219,7 @@ final class ActivityStore: ChangeEventConsumer {
                 backgroundJobs = snapshot.jobs
             }
             await followProjectRun(in: snapshot.jobs)
-            if processCpuPercent != snapshot.processCpuPercent { processCpuPercent = snapshot.processCpuPercent }
-            if cpuCount != snapshot.cpuCount { cpuCount = snapshot.cpuCount }
-            if backgroundPaused != snapshot.paused { backgroundPaused = snapshot.paused }
-            if machine != snapshot.machine { machine = snapshot.machine }
+            applyMachineReadings(snapshot)
             if let library { setLoadFailure(nil, library: library.id, source: .jobs) }
         } catch {
             // A refusal is a standing answer, not a blip: it reaches the footer
@@ -233,6 +233,16 @@ final class ActivityStore: ChangeEventConsumer {
             log.error("ActivityStore: jobs poll refused: \(message, privacy: .public)")
             setLoadFailure(message, library: library.id, source: .jobs)
         }
+    }
+
+    /// The jobs read's figures beside its rows (CPU, the pause, the mode, this
+    /// Mac's state), each set only when it changed (no wholesale re-render).
+    private func applyMachineReadings(_ snapshot: BackgroundJobsSnapshot) {
+        if processCpuPercent != snapshot.processCpuPercent { processCpuPercent = snapshot.processCpuPercent }
+        if cpuCount != snapshot.cpuCount { cpuCount = snapshot.cpuCount }
+        if backgroundPaused != snapshot.paused { backgroundPaused = snapshot.paused }
+        if backgroundMode != snapshot.mode { backgroundMode = snapshot.mode }
+        if machine != snapshot.machine { machine = snapshot.machine }
     }
 
     private static func isRefusal(_ error: Error) -> Bool {
@@ -579,6 +589,7 @@ extension ActivityStore {
         do {
             let state = try await activityService.setJobPaused(id: jobId, paused: paused)
             patchJobState(state, jobId: jobId, runThreadId: runThreadId)
+            await rereadJobOfItsOwn(jobId)
             return nil
         } catch {
             return error.localizedDescription
@@ -590,6 +601,7 @@ extension ActivityStore {
         do {
             let state = try await activityService.cancelJob(id: jobId)
             patchJobState(state, jobId: jobId, runThreadId: runThreadId)
+            await rereadJobOfItsOwn(jobId)
             return nil
         } catch {
             return error.localizedDescription
@@ -761,5 +773,30 @@ extension ActivityStore {
         guard let runThreadId, let tree = runTrees[runThreadId],
               let changed = tree.settingState(state, of: jobId) else { return }
         runTrees[runThreadId] = changed
+    }
+
+    /// A job of its own (the import's row, a kind's counted row, #5621) has no
+    /// tree node to patch: the jobs read gives its state after Pause or Stop.
+    private func rereadJobOfItsOwn(_ jobId: String) async {
+        if backgroundJobs.contains(where: { $0.id == jobId }) {
+            await refreshBackgroundJobs()
+        }
+    }
+
+    /// Set how background work runs on this Mac (`activity.mode.start-stop`,
+    /// #5621): the one engine action behind the main toolbar's Start / Stop
+    /// button and the Activity window's. The mode the engine answers is set
+    /// in place (the pause with it), then the jobs read follows. Returns what
+    /// went wrong, in words, or nil.
+    func setBackgroundMode(_ mode: ActivityMode) async -> String? {
+        do {
+            let now = try await activityService.setBackgroundMode(mode)
+            if backgroundMode != now { backgroundMode = now }
+            if backgroundPaused != (now == .paused) { backgroundPaused = now == .paused }
+            await refreshBackgroundJobs()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
     }
 }

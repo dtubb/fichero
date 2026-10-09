@@ -59,6 +59,9 @@ struct ActivityDetails: Equatable {
     /// The project, the model or models, who or what started it.
     let subheading: [String]
     let stateText: String
+    /// What a running row works on now, the page and the step ("Embed for search, p12.jpg"),
+    /// when the state line does not already say it (#5623); nil otherwise.
+    let workingOn: String?
     /// This Mac's reading a waiting row rests on ("memory pressure warn"), or nil.
     let machineText: String?
     let counts: Counts?
@@ -145,6 +148,8 @@ extension ActivityDetails {
             value.flatMap { $0.isEmpty ? nil : $0 }
         }
         stateText = row.stateText
+        let now = row.phase == .running ? (node?.workingOn ?? row.workingOn) : nil
+        workingOn = now.flatMap { $0.isEmpty || row.stateText.contains($0) ? nil : $0 }
         machineText = row.phase == .waiting || row.stateText.hasPrefix("Waiting") ? machine?.words : nil
 
         // Progress: a row with pages counts them; a page, or a job with no total, does not. A recipe run
@@ -214,11 +219,38 @@ extension ActivityDetails {
             actions.append(.showTrace(threadId: threadId))
         }
         self.actions = actions
-        stages = Self.stages(of: node)
+        let recipeStages = Self.stages(of: node)
+        stages = recipeStages.isEmpty ? Self.queueStages(of: node) : recipeStages
         summary = Self.summary(of: node)
     }
 
     static let runKinds: Set<String> = ["workflow", "workflow-step", "batch"]
+
+    /// The engine's kind for a row that stands for many jobs (the import's
+    /// "Processing imported pages", a kind's counted row; `jobs.queue_tree`).
+    static let queueKind = "queue"
+
+    /// A queue's stages (#5623, `activity.details.what-it-works-on-now`): each
+    /// child of its node (Make thumbnails, Embed for search, …) with its state
+    /// and why, what it works on now, and its jobs done, failed and left.
+    static func queueStages(of node: ActivityJobNode?) -> [Stage] {
+        guard let node, node.kind == queueKind else { return [] }
+        return node.children.map { child in
+            let phase = ActivityMonitorRow.Phase(engineState: child.state)
+            let left = max(0, child.total - child.done - child.failed)
+            return Stage(
+                id: child.id,
+                title: child.displayName ?? child.name,
+                steps: "",
+                state: ActivityMonitorRow.stateText(phase: phase, reason: child.reason, workingOn: child.workingOn,
+                                                    account: nil),
+                isFailed: phase == .failed,
+                counts: child.total > 0 ? "\(child.done) done · \(child.failed) failed · \(left) left" : nil,
+                timeLeft: nil,
+                waitingFor: nil
+            )
+        }
+    }
 
     private static func find(_ jobId: String, in row: ActivityMonitorRow) -> ActivityMonitorRow? {
         if row.detailsJobId == jobId || row.jobId == jobId { return row }
