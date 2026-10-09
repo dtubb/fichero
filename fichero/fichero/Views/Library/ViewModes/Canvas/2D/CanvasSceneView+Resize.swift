@@ -77,4 +77,24 @@ extension CanvasSceneView {
                     undoManager: undoManager
                 )
     }
+
+    /// Resize the selected cards a step (`factor`) or back to their normal size (nil), without handles
+    /// (maintainer 2026-10-09): the same saved, undoable resize the handles used.
+    func resizeSelectedCards(by factor: CGFloat?) {
+        let normalArea = Float(CanvasOrtho2DRenderer.defaultCardSize.width * CanvasOrtho2DRenderer.defaultCardSize.height)
+        for id in selectedNodeIds {
+            guard let origin = renderer.persistedSize(of: id), origin.height > 0,
+                  let world = renderer.worldPosition(of: id) else { continue }
+            // Normal keeps the card's shape (its page's) at the board's standard area.
+            let normal = CanvasCardGeometry.dimensions(area: normalArea, aspect: Float(origin.width / origin.height),
+                                                       fallback: 4 / 3)
+            let target = factor.map { CGSize(width: origin.width * $0, height: origin.height * $0) }
+                ?? CGSize(width: CGFloat(normal.width), height: CGFloat(normal.height))
+            guard target != origin else { continue }
+            renderer.liveResize(id: id, toSize: target)
+            controller?.dispatch(.resize(id: id, size: target, position: world))
+            controller?.registerResizeUndo(id: id, at: world, origin: origin, destination: target,
+                                           undoManager: undoManager)
+        }
+    }
 }

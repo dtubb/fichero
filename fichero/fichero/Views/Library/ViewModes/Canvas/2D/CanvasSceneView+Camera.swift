@@ -72,9 +72,12 @@ extension CanvasSceneView {
             .onChanged { value in
                 if zoomBaseline == 0 { zoomBaseline = renderer.orthoScale }
                 renderer.setOrthoScale(
-                    Canvas2DProjection.orthoScale(zoomBaseline: zoomBaseline, magnification: value)
+                    Canvas2DProjection.orthoScale(zoomBaseline: zoomBaseline, magnification: value), live: true
                 )
             }
-            .onEnded { _ in zoomBaseline = 0 }
+            .onEnded { _ in
+                zoomBaseline = 0
+                renderer.settleZoom()
+            }
     }
 }

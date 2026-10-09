@@ -285,7 +285,8 @@ struct CanvasSceneView: View {
                     // put while the scale changes — pan by the anchor times
                     // the world-per-point change, same mapping the pan uses.
                     let oldScale = renderer.orthoScale
-                    renderer.setOrthoScale(oldScale * Float(1 + delta * 0.005))
+                    renderer.setOrthoScale(oldScale * Float(1 + delta * 0.005), live: true)
+                    renderer.settleZoomSoon()
                     let wppOld = Canvas2DProjection.worldPerPoint(
                         orthoScale: oldScale, viewHeight: geo.size.height
                     )
@@ -670,6 +671,12 @@ extension CanvasSceneView {
         case .actualSize:
             jumpHistory.record(renderer.cameraSnapshot())
             renderer.setOrthoScale(CanvasOrtho2DRenderer.defaultOrthoScale)
+        case .makeBigger:
+            resizeSelectedCards(by: 1.25)
+        case .makeSmaller:
+            resizeSelectedCards(by: 0.8)
+        case .normalSize:
+            resizeSelectedCards(by: nil)
         }
     }
 

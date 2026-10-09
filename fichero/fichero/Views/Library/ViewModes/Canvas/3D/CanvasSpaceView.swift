@@ -378,6 +378,8 @@ struct CanvasSpaceView: View {
         case .actualSize:
             jumpHistory.record(renderer.cameraSnapshot())
             renderer.setDistance(CanvasScene3DRenderer.defaultDistance)
+        case .makeBigger, .makeSmaller, .normalSize:
+            break  // ponytail: sizes are set on the 2D board; the 3D space shows them. Add here if asked.
         }
     }
 

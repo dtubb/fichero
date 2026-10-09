@@ -18,6 +18,11 @@ enum CanvasMenuItem: String, CaseIterable, Identifiable {
     case zoomToFit
     /// The zoom a board opens at when it is the size of the view.
     case actualSize
+    /// A page's own size on the board, without handles (maintainer 2026-10-09): a step bigger, a step
+    /// smaller, or back to its normal size. Saved and undoable like any resize.
+    case makeBigger
+    case makeSmaller
+    case normalSize
 
     var id: String { rawValue }
 
@@ -28,6 +33,9 @@ enum CanvasMenuItem: String, CaseIterable, Identifiable {
         case .arrange: "Arrange By"
         case .zoomToFit: "Zoom to Fit"
         case .actualSize: "Actual Size"
+        case .makeBigger: "Make Bigger"
+        case .makeSmaller: "Make Smaller"
+        case .normalSize: "Normal Size"
         }
     }
 
@@ -38,6 +46,9 @@ enum CanvasMenuItem: String, CaseIterable, Identifiable {
         case .arrange: "square.grid.3x3"
         case .zoomToFit: "arrow.up.left.and.down.right.magnifyingglass"
         case .actualSize: "1.magnifyingglass"
+        case .makeBigger: "plus.square"
+        case .makeSmaller: "minus.square"
+        case .normalSize: "square"
         }
     }
 }
@@ -45,7 +56,7 @@ enum CanvasMenuItem: String, CaseIterable, Identifiable {
 enum CanvasMenu {
     /// The canvas's own items for a right-click on a card (`onCard`) or on the board.
     static func items(onCard: Bool) -> [CanvasMenuItem] {
-        onCard ? [.zoomToCard] : [.newNote, .arrange, .zoomToFit, .actualSize]
+        onCard ? [.zoomToCard, .makeBigger, .makeSmaller, .normalSize] : [.newNote, .arrange, .zoomToFit, .actualSize]
     }
 
     /// The orders Arrange offers: every arrangement that lays cards out. Free lays nothing out.

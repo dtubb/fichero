@@ -19,7 +19,7 @@ struct CanvasContextMenuTests {
     // touch-reachable twin); its document verbs come from the host.
     @Test("a card's menu and the board's menu offer the canvas's verbs")
     func items() {
-        #expect(CanvasMenu.items(onCard: true) == [.zoomToCard])
+        #expect(CanvasMenu.items(onCard: true) == [.zoomToCard, .makeBigger, .makeSmaller, .normalSize])
         #expect(CanvasMenu.items(onCard: false) == [.newNote, .arrange, .zoomToFit, .actualSize])
     }
 

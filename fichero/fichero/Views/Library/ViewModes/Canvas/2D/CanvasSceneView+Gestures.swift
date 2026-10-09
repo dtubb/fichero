@@ -91,12 +91,13 @@ extension CanvasSceneView {
             .targetedToAnyEntity()
             .onChanged { value in
                 let id = value.entity.name
-                guard !id.isEmpty else { return }
+                guard !id.isEmpty else { CanvasDragLog.refused("no card under the pointer"); return }
                 // A drag that started on a resize handle belongs to
                 // `resizeDrag`. Without this the same gesture would ALSO move
                 // the card, so resizing would drag the thing being resized.
-                guard !CanvasSelectionFrame.isDecoration(id) else { return }
+                guard !CanvasSelectionFrame.isDecoration(id) else { CanvasDragLog.refused("a decoration: \(id)"); return }
                 if draggingNodeId == nil {
+                    CanvasDragLog.began(id)
                     draggingNodeId = id
                     let startScene = value.entity.position(relativeTo: nil)
                     dragStartScene = startScene
@@ -108,12 +109,14 @@ extension CanvasSceneView {
                 renderer.liveMove(id: id, toWorld: world)
                 renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
                 controller?.dispatch(.dragMoved(id: id, position: world))
+                CanvasDragLog.moved()
             }
             .onEnded { value in
                 guard let id = draggingNodeId, let start = dragStartScene else { return }
                 let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)
                 renderer.setHoverTarget(nil)
                 let target = dropTarget(near: world, dragged: id)
+                CanvasDragLog.ended(id, dropTarget: target.map { "\($0)" })
                 let modifiers: CanvasDropModifiers = optionHeld ? .forceLink : []
                 controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: target, modifiers: modifiers))
                 // Only a plain place (no drop target) registers a move-undo — a

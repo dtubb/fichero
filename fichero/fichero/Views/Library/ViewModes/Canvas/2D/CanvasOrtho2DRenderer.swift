@@ -31,6 +31,8 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     let root = Entity()
     let placeablesRoot = Entity()
     private let edgesRoot = Entity()
+    /// The edges last drawn, so a dragged card's lines can be redrawn from where it is now.
+    private var drawnEdges: [CanvasEdge] = []
     /// Selection decoration — frames, the set frame and resize handles.
     ///
     /// A SEPARATE object owning a SEPARATE root, never children of the cards,
@@ -254,17 +256,37 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     // MARK: - Camera control (view drives these from gestures)
 
-    func setOrthoScale(_ scale: Float) {
+    /// `live` is a pinch in progress: only the camera moves, frame by frame. The selection ring's
+    /// zoom-constant mesh and the remembered camera are redone once, when the pinch ends
+    /// (`settleZoom`): rebuilding them on every pinch event made zooming jagged (2026-10-09).
+    func setOrthoScale(_ scale: Float, live: Bool = false) {
         orthoScale = min(max(scale, 0.1), 200)  // 0.5→0.1 (2026-08-22): zoom close enough to read
         // The tier follows the zoom here for the same reason as 3D: this is a
         // plain class, so a pinch that only moves the scale republishes
         // nothing and a SwiftUI update pass may never re-read it.
         detailTier = CanvasDetailTier.forZoomScale(reportedZoomScale)
         applyOrthoScale()
-        // Zoom-constant selection chrome (#4601): redraw at the new ratio.
+        guard !live else { return }
+        settleZoom()
+    }
+
+    /// The zoom's follow-ups: zoom-constant selection chrome (#4601) and the remembered camera.
+    func settleZoom() {
+        pendingSettle?.cancel()
+        pendingSettle = nil
         refreshSelectionDecoration()
         cameraDidChange()
     }
+
+    /// For zooms with no end event (⌘-scroll): settle once the events stop for a moment.
+    func settleZoomSoon() {
+        pendingSettle?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.settleZoom() }
+        pendingSettle = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+    }
+
+    private var pendingSettle: DispatchWorkItem?
 
     // MARK: - Drag + marquee (#3084)
 
@@ -279,6 +301,8 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         cameraIsAutoFit = false
         guard let entity = placedEntity(id) else { return }
         entity.position = scenePosition(world, keepingDepthOf: entity)
+        // Its lines follow it (few and cheap to redraw, per the edges contract).
+        if drawnEdges.contains(where: { $0.sourceId == id || $0.targetId == id }) { rebuildEdges(drawnEdges) }
         // The handles belong to the card, so they travel with it mid-drag —
         // otherwise dragging a selected card leaves its selection behind,
         // which reads as the selection having been lost. They are MOVED, not
@@ -445,14 +469,21 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     // it and Swift's `private` is FILE-scoped — the same trade documented on
     // CanvasSceneView's split state.
     func rebuildEdges(_ edges: [CanvasEdge]) {
+        drawnEdges = edges
         edgesRoot.children.forEach { $0.removeFromParent() }
         for edge in edges {
-            guard
-                let source = placeablesById[edge.sourceId].map({ Canvas2DProjection.scenePosition($0.position) }),
-                let target = placeablesById[edge.targetId].map({ Canvas2DProjection.scenePosition($0.position) })
+            // From where each card IS (its entity), not where the board last placed it: a card being
+            // dragged has moved, and its line must move with it (a line was left behind, 2026-10-09).
+            guard let source = cardScenePosition(edge.sourceId), let target = cardScenePosition(edge.targetId)
             else { continue }
             edgesRoot.addChild(makeConnector(from: source, to: target, style: edge.style))
         }
+    }
+
+    /// Where a card is drawn now: its entity's position, else the board's placement.
+    private func cardScenePosition(_ id: String) -> SIMD3<Float>? {
+        if let entity = placedEntity(id) { return entity.position }
+        return placeablesById[id].map { Canvas2DProjection.scenePosition($0.position) }
     }
 
     /// A thin FLAT rectangle in the z=0 plane between two points — the RealityKit
