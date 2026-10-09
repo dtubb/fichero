@@ -90,3 +90,11 @@ struct CanvasContextMenu: View {
         }
     }
 }
+
+#Preview("On the board and on a card") {
+    HStack(alignment: .top, spacing: 24) {
+        VStack(alignment: .leading) { CanvasContextMenu(onCard: false, perform: { _ in }, arrange: { _ in }) }
+        VStack(alignment: .leading) { CanvasContextMenu(onCard: true, perform: { _ in }, arrange: { _ in }) }
+    }
+    .padding()
+}

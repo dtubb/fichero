@@ -660,6 +660,8 @@ it is on and answers `running`; a training Job is cancelled on Hugging Face. A p
 run is waiting for is paused with its run (`409`); an unknown id is `404`. MCP: `fichero_jobs`,
 `fichero_pause_background_work`, `fichero_job_pause`, `fichero_job_cancel`.
 
+`POST /api/activity/jobs/clear-failed` is the Activity window's Clear Failed (`job.clear_failed`, audited): failed jobs are hidden from the list (kept in the table, with `cleared_at`), alongside the failed workflow runs the window deletes; it answers how many it cleared. Retrying a cleared job lists it again (#5634).
+
 `POST /api/activity/jobs/{job_id}/retry` runs a failed or stopped job again through `job.retry`
 (#5356): it goes back to waiting with its attempts cleared and carries on from its own checkpoint;
 any other state is answered unchanged. A page a workflow run handed in, a training on Hugging Face,

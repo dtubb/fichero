@@ -225,6 +225,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/core/logging.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/naturalsort.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/perf.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/timeutil.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/tls.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/utf16_offsets.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/app.py

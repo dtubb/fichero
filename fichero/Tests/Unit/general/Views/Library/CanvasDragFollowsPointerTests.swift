@@ -48,7 +48,7 @@ struct CanvasDragFollowsPointerTests {
         let start = try #require(renderer.worldPosition(of: "doc:1"))
         renderer.liveMove(id: "doc:1", toWorld: start + SIMD3<Double>(3, 0, 0))
         #expect(renderer.worldPosition(of: "doc:1") == start)
-        let entity = try #require(renderer.cardEntity("doc:1"))
+        let entity = try #require(renderer.placedEntity("doc:1"))
         #expect(abs(entity.position.x - (Float(start.x) + 3)) < 0.0001)
     }
 
@@ -57,9 +57,9 @@ struct CanvasDragFollowsPointerTests {
     @Test("the card index follows a rebuilt card")
     func indexFollowsRebuild() throws {
         let (renderer, _) = board(selecting: [])
-        let old = try #require(renderer.cardEntity("doc:2"))
+        let old = try #require(renderer.placedEntity("doc:2"))
         renderer.reskinCard("doc:2")
-        let rebuilt = try #require(renderer.cardEntity("doc:2"))
+        let rebuilt = try #require(renderer.placedEntity("doc:2"))
         #expect(old !== rebuilt)
         #expect(rebuilt.parent != nil)
     }
