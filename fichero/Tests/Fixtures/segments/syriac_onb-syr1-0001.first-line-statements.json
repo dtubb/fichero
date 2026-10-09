@@ -7,7 +7,9 @@
    "curation_state": "unreviewed",
    "confidence": 0.5,
    "via": "anchor",
-   "excerpt": "\u0710\u0712\u072a\u0717\u0721 \u0710\u0718\u0720\u0715"
+   "excerpt": "\u0710\u0712\u072a\u0717\u0721 \u0710\u0718\u0720\u0715",
+   "char_start": null,
+   "char_end": null
   }
  ],
  "mentions": [
@@ -15,7 +17,12 @@
    "entity_id": "entity-0001",
    "name": "Abraham",
    "entity_type": "person",
-   "excerpt": "\u0710\u0712\u072a\u0717\u0721"
+   "excerpt": "\u0710\u0712\u072a\u0717\u0721",
+   "source_char_start": null,
+   "source_char_end": null,
+   "char_start": null,
+   "char_end": null,
+   "corrected_by_person": false
   }
  ]
 }
