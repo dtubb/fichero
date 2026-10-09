@@ -56,6 +56,9 @@ struct CanvasSpaceView: View {
     /// channel, produced by the host from document attributes.
     var tint: CanvasTint = .neutral
 
+    /// The host's document menu for the selected card(s), as on the 2D canvas (#5632).
+    var documentMenu: (() -> AnyView)?
+
     @Environment(\.undoManager) var undoManager
 
     @State var renderer = CanvasScene3DRenderer()
@@ -121,8 +124,9 @@ struct CanvasSpaceView: View {
 
     /// Held by `CanvasPlacementMemory` (#5629): a pane resize, a card arriving or a page shape
     /// landing changes the default grid and must not move a card nobody moved.
-    private func resolvedState(in viewportSize: CGSize) -> CanvasSceneState {
-        let rows = layoutStore?.layout(for: scopeKey) ?? []
+    /// `savedRows` given: the board as an arrangement lays it out (every card placed afresh), not held.
+    private func resolvedState(in viewportSize: CGSize, savedRows: [CanvasItemLayout]? = nil) -> CanvasSceneState {
+        let rows = savedRows ?? layoutStore?.layout(for: scopeKey) ?? []
         let columns = CanvasGridPlacement.sharedColumnCount(
             itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
         )
@@ -145,9 +149,11 @@ struct CanvasSpaceView: View {
             gridCell: gridCell,
             arrangement: CanvasArrangement.stored(arrangementRaw)
         )
-        state = placementMemory.pin(
-            state, scope: scopeKey, savedIds: Set(rows.map(\.itemId)), columns: columns, cell: gridCell
-        )
+        if savedRows == nil {
+            state = placementMemory.pin(
+                state, scope: scopeKey, savedIds: Set(rows.map(\.itemId)), columns: columns, cell: gridCell
+            )
+        }
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
         }
@@ -258,6 +264,16 @@ struct CanvasSpaceView: View {
             ))
             .focusedSceneValue(\.canvasViewActions, canvasCommandActions)
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
+            // The same menu as the 2D canvas (#5632). Space has no hit test for a right-click's
+            // point yet, so with a selection it is the card menu, without one the board's.
+            .contextMenu {
+                CanvasContextMenu(
+                    onCard: !selectedNodeIds.isEmpty,
+                    perform: { performMenuItem($0) },
+                    arrange: { arrangeBoard($0, in: geo.size) },
+                    documentMenu: documentMenu
+                )
+            }
             .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
             .task(id: folderScopeId) {
@@ -344,6 +360,36 @@ struct CanvasSpaceView: View {
             .padding(.vertical, 5)
             .background(.regularMaterial, in: Capsule())
             .padding(.top, 8)
+    }
+
+    // MARK: - The context menu (#5632)
+
+    private func performMenuItem(_ item: CanvasMenuItem) {
+        switch item {
+        case .zoomToCard:
+            if let id = singleItemCommandTarget { toggleFocusZoom(on: id) }
+        case .newNote:
+            addItem(.note)
+        case .arrange:
+            break
+        case .zoomToFit:
+            zoomToFit()
+        case .actualSize:
+            jumpHistory.record(renderer.cameraSnapshot())
+            renderer.setDistance(CanvasScene3DRenderer.defaultDistance)
+        }
+    }
+
+    /// Lay every card out in `arrangement` and save those places, as the 2D canvas does: the
+    /// same rows, so both canvases show the arranged board.
+    private func arrangeBoard(_ arrangement: CanvasArrangement, in size: CGSize) {
+        guard arrangement != .free, let layoutStore else { return }
+        arrangementRaw = arrangement.rawValue
+        let rows = CanvasArrangement.rowsPinning(
+            resolvedState(in: size, savedRows: []).placeables, keeping: layoutStore.layout(for: scopeKey)
+        )
+        let scope = scopeKey
+        Task { await layoutStore.saveLayout(folderId: scope, items: rows) }
     }
 
     // MARK: - Opening settled (#5629)

@@ -20,6 +20,10 @@ import SwiftUI
 /// arbitrary view. Mirrors `Views/Preview/ImageViewer/ScrollWheelZoom.swift`,
 /// the sanctioned bridge already doing this for zoom — two axes instead of one.
 struct CanvasScrollPanView: NSViewRepresentable {
+    /// A right-click or Control-click inside the view, at its point (y-down, SwiftUI's sense), BEFORE
+    /// the context menu opens, so the canvas can select the card under it first (#5632). The click
+    /// itself is passed on untouched: the menu still opens.
+    var onSecondaryClick: ((CGPoint) -> Void)?
     /// Scroll delta in view POINTS, already corrected for scroll direction.
     /// Shaped like a drag translation so the caller can hand it to the same
     /// conversion a drag uses.
@@ -33,12 +37,14 @@ struct CanvasScrollPanView: NSViewRepresentable {
         let view = CanvasScrollCaptureView()
         view.onScroll = onScroll
         view.onZoom = onZoom
+        view.onSecondaryClick = onSecondaryClick
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
         (nsView as? CanvasScrollCaptureView)?.onScroll = onScroll
         (nsView as? CanvasScrollCaptureView)?.onZoom = onZoom
+        (nsView as? CanvasScrollCaptureView)?.onSecondaryClick = onSecondaryClick
     }
 }
 
@@ -46,7 +52,9 @@ final class CanvasScrollCaptureView: NSView {
     var onScroll: ((CGSize) -> Void)?
     /// (deltaY, cursor offset from the view CENTER in points, y-down).
     var onZoom: ((CGFloat, CGPoint) -> Void)?
+    var onSecondaryClick: ((CGPoint) -> Void)?
     private var monitor: Any?
+    private var clickMonitor: Any?
 
     /// Transparent to every other input: this view exists only to receive
     /// scroll, so clicks, drags and taps must continue to the SwiftUI content
@@ -62,7 +70,17 @@ final class CanvasScrollCaptureView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor); self.clickMonitor = nil }
         guard window != nil else { return }
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .leftMouseDown]) { [weak self] event in
+            guard let self, let window = self.window, event.window === window, let onSecondaryClick = self.onSecondaryClick,
+                  event.type == .rightMouseDown || event.modifierFlags.contains(.control) else { return event }
+            let inView = self.convert(event.locationInWindow, from: nil)
+            if self.bounds.contains(inView) {
+                onSecondaryClick(CGPoint(x: inView.x, y: self.isFlipped ? inView.y : self.bounds.height - inView.y))
+            }
+            return event
+        }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             guard let self, let window = self.window, event.window === window else { return event }
             let inView = self.convert(event.locationInWindow, from: nil)

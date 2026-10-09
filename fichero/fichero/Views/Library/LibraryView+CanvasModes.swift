@@ -45,8 +45,20 @@ extension LibraryView {
             ?? filteredDocuments.first { $0.id == firstId }
     }
 
+    /// The selected card's DOCUMENT menu on the engine canvases (#5632): the one shared
+    /// `documentContextMenu`, the same as every other Library mode. The canvas's own verbs (Zoom to
+    /// Card, Arrange, Zoom to Fit, …) are the canvas's (`CanvasContextMenu`), in every host.
     @ViewBuilder
-    private func canvasContextMenu() -> some View {
+    private func canvasDocumentMenu() -> some View {
+        if let doc = canvasMenuDocument {
+            documentContextMenu(for: doc)
+        }
+    }
+
+    /// The legacy canvases (behind the engine flags) keep their old menu: Zoom to Card, then the
+    /// document's.
+    @ViewBuilder
+    private func legacyCanvasContextMenu() -> some View {
         if let doc = canvasMenuDocument {
             // Touch-reachable twin of the canvas double-click (iPad has no
             // double-click; the guardrail is right that the action must
@@ -112,9 +124,9 @@ extension LibraryView {
                 containerIds: canvasContainerIds,
                 moveIntoContainer: moveCanvasNodeIntoContainer,
                 emphasis: canvasSearchEmphasis,
-                tint: canvasTint
+                tint: canvasTint,
+                documentMenu: { AnyView(canvasDocumentMenu()) }
             )
-            .contextMenu { canvasContextMenu() }
         } else {
             SpaceSceneView(
                 nodes: libraryProjection.nodes,
@@ -129,7 +141,7 @@ extension LibraryView {
                 // page thumbnails.
                 storageService: activeLibraryReference?.storageService
             )
-            .contextMenu { canvasContextMenu() }
+            .contextMenu { legacyCanvasContextMenu() }
         }
     }
     /// The 2D Canvas renderer, gated (#3083): the new RealityKit-ortho
@@ -154,6 +166,7 @@ extension LibraryView {
                         handleDoubleClick(doc)
                     }
                 },
+                documentMenu: { AnyView(canvasDocumentMenu()) },
                 containerIds: canvasContainerIds,
                 moveIntoContainer: moveCanvasNodeIntoContainer,
                 storageService: activeLibraryReference?.storageService,
@@ -165,7 +178,6 @@ extension LibraryView {
                     await documentStore.canvasPageNodes(ofGroupNode: nodeId)
                 }
             )
-            .contextMenu { canvasContextMenu() }
         } else {
             Spatial2DCanvas(
                 nodes: libraryProjection.nodes,
@@ -176,7 +188,7 @@ extension LibraryView {
                 folderScopeId: folderId ?? wholeLibraryRoomId,
                 storageService: activeLibraryReference?.storageService
             )
-            .contextMenu { canvasContextMenu() }
+            .contextMenu { legacyCanvasContextMenu() }
         }
     }
 }

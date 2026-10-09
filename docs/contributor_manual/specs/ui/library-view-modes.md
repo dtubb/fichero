@@ -448,9 +448,24 @@ homeless until a map-view UI spec exists (#5128).
   - **Why (2026-10-09):** the two hosts built the canvas's inputs separately. The Preview passed no
     drop-into containers, so a card could not be dropped into a subfolder there, and every later
     difference would have been a second canvas.
-  - Not covered yet: the context menus (#5632) are still the Library's alone. The boxes the
+  - Not covered yet: the Preview's canvas has the canvas's own menu verbs but not the document
+    menu (`library.canvas.context-menus`). The boxes the
     maintainer saw over cards in the Preview's canvas are not explained: the canvas draws no
     segment boxes, and the Preview hosts the same view.
+- `library.canvas.context-menus` — **[PARTIAL]** (#5632; tested in
+  `fichero/Tests/Unit/general/Views/Library/CanvasContextMenuTests.swift` and
+  `LibraryMenuParityTests.swift`, not yet seen in the app) a right-click or Control-click on the
+  canvas, 2D and 3D and in every host, opens a menu. On a card (a card not already selected is
+  selected first, as in Finder): Zoom to Card, then the card's document menu, the one shared menu
+  every Library mode and the sidebar's parity rows show (no canvas-only document actions). On the
+  board: New Note, Arrange By (As Filed, Name, Type; choosing one lays the board out and saves it,
+  the explicit act `library.canvas.cards-move-only-when-asked` allows), Zoom to Fit, Actual Size.
+  The canvas's own verbs live in the canvas (`CanvasContextMenu`), so the Preview's folder canvas
+  has them too.
+  - Not covered yet: Paste and New Folder on the board; the Preview's folder canvas has no document
+    menu on a card (the shared document menu is the Library pane's and is not reachable from the
+    Preview yet); Space has no right-click hit test, so there the menu is the card's whenever
+    something is selected.
 - `library.canvas.selection-ring-is-thin` — **[PARTIAL]** (#5631; tested, not yet seen in the app) a
   selected card on the 2D canvas wears a thin system-style ring, about 3 points in the accent colour,
   just outside the card's edge and following its rounded corners, the same on-screen thickness at

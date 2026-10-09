@@ -74,7 +74,7 @@ struct LibraryMenuParityTests {
         Surface(mode: "Columns", path: "Views/Library/ViewModes/Columns/LibraryView+ColumnsView.swift",
                 anchor: "MillerColumn"),
         Surface(mode: "Canvas 2D/3D", path: "Views/Library/LibraryView+CanvasModes.swift",
-                anchor: "canvasContextMenu"),
+                anchor: "canvasDocumentMenu"),
     ]
 
     /// DATASET renderers: five private copies of a narrower menu. Consolidating
@@ -121,11 +121,19 @@ struct LibraryMenuParityTests {
         }
     }
 
-    @Test("the canvases add exactly one verb of their own, and defer the rest")
+    // #5632 (2026-10-09): the canvas's own verbs moved into the canvas (`CanvasContextMenu`), so
+    // every host of the canvas (the Library's modes and the Preview's folder canvas) offers them;
+    // the document verbs are still the ONE shared builder, handed in by the host.
+    @Test("the canvases add their own verbs in one place, and defer the document's")
     func canvasesExtendRatherThanFork() throws {
-        let code = try code(at: "Views/Library/LibraryView+CanvasModes.swift")
-        #expect(code.contains("Zoom to Card"))
-        #expect(code.contains("documentContextMenu(for: doc)"))
+        let host = try code(at: "Views/Library/LibraryView+CanvasModes.swift")
+        #expect(host.contains("documentContextMenu(for: doc)"))
+        #expect(host.contains("documentMenu: { AnyView(canvasDocumentMenu()) }"))
+        let canvas = try code(at: "Views/Library/ViewModes/Canvas/CanvasContextMenu.swift")
+        #expect(canvas.contains("Zoom to Card"))
+        for verb in ["\"Duplicate\"", "\"Make Alias\"", "\"Rename\""] {
+            #expect(!canvas.contains(verb), "the canvas menu spells \(verb) itself")
+        }
     }
 
     // MARK: - Dataset menus: consolidated behind ONE builder

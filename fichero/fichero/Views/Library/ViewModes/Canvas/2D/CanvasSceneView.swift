@@ -38,6 +38,9 @@ struct CanvasSceneView: View {
     /// Double-clicking a card opens the item it stands for (a document id); nil keeps the old
     /// double-click, zooming onto the card (2026-09-30: double-click should take you to the item).
     var onOpenDocument: ((String) -> Void)?
+    /// The host's document menu for the selected card(s) (#5632): the same menu the Library's
+    /// other modes show for a document, so the canvas has no document actions of its own.
+    var documentMenu: (() -> AnyView)?
     /// Spatial node ids that are containers (folder / workspace), from LibraryView
     /// — drives drag-onto move-into vs link (#3086).
     var containerIds: Set<String> = []
@@ -82,6 +85,8 @@ struct CanvasSceneView: View {
     /// The scope whose saved places, items and first page shapes are in: until it is this board's
     /// scope, the canvas draws nothing, so its first frame is the settled board (#5629).
     @State var settledScope: String?
+    /// Whether the last right-click landed on a card (the card menu) or on the board (#5632).
+    @State var menuOnCard = false
 
     // Camera-pan bookkeeping. Internal, not private: the camera-input
     // extension lives in `CanvasSceneView+Camera.swift` and Swift's
@@ -266,7 +271,7 @@ struct CanvasSceneView: View {
             // selection and node drag are untouched.
             #if os(macOS)
             .overlay {
-                CanvasScrollPanView(onScroll: { delta in
+                CanvasScrollPanView(onSecondaryClick: { secondaryClick(at: $0, in: geo.size) }, onScroll: { delta in
                     // Raw-delta mapping (user, 2026-08-20, trackpad + Magic
                     // Mouse both verified against the ortho (x, −y)
                     // projection).
@@ -309,6 +314,7 @@ struct CanvasSceneView: View {
             }
             #endif
             .overlay { marqueeOverlay }
+            .contextMenu { canvasMenu(in: geo.size) }
             // Same strip, same corner as 3D — one board, one place to say
             // what it means.
             // Arrange/Colour-by moved to the library's ONE bottom bar
@@ -342,16 +348,7 @@ struct CanvasSceneView: View {
             // Arrange by is an ACTION (#5302, Finder's Clean Up By): choosing an order lays every
             // card out in it and saves those places. As a default for unplaced cards only, it did
             // nothing to any card a person had moved, and once positions save that is all of them.
-            .onChange(of: arrangementRaw) { _, raw in
-                guard CanvasArrangement.stored(raw) != .free, let layoutStore else { return }
-                let rows = CanvasArrangement.rowsPinning(
-                    // A page inside a group follows its group; it is never a row on this board.
-                    resolvedState(in: geo.size, savedRows: []).placeables.filter { $0.containerId == nil },
-                    keeping: layoutStore.layout(for: scopeKey)
-                )
-                let scope = scopeKey
-                Task { await layoutStore.saveLayout(folderId: scope, items: rows) }
-            }
+            .onChange(of: arrangementRaw) { _, raw in arrangeBoard(CanvasArrangement.stored(raw), in: geo.size) }
             .task(id: folderScopeId) {
                 configureController()
                 // Frame the board once this scope has content — the default grid
@@ -605,6 +602,72 @@ extension CanvasSceneView {
         }
         let scope = scopeKey
         Task { await layoutStore.saveLayout(folderId: scope, items: rows) }
+    }
+
+    // MARK: - Arrange (#5302) and the context menu (#5632)
+
+    /// Lay every card out in `arrangement` and save those places: an action, like Finder's Clean
+    /// Up By, and with a drag the only thing that moves a card (#5629).
+    func arrangeBoard(_ arrangement: CanvasArrangement, in size: CGSize) {
+        guard arrangement != .free, let layoutStore else { return }
+        let rows = CanvasArrangement.rowsPinning(
+            // A page inside a group follows its group; it is never a row on this board.
+            resolvedState(in: size, savedRows: []).placeables.filter { $0.containerId == nil },
+            keeping: layoutStore.layout(for: scopeKey)
+        )
+        let scope = scopeKey
+        Task { await layoutStore.saveLayout(folderId: scope, items: rows) }
+    }
+
+    /// A right-click (or Control-click): on a card not already selected, select it first, as
+    /// Finder does, so the menu acts on what was clicked; on the board, the board's menu.
+    func secondaryClick(at point: CGPoint, in size: CGSize) {
+        let id = renderer.placeableId(atScreenPoint: point, viewSize: size).map { owningCardId(of: $0) }
+        menuOnCard = id != nil
+        if let id, !selectedNodeIds.contains(id) {
+            controller?.dispatch(.tap(id: id, modifiers: []))
+        }
+    }
+
+    func canvasMenu(in size: CGSize) -> some View {
+        #if os(macOS)
+        let onCard = menuOnCard && !selectedNodeIds.isEmpty
+        #else
+        // A touch has no right-click to locate: a long-press menu acts on the selection.
+        let onCard = !selectedNodeIds.isEmpty
+        #endif
+        return CanvasContextMenu(
+            onCard: onCard,
+            perform: { performMenuItem($0) },
+            arrange: { arrangement in
+                // Choosing the order already chosen still lays the board out again.
+                if arrangementRaw == arrangement.rawValue {
+                    arrangeBoard(arrangement, in: size)
+                } else {
+                    arrangementRaw = arrangement.rawValue
+                }
+            },
+            documentMenu: documentMenu
+        )
+    }
+
+    func performMenuItem(_ item: CanvasMenuItem) {
+        switch item {
+        case .zoomToCard:
+            if let id = singleItemCommandTarget { toggleFocusZoom(on: id) }
+        case .newNote:
+            let camera = renderer.camera.position
+            controller?.dispatch(.addItem(
+                kind: .note, position: Canvas2DProjection.worldPosition(SIMD3<Float>(camera.x, camera.y, 0))
+            ))
+        case .arrange:
+            break
+        case .zoomToFit:
+            zoomToFit()
+        case .actualSize:
+            jumpHistory.record(renderer.cameraSnapshot())
+            renderer.setOrthoScale(CanvasOrtho2DRenderer.defaultOrthoScale)
+        }
     }
 
     // MARK: - Opening settled (#5629)
