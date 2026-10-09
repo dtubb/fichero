@@ -62,6 +62,36 @@ enum CanvasSelectionFrame {
         return (corner, itemId)
     }
 
+    // MARK: - The selection ring around a card on the 2D canvas (#5631)
+
+    /// How thick the selection ring is on screen, in points: a thin system-style ring, as Finder
+    /// draws around a selected icon. It was a plate padded by 8% of the card in WORLD units, so
+    /// zoomed onto a card it became a band some 30 points wide.
+    static let ringPoints: Float = 3
+
+    /// The plate drawn behind a selected card so that exactly a ring of it shows: the card's size
+    /// plus `ringPoints` on every side, at the zoom's world-per-point, with the card's corner radius
+    /// grown by the same amount so the ring follows the corners. The card itself is not touched.
+    struct Ring: Equatable {
+        let width: Float
+        let height: Float
+        let cornerRadius: Float
+        /// The ring's thickness in world units at this zoom.
+        let thickness: Float
+    }
+
+    static func ring(
+        cardWidth: Float, cardHeight: Float, worldPerPoint: Float, points: Float = ringPoints
+    ) -> Ring {
+        let thickness = points * max(worldPerPoint, 0)
+        return Ring(
+            width: cardWidth + thickness * 2,
+            height: cardHeight + thickness * 2,
+            cornerRadius: CanvasCardGeometry.cornerRadius(width: cardWidth, height: cardHeight) + thickness,
+            thickness: thickness
+        )
+    }
+
     // MARK: - Model
 
     /// One selected thing, already projected onto the renderer's plane.

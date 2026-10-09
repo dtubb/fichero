@@ -35,8 +35,11 @@ enum CanvasMoveAnimation {
     /// Seconds every `.move` in this diff animates for. Both renderers call
     /// this once per `apply`, so they cannot disagree about how a re-arrange
     /// feels.
-    static func duration(for ops: [CanvasSceneOp]) -> Double {
-        duration(movedCount: ops.reduce(into: 0) { count, operation in
+    static func duration(for ops: [CanvasSceneOp], opening: Bool = false) -> Double {
+        // A board that is opening is placed, never animated (#5629): the first frame shows every
+        // card where it stays. Nothing watched it move, so there is no transition to follow.
+        guard !opening else { return 0 }
+        return duration(movedCount: ops.reduce(into: 0) { count, operation in
             if case .move = operation { count += 1 }
         })
     }

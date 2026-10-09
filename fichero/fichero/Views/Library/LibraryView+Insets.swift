@@ -184,32 +184,22 @@ extension LibraryView {
         // Skip the full documents+entities map unless a spatial canvas is shown.
         // Recomputed lazily on switch INTO canvas/space (see onChange(displayMode)).
         guard Self.usesSpatialProjection(displayMode) else { return }
-        cachedLibraryProjection = SpatialLibraryProjector.project(
-            SpatialLibraryInput(
-                // `filteredDocuments`, NOT the raw `documents` parameter
-                // (2026-09-02). "Scope follows the visible surface" (Daniel,
-                // 2026-08-23) is the same ruling `selectAllIds` encodes, and
-                // the boards were the one family still opting out of it: they
-                // projected the pane's INPUT, so the ⌘F quick filter, the Show
-                // kind narrowing, and the relevance ORDER of a search were all
-                // invisible on a canvas while every list mode honoured them.
-                // Under a transient search `documents` is already the hit set
-                // upstream — but only `filteredDocuments` is the set actually
-                // on screen, which is what the board must draw.
-                documents: filteredDocuments.map {
-                    SpatialLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId)
-                },
-                entities: entities.compactMap { entity in
-                    guard let id = entity.id else { return nil }
-                    return SpatialLibraryInput.Entity(
-                        id: id,
-                        canonicalName: entity.canonicalName,
-                        entityType: entity.entityType?.rawValue
-                    )
-                },
-                claims: []
-            )
-        )
+        // Through `CanvasBoard`, the one builder the Preview's folder canvas uses too, so the two
+        // hosts of the canvas draw the same cards from the same documents.
+        // `filteredDocuments`, NOT the raw `documents` parameter (2026-09-02): "scope follows the
+        // visible surface" (Daniel, 2026-08-23), so the ⌘F quick filter, the Show kind narrowing
+        // and a search's relevance order show on a canvas as they do in every list mode.
+        cachedLibraryProjection = CanvasBoard.of(
+            documents: filteredDocuments,
+            entities: entities.compactMap { entity in
+                guard let id = entity.id else { return nil }
+                return SpatialLibraryInput.Entity(
+                    id: id,
+                    canonicalName: entity.canonicalName,
+                    entityType: entity.entityType?.rawValue
+                )
+            }
+        ).projection
     }
 
     /// Projects the current documents + entities into spatial nodes/links for
@@ -241,11 +231,8 @@ extension LibraryView {
     /// Spatial node ids of container documents (folder / workspace) — drag-onto
     /// move-into targets (#3086). Dropping onto one moves the dragged doc inside.
     var canvasContainerIds: Set<String> {
-        Set(
-            documentStore.collections
-                .filter { $0.docType == .folder || $0.isWorkspace }
-                .map { SpatialLibraryProjector.nodeId(forDocument: $0.id) }
-        )
+        // The one container rule, shared with the Preview's folder canvas (`CanvasBoard`).
+        CanvasBoard.containerIds(in: documentStore.collections)
     }
 }
 

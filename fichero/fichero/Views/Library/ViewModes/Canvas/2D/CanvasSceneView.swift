@@ -38,6 +38,9 @@ struct CanvasSceneView: View {
     /// Double-clicking a card opens the item it stands for (a document id); nil keeps the old
     /// double-click, zooming onto the card (2026-09-30: double-click should take you to the item).
     var onOpenDocument: ((String) -> Void)?
+    /// The host's document menu for the selected card(s) (#5632): the same menu the Library's
+    /// other modes show for a document, so the canvas has no document actions of its own.
+    var documentMenu: (() -> AnyView)?
     /// Spatial node ids that are containers (folder / workspace), from LibraryView
     /// — drives drag-onto move-into vs link (#3086).
     var containerIds: Set<String> = []
@@ -77,6 +80,13 @@ struct CanvasSceneView: View {
 
     @State var renderer = CanvasOrtho2DRenderer()
     @State var controller: CanvasInteractionController?
+    /// Where each card was first drawn, so nothing the person did not ask for moves it (#5629).
+    @State var placementMemory = CanvasPlacementMemory()
+    /// The scope whose saved places, items and first page shapes are in: until it is this board's
+    /// scope, the canvas draws nothing, so its first frame is the settled board (#5629).
+    @State var settledScope: String?
+    /// Whether the last right-click landed on a card (the card menu) or on the board (#5632).
+    @State var menuOnCard = false
 
     // Camera-pan bookkeeping. Internal, not private: the camera-input
     // extension lives in `CanvasSceneView+Camera.swift` and Swift's
@@ -147,12 +157,21 @@ struct CanvasSceneView: View {
     /// links against their own neighbours instead of as moves.
     /// `savedRows` nil reads the store; `[]` resolves the board as though nothing were placed, which
     /// is where an arrangement puts every card (#5302).
+    ///
+    /// The board as drawn holds every card where it already is (`CanvasPlacementMemory`, #5629):
+    /// a pane resize, a card arriving or a page shape landing changes the default grid, and must not
+    /// move a card the person did not move. An arrangement (`savedRows` given) is a fresh layout the
+    /// person asked for, so it is not held.
     private func resolvedState(in viewportSize: CGSize, savedRows: [CanvasItemLayout]? = nil) -> CanvasSceneState {
+        let rows = savedRows ?? layoutStore?.layout(for: scopeKey) ?? []
+        let columns = CanvasGridPlacement.sharedColumnCount(
+            itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
+        )
         var state = CanvasSceneState.resolve(
             nodes: nodes,
             connections: connections,
             links: links,
-            layoutRows: savedRows ?? layoutStore?.layout(for: scopeKey) ?? [],
+            layoutRows: rows,
             items: itemStore?.items(for: scopeKey) ?? [],
             // Columns from the ONE shared derivation, identical in 2D and 3D
             // (user, 2026-08-20: one shared default so the two canvases show
@@ -160,17 +179,19 @@ struct CanvasSceneView: View {
             // in one is a move in the other). Viewport-derived now (§18.1
             // defect 3), but derived in a single renderer-independent place so
             // the two canvases still cannot drift apart.
-            defaultPlacement: .grid(
-                columns: CanvasGridPlacement.sharedColumnCount(
-                    itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
-                )
-            ),
+            defaultPlacement: .grid(columns: columns),
             // Pitch from the board's ACTUAL card extents, not the nominal
             // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
             // area, so a double-spread is 1.22 wide and needs the room.
             gridCell: gridCell,
             arrangement: CanvasArrangement.stored(arrangementRaw)
         )
+        if savedRows == nil {
+            // Before nesting: a group's pages follow wherever the group is held.
+            state = placementMemory.pin(
+                state, scope: scopeKey, savedIds: Set(rows.map(\.itemId)), columns: columns, cell: gridCell
+            )
+        }
         state = CanvasGroupNesting.nest(state, groupNodeIds: groupNodeIds, contents: groupContents)
         state.selection = selectedNodeIds
         state.emphasis = emphasis
@@ -185,7 +206,12 @@ struct CanvasSceneView: View {
             // redraw when one of them changes. Read only inside `update`, they changed silently,
             // and the next unrelated update (a pinch) applied them all at once: the cards jumped
             // on zoom. Zoom itself changes no input here, so it moves the camera and nothing else.
-            let board = resolvedState(in: geo.size)
+            //
+            // Nothing is resolved or drawn until the scope has settled (#5629): its saved places and
+            // items loaded and its first page shapes known. Drawn earlier, the first frame showed the
+            // default grid and the cards then slid to their saved places.
+            let board = CanvasOpenGate.mayDraw(settledScope: settledScope, scope: scopeKey, viewport: geo.size)
+                ? resolvedState(in: geo.size) : nil
             RealityView { content in
                 // BEFORE the first reconcile (first-load fix, 2026-08-22, same
                 // as CanvasSpaceView): configureController runs in `.task`,
@@ -196,11 +222,12 @@ struct CanvasSceneView: View {
                 content.add(renderer.root)
                 // Not before the pane has a size (#5476): a zero viewport lays the default grid
                 // out ten columns wide, so the first frame showed a layout the next update replaced.
-                guard geo.size.width > 0, geo.size.height > 0 else { return }
+                // Not before the scope has settled either (#5629): `board` is nil until then.
+                guard let board else { return }
                 renderer.viewportSize = geo.size
                 renderer.reconcile(to: board)
             } update: { _ in
-                guard geo.size.width > 0, geo.size.height > 0 else { return }
+                guard let board else { return }
                 renderer.viewportSize = geo.size
                 renderer.storageService = storageService
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
@@ -214,6 +241,8 @@ struct CanvasSceneView: View {
             // rely on, so the two are made mutually exclusive BY SUBJECT
             // instead: each guards on whether the targeted entity is a resize
             // handle, so exactly one of them ever acts on a given drag.
+            // A scope being switched to keeps the old board hidden until the new one has settled.
+            .opacity(board == nil ? 0 : 1)
             .highPriorityGesture(resizeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(nodeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(tapSelect)
@@ -242,7 +271,7 @@ struct CanvasSceneView: View {
             // selection and node drag are untouched.
             #if os(macOS)
             .overlay {
-                CanvasScrollPanView(onScroll: { delta in
+                CanvasScrollPanView(onSecondaryClick: { secondaryClick(at: $0, in: geo.size) }, onScroll: { delta in
                     // Raw-delta mapping (user, 2026-08-20, trackpad + Magic
                     // Mouse both verified against the ortho (x, −y)
                     // projection).
@@ -285,6 +314,7 @@ struct CanvasSceneView: View {
             }
             #endif
             .overlay { marqueeOverlay }
+            .contextMenu { canvasMenu(in: geo.size) }
             // Same strip, same corner as 3D — one board, one place to say
             // what it means.
             // Arrange/Colour-by moved to the library's ONE bottom bar
@@ -318,16 +348,7 @@ struct CanvasSceneView: View {
             // Arrange by is an ACTION (#5302, Finder's Clean Up By): choosing an order lays every
             // card out in it and saves those places. As a default for unplaced cards only, it did
             // nothing to any card a person had moved, and once positions save that is all of them.
-            .onChange(of: arrangementRaw) { _, raw in
-                guard CanvasArrangement.stored(raw) != .free, let layoutStore else { return }
-                let rows = CanvasArrangement.rowsPinning(
-                    // A page inside a group follows its group; it is never a row on this board.
-                    resolvedState(in: geo.size, savedRows: []).placeables.filter { $0.containerId == nil },
-                    keeping: layoutStore.layout(for: scopeKey)
-                )
-                let scope = scopeKey
-                Task { await layoutStore.saveLayout(folderId: scope, items: rows) }
-            }
+            .onChange(of: arrangementRaw) { _, raw in arrangeBoard(CanvasArrangement.stored(raw), in: geo.size) }
             .task(id: folderScopeId) {
                 configureController()
                 // Frame the board once this scope has content — the default grid
@@ -335,11 +356,11 @@ struct CanvasSceneView: View {
                 // or return to where this person last left this folder's board.
                 renderer.cameraToRestoreOnNextContent = CanvasCameraMemory.camera(for: scopeKey)
                 renderer.needsFitOnNextContent = true
-                guard let folderId = folderScopeId else { return }
-                await layoutStore?.loadLayout(folderId: folderId)
-                await itemStore?.loadItems(folderId: folderId)
+                await settleBoard()
             }
-            .task(id: groupNodeIds) { await loadGroupPages() }
+            // Groups that appear once the board is up load then; the ones there at open load in
+            // `settleBoard`, before the first frame.
+            .task(id: settledScope == scopeKey ? groupNodeIds : []) { await loadGroupPages() }
         }
     }
 
@@ -419,7 +440,10 @@ struct CanvasSceneView: View {
                 guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld,
                       renderer.resizeHandle(atScreenPoint: value.startLocation, viewSize: size) == nil,
                       renderer.placeableId(atScreenPoint: value.startLocation, viewSize: size) == nil else {
-                    state = nil
+                    // Only when it changes: writing gesture state, even the same nil, re-runs the
+                    // view's body, and a card drag did that on every mouse event — re-resolving the
+                    // whole board each time (2026-10-09, "dragging is a bit slow").
+                    if state != nil { state = nil }
                     return
                 }
                 state = Canvas2DProjection.marqueeRect(
@@ -554,10 +578,14 @@ struct CanvasSceneView: View {
             controller.registerMoveUndo(id: id, origin: origin, destination: world, undoManager: undoManager)
         }
     }
+}
 
+// Drop targets, kept out of the struct body (type_body_length) but in this file so they keep
+// private access to `scopeKey` and the stores.
+extension CanvasSceneView {
     /// Save a whole selection's move as ONE layout write: every carried card keeps its offset from
     /// the pressed one. No drop-into or link for a group; those stay single-card gestures.
-    private func saveGroupMove(pressed id: String, to world: SIMD3<Double>, from origin: SIMD3<Double>) {
+    func saveGroupMove(pressed id: String, to world: SIMD3<Double>, from origin: SIMD3<Double>) {
         guard let layoutStore else { return }
         let delta = world - origin
         var rows = layoutStore.layout(for: scopeKey)
@@ -575,11 +603,101 @@ struct CanvasSceneView: View {
         let scope = scopeKey
         Task { await layoutStore.saveLayout(folderId: scope, items: rows) }
     }
-}
 
-// Drop targets, kept out of the struct body (type_body_length) but in this file so they keep
-// private access to `scopeKey` and the stores.
-extension CanvasSceneView {
+    // MARK: - Arrange (#5302) and the context menu (#5632)
+
+    /// Lay every card out in `arrangement` and save those places: an action, like Finder's Clean
+    /// Up By, and with a drag the only thing that moves a card (#5629).
+    func arrangeBoard(_ arrangement: CanvasArrangement, in size: CGSize) {
+        guard arrangement != .free, let layoutStore else { return }
+        let rows = CanvasArrangement.rowsPinning(
+            // A page inside a group follows its group; it is never a row on this board.
+            resolvedState(in: size, savedRows: []).placeables.filter { $0.containerId == nil },
+            keeping: layoutStore.layout(for: scopeKey)
+        )
+        let scope = scopeKey
+        Task { await layoutStore.saveLayout(folderId: scope, items: rows) }
+    }
+
+    /// A right-click (or Control-click): on a card not already selected, select it first, as
+    /// Finder does, so the menu acts on what was clicked; on the board, the board's menu.
+    func secondaryClick(at point: CGPoint, in size: CGSize) {
+        let id = renderer.placeableId(atScreenPoint: point, viewSize: size).map { owningCardId(of: $0) }
+        menuOnCard = id != nil
+        if let id, !selectedNodeIds.contains(id) {
+            controller?.dispatch(.tap(id: id, modifiers: []))
+        }
+    }
+
+    func canvasMenu(in size: CGSize) -> some View {
+        #if os(macOS)
+        let onCard = menuOnCard && !selectedNodeIds.isEmpty
+        #else
+        // A touch has no right-click to locate: a long-press menu acts on the selection.
+        let onCard = !selectedNodeIds.isEmpty
+        #endif
+        return CanvasContextMenu(
+            onCard: onCard,
+            perform: { performMenuItem($0) },
+            arrange: { arrangement in
+                // Choosing the order already chosen still lays the board out again.
+                if arrangementRaw == arrangement.rawValue {
+                    arrangeBoard(arrangement, in: size)
+                } else {
+                    arrangementRaw = arrangement.rawValue
+                }
+            },
+            documentMenu: documentMenu
+        )
+    }
+
+    func performMenuItem(_ item: CanvasMenuItem) {
+        switch item {
+        case .zoomToCard:
+            if let id = singleItemCommandTarget { toggleFocusZoom(on: id) }
+        case .newNote:
+            let camera = renderer.camera.position
+            controller?.dispatch(.addItem(
+                kind: .note, position: Canvas2DProjection.worldPosition(SIMD3<Float>(camera.x, camera.y, 0))
+            ))
+        case .arrange:
+            break
+        case .zoomToFit:
+            zoomToFit()
+        case .actualSize:
+            jumpHistory.record(renderer.cameraSnapshot())
+            renderer.setOrthoScale(CanvasOrtho2DRenderer.defaultOrthoScale)
+        }
+    }
+
+    // MARK: - Opening settled (#5629)
+
+    /// Load everything the first frame depends on, then let the board draw: the scope's saved
+    /// places and items, the first cards' page shapes (they set the grid's spacing and each card's
+    /// shape) and the groups' pages. Each wait is bounded, so a slow engine delays the board rather
+    /// than hiding it.
+    private func settleBoard() async {
+        let scope = scopeKey
+        if let folderId = folderScopeId {
+            await layoutStore?.loadLayout(folderId: folderId)
+            await itemStore?.loadItems(folderId: folderId)
+            // Another view on this scope may have the load in flight (the load is idempotent and
+            // returns at once then): wait for its answer rather than draw without it.
+            await CanvasOpenGate.wait(
+                until: { (layoutStore?.hasLoaded(folderId) ?? true) && (itemStore?.hasLoaded(folderId) ?? true) },
+                deadline: CanvasOpenGate.storeLoadDeadline
+            )
+        }
+        await CanvasOpenGate.prefetchAspects(forSourceIds: nodes.compactMap(\.sourceId), using: storageService)
+        Task { await loadGroupPages() }
+        await CanvasOpenGate.wait(
+            until: { groupNodeIds.allSatisfy { groupPages[$0] != nil } || pagesOfGroup == nil },
+            deadline: CanvasOpenGate.storeLoadDeadline
+        )
+        guard !Task.isCancelled else { return }
+        settledScope = scope
+    }
+
     /// Classify a drop target for `DropOutcome.classify`: canvas items are always
     /// leaves (drop → link); a node is a container only if LibraryView said so.
     private func targetKind(_ id: String) -> CanvasTargetKind {

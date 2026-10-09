@@ -147,10 +147,11 @@ struct CanvasMoveOneCardTests {
         #expect(renderer.placeablesById["doc:3"]?.position == far)
     }
 
-    // WHY: the fix must stay narrow. A board that re-flows by itself (page aspects load and the grid
-    // widens) on a camera nobody has touched is still fitted again, so a first open shows every card.
-    @Test("a board that re-flows by itself is still fitted again")
-    func selfReflowStillRefits() {
+    // WHY: ruled 2026-10-09 (#5629): the camera fits once, on open, and never re-fits unasked. This
+    // test used to pin the opposite (a board that re-flowed by itself was fitted again); that re-fit
+    // was itself a jump, and a board that opens settled has nothing to re-fit to.
+    @Test("a board that changes by itself does not re-fit the camera")
+    func selfReflowDoesNotRefit() {
         let nodes = (0..<8).map { card("doc:\($0)") }
         let renderer = CanvasOrtho2DRenderer()
         renderer.viewportSize = viewport
@@ -163,6 +164,6 @@ struct CanvasMoveOneCardTests {
             defaultPlacement: .grid(columns: 1)
         ))
 
-        #expect(renderer.orthoScale != scale)
+        #expect(renderer.orthoScale == scale)
     }
 }

@@ -44,6 +44,8 @@ extension CanvasOrtho2DRenderer {
     /// (#4601): orthoScale grows as the user zooms out, so the world-space
     /// bars grow by the same ratio and cancel out on screen.
     func refreshSelectionDecoration() {
+        // Rebuilt at the cards' current places, so any offset a drag gave the handles is spent.
+        decorator.root.position = .zero
         updateSelectionPlates()
         decorator.showsFrames = false
         // Frame and corner handles for ONE selected card only (2026-09-30): resizing is a one-card
@@ -55,27 +57,39 @@ extension CanvasOrtho2DRenderer {
         )
     }
 
-    /// A selected card sits on an accent-coloured plate, as a selected icon does in Finder. The
-    /// plate is a CHILD of the card, so it travels with the card through any drag and scales with
-    /// it through a resize at no cost; only a card whose selection changed gains or loses one.
+    /// A selected card wears a thin accent ring (#5631), as a selected icon does in Finder: a plate
+    /// behind the card, `CanvasSelectionFrame.ringPoints` larger on every side, so only a ring of it
+    /// shows. The plate is a CHILD of the card, so it travels with the card through any drag. Its
+    /// thickness is constant on screen, so a zoom rebuilds it; nothing else about the card changes.
     func updateSelectionPlates() {
         let plateName = "selectionPlate"
-        for id in platedIds.subtracting(selection) {
+        for id in Set(platedRings.keys).subtracting(selection) {
             placeablesRoot.findEntity(named: id)?.findEntity(named: plateName)?.removeFromParent()
+            platedRings[id] = nil
         }
-        for id in selection.subtracting(platedIds) {
-            guard let placeable = placeablesById[id], let card = placeablesRoot.findEntity(named: id) else { continue }
-            let (width, height) = cardDimensions(placeable)
-            let pad = min(width, height) * 0.08
+        // No pane size yet, no ring width to give: a ring sized against a 1-point pane would be huge.
+        let worldPerPoint = viewportSize.height > 0
+            ? Canvas2DProjection.worldPerPoint(orthoScale: orthoScale, viewHeight: viewportSize.height) : 0
+        for id in selection {
+            guard let placeable = placeablesById[id], let card = placeablesRoot.findEntity(named: id) else {
+                platedRings[id] = nil
+                continue
+            }
+            let (width, height) = cardDimensions(placeable, size: placeable.size ?? Self.defaultCardSize)
+            let ring = CanvasSelectionFrame.ring(cardWidth: width, cardHeight: height, worldPerPoint: worldPerPoint)
+            let existing = card.findEntity(named: plateName)
+            // A rebuilt card (a page texture landing) comes without its plate, so look, not just remember.
+            if existing != nil, platedRings[id] == ring { continue }
+            existing?.removeFromParent()
             let plate = ModelEntity(
-                mesh: .generatePlane(width: width + pad * 2, height: height + pad * 2, cornerRadius: pad),
-                materials: [UnlitMaterial(color: PlatformColor.controlAccentColorCompat.withAlphaComponent(0.55))]
+                mesh: .generatePlane(width: ring.width, height: ring.height, cornerRadius: ring.cornerRadius),
+                materials: [UnlitMaterial(color: PlatformColor.controlAccentColorCompat)]
             )
             plate.name = plateName
             plate.position = SIMD3<Float>(0, 0, -0.005)
             card.addChild(plate)
+            platedRings[id] = ring
         }
-        platedIds = selection.filter { placeablesRoot.findEntity(named: $0) != nil }
     }
 
     /// The selected placeables, projected, at their LIVE positions.
@@ -189,7 +203,7 @@ extension CanvasOrtho2DRenderer {
         let (width, height) = cardDimensions(placeable)
         entity.scale = .one
         entity.model?.mesh = MeshResource.generatePlane(
-            width: width, height: height, cornerRadius: min(width, height) * 0.08
+            width: width, height: height, cornerRadius: CanvasCardGeometry.cornerRadius(width: width, height: height)
         )
         entity.components.set(CollisionComponent(shapes: [.generateBox(size: SIMD3<Float>(width, height, 0.02))]))
     }

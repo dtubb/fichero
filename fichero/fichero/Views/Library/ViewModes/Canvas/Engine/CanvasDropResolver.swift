@@ -17,12 +17,15 @@ enum CanvasDropResolver {
     /// The nearest placeable to `world`, excluding `excluding` (the dragged item
     /// never targets itself), within `threshold`. `nil` when the drop is over
     /// empty space → a plain place.
-    static func nearestId(
+    ///
+    /// Any sequence, so a renderer can pass a lazy view of its placeables: it runs on every drag
+    /// event, and building an array of every card each time was part of what made a drag lag.
+    static func nearestId<Placeables: Sequence>(
         to world: SIMD3<Double>,
-        among placeables: [(id: String, position: SIMD3<Double>)],
+        among placeables: Placeables,
         excluding: String,
         within threshold: Double = defaultThreshold
-    ) -> String? {
+    ) -> String? where Placeables.Element == (id: String, position: SIMD3<Double>) {
         var best: (id: String, distance: Double)?
         for placeable in placeables where placeable.id != excluding {
             let distance = simd_distance(placeable.position, world)

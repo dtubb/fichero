@@ -105,6 +105,12 @@ final class CanvasItemStore {
         itemsByScope[scopeId] ?? []
     }
 
+    /// Whether `scopeId`'s items have loaded (none counts). A canvas waits for this before
+    /// drawing, so its first frame holds every item (#5629).
+    func hasLoaded(_ scopeId: String) -> Bool {
+        itemsByScope[scopeId] != nil
+    }
+
     /// JSON decoder mapping backend snake_case keys onto camelCase properties.
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
