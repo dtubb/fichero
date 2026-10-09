@@ -8,8 +8,8 @@ All video tools inherit from here.
 Provides:
 - VIDEO_INPUT_PORTS (inherits BASE + adds files)
 - VIDEO_CONFIG_SCHEMA (inherits BASE + adds extract_audio, frame_sample_rate, max_frames)
-- Frame extraction from video (via ffmpeg)
-- Audio track extraction (via ffmpeg)
+- Frame extraction from video (ffmpeg's libraries via PyAV, in-process)
+- Audio track extraction (PyAV, in-process)
 - process_video() - shared processing combining frame analysis + audio transcription
 
 Inheritance: llm_base.py → video_base.py → specific video tools
@@ -23,7 +23,6 @@ import dataclasses
 import logging
 import shutil
 import os
-import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -132,56 +131,33 @@ class VideoToolConfig(LLMToolConfig):
 
 
 # =============================================================================
-# ffmpeg Utilities
+# Video and audio through ffmpeg's libraries, in-process (PyAV, bundled with the app)
 # =============================================================================
-
-
-def _check_ffmpeg() -> None:
-    """Check that ffmpeg is available."""
-    try:
-        subprocess.run(
-            ["ffmpeg", "-version"],
-            capture_output=True,
-            check=True,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        raise RuntimeError(
-            "ffmpeg is not installed or not in PATH. Install with: brew install ffmpeg"
-        )
+#
+# The sandboxed engine cannot run an ffmpeg program (#4555, #5638), so the same libraries are used as
+# a module. Output is unchanged: a 16 kHz mono 16-bit WAV, and JPEG frames named frame_0001.jpg on.
 
 
 def extract_audio_track_sync(video_path: str, output_path: str) -> str:
-    """Extract audio track from video as WAV.
+    """Extract the audio track from a video as a 16 kHz mono 16-bit WAV (what Whisper reads)."""
+    import wave
 
-    Args:
-        video_path: Path to video file
-        output_path: Path to write extracted audio
-
-    Returns:
-        Path to extracted audio file
-    """
-    _check_ffmpeg()
+    import av
 
     logger.info(f"Extracting audio from: {Path(video_path).name}")
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-i",
-            video_path,
-            "-vn",  # No video
-            "-acodec",
-            "pcm_s16le",  # PCM format for Whisper
-            "-ar",
-            "16000",  # 16kHz sample rate
-            "-ac",
-            "1",  # Mono
-            "-y",  # Overwrite
-            output_path,
-        ],
-        check=True,
-        capture_output=True,
-    )
-
+    resampler = av.AudioResampler(format="s16", layout="mono", rate=16000)
+    with av.open(video_path) as container, wave.open(output_path, "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(16000)
+        stream = next((s for s in container.streams if s.type == "audio"), None)
+        if stream is None:
+            raise RuntimeError(f"{Path(video_path).name} has no audio track")
+        for frame in container.decode(stream):
+            for chunk in resampler.resample(frame):
+                out.writeframes(chunk.to_ndarray().tobytes())
+        for chunk in resampler.resample(None):
+            out.writeframes(chunk.to_ndarray().tobytes())
     return output_path
 
 
@@ -201,50 +177,28 @@ def sample_frames_sync(
     rate: int = 1,
     max_frames: int = 10,
 ) -> list[str]:
-    """Extract key frames from video at given rate.
-
-    Args:
-        video_path: Path to video file
-        rate: Frames per second to sample
-        max_frames: Maximum number of frames to extract
-
-    Returns:
-        List of paths to extracted frame images
-    """
-    _check_ffmpeg()
+    """Extract up to `max_frames` frames at `rate` frames per second, as JPEGs in a temporary folder."""
+    import av
 
     frame_dir = tempfile.mkdtemp(prefix="fichero_frames_")
-
-    logger.info(
-        f"Sampling frames from: {Path(video_path).name} (rate={rate}, max={max_frames})"
-    )
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-i",
-            video_path,
-            "-vf",
-            f"fps={rate}",
-            "-frames:v",
-            str(max_frames),
-            "-q:v",
-            "2",  # High quality JPEG
-            os.path.join(frame_dir, "frame_%04d.jpg"),
-        ],
-        check=True,
-        capture_output=True,
-    )
-
-    frames = sorted(
-        [
-            os.path.join(frame_dir, f)
-            for f in os.listdir(frame_dir)
-            if f.startswith("frame_") and f.endswith(".jpg")
-        ]
-    )
-
+    logger.info(f"Sampling frames from: {Path(video_path).name} (rate={rate}, max={max_frames})")
+    frames: list[str] = []
+    next_time = 0.0
+    with av.open(video_path) as container:
+        stream = next((s for s in container.streams if s.type == "video"), None)
+        if stream is None:
+            raise RuntimeError(f"{Path(video_path).name} has no video track")
+        for frame in container.decode(stream):
+            if frame.time is None or frame.time + 1e-6 < next_time:
+                continue
+            path = os.path.join(frame_dir, f"frame_{len(frames) + 1:04d}.jpg")
+            frame.to_image().save(path, quality=95)
+            frames.append(path)
+            next_time += 1.0 / max(rate, 1)
+            if len(frames) >= max_frames:
+                break
     logger.info(f"Extracted {len(frames)} frames")
-    return frames[:max_frames]
+    return frames
 
 
 async def sample_frames(

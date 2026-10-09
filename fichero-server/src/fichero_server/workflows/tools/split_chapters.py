@@ -56,14 +56,8 @@ def _chapter_title_from_line(line: str) -> str | None:
 
 
 def _outline_with_pypdf(path: Path) -> list[tuple[str, int]]:
-    """Read outline rows with pypdf/PyPDF2 when either is available."""
-    try:
-        try:
-            from pypdf import PdfReader  # type: ignore
-        except ImportError:
-            from PyPDF2 import PdfReader  # type: ignore
-    except ImportError:
-        return []
+    """Read outline rows with pypdf (bundled with the app, 2026-10-09)."""
+    from pypdf import PdfReader
 
     try:
         reader = PdfReader(str(path))

@@ -14,11 +14,6 @@ from PIL import Image
 from unittest.mock import patch
 
 from fichero_server.loaders.base import MediaContent, MediaLoader
-from fichero_server.loaders.docling_loader import (
-    DOCLING_FORMATS,
-    DoclingLoader,
-    load_with_docling_sync,
-)
 from fichero_server.loaders.document_loader import DocumentLoader
 from fichero_server.loaders.iiif_loader import IIIFLoader, _get_safe
 from fichero_server.loaders.image_loader import ImageLoader, UnsafeImageError
@@ -93,62 +88,6 @@ async def test_media_loader_load_sync_with_running_loop():
     loop = asyncio.get_running_loop()
     assert loop.is_running()
     assert loader.load_sync("x").text == "world"
-
-
-def test_docling_loader_can_handle_formats():
-    loader = DoclingLoader()
-    assert loader.can_handle(Path("document.pdf")) is True
-    assert loader.can_handle(Path("/tmp/manifest.doc")) is True
-    assert loader.can_handle(Path("image.png")) is False
-    assert loader.can_handle("https://example.org/doc.pdf") is False
-
-
-def test_docling_loader_supported_formats_property():
-    loader = DoclingLoader()
-    assert loader.supported_formats == DOCLING_FORMATS
-
-
-def test_load_with_docling_sync_parses_text_and_metadata(tmp_path, monkeypatch):
-    test_pdf = tmp_path / "document.pdf"
-    test_pdf.write_bytes(b"%PDF-1.4")
-
-    class _FakeDoc:
-        title = "My doc"
-        pages = [1, 2, 3]
-        authors = ["Alice", "Bob"]
-
-        def export_to_markdown(self):
-            return "Hello *from* docling"
-
-        def export_to_json(self):
-            return '{"text":"json"}'
-
-    class _FakeConverter:
-        def convert(self, _path):
-            return SimpleNamespace(document=_FakeDoc())
-
-    monkeypatch.setattr(DoclingLoader, "_get_converter", lambda _self: _FakeConverter())
-
-    content = load_with_docling_sync(test_pdf, extract_tables=False, output_format="markdown")
-
-    assert content.source == str(test_pdf)
-    assert "Hello *from* docling" in content.text
-    assert content.metadata["source"] == str(test_pdf)
-    assert content.metadata["num_pages"] == 3
-    assert content.mime_type == "application/pdf"
-    assert content.needs_vlm is False
-
-
-def test_load_with_docling_sync_rethrows_converter_errors(tmp_path, monkeypatch):
-    test_pdf = tmp_path / "document.pdf"
-    test_pdf.write_bytes(b"%PDF-1.4")
-
-    def _raise():
-        raise RuntimeError("install docling")
-
-    monkeypatch.setattr(DoclingLoader, "_get_converter", lambda _self: _raise())
-    with pytest.raises(RuntimeError, match="install docling"):
-        load_with_docling_sync(test_pdf)
 
 
 def test_document_loader_can_handle_formats():

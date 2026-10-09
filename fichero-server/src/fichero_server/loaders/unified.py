@@ -20,20 +20,6 @@ from fichero_server.loaders.pdf_loader import PDFLoader, PDF_FORMATS
 
 logger = logging.getLogger(__name__)
 
-# Docling disabled (requires PyTorch which dropped x86_64 macOS support in 2.6.0+)
-# Check for optional Docling
-# try:
-#     from fichero_server.loaders.docling_loader import DoclingLoader, DOCLING_FORMATS
-#     _HAS_DOCLING = DoclingLoader.is_available()
-# except ImportError:
-#     _HAS_DOCLING = False
-#     DoclingLoader = None
-#     DOCLING_FORMATS = set()
-
-_HAS_DOCLING = False
-DoclingLoader = None
-DOCLING_FORMATS = set()
-
 
 class UnifiedLoader:
     """
@@ -52,7 +38,6 @@ class UnifiedLoader:
         self,
         pdf_dpi: int = 300,
         iiif_max_dimension: int = 1500,
-        # use_docling: bool = True,  # Disabled - requires PyTorch (no x86_64 wheels)
     ):
         """
         Initialize unified loader.
@@ -68,12 +53,6 @@ class UnifiedLoader:
             PDFLoader(dpi=pdf_dpi),
             ImageLoader(),
         ]
-
-        # Docling disabled (requires PyTorch which dropped x86_64 macOS support)
-        # # Add Docling before DocumentLoader if available (default: on)
-        # if use_docling and _HAS_DOCLING and DoclingLoader:
-        #     self.loaders.append(DoclingLoader())
-        #     logger.info("Docling loader enabled for structured document parsing")
 
         # DocumentLoader (Kreuzberg) handles everything else
         self.loaders.append(DocumentLoader())
@@ -145,11 +124,6 @@ class UnifiedLoader:
             "document": DocumentLoader,
             "iiif": IIIFLoader,
         }
-
-        # Docling disabled (requires PyTorch which dropped x86_64 macOS support)
-        # # Add Docling if available
-        # if _HAS_DOCLING and DoclingLoader:
-        #     hint_map["docling"] = DoclingLoader
 
         loader_class = hint_map.get(hint.lower())
         if loader_class:

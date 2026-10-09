@@ -217,7 +217,7 @@ def test_a_missing_ffmpeg_is_reported_as_the_fixable_thing_it_is(
 
     monkeypatch.setattr(whisper_runtime.subprocess, "run", explode)
 
-    with pytest.raises(WhisperTranscriptionError, match="brew install ffmpeg"):
+    with pytest.raises(WhisperTranscriptionError, match="could not decode this audio"):
         whisper_runtime.transcribe_sync("/tmp/audio.wav", "tiny", "en", home=tmp_path)
 
 

@@ -123,8 +123,7 @@ class DocumentLoader(MediaLoader):
             import kreuzberg
         except ImportError:
             raise RuntimeError(
-                "Document extraction requires kreuzberg. "
-                "Install with: pip install kreuzberg"
+                "kreuzberg is missing from this build: it ships with the app, so this is a packaging problem"
             )
 
         suffix = path.suffix.lower()

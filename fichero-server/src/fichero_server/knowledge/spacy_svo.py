@@ -24,8 +24,7 @@ page: NER called a stamp a person and a personal name a place, and four of
 five triples had a pronoun subject. The parser is a proposer, never an
 authority — which is precisely why nothing here writes to the database.
 
-Optional dependency: spaCy is an extra (`pip install -e ".[kg]"`), not part of
-the embedded engine. Every entry point degrades to an empty list with a
+spaCy ships inside the app's engine with its small models (2026-10-09). Every entry point degrades to an empty list with a
 logged reason rather than raising, so a library without it loses this tier
 and nothing else.
 """
@@ -207,9 +206,9 @@ def _pipeline(language: str):
         return spacy.load(spacy_pipeline_path(model) or model, exclude=["lemmatizer"])
     except Exception as exc:  # noqa: BLE001 — an absent extra is not a fault
         logger.info(
-            "spaCy tier unavailable (%s): %s. Install with "
-            'pip install -e ".[kg]" && python -m spacy download %s',
-            model, exc, model,
+            "spaCy tier unavailable (%s): %s. spaCy and its small models ship with the app; a missing "
+            "one is a packaging problem, a larger one downloads in Settings",
+            model, exc,
         )
         return None
 

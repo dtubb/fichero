@@ -63,7 +63,7 @@ def install(app_packages: Path) -> int:
         print(f"error: installing MLX changed {sorted(changed)} or duplicated {sorted(duplicated)} in the bundle; "
               "fix the pins in [tool.fichero.mlx_bundle], never let pip replace a bundle package", file=sys.stderr)
         return 3
-    for needed in ("mlx", "mlx-lm", "mlx-vlm", "mlx-whisper", "ultralytics"):
+    for needed in ("mlx", "mlx-lm", "mlx-vlm", "mlx-whisper", "ultralytics", "rubicon-objc", "rembg", "rawpy", "pypdf", "av"):
         if needed not in after:
             print(f"error: {needed} is not in the bundle after install", file=sys.stderr)
             return 5

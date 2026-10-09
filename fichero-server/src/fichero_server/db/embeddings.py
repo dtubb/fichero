@@ -935,7 +935,7 @@ class DatabaseEmbeddingMixin:
                 # (e.g. a bad submodule import) used to be masked as the
                 # generic "fastembed not installed", hiding the actual failure.
                 raise ImportError(
-                    "fastembed not installed. Install with: pip install fastembed"
+                    "fastembed is missing from this build: it ships with the app, so this is a packaging problem"
                 ) from exc
         # Process-global: loaded once and shared across every Database instance / worker thread
         # (see _get_shared_embedder), and released when idle.

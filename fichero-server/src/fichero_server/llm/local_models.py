@@ -545,7 +545,7 @@ class LocalModelManager:
             from fastembed import TextEmbedding
         except ImportError:
             raise ImportError(
-                "fastembed is not installed. Install with: pip install fastembed"
+                "fastembed is missing from this build: it ships with the app, so this is a packaging problem"
             )
 
         cache_dir = str(self.embeddings_path)
@@ -629,8 +629,7 @@ class LocalModelManager:
                     unavailable_reason=(
                         None
                         if runtime
-                        else "spaCy is not installed in this engine "
-                        '(pip install -e ".[kg]")'
+                        else "spaCy is missing from this build: it ships with the app, so this is a packaging problem"
                     ),
                     download_state="installed" if is_downloaded else "idle",
                 )

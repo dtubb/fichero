@@ -198,6 +198,11 @@ KRAKEN_INSTALL_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
     exit 1
   }
 
+# Every module the engine imports is in the bundle (2026-10-09): nothing the app runs may depend on a
+# Python package, Homebrew tool or provisioning step outside it.
+"$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/check_engine_imports_bundled.py" \
+  "$ENGINE_APP/Contents/Resources/app_packages" || exit 1
+
 # Briefcase ships .py with NO .pyc, so every import pays a full compile. This is
 # not a micro-optimisation — measured on this exact bundle, same binary, only
 # bytecode differing (#3940):

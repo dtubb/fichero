@@ -2,12 +2,10 @@
 Image loader for standard image formats.
 
 Handles: JPG, PNG, TIFF, BMP, GIF, WebP
-Special handling: HEIC (via heif-convert), JXL (via djxl), RAW (via rawpy)
+Special handling: HEIC (pillow-heif), JXL (macOS ImageIO), RAW (rawpy), all bundled
 """
 
 import logging
-import shutil
-import subprocess
 import tempfile
 import warnings
 from pathlib import Path
@@ -63,10 +61,8 @@ class ImageLoader(MediaLoader):
     """
     Loader for image files.
 
-    Uses PIL for standard formats, with fallback to system tools for:
-    - HEIC: heif-convert
-    - JXL: djxl
-    - RAW: rawpy (if available)
+    Uses PIL for standard formats; HEIC through pillow-heif, JPEG XL through macOS ImageIO, RAW
+    through rawpy. Everything ships inside the app.
     """
 
     def can_handle(self, source: str | Path) -> bool:
@@ -122,45 +118,30 @@ class ImageLoader(MediaLoader):
         return open_image_checked(path)
 
     def _load_heic(self, path: Path) -> Image.Image:
-        """Load HEIC/HEIF image using heif-convert system tool."""
-        if not shutil.which("heif-convert"):
-            raise RuntimeError(
-                "HEIC support requires heif-convert. Install with: brew install libheif"
-            )
+        """HEIC/HEIF through the bundled pillow-heif (never a Homebrew tool, 2026-10-09)."""
+        import pillow_heif
 
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            temp_png = Path(tmp.name)
-
-        try:
-            subprocess.run(
-                ["heif-convert", str(path), str(temp_png)],
-                capture_output=True,
-                check=True,
-            )
-            return open_image_checked(temp_png)
-        finally:
-            temp_png.unlink(missing_ok=True)
+        pillow_heif.register_heif_opener()
+        return open_image_checked(path)
 
     def _load_jxl(self, path: Path) -> Image.Image:
-        """Load JPEG XL image using djxl system tool."""
-        if not shutil.which("djxl"):
-            # Try PIL as fallback (may work with pillow-jxl plugin)
-            try:
-                return open_image_checked(path)
-            except Exception:
-                raise RuntimeError(
-                    "JPEG XL support requires djxl. Install with: brew install jpeg-xl"
-                )
+        """JPEG XL through macOS's own ImageIO (macOS 14+ decodes it), via the bundled pyobjc Quartz:
+        decoded to a temporary PNG, then opened with the usual checks. Never a Homebrew tool."""
+        import Quartz
+        from Foundation import NSURL
 
+        source = Quartz.CGImageSourceCreateWithURL(NSURL.fileURLWithPath_(str(path)), None)
+        image = Quartz.CGImageSourceCreateImageAtIndex(source, 0, None) if source else None
+        if image is None:
+            raise RuntimeError(f"macOS could not decode this JPEG XL file: {path.name}")
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             temp_png = Path(tmp.name)
-
         try:
-            subprocess.run(
-                ["djxl", str(path), str(temp_png)],
-                capture_output=True,
-                check=True,
-            )
+            dest = Quartz.CGImageDestinationCreateWithURL(
+                NSURL.fileURLWithPath_(str(temp_png)), "public.png", 1, None)
+            Quartz.CGImageDestinationAddImage(dest, image, None)
+            if not Quartz.CGImageDestinationFinalize(dest):
+                raise RuntimeError(f"could not write the decoded JPEG XL image: {path.name}")
             return open_image_checked(temp_png)
         finally:
             temp_png.unlink(missing_ok=True)
@@ -170,9 +151,7 @@ class ImageLoader(MediaLoader):
         try:
             import rawpy
         except ImportError:
-            raise RuntimeError(
-                "RAW format support requires rawpy. Install with: pip install rawpy"
-            )
+            raise RuntimeError("RAW support is not in this build (rawpy ships with the app; #5638)")
 
         with rawpy.imread(str(path)) as raw:
             rgb = raw.postprocess(

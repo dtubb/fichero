@@ -95,7 +95,7 @@ class TestListing:
         monkeypatch.setattr(mod, "_spacy_runtime_available", lambda: False)
         for row in manager.list_spacy_models():
             assert row.available is False
-            assert "spaCy is not installed" in (row.unavailable_reason or "")
+            assert "spaCy is missing from this build" in (row.unavailable_reason or "")
 
 
 class TestWritesRefuseRatherThanPretend:

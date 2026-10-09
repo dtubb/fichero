@@ -331,10 +331,17 @@ def transcribe_sync(
 
     if bundled_versions() is not None:  # the app: mlx-whisper ships inside the engine (#4973)
         import mlx_whisper
+        import numpy as np
+        import miniaudio
 
         options = {"language": language} if language and language != "auto" else {}
         try:
-            result = mlx_whisper.transcribe(file_path, path_or_hf_repo=str(model_path), **options)
+            # Decoded here with the bundled miniaudio (mp3, wav, flac, ogg) to Whisper's 16 kHz mono:
+            # mlx-whisper would otherwise run the ffmpeg CLI, which the app does not have (#5638).
+            decoded = miniaudio.decode_file(file_path, output_format=miniaudio.SampleFormat.FLOAT32,
+                                            nchannels=1, sample_rate=16000)
+            audio = np.frombuffer(decoded.samples, dtype=np.float32)
+            result = mlx_whisper.transcribe(audio, path_or_hf_repo=str(model_path), **options)
         except Exception as exc:
             raise WhisperTranscriptionError(f"Whisper transcription failed: {exc}") from exc
         return str(result.get("text", "")).strip()
@@ -354,7 +361,7 @@ def transcribe_sync(
         tail = detail[-1] if detail else f"transcriber exited {exc.returncode}"
         if "ffmpeg" in tail.lower() or "No such file or directory: 'ffmpeg'" in tail:
             raise WhisperTranscriptionError(
-                "Whisper needs the ffmpeg CLI to decode audio. Install it with: brew install ffmpeg"
+                "Whisper could not decode this audio file (dev engine: it needs the ffmpeg command)"
             ) from exc
         raise WhisperTranscriptionError(f"Whisper transcription failed: {tail}") from exc
 

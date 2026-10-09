@@ -55,7 +55,7 @@ class PDFLoader(MediaLoader):
             import fitz  # PyMuPDF
         except ImportError:
             raise RuntimeError(
-                "PDF support requires PyMuPDF. Install with: pip install pymupdf"
+                "PyMuPDF is missing from this build: it ships with the app, so this is a packaging problem"
             )
 
         path = Path(source)
@@ -138,7 +138,7 @@ class PDFTextLoader(MediaLoader):
             import kreuzberg
         except ImportError:
             raise RuntimeError(
-                "Text extraction requires kreuzberg. Install with: pip install kreuzberg"
+                "kreuzberg is missing from this build: it ships with the app, so this is a packaging problem"
             )
 
         path = Path(source)
