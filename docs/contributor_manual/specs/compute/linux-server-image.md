@@ -63,7 +63,7 @@ pairing, over the local network or Tailscale. Without a GPU it runs Kraken, YOLO
 embeddings on the CPU; large vision models come from a chosen cloud provider, Ollama elsewhere, or a
 cluster run. Two images in all: **full** (this) and **worker** (cluster jobs only). To spec on 2026-10-10
 with #5642: the compose file, volumes for projects and models, the first-run pairing, updates, and the
-NAS's limits (memory, ARM CPUs). Behaviour: `server.image.runs-on-a-pc-or-nas` — **[GAP]** (#5642).
+NAS's limits (memory, ARM CPUs). First named NAS target: **Synology** (maintainer 2026-10-09): a Container Manager Project (compose) on DSM 7.2+ "+" models (mostly x86_64, so amd64; the arm64 build for ARM units with Container Manager), projects and models in a shared folder such as `/volume1/fichero`, Synology's Tailscale package for reaching it; a stated memory minimum (likely 8 GB) with a polite refusal below it; CPU-only, heavy models elsewhere. TO CONFIRM on a real unit. Behaviour: `server.image.runs-on-a-pc-or-nas` — **[GAP]** (#5642).
 
 ## The design (proposed)
 
