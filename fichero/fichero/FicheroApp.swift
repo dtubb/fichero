@@ -39,6 +39,12 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         // fixtures and need no engine. `FicheroApp.init` already skips its
         // side effects for previews; this is the delegate half of that guard.
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
+        // Option held at launch: start with nothing open (2026-10-09, #5628). Before the engine
+        // starts and before any window or saved project is restored.
+        if StartFresh.askIfOptionHeld() {
+            logger.notice("Starting fresh: no projects reopened, window layout forgotten")
+            StartFresh.reset()
+        }
         logger.info("App will finish launching — starting engine app-scoped (#3945, #5228)")
         // Self-measured main-thread stalls (#4550): FICHERO_STALL_LOG=1 in the
         // scheme makes every ordinary ⌘R a ratchet-grade perf session — no
@@ -57,6 +63,8 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         guard !isRunningXCTests() else { return }
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
         LaunchProfile.milestone("applicationDidFinishLaunching")
+        // Windows are restored by now; a fresh start skips restoring for that one launch only.
+        UserDefaults.standard.removeObject(forKey: StartFresh.ignoreSavedStateKey)
     }
 
     /// True once a quit has been accepted, so a second ⌘Q (or a Dock quit while

@@ -975,7 +975,8 @@ final class ActivityTableTests: XCTestCase {
         // #5561 (`activity.details.one-mount`): "a job of its own has details like any run".
         XCTAssertTrue(training.opensDetails, "a job of its own has details like any run")
         XCTAssertEqual(training.selection, ActivitySelection(jobId: "t", libraryId: Self.libraryId))
-        XCTAssertTrue(training.controls.isEmpty, "a job of its own from the jobs poll has no Pause or Stop of its own")
+        // #5621 (2026-10-09): a job of its own is paused and stopped like any running row.
+        XCTAssertEqual(training.controls, [.pause, .stop], "a running job of its own has Pause and Stop")
     }
 
     func testActivityRunAccount_readTheFailedPagesAgainIsOneCallToTheEngine() async throws {
