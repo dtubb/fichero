@@ -348,6 +348,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_inference.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_model_catalog.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_model_choice.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_models.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/mlx_in_process.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/mlx_model_store.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/mlx_runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/mock.py
