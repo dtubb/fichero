@@ -604,6 +604,23 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("set-background-mode")
+    def activity_set_background_mode_put(
+        ctx: typer.Context,
+        mode: str = typer.Option(..., '--mode', help='automatic: heavy work waits while the Mac is in use or on battery; started: it goes ahead anyway (memory and heat still hold it) until set back; paused: nothing that runs by itself starts. One of: automatic, started, paused.'),
+    ) -> None:
+        """Set Background Mode (PUT /api/activity/jobs/mode)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/mode"
+            params = None
+            payload = _build_json_payload({
+                "mode": mode,
+            }, {
+                "mode": {'type': 'string', 'enum': ['automatic', 'started', 'paused'], 'title': 'Mode', 'description': 'automatic: heavy work waits while the Mac is in use or on battery; started: it goes ahead anyway (memory and heat still hold it) until set back; paused: nothing that runs by itself starts', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("set-background-paused")
     def activity_set_background_paused_put(
         ctx: typer.Context,

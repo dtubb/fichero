@@ -68,6 +68,11 @@ logger = logging.getLogger(__name__)
 
 #: App setting holding the global pause (`activity.pause.global-survives-relaunch`).
 PAUSE_SETTING_KEY = "background_work_paused"
+#: App setting holding *Start* (`activity.mode.start-stop`, #5621): the holds for the person at the Mac
+#: and for battery are lifted for waiting work until the person goes back to automatic.
+STARTED_SETTING_KEY = "background_work_started"
+#: The three modes of background work (`activity.mode.start-stop`).
+MODES = ("automatic", "started", "paused")
 #: A row interrupted this many times is failed rather than retried (`activity.durable.poison-item`).
 MAX_ATTEMPTS = 3
 #: Kraken models are named `kraken:<reader id>` (or `kraken:blla`, the line finder alone).
@@ -87,6 +92,11 @@ _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.impor
 #: `recipes`: a started recipe's run (#5390), which only waits on its steps' own jobs; one at a time, so two
 #: recipes never hold each other's checks.
 LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "recipes": 1}
+#: The lanes whose jobs are heavy on this Mac's memory: while memory is busy they run one job at a time
+#: between them (`activity.throttle.one-heavy-when-memory-tight`, #5622).
+HEAVY_LANES = ("local-ml", "images")
+#: What a row held so says, before what runs.
+ONE_HEAVY_REASON = "Waiting: memory is busy, so heavy work runs one job at a time"
 #: Finished jobs older than this are deleted when their library opens (spec open question 8).
 KEEP_FINISHED_DAYS = 30
 
@@ -189,6 +199,50 @@ def kind_name(kind: str) -> str:
         return job.name
     registered = KINDS.get(kind)
     return (registered.name if registered else None) or kind
+
+
+#: Rows that stand for many jobs (`activity.pause.per-queue`, #5621): a queue's prefix -> (its kinds, its
+#: name). The import's "Processing imported pages" row is `derivatives` (in the project the request names);
+#: `waiting:<kind>` and
+#: `paused:<kind>` (one kind's waiting or paused jobs, counted on one row by `snapshot`) need no entry.
+QUEUES: dict[str, tuple[tuple[str, ...], str]] = {}
+
+
+def register_queue(prefix: str, kinds: tuple[str, ...], name: str) -> None:
+    QUEUES[prefix] = (tuple(kinds), name)
+
+
+_kinds_loaded_once = False
+
+
+def load_kinds(*, again: bool = False) -> None:
+    """Register every module's kinds (the scheduler does this before its first scan, `again`); else once."""
+    global _kinds_loaded_once
+    if _kinds_loaded_once and not again:
+        return
+    _kinds_loaded_once = True
+    import importlib
+
+    for module in _KIND_MODULES:
+        getattr(importlib.import_module(module), "register_job_kinds", lambda: None)()
+
+
+def queue_of(job_id: str) -> tuple[tuple[str, ...], str, tuple[str, ...]] | None:
+    """The kinds a row that stands for many jobs covers, its name, and the states of the jobs it stands
+    for; None for a row of one job."""
+    prefix, sep, rest = job_id.partition(":")
+    if sep and prefix in ("waiting", "paused") and rest and ":" not in rest:
+        if rest not in KINDS:
+            load_kinds()
+        return ((rest,), kind_name(rest), (prefix,)) if rest in KINDS else None
+    if sep or not job_id.isidentifier():  # a job's id is a uuid, a step's "<run>:<node>"
+        return None
+    if job_id not in QUEUES:
+        load_kinds()
+    if job_id in QUEUES:
+        kinds, name = QUEUES[job_id]
+        return kinds, name, ("waiting", "running", "paused")
+    return None
 
 
 # Kraken's line finding and line reading, and a page read by a model served on this Mac, handed
@@ -1073,7 +1127,11 @@ def _job_row(db: "Database", job_id: str) -> tuple[str, str]:
 def pause_job(db: "Database", job_id: str, paused: bool) -> str:
     """Pause one waiting job, or resume one paused job (`activity.pause.per-job`). A paused job
     stays paused across relaunch until resumed. A job already running finishes its item; a page a
-    workflow run is waiting for is paused with its run, not here. Returns the job's state."""
+    workflow run is waiting for is paused with its run, not here. Returns the job's state. A row that
+    stands for many jobs (`queue_of`) pauses or resumes every one of them not started."""
+    queue = queue_of(job_id)
+    if queue is not None:
+        return _pause_queue(db, queue[0], paused)
     kind, state = _job_row(db, job_id)
     registered = KINDS.get(kind)
     if registered is not None and registered.pause is not None:
@@ -1096,7 +1154,11 @@ def cancel_job(db: "Database", job_id: str) -> str:
     """Stop one job (`activity.pause.per-job`): a waiting or paused one ends `cancelled` now; a page
     a run is waiting for is withdrawn from the lane (the run sees it stopped); a kind that runs
     somewhere else stops there by its own `cancel`. A job running here finishes the item it is on
-    (nothing can interrupt it midway yet). Returns the job's state after the request."""
+    (nothing can interrupt it midway yet). Returns the job's state after the request. A row that stands
+    for many jobs (`queue_of`) stops every one of them not started; those running finish their item."""
+    queue = queue_of(job_id)
+    if queue is not None:
+        return _cancel_queue(db, queue[0])
     kind, state = _job_row(db, job_id)
     registered = KINDS.get(kind)
     if registered is not None and registered.cancel is not None:
@@ -1109,6 +1171,144 @@ def cancel_job(db: "Database", job_id: str) -> str:
         return "cancelled" if _scheduler.withdraw(db, handed_in[1]) else "running"
     cancel_waiting(db, job_id)
     return "cancelled"
+
+
+def row_state(db: "Database", job_id: str) -> str:
+    """A row's state now: one job's, or for a row that stands for many (`queue_of`), running while one of
+    them runs, else waiting, else paused, else done. KeyError when there is no such row."""
+    queue = queue_of(job_id)
+    if queue is None:
+        return _job_row(db, job_id)[1]
+    for state in ("running", "waiting", "paused"):
+        if _queue_rows(db, queue[0], (state,)):
+            return state
+    return "done"
+
+
+def _queue_rows(db: "Database", kinds: tuple[str, ...], states: tuple[str, ...]) -> int:
+    _ensure(db)
+    return int(db.execute_fetchone(
+        f"SELECT count(*) FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
+        f"AND state IN ({', '.join('?' for _ in states)})", [*kinds, *states])[0])
+
+
+def _pause_queue(db: "Database", kinds: tuple[str, ...], paused: bool) -> str:
+    """Pause every waiting job of these kinds, or resume every paused one (`activity.pause.per-queue`)."""
+    stored = [k for k in kinds if not _is_attached(k)]
+    if not stored:
+        raise ValueError("These pages belong to a workflow run that is waiting for them: pause the run instead")
+    marks = ", ".join("?" for _ in stored)
+    if paused:
+        db.execute(f"UPDATE jobs SET state = 'paused', reason = ? WHERE state = 'waiting' AND kind IN ({marks})",
+                   [PAUSED_REASON, *stored])
+    else:
+        db.execute(f"UPDATE jobs SET state = 'waiting', reason = NULL WHERE state = 'paused' AND kind IN ({marks})",
+                   stored)
+        key = _key(db)
+        db.add_after_commit_hook(lambda: _scheduler.wake(key))
+    if _queue_rows(db, tuple(stored), ("running",)):
+        return "running"
+    return "paused" if paused else ("waiting" if _queue_rows(db, tuple(stored), ("waiting",)) else "done")
+
+
+def _cancel_queue(db: "Database", kinds: tuple[str, ...]) -> str:
+    """Stop every job of these kinds not started (`activity.pause.per-queue`); running ones finish their item."""
+    stored = [k for k in kinds if not _is_attached(k)]
+    if not stored:
+        raise ValueError("These pages belong to a workflow run that is waiting for them: stop the run instead")
+    db.execute(f"UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
+               f"WHERE state IN ('waiting', 'paused') AND kind IN ({', '.join('?' for _ in stored)})",
+               [utc_now(), *stored])
+    return "running" if _queue_rows(db, tuple(stored), ("running",)) else "cancelled"
+
+
+def queue_tree(db: "Database", job_id: str) -> dict[str, Any] | None:
+    """A row that stands for many jobs, as a tree (`activity.details.what-it-works-on-now`, #5623): one child
+    per kind (a stage of the import), each with its state, why it waits, its jobs done, failed and in all
+    for the work in hand, and its running and most recent jobs under it. "The work in hand" is every job
+    of these kinds not finished, and those finished since the oldest of them was queued. None for a row of one job, or when
+    nothing of the queue is waiting, running or paused."""
+    queue = queue_of(job_id)
+    if queue is None:
+        return None
+    kinds, name, _states = queue
+    _ensure(db)
+    marks = ", ".join("?" for _ in kinds)
+    live_since = db.execute_fetchone(
+        f"SELECT min(created_at) FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'running', 'paused')",
+        list(kinds))[0]
+    if live_since is None:
+        return None
+    # The work in hand: what is not finished, and what finished since then (an import's thumbnails, made
+    # before its embeds were picked up), back to the oldest of those.
+    since = db.execute_fetchone(
+        f"SELECT min(created_at) FROM jobs WHERE kind IN ({marks}) AND (state IN ('waiting', 'running', 'paused') "
+        f"OR finished_at >= ?)", [*kinds, live_since])[0]
+    counts = db.execute_fetchall(
+        f"SELECT kind, state, count(*) FROM jobs WHERE kind IN ({marks}) AND created_at >= ? GROUP BY kind, state",
+        [*kinds, since])
+    by_kind: dict[str, dict[str, int]] = {k: {} for k in kinds}
+    for kind, state, n in counts:
+        by_kind[kind][state] = int(n)
+    shown: dict[str, list[str]] = {}
+    for kind in kinds:  # the running ones, then the newest finished, a few each
+        rows = db.execute_fetchall(
+            "SELECT id FROM jobs WHERE kind = ? AND created_at >= ? AND state IN ('running', 'done', 'failed', "
+            "'cancelled') ORDER BY state = 'running' DESC, COALESCE(finished_at, started_at, created_at) DESC "
+            "LIMIT ?", [kind, since, QUEUE_PAGES_SHOWN])
+        shown[kind] = [r[0] for r in rows]
+    waiting_first = {kind: db.execute_fetchone(
+        "SELECT id, reason, created_at, run_after FROM jobs WHERE kind = ? AND state = 'waiting' "
+        "ORDER BY created_at, rowid LIMIT 1", [kind]) for kind in kinds}
+    now = utc_now()
+    children = []
+    for kind in kinds:
+        tally = by_kind[kind]
+        if not tally:
+            continue
+        pages = [tree(db, page_id) for page_id in shown[kind]]
+        pages = [p for p in pages if p is not None]
+        for page in pages:  # a page on no document is named by what it works on, never by its kind alone
+            page["display_name"] = page["display_name"] or page["subject"]
+        first = waiting_first[kind]
+        state = ("running" if tally.get("running") else "waiting" if tally.get("waiting")
+                 else "paused" if tally.get("paused") else "failed" if tally.get("failed") and not tally.get("done")
+                 else "done")
+        reason = (waiting_reason(db, first[0], kind, stored=first[1], created_at=first[2], run_after=first[3])
+                  if state == "waiting" and first is not None else PAUSED_REASON if state == "paused" else None)
+        running = next((p for p in pages if p["state"] == "running"), None)
+        children.append({
+            "id": f"{job_id}|{kind}", "kind": kind, "name": kind_name(kind), "subject": kind,
+            "document_id": None, "display_name": kind_name(kind), "model": KINDS[kind].model if kind in KINDS else None,
+            "state": state, "reason": reason, "parent_id": job_id, "started_at": None, "finished_at": None,
+            "created_at": ensure_utc(since).isoformat(), "started_by": None,
+            "working_on": running["display_name"] if running else None,
+            "done": tally.get("done", 0), "total": sum(tally.values()), "failed": tally.get("failed", 0),
+            "seconds": None, "tokens": 0, "cost_usd": None, "unpriced_models": [], "children": pages,
+        })
+    if not children:
+        return None
+    running_stage = next((c for c in children if c["state"] == "running"), None)
+    state = ("running" if running_stage else "waiting" if any(c["state"] == "waiting" for c in children)
+             else "paused" if any(c["state"] == "paused" for c in children) else "done")
+    reason = next((c["reason"] for c in children if c["state"] == state and c["reason"]), None) \
+        if state in ("waiting", "paused") else None
+    return {
+        "id": job_id, "kind": "queue", "name": name, "subject": job_id, "document_id": None, "display_name": name,
+        "model": None, "state": state, "reason": reason, "parent_id": None,
+        "started_at": ensure_utc(since).isoformat(), "finished_at": None, "created_at": ensure_utc(since).isoformat(),
+        "started_by": "automatic",
+        "working_on": (", ".join(p for p in (running_stage["name"], running_stage["working_on"]) if p)
+                       if running_stage else None),
+        "done": sum(c["done"] for c in children), "total": sum(c["total"] for c in children),
+        "failed": sum(c["failed"] for c in children),
+        "seconds": max(0.0, (now - ensure_utc(since)).total_seconds()), "tokens": 0, "cost_usd": None,
+        "unpriced_models": [], "children": children,
+    }
+
+
+#: How many of a queue's running and newest finished jobs its tree shows under each stage.
+QUEUE_PAGES_SHOWN = 8
 
 
 def retry_job(db: "Database", job_id: str) -> str:
@@ -1156,6 +1356,37 @@ def set_paused(paused: bool) -> None:
     _scheduler.wake(None)
 
 
+def is_started() -> bool:
+    """*Start* is on (`activity.mode.start-stop`, #5621): waiting work goes ahead although the person is
+    at the Mac or it is on battery. Memory and heat still hold it (`throttle.why_wait`)."""
+    from fichero_server.db.app import get_app_db
+
+    try:
+        return get_app_db().get_setting(STARTED_SETTING_KEY) == "1"
+    except Exception as exc:  # noqa: BLE001 -- unreadable: automatic, the throttle as it always was
+        logger.warning("Could not read %s: %s", STARTED_SETTING_KEY, exc)
+        return False
+
+
+def mode() -> str:
+    """How background work runs on this Mac now: "paused", "started" or "automatic"."""
+    return "paused" if is_paused() else "started" if is_started() else "automatic"
+
+
+def set_mode(new_mode: str) -> None:
+    """THE one way the Start / Stop control changes how work runs (`activity.mode.start-stop`): *Stop*
+    pauses all background work, *Start* lifts the holds for the person at the Mac and for battery,
+    *automatic* clears both. Both settings are written, so the mode is one of the three, never a mix."""
+    if new_mode not in MODES:
+        raise ValueError(f"no mode {new_mode!r}; one of {', '.join(MODES)}")
+    from fichero_server.db.app import get_app_db
+
+    app_db = get_app_db()
+    app_db.set_setting(STARTED_SETTING_KEY, "1" if new_mode == "started" else "0")
+    app_db.set_setting(PAUSE_SETTING_KEY, "1" if new_mode == "paused" else "0")
+    _scheduler.wake(None)
+
+
 def finished_seconds(db: "Database", model: str, *, limit: int = 200) -> list[float]:
     """How long each of `model`'s most recent finished jobs took, newest first: the measured
     speed `recipes/routes.py` reports (`source.onboard.routes-for-the-volume`)."""
@@ -1184,20 +1415,23 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         [failed_limit],
     )
     out: list[dict[str, Any]] = []
-    waiting: dict[str, dict[str, Any]] = {}
+    waiting: dict[tuple[str, str], dict[str, Any]] = {}
     # Runs and their steps are listed from the run record (`/api/activity/jobs` merges them); their rows
     # are read as a tree with `tree()`. Pages carry their step as `parent_id`.
     for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after in rows:
-        if state == "waiting" and kind in waiting:  # the first (oldest) row of a kind stands for all of them
-            waiting[kind]["count"] += 1
-            waiting[kind]["id"] = f"waiting:{kind}"
+        # The first (oldest) row of a kind stands for all of its waiting ones, and for all of its paused
+        # ones (`activity.pause.per-queue`: pausing 137 pages lists one row, not 137).
+        group = (state, kind) if state in ("waiting", "paused") else None
+        if group is not None and group in waiting:
+            waiting[group]["count"] += 1
+            waiting[group]["id"] = f"{state}:{kind}"
             continue
         if state == "waiting":
             reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
         row = {"id": job_id, "kind": kind, "subject": subject, "state": state, "reason": reason,
                "attempts": attempts, "created_at": created_at, "count": 1, "parent_id": parent_id}
-        if state == "waiting":
-            waiting[kind] = row
+        if group is not None:
+            waiting[group] = row
         out.append(row)
     return out
 
@@ -1249,20 +1483,32 @@ def _holder_words(db: "Database", job_id: str) -> str:
 def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None = None,
                    created_at: Any = None, run_after: Any = None) -> str:
     """THE one place a waiting row's reason is decided (`activity.waiting-says-why`, #5606): what it
-    truly waits for now, never None. In order: paused by you (not work a person waits for); the
-    throttle's reason, only while the throttle gives one now (so "you're using the Mac" only while
-    the Mac is in use); thumbnails made first (#5585); the lane full, naming what holds it ("Waiting
-    for the model lane: Paleographer Review is reading"); a reason the job recorded itself; a quiet
-    spell after a change; else its turn on its lane."""
+    truly waits for now, never None. In order: paused by you (not work a person waits for); the lane
+    full, naming what holds it ("Waiting for the model lane: Paleographer Review is reading"), which
+    it would wait for even if the person stepped away (#5622); one heavy job at a time while memory is
+    busy (#5622); the throttle's reason, only while the throttle gives one now (so "you're using the
+    Mac" only while the Mac is in use, and never while Start is on); thumbnails made first (#5585); a
+    reason the job recorded itself; a quiet spell after a change; else its turn on its lane."""
     attached = _is_attached(kind)
     paused = is_paused()
     if paused and not attached:
         return PAUSED_REASON
     lane_name = _lane_of(job_id, kind)
+    lane = _scheduler.lanes.get(lane_name)
+    words = LANE_WORDS.get(lane_name, f"the {lane_name} lane")
+    running = [r for r in list(lane.running) if r != job_id] if lane is not None else []
+    if lane is not None and len(running) >= lane.slots:
+        return f"Waiting for {words}: {_holder_words(db, running[0])}"
+    if lane_name in HEAVY_LANES:
+        from fichero_server.execution.throttle import memory_is_busy
+
+        holder = _scheduler.heavy_running(besides=job_id)
+        if holder is not None and memory_is_busy():
+            return f"{ONE_HEAVY_REASON}: {_holder_words(db, holder)}"
     if lane_name == "local-ml":
         from fichero_server.execution.throttle import why_wait
 
-        held = why_wait(person_waiting=attached)
+        held = why_wait(person_waiting=attached or _watched(db, job_id))
         if held:
             return held
         first_kinds = [name for name, k in KINDS.items() if k.first]
@@ -1271,16 +1517,17 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
                 f"AND state IN ('waiting', 'running') AND created_at <= ? LIMIT 1",
                 [*first_kinds, created_at]) is not None:
             return FIRST_REASON
-    lane = _scheduler.lanes.get(lane_name)
-    words = LANE_WORDS.get(lane_name, f"the {lane_name} lane")
-    running = [r for r in list(lane.running) if r != job_id] if lane is not None else []
-    if lane is not None and len(running) >= lane.slots:
-        return f"Waiting for {words}: {_holder_words(db, running[0])}"
     if stored and not _decided_here(stored):
         return stored
     if run_after is not None and ensure_utc(run_after) > ensure_utc(utc_now()):
         return "Waiting a moment after the last change"
     return f"Waiting for its turn on {words}"
+
+
+def _watched(db: "Database", job_id: str) -> bool:
+    """A person waits on this stored job (`activity.throttle.watched-first`)."""
+    row = db.execute_fetchone("SELECT COALESCE(watched, FALSE) FROM jobs WHERE id = ?", [job_id])
+    return bool(row and row[0])
 
 
 def state_and_reason(db: "Database", job_id: str) -> tuple[str, str | None] | None:
@@ -1419,6 +1666,9 @@ class _Scheduler:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        #: Held while a heavy lane picks, so the model lane and the images lane never both start a job
+        #: while memory is busy (`activity.throttle.one-heavy-when-memory-tight`).
+        self._heavy_pick = threading.Lock()
         self.lanes = {name: _Lane(name, slots) for name, slots in LANES.items()}
         self._kinds_loaded = False
         #: Work handed in by waiting callers, by job id: (the work, the caller's future).
@@ -1497,11 +1747,8 @@ class _Scheduler:
     def _loop(self, lane: _Lane) -> None:
         with self._lock:
             if not self._kinds_loaded:
-                import importlib
-
-                for module in _KIND_MODULES:
-                    # A module registers its kinds on import, or lazily through this hook.
-                    getattr(importlib.import_module(module), "register_job_kinds", lambda: None)()
+                # A module registers its kinds on import, or lazily through this hook.
+                load_kinds(again=True)
                 self._kinds_loaded = True
         while True:
             timeout = self.IDLE_SECONDS
@@ -1522,6 +1769,10 @@ class _Scheduler:
                         self._run(lane, *picked)
                     finally:
                         lane.running.pop(picked[2][0], None)
+                        if lane.name in HEAVY_LANES:  # a heavy job held for this one may go now
+                            for name in HEAVY_LANES:
+                                if name != lane.name:
+                                    self.lanes[name].event.set()
             except Exception as exc:
                 if lane.name == "local-ml":
                     self._fail_attached(exc)
@@ -1566,8 +1817,29 @@ class _Scheduler:
                 thread.join(max(0.0, deadline - time.monotonic()))
         return [t for t in ending if t.is_alive()]
 
+    def heavy_running(self, besides: str | None = None) -> str | None:
+        """A job running on a heavy lane now (its id), other than `besides`, or None."""
+        for name in HEAVY_LANES:
+            for job_id in list(self.lanes[name].running):
+                if job_id != besides:
+                    return job_id
+        return None
+
     def _claim(self, lane: _Lane) -> tuple[str, Any, tuple, Any] | None:
-        """Pick the next job for this lane and mark it running, as one step among its threads."""
+        """Pick the next job for this lane and mark it running, as one step among its threads. A heavy
+        lane picks under `_heavy_pick` and, while memory is busy, starts nothing while any heavy job runs
+        (`activity.throttle.one-heavy-when-memory-tight`, #5622): whatever started it, in any project."""
+        if lane.name not in HEAVY_LANES:
+            return self._claim_one(lane)
+        from fichero_server.execution.throttle import memory_is_busy
+
+        with self._heavy_pick:
+            if memory_is_busy() and self.heavy_running() is not None:
+                lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                return None
+            return self._claim_one(lane)
+
+    def _claim_one(self, lane: _Lane) -> tuple[str, Any, tuple, Any] | None:
         with lane.pick:
             # Heavy local work waits while the Mac needs itself (`activity.throttle.power-heat-
             # memory`). Background jobs wait on all four signals, so while any holds, only work a
@@ -1634,9 +1906,12 @@ class _Scheduler:
         # lane wake at once, every time, while paused (#5503).
         lane.look_again_at = None
         # Stored kinds run unless paused or held by the throttle; handed-in work runs whenever its
-        # caller is waiting. Only a scan that looked at every kind may forget an idle library.
-        full_scan = background and not is_paused()
-        stored = [] if not full_scan else [
+        # caller is waiting, and so does a stored job a person waits on (watched) while the throttle
+        # holds only background work (`activity.throttle.hand-started-waits-for-memory-and-heat`).
+        # Only a scan that looked at every kind may forget an idle library.
+        paused = is_paused()
+        full_scan = background and not paused
+        stored = [] if paused else [
             name for name, kind in KINDS.items() if kind.run is not None and kind.lane == lane.name]
         with self._lock:
             keys = list(lane.libraries)
@@ -1654,8 +1929,9 @@ class _Scheduler:
                 with self._lock:
                     lane.libraries.difference_update(set(keys) - lane.rewoken)
             return None
+        watched_only = "" if full_scan else " AND COALESCE(watched, FALSE)"
         where = " OR ".join(filter(None, [
-            f"kind IN ({', '.join('?' for _ in stored)})" if stored else "",
+            f"(kind IN ({', '.join('?' for _ in stored)}){watched_only})" if stored else "",
             f"id IN ({', '.join('?' for _ in attached)})" if attached else "",
         ]))
         where, params = f"({where})", [*stored, *attached]

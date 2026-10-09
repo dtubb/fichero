@@ -899,10 +899,10 @@ and node, not by job); a retry action for failed pages.
   glance that it is working: what it works on now (the page and the step: "Embed for search ·
   p12.jpg"), its stages each with its state and counts, the recent lines of its log, and its controls
   (Pause or Resume, Stop) beside the Start / Stop mode control. The import's "Processing imported
-  pages" row has a tree like any job (`GET /api/activity/jobs/derivatives:<project>`): one child per
+  pages" row has a tree like any job (`GET /api/activity/jobs/derivatives`): one child per
   stage (Make thumbnails, Embed for search, Read names), each with its state, why it waits, its pages
   done, failed and in all for the import in hand, and its running and most recent pages under it; its
-  log (`GET /api/activity/jobs/derivatives:<project>/log`) is those pages' lines (started, done,
+  log (`GET /api/activity/jobs/derivatives/log`) is those pages' lines (started, done,
   failed and why, waiting and for what), newest last. A kind's counted row (`waiting:<kind>`) reads
   the same way. Before: the row showed a bar, "97 done · 0 failed · 49 left" and "Log: Nothing
   written for this row yet". Built (2026-10-09): `execution/jobs.py` `queue_tree`, tested through
@@ -1015,7 +1015,7 @@ and node, not by job); a retry action for failed pages.
   Stop like any other row: they apply to every job it stands for that has not started (running ones
   finish their item). Paused jobs are counted on one row per kind too, so pausing 137 pages does not
   list 137 rows. Built (2026-10-09): `pause_job` / `cancel_job` take the row's id
-  (`derivatives:<project>`, `waiting:<kind>`, `paused:<kind>`), through `job.pause` / `job.cancel`
+  (`derivatives`, the import's row in the project the request names; `waiting:<kind>`, `paused:<kind>`), through `job.pause` / `job.cancel`
   (`test_start_stop_mode.py`). Not yet seen in the app.
 - `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
   boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for. Owned

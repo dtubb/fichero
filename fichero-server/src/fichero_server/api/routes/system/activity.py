@@ -176,6 +176,9 @@ class BackgroundJobsResponse(BaseModel):
     cpu_count: int
     # Pause Background Work is on (`activity.pause.global`): nothing that runs by itself starts.
     paused: bool = False
+    # How background work runs (`activity.mode.start-stop`, #5621): automatic (the throttle holds heavy work
+    # while the Mac is in use or on battery), started (those holds lifted until set back), or paused.
+    mode: Literal["automatic", "started", "paused"] = "automatic"
     # This Mac's memory, heat, power and use, and why heavy work waits (#5415).
     machine: MachineState
 
@@ -227,6 +230,16 @@ class JobTree(BaseModel):
 
 class BackgroundPauseRequest(BaseModel):
     paused: bool = Field(description="true pauses all background work; false resumes it")
+
+
+class BackgroundModeRequest(BaseModel):
+    mode: Literal["automatic", "started", "paused"] = Field(description=(
+        "automatic: heavy work waits while the Mac is in use or on battery; started: it goes ahead anyway "
+        "(memory and heat still hold it) until set back; paused: nothing that runs by itself starts"))
+
+
+class BackgroundModeResponse(BaseModel):
+    mode: Literal["automatic", "started", "paused"]
 
 
 class BackgroundPauseResponse(BaseModel):
@@ -492,6 +505,7 @@ async def list_background_jobs(
         process_cpu_percent=process_cpu_percent(),
         cpu_count=cpu_count(),
         paused=job_queue.is_paused(),
+        mode=job_queue.mode(),
         machine=MachineState(**throttle.machine_state()),
     )
 
@@ -510,7 +524,9 @@ async def get_job_tree(
     (`activity.job-tree-to-a-depth`, #5605)."""
     from fichero_server.execution import jobs as job_queue
 
-    found = job_queue.tree(db, job_id)
+    # A row that stands for many jobs (the import's "Processing imported pages", one kind's counted
+    # waiting jobs) reads as a tree of its stages (`activity.details.what-it-works-on-now`, #5623).
+    found = job_queue.queue_tree(db, job_id) if job_queue.queue_of(job_id) else job_queue.tree(db, job_id)
     if found is None:
         raise HTTPException(status_code=404, detail=f"no job {job_id!r} in this project")
     if found["kind"] == "workflow":
@@ -656,7 +672,7 @@ async def get_job_log(job_id: str, db: Database = Depends(get_library_database))
     started, it failed and why, it waits and for what). Nothing about another row."""
     from fichero_server.execution import jobs as job_queue
 
-    found = job_queue.tree(db, job_id)
+    found = job_queue.queue_tree(db, job_id) if job_queue.queue_of(job_id) else job_queue.tree(db, job_id)
     if found is None:
         raise HTTPException(status_code=404, detail=f"no job {job_id!r} in this project")
     lines = _job_rows_log(found)
@@ -701,6 +717,20 @@ async def set_background_paused(
     relaunch. While paused nothing is started by the queue; a job already running finishes."""
     result = registry.invoke(db, "background.pause", {"paused": request.paused}, ctx)
     return BackgroundPauseResponse.model_validate(result.result)
+
+
+@router.put("/jobs/mode", response_model=BackgroundModeResponse)
+async def set_background_mode(
+    request: BackgroundModeRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> BackgroundModeResponse:
+    """The Start / Stop control (`activity.mode.start-stop`, #5621), for the whole Mac: `started` lets
+    waiting work go ahead although the person is at the Mac or it is on battery (memory and heat still
+    hold it, and heavy work still runs one job at a time while memory is busy) until set back to
+    `automatic`; `paused` pauses all background work. Kept across relaunch."""
+    result = registry.invoke(db, "background.mode", {"mode": request.mode}, ctx)
+    return BackgroundModeResponse.model_validate(result.result)
 
 
 class JobPauseRequest(BaseModel):
@@ -772,7 +802,7 @@ def _invert_job_pause(before: dict | None, after: dict | None, ctx: ActionContex
 def _action_job_pause(db: Database, params: JobControlParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.execution import jobs as job_queue
 
-    before = job_queue._job_row(db, params.job_id)[1]
+    before = job_queue.row_state(db, params.job_id)
     state = job_queue.pause_job(db, params.job_id, bool(params.paused))
     return {"id": params.job_id, "state": state}, ChangeSpec(
         domains=["activity"], target_ids=[params.job_id], before={"state": before},
@@ -784,7 +814,7 @@ def _action_job_pause(db: Database, params: JobControlParams, ctx: ActionContext
 def _action_job_cancel(db: Database, params: JobControlParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.execution import jobs as job_queue
 
-    before = job_queue._job_row(db, params.job_id)[1]
+    before = job_queue.row_state(db, params.job_id)
     state = job_queue.cancel_job(db, params.job_id)
     return {"id": params.job_id, "state": state}, ChangeSpec(
         domains=["activity"], target_ids=[params.job_id], before={"state": before},
@@ -820,6 +850,25 @@ def _action_background_pause(
     return {"paused": params.paused}, ChangeSpec(
         domains=["activity"], before={"paused": before}, after={"paused": params.paused},
         emit_type="background.paused" if params.paused else "background.resumed",
+    )
+
+
+def _invert_mode(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("background.mode", {"mode": (before or {}).get("mode") or "automatic"})
+
+
+@action("background.mode", BackgroundModeRequest, domains=["activity"], undoable=True, invert=_invert_mode)
+def _action_background_mode(
+    db: Database, params: BackgroundModeRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    before = job_queue.mode()
+    # Applied once the audit commits: a rolled-back action leaves the mode as it was.
+    db.add_after_commit_hook(lambda: job_queue.set_mode(params.mode))
+    return {"mode": params.mode}, ChangeSpec(
+        domains=["activity"], before={"mode": before}, after={"mode": params.mode},
+        emit_type="background.mode",
     )
 
 

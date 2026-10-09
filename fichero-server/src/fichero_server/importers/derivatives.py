@@ -267,7 +267,9 @@ def background_jobs_snapshot(library: str | None = None) -> list[dict[str, objec
         )
         jobs.append(
             {
-                "id": f"derivatives:{library}",
+                # The queue's own id (`execution.jobs.QUEUES`): its Pause, Stop and details reach its
+                # stages in this project (the request names the project; a path would not fit a URL).
+                "id": "derivatives",
                 "task_type": "derivatives",
                 "name": "Processing imported pages",
                 "library": library,
@@ -947,3 +949,6 @@ def register_job_kinds() -> None:
                        model="embedder", name="Embed for search")
     jobs.register_kind(NLP_KIND, lambda db, doc_id: _nlp_stage(doc_id, _library_of(db)),
                        model="spacy", name="Read names (NLP draft)")
+    # The import's "Processing imported pages" row (`background_jobs_snapshot`, id `derivatives`)
+    # stands for these stages: its Pause and Stop reach them, its details show each (#5621, #5623).
+    jobs.register_queue("derivatives", (THUMBNAIL_KIND, EMBED_KIND, NLP_KIND), "Processing imported pages")

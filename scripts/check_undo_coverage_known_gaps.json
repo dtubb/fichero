@@ -12,6 +12,7 @@
   "PUT /api/activity/jobs/{job_id}/paused": "undoable in the engine (job.pause, audited with an inverse: pause <-> resume); the app has no per-job control yet to register it (#5356)",
   "POST /api/activity/jobs/{job_id}/cancel": "a stop is not undone: a cancelled job is queued again by whatever needs it (job.cancel is audited); the app has no per-job control yet (#5356)",
   "PUT /api/settings/compute": "an app preference (priority, device), not library data: setting it again is the undo, as for the other settings routes",
+  "PUT /api/activity/jobs/mode": "undoable in the engine (background.mode, audited with an inverse to the mode before); the app's Start / Stop button is itself the way back (pressed again it returns to automatic), so it registers no UndoManager entry (#5621)",
   "PUT /api/activity/jobs/paused": "undoable in the engine (background.pause, audited with an inverse); the app has no Pause Background Work control yet to register it (#5355)",
   "POST /api/documents/{document_id}/readings/compare": "read-only: scores two readings of a page and writes nothing, so there is nothing to undo (#5389)",
   "PUT /api/recipes/project": "undoable in the engine (project.save_setup, audited with an inverse); the app's undo surface registers it when setup saves through it, slice 2 (#4951)",
