@@ -127,6 +127,8 @@ _ADDED_COLUMNS = (
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS run_after TIMESTAMP",
     # A person waits on it (`activity.throttle.watched-first`): first in its lane, at utility QoS.
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS watched BOOLEAN DEFAULT FALSE",
+    # A failed job the person cleared (`activity.window.clear-failed`, #5634): kept, no longer listed.
+    "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cleared_at TIMESTAMP",
 )
 _ENSURED: set[str] = set()
 
@@ -1333,7 +1335,7 @@ def retry_job(db: "Database", job_id: str) -> str:
     detail = json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0] or "{}")
     detail.pop("cancel", None)
     db.execute("UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, "
-               "detail = ? WHERE id = ?", [json.dumps(detail) if detail else None, job_id])
+               "cleared_at = NULL, detail = ? WHERE id = ?", [json.dumps(detail) if detail else None, job_id])
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return "waiting"
@@ -1409,7 +1411,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused') AND kind NOT IN ('workflow', 'workflow-step')"
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
-        " ORDER BY finished_at DESC LIMIT ?)"
+        " AND cleared_at IS NULL ORDER BY finished_at DESC LIMIT ?)"
         ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
         "created_at",
         [failed_limit],
@@ -1434,6 +1436,21 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             waiting[group] = row
         out.append(row)
     return out
+
+
+def clear_failed(db: "Database") -> list[str]:
+    """Clear Failed (`activity.window.clear-failed`, #5634): every failed job `snapshot` would list
+    is cleared. Its row is kept (its run's tree, the record and a retry still read it) and is no
+    longer listed; a retry lists it again. Workflow runs are cleared through `workflow_run.delete`.
+    Returns the ids cleared."""
+    _ensure(db)
+    ids = [row[0] for row in db.execute_fetchall(
+        "SELECT id FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step') "
+        "AND cleared_at IS NULL ORDER BY id")]
+    if ids:
+        marks = ", ".join("?" * len(ids))
+        db.execute(f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [utc_now(), *ids])
+    return ids
 
 
 #: What a waiting row calls the lane it waits for (`activity.waiting-says-why`, #5606).

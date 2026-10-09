@@ -794,6 +794,39 @@ async def retry_job(
     return _control_job(db, ctx, "job.retry", {"job_id": job_id})
 
 
+class ClearFailedResponse(BaseModel):
+    cleared_ids: list[str] = Field(description="the failed jobs cleared: kept, no longer listed")
+    count: int
+
+
+@router.post("/jobs/clear-failed", response_model=ClearFailedResponse)
+async def clear_failed_jobs(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ClearFailedResponse:
+    """Clear Failed (`activity.window.clear-failed`, #5634): every failed job the jobs list shows is
+    cleared. Its row is kept (its run's tree and the record still read it) and no longer listed; a
+    retry lists it again. Failed workflow runs are cleared by `POST /api/workflow-execution/runs/delete`
+    with `statuses: ["failed"]`."""
+    result = registry.invoke(db, "job.clear_failed", {}, ctx)
+    return ClearFailedResponse.model_validate(result.result)
+
+
+class ClearFailedParams(BaseModel):
+    pass
+
+
+@action("job.clear_failed", ClearFailedParams, domains=["activity"])
+def _action_job_clear_failed(db: Database, params: ClearFailedParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    ids = job_queue.clear_failed(db)
+    return {"cleared_ids": ids, "count": len(ids)}, ChangeSpec(
+        domains=["activity"], target_ids=ids, before={"state": "failed"},
+        after={"cleared": len(ids)}, emit_type="job.updated",
+    )
+
+
 def _invert_job_pause(before: dict | None, after: dict | None, ctx: ActionContext):
     return ("job.pause", {"job_id": (after or {})["id"], "paused": (before or {}).get("state") == "paused"})
 

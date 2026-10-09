@@ -72,9 +72,10 @@ struct ActivityMonitorWindow: View {
         .accessibilityIdentifier("activity.window")
         .toolbar {
             // The one Start / Stop control (ruled 2026-10-09, `activity.mode.start-stop`): the mode is
-            // the Mac's, so any open project's store sets and shows it.
+            // the Mac's, so any open project's store sets it; one that polls the jobs read shows it, so
+            // a change made in the main window or elsewhere reaches this button too (#5621).
             ToolbarItem {
-                if let store = libraries.first?.activityStore {
+                if let store = modeStore {
                     ActivityModeButton(store: store)
                 }
             }
@@ -85,8 +86,13 @@ struct ActivityMonitorWindow: View {
                 .help("Group the rows by project, with this Mac's own work as a group of its own")
             }
             ToolbarItem {
+                // Every failed row the window shows: runs and jobs of their own (#5634).
                 Button("Clear Failed", role: .destructive) { Task { await clearFailed() } }
-                    .disabled(!libraries.contains { $0.activityStore.runs.contains { $0.status == .failed } })
+                    .disabled(!libraries.contains {
+                        $0.activityStore.runs.contains { $0.status == .failed } || !$0.activityStore.failedJobs.isEmpty
+                    })
+                    .help("Clear every failed run and job from the list")
+                    .accessibilityIdentifier("activity.toolbar.clearFailed")
             }
         }
         .safeAreaInset(edge: .bottom) { footer }
@@ -281,16 +287,21 @@ struct ActivityMonitorWindow: View {
         notice = skippedCount > 0 ? "\(skippedCount) run\(skippedCount == 1 ? "" : "s") still running — not deleted." : nil
     }
 
-    /// "Clear Failed" (#4960): the SAME delete operation with a status filter.
+    /// "Clear Failed" (#4960, #5634): every project's failed runs and failed
+    /// jobs (`ActivityStore.clearFailed`), and the footer says what was
+    /// cleared, or what could not be and why.
     private func clearFailed() async {
-        var skippedCount = 0
+        var outcome = ClearFailedOutcome()
         for library in libraries {
-            let outcome = await library.activityStore.deleteRuns(statuses: ["failed"])
-            skippedCount += outcome.skippedIds.count
+            outcome += await library.activityStore.clearFailed()
         }
-        notice = skippedCount > 0
-            ? "\(skippedCount) run\(skippedCount == 1 ? "" : "s") could not be cleared."
-            : nil
+        notice = outcome.notice
+    }
+
+    /// The store the Start / Stop button reads: the first project's that polls
+    /// the jobs read, else the first project's.
+    private var modeStore: ActivityStore? {
+        (libraries.first { $0.activityStore.pollsJobs } ?? libraries.first)?.activityStore
     }
 
     /// Changes whenever the set of open libraries, any library's live

@@ -563,6 +563,25 @@ extension ActivityService {
         }
     }
 
+    /// Clear Failed for jobs (the audited `job.clear_failed`, #5634): every
+    /// failed job the jobs read lists is kept and no longer listed. Returns
+    /// the ids cleared. Failed workflow runs are `deleteWorkflowRuns(statuses:)`.
+    func clearFailedJobs() async throws -> [String] {
+        let response = try await client.api.clearFailedJobsApiActivityJobsClearFailedPost()
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.clearedIds
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw denial
+            }
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// Run a failed or stopped job again (the audited `job.retry`, #5356): it
     /// goes back to waiting and carries on from its own checkpoint. Returns the
     /// job's state after the request. A refusal (409: work a run hands in, a
