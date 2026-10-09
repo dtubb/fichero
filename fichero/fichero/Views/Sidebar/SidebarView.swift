@@ -166,7 +166,7 @@ struct SidebarView: View {
             ) { note in
                 // A library crumb (#5218): that library's top level, selected as its sidebar row is.
                 if let raw = note.userInfo?["libraryId"] as? String, let libraryId = UUID(uuidString: raw) {
-                    applySidebarSelectionProposal([.library(libraryId)])
+                    openAsClicked(.library(libraryId), reopen: Self.revealReopens(note))
                     return
                 }
                 guard let docId = note.userInfo?["documentId"] as? String else { return }
@@ -174,7 +174,7 @@ struct SidebarView: View {
                 if let segmentId = note.userInfo?["segmentId"] as? String {
                     windowState.pendingSegmentSelection = .init(documentId: docId, segmentId: segmentId)
                 }
-                Task { await revealDocument(docId) }
+                Task { [reopen = Self.revealReopens(note)] in await revealDocument(docId, reopen: reopen) }
             }
             // Suppress the NavigationSplitView sidebar-column title header (#2309).
             // The title is now shown centred in the main window toolbar by another

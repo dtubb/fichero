@@ -291,4 +291,18 @@ class SidebarSelectionState {
     func selectProject(_ libraryId: UUID) {
         selectedItemId = SidebarDestination.library(libraryId).serializedID
     }
+
+    /// Bumped when a breadcrumb opens the node that is ALREADY the sidebar's whole selection
+    /// (#5633). Selecting it again writes nothing, so neither `.onChange` a click runs would
+    /// fire; the window re-runs those same handlers on this instead (`SidebarView.reopenCurrentSelection`,
+    /// `ContentView.decoratedNavigationSplitColumn`).
+    private(set) var reopenGeneration = 0
+
+    /// Whether opening `destination` needs a reopen rather than a selection write: true, and
+    /// `reopenGeneration` bumped, when it already is the one selected row.
+    func reopenIfSelected(_ destination: SidebarDestination) -> Bool {
+        guard selectedDestination == destination, selectedDestinations == [destination] else { return false }
+        reopenGeneration &+= 1
+        return true
+    }
 }

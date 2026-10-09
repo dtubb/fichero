@@ -68,10 +68,18 @@ extension PaneCrumb {
     /// The ONE way a crumb navigates, like Finder's path control: through the sidebar's reveal seam, which
     /// selects the row as a click does (so the panes, the Inspector and ⌘[ / ⌘] follow). A library crumb
     /// selects the library -- its top level, switching the window when it is another library.
+    /// A crumb OPENS its node even when the sidebar already has it selected (#5633): clicking
+    /// "Sources" over a file picked inside Sources shows Sources, as clicking its row does.
     @MainActor
     static func reveal(_ crumb: PaneCrumb) {
-        let info: [String: String] = crumb.libraryId.map { ["libraryId": $0.uuidString] } ?? ["documentId": crumb.id]
-        NotificationCenter.default.post(name: .sidebarRevealDocument, object: nil, userInfo: info)
+        NotificationCenter.default.post(name: .sidebarRevealDocument, object: nil, userInfo: revealInfo(crumb))
+    }
+
+    /// The reveal request a crumb posts, split out so its shape is testable.
+    static func revealInfo(_ crumb: PaneCrumb) -> [String: Any] {
+        var info: [String: Any] = crumb.libraryId.map { ["libraryId": $0.uuidString] } ?? ["documentId": crumb.id]
+        info["reopen"] = true
+        return info
     }
 
     /// What a crumb's menu offers to step into: a library's top level, or a node's children.

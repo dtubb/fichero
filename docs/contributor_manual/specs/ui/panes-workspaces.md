@@ -1042,6 +1042,17 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   since less chrome leaves one component to tune.
 - `panes.chrome.breadcrumb-only-when-pinned` — **[GAP]** (#5437) the breadcrumb shows only on a
   pinned pane; on an unpinned pane it repeats the window toolbar and is hidden.
+- `panes.chrome.breadcrumb-opens-like-the-sidebar` — **[PARTIAL]** (#5633; implemented with unit
+  tests, not yet built or seen in the app) clicking a folder (or library) crumb in any pane head
+  does exactly what clicking that node's sidebar row does: it becomes the selection and the
+  Preview shows its canvas, with the Library listing its contents. That holds even when the node
+  is already the sidebar's selection and the Preview is showing a file picked inside it: the crumb
+  opens the folder again rather than doing nothing. One path: every crumb, and Preview's
+  up-to-parent step, goes through `PaneCrumb.reveal` → the sidebar's reveal seam
+  (`SidebarView.openAsClicked`), which writes the selection a click writes, or, when the node is
+  already selected, re-runs the click's own handlers (`SidebarSelectionState.reopenGeneration`).
+  A relaunch restore's reveal does not reopen, so it keeps the restored Library pick. Pinned by
+  `BreadcrumbOpensFolderTests`.
 - `panes.pin.in-the-pane-list` — **[GAP]** (#5437) a pane's pin is stored once, in the pane list
   (`PaneScope.isPinned`, `Models/PaneList.swift:69`, today never read), and read by every kind.
   Today pin is per-view `@State` in five places (`LibraryPanePin`, `ContentView+Navigation.swift:402`;
