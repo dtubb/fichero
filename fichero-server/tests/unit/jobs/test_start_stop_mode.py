@@ -219,3 +219,17 @@ def test_a_counted_kind_row_reads_as_a_tree_too(db, client, mac, heavy):
     assert (row["id"], row["total"]) == ("waiting:t-heavy", 2)
     tree = client.get("/api/activity/jobs/waiting:t-heavy").json()
     assert (tree["state"], tree["reason"], tree["total"]) == ("waiting", IN_USE, 2)
+
+
+def test_work_a_person_starts_runs_on_battery_and_background_work_waits(db, mac, heavy):
+    """Ruled 2026-10-04, found broken 2026-10-09 (a Kraken run clicked on battery was held): a job a
+    person started runs on battery or while they use the Mac, whatever its kind; only work the engine,
+    a synced folder or a kept export started waits for those. Memory and heat still hold everything."""
+    mac["battery"] = True
+    jobs.enqueue(db, "t-heavy", "background-page")
+    jobs.enqueue(db, "t-heavy", "clicked-page", started_by="owner")
+    assert _wait_for(lambda: "clicked-page" in heavy), "the person's job ran on battery"
+    time.sleep(0.2)
+    assert "background-page" not in heavy, "background work still waits for power"
+    mac["battery"] = False
+    assert _wait_for(lambda: "background-page" in heavy)

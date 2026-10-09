@@ -1541,9 +1541,18 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
     return f"Waiting for its turn on {words}"
 
 
+#: Who starts work that waits for the Mac to be free: the engine by itself, a synced folder, a kept export.
+#: Anything else (the owner, an account, an agent acting for them) is a person, and a person's job is one
+#: a person waits for: battery and the Mac in use never hold it; memory and heat still do (ruled
+#: 2026-10-04; a Kraken run clicked on battery was held, 2026-10-09).
+BACKGROUND_STARTERS = ("automatic", "sync", "kept export")
+_PERSON_WAITS_SQL = ("(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automatic') NOT IN ("
+                     + ", ".join(f"'{who}'" for who in BACKGROUND_STARTERS) + "))")
+
+
 def _watched(db: "Database", job_id: str) -> bool:
     """A person waits on this stored job (`activity.throttle.watched-first`)."""
-    row = db.execute_fetchone("SELECT COALESCE(watched, FALSE) FROM jobs WHERE id = ?", [job_id])
+    row = db.execute_fetchone(f"SELECT {_PERSON_WAITS_SQL} FROM jobs WHERE id = ?", [job_id])
     return bool(row and row[0])
 
 
@@ -1913,7 +1922,8 @@ class _Scheduler:
             db = db_manager.open_database(key)
             if db is not None and stored:
                 db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND kind IN "
-                           f"({', '.join('?' for _ in stored)}) AND reason IS DISTINCT FROM ?",
+                           f"({', '.join('?' for _ in stored)}) AND reason IS DISTINCT FROM ? "
+                           f"AND NOT {_PERSON_WAITS_SQL}",
                            [reason, *stored, reason])
 
     def _next(self, lane: _Lane, *, background: bool = True) -> tuple[str, Any, tuple] | None:
@@ -1946,7 +1956,7 @@ class _Scheduler:
                 with self._lock:
                     lane.libraries.difference_update(set(keys) - lane.rewoken)
             return None
-        watched_only = "" if full_scan else " AND COALESCE(watched, FALSE)"
+        watched_only = "" if full_scan else f" AND {_PERSON_WAITS_SQL}"
         where = " OR ".join(filter(None, [
             f"(kind IN ({', '.join('?' for _ in stored)}){watched_only})" if stored else "",
             f"id IN ({', '.join('?' for _ in attached)})" if attached else "",
