@@ -19,6 +19,8 @@ from pathlib import Path
 SEED = Path(__file__).parent / "seed"
 SCRIPTS_FILE = SEED / "iso15924.txt"
 GLOTTOLOG_FILE = SEED / "glottolog.txt.gz"
+#: A language's usual script, from Unicode CLDR's likely subtags (#5626, `source.onboard.script-from-language`).
+LANGUAGE_SCRIPTS_FILE = SEED / "language-scripts.txt"
 
 
 @lru_cache(maxsize=1)
@@ -73,17 +75,44 @@ def _languages() -> tuple[tuple[dict, str], ...]:
         tag_of[lang.pt3] = lang.pt1 or lang.pt3
         gc = glottocode_of.get(lang.pt3)
         names = [lang.name, _plain(lang.name), glotto[gc][2] if gc else "", *ALSO_CALLED.get(lang.pt3, ())]
-        rows.append(({"code": tag_of[lang.pt3], "name": lang.name, "glottocode": gc, "level": "language"},
+        rows.append(({"code": tag_of[lang.pt3], "name": lang.name, "glottocode": gc, "level": "language",
+                      "script": usual_script(tag_of[lang.pt3])},
                      "\n".join(dict.fromkeys(n for n in names if n)).lower()))
     for gc, (iso, level, name, language) in glotto.items():
         if iso in tag_of:
             continue  # listed above under its ISO name
-        row = {"code": None, "name": name, "glottocode": gc, "level": level}
+        row = {"code": None, "name": name, "glottocode": gc, "level": level, "script": None}
         if level == "dialect":
             row["code"] = tag_of.get(glotto[language][0])
             row["language"] = glotto[language][2]
+            row["script"] = usual_script(row["code"]) if row["code"] else None
         rows.append((row, name.lower()))
     return tuple(rows)
+
+
+@lru_cache(maxsize=1)
+def _usual_scripts() -> dict[str, str]:
+    """BCP 47 primary language subtag -> the ISO 15924 code of the script it is usually written in."""
+    rows = {}
+    for line in LANGUAGE_SCRIPTS_FILE.read_text(encoding="utf-8").splitlines():
+        if line and not line.startswith("#"):
+            tag, script = line.split(";")
+            rows[tag] = script
+    return rows
+
+
+def usual_script(tag: str | None) -> str | None:
+    """The script a language is usually written in, as CLDR's likely subtags give it ("en" -> `Latn`, "ru" ->
+    `Cyrl`, "syc" -> `Syrc`), so setup can propose it and the person need not ask (#5626). A tag with its own
+    script subtag ("sr-Latn") gives that; any ISO 639 code is read as its tag first; None when the language has
+    no usual script on record (setup then proposes nothing)."""
+    if not tag:
+        return None
+    primary, *rest = tag.split("-")
+    own = next((s for s in rest if len(s) == 4 and s.isalpha()), None)
+    if own and not tag.lower().startswith(PRIVATE_USE_PREFIX):
+        return own.title()
+    return _usual_scripts().get(_language_tags().get(primary.lower(), primary.lower()))
 
 
 @lru_cache(maxsize=1)

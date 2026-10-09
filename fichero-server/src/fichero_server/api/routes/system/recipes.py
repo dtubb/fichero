@@ -21,7 +21,7 @@ from fichero_server.api.main import get_library_database, get_library_database_f
 from fichero_server.db import Database
 from fichero_server.db.embeddings import search_embedder
 
-from fichero_server.recipes.assemble import PURPOSE_STEPS, PURPOSES, READING_JOBS, Answers, assemble
+from fichero_server.recipes.assemble import PURPOSE_PARENT, PURPOSE_STEPS, PURPOSES, READING_JOBS, Answers, assemble
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, SkippedStep
 
 
@@ -114,6 +114,10 @@ class AssembleRequest(BaseModel):
     material: Optional[str] = Field(default=None, description="a single material, as before 2026-10-05")
     jobs: list[str] = Field(default_factory=list, description="jobs ticked on their own, beyond the purposes' "
                             "(GET /api/recipes/jobs)")
+    removed_jobs: list[str] = Field(default_factory=list, description=(
+        "steps (by job) the person took out of the plan on Ready: left out of the recipe, unless a step left in "
+        "needs one (then it stays, with needed_by); listed under removed to be put back "
+        "(source.onboard.plan-editable)"))
     directions: dict[str, str] = Field(default_factory=dict, description=(
         "script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own "
         "(source.onboard.direction-chosen)"))
@@ -214,6 +218,16 @@ class RecipeStep(BaseModel):
     layer: Optional[str] = None
     offered_when: Optional[dict[str, Any]] = None
     settings: Optional[dict[str, Any]] = None
+    needed_by: Optional[list[str]] = Field(default=None, description=(
+        "the later steps (by job) that need what this one gives: it cannot be taken out of the plan while they "
+        "stay (source.onboard.plan-editable)"))
+
+
+class TakenOutStep(BaseModel):
+    """A step the person took out of the plan on Ready (`answers.removed_jobs`), offered to be put back."""
+
+    job: str
+    title: str
 
 
 class ByHandJob(BaseModel):
@@ -239,6 +253,9 @@ class AssembledRecipe(BaseModel):
     by_hand: list[ByHandJob] = Field(default_factory=list, description=(
         "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that "
         "does it by hand (source.onboard.auto.every-proposed-step-runs)"))
+    removed: list[TakenOutStep] = Field(default_factory=list, description=(
+        "steps the answers' removed_jobs took out of the plan, in step order, to be put back on Ready "
+        "(source.onboard.plan-editable)"))
     cloud_options: list[str] = Field(
         default_factory=list,
         description="jobs a cloud model would also fit if pages could leave this Mac; "
@@ -272,6 +289,10 @@ class PurposeInfo(BaseModel):
     runs_by_itself: bool = Field(description="true: its layers run after Start; false: tools are offered")
     jobs: list[PurposeJob] = Field(default_factory=list, description=(
         "the jobs it proposes, in step order, by their topic titles (source.onboard.purposes-show-their-jobs)"))
+    parent: Optional[str] = Field(default=None, description=(
+        "the purpose it is shown under, as one of that purpose's options (Search under Transcribe; Entities and "
+        "Statements under Knowledge graph); null for a purpose of its own. Still ticked on its own "
+        "(source.onboard.purposes-grouped)"))
 
 
 class PurposeListResponse(BaseModel):
@@ -282,12 +303,14 @@ class PurposeListResponse(BaseModel):
 @router.get("/purposes", response_model=PurposeListResponse)
 async def list_purposes() -> PurposeListResponse:
     """The purposes setup offers as checkboxes, in order, each with its label, whether it runs by
-    itself and the jobs it proposes (`source.onboard.purpose-first`)."""
+    itself, the jobs it proposes and the purpose it is listed under (`source.onboard.purpose-first`,
+    `source.onboard.purposes-grouped`)."""
     from fichero_server.recipes.jobs import get_job
 
     items = [
         PurposeInfo(id=pid, title=title, description=desc, runs_by_itself=bool(PURPOSE_STEPS[pid]),
-                    jobs=[PurposeJob(id=j, title=get_job(j).name) for j in PURPOSE_STEPS[pid]])
+                    jobs=[PurposeJob(id=j, title=get_job(j).name) for j in PURPOSE_STEPS[pid]],
+                    parent=PURPOSE_PARENT.get(pid))
         for pid, (title, desc) in PURPOSES.items()
     ]
     return PurposeListResponse(items=items, count=len(items))
@@ -311,6 +334,11 @@ class LanguageMatch(BaseModel):
     glottocode: Optional[str] = Field(default=None, description="Glottolog 5.3 code, where Glottolog has one")
     level: str = Field(description="language or dialect")
     language: Optional[str] = Field(default=None, description="for a dialect, the language it belongs to")
+    script: Optional[str] = Field(default=None, description=(
+        "ISO 15924 code of the script the language is usually written in (Unicode CLDR likely subtags), which "
+        "setup proposes when the language is chosen and the person may change; null when none is on record "
+        "(source.onboard.script-from-language)"))
+    script_name: Optional[str] = Field(default=None, description="that script's English name (ISO 15924)")
 
 
 class LanguageMatchList(BaseModel):
@@ -322,9 +350,11 @@ class LanguageMatchList(BaseModel):
 async def search_languages(q: str = "", limit: int = 20) -> LanguageMatchList:
     """Search ISO 639-3 and Glottolog languages and dialects by name, tag or glottocode
     (`source.onboard.widget-and-search`)."""
+    from fichero_server.recipes.names import script_name
     from fichero_server.recipes.names import search_languages as find
 
-    items = [LanguageMatch(**row) for row in find(q, max(1, min(limit, 100)))]
+    items = [LanguageMatch(**row, script_name=script_name(row["script"]) if row.get("script") else None)
+             for row in find(q, max(1, min(limit, 100)))]
     return LanguageMatchList(items=items, count=len(items))
 
 
@@ -523,7 +553,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
     return Answers(
         purposes=tuple(a["purposes"]), languages=frozenset(a.get("languages") or ()),
         scripts=frozenset(a.get("scripts") or ()), materials=tuple(a["materials"]),
-        jobs=tuple(a.get("jobs") or ()),
+        jobs=tuple(a.get("jobs") or ()), removed_jobs=tuple(a.get("removed_jobs") or ()),
         pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
@@ -556,6 +586,7 @@ async def assemble_recipe(
         fichero_recipe=recipe["fichero_recipe"], version=recipe["version"], suits=recipe["suits"],
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
         steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
+        removed=recipe.get("removed") or [],
         cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
         already_text=recipe.get("already_text"),
     )

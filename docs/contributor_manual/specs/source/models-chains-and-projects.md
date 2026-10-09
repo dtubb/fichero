@@ -2400,6 +2400,51 @@ Setup
   Your material; it can be closed at any step with the answers kept as a draft in the project,
   and nothing runs before Start. *Test:* setup is exactly those four steps; ticking People,
   places and things shows which kinds of names and nothing for an unticked purpose.
+- `source.onboard.sheet-fits-its-window` — **[PARTIAL]** (#5624) **Built 2026-10-09 (app), not yet seen:**
+  rows of checkboxes and tokens wrap (`FlowLayout`: the kinds of names, the kinds of material, the language and
+  script tokens), the step column takes `minWidth: 0` and the page body never widens the button row; pinned by
+  `fichero/Tests/Unit/general/Views/Onboarding/SetupSheetFitsTests.swift`. the Set Up sheet always fits its
+  window: whatever a step shows wraps to the step's column, and the step list and the Back and Continue (or
+  Start) row are always whole. *Test:* the kinds of names and eight language tokens fit a column narrower than
+  their one-line width.
+- `source.onboard.purposes-grouped` — **[PARTIAL]** (#5625) **Built 2026-10-09 (engine + app), not yet seen:**
+  `GET /api/recipes/purposes` lists Transcribe, Search, Translate or normalise, Knowledge graph, Entities,
+  Statements, then the rest, each with `parent` (`PURPOSE_PARENT`); What you want to do indents an option under
+  its parent and shows one the ticked parent holds as ticked and fixed, "Included in Knowledge graph"
+  (`RecipeSetupStore.includingPurpose(of:)`); pinned by
+  `fichero-server/tests/unit/api/test_setup_rulings_2026_10_09.py` and
+  `fichero/Tests/Unit/general/Models/SetupRulingsOctNineTests.swift`. *Open question:* the ruling also names
+  Search as an option of the Knowledge graph; one purpose is listed once, so Search sits under Transcribe and the
+  graph's sentence says it is searchable. the goals are listed in the order ruled 2026-10-09: **Transcribe**,
+  with **Search** under it; **Translate or normalise** after it; **Knowledge graph**, with **Entities** and
+  **Statements** as its options below it; then the rest. An option is still a goal of its own (Entities without
+  the graph); ticking a goal that holds an option's jobs includes it. Each asks only what it needs. *Test:* the
+  engine's list is in that order with those parents; the ticked graph includes Entities; Entities alone
+  assembles transcription and names only.
+- `source.onboard.script-from-language` — **[PARTIAL]** (#5626) **Built 2026-10-09 (engine + app), not yet
+  seen:** every match of `GET /api/recipes/languages` carries `script` and `script_name`, the language's usual
+  script from Unicode CLDR 48 likely subtags (`recipes/seed/language-scripts.txt`, Unicode License v3;
+  `names.usual_script`); choosing a language in setup adds that script as a token unless it is there, and says
+  so under the scripts; taking the language out takes out a script only it proposed
+  (`RecipeSetupStore.proposedScripts`); pinned by `test_setup_rulings_2026_10_09.py` and
+  `SetupRulingsOctNineTests.swift`. a language chosen proposes the script it is usually written in (ISO 15924:
+  English → Latin, Russian → Cyrillic, Classical Syriac → Syriac), instead of asking; the person removes it or
+  adds another like any token; a language with no usual script on record proposes nothing (never a guess); a
+  script the person chose is never taken out with a language. *Test:* English gives `Latn`, Russian `Cyrl`,
+  `syc` `Syrc`, `grc` `Grek`; an unknown languoid gives none.
+- `source.onboard.plan-editable` — **[PARTIAL]** (#5627) **Built 2026-10-09 (engine + app), not yet seen:**
+  `answers.removed_jobs` (and `POST /api/recipes/assemble`'s `removed_jobs`) leaves those steps out of the
+  assembled plan; a step a step left in needs stays and carries `needed_by` (`assemble.needed_by`, the recipe
+  check's own input rule); the recipe lists what was taken out under `removed`. Ready shows Remove from Plan
+  under each step nothing needs (else "Read each line needs it, so it stays."), and Taken out of the plan with
+  Put Back (`RecipePlanEditing.swift`); ticking a goal asks for its taken-out steps again; pinned by
+  `test_setup_rulings_2026_10_09.py` and `SetupRulingsOctNineTests.swift`. *Not built:* reordering steps where
+  the order is free; changing a step's model from this row is the model finder's (Find a Reader…,
+  `RecipeSetupStore.useCandidate(_:forStep:)`). the plan on Ready can be edited: a step can be taken out and put
+  back, the edit is saved with the project's setup (so Set Up… reopens with it), and Start runs the plan as
+  shown; a step that a later step needs cannot be taken out, and Ready says which step needs it. *Test:*
+  transcribe + search with `make-a-vector` taken out assembles transcription only and lists it as removed;
+  taking out Find lines keeps it with `needed_by` Read each line; Start's plan has no vector step.
 - `source.onboard.teaches-the-method` — **[GAP]** (#4951, #5471, #5481) **Engine built 2026-10-04:** each
   topic of section 7a has a title, one sentence, a paragraph and the example to show, served by
   `GET /api/topics` and `GET /api/topics/{id}` from `fichero-server/src/fichero_server/recipes/seed/topics.yaml`;

@@ -83,11 +83,12 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         out["languages"] = list(dict.fromkeys(keep_or_refuse(v, resolve_language) for v in _list(out["languages"])))
     if "scripts" in out:
         out["scripts"] = list(dict.fromkeys(keep_or_refuse(v, resolve_script) for v in _list(out["scripts"])))
-    if "jobs" in out:
-        out["jobs"] = list(dict.fromkeys(_list(out["jobs"])))
-        unknown = [j for j in out["jobs"] if j not in STEP_ORDER]
-        if unknown:
-            problems.append(f"Fichero has no job {', '.join(map(repr, unknown))}.")
+    for key in ("jobs", "removed_jobs"):
+        if key in out:
+            out[key] = list(dict.fromkeys(_list(out[key])))
+            unknown = [j for j in out[key] if j not in STEP_ORDER]
+            if unknown:
+                problems.append(f"Fichero has no job {', '.join(map(repr, unknown))}.")
     chosen = dict(out.get("directions") or {})
     bad = {s: d for s, d in chosen.items() if d not in SETUP_DIRECTIONS}
     if bad:

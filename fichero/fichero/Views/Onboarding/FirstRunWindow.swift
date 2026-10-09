@@ -59,8 +59,10 @@ struct FirstRunWindow: View {
         HStack(spacing: 0) {
             sidebar
             Divider()
+            // minWidth 0: a wide row never pushes the sheet past its window (#5624).
             content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
         }
         // The fixed two-pane card is a desktop window size; a compact companion
         // presentation sizes to its sheet instead (#2807).
@@ -273,7 +275,7 @@ extension FirstRunWindow {
                 }
             }
 
-            body()
+            body().frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)  // keeps the buttons on (#5624)
 
             Spacer(minLength: 0)
             HStack {

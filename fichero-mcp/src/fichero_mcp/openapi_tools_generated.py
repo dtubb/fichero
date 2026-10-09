@@ -5967,10 +5967,11 @@ def fichero_recipes_assemble(
     pages: Annotated[Optional[int], Field(description='roughly how many pages. Default: 0.')] = None,
     purpose: Annotated[Optional[str], Field(description='a single purpose, as before 2026-10-05: read as a list of one.')] = None,
     purposes: Annotated[Optional[list[Any]], Field(description="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)")] = None,
+    removed_jobs: Annotated[Optional[list[Any]], Field(description='steps (by job) the person took out of the plan on Ready: left out of the recipe, unless a step left in needs one (then it stays, with needed_by); listed under removed to be put back (source.onboard.plan-editable)')] = None,
     scripts: Annotated[list[Any], Field(description="ISO 15924 script codes (or a script's English name)")],
 ) -> Any:
     "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; reads)."
-    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "faded_pages": faded_pages, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "scripts": scripts}))
+    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "faded_pages": faded_pages, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "removed_jobs": removed_jobs, "scripts": scripts}))
 
 
 def fichero_recipes_model_candidates(
@@ -6139,7 +6140,7 @@ def fichero_recipes_use_candidate_for_step(
 
 def fichero_recipes_list_purposes(
 ) -> Any:
-    'List Purposes\n\nThe purposes setup offers as checkboxes, in order, each with its label, whether it runs by\nitself and the jobs it proposes (`source.onboard.purpose-first`).\n\nRoute: GET /api/recipes/purposes (toolset `recipes`; reads).'
+    'List Purposes\n\nThe purposes setup offers as checkboxes, in order, each with its label, whether it runs by\nitself, the jobs it proposes and the purpose it is listed under (`source.onboard.purpose-first`,\n`source.onboard.purposes-grouped`).\n\nRoute: GET /api/recipes/purposes (toolset `recipes`; reads).'
     return _rt.call("GET", "/api/recipes/purposes")
 
 

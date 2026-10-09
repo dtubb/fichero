@@ -38,6 +38,7 @@ struct RecipeStepsView: View {
                 RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil),
                               explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,
                               onFix: onFix)
+                if onFix != nil { planEditControls(for: step) }  // Ready only: take a step out (#5627)
                 if onFix != nil, finder != nil, store.readsMaterial(step.job) {
                     Button("Find a Reader…") { findingFor = FinderStep(id: step.id, job: step.job) }
                         .controlSize(.small)

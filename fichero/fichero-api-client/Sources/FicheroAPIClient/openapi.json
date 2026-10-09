@@ -13199,7 +13199,7 @@
           "recipes"
         ],
         "summary": "List Purposes",
-        "description": "The purposes setup offers as checkboxes, in order, each with its label, whether it runs by\nitself and the jobs it proposes (`source.onboard.purpose-first`).",
+        "description": "The purposes setup offers as checkboxes, in order, each with its label, whether it runs by\nitself, the jobs it proposes and the purpose it is listed under (`source.onboard.purpose-first`,\n`source.onboard.purposes-grouped`).",
         "operationId": "list_purposes_api_recipes_purposes_get",
         "responses": {
           "200": {
@@ -48001,6 +48001,14 @@
             "title": "Jobs",
             "description": "jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)"
           },
+          "removed_jobs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Removed Jobs",
+            "description": "steps (by job) the person took out of the plan on Ready: left out of the recipe, unless a step left in needs one (then it stays, with needed_by); listed under removed to be put back (source.onboard.plan-editable)"
+          },
           "directions": {
             "additionalProperties": {
               "type": "string"
@@ -48119,6 +48127,14 @@
             "type": "array",
             "title": "By Hand",
             "description": "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that does it by hand (source.onboard.auto.every-proposed-step-runs)"
+          },
+          "removed": {
+            "items": {
+              "$ref": "#/components/schemas/TakenOutStep"
+            },
+            "type": "array",
+            "title": "Removed",
+            "description": "steps the answers' removed_jobs took out of the plan, in step order, to be put back on Ready (source.onboard.plan-editable)"
           },
           "cloud_options": {
             "items": {
@@ -66273,6 +66289,18 @@
             "nullable": true,
             "title": "Language",
             "description": "for a dialect, the language it belongs to"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script",
+            "description": "ISO 15924 code of the script the language is usually written in (Unicode CLDR likely subtags), which setup proposes when the language is chosen and the person may change; null when none is on record (source.onboard.script-from-language)"
+          },
+          "script_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script Name",
+            "description": "that script's English name (ISO 15924)"
           }
         },
         "type": "object",
@@ -75104,6 +75132,12 @@
             "type": "array",
             "title": "Jobs",
             "description": "the jobs it proposes, in step order, by their topic titles (source.onboard.purposes-show-their-jobs)"
+          },
+          "parent": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent",
+            "description": "the purpose it is shown under, as one of that purpose's options (Search under Transcribe; Entities and Statements under Knowledge graph); null for a purpose of its own. Still ticked on its own (source.onboard.purposes-grouped)"
           }
         },
         "type": "object",
@@ -76695,6 +76729,15 @@
             "type": "object",
             "nullable": true,
             "title": "Settings"
+          },
+          "needed_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Needed By",
+            "description": "the later steps (by job) that need what this one gives: it cannot be taken out of the plan while they stay (source.onboard.plan-editable)"
           }
         },
         "type": "object",
@@ -85589,6 +85632,25 @@
         ],
         "title": "TableCellPlace",
         "description": "A table cell's place (#5168, `source.segment.table-cells`): 1 for a span not stated."
+      },
+      "TakenOutStep": {
+        "properties": {
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job",
+          "title"
+        ],
+        "title": "TakenOutStep",
+        "description": "A step the person took out of the plan on Ready (`answers.removed_jobs`), offered to be put back."
       },
       "TaskCreateRequest": {
         "properties": {
