@@ -447,8 +447,10 @@ def _http_get_bytes(url: str, timeout: float = 30.0) -> bytes:
     """GET raw bytes. Module-level so tests can stub it (kept dependency-free)."""
     import urllib.request  # noqa: PLC0415 (lazy: importing this module stays cheap)
 
+    from fichero_server.core.tls import https_context  # noqa: PLC0415
+
     req = urllib.request.Request(url, headers={"User-Agent": "fichero-loove"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+    with urllib.request.urlopen(req, timeout=timeout, context=https_context()) as resp:  # noqa: S310
         return resp.read()
 
 

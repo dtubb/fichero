@@ -126,9 +126,11 @@ def urllib_get(url: str, timeout: float) -> tuple[int, dict[str, str], bytes]:
     import urllib.error
     import urllib.request
 
+    from fichero_server.core.tls import https_context  # noqa: PLC0415
+
     request = urllib.request.Request(url, headers={"User-Agent": "Fichero (IIIF reader; +https://tubb.ca/apps/fichero)"})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 -- https IIIF servers
+        with urllib.request.urlopen(request, timeout=timeout, context=https_context()) as response:  # noqa: S310 -- https IIIF servers
             return response.status, {k.lower(): v for k, v in response.headers.items()}, response.read()
     except urllib.error.HTTPError as exc:
         return exc.code, {k.lower(): v for k, v in (exc.headers or {}).items()}, b""

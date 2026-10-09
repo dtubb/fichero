@@ -193,6 +193,8 @@ def download_spacy_pipeline(name: str) -> Path:
     import urllib.request
     import zipfile
 
+    from fichero_server.core.tls import https_context
+
     if name not in SPACY_MODELS:
         raise ValueError(f"Unknown spaCy model: {name}")
     version = SPACY_PIPELINE_VERSION
@@ -201,7 +203,7 @@ def download_spacy_pipeline(name: str) -> Path:
     prefix = f"{name}/{name}-{version}/"
     with tempfile.TemporaryDirectory(dir=target.parent) as tmp:
         archive = Path(tmp) / "release.whl"
-        with urllib.request.urlopen(SPACY_RELEASE_URL(name, version), timeout=60) as response, \
+        with urllib.request.urlopen(SPACY_RELEASE_URL(name, version), timeout=60, context=https_context()) as response, \
                 open(archive, "wb") as out:
             shutil.copyfileobj(response, out)
         with zipfile.ZipFile(archive) as z:
