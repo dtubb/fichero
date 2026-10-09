@@ -63,6 +63,13 @@ engine_is_current() {
     echo "Embedded engine is STALE (engine sources are newer than the staged copy) — rebuilding"
     return 1
   fi
+  # Kraken goes in by its own step, never `requires` (#4959): a stage built by a hand-run
+  # `briefcase update -r` has none, and the app then says "Kraken is not bundled" on every Kraken
+  # step (2026-10-09). An engine without it is not current; rebuilding puts it back.
+  if [ ! -d "$ENGINE_APP/Contents/Resources/app_packages/kraken" ]; then
+    echo "Embedded engine is INCOMPLETE: the staged copy has no Kraken (app_packages/kraken) — rebuilding"
+    return 1
+  fi
   # A staged engine with no bytecode is a 3-5x slower engine (#3940).
   if [ -z "$(find "$ENGINE_APP/Contents/Resources" -name '*.pyc' -print -quit 2>/dev/null)" ]; then
     echo "Embedded engine has NO bytecode — precompiling"
