@@ -72,6 +72,17 @@ So:
   before it is tagged OK (see "Pinning").
 - `ui/activity.md` is folded in here (section I).
 
+### Ruled 2026-10-09 (the maintainer, testing the Dev Embedded build; paraphrased)
+
+- **One Start / Stop control, in two places**: a button in the main window's toolbar, next to the
+  Activity indicator, and the same control in the Activity window. Start means *go ahead although I
+  am using the Mac*: the holds for the person at the Mac and for battery are lifted for the waiting
+  work until the control is pressed again, which goes back to automatic. Stop pauses all the work.
+  The toolbar button shows at a glance which it is: running, held, or paused. One engine action
+  behind both (`activity.mode.start-stop`).
+- **Memory safety is never lifted**: forced work still never runs two heavy jobs at once while
+  memory is tight, and the app manages that, not the person (`activity.throttle.one-heavy-when-memory-tight`).
+
 ## Prior art (what we build on, and what we do differently)
 
 - **macOS Spotlight indexing and Photos analysis.** The model for the whole feel. Both run at
@@ -709,11 +720,14 @@ workflow by hand: a hand run is a job like any other.
   Still a gap: no row carries its lane (neither the `jobs` table nor `JobTree` nor `BackgroundJob`
   has it, `api/routes/system/activity.py:127-146`).
 - `activity.waiting-says-why` — **[PARTIAL]** (#5606) a waiting row says what it truly waits for
-  now, and never has no reason: paused by you, when paused; the throttle's reason only while the
-  throttle gives it now ("Waiting: you're using the Mac" only while the Mac reads as in use, the
-  same reading as `machine.in_use`); thumbnails first ("Waiting: thumbnails are made first",
-  #5585); the lane and what holds it ("Waiting for the model lane: Paleographer Review is
-  reading", the holder named by the run it reads for, else by its kind); a reason the job recorded
+  now, and never has no reason: paused by you, when paused; the lane and what holds it, when the
+  lane is full (#5622: it names what the row would still wait for if the person stepped away; rows
+  read "you're using the Mac" while two heavy runs were plainly working); the throttle's reason only
+  while the throttle gives it now ("Waiting: you're using the Mac" only while the Mac reads as in use, the
+  same reading as `machine.in_use`, and never while the mode is *started*); one heavy job at a time
+  while memory is busy (`activity.throttle.one-heavy-when-memory-tight`); thumbnails first ("Waiting:
+  thumbnails are made first", #5585); the lane is named "Waiting for the model lane: Paleographer
+  Review is reading", the holder named by the run it reads for, else by its kind; a reason the job recorded
   itself; else its turn on its lane. The import's "Processing imported pages" row, while none of
   its stages runs, is `waiting` with the same reason. Before: a throttle scan's words stayed on
   the rows after the Mac went idle (embeds said "you're using the Mac" with `in_use` false while
@@ -881,6 +895,19 @@ run's peak memory on the run node (it lives only in `run_usage`); `started_by`; 
 id (the run log is one `execution_log` string per run, and activity events are keyed by thread
 and node, not by job); a retry action for failed pages.
 
+- `activity.details.what-it-works-on-now` — **[PARTIAL]** (#5623) a running row's details say at a
+  glance that it is working: what it works on now (the page and the step: "Embed for search ·
+  p12.jpg"), its stages each with its state and counts, the recent lines of its log, and its controls
+  (Pause or Resume, Stop) beside the Start / Stop mode control. The import's "Processing imported
+  pages" row has a tree like any job (`GET /api/activity/jobs/derivatives:<project>`): one child per
+  stage (Make thumbnails, Embed for search, Read names), each with its state, why it waits, its pages
+  done, failed and in all for the import in hand, and its running and most recent pages under it; its
+  log (`GET /api/activity/jobs/derivatives:<project>/log`) is those pages' lines (started, done,
+  failed and why, waiting and for what), newest last. A kind's counted row (`waiting:<kind>`) reads
+  the same way. Before: the row showed a bar, "97 done · 0 failed · 49 left" and "Log: Nothing
+  written for this row yet". Built (2026-10-09): `execution/jobs.py` `queue_tree`, tested through
+  the routes (`test_start_stop_mode.py`); app: the details' "Working on" line and Stages list from
+  the tree (`ActivityTableTests` `testActivityDetails_importRow*`). Not yet seen in the app.
 - `activity.details.one-view` — **[OK]** (#5561) the details of a selected row, whether a run,
   a step, a page or a job of its own, is one scrolling view with no tabs or sections to choose
   between; the Overview, Console, Progress, Trace and Log sections are gone. Built: `Views/Activity/Detail/ActivityDetailsView.swift`; the five sections' files are deleted (pinned: `ActivityWindowSelectionStateTests`).
@@ -963,6 +990,33 @@ and node, not by job); a retry action for failed pages.
   app). Still a gap: pausing
   every waiting job of one kind at once; a running reasons A/B cannot be stopped; and kinds keep stop
   routes of their own beside it (`activity.pause.one-start-stop`).
+- `activity.mode.start-stop` — **[PARTIAL]** (#5621, ruled 2026-10-09) one control says how
+  background work runs on this Mac, in one of three modes: **automatic** (the throttle holds heavy
+  work while the person uses the Mac or it is on battery, and lets it go the moment that clears),
+  **started** (*Start*: those two holds are lifted for all waiting work until the control is pressed
+  again; memory and heat still hold), and **paused** (*Stop*: Pause Background Work, nothing that
+  runs by itself starts and running work stops at its next boundary). The mode is an app setting, so
+  it survives relaunch like the pause. One audited, undoable action (`background.mode`,
+  `PUT /api/activity/jobs/mode`) behind the main window's toolbar button and the Activity window's
+  toolbar; `GET /api/activity/jobs` reports `mode`, and `machine.why_wait` is null while started
+  unless memory or heat holds. The toolbar button shows the mode at a glance: *Running* (work
+  goes ahead), *Held* (automatic, and the throttle holds waiting work now, with why in its help),
+  *Paused*. Built (2026-10-09): engine (`execution/jobs.py` `set_mode`, `execution/throttle.py`
+  `why_wait`), tested through the route with the real lanes (`fichero-server/tests/unit/jobs/test_start_stop_mode.py`);
+  app: `ActivityModeButton` in the main toolbar and the Activity window, driven by
+  `ActivityStore.setBackgroundMode` (`ActivityTableTests` `testActivityMode_*`). Not yet seen in the app.
+- `activity.throttle.recheck-when-it-clears` — **[PARTIAL]** (#5621) work held for battery, for the
+  person at the Mac, or for memory or heat starts by itself once the hold clears, with no new work
+  queued and nothing pressed: the model lane looks again every few seconds while it holds work, and
+  the battery reading is trusted for at most 10 s. Tested (`test_start_stop_mode.py`
+  `test_work_held_for_battery_starts_when_power_returns`). Not yet seen in the app.
+- `activity.pause.per-queue` — **[PARTIAL]** (#5621) a row that stands for many jobs (the import's
+  "Processing imported pages", or one kind's waiting jobs counted on one row) has Pause, Resume and
+  Stop like any other row: they apply to every job it stands for that has not started (running ones
+  finish their item). Paused jobs are counted on one row per kind too, so pausing 137 pages does not
+  list 137 rows. Built (2026-10-09): `pause_job` / `cancel_job` take the row's id
+  (`derivatives:<project>`, `waiting:<kind>`, `paused:<kind>`), through `job.pause` / `job.cancel`
+  (`test_start_stop_mode.py`). Not yet seen in the app.
 - `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
   boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for. Owned
   by `activity.run.stop-reaches-in-flight-calls`; this line points there.
@@ -1052,6 +1106,16 @@ and node, not by job); a retry action for failed pages.
   the Mac, and its row says which it waits for. Built: a page a person waits for is held only by
   memory pressure and a serious thermal state (`fichero-server/tests/unit/jobs/test_throttle.py`). Still a gap: it is pinned
   below the public surface (see "Pinning"), and the window shows no waiting reason.
+- `activity.throttle.one-heavy-when-memory-tight` — **[PARTIAL]** (#5622) while this Mac's memory
+  pressure is at warn or above, the heavy lanes (the model lane and the images lane) run **one job at
+  a time between them**, whatever started it and in whichever project: the images lane drops to one,
+  and neither lane starts a job while the other runs one. A row held so says "Waiting: memory is
+  busy, so heavy work runs one job at a time: <what runs> is running". Work started with *Start*
+  obeys it too. Before: two projects' "Processing imported pages" ran together (thumbnails on the
+  images lane, embeds on the model lane) at pressure warn and 312% CPU. Pressure warn does not hold
+  work outright (#5524); it only stops heavy work running side by side. Built (2026-10-09):
+  `execution/jobs.py` `_Scheduler._claim`, tested with the real lanes (`fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py`).
+  Not yet seen in the app.
 - `activity.throttle.power-heat-memory` — **[PARTIAL]** (#5358) background lanes slow
   or wait in Low Power Mode, on low battery, under serious thermal state or memory pressure, and
   say so; no setting. Built (2026-10-04): the local-model lane holds a background job while
@@ -1468,6 +1532,7 @@ each one through a route, an action or a real run (#5429).
 
 Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · `activity.row.<jobId>.disclosure`
   `activity.toolbar.pauseAll` · `activity.toolbar.resumeAll` · `activity.filter.<name>`
+  `activity.mode.button` (main toolbar and Activity window: Start / Stop / Automatic) · `activity.details.workingOn`
   `activity.row.<jobId>.pause` · `.resume` · `.cancel` · `.retry` · `.whatItMade`
   `activity.group.<projectId>` · `activity.group.mac` · `activity.popover` · `activity.popover.macState`
   `activity.row.<jobId>.details` · `activity.details` · `activity.details.heading` · `activity.details.state`
