@@ -689,6 +689,11 @@ class MLXModelStore:
 
     async def _run_download(self, job: ManagedModelDownloadJob, spec: ManagedModelSpec) -> None:
         job.state = "running"
+        from fichero_server.llm.mlx_runtime import bundled_versions
+
+        if bundled_versions() is not None:  # the app: MLX ships inside it, so download here (#4973)
+            await self._run_download_in_process(job, spec)
+            return
         job.message = "Resolving MLX runtime"
         python_path = str(get_mlx_runtime().require_python_path())
         self.root.mkdir(parents=True, exist_ok=True)
@@ -718,6 +723,35 @@ class MLXModelStore:
             job.state = "failed"
             excerpt = (stderr or stdout).decode("utf-8", errors="replace").strip()
             job.error = excerpt or f"download exited {process.returncode}"
+            job.message = "Download failed"
+            return
+        job.current = job.total
+        job.state = "completed"
+        job.message = "Download complete"
+
+    async def _run_download_in_process(self, job: ManagedModelDownloadJob, spec: ManagedModelSpec) -> None:
+        """The weights fetched by the engine itself (huggingface_hub is bundled), with the same progress
+        and outcome as the separate-Python path. ponytail: a thread can't be killed, so Cancel stops
+        waiting for it; it finishes in the background. Upgrade path: hf_hub's own cancellation hooks."""
+        from huggingface_hub import snapshot_download
+
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        models_path = str(self.cache_dir)
+        os.environ.update(self.env())
+        self._note_progress(job, spec)
+        ignore = list(spec.ignore_patterns) or None
+        fetching = asyncio.ensure_future(asyncio.to_thread(
+            snapshot_download, repo_id=spec.repo_id, revision=spec.revision, cache_dir=models_path, ignore_patterns=ignore))
+        while not fetching.done():
+            await asyncio.wait({fetching}, timeout=DOWNLOAD_PROGRESS_POLL_SECONDS)
+            if not fetching.done():
+                self._note_progress(job, spec)
+        try:
+            fetching.result()
+        except Exception as exc:  # noqa: BLE001 -- the job says why; the row shows it
+            job.state = "failed"
+            job.error = str(exc) or type(exc).__name__
             job.message = "Download failed"
             return
         job.current = job.total

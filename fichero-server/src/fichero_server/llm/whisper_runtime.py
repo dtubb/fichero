@@ -248,11 +248,11 @@ def download_whisper_model(model_id: str, home: Path | None = None) -> Path:
     if bundled_versions() is not None:  # the app: MLX ships inside the engine, so fetch here (#4973)
         from huggingface_hub import snapshot_download
 
-        cache_dir = whisper_cache_dir(home)
-        cache_dir.mkdir(parents=True, exist_ok=True)
+        models_path = whisper_cache_dir(home)  # under model_store_root() / "models", the one shared folder
+        models_path.mkdir(parents=True, exist_ok=True)
         _DOWNLOAD_STATE[model_spec.model_id] = ("downloading", None)
         try:
-            snapshot_download(repo_id=model_spec.repo_id, revision=model_spec.revision, cache_dir=str(cache_dir))
+            snapshot_download(repo_id=model_spec.repo_id, revision=model_spec.revision, cache_dir=str(models_path))
         except Exception as exc:
             _DOWNLOAD_STATE[model_spec.model_id] = ("failed", str(exc))
             raise
