@@ -2603,7 +2603,7 @@ Setup
   answers from samples; it runs locally unless the project allows the cloud, and never decides the
   recipe.
 The bake-off's behaviours (`source.onboard.bakeoff`, `-combinations`, `-records-combination`, `-tesseract-baseline`, `-minimum`, `-is-a-job`, `-skippable`, `-random-sample`) moved on 2026-10-04 to the one home for evaluation, `compute/distillation.md` ("Evaluation against out-of-the-box models").
-- `source.onboard.says-no-model` — **[PARTIAL]** (#4951, #5481) **Built 2026-10-05 (engine):** a step with no fitting model carries one `problem`: `kind` (no-model-for-job, -script, -language, no-reader-for-material, licence-not-accepted, cloud-not-allowed, not-enough-memory; the refusal of the card that got furthest through the rules), one `sentence` naming languages and scripts by name ("No correcting model here knows Spanish yet."), `fix` and `fixes` (download, choose-cloud, choose-model, allow-cloud, accept-licence), and the rules' raw reason in `detail` (the field is `kind`, not `code`: a recipe refuses any key named code); pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. **Built 2026-10-05 (app), not yet seen:** How it will be done shows a step's problem once, its `sentence`, with its `fix` as a button (Download a model…, Use a cloud model…, Choose a model… open Settings › AI Models; Let pages leave this Mac answers the cloud question and proposes the recipe again); the recipe's `gaps` list is no longer shown; `detail` appears only in the Inspector (`RecipeStepsView.lines`); pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. *Not built: a download named for the language ("Download a Spanish reader…").* *Built 2026-10-03: a step with no fitting model shows its gap, but as the rules' raw reason, model ids included, and twice (under the step and again below; seen 2026-10-05); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`.* where no candidate passes the hard constraints
+- `source.onboard.says-no-model` — **[PARTIAL]** (#4951, #5481) **Built 2026-10-05 (engine):** a step with no fitting model carries one `problem`: `kind` (no-model-for-job, -script, -language, no-reader-for-material, licence-not-accepted, cloud-not-allowed, not-enough-memory; the refusal of the card that got furthest through the rules), one `sentence` naming languages and scripts by name ("No correcting model here knows Spanish yet."), `fix` and `fixes` (download, choose-cloud, choose-model, allow-cloud, accept-licence), and the rules' raw reason in `detail` (the field is `kind`, not `code`: a recipe refuses any key named code); pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. **Built 2026-10-05 (app), not yet seen:** How it will be done shows a step's problem once, its `sentence`, with its `fix` as a button (Download a model…, Use a cloud model…, Choose a model… open the model finder for that step's job, `source.find.choose-a-model-opens-the-finder`, #5619; they opened Settings › AI Models before, which did nothing visible from setup; Let pages leave this Mac answers the cloud question and proposes the recipe again); the recipe's `gaps` list is no longer shown; `detail` appears only in the Inspector (`RecipeStepsView.lines`); pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. *Not built: a download named for the language ("Download a Spanish reader…").* *Built 2026-10-03: a step with no fitting model shows its gap, but as the rules' raw reason, model ids included, and twice (under the step and again below; seen 2026-10-05); `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`.* where no candidate passes the hard constraints
   for a step, setup says so **once**, on that step's row, in words a historian reads, built from the
   rule that refused ("No reading model here knows Spanish yet."), with each fix as a button
   (download a fitting model, use a cloud model, choose a model; hand-transcribe, draft-and-correct
@@ -2961,6 +2961,43 @@ Finding models
   finished job's findings) and the line goes; when Activity shows it failed, its reason is said in the
   line's place and the finder reads once more without `online`, so a failing search is never queued
   again by itself. *Test:* `ModelFinderStoreTests`.
+- `source.find.choose-a-model-opens-the-finder` — **[PARTIAL]** (#5619) a step's Choose a model…,
+  Download a model… and Use a cloud model… in Set Up… › Ready (on the step's row, and on the same step
+  under Will not run) open the model finder for THAT step's job, never Settings and never nothing: the
+  finder lists the engine's candidates for the job (installed and downloadable, with Download and Use for
+  This Step), and choosing one replaces the step in place, so the step can run. The finder answers for
+  any job a card can name, not only a reader's (`GET /api/recipes/candidates?job=find-statements`); the
+  online search looks for readers only, so for any other job it is not run and the source says so.
+  *Test:* `fichero-server/tests/unit/recipes/test_models_ux_5619.py` (candidates for find-statements);
+  `fichero/Tests/Unit/general/Models/ModelsUXTests.swift` (the fix opens the finder for the step).
+- `source.recipe.local-text-models-are-cards` — **[PARTIAL]** (#5619) a text model already on this Mac
+  is a card for the jobs that send a model text alone and that the shipped cards do not cover
+  (`find-statements`, `split-into-entries`): every MLX model complete in this Mac's model store that
+  reads text (its card made from the store's own facts, licence included), and every enabled model of
+  the person's Ollama or LM Studio rows (not an embedder). Where it runs is by its address
+  (`ai.where.place-is-by-address`): a server on this Mac runs on this Mac, free, and never counts as
+  sending pages off it; a server on another machine of the person's own is free but its pages leave this
+  Mac, so it is chosen only where the project lets pages leave. So a Mac with Ollama or an MLX model is
+  offered it for Find statements, by name, rather than "Fichero has no model". *Test:*
+  `fichero-server/tests/unit/recipes/test_models_ux_5619.py`.
+- `source.recipe.fichero-does-it-steps` — **[PARTIAL]** (#5619) a step Fichero carries out itself
+  needs no model and never says it has none: Split pages runs the built-in page splitter (Apple Vision's
+  outline and the gutter, on this Mac, free: `model: {builtin: page-splitter}`), Work out dates runs
+  Fichero's date rules (`model: {builtin: date-rules}`), as Find the documents and Prepare the image
+  already do. *Test:* `fichero-server/tests/unit/recipes/test_models_ux_5619.py`.
+- `source.find.one-download-path` — **[PARTIAL]** (#5620) downloading a model has one path: the app's
+  one method (`ModelDownloads.start`), used by Set Up… › Ready (To download first), the model finder
+  (Inspector, setup, Settings) and Settings' model rows, calls the one route
+  (`POST /api/local-models/download/{runtime}/{model}`, the `model.download` action), which queues a
+  `download-model` job on the network lane for every runtime, MLX included, so Activity lists it. While it
+  runs the job's reason says how far it has got ("Downloading Qwen2.5-VL 7B: 1.2 of 5.6 GB"); the row
+  that asked says the same line; a failure says why on the row, in the job's words (and a refusal before
+  queueing, such as a model this Mac cannot run, is said at once); when it finishes the engine says
+  `model.installed`, the Start plan is read again and the step it waited for can run. The route reads the
+  project from the library header as every other route does (#5620: a project whose path had a space was
+  refused with a bare 404, so Download did nothing). *Test:*
+  `fichero-server/tests/unit/llm/test_one_download_path_5620.py`;
+  `fichero/Tests/Unit/general/Models/ModelsUXTests.swift`.
 - `source.find.rules-see-candidates` — **[OK]** (#5519) setup's assembly, the bake-off and Use This
   choose from the shipped, installed and cached repository cards (never the network), ranked by the
   same fixed order, so a Japanese, Chinese or Fraktur project gets a reader where one is installed or

@@ -725,16 +725,70 @@ def register_job_kinds() -> None:
     from fichero_server.execution import jobs
 
     if DOWNLOAD_KIND not in jobs.KINDS or jobs.KINDS[DOWNLOAD_KIND].run is None:
-        jobs.register_kind(DOWNLOAD_KIND, lambda db, subject: _run_download(subject), model=None, lane="network",
-                           name="Download a model")
+        jobs.register_kind(DOWNLOAD_KIND, lambda db, subject: _run_download(subject, db), model=None,
+                           lane="network", name="Download a model")
 
 
-def _run_download(subject: str) -> None:
+#: How often a running download's row is told how far it has got (its reason, which Activity and the row that
+#: asked for it show).
+PROGRESS_EVERY_SECONDS = 2.0
+
+
+def _say_progress(db, words: str) -> None:
+    """The running job's reason, in words ("Downloading Qwen2.5-VL 7B: 1.2 GB of 5.6 GB"); nothing outside a job."""
+    from fichero_server.execution import jobs
+
+    job_id = jobs.current_job_id()
+    if db is not None and job_id is not None:
+        jobs.save_detail(db, job_id, json.dumps({"progress": words}), reason=words)
+
+
+def _run_download(subject: str, db=None) -> None:
+    """One `download-model` job: the model of its runtime fetched, then `model.installed` said. Its reason says how
+    far it has got; a failure raises with why, which the row keeps (`source.find.one-download-path`, #5620)."""
     runtime, _, name = subject.partition(":")
+    if runtime == "mlx":
+        _run_mlx_download(name, db)
+        return
     if runtime not in _DOWNLOADABLE:
         raise ValueError(f"no download for {subject!r}")
+    _say_progress(db, f"Downloading the {runtime} model {name}")
     LocalModelManager().download_model(runtime, name)
     say_installed(runtime, name)
+
+
+def _run_mlx_download(name: str, db) -> None:
+    """An MLX model fetched by this Mac's model store, the job waiting on it and saying its progress."""
+    import asyncio
+    import time
+
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+    said = {"at": 0.0, "words": ""}
+
+    def progress(job) -> None:
+        now = time.monotonic()
+        if job.message and job.message != said["words"] and now - said["at"] >= PROGRESS_EVERY_SECONDS:
+            said.update(at=now, words=job.message)
+            _say_progress(db, job.message)
+
+    asyncio.run(get_mlx_model_store().download_and_wait(name, progress))
+
+
+def _check_mlx(name: str) -> str:
+    """The store's id for an MLX model (its catalogue id, Hub repository or a trained model's id); refused, in
+    words, when the store does not know it or this Mac cannot run it: said, never queued."""
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+    store = get_mlx_model_store()
+    model_id = store.canonical_id(name)
+    if model_id is None:
+        raise ValueError(f"no download for mlx:{name}")
+    try:
+        store.require_supported(store.spec(model_id))
+    except RuntimeError as exc:  # LocalModelHardwareError: this Mac cannot run it
+        raise ValueError(str(exc)) from exc
+    return model_id
 
 
 def say_installed(runtime: str, model: str) -> None:
@@ -747,10 +801,13 @@ def say_installed(runtime: str, model: str) -> None:
 
 
 def enqueue_download(db, runtime: str, name: str, *, started_by: str = "owner") -> str:
-    """Queue a `download-model` job on the network lane; one waiting job per model."""
+    """Queue a `download-model` job on the network lane; one waiting job per model. An MLX model is checked first
+    (one the store knows, that this Mac can run), so a refusal is said at once."""
     from fichero_server.execution import jobs
 
-    if runtime not in _DOWNLOADABLE or name not in _DOWNLOADABLE[runtime]:
+    if runtime == "mlx":
+        name = _check_mlx(name)
+    elif runtime not in _DOWNLOADABLE or name not in _DOWNLOADABLE[runtime]:
         raise ValueError(f"no download for {runtime}:{name}")
     register_job_kinds()
     return jobs.enqueue(db, DOWNLOAD_KIND, f"{runtime}:{name}", started_by=started_by, watched=True)

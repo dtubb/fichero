@@ -8,7 +8,7 @@ import os
 import re
 from pathlib import Path
 import shutil
-from typing import Any
+from typing import Any, Callable
 
 from fichero_server.llm.mlx_runtime import get_mlx_runtime
 from fichero_server.db.paths import model_store_root
@@ -414,6 +414,33 @@ class MLXModelStore:
             from fichero_server.llm.local_models import say_installed
 
             say_installed("mlx", spec.model_id)
+
+    async def download_and_wait(
+        self, model_id: str, on_progress: Callable[[ManagedModelDownloadJob], None]
+    ) -> ManagedModelDownloadJob:
+        """Download a model and wait for it, telling `on_progress` how far it has got every few seconds: the
+        `download-model` job's MLX half (`source.find.one-download-path`, #5620), so an MLX download is an
+        Activity job like any other. Raises, in words, when it fails or is stopped; a model already here
+        returns at once (and is said installed, so a plan that waited for it reads itself again)."""
+        job = await self.start_download(model_id)
+        task = self._job_tasks.get(job.job_id)
+        if task is None:  # already complete: nothing ran
+            from fichero_server.llm.local_models import say_installed
+
+            say_installed("mlx", model_id)
+            return job
+        # The task may belong to another event loop (Settings started the same model): its state is read, never
+        # awaited, and a task that ended without saying so (it raised) ends the wait.
+        while job.state in {"queued", "running"} and not task.done():
+            on_progress(job)
+            await asyncio.sleep(DOWNLOAD_PROGRESS_POLL_SECONDS)
+        if task.done() and not task.cancelled() and task.exception() is not None:
+            raise RuntimeError(f"{job.model_id} did not download: {task.exception()}") from task.exception()
+        if job.state == "failed":
+            raise RuntimeError(f"{job.model_id} did not download: {job.error or job.message}")
+        if job.state != "completed":
+            raise RuntimeError(f"{job.model_id} did not download: {job.message or job.state}")
+        return job
 
     def job(self, job_id: str) -> ManagedModelDownloadJob | None:
         return self._jobs.get(job_id)

@@ -141,4 +141,16 @@ def check_recipe(recipe: dict[str, Any], folder: Path | None = None) -> list[str
 def cloud_steps(recipe: dict[str, Any]) -> list[str]:
     """The ids of steps that send pages off this Mac (shown in the recipe editor; asked about once)."""
     return [s.get("id", "?") for s in recipe.get("steps") or []
-            if str(s.get("runs_on", "")).startswith("cloud:") or "cloud" in (s.get("model") or {})]
+            if str(s.get("runs_on", "")).startswith("cloud:") or pin_leaves_this_mac(s.get("model"))]
+
+
+def pin_leaves_this_mac(model: Any) -> bool:
+    """Whether a step's model sends its pages off this Mac: a provider and model pin (`{cloud, model}`) does unless
+    the provider's address is on this Mac (an Ollama or LM Studio server here, `ai.where.place-is-by-address`,
+    #5619); a cloud company's provider never is, at any address. Every other pin runs here."""
+    if not isinstance(model, dict) or "cloud" not in model:
+        return False
+    from fichero_server.llm import LLMConfig
+    from fichero_server.llm.places import THIS_MAC, place_of
+
+    return place_of(LLMConfig(provider=str(model["cloud"]), model=str(model.get("model") or ""))) != THIS_MAC

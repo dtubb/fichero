@@ -683,13 +683,15 @@ async def model_candidates(
     online: bool = False, cloud_allowed: bool = False, mac_memory_gb: Optional[float] = None,
     library_path: Optional[str] = Depends(optional_library_path),
 ) -> ModelCandidateList:
-    """Every reader candidate for these scripts and languages (comma-separated codes or names), from the
-    shipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a
+    """Every candidate for a step's job (a reader's by default; any job a card can name, #5619) for these scripts
+    and languages (comma-separated codes or names), from the shipped cards, the models on this Mac (and the
+    person's own Ollama and LM Studio servers), Kraken's model repository and Hugging Face, each as a
     card saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,
     `source.find.by-need`). The network is never reached inside this call: with `online=true` the search is
     the open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier
-    searches kept; a later call lists what the job found. Never searched when this engine works offline.
-    Refused (422), in words, for an unknown script, language, material or job."""
+    searches kept; a later call lists what the job found. Never searched when this engine works offline, nor for
+    a job that is not a reader's (the search finds readers). Refused (422), in words, for an unknown script,
+    language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
     from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _rank_key, _refusal
@@ -703,9 +705,15 @@ async def model_candidates(
     )
     from fichero_server.recipes.names import resolve_language, resolve_script
 
-    if job not in READING_JOBS:
-        raise HTTPException(status_code=422, detail=f"discovery finds readers: job must be one of "
-                                                    f"{', '.join(sorted(READING_JOBS))}")
+    from fichero_server.recipes.jobs import get_job
+
+    if get_job(job) is None:
+        raise HTTPException(status_code=422, detail=f"{job!r} is not a job Fichero knows")
+    reads = job in READING_JOBS
+    if not reads:
+        # The finder answers for any step's job (#5619, `source.find.choose-a-model-opens-the-finder`); the online
+        # search looks for readers only, so it is not run for another job, and the sources say so.
+        online = False
     if material not in READ_MATERIALS:
         raise HTTPException(status_code=422, detail=f"material must be one of {', '.join(READ_MATERIALS)}")
     try:
@@ -720,8 +728,11 @@ async def model_candidates(
     search = None
     if online and egress_allowed() and library_path:
         search = await run_in_threadpool(_search_job, request, library_path, tags)
+    not_searched = None if library_path else NO_PROJECT
+    if not reads:
+        not_searched = "the online search looks for readers only, and this job is not a reader's"
     cards, sources = await run_in_threadpool(
-        discover, a, online=online, search=search, not_searched=None if library_path else NO_PROJECT)
+        discover, a, online=not reads or online, search=search, not_searched=not_searched, job=job)
     cards = [c for c in cards if job in c.jobs]
     kept = sorted((c for c in cards if _refusal(job, c, a, material) is None),
                   key=lambda c: _rank_key(c, material, a))

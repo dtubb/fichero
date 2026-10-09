@@ -38,12 +38,15 @@ says it is unmeasured until a bake-off measures it.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
 from fichero_server.recipes.assemble import Answers, Card
+
+logger = logging.getLogger(__name__)
 
 #: The jobs a found reader does: a vision model reads a line's picture (the bake-off's way) or a page.
 READER_JOBS = frozenset({"read-a-line", "read-a-page"})
@@ -165,6 +168,92 @@ def installed_cards(seed: tuple[Card, ...] | list[Card]) -> list[Card]:
             note=spec.display_name, source="installed", offered_because=why, installed=True,
         )
     return sorted(out.values(), key=lambda c: c.id)
+
+
+#: The jobs that send a model the text alone and that no shipped card covers: a text model already here does them
+#: (`source.recipe.local-text-models-are-cards`, #5619).
+TEXT_MODEL_JOBS = frozenset({"find-statements", "split-into-entries"})
+#: Model servers the person runs, whose enabled models are cards for those jobs (the engine's own MLX server is
+#: its model store's, read above).
+_TEXT_SERVERS = frozenset({"ollama", "lmstudio"})
+
+
+def _is_embedder(model: Any) -> bool:
+    caps = {str(c).lower() for c in (getattr(model, "capabilities", None) or [])}
+    return bool(caps & {"embedding", "embeddings", "embed"}) or "embed" in str(model.model_id).lower()
+
+
+def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
+    """A card for every text model already on this Mac or on a machine of the person's own, for
+    `TEXT_MODEL_JOBS` (`source.recipe.local-text-models-are-cards`, #5619): each MLX model complete in this Mac's
+    store that reads text (its licence from its seed card, else its own README), and each enabled model of the
+    person's Ollama and LM Studio rows (no embedder). Where it runs is by its address (`llm.places`): a server on
+    this Mac runs on this Mac, free; one on another machine of the person's own is free, but its pages leave this
+    Mac (`cloud:<type>`), so the rules choose it only where the project lets pages leave."""
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS, get_mlx_model_store
+
+    out: dict[str, Card] = {}
+    store = get_mlx_model_store()
+    licence_of = {str(c.pin.get("hf")): c.licence for c in seed if "hf" in c.pin}
+    for name in [*MANAGED_MLX_MODELS, *store.trained_model_ids(), *store._scan_cached_repo_ids()]:
+        model_id = store.canonical_id(name)
+        if model_id is None or f"mlx:{model_id}" in out:
+            continue
+        spec = store.spec(model_id)
+        if "text" not in spec.capabilities or not store.is_complete(spec):
+            continue
+        if store.trained_card(model_id) is not None:
+            licence = "trained by you"
+        else:
+            licence = licence_of.get(spec.repo_id) or str(
+                (meta := _front_matter(store.snapshot_path(spec) / "README.md")).get("license_name")
+                or meta.get("license") or "")
+        out[f"mlx:{model_id}"] = Card(
+            id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
+            jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
+            open_licence=licence == "trained by you" or _is_open(licence), licence=licence,
+            size_gb=round(spec.download_size_bytes / 1e9, 3),
+            memory_gb=round(spec.min_memory_bytes / 1024**3, 2),  # text alone: no page image to hold
+            note=spec.display_name, source="installed", installed=True,
+            offered_because=f"installed on this Mac: {spec.display_name}, in your model store; it reads text",
+        )
+    out.update({f"row:{c.id}": c for c in _server_text_cards()})
+    return sorted(out.values(), key=lambda c: c.id)
+
+
+def _server_text_cards() -> list[Card]:
+    """The enabled models of the person's Ollama and LM Studio rows, as cards for `TEXT_MODEL_JOBS`."""
+    from fichero_server.db.app import get_app_db
+    from fichero_server.llm import LLMConfig
+    from fichero_server.llm.places import OWN_MACHINE, THIS_MAC, place_of
+
+    try:
+        app_db = get_app_db()
+        rows = app_db.list_providers()
+    except Exception as exc:  # noqa: BLE001 -- no app database (a bare tool run): no rows, said in the log
+        logger.info("local_text_cards: the provider rows could not be read: %s", exc)
+        return []
+    out = []
+    for row in rows:
+        ptype = row.provider_type.value
+        if not row.enabled or ptype not in _TEXT_SERVERS:
+            continue
+        place = place_of(LLMConfig(provider=ptype, model="", api_base=row.api_base))
+        if place not in (THIS_MAC, OWN_MACHINE):
+            continue
+        here = place == THIS_MAC
+        where = "on this Mac" if here else "on a machine of yours (its pages leave this Mac)"
+        for model in app_db.list_models(row.id):
+            if not model.enabled or _is_embedder(model):
+                continue
+            out.append(Card(
+                id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
+                jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
+                runs_on="this-mac" if here else f"cloud:{ptype}", open_licence=True,
+                licence="", note=f"{model.name or model.model_id} on {row.name}", source="installed",
+                offered_because=f"a model you run with {row.name}, {where}, free",
+            ))
+    return out
 
 
 def mark_installed(cards) -> list[Card]:
@@ -662,7 +751,7 @@ def known_cards(a: Answers | None = None, *, include_not_built: bool = False) ->
     cached = cached_repository()
     languages = a.languages if a is not None else frozenset()
     installed = installed_cards(seed)
-    return [*mark_installed(seed), *installed,
+    return [*mark_installed(seed), *installed, *local_text_cards(seed),
             *(repository_cards(cached["records"], seed, languages) if cached else []),
             *mark_installed(hub_cards(a.languages if a is not None else None,
                                       _pinned_repos([*seed, *installed])))]
@@ -684,7 +773,7 @@ NO_PROJECT = "the online search runs as an Activity job of an open project: open
 
 
 def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
-             not_searched: str | None = None) -> tuple[list[Card], list[dict[str, Any]]]:
+             not_searched: str | None = None, job: str = "read-a-line") -> tuple[list[Card], list[dict[str, Any]]]:
     """(every candidate card, what each source did), never reaching the network: the shipped cards, the
     installed models, and the repository listing and Hub readers the online search kept (#5594: the search
     itself is a job, `find-models`). `search` is that job's row when `online` asked for one: while it runs the
@@ -697,9 +786,16 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
     shipped = mark_installed(c for c in seed if c.runs_here)
     sources.append({"source": "shipped", "state": "read", "count": len(shipped),
                     "detail": "the cards that ship with Fichero"})
-    installed = installed_cards(seed)
-    sources.append({"source": "installed", "state": "read", "count": len(installed),
-                    "detail": "MLX vision models complete in this engine's model store"})
+    if job in TEXT_MODEL_JOBS:
+        # A job a text model does: the text models here and on the person's own servers (#5619).
+        installed = local_text_cards(seed)
+        sources.append({"source": "installed", "state": "read", "count": len(installed),
+                        "detail": "text models complete in this engine's model store, and the models of your "
+                                  "Ollama and LM Studio servers"})
+    else:
+        installed = installed_cards(seed)
+        sources.append({"source": "installed", "state": "read", "count": len(installed),
+                        "detail": "MLX vision models complete in this engine's model store"})
     if online and not egress_allowed():
         why, quiet = "this engine works offline (local-only), so nothing was fetched", "offline"
     elif online:
