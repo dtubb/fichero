@@ -51,7 +51,7 @@ struct ActivityModeIndicator: Equatable {
         }
     }
 
-    init(store: ActivityStore) {
+    @MainActor init(store: ActivityStore) {
         self.init(mode: store.backgroundMode, whyWait: store.machine?.whyWait,
                   hasWaitingWork: store.backgroundJobs.contains { $0.state == .waiting })
     }
