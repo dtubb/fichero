@@ -123,3 +123,88 @@ def test_the_runtime_status_says_audio_and_settings_offers_no_provision_when_bun
     row = provider_models._mlx_runtime_row() if hasattr(provider_models, "_mlx_runtime_row") else None
     if row is not None:
         assert row.install_action is None and "bundled" in row.size_note
+
+
+# ---- The guard: in the app, no MLX path may reach for a separate Python (2026-10-09) ----------------
+# Found one at a time in the running app: provisioning, the Whisper download, the MLX weights download.
+# Each failed only in the sandbox. Here every path runs in "app mode" with the separate Python made to
+# fail if touched, and each must still do its job in the engine.
+
+import sys
+import types
+
+
+@pytest.fixture
+def no_separate_python(bundled, monkeypatch):
+    def refuse(*_a, **_k):
+        raise AssertionError("an MLX path reached for a separate Python in the app")
+
+    monkeypatch.setattr(mlx_runtime.MLXRuntime, "python_path", refuse)
+    import asyncio as _asyncio
+
+    real_exec = _asyncio.create_subprocess_exec
+
+    async def no_exec(program, *args, **kw):
+        if "python" in str(program).lower():
+            refuse()
+        return await real_exec(program, *args, **kw)
+
+    monkeypatch.setattr(_asyncio, "create_subprocess_exec", no_exec)
+
+
+def test_in_the_app_the_separate_python_refuses_loudly(bundled):
+    with pytest.raises(mlx_runtime.MLXRuntimeInTheAppError, match="bug in Fichero"):
+        mlx_runtime.get_mlx_runtime().require_python_path()
+    status = asyncio.run(mlx_runtime.get_mlx_runtime().start_provision())
+    assert status["provisioned"] and status["job"] is None, "provisioning is a no-op: MLX is built in"
+
+
+def test_mlx_weights_download_in_the_engine(no_separate_python, monkeypatch, tmp_path):
+    from fichero_server.llm import mlx_model_store
+
+    calls = {}
+    fake_hub = types.SimpleNamespace(snapshot_download=lambda **kw: calls.update(kw))
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+    store = mlx_model_store.get_mlx_model_store()
+    monkeypatch.setattr(type(store), "root", property(lambda self: tmp_path / "mlx"), raising=False)
+    monkeypatch.setattr(type(store), "cache_dir", property(lambda self: tmp_path / "mlx" / "hub"), raising=False)
+    spec = store.spec("Qwen2.5-VL-3B")
+    job = mlx_model_store.ManagedModelDownloadJob(job_id="j", model_id=spec.model_id, state="queued",
+                                                  current=0, total=1, message="")
+    asyncio.run(store._run_download(job, spec))
+    assert job.state == "completed", job.error
+    assert calls["repo_id"] == spec.repo_id
+
+
+def test_whisper_downloads_and_transcribes_in_the_engine(no_separate_python, monkeypatch, tmp_path):
+    from fichero_server.llm import whisper_runtime
+
+    monkeypatch.setitem(sys.modules, "huggingface_hub",
+                        types.SimpleNamespace(snapshot_download=lambda **kw: None))
+    spec = whisper_runtime.spec("tiny")
+    target = whisper_runtime.snapshot_path(spec, tmp_path)
+    monkeypatch.setattr(whisper_runtime, "snapshot_path", lambda s, h=None: target)
+    whisper_runtime.download_whisper_model("tiny", tmp_path)
+    target.mkdir(parents=True, exist_ok=True)
+    import numpy as np
+
+    monkeypatch.setitem(sys.modules, "miniaudio", types.SimpleNamespace(
+        SampleFormat=types.SimpleNamespace(FLOAT32="f32"),
+        decode_file=lambda *a, **k: types.SimpleNamespace(samples=np.zeros(16000, np.float32).tobytes())))
+    monkeypatch.setitem(sys.modules, "mlx_whisper", types.SimpleNamespace(
+        transcribe=lambda audio, **k: {"text": " hello "}))
+    assert whisper_runtime.transcribe_sync("a.mp3", "tiny", "en", tmp_path) == "hello"
+
+
+def test_a_trained_model_lands_in_the_engine(no_separate_python, monkeypatch, tmp_path):
+    from fichero_server.training import mlx_landing
+
+    def convert(hf_path, mlx_path, **kw):
+        out = tmp_path / "out"
+        out.mkdir(exist_ok=True)
+        (out / "model.safetensors").write_bytes(b"x")
+
+    monkeypatch.setitem(sys.modules, "mlx_vlm", types.ModuleType("mlx_vlm"))
+    monkeypatch.setitem(sys.modules, "mlx_vlm.convert", types.SimpleNamespace(convert=convert))
+    mlx_landing.convert_for_mlx(tmp_path / "merged", tmp_path / "out")
+    assert any((tmp_path / "out").glob("*.safetensors"))

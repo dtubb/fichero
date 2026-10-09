@@ -70,6 +70,20 @@ def bundled_versions() -> dict[str, str] | None:
 _METADATA_FILENAME = "runtime.json"
 
 
+class MLXRuntimeInTheAppError(RuntimeError):
+    """Something in the app tried to use a separate MLX Python, which the sandbox can't have (#4973)."""
+
+
+def _refuse_in_the_app() -> None:
+    """In the app MLX is bundled and runs in the engine; nothing may build, start or download through a
+    separate Python (the sandbox refuses it: "Operation not permitted"). A path that reaches here in the
+    app is a bug, said loudly, never a provisioning prompt (2026-10-09)."""
+    if bundled_versions() is not None:
+        raise MLXRuntimeInTheAppError(
+            "MLX ships inside the app and runs in the engine; this step tried to use a separate MLX Python, "
+            "which a sandboxed app cannot have. This is a bug in Fichero, not something to install.")
+
+
 class MLXAudioRuntimeMissingError(RuntimeError):
     """Raised when the MLX runtime exists but holds no transcriber."""
 
@@ -178,6 +192,8 @@ class MLXRuntime:
         }
 
     async def start_provision(self) -> dict[str, object]:
+        if bundled_versions() is not None:  # the app: MLX is built in, nothing to provision (#4973)
+            return self.status()
         async with self._job_lock:
             if self._provision_task is not None and not self._provision_task.done():
                 return self.status()
@@ -209,6 +225,7 @@ class MLXRuntime:
         return self.status()
 
     def require_python_path(self) -> Path:
+        _refuse_in_the_app()
         # Same question as `status()`, so it must use the same answer (#4504).
         # Checking only for the venv here let a half-provisioned runtime through
         # the gate, and the failure then surfaced from `mlx_lm server` as a bare
@@ -232,6 +249,7 @@ class MLXRuntime:
         return f"{where} does not record {' or '.join(absent)}" if absent else f"looked in {self.runtime_dir}"
 
     def require_audio_python_path(self) -> Path:
+        _refuse_in_the_app()
         """Interpreter that can run mlx-whisper, or a typed refusal saying so."""
         if self.has_audio():
             return self.python_path()
