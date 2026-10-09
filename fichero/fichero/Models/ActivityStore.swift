@@ -116,6 +116,16 @@ final class ActivityStore: ChangeEventConsumer {
     /// This Mac's state (memory, heat, battery, in use, why heavy work waits), same read.
     private(set) var machine: Components.Schemas.MachineState?
     private var jobsPollTask: Task<Void, Never>?
+    /// This store polls the jobs read, so its mode follows a change made
+    /// elsewhere: the Activity window's Start / Stop reads such a store.
+    var pollsJobs: Bool { jobsPollTask != nil }
+    /// Bumped each time the engine answers a mode set (#5621). A jobs read that
+    /// began before it is older than that answer: its mode and pause are not
+    /// applied, or a poll in flight while Pause All was chosen put "running" back.
+    @ObservationIgnored private var modeAnswers = 0
+    /// Runs Delete or Clear Failed removed: a live execution still held in the
+    /// app's memory does not bring its row back on the next rebuild (#5634).
+    @ObservationIgnored private var deletedRunIds: Set<String> = []
 
     // MARK: - Run trees (#5415: the Activity table's run → step → page rows)
     //
@@ -199,8 +209,11 @@ final class ActivityStore: ChangeEventConsumer {
     /// restarting, brief transport drop) keeps the last snapshot rather than
     /// flapping the surfaces to empty — the next tick recovers.
     func refreshBackgroundJobs() async {
+        let answersBefore = modeAnswers
         do {
             let snapshot = try await activityService.getBackgroundJobs()
+            // Applied before any other wait, and the mode only if no set was answered meanwhile.
+            applyMachineReadings(snapshot, modeIsCurrent: modeAnswers == answersBefore)
             if backgroundJobs != snapshot.jobs {
                 // A job of its own whose details are open (its tree is loaded,
                 // #5561) is re-read when its row changes: the same one-key
@@ -219,7 +232,6 @@ final class ActivityStore: ChangeEventConsumer {
                 backgroundJobs = snapshot.jobs
             }
             await followProjectRun(in: snapshot.jobs)
-            applyMachineReadings(snapshot)
             if let library { setLoadFailure(nil, library: library.id, source: .jobs) }
         } catch {
             // A refusal is a standing answer, not a blip: it reaches the footer
@@ -237,11 +249,14 @@ final class ActivityStore: ChangeEventConsumer {
 
     /// The jobs read's figures beside its rows (CPU, the pause, the mode, this
     /// Mac's state), each set only when it changed (no wholesale re-render).
-    private func applyMachineReadings(_ snapshot: BackgroundJobsSnapshot) {
+    /// `modeIsCurrent` is false for a read older than the last mode set's answer.
+    private func applyMachineReadings(_ snapshot: BackgroundJobsSnapshot, modeIsCurrent: Bool) {
         if processCpuPercent != snapshot.processCpuPercent { processCpuPercent = snapshot.processCpuPercent }
         if cpuCount != snapshot.cpuCount { cpuCount = snapshot.cpuCount }
-        if backgroundPaused != snapshot.paused { backgroundPaused = snapshot.paused }
-        if backgroundMode != snapshot.mode { backgroundMode = snapshot.mode }
+        if modeIsCurrent {
+            if backgroundPaused != snapshot.paused { backgroundPaused = snapshot.paused }
+            if backgroundMode != snapshot.mode { backgroundMode = snapshot.mode }
+        }
         if machine != snapshot.machine { machine = snapshot.machine }
     }
 
@@ -298,7 +313,9 @@ final class ActivityStore: ChangeEventConsumer {
         isRebuildingRuns = true
         defer { isRebuildingRuns = false }
 
-        let live = activeExecutions.map { liveRun(from: $0, library: library) }
+        // A run deleted here stays deleted although its execution is still in memory (#5634).
+        let live = activeExecutions.filter { !deletedRunIds.contains($0.threadId) }
+            .map { liveRun(from: $0, library: library) }
         let liveIds = Set(live.map(\.id))
         do {
             let page = try await activityService.listWorkflowRuns(limit: runsPageSize, offset: 0)
@@ -359,12 +376,39 @@ final class ActivityStore: ChangeEventConsumer {
         do {
             let result = try await activityService.deleteWorkflowRuns(threadIds: threadIds, statuses: statuses)
             let deleted = Set(result.deletedIds)
+            deletedRunIds.formUnion(deleted)
             runs.removeAll { deleted.contains($0.runId) }
             return RunDeleteOutcome(deletedIds: result.deletedIds, skippedIds: result.skippedIds)
         } catch {
-            log.debug("ActivityStore: deleteRuns failed \(error.localizedDescription, privacy: .public)")
-            return RunDeleteOutcome(deletedIds: [], skippedIds: threadIds ?? [])
+            log.error("ActivityStore: deleteRuns failed \(error.localizedDescription, privacy: .public)")
+            return RunDeleteOutcome(deletedIds: [], skippedIds: threadIds ?? [], failure: error.localizedDescription)
         }
+    }
+
+    /// Clear Failed in this project (`activity.window.clear-failed`, #5634):
+    /// its failed runs deleted (`deleteRuns(statuses:)`) and its failed jobs of
+    /// their own cleared (`job.clear_failed`), each cleared row removed in place
+    /// and the jobs read taken again. Before, only runs were deleted, so a
+    /// failed job's row (and the toolbar's error glyph) never went away.
+    func clearFailed() async -> ClearFailedOutcome {
+        let deletedRuns = await deleteRuns(statuses: ["failed"])
+        var outcome = ClearFailedOutcome(
+            runsCleared: deletedRuns.deletedIds.count,
+            runsSkipped: deletedRuns.skippedIds.count,
+            failures: deletedRuns.failure.map { [$0] } ?? []
+        )
+        do {
+            let cleared = Set(try await activityService.clearFailedJobs())
+            outcome.jobsCleared = cleared.count
+            if backgroundJobs.contains(where: { cleared.contains($0.id) }) {
+                backgroundJobs.removeAll { cleared.contains($0.id) }
+            }
+            await refreshBackgroundJobs()
+        } catch {
+            log.error("ActivityStore: clear failed jobs failed \(error.localizedDescription, privacy: .public)")
+            outcome.failures.append(error.localizedDescription)
+        }
+        return outcome
     }
 
     /// The footer line for a failed run-list or jobs load: the library AND the
@@ -791,6 +835,7 @@ extension ActivityStore {
     func setBackgroundMode(_ mode: ActivityMode) async -> String? {
         do {
             let now = try await activityService.setBackgroundMode(mode)
+            modeAnswers += 1
             if backgroundMode != now { backgroundMode = now }
             if backgroundPaused != (now == .paused) { backgroundPaused = now == .paused }
             await refreshBackgroundJobs()

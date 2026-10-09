@@ -43,7 +43,14 @@ final class ActivityTableTests: XCTestCase {
         let method: String
         let status: Int
         let body: Data
+        /// Answered this long after it is asked: a read still on its way while another request goes out.
+        var delay: TimeInterval = 0
+        /// Answers one request only, then the next stub that matches answers.
+        var once = false
     }
+
+    /// Hands a protocol instance to the queue that answers it late (test-only).
+    private struct Late: @unchecked Sendable { let request: MockTransportURLProtocol }
 
     private final class MockTransportURLProtocol: URLProtocol {
         private static let lock = NSLock()
@@ -78,12 +85,20 @@ final class ActivityTableTests: XCTestCase {
             let method = request.httpMethod ?? ""
             Self.lock.lock()
             Self.requests.append(request)
-            let stub = Self.stubs.first {
+            let index = Self.stubs.firstIndex {
                 !$0.pathContains.isEmpty && path.hasSuffix($0.pathContains) && $0.method == method
             }
+            let stub = index.map { Self.stubs[$0] }
+            if let index, Self.stubs[index].once { Self.stubs.remove(at: index) }
             Self.lock.unlock()
 
             let resolved = stub ?? Stub(pathContains: "", method: "", status: 404, body: Data(#"{"detail":"no stub"}"#.utf8))
+            guard resolved.delay > 0 else { return answer(resolved) }
+            let late = Late(request: self)
+            DispatchQueue.global().asyncAfter(deadline: .now() + resolved.delay) { late.request.answer(resolved) }
+        }
+
+        nonisolated private func answer(_ resolved: Stub) {
             guard let url = request.url,
                   let response = HTTPURLResponse(
                       url: url,
@@ -108,7 +123,7 @@ final class ActivityTableTests: XCTestCase {
         MockTransportURLProtocol.reset([])
     }
 
-    private static func storeWithMockTransport() -> ActivityStore {
+    private static func storeWithMockTransport(library: LibraryManager.LibraryReference? = nil) -> ActivityStore {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockTransportURLProtocol.self]
         let session = URLSession(configuration: configuration)
@@ -117,7 +132,28 @@ final class ActivityTableTests: XCTestCase {
             libraryPath: "/tmp/ActivityTableTests.fichero",
             session: session
         )
-        return ActivityStore(service: ActivityService(ficheroClient: client))
+        return ActivityStore(service: ActivityService(ficheroClient: client), library: library)
+    }
+
+    /// A project for `rebuildRuns`: only its id and name are read; the store's own transport is used.
+    private static func testLibrary() -> LibraryManager.LibraryReference {
+        LibraryManager.LibraryReference(
+            url: FileManager.default.temporaryDirectory.appendingPathComponent("ActivityTableTests.fichero"),
+            document: FicheroDocument(),
+            displayName: "Test Library",
+            id: libraryId
+        )
+    }
+
+    /// Waits, briefly, for a request to go out.
+    private func waitForRequest(_ method: String, _ path: String) async throws {
+        for _ in 0..<200 {
+            if MockTransportURLProtocol.recorded().contains(where: { $0.httpMethod == method && $0.url?.path == path }) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("no \(method) \(path) went out")
     }
 
     // MARK: - Fixtures
@@ -601,6 +637,152 @@ final class ActivityTableTests: XCTestCase {
         XCTAssertFalse(store.backgroundPaused)
     }
 
+    func testActivityMode_aJobsReadBegunBeforePauseAllDoesNotPutTheOldModeBack() async throws {
+        // WHY (#5621): after Pause All the toolbar button kept saying Running. The engine
+        // answered "paused", but a jobs read already on its way (the 2 s poll) came back
+        // after the set, carrying "automatic", and put it back.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            // The poll's read: asked before the set, answered after it.
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: Self.jobsJSON(mode: "automatic"), delay: 0.5, once: true),
+            Stub(pathContains: "/api/activity/jobs/mode", method: "PUT", status: 200,
+                 body: Data(#"{"mode":"paused"}"#.utf8)),
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: Self.jobsJSON(paused: true, mode: "paused"))
+        ])
+        let poll = Task { await store.refreshBackgroundJobs() }
+        try await waitForRequest("GET", "/api/activity/jobs")
+
+        let failure = await store.setBackgroundMode(.paused)
+        XCTAssertNil(failure)
+        XCTAssertEqual(store.backgroundMode, .paused, "the engine's answer is shown at once")
+        await poll.value
+
+        XCTAssertEqual(store.backgroundMode, .paused, "a read older than the set never puts the old mode back")
+        XCTAssertTrue(store.backgroundPaused)
+        let indicator = ActivityModeIndicator(store: store)
+        XCTAssertEqual(indicator.look, .paused)
+        XCTAssertEqual(indicator.title, "Paused", "the button says so")
+        XCTAssertEqual(indicator.symbol, "pause.circle.fill")
+    }
+
+    func testActivityMode_aLaterReadStillCarriesAChangeMadeElsewhere() async {
+        // WHY: the guard must not freeze the mode: a read begun after the set is the engine's
+        // word, so a change made in another window, the MCP or the command line still shows.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs/mode", method: "PUT", status: 200,
+                 body: Data(#"{"mode":"paused"}"#.utf8)),
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: Self.jobsJSON(paused: true, mode: "paused"))
+        ])
+        _ = await store.setBackgroundMode(.paused)
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: Self.jobsJSON(mode: "started"))
+        ])
+        await store.refreshBackgroundJobs()
+        XCTAssertEqual(store.backgroundMode, .started)
+        XCTAssertFalse(store.backgroundPaused)
+    }
+
+    // MARK: - activity.window.clear-failed (#5634)
+
+    func testActivityWindowClearFailed_clearsFailedRunsAndFailedJobsAndSaysWhat() async throws {
+        // WHY (#5634): Clear Failed "doesn't do anything". It deleted only workflow runs, so a
+        // failed job of its own (a model download, a recipe run) kept its row and the toolbar's
+        // error glyph forever, and nothing said what happened.
+        let library = Self.testLibrary()
+        let store = Self.storeWithMockTransport(library: library)
+        let failedJob = #"{"id":"dl-1","task_type":"model-download","name":"Downloading a model","library":"/tmp/x","#
+            + #""current":0,"total":1,"percent":0,"state":"failed","reason":"no space left","parent_id":null}"#
+        func run(_ id: String, _ status: String) -> String {
+            #"{"thread_id":""# + id + #"","workflow_id":"wf","workflow_name":"Transcribe","status":""# + status
+                + #"","started_at":"2026-10-09T10:00:00Z"}"#
+        }
+        let runList = #"{"items":["# + run("t-failed", "failed") + "," + run("t-done", "completed") + #"],"count":2}"#
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/workflow-execution/runs", method: "GET", status: 200, body: Data(runList.utf8)),
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: Self.jobsJSON(extraJobs: [failedJob]), once: true)
+        ])
+        await store.rebuildRuns(activeExecutions: [], library: library)
+        await store.refreshBackgroundJobs()
+        XCTAssertTrue(store.failedJobs.contains { $0.id == "dl-1" })
+
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/workflow-execution/runs/delete", method: "POST", status: 200,
+                 body: Data(#"{"deleted_ids":["t-failed"],"skipped_ids":[],"count":1}"#.utf8)),
+            Stub(pathContains: "/api/activity/jobs/clear-failed", method: "POST", status: 200,
+                 body: Data(#"{"cleared_ids":["dl-1"],"count":1}"#.utf8)),
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsJSON(extraJobs: []))
+        ])
+        let outcome = await store.clearFailed()
+
+        let paths = MockTransportURLProtocol.recorded().map { "\($0.httpMethod ?? "") \($0.url?.path ?? "")" }
+        XCTAssertTrue(paths.contains("POST /api/workflow-execution/runs/delete"), "failed runs are deleted")
+        XCTAssertTrue(paths.contains("POST /api/activity/jobs/clear-failed"), "failed jobs are cleared")
+        XCTAssertEqual(store.runs.map(\.runId), ["t-done"], "the failed run leaves the list")
+        XCTAssertFalse(store.backgroundJobs.contains { $0.id == "dl-1" }, "the failed job's row is gone")
+        XCTAssertEqual(outcome.runsCleared, 1)
+        XCTAssertEqual(outcome.jobsCleared, 1)
+        XCTAssertEqual(outcome.notice, "Cleared 1 failed run and 1 failed job.")
+    }
+
+    func testActivityWindowClearFailed_aRunStillInMemoryDoesNotComeBack() async throws {
+        // WHY (#5634): a run that failed in this session is also a live execution, and the next
+        // rebuild patched it back into the list, so Clear Failed seemed to do nothing.
+        let library = Self.testLibrary()
+        let store = Self.storeWithMockTransport(library: library)
+        let execution = WorkflowExecution(
+            id: "wf", name: "Transcribe", threadId: "t-live", startTime: Date(), status: .failed,
+            nodeStates: [:], documentProgress: [:], currentFilePath: nil, currentNodeId: nil,
+            currentNodeName: nil, isRunning: false, workflowError: "the provider refused"
+        )
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/workflow-execution/runs", method: "GET", status: 200,
+                 body: Data(#"{"items":[],"count":0}"#.utf8))
+        ])
+        await store.rebuildRuns(activeExecutions: [execution], library: library)
+        XCTAssertEqual(store.runs.map(\.runId), ["t-live"])
+
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/workflow-execution/runs/delete", method: "POST", status: 200,
+                 body: Data(#"{"deleted_ids":["t-live"],"skipped_ids":[],"count":1}"#.utf8)),
+            Stub(pathContains: "/api/activity/jobs/clear-failed", method: "POST", status: 200,
+                 body: Data(#"{"cleared_ids":[],"count":0}"#.utf8)),
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsJSON(extraJobs: [])),
+            Stub(pathContains: "/api/workflow-execution/runs", method: "GET", status: 200,
+                 body: Data(#"{"items":[],"count":0}"#.utf8))
+        ])
+        _ = await store.clearFailed()
+        await store.rebuildRuns(activeExecutions: [execution], library: library)
+
+        XCTAssertTrue(store.runs.isEmpty, "a deleted run stays deleted although its execution is still in memory")
+    }
+
+    func testActivityWindowClearFailed_aFailureIsSaidNotSwallowed() async {
+        // WHY (#5634): a failed request returned an empty outcome and the window said nothing.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/workflow-execution/runs/delete", method: "POST", status: 500,
+                 body: Data(#"{"detail":"boom"}"#.utf8)),
+            Stub(pathContains: "/api/activity/jobs/clear-failed", method: "POST", status: 500,
+                 body: Data(#"{"detail":"boom"}"#.utf8))
+        ])
+        let outcome = await store.clearFailed()
+
+        XCTAssertEqual(outcome.failures.count, 2, "each failed request is kept")
+        XCTAssertTrue(outcome.notice.hasPrefix("No failed runs or jobs to clear."))
+        XCTAssertTrue(outcome.notice.contains("Couldn't clear everything: "), "the footer says it could not")
+        XCTAssertEqual(ClearFailedOutcome().notice, "No failed runs or jobs to clear.")
+        XCTAssertEqual(
+            (ClearFailedOutcome(runsCleared: 2) + ClearFailedOutcome(jobsCleared: 1, runsSkipped: 1)).notice,
+            "Cleared 2 failed runs and 1 failed job. 1 run could not be cleared."
+        )
+    }
+
     private static func read(_ stream: InputStream) -> Data {
         stream.open()
         defer { stream.close() }
@@ -707,7 +889,8 @@ final class ActivityTableTests: XCTestCase {
     private static let idleMachine =
         #"{"memory_pressure":"normal","thermal_state":"nominal","on_battery":false,"in_use":false,"why_wait":null}"#
 
-    private static func jobsJSON(paused: Bool = false, machine: String = idleMachine, mode: String = "automatic") -> Data {
+    private static func jobsJSON(paused: Bool = false, machine: String = idleMachine, mode: String = "automatic",
+                                 extraJobs: [String]? = nil) -> Data {
         func job(_ id: String, _ type: String, _ name: String, _ state: String, current: Int = 0, total: Int = 0,
                  reason: String? = nil, parent: String? = nil) -> String {
             let reasonJSON = reason.map { "\"\($0)\"" } ?? "null"
@@ -717,7 +900,7 @@ final class ActivityTableTests: XCTestCase {
             "total":\(total),"percent":0,"state":"\(state)","reason":\(reasonJSON),"parent_id":\(parentJSON)}
             """
         }
-        let jobs = [
+        let jobs = extraJobs ?? [
             job("embed", "embedding", "Embedding", "running", current: 42, total: 100),
             job("kraken", "kraken-page", "Kraken pages", "waiting", total: 12, reason: "Waiting: memory is tight"),
             job("read", "read-page", "Read a page", "waiting", total: 1, reason: "Waiting for Kraken"),
@@ -819,11 +1002,39 @@ final class ActivityTableTests: XCTestCase {
         XCTAssertEqual(store.machine, Components.Schemas.MachineState(memoryPressure: .warn, thermalState: nil, onBattery: true,
                                                                      inUse: true, whyWait: "the Mac is on battery"))
         let summary = ActivityPopoverSummary(jobs: store.backgroundJobs, paused: store.backgroundPaused,
-                                             machine: store.machine)
-        XCTAssertEqual(summary.macState, ["Memory pressure: warn", "On battery", "In use"],
+                                             machine: store.machine, processCpuPercent: store.processCpuPercent,
+                                             cpuCount: store.cpuCount)
+        // A row of symbols with short values (#5635), heat left out: the engine could not read it.
+        XCTAssertEqual(summary.macReadings.map(\.id), ["memory", "power", "person", "cpu"],
                        "heat the engine could not read is not shown")
+        XCTAssertEqual(summary.macReadings.map(\.symbol), ["memorychip", "battery.50percent", "person.fill", "cpu"])
+        XCTAssertEqual(summary.macReadings.map(\.value), ["High", "Battery", "In use", "142%"])
+        XCTAssertEqual(summary.macReadings.map(\.help), [
+            "Memory pressure: high", "On battery", "You're using the Mac",
+            "Fichero's processor use: 142% of 800% (8 cores)"
+        ], "each symbol says its full reading in its help")
         XCTAssertEqual(summary.heldBack, "Heavy work is held back: the Mac is on battery",
                        "the throttle's own reason wins over a waiting job's")
+    }
+
+    func testActivityPopoverSummary_aReadingIsTintedOnlyWhenItIsAProblem() {
+        // WHY (#5635): the row is read at a glance, so only a reading that holds work back for the
+        // Mac's sake (memory, heat) is coloured; battery and the person at the Mac are states.
+        func problems(_ machine: Components.Schemas.MachineState) -> [String] {
+            ActivityPopoverSummary(jobs: [], paused: false, machine: machine).macReadings
+                .filter(\.isProblem).map(\.id)
+        }
+        XCTAssertEqual(problems(.init(memoryPressure: .normal, thermalState: .fair, onBattery: true,
+                                      inUse: true, whyWait: nil)), [], "warm, on battery and in use: nothing tinted")
+        XCTAssertEqual(problems(.init(memoryPressure: .warn, thermalState: .serious, onBattery: false,
+                                      inUse: false, whyWait: nil)), ["memory", "heat"])
+        let quiet = ActivityPopoverSummary(
+            jobs: [], paused: false,
+            machine: .init(memoryPressure: .normal, thermalState: .nominal, onBattery: false, inUse: false, whyWait: nil))
+        XCTAssertEqual(quiet.macReadings.map(\.value), ["OK", "OK", "Power", "Away"], "no CPU reading, no CPU symbol")
+        XCTAssertEqual(
+            ActivityPopoverSummaryView.oneLine(.init(id: "1", name: "Detect Regions", detail: "Kraken not installed")),
+            "Detect Regions: Kraken not installed", "an error is one line: its name and why")
     }
 
     // MARK: - activity.run.account (#5555): the run's row is its account

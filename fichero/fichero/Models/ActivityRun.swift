@@ -46,8 +46,42 @@ struct RunDeleteOutcome: Equatable, Sendable {
     /// but NOT removed — most commonly a still-running run, which the
     /// engine never deletes out from under itself.
     let skippedIds: [String]
+    /// Why the request failed, in words; nil when the engine answered. A
+    /// failure is said, never read as "nothing to delete" (#5634).
+    var failure: String?
 
     static let empty = RunDeleteOutcome(deletedIds: [], skippedIds: [])
+}
+
+/// What Clear Failed did in one project (`activity.window.clear-failed`,
+/// #5634): failed runs deleted, failed jobs cleared, runs it could not
+/// clear, and why a request failed.
+struct ClearFailedOutcome: Equatable, Sendable {
+    var runsCleared = 0
+    var jobsCleared = 0
+    var runsSkipped = 0
+    var failures: [String] = []
+
+    static func + (lhs: Self, rhs: Self) -> Self {
+        Self(runsCleared: lhs.runsCleared + rhs.runsCleared, jobsCleared: lhs.jobsCleared + rhs.jobsCleared,
+             runsSkipped: lhs.runsSkipped + rhs.runsSkipped, failures: lhs.failures + rhs.failures)
+    }
+
+    static func += (lhs: inout Self, rhs: Self) { lhs = lhs + rhs }
+
+    /// The window's footer line: what was cleared, or that nothing was, and
+    /// what could not be.
+    var notice: String {
+        var parts: [String] = []
+        if runsCleared > 0 { parts.append("\(runsCleared) failed run\(runsCleared == 1 ? "" : "s")") }
+        if jobsCleared > 0 { parts.append("\(jobsCleared) failed job\(jobsCleared == 1 ? "" : "s")") }
+        var lines = [parts.isEmpty ? "No failed runs or jobs to clear." : "Cleared \(parts.joined(separator: " and "))."]
+        if runsSkipped > 0 {
+            lines.append("\(runsSkipped) run\(runsSkipped == 1 ? "" : "s") could not be cleared.")
+        }
+        if let failure = failures.first { lines.append("Couldn't clear everything: \(failure)") }
+        return lines.joined(separator: " ")
+    }
 }
 
 // MARK: - Activity Run Status
