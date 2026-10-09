@@ -69,6 +69,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
     /// Read only: a project saved before 2026-10-05 (a list of one).
     var purpose: String?
     var jobs: [String]?
+    /// Steps (by job) taken out of the plan on Ready (#5627, `answers.removed_jobs`).
+    var removedJobs: [String]?
     var languages: [String]?
     var scripts: [String]?
     var directions: [String: String]?
@@ -119,9 +121,10 @@ struct RecipeSetupAnswers: Codable, Equatable {
     init(purposes: [String]? = nil, jobs: [String]? = nil, languages: [String]? = nil,
          scripts: [String]? = nil, directions: [String: String]? = nil, materials: [String]? = nil,
          pages: Int? = nil, cloudAllowed: Bool? = nil, ingestMode: String? = nil, layers: [String]? = nil,
-         automatic: Automatic? = nil, jobAnswers: JobAnswers? = nil) {
+         automatic: Automatic? = nil, jobAnswers: JobAnswers? = nil, removedJobs: [String]? = nil) {
         self.purposes = purposes
         self.jobs = jobs
+        self.removedJobs = removedJobs
         self.languages = languages
         self.scripts = scripts
         self.directions = directions
@@ -139,5 +142,6 @@ struct RecipeSetupAnswers: Codable, Equatable {
         case cloudAllowed = "cloud_allowed"
         case ingestMode = "ingest_mode"
         case jobAnswers = "job_answers"
+        case removedJobs = "removed_jobs"
     }
 }

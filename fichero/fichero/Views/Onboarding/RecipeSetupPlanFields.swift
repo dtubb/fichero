@@ -102,6 +102,7 @@ struct RecipeProposalFields: View {
                 ProgressView()
             } else if let recipe = store.recipe {
                 RecipeStepsView(store: store, recipe: recipe, onFix: onFix, finder: project)
+                RecipeTakenOutRows(store: store, removed: recipe.removed ?? [])
                 RecipeCloudQuestion(store: store)
             } else if !store.canAssemble {
                 Text("Add at least one language and one script under Your Material.")

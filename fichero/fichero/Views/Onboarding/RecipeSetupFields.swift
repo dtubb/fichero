@@ -96,11 +96,19 @@ struct RecipePurposeFields: View {
             }
             ForEach(store.purposeOptions.filter { $0.id != "not-sure" }, id: \.id) { purpose in
                 let ticked = store.purposes.contains(purpose.id)
+                // Ticking the purpose it is listed under may already include it (#5625): shown ticked, fixed.
+                let includedBy = store.includingPurpose(of: purpose.id)
                 VStack(alignment: .leading, spacing: 6) {
-                    Toggle(purpose.title, isOn: Binding(get: { ticked },
-                                                        set: { _ in store.toggle(purpose: purpose.id) }))
-                        .setupCheckbox()
-                        .help(purpose.description)
+                    HStack(spacing: 6) {
+                        Toggle(purpose.title, isOn: Binding(get: { ticked || includedBy != nil },
+                                                            set: { _ in store.toggle(purpose: purpose.id) }))
+                            .setupCheckbox()
+                            .disabled(includedBy != nil)
+                            .help(purpose.description)
+                        if let includedBy {
+                            Text("Included in \(includedBy.title)").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                     if ticked {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(purpose.description)
@@ -114,6 +122,9 @@ struct RecipePurposeFields: View {
                         .padding(.leading, 20)
                     }
                 }
+                // An option is listed indented under the purpose it belongs to (Search under Transcribe;
+                // Entities and Statements under Knowledge graph), in the engine's order (#5625).
+                .padding(.leading, purpose.parent == nil ? 0 : 24)
             }
             if store.purposes.isEmpty {
                 Text("Not sure yet: nothing is proposed, and every tool is on hand when you want it.")
@@ -216,6 +227,13 @@ struct RecipeAboutFields: View {
         VStack(alignment: .leading, spacing: 12) {
             CodeTokenField(store: store, scripts: false)
             CodeTokenField(store: store, scripts: true)
+            if !store.proposedScripts.isEmpty {
+                // #5626: the usual script of each language chosen is put in; the pages may say otherwise.
+                Text("Proposed from the languages: \(store.proposedScripts.keys.sorted().map(store.name(of:)).joined(separator: ", ")). "
+                     + "Remove or add scripts if the pages are written otherwise.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             ForEach(store.scripts, id: \.self) { code in
                 VStack(alignment: .leading, spacing: 2) {
                     Picker("Direction of \(store.name(of: code))", selection: Binding(

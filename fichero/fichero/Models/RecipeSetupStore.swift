@@ -51,6 +51,9 @@ final class RecipeSetupStore {
     var purposes: [String] = ["transcribe"]
     /// Jobs ticked on their own, beyond the purposes' (`answers.jobs`).
     var addedJobs: [String] = []
+    /// Steps (by job) the person took out of the plan on Ready (#5627, `answers.removed_jobs`): the engine leaves
+    /// them out of every recipe it proposes, unless a step left in needs one.
+    var removedJobs: [String] = []
     /// Language tags (`es`, `und-x-<glottocode>`), never the typed word (#5479).
     var languages: [String] = []
     /// ISO 15924 codes.
@@ -59,6 +62,9 @@ final class RecipeSetupStore {
     var directions: [String: String] = [:]
     /// Handwriting, print, typescript: any mix, at least one (#5478).
     var materials: [String] = ["handwriting"]
+    /// Scripts setup put in because a chosen language is usually written in them (#5626), each with the languages
+    /// that proposed it: a language taken out again takes out a script only it proposed.
+    private(set) var proposedScripts: [String: Set<String>] = [:]
     /// What each chosen tag or code is called, for its token; a saved code with no name here
     /// shows as the code.
     private(set) var names: [String: String] = [:]
@@ -137,7 +143,44 @@ final class RecipeSetupStore {
 
     /// Tick or untick a purpose. None ticked is "Not sure yet" (the engine reads an empty list so).
     func toggle(purpose id: String) {
-        if let index = purposes.firstIndex(of: id) { purposes.remove(at: index) } else { purposes.append(id) }
+        if let index = purposes.firstIndex(of: id) {
+            purposes.remove(at: index)
+        } else {
+            purposes.append(id)
+            // Ticking a purpose asks for its jobs: a step taken out on Ready that it brings comes back (#5627).
+            let brings = Set(purposeOptions.first { $0.id == id }?.jobs?.map(\.id) ?? [])
+            removedJobs.removeAll { brings.contains($0) }
+        }
+    }
+
+    /// The ticked purpose that already includes this one, when it is listed under it (#5625): its parent, ticked,
+    /// whose jobs hold every one of this purpose's (the knowledge graph holds Entities and Statements). Shown
+    /// ticked and fixed while the parent is; nil otherwise.
+    func includingPurpose(of id: String) -> Components.Schemas.PurposeInfo? {
+        guard !purposes.contains(id), let option = purposeOptions.first(where: { $0.id == id }),
+              let parentId = option.parent, purposes.contains(parentId),
+              let parent = purposeOptions.first(where: { $0.id == parentId }) else { return nil }
+        let held = Set((parent.jobs ?? []).map(\.id))
+        return (option.jobs ?? []).allSatisfy { held.contains($0.id) } ? parent : nil
+    }
+
+    // MARK: Editing the plan on Ready (#5627, source.onboard.plan-editable)
+
+    /// Whether a step can be taken out: the engine names, in `needed_by`, the later steps that need it.
+    static func canTakeOut(_ step: Components.Schemas.RecipeStep) -> Bool { (step.neededBy ?? []).isEmpty }
+
+    /// Take a step out of the plan; the engine proposes the plan again without it, and Ready saves that, so
+    /// Start runs the plan as shown and Set Up… reopens with it.
+    func takeOut(job: String) async {
+        guard !removedJobs.contains(job) else { return }
+        removedJobs.append(job)
+        await assemble()
+    }
+
+    /// Put a step taken out back into the plan.
+    func putBack(job: String) async {
+        removedJobs.removeAll { $0 == job }
+        await assemble()
     }
 
     /// Tick or untick a job on its own. A job a ticked purpose brings stays ticked while that
@@ -480,7 +523,7 @@ final class RecipeSetupStore {
         RecipeSetupAnswers(purposes: purposes, jobs: addedJobs, languages: languages, scripts: scripts,
                            directions: directions, materials: materials, pages: pages,
                            cloudAllowed: cloudAllowed, ingestMode: wayIn.savedName,
-                           layers: layers, automatic: automatic, jobAnswers: jobAnswers)
+                           layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
@@ -505,6 +548,7 @@ final class RecipeSetupStore {
             purposes = value.filter { $0 != "not-sure" }
         }
         if let value = saved.jobs { addedJobs = value }
+        if let value = saved.removedJobs { removedJobs = value }
         if let value = saved.languages { languages = value }
         layers = saved.layers ?? []
         if let value = saved.scripts { scripts = value }
@@ -543,6 +587,9 @@ extension RecipeSetupStore {
         let name: String
         /// Where it came from, shown under the name: a dialect's language, a Glottolog code.
         let detail: String?
+        /// For a language, the script it is usually written in (ISO 15924) and that script's name (#5626).
+        var usualScript: String?
+        var usualScriptName: String?
     }
 
     /// Search every language the engine knows: ISO 639-3 joined with Glottolog
@@ -556,7 +603,8 @@ extension RecipeSetupStore {
                 let code = match.code ?? match.glottocode.map { "und-x-\($0)" } ?? match.name
                 let detail = [match.language.map { "dialect of \($0)" }, match.glottocode.map { "Glottolog \($0)" }]
                     .compactMap { $0 }.joined(separator: " · ")
-                return CodeChoice(code: code, name: match.name, detail: detail.isEmpty ? nil : detail)
+                return CodeChoice(code: code, name: match.name, detail: detail.isEmpty ? nil : detail,
+                                  usualScript: match.script, usualScriptName: match.scriptName)
             }
         } catch {
             if !error.isCancellationError { errorMessage = "Could not search languages: \(error.localizedDescription)" }
@@ -599,7 +647,21 @@ extension RecipeSetupStore {
             scripts.append(choice.code)
         } else if !languages.contains(choice.code) {
             languages.append(choice.code)
+            proposeScript(for: choice)
         }
+    }
+
+    /// A language chosen proposes the script it is usually written in (#5626, `source.onboard.script-from-language`):
+    /// English adds Latin, Russian Cyrillic, unless the script is already there. The person removes it or adds
+    /// another like any token; a language with no usual script on record proposes nothing.
+    private func proposeScript(for language: CodeChoice) {
+        guard let script = language.usualScript else { return }
+        if !scripts.contains(script) {
+            names[script] = language.usualScriptName ?? script
+            scripts.append(script)
+            proposedScripts[script] = []
+        }
+        proposedScripts[script]?.insert(language.code)
     }
 
     /// What the person typed and pressed Return on: the engine's best answer becomes the token
@@ -628,8 +690,19 @@ extension RecipeSetupStore {
         if fromScripts {
             scripts.removeAll { $0 == code }
             directions.removeValue(forKey: code)
+            proposedScripts.removeValue(forKey: code)
         } else {
             languages.removeAll { $0 == code }
+            // A script only this language proposed goes with it; one the person chose, or another language
+            // proposed, stays.
+            for (script, proposers) in proposedScripts where proposers.contains(code) {
+                proposedScripts[script]?.remove(code)
+                if proposedScripts[script]?.isEmpty == true {
+                    proposedScripts.removeValue(forKey: script)
+                    scripts.removeAll { $0 == script }
+                    directions.removeValue(forKey: script)
+                }
+            }
         }
     }
 
@@ -682,6 +755,7 @@ extension RecipeSetupStore {
                     scripts: scripts,
                     materials: materials,
                     jobs: addedJobs.isEmpty ? nil : addedJobs,
+                    removedJobs: removedJobs.isEmpty ? nil : removedJobs,
                     directions: directions.isEmpty ? nil : .init(additionalProperties: directions),
                     pages: pages,
                     cloudAllowed: cloudAllowed,
