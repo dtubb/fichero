@@ -25,11 +25,8 @@ extension LibraryView {
     /// (canvas item) has no `doc:` id and is a safe no-op. The change stream
     /// reconciles both windows; a failure leaves the row put (never silent-drops).
     private func moveCanvasNodeIntoContainer(_ nodeId: String, _ containerNodeId: String) {
-        guard let docId = SpatialLibraryProjector.documentId(fromNodeId: nodeId),
-              let parentId = SpatialLibraryProjector.documentId(fromNodeId: containerNodeId) else { return }
-        Task { @MainActor in
-            _ = try? await documentStore.moveDocument(docId, toParent: parentId)
-        }
+        // The one move-into, shared with the Preview's folder canvas (`CanvasBoard`).
+        CanvasBoard.moveIntoContainer(nodeId, containerNodeId, using: documentStore)
     }
     /// The document behind the canvas selection's primary node — the subject
     /// of the right-click menu (user, 2026-08-20: "in 2d and 3d and all
@@ -97,13 +94,8 @@ extension LibraryView {
     /// only ever sees `placeable id → palette slot`. Document ids cross into
     /// placeable ids here.
     var canvasTint: CanvasTint {
-        let mode = CanvasColourBy.stored(canvasColourByRaw)
-        guard mode != .off else { return .neutral }
-        let values = documentStore.currentDocuments.reduce(into: [String: String]()) { map, document in
-            guard let value = mode.value(for: document) else { return }
-            map[SpatialLibraryProjector.nodeId(forDocument: document.id)] = value
-        }
-        return CanvasTint.byValue(values)
+        // The one colouring, shared with the Preview's folder canvas (`CanvasBoard`).
+        CanvasBoard.tint(of: documentStore.currentDocuments, by: CanvasColourBy.stored(canvasColourByRaw))
     }
 
     @ViewBuilder

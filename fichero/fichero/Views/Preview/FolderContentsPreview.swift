@@ -39,8 +39,12 @@ struct FolderContentsPreview: View {
     var body: some View {
         Group {
             if !items.isEmpty, let library = libraryManager.getLibrary(id: windowState.libraryId) {
+                // The library's own canvas, fed by the library's own board builder (`CanvasBoard`,
+                // `library.canvas.one-canvas-everywhere`): the same cards, groups, drop-into
+                // containers and colouring the library's Canvas mode builds from these documents.
+                let folderBoard = board
                 CanvasSceneView(
-                    nodes: projection.nodes,
+                    nodes: folderBoard.projection.nodes,
                     connections: [],
                     selectedNodeIds: $selectedNodeIds,
                     layoutStore: library.canvasLayoutStore,
@@ -48,10 +52,14 @@ struct FolderContentsPreview: View {
                     folderScopeId: folderId,
                     // Double-click a card: the Preview shows that item.
                     onOpenDocument: { onNavigateToDocument?($0) },
+                    containerIds: folderBoard.containerIds,
+                    moveIntoContainer: { [documentStore] in
+                        CanvasBoard.moveIntoContainer($0, $1, using: documentStore)
+                    },
                     storageService: library.storageService,
-                    tint: tint,
+                    tint: CanvasBoard.tint(of: items, by: CanvasColourBy.stored(colourByRaw)),
                     // A folder of groups shows each as a frame holding its pages (#5570).
-                    groupNodeIds: CanvasGroupNesting.groupNodeIds(in: items),
+                    groupNodeIds: folderBoard.groupNodeIds,
                     pagesOfGroup: { [documentStore] nodeId in
                         await documentStore.canvasPageNodes(ofGroupNode: nodeId)
                     }
@@ -102,25 +110,8 @@ struct FolderContentsPreview: View {
         }
     }
 
-    /// Colour by, from this folder's items, as the library's Canvas computes it (`canvasTint`).
-    private var tint: CanvasTint {
-        let mode = CanvasColourBy.stored(colourByRaw)
-        guard mode != .off else { return .neutral }
-        let values = items.reduce(into: [String: String]()) { map, document in
-            guard let value = mode.value(for: document) else { return }
-            map[SpatialLibraryProjector.nodeId(forDocument: document.id)] = value
-        }
-        return CanvasTint.byValue(values)
-    }
-
-    /// The folder's items as canvas cards, through the library Canvas's own projector.
-    private var projection: SpatialLibraryProjection {
-        SpatialLibraryProjector.project(
-            SpatialLibraryInput(
-                documents: items.map { SpatialLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId) },
-                entities: [],
-                claims: []
-            )
-        )
+    /// This folder's board, from the library canvas's one builder.
+    private var board: CanvasBoard {
+        CanvasBoard.of(documents: items)
     }
 }

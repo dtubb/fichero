@@ -432,9 +432,25 @@ homeless until a map-view UI spec exists (#5128).
     then held where it was first drawn unless a saved place says otherwise; the camera fits once.
   - Not covered: a page whose shape arrives after the open (past the 120 or the 1.5 s) keeps its
     place, so a much taller or wider page than its neighbours can overlap them until arranged.
+  - A drag is per-card work only: the dragged card's entity moves and its handles move with it;
+    nothing is rebuilt, re-resolved or saved until the drop (`CanvasDragFollowsPointerTests.swift`).
   - Tested in `fichero/Tests/Unit/general/Views/Library/CanvasOpensSettledTests.swift` (the hold, the
     gate, the opening reconcile, the camera) and `CanvasZoomKeepsTheCardsTests.swift` (the real view:
     late page shapes and a pane resize move nothing).
+- `library.canvas.one-canvas-everywhere` — **[PARTIAL]** (#5629; tested in
+  `fichero/Tests/Unit/general/Views/Library/CanvasBoardTests.swift`, not yet seen in the app) Ruled
+  2026-10-09: the folder canvas in the Preview and the Library's Canvas and Space modes are one canvas.
+  Same view (`CanvasSceneView` for 2D in both hosts), same renderer, same cards and thumbnails, same
+  selection ring, same drag, same never-move rule (`library.canvas.cards-move-only-when-asked`), same
+  context menus. Both hosts build the board (cards, groups, drop-into containers, colouring) with
+  the one builder, `CanvasBoard`, from the documents they show; the Library's whole-library board
+  adds its entities.
+  - **Why (2026-10-09):** the two hosts built the canvas's inputs separately. The Preview passed no
+    drop-into containers, so a card could not be dropped into a subfolder there, and every later
+    difference would have been a second canvas.
+  - Not covered yet: the context menus (#5632) are still the Library's alone. The boxes the
+    maintainer saw over cards in the Preview's canvas are not explained: the canvas draws no
+    segment boxes, and the Preview hosts the same view.
 - `library.canvas.selection-ring-is-thin` — **[PARTIAL]** (#5631; tested, not yet seen in the app) a
   selected card on the 2D canvas wears a thin system-style ring, about 3 points in the accent colour,
   just outside the card's edge and following its rounded corners, the same on-screen thickness at

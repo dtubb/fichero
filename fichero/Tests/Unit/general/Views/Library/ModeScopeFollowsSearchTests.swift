@@ -35,7 +35,8 @@ struct ModeScopeFollowsSearchTests {
     @Test("the spatial projection is built from the FILTERED documents")
     func projectionUsesFilteredDocuments() throws {
         let insets = try Self.appSource("Views/Library/LibraryView+Insets.swift")
-        #expect(insets.contains("documents: filteredDocuments.map {"),
+        // Through the one board builder the Preview's folder canvas shares (`CanvasBoard`, 2026-10-09).
+        #expect(insets.contains("documents: filteredDocuments,"),
                 Comment(rawValue: "projecting the raw `documents` parameter ignores the "
                     + "quick filter, the Show kind, and a search's relevance order"))
         #expect(!insets.contains("documents: documents.map {"),
