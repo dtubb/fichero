@@ -4709,36 +4709,12 @@ def fichero_local_inference_list_catalog(
     return _rt.call("GET", "/api/local-inference/catalog")
 
 
-def fichero_local_inference_get_model_download(
-    *,
-    job_id: Annotated[str, Field(description='Job Id')],
-) -> Any:
-    'Get Local Inference Model Download\n\nReturn progress for a managed MLX model download job.\n\nRoute: GET /api/local-inference/models/downloads/{job_id} (toolset `local-inference`; reads).'
-    return _rt.call("GET", f"/api/local-inference/models/downloads/{job_id}")
-
-
-def fichero_local_inference_cancel_model_download(
-    *,
-    job_id: Annotated[str, Field(description='Job Id')],
-) -> Any:
-    'Cancel Local Inference Model Download\n\nCancel a managed MLX model download job.\n\nRoute: POST /api/local-inference/models/downloads/{job_id}/cancel (toolset `local-inference`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/local-inference/models/downloads/{job_id}/cancel")
-
-
 def fichero_local_inference_delete_model(
     *,
     model_id: Annotated[str, Field(description='Model Id')],
 ) -> Any:
     'Delete Local Inference Model\n\nDelete one local model — MLX snapshot, Whisper weights, or Kraken venv.\n\nspaCy models are pip packages, so their delete refuses with how to remove\nthem (a 409) rather than pretending this app can.\n\nRoute: DELETE /api/local-inference/models/{model_id} (toolset `local-inference`; changes data, as the agent account when one exists).'
     return _rt.call("DELETE", f"/api/local-inference/models/{model_id}")
-
-
-def fichero_local_inference_download_model(
-    *,
-    model_id: Annotated[str, Field(description='Model Id')],
-) -> Any:
-    'Download Local Inference Model\n\nStart or reuse a local model install job (MLX, spaCy, Kraken or Whisper).\n\nOne endpoint for every local runtime: MLX models go to the MLX store, and\nspaCy/Kraken/Whisper go to the coordinator, both returning the same job so\nthe UI polls /models/downloads/{job_id} uniformly (Shape A).\n\nRoute: POST /api/local-inference/models/{model_id}/download (toolset `local-inference`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/local-inference/models/{model_id}/download")
 
 
 def fichero_local_inference_list_profiles(
@@ -4842,7 +4818,7 @@ def fichero_local_models_download(
     model_type: Annotated[str, Field(description='Model Type')],
     model_id: Annotated[str, Field(description='Model Id')],
 ) -> Any:
-    'Download Model\n\nStart downloading a model in the background.\n\nArgs:\n    model_type: "whisper" or "embeddings"\n    model_id: Model identifier (e.g., "base" for Whisper, "intfloat/multilingual-e5-large" for embeddings)\n\nRoute: POST /api/local-models/download/{model_type}/{model_id} (toolset `local-models`; changes data, as the agent account when one exists).'
+    'Download Model\n\nStart downloading a model in the background.\n\nArgs:\n    model_type: whisper, embeddings, spacy, mlx or kraken (a Kraken reader)\n    model_id: Model identifier (e.g., "base" for Whisper, "intfloat/multilingual-e5-large" for embeddings)\n\nOne path for every model (`source.find.one-download-path`, #5620): a `download-model` job in Activity.\n\nRoute: POST /api/local-models/download/{model_type}/{model_id} (toolset `local-models`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/local-models/download/{model_type}/{model_id}")
 
 
@@ -8994,10 +8970,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_links_list_types", "links", "GET", "/api/links/types", fichero_links_list_types),
     GeneratedTool("fichero_local_inference_get_capabilities_route", "local-inference", "GET", "/api/local-inference/capabilities", fichero_local_inference_get_capabilities_route),
     GeneratedTool("fichero_local_inference_list_catalog", "local-inference", "GET", "/api/local-inference/catalog", fichero_local_inference_list_catalog),
-    GeneratedTool("fichero_local_inference_get_model_download", "local-inference", "GET", "/api/local-inference/models/downloads/{job_id}", fichero_local_inference_get_model_download),
-    GeneratedTool("fichero_local_inference_cancel_model_download", "local-inference", "POST", "/api/local-inference/models/downloads/{job_id}/cancel", fichero_local_inference_cancel_model_download),
     GeneratedTool("fichero_local_inference_delete_model", "local-inference", "DELETE", "/api/local-inference/models/{model_id}", fichero_local_inference_delete_model),
-    GeneratedTool("fichero_local_inference_download_model", "local-inference", "POST", "/api/local-inference/models/{model_id}/download", fichero_local_inference_download_model),
     GeneratedTool("fichero_local_inference_list_profiles", "local-inference", "GET", "/api/local-inference/profiles", fichero_local_inference_list_profiles),
     GeneratedTool("fichero_local_inference_validate_profile", "local-inference", "POST", "/api/local-inference/profiles/validate", fichero_local_inference_validate_profile),
     GeneratedTool("fichero_local_inference_check_health", "local-inference", "POST", "/api/local-inference/profiles/{profile_id}/health", fichero_local_inference_check_health),

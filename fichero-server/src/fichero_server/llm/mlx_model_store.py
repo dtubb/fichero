@@ -483,7 +483,7 @@ class MLXModelStore:
         if self.is_complete(spec):
             return str(snapshot)
         raise FileNotFoundError(
-            f"Local model {model_id} is not installed. Download it from /api/local-inference/models/{model_id}/download before starting oMLX."
+            f"Local model {model_id} is not installed. Download it first (Settings › AI, or Set Up… › Ready: POST /api/local-models/download/mlx/{model_id}) before starting oMLX."
         )
 
     def canonical_id(self, name: str | None) -> str | None:

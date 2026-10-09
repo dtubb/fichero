@@ -750,6 +750,13 @@ def _run_download(subject: str, db=None) -> None:
     if runtime == "mlx":
         _run_mlx_download(name, db)
         return
+    if runtime == "kraken":
+        from fichero_server.llm.kraken_runtime import download_recognition_model
+
+        _say_progress(db, f"Downloading the Kraken reader {name}")
+        download_recognition_model(name)
+        say_installed(runtime, name)
+        return
     if runtime not in _DOWNLOADABLE:
         raise ValueError(f"no download for {subject!r}")
     _say_progress(db, f"Downloading the {runtime} model {name}")
@@ -807,6 +814,11 @@ def enqueue_download(db, runtime: str, name: str, *, started_by: str = "owner") 
 
     if runtime == "mlx":
         name = _check_mlx(name)
+    elif runtime == "kraken":
+        from fichero_server.llm.kraken_runtime import recognition_spec
+
+        if recognition_spec(name) is None:
+            raise ValueError(f"no download for kraken:{name}: not a Kraken reader this Mac can fetch")
     elif runtime not in _DOWNLOADABLE or name not in _DOWNLOADABLE[runtime]:
         raise ValueError(f"no download for {runtime}:{name}")
     register_job_kinds()

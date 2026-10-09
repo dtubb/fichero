@@ -254,8 +254,9 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertEqual(FinderMockURLProtocol.requests(to: "/api/local-models/download/mlx/Example-OCR").first?.method,
                        "POST")
         XCTAssertEqual(FinderMockURLProtocol.requests(to: "/api/local-models/download/mlx/example/ocr-mlx").count, 0)
-        XCTAssertTrue(store.downloading.contains(found.id))
-        XCTAssertFalse(store.downloading.contains(shipped.id))
+        // The one download path (#5620): the card's download is followed by the project's downloads.
+        XCTAssertTrue(store.downloads.isActive(.init(runtime: "mlx", model: "Example-OCR")))
+        XCTAssertNil(ModelFinderStore.downloadKey(shipped))
         XCTAssertNil(store.errorMessage)
     }
 

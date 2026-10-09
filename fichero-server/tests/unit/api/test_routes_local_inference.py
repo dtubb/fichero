@@ -315,35 +315,12 @@ def test_runtime_status_provision_and_remove_routes(client, monkeypatch: pytest.
     assert runtime.removed == 1
 
 
-def test_model_download_and_delete_routes(client, monkeypatch: pytest.MonkeyPatch) -> None:
-    class StubJob:
-        state = "running"
-
-        def to_dict(self) -> dict[str, Any]:
-            return {
-                "job_id": "job-1",
-                "model_id": MODEL_ID,
-                "state": "running",
-                "current": 1,
-                "total": 3,
-                "percent": 33.3,
-                "message": "Downloading",
-                "error": None,
-            }
-
+def test_model_delete_route_and_no_second_download_path(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Delete stays here; a download goes through the one path, POST /api/local-models/download (#5620,
+    `source.find.one-download-path`), so the download, poll and cancel routes that were here are gone."""
     class StubStore:
         def __init__(self) -> None:
             self.deleted: list[str] = []
-            self.job_value = StubJob()
-
-        async def start_download(self, model_id: str):
-            return self.job_value
-
-        def job(self, job_id: str):
-            return self.job_value if job_id == "job-1" else None
-
-        async def cancel(self, job_id: str):
-            return self.job_value
 
         def delete(self, model_id: str) -> int:
             self.deleted.append(model_id)
@@ -352,35 +329,13 @@ def test_model_download_and_delete_routes(client, monkeypatch: pytest.MonkeyPatc
     store = StubStore()
     monkeypatch.setattr(routes, "get_mlx_model_store", lambda: store)
 
-    started = client.post(f"/api/local-inference/models/{MODEL_ID}/download")
-    assert started.status_code == 200
-    assert started.json()["job_id"] == "job-1"
-
-    status = client.get("/api/local-inference/models/downloads/job-1")
-    assert status.status_code == 200
-    assert status.json()["model_id"] == MODEL_ID
-
-    cancelled = client.post("/api/local-inference/models/downloads/job-1/cancel")
-    assert cancelled.status_code == 200
+    assert client.post(f"/api/local-inference/models/{MODEL_ID}/download").status_code in (404, 405)
+    assert client.get("/api/local-inference/models/downloads/job-1").status_code in (404, 405)
+    assert client.post("/api/local-inference/models/downloads/job-1/cancel").status_code in (404, 405)
 
     deleted = client.delete(f"/api/local-inference/models/{MODEL_ID}")
     assert deleted.status_code == 200
     assert deleted.json()["freed_bytes"] == 123
-
-
-def test_model_download_refuses_unsupported_hardware(client, monkeypatch: pytest.MonkeyPatch) -> None:
-    class StubStore:
-        async def start_download(self, model_id: str):
-            raise routes.LocalModelHardwareError(
-                "Qwen3-VL 8B needs 16 GB unified memory; this Mac has 8 GB"
-            )
-
-    monkeypatch.setattr(routes, "get_mlx_model_store", lambda: StubStore())
-
-    response = client.post(f"/api/local-inference/models/{MODEL_ID}/download")
-
-    assert response.status_code == 409
-    assert "16 GB unified memory" in response.text
 
 
 def test_start_refuses_when_subprocesses_are_disabled(client, monkeypatch: pytest.MonkeyPatch) -> None:

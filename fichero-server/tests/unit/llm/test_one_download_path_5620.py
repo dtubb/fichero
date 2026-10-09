@@ -124,3 +124,18 @@ def test_a_failed_download_says_why(client, db, held, mac, monkeypatch):
     with pytest.raises(RuntimeError, match="the MLX runtime is not set up"):
         local_models._run_download("mlx:Qwen2.5-VL-3B", db)
     assert "Qwen2.5-VL-3B" not in mac.installed
+
+
+def test_a_kraken_reader_downloads_by_the_same_path(client, db, held, monkeypatch):
+    """"… for every runtime": Settings' Kraken reader rows use the one route too, so a Kraken reader is a
+    `download-model` job, fetched by the job and then said installed; one that is not a reader is refused at once."""
+    fetched, said = [], []
+    monkeypatch.setattr("fichero_server.llm.kraken_runtime.download_recognition_model", fetched.append)
+    monkeypatch.setattr(local_models, "say_installed", lambda runtime, model: said.append((runtime, model)))
+    r = client.post("/api/local-models/download/kraken/kraken-mccatmus")
+    assert r.status_code == 200, r.text
+    assert jobs.read_job(db, r.json()["job_id"])["subject"] == "kraken:kraken-mccatmus"
+    local_models._run_download("kraken:kraken-mccatmus", db)
+    assert fetched == ["kraken-mccatmus"] and said == [("kraken", "kraken-mccatmus")]
+    refused = client.post("/api/local-models/download/kraken/kraken-blla")
+    assert refused.status_code == 400 and "not a Kraken reader" in refused.json()["detail"]

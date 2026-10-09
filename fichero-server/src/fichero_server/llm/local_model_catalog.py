@@ -1,7 +1,7 @@
 """Fold spaCy / Kraken / Whisper into the local-inference model catalog.
 
-MLX already speaks ``LocalModelCatalogEntry`` and installs through the
-``/api/local-inference/models/{id}/download`` job flow. These three runtimes
+MLX already speaks ``LocalModelCatalogEntry``; every model now downloads through the one
+path, ``POST /api/local-models/download`` (#5620), a job Activity lists. These three runtimes
 did not — each had its own status/install surface — so the UI would need a
 bespoke sheet per provider. This builds the SAME entry shape for each and
 dispatches installs/deletes to each runtime's own mechanism, so Settings

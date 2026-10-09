@@ -187,8 +187,10 @@ def download_model(
     """Start downloading a model in the background.
 
     Args:
-        model_type: "whisper" or "embeddings"
+        model_type: whisper, embeddings, spacy, mlx or kraken (a Kraken reader)
         model_id: Model identifier (e.g., "base" for Whisper, "intfloat/multilingual-e5-large" for embeddings)
+
+    One path for every model (`source.find.one-download-path`, #5620): a `download-model` job in Activity.
     """
     from fichero_server.llm.local_models import (
         WHISPER_MODELS,
@@ -214,7 +216,7 @@ def download_model(
                 status_code=400,
                 detail=f"Unknown embeddings model: {model_id}. Available: {', '.join(EMBEDDINGS_MODELS.keys())}",
             )
-    elif model_type not in ("spacy", "mlx"):
+    elif model_type not in ("spacy", "mlx", "kraken"):
         raise HTTPException(status_code=400, detail=f"Unknown model type: {model_type}")
 
     # Every download is a `download-model` job on the network lane of the open library, shown in

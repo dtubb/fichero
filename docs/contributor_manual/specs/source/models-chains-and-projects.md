@@ -959,7 +959,7 @@ plan's peak memory across steps. Ready shows none of it.
   a site with no folder, a calendar), set in `recipes/start.py`'s `skip`; Ready shows Will not run (title,
   why, the fix button through setup's one fix handler) and To download first (model, size, the steps it
   serves, Download through `POST /api/local-models/download/{runtime}/{model}`, then Downloading…)
-  (`RecipeSkippedRows`, `RecipeDownloadRows`, `RecipeSetupStore.download`). Pinned by
+  (`RecipeSkippedRows`, `RecipeDownloadRows`, `ModelDownloads.start` since #5620). Pinned by
   `fichero-server/tests/unit/recipes/test_run_visible_to_spec.py` and
   `fichero/Tests/Unit/general/Models/RecipeRunVisibleTests.swift`. *Not built:* the plan reading again by
   itself when a download finishes (Ready re-reads it when the plan changes). A fix setup has no button for
