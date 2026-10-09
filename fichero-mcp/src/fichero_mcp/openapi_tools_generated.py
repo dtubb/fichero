@@ -243,6 +243,14 @@ def fichero_activity_list_background_jobs(
     return _rt.call("GET", "/api/activity/jobs")
 
 
+def fichero_activity_set_background_mode(
+    *,
+    mode: Annotated[str, Field(description='automatic: heavy work waits while the Mac is in use or on battery; started: it goes ahead anyway (memory and heat still hold it) until set back; paused: nothing that runs by itself starts. One of: automatic, started, paused.')],
+) -> Any:
+    'Set Background Mode\n\nThe Start / Stop control (`activity.mode.start-stop`, #5621), for the whole Mac: `started` lets\nwaiting work go ahead although the person is at the Mac or it is on battery (memory and heat still\nhold it, and heavy work still runs one job at a time while memory is busy) until set back to\n`automatic`; `paused` pauses all background work. Kept across relaunch.\n\nRoute: PUT /api/activity/jobs/mode (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/activity/jobs/mode", json=_rt.body({"mode": mode}))
+
+
 def fichero_activity_set_background_paused(
     *,
     paused: Annotated[bool, Field(description='true pauses all background work; false resumes it.')],
@@ -8542,6 +8550,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_get_batch", "activity", "GET", "/api/activity/batch/{batch_id}", fichero_activity_get_batch),
     GeneratedTool("fichero_activity_cleanup_old_activities", "activity", "DELETE", "/api/activity/cleanup", fichero_activity_cleanup_old_activities),
     GeneratedTool("fichero_activity_list_background_jobs", "activity", "GET", "/api/activity/jobs", fichero_activity_list_background_jobs),
+    GeneratedTool("fichero_activity_set_background_mode", "activity", "PUT", "/api/activity/jobs/mode", fichero_activity_set_background_mode),
     GeneratedTool("fichero_activity_set_background_paused", "activity", "PUT", "/api/activity/jobs/paused", fichero_activity_set_background_paused),
     GeneratedTool("fichero_activity_get_job_tree", "activity", "GET", "/api/activity/jobs/{job_id}", fichero_activity_get_job_tree),
     GeneratedTool("fichero_activity_cancel_job", "activity", "POST", "/api/activity/jobs/{job_id}/cancel", fichero_activity_cancel_job),

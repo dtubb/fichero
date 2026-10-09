@@ -370,6 +370,16 @@
       },
       {
         "method": "PUT",
+        "path": "/activity/jobs/mode",
+        "operation_id": "set_background_mode_api_activity_jobs_mode_put",
+        "summary": "Set Background Mode",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BackgroundModeRequest",
+        "response_model": "BackgroundModeResponse"
+      },
+      {
+        "method": "PUT",
         "path": "/activity/jobs/paused",
         "operation_id": "set_background_paused_api_activity_jobs_paused_put",
         "summary": "Set Background Paused",

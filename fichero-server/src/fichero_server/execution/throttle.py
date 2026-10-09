@@ -24,8 +24,9 @@ logger = logging.getLogger(__name__)
 
 #: The person counts as using the Mac if any input arrived this recently.
 IDLE_BEFORE_HEAVY_SECONDS = 30.0
-#: How long a battery reading is trusted (it costs a subprocess).
-BATTERY_READING_SECONDS = 30.0
+#: How long a battery reading is trusted (it costs a subprocess). Short, so work held for battery
+#: starts soon after the Mac is plugged in (`activity.throttle.recheck-when-it-clears`, #5621).
+BATTERY_READING_SECONDS = 10.0
 #: macOS memory pressure levels (`kern.memorystatus_vm_pressure_level`): 1 normal, 2 warn, 4 critical.
 _PRESSURE_WARN = 2
 #: How every memory reason begins: the one reason that means "let memory go", not just "wait" (a long
@@ -211,6 +212,16 @@ class MemoryShortError(RuntimeError):
     when memory allows, and waits in place with handed-in work (`execution.jobs`, #5524)."""
 
 
+def memory_is_busy() -> bool:
+    """Memory pressure is at warn or above (`activity.throttle.one-heavy-when-memory-tight`, #5622): heavy
+    work goes on, but one job at a time between the heavy lanes. False when the throttle is off or the
+    level cannot be read."""
+    if not _enabled():
+        return False
+    level = memory_pressure_level()
+    return level is not None and level >= _PRESSURE_WARN
+
+
 def thermal_state_level() -> int | None:
     """`NSProcessInfoThermalState` (0 nominal .. 3 critical), or None when unreadable."""
     try:
@@ -283,10 +294,21 @@ PROBES: list[tuple[Callable[[], str | None], bool]] = [
 ]
 
 
+def _started() -> bool:
+    """*Start* is on (`activity.mode.start-stop`, #5621): all waiting work is treated as work a person
+    is waiting for, so battery and the person at the Mac do not hold it; memory and heat still do."""
+    from fichero_server.execution.jobs import is_started
+
+    return is_started()
+
+
 def why_wait(*, person_waiting: bool = False) -> str | None:
-    """The first reason heavy local work should wait now, in words, or None."""
+    """The first reason heavy local work should wait now, in words, or None. While *Start* is on, every
+    caller is answered as for work a person waits for (one place, so the lane, the rows, the popover's
+    `machine.why_wait` and a long job's own checks agree)."""
     if not _enabled():
         return None
+    person_waiting = person_waiting or _started()
     for probe, applies_when_waited_for in PROBES:
         if person_waiting and not applies_when_waited_for:
             continue

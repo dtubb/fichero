@@ -62,6 +62,15 @@ struct ActivityDetailsView: View {
                     ActivityDetailsFailedPages(details: details)
                 }
                 ActivityDetailsActions(details: details, perform: { action in Task { await perform(action, details) } })
+                if details.isLive {
+                    // The Start / Stop control (ruled 2026-10-09): go ahead although the Mac is in use, or
+                    // pause all work; beside the row's own Pause and Stop (#5623).
+                    HStack(spacing: 6) {
+                        Text("Background work:").font(.callout).foregroundStyle(.secondary)
+                        ActivityModeButton(store: store)
+                    }
+                    .controlSize(.small)
+                }
                 if let actionFailure {
                     Label(actionFailure, systemImage: "exclamationmark.triangle.fill")
                         .font(.callout)
@@ -149,6 +158,12 @@ private struct ActivityDetailsHeading: View {
                     .foregroundStyle(details.row.phase == .failed ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
                     .textSelection(.enabled)
                     .accessibilityIdentifier("activity.details.state")
+            }
+            if let workingOn = details.workingOn {
+                Label("Working on \(workingOn)", systemImage: "gearshape.2")
+                    .font(.callout)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("activity.details.workingOn")
             }
             if let machine = details.machineText {
                 Text(machine)
@@ -278,7 +293,9 @@ private struct ActivityDetailsStages: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline) {
                         Text(stage.title).font(.body.weight(.medium))
-                        Text(stage.steps).font(.caption).foregroundStyle(.secondary)
+                        if !stage.steps.isEmpty {
+                            Text(stage.steps).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     Text(stage.state)
                         .foregroundStyle(stage.isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))

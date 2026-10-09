@@ -56,6 +56,15 @@ struct ActivityStatusToolbarItem: View {
     }
 
     var body: some View {
+        // The Start / Stop control sits beside the indicator (ruled 2026-10-09,
+        // `activity.mode.start-stop`): its state at a glance, running, held or paused.
+        HStack(spacing: 6) {
+            ActivityModeButton(store: activityStore)
+            indicator
+        }
+    }
+
+    private var indicator: some View {
         Group {
             if hasError {
                 Button {

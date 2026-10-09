@@ -643,6 +643,15 @@ whole Mac, through the audited, undoable action `background.pause`. The switch i
 setting, so it holds across relaunch. While it is on, the scheduler starts nothing; a job already
 running finishes.
 
+`PUT /api/activity/jobs/mode` with `{"mode": "automatic" | "started" | "paused"}` is the Start / Stop
+control (#5621, `activity.mode.start-stop`), through the audited, undoable action `background.mode`:
+`started` lets waiting work go ahead although the person is at the Mac or it is on battery (memory and
+heat still hold it, and heavy work still runs one job at a time while memory is busy) until set back to
+`automatic`; `paused` is *Pause Background Work*. `GET /api/activity/jobs` reports `mode`. The import's
+row (`derivatives`) and a kind's counted rows (`waiting:<kind>`, `paused:<kind>`) take the one-job
+routes below too, applied to every job they stand for that has not started, and
+`GET /api/activity/jobs/derivatives` reads the import as a tree of its stages (#5623).
+
 One job: `PUT /api/activity/jobs/{job_id}/paused` with `{"paused": true}` holds a waiting job
 (it stays paused across relaunch) and `false` resumes it, through the undoable action
 `job.pause`; `POST /api/activity/jobs/{job_id}/cancel` stops it through `job.cancel`. Both answer

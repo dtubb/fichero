@@ -137,7 +137,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// row's kind icon (#5560); `nil` when the row has no job behind it.
     var engineKind: String?
     /// A job of its own's id (an embedding queue): what its details read
-    /// (#5561). It has no Pause or Stop of its own, so `jobId` stays `nil`.
+    /// (#5561); the same as its `jobId`, which its Pause and Stop act on (#5621).
     var ownJobId: String?
 
     // MARK: - Icons (#5560)
@@ -368,6 +368,9 @@ extension ActivityMonitorRow {
 
     /// A job of its own from `GET /api/activity/jobs` that is not a workflow
     /// run (those are run rows): an embedding queue, a kind of queued work.
+    /// Its Pause, Resume and Stop act on its id (#5621, `activity.pause.per-queue`):
+    /// one job's, or a row that stands for many (the import's `derivatives`,
+    /// `waiting:<kind>`), which the engine applies to each job not started.
     static func job(_ job: ActivityJob, libraryId: UUID?, projectName: String?) -> ActivityMonitorRow {
         ActivityMonitorRow(
             id: "\(libraryId?.uuidString ?? "")|job:\(job.id)",
@@ -375,7 +378,7 @@ extension ActivityMonitorRow {
             libraryId: libraryId,
             runRowID: nil,
             runThreadId: nil,
-            jobId: nil,
+            jobId: job.id,
             name: job.name,
             projectName: projectName,
             phase: Phase(job.state),

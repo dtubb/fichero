@@ -498,6 +498,71 @@
         }
       }
     },
+    "/api/activity/jobs/mode": {
+      "put": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Set Background Mode",
+        "description": "The Start / Stop control (`activity.mode.start-stop`, #5621), for the whole Mac: `started` lets\nwaiting work go ahead although the person is at the Mac or it is on battery (memory and heat still\nhold it, and heavy work still runs one job at a time while memory is busy) until set back to\n`automatic`; `paused` pauses all background work. Kept across relaunch.",
+        "operationId": "set_background_mode_api_activity_jobs_mode_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackgroundModeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackgroundModeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/{job_id}/paused": {
       "put": {
         "tags": [
@@ -48673,6 +48738,16 @@
             "title": "Paused",
             "default": false
           },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "started",
+              "paused"
+            ],
+            "title": "Mode",
+            "default": "automatic"
+          },
           "machine": {
             "$ref": "#/components/schemas/MachineState"
           }
@@ -48685,6 +48760,43 @@
         ],
         "title": "BackgroundJobsResponse",
         "description": "Snapshot of running background jobs + rough process CPU usage."
+      },
+      "BackgroundModeRequest": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "started",
+              "paused"
+            ],
+            "title": "Mode",
+            "description": "automatic: heavy work waits while the Mac is in use or on battery; started: it goes ahead anyway (memory and heat still hold it) until set back; paused: nothing that runs by itself starts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "BackgroundModeRequest"
+      },
+      "BackgroundModeResponse": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "started",
+              "paused"
+            ],
+            "title": "Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "BackgroundModeResponse"
       },
       "BackgroundPauseRequest": {
         "properties": {

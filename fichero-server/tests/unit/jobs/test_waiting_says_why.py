@@ -98,18 +98,33 @@ def test_a_job_behind_the_model_lane_names_what_holds_it_not_the_mac(db, client,
 
 
 def test_the_mac_in_use_is_the_reason_only_while_the_throttle_says_so(db, client, mac, stages, lane_held):
-    """WHY: "you're using the Mac" is true only while the throttle reads the Mac as in use; the
-    moment it is idle again the row says the lane, in the same response as `machine`."""
+    """WHY: "you're using the Mac" is true only while the throttle reads the Mac as in use. And while the
+    lane is held, the row names what holds it (#5622): the rows read "you're using the Mac" while heavy
+    runs were plainly working, and the lane is what the job would still wait for if the person stepped
+    away. The throttle's reason is the row's once the lane is free, and the popover's `machine.why_wait`
+    says it all along."""
     derivatives.register_job_kinds()
     jobs.enqueue(db, derivatives.EMBED_KIND, "doc-1")
     mac["idle"] = 3.0
     rows, machine = _rows(client)
     assert machine["in_use"] is True and machine["why_wait"] == IN_USE
-    assert rows["embed"]["reason"] == IN_USE
+    assert rows["embed"]["reason"] == HELD
     mac["idle"] = 600.0
     rows, machine = _rows(client)
     assert machine["in_use"] is False
     assert rows["embed"]["reason"] == HELD
+
+
+def test_with_the_lane_free_the_mac_in_use_is_the_reason(db, client, mac, stages):
+    """WHY (#5622): with nothing on the lane, the person at the Mac is what holds the job, and it says so;
+    the moment the Mac is idle the job runs."""
+    derivatives.register_job_kinds()
+    mac["idle"] = 3.0
+    jobs.enqueue(db, derivatives.EMBED_KIND, "doc-1")
+    rows, machine = _rows(client)
+    assert machine["why_wait"] == IN_USE and rows["embed"]["reason"] == IN_USE
+    mac["idle"] = 600.0
+    assert _wait_for(lambda: ("embed", "doc-1") in stages)
 
 
 def test_the_imports_progress_row_says_why_it_waits(db, client, test_package, mac, stages, lane_held):
