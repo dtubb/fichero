@@ -39,35 +39,7 @@ struct CanvasDragFollowsPointerTests {
         return (renderer, state)
     }
 
-    private func handles(_ renderer: CanvasOrtho2DRenderer) -> [Entity] {
-        var found: [Entity] = []
-        func walk(_ entity: Entity) {
-            if CanvasSelectionFrame.handle(fromEntityName: entity.name) != nil { found.append(entity) }
-            entity.children.forEach(walk)
-        }
-        walk(renderer.decorator.root)
-        return found
-    }
-
-    // WHY: the lag itself. The handles were rebuilt on every mouse event; now the SAME entities
-    // move with the card, so a drag builds no mesh.
-    @Test("dragging a selected card moves its handles with it and rebuilds none")
-    func handlesMoveNotRebuild() throws {
-        let (renderer, _) = board(selecting: ["doc:0"])
-        let before = handles(renderer)
-        #expect(!before.isEmpty, "a single selected card shows its handles")
-        let cornerBefore = try #require(before.first).position(relativeTo: nil)
-        let start = try #require(renderer.worldPosition(of: "doc:0"))
-
-        renderer.liveMove(id: "doc:0", toWorld: start + SIMD3<Double>(2, 1, 0))
-
-        let after = handles(renderer)
-        #expect(after.map(ObjectIdentifier.init) == before.map(ObjectIdentifier.init), "the handles were rebuilt")
-        let cornerAfter = try #require(after.first).position(relativeTo: nil)
-        // World +x is scene +x; world +y is scene −y.
-        #expect(abs((cornerAfter.x - cornerBefore.x) - 2) < 0.0001)
-        #expect(abs((cornerAfter.y - cornerBefore.y) + 1) < 0.0001)
-    }
+    // (The handles test went with the handles, 2026-10-09: the ring is the card's child and moves with it.)
 
     // WHY: the move is visual only until the drop: nothing the board resolves from changes.
     @Test("a live move changes the card's entity, not the board's model")
