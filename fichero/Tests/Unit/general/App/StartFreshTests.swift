@@ -2,7 +2,7 @@
 //  StartFreshTests.swift
 //  FicheroTests
 //
-//  Option at launch starts with nothing open (maintainer, 2026-10-09; #5628): the saved open-project list
+//  Shift at launch starts with nothing open (maintainer, 2026-10-09; #5628): the saved open-project list
 //  and the window layout keys are forgotten, other settings stay, and AppKit is told not to restore windows.
 //
 

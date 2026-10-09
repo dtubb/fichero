@@ -55,3 +55,11 @@ struct RecipeTakenOutRows: View {
         }
     }
 }
+
+#Preview("Taken out of the plan") {
+    RecipeTakenOutRows(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)),
+                       removed: [.init(job: "translate", title: "Translate"),
+                                 .init(job: "find-statements", title: "Find statements")])
+        .padding()
+        .frame(width: 520)
+}

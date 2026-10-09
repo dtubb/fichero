@@ -1,6 +1,8 @@
+#if os(macOS)
 import AppKit
 
-/// Hold Option while Fichero launches to start with nothing open (maintainer, 2026-10-09):
+/// Hold Shift while Fichero launches to start with nothing open (maintainer, 2026-10-09; Shift is
+/// macOS's own "don't reopen windows" key, and Option already opens the server chooser, #2381):
 /// forgets which projects were open and the saved window layout, so a launch that crashes on a
 /// restored window (#5628) can be got past. Projects themselves are never touched.
 enum StartFresh {
@@ -12,9 +14,9 @@ enum StartFresh {
     static let layoutKeyPrefixes = ["NSWindow Frame", "NSSplitView Subview Frames", "NSToolbar Configuration",
                                     "NSNavPanel", "NSTableView", "NSOutlineView"]
 
-    /// Asks when Option is held at launch; true when the person chose to start fresh.
-    @MainActor static func askIfOptionHeld() -> Bool {
-        guard NSEvent.modifierFlags.contains(.option) else { return false }
+    /// Asks when Shift is held at launch; true when the person chose to start fresh.
+    @MainActor static func askIfShiftHeld() -> Bool {
+        guard NSEvent.modifierFlags.contains(.shift) else { return false }
         let alert = NSAlert()
         alert.messageText = "Start with nothing open?"
         alert.informativeText = "Fichero will open no projects and forget its window sizes and layout. "
@@ -37,3 +39,4 @@ enum StartFresh {
         layoutKeyPrefixes.contains { key.hasPrefix($0) }
     }
 }
+#endif

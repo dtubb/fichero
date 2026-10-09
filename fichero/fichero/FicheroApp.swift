@@ -39,9 +39,9 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         // fixtures and need no engine. `FicheroApp.init` already skips its
         // side effects for previews; this is the delegate half of that guard.
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
-        // Option held at launch: start with nothing open (2026-10-09, #5628). Before the engine
+        // Shift held at launch: start with nothing open (2026-10-09, #5628). Before the engine
         // starts and before any window or saved project is restored.
-        if StartFresh.askIfOptionHeld() {
+        if StartFresh.askIfShiftHeld() {
             logger.notice("Starting fresh: no projects reopened, window layout forgotten")
             StartFresh.reset()
         }

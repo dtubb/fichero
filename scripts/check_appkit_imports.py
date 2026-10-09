@@ -73,6 +73,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "App/NewLibraryPanel.swift": "#4530 — NSSavePanel/NSOpenPanel: SwiftUI has no save-panel API for choosing a .fichero package location, and .fileImporter needs a view to attach to so it cannot serve the windowless File-menu path. Whole file is #if os(macOS).",
     "App/SparkleUpdater.swift": "Sparkle's delegate is an NSObject and its prompt an NSAlert; macOS-only by nature (DMG channel)",
     "FicheroApp.swift": "app entry: NSApplicationDelegateAdaptor + NSApp/NSPasteboard; macOS-only by nature",
+    "App/StartFresh.swift": "Shift-at-launch fresh start: NSEvent.modifierFlags + NSAlert before any window; macOS-only, #if os(macOS)",
     "Views/Connect/ConnectPairingIOS.swift": "hygiene — pairing/connect flow (RemoteConnectionSetupView, PairingIncomingLinkSheet) uses AVCaptureDevice/UIImage/UIPasteboard; split out of FicheroApp_iOS.swift by file_length; iOS-only",
     "Views/Connect/ConnectPairingEntryIOS.swift": "hygiene — manual pairing entry + QR scan sheet use UIPasteboard; split out of FicheroApp_iOS.swift by file_length; iOS-only",
     "Views/Connect/ConnectQRScannerIOS.swift": "hygiene — UIKit/AVFoundation camera scanner bridge (UIViewControllerRepresentable) split out of FicheroApp_iOS.swift by file_length; iOS-only",
