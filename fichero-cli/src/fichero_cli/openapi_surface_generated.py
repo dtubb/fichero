@@ -604,6 +604,17 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("clear-failed-jobs")
+    def activity_clear_failed_jobs_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Clear Failed Jobs (POST /api/activity/jobs/clear-failed)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/clear-failed"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("set-background-mode")
     def activity_set_background_mode_put(
         ctx: typer.Context,

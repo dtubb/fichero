@@ -369,6 +369,16 @@
         "response_model": "BackgroundJobsResponse"
       },
       {
+        "method": "POST",
+        "path": "/activity/jobs/clear-failed",
+        "operation_id": "clear_failed_jobs_api_activity_jobs_clear_failed_post",
+        "summary": "Clear Failed Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ClearFailedResponse"
+      },
+      {
         "method": "PUT",
         "path": "/activity/jobs/mode",
         "operation_id": "set_background_mode_api_activity_jobs_mode_put",
