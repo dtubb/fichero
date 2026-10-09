@@ -2,6 +2,44 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.10.09
+
+- Setting up a project: Set Up asks four short questions, proposes a plan you can edit, and Start runs it all — reading, then organising (Find the Documents).
+- Models: one way to find, download and choose a model for any step, in Set Up, the Inspector and Settings.
+- Activity: one Start / Stop control in the toolbar and in Activity, and each run says what it is working on.
+- Archive model: names, statements, quotations, dates and attributes sit on their line and say who set them; you can correct them where they appear.
+
+**Set Up and Start.** A new project is set up in four steps: your project, your material, what you
+want to do, and Ready. The goals read in order — transcribe, search, translate, then the knowledge
+graph with entities and statements under it — and the script is proposed from the language. Ready
+shows the plan, what will not run and why, and what to download first; a step can be taken out and
+put back. Start then runs everything: pages are sorted (blank, typed, handwritten) and each is read
+by a reader for its kind, faded pages are prepared first, diaries split into dated entries, and Find
+the Documents organises the pages, accepting its own proposals at 95% confidence and proposing the
+rest. The project window shows the run as it goes and its summary when it ends.
+
+**Models.** Download works from Set Up, Settings and the Inspector through one path, and shows as an
+Activity job with its progress; a project whose path has a space no longer fails to download.
+Choose a model… opens the model finder for that step, with installed and downloadable models, their
+size, licence and where they run. Split pages and Work out dates need no model. Text steps use the
+MLX or Ollama models already on this Mac; a model elsewhere is used only when it is free and you
+agree. Local models get time while they keep answering, and a page that stops is read once more.
+
+**Activity.** A Start / Stop button in the main toolbar and the Activity window: Start runs waiting
+work even while you use the Mac or it is on battery, Stop pauses everything, and pressing again goes
+back to automatic. Work held for battery or use starts by itself when the hold clears; when memory is
+short, heavy work runs one job at a time. A waiting row says what it really waits for, and a running
+import shows the step and page it is on, its stages and its log, with Pause and Stop.
+
+**The archive.** Names, statements, quotations and diary entries sit on the line and reading they
+came from; a correction to a line shows in the entry without re-running. Attributes and dates say
+whether a person or a run set them, and a run never overwrites a person. Correct a name or a
+statement from its mark in the Inspector. The catalogue no longer writes over a folder's text.
+Exports carry dates, attributes, readings and mentions. Agents can do all of this through MCP.
+
+**Starting fresh.** Hold Shift while Fichero launches to start with nothing open and the window
+layout forgotten; your projects are not changed.
+
 ## 2026.09.29
 
 - Launch: Fichero is usable in about half the time it took, and the engine starts while the window is still opening.

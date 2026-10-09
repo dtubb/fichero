@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 2026-10-09
+
+- Set Up: the sheet fits its window; goals in the ruled order with options under their parent; the script follows the language (CLDR seed); steps can be taken out of the plan and put back (#5624, #5625, #5626, #5627).
+- Models: one download path (a `download-model` Activity job for every runtime; the project header decoded, so a path with a space no longer 404s); Split pages and Work out dates are Fichero's own steps; text steps offered installed MLX/Ollama models; Choose a model… opens the finder for that step's job (#5619, #5620).
+- Activity: one Start / Stop control in the toolbar and Activity (`PUT /api/activity/jobs/mode`: automatic, started, paused); held work re-checked; one heavy job at a time while memory is busy; the import row's details say what it works on, with stages, log, Pause and Stop (#5621, #5622, #5623).
+- Launch: hold Shift to start with nothing open and the window layout forgotten (#5628).
+- Since 2026-09-29: the recipe runner (Start runs the plan step by step; Find the Documents as a step; page sorting, preparation, entry splitting); the model finder; the bake-off; Hugging Face and local training; the extracted-data model (mentions, statements, quotations, attributes and dates on their lines, with who set them); the catalogue migration to description readings; MCP tools generated from the OpenAPI contract; the CLI's readable commands; and the job queue for every background run. See the merge commits on `integration` for each slice.
+
+Also in this release:
 
 **Behaviour change: a folder query includes everything under the folder, by default, everywhere.**
 Three engine surfaces answered "what knowledge belongs to this folder" three ways: `GET /api/claims`
