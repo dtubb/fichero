@@ -34,11 +34,23 @@ struct ActivityPopoverSummary: Equatable {
     var recentErrors: [Item] = []
     /// Why heavy work is held back now, or nil when it is not.
     var heldBack: String?
-    /// This Mac's state, one line per reading the engine took; a reading it
-    /// could not take (null) is left out rather than guessed.
-    var macState: [String] = []
+    /// This Mac's state as a row of symbols (`activity.popover.mac-state-row`,
+    /// #5635): one per reading the engine took, then the app's CPU; a reading
+    /// it could not take (null) is left out rather than guessed.
+    var macReadings: [MacReading] = []
 
-    init(jobs: [ActivityJob], paused: Bool, machine: Components.Schemas.MachineState? = nil, liveRuns: [LiveRun] = []) {
+    /// One reading of this Mac's state: a symbol, a short value, the full
+    /// reading in words (help and accessibility), tinted only when a problem.
+    struct MacReading: Equatable, Identifiable {
+        let id: String
+        let symbol: String
+        let value: String
+        let help: String
+        var isProblem = false
+    }
+
+    init(jobs: [ActivityJob], paused: Bool, machine: Components.Schemas.MachineState? = nil, liveRuns: [LiveRun] = [],
+         processCpuPercent: Double? = nil, cpuCount: Int = 0) {
         var seen = Set<String>()
         for run in liveRuns where seen.insert(run.id).inserted {
             running.append(Item(id: run.id, name: run.name, detail: run.step))
@@ -67,16 +79,51 @@ struct ActivityPopoverSummary: Equatable {
             lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key > rhs.key
         }?.key
         heldBack = Self.heldBack(paused: paused, whyWait: machine?.whyWait, waitingReason: waitingReason)
-        if let machine { macState = Self.lines(machine) }
+        macReadings = (machine.map(Self.readings) ?? [])
+            + (processCpuPercent.map { [Self.cpuReading($0, cpuCount: cpuCount)] } ?? [])
     }
 
-    private static func lines(_ machine: Components.Schemas.MachineState) -> [String] {
-        var lines: [String] = []
-        if let memory = machine.memoryPressure { lines.append("Memory pressure: \(memory.rawValue)") }
-        if let heat = machine.thermalState { lines.append("Heat: \(heat.rawValue)") }
-        lines.append(machine.onBattery == true ? "On battery" : "On power")
-        lines.append(machine.inUse == true ? "In use" : "Not in use")
-        return lines
+    private static func readings(_ machine: Components.Schemas.MachineState) -> [MacReading] {
+        var readings: [MacReading] = []
+        if let memory = machine.memoryPressure {
+            let value: String
+            switch memory {
+            case .normal: value = "OK"
+            case .warn: value = "High"
+            case .critical: value = "Critical"
+            }
+            readings.append(MacReading(
+                id: "memory", symbol: "memorychip", value: value,
+                help: "Memory pressure: " + (memory == .normal ? "normal" : value.lowercased()),
+                isProblem: memory != .normal))
+        }
+        if let heat = machine.thermalState {
+            let value: String
+            switch heat {
+            case .nominal: value = "OK"
+            case .fair: value = "Warm"
+            case .serious: value = "Hot"
+            case .critical: value = "Critical"
+            }
+            readings.append(MacReading(
+                id: "heat", symbol: "thermometer.medium", value: value,
+                help: "Heat: " + (heat == .nominal ? "normal" : value.lowercased()),
+                isProblem: heat == .serious || heat == .critical))
+        }
+        readings.append(machine.onBattery == true
+            ? MacReading(id: "power", symbol: "battery.50percent", value: "Battery", help: "On battery")
+            : MacReading(id: "power", symbol: "powerplug", value: "Power", help: "On power"))
+        readings.append(machine.inUse == true
+            ? MacReading(id: "person", symbol: "person.fill", value: "In use", help: "You're using the Mac")
+            : MacReading(id: "person", symbol: "person", value: "Away", help: "Nobody is using the Mac"))
+        return readings
+    }
+
+    /// The app's processor use, where 100% is one core busy; the help says of how much.
+    private static func cpuReading(_ percent: Double, cpuCount: Int) -> MacReading {
+        let value = "\(Int(percent.rounded()))%"
+        let whole = cpuCount > 0 ? " of \(cpuCount * 100)% (\(cpuCount) cores)" : ""
+        return MacReading(id: "cpu", symbol: "cpu", value: value, help: "Fichero's processor use: " + value + whole)
     }
 
     /// A person's pause first; else the throttle's own reason now
@@ -131,36 +178,68 @@ struct ActivityPopoverSummaryView: View {
                     .foregroundStyle(.orange)
                     .accessibilityIdentifier("activity.popover.heldBack")
             }
-            if !summary.macState.isEmpty {
-                Text("This Mac").font(.caption).foregroundStyle(.secondary)
-                ForEach(summary.macState, id: \.self) { line in
-                    Text(line).font(.callout).foregroundStyle(.secondary)
-                }
-                .accessibilityIdentifier("activity.popover.macState")
+            if !summary.macReadings.isEmpty {
+                ActivityMacStateRow(readings: summary.macReadings)
             }
             if !summary.recentErrors.isEmpty {
-                Text("Recent errors").font(.caption).foregroundStyle(.secondary)
-                ForEach(summary.recentErrors) { item in
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.name).font(.callout).lineLimit(1)
-                            if let reason = item.detail, !reason.isEmpty {
-                                Text(reason).font(.caption).lineLimit(2)
-                            }
-                        }
-                    } icon: {
-                        Image(systemName: "exclamationmark.triangle.fill")
+                // One line each, the full name and reason in its help (#5635).
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(summary.recentErrors) { item in
+                        Label(Self.oneLine(item), systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .foregroundStyle(.red)
+                            .help(Self.words(item).joined(separator: "\n"))
                     }
-                    .foregroundStyle(.red)
                 }
+                .accessibilityIdentifier("activity.popover.errors")
             }
         }
+    }
+
+    /// An error's name and reason, whichever it has.
+    private static func words(_ item: ActivityPopoverSummary.Item) -> [String] {
+        [item.name, item.detail ?? ""].filter { !$0.isEmpty }
+    }
+
+    /// "Detect Regions: Kraken not installed", truncated to one line.
+    static func oneLine(_ item: ActivityPopoverSummary.Item) -> String {
+        words(item).joined(separator: ": ")
     }
 
     private var waitingText: String {
         let jobs = "\(summary.waitingCount) waiting"
         guard let reason = summary.waitingReason else { return jobs }
         return "\(jobs): \(reason)"
+    }
+}
+
+/// This Mac's state as one compact row of symbols with short values
+/// (`activity.popover.mac-state-row`, #5635): each says its full reading in
+/// its help and to accessibility; only a problem is tinted.
+struct ActivityMacStateRow: View {
+    let readings: [ActivityPopoverSummary.MacReading]
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ForEach(readings) { reading in
+                HStack(spacing: 3) {
+                    Image(systemName: reading.symbol)
+                    Text(reading.value).monospacedDigit()
+                }
+                .font(.caption)
+                .foregroundStyle(reading.isProblem ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                .help(reading.help)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(reading.help)
+                .accessibilityIdentifier("activity.popover.macState.\(reading.id)")
+            }
+        }
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("This Mac")
+        .accessibilityIdentifier("activity.popover.macState")
     }
 }
 
@@ -175,10 +254,29 @@ struct ActivityPopoverSummaryView: View {
             ],
             paused: false,
             machine: Components.Schemas.MachineState(memoryPressure: .warn, thermalState: .fair, onBattery: true,
-                                  inUse: true, whyWait: "memory is tight")
+                                  inUse: true, whyWait: "memory is tight"),
+            processCpuPercent: 2, cpuCount: 8
         ),
         nothingElseRunning: true
     )
     .padding()
     .frame(width: 300)
+}
+
+#Preview("This Mac: all well, then hot with memory tight") {
+    VStack(alignment: .leading, spacing: 12) {
+        ActivityMacStateRow(readings: ActivityPopoverSummary(
+            jobs: [], paused: false,
+            machine: Components.Schemas.MachineState(memoryPressure: .normal, thermalState: .nominal, onBattery: false,
+                                                     inUse: false, whyWait: nil),
+            processCpuPercent: 2, cpuCount: 8
+        ).macReadings)
+        ActivityMacStateRow(readings: ActivityPopoverSummary(
+            jobs: [], paused: false,
+            machine: Components.Schemas.MachineState(memoryPressure: .critical, thermalState: .serious, onBattery: true,
+                                                     inUse: true, whyWait: "the Mac is hot"),
+            processCpuPercent: 412, cpuCount: 8
+        ).macReadings)
+    }
+    .padding()
 }

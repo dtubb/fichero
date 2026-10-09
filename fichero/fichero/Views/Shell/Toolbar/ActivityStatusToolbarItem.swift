@@ -156,12 +156,6 @@ struct ActivityStatusToolbarItem: View {
                 nothingElseRunning: !isImporting && activityStore.backendWork == nil
             )
 
-            // Process CPU% from the same jobs read — what's consuming compute,
-            // in the surface where the user is already looking at the work.
-            if let cpu = activityStore.processCpuPercent {
-                ProcessCPULabel(percent: cpu, cpuCount: activityStore.cpuCount)
-            }
-
             Divider()
 
             Button("Open Activity") {
@@ -182,7 +176,10 @@ struct ActivityStatusToolbarItem: View {
             machine: activityStore.machine,
             liveRuns: activeWorkflows.map {
                 .init(id: $0.threadId, name: $0.name, step: $0.currentNodeName)
-            }
+            },
+            // The process CPU from the same jobs read joins the Mac's row of symbols (#5635).
+            processCpuPercent: activityStore.processCpuPercent,
+            cpuCount: activityStore.cpuCount
         )
     }
 
