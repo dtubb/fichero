@@ -1371,6 +1371,8 @@ def list_providers(
             )
 
             for entry in installed_local_model_entries(provider_type):
+                if "recognition" in entry.capabilities and not entry.supported:
+                    continue  # a Kraken reader whose file is missing or empty is never offered to a step (#5617)
                 model_ids.append(entry.model_id)
                 capabilities_by_model[entry.model_id] = [
                     str(cap).strip().lower() for cap in entry.capabilities

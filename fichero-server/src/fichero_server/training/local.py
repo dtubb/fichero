@@ -251,8 +251,9 @@ def run(db: Any, subject: str) -> str:
     ts = detail["training_set"]
     card = {
         "display_name": request.display_name or f"{request.name} (taught by {request.teacher}, on this Mac)",
-        "summary": (f"Taught by {request.teacher} on {ts['pages']} pages ({ts['lines']} lines, none checked by a "
-                    f"person), trained on this Mac; {len(request.held_out_ids)} pages held out as the test."),
+        "summary": (f"Taught by {request.teacher} on {remote_job.counted(ts['pages'], 'page')} "
+                    f"({remote_job.counted(ts['lines'], 'line')}, none checked by a person), trained on this Mac; "
+                    f"{remote_job.counted(len(request.held_out_ids), 'page')} held out as the test."),
         "teacher": request.teacher, "training_set": ts, "held_out": ts.get("held_out", []), "base": request.base,
         "target": "this-mac", "measured": dict(gentle.measured),
         "not_for_release": request.not_for_release,

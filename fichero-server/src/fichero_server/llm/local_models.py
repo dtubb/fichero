@@ -110,14 +110,14 @@ SPACY_MODELS: dict[str, dict] = {
         "language": "es",
         "disk_mb": 45,
         "note": "Spanish, medium. Same tagger as small plus word vectors; when "
-                "installed the gate prefers it over small. Its benefit for "
-                "16th-century orthography is UNMEASURED — add it to test.",
+                "installed the gate prefers it over small. Whether it reads your "
+                "material better than small is UNMEASURED — add it to test.",
     },
     "es_core_news_lg": {
         "language": "es",
         "disk_mb": 568,
         "note": "Spanish, large. Carries word vectors this gate does not use, "
-                "and its benefit for 16th-century orthography is UNMEASURED — "
+                "and whether they help on your material is UNMEASURED — "
                 "install it to test that, not on the assumption it is better.",
     },
     "en_core_web_sm": {

@@ -2842,6 +2842,38 @@ Finding models
   (`model_type` `mlx`) and every Kraken reader downloaded or trained (`model_type` `kraken`), read
   from the one local catalogue Settings lists (`local_inference.installed_local_model_entries`), not
   a second list. `model_type=mlx` or `kraken` narrows it to those.
+- `source.find.repository-reader-named` — **[OK]** (#5617; built 2026-10-08: `discovery.repository_record`,
+  `discovery.record_words`, `kraken_runtime.recognition_model_bytes`, the repository readers in
+  `llm/local_model_catalog.py`; pinned by `fichero-server/tests/unit/recipes/test_reader_cards_5617.py`) a
+  Kraken reader downloaded from the repository is named by its record's title, never only by its DOI, and its
+  note says what the record states: its languages and scripts by name, the material (print, handwriting,
+  typescript) and the period its words name, then where it came from (the DOI). Its size is the record's,
+  else its downloaded file's, never 0. Read from the repository listing discovery kept (no network); with no
+  listing kept, it is named by its DOI and its note says the record has not been read. A repository candidate's
+  reason (`GET /api/recipes/candidates`) carries the same words.
+- `source.find.reader-size-real` — **[OK]** (#5617; built 2026-10-08: the shortlist readers in
+  `llm/local_model_catalog.py`; pinned by `fichero-server/tests/unit/recipes/test_reader_cards_5617.py`) an
+  installed Kraken reader of the catalogue's shortlist (McCATMuS, CATMuS Medieval) lists its size on disk as its
+  downloaded file's (`size_bytes`; its record's when the file cannot be read) and its download size as its
+  record's (`expected_size_mb`), never 0.
+- `source.find.broken-reader-unusable` — **[OK]** (#5617; built 2026-10-08: `kraken_runtime.recognition_model_problem`,
+  the Kraken readers in `llm/local_model_catalog.py`, the on-device models `GET /api/chat/providers` offers; pinned by
+  `fichero-server/tests/unit/recipes/test_reader_cards_5617.py`) listing an installed Kraken reader (downloaded or
+  trained) checks its model file: a file missing, empty or cut short (under 1 KB; a reader's weights run to
+  megabytes) is listed as installed but unusable (`available: false`) with the reason in words ("the model file
+  is empty"), its size is the file's, and it is never offered to a step (the on-device models a workflow step
+  picks from leave it out).
+- `source.find.note-counts-agree` — **[OK]** (#5617; built 2026-10-08: `training.job.counted`, the trained
+  readers' notes in `llm/local_model_catalog.py`; pinned by `fichero-server/tests/unit/recipes/test_reader_cards_5617.py`)
+  a reader's note counts in words that agree with the number: "on 1 page (3 lines)", "1 page held out", never
+  "on 1 pages". A trained reader's card is written so, and a card written before (its summary kept on disk) is
+  said so when listed.
+- `source.find.note-describes-model` — **[OK]** (#5617; built 2026-10-08: the notes in `llm/local_models.py`
+  `SPACY_MODELS` and `llm/kraken_runtime.py` `KRAKEN_RECOGNITION_MODELS`; pinned by
+  `fichero-server/tests/unit/recipes/test_reader_cards_5617.py`) a model's note in the local-models list describes
+  the model (its language, what it reads, what is unmeasured about it), never a period or kind of record it was not
+  chosen for: a note shown in every project names no century and no project's material (no "16th-century
+  orthography" for a spaCy pipeline, no "court record" for CATMuS).
 - `source.find.installed-count` — **[OK]** (#5519) every complete MLX vision model in this engine's
   model store that no shipped card pins (a catalogue model, one Fichero trained, one found in the
   store) is a reader candidate with a card made from its own metadata: its config says it reads

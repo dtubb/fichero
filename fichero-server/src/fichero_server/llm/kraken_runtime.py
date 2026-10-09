@@ -134,9 +134,8 @@ KRAKEN_RECOGNITION_MODELS: dict[str, dict[str, object]] = {
         "doi": "10.5281/zenodo.12743230",
         "display_name": "CATMuS Medieval",
         "size_bytes": 16_332_989,
-        "note": "Medieval manuscripts (Old/Middle French, Latin, Spanish). "
-                "Older hands than a 19th-20th century court record — offered as "
-                "a general Latin-script option, not a court-hand pick.",
+        "note": "Medieval manuscripts in Latin script (Old/Middle French, Latin, "
+                "Spanish and other languages).",
     },
 }
 
@@ -206,6 +205,39 @@ def recognition_model_path(model_id: str, home: Path | None = None) -> str | Non
     path = data.get("model_path")
     # A record inside a project names its file relative to itself, so a moved project still finds it.
     return str(marker.parent / path) if path else None
+
+
+def recognition_model_bytes(model_id: str, home: Path | None = None) -> int:
+    """The size on disk of an installed reader's model file (a folder's files summed); 0 when it is not there
+    (#5617: a downloaded reader's size is its file's when its record does not state one)."""
+    path = recognition_model_path(model_id, home)
+    if not path:
+        return 0
+    p = Path(path)
+    try:
+        if p.is_dir():
+            return sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+        return p.stat().st_size if p.is_file() else 0
+    except OSError:
+        return 0
+
+
+#: A Kraken reader's weights run to megabytes; a model file under this is empty or cut short (#5617).
+SMALLEST_READER_BYTES = 1024
+
+
+def recognition_model_problem(model_id: str, home: Path | None = None) -> str | None:
+    """Why an installed reader cannot read, in words, or None when its model file is there and not empty (#5617,
+    `source.find.broken-reader-unusable`). Read on listing, so a broken reader is never offered to a step."""
+    path = recognition_model_path(model_id, home)
+    if not path or not Path(path).exists():
+        return "the model file is missing"
+    size = recognition_model_bytes(model_id, home)
+    if size == 0:
+        return "the model file is empty"
+    if size < SMALLEST_READER_BYTES:
+        return f"the model file is empty ({size} bytes; a reader's weights run to megabytes)"
+    return None
 
 
 #: A Kraken reader named by its record in Kraken's model repository (HTRMoPo, on Zenodo), not only
@@ -1237,6 +1269,8 @@ __all__ = [
     "is_recognition_model_installed",
     "recognition_data_home",
     "recognition_model_dir",
+    "recognition_model_bytes",
+    "recognition_model_problem",
     "recognition_model_path",
     "resolve_recognition_model",
     "remove_recognition_model",

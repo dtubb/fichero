@@ -266,6 +266,7 @@ def _row(record: Any) -> dict[str, Any] | None:
     return {
         "doi": str(record.doi), "concept_doi": str(getattr(record, "concept_doi", "") or ""),
         "summary": str(getattr(record, "summary", "") or "").strip(),
+        "description": str(getattr(record, "description", "") or "").strip(),
         "licence": str(getattr(record, "license", "") or ""),
         "scripts": sorted(getattr(record, "script", None) or []),
         "languages": sorted(getattr(record, "language", None) or []),
@@ -309,6 +310,40 @@ def refresh_repository() -> dict[str, Any]:
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(folder / REPOSITORY_FILE)
     return data
+
+
+def repository_record(doi: str) -> dict[str, Any] | None:
+    """The kept repository record for a DOI (its own or its concept DOI), or None: no listing kept, or the
+    record is not in it. Never the network (#5617)."""
+    for row in (cached_repository() or {}).get("records", []):
+        if doi in (row.get("doi"), row.get("concept_doi")):
+            return row
+    return None
+
+
+#: A period a record's words name: "19th century", "16th-17th centuries", or a span of years.
+_PERIOD = re.compile(r"\b\d{1,2}(?:st|nd|rd|th)(?:\s*(?:-|–|to|and)\s*\d{1,2}(?:st|nd|rd|th))?[\s-]centur(?:y|ies)\b"
+                     r"|\b1\d{3}\s*(?:-|–|to)\s*1\d{3}\b", re.IGNORECASE)
+
+
+def _and(words: list[str]) -> str:
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def record_words(row: dict[str, Any]) -> str:
+    """What a repository record states, in words (#5617, `source.find.repository-reader-named`): its languages
+    and scripts by name, then the material and period its own words name. Empty when it states none."""
+    from fichero_server.recipes.names import language_name, script_name
+
+    langs = [language_name(t) for t in sorted(_tags(row.get("languages")) or [])]
+    scripts = [script_name(s) for s in sorted(row.get("scripts") or [])]
+    text = " ".join([row.get("summary", ""), row.get("description", ""), *row.get("keywords", [])])
+    parts = [_and(langs)] if langs else []
+    if scripts:
+        parts.append(_and(scripts) + (" script" if len(scripts) == 1 else " scripts"))
+    parts += sorted(_row_material({"summary": text, "keywords": []}))
+    parts += list(dict.fromkeys(m.group(0) for m in _PERIOD.finditer(text)))
+    return ", ".join(parts)
 
 
 def _stale(data: dict[str, Any] | None) -> bool:
@@ -360,6 +395,8 @@ def repository_cards(rows: list[dict[str, Any]], seed: tuple[Card, ...] | list[C
         cer = row["cer_percent"] / 100 if row["cer_percent"] is not None else None
         matches = bool(languages) and langs is not None and languages <= langs
         why = f"in Kraken's model repository (Zenodo, {row['doi']})"
+        if stated := record_words(row):
+            why += f"; its record states {stated}"
         if cer is not None and not matches:
             why += f"; its card reports CER {cer * 100:.1f}% on its own material, not your languages"
         if is_recognition_model_installed(reader_id_for_doi(row["doi"])):
