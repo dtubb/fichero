@@ -443,7 +443,10 @@ struct CanvasSceneView: View {
                 guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld,
                       renderer.resizeHandle(atScreenPoint: value.startLocation, viewSize: size) == nil,
                       renderer.placeableId(atScreenPoint: value.startLocation, viewSize: size) == nil else {
-                    state = nil
+                    // Only when it changes: writing gesture state, even the same nil, re-runs the
+                    // view's body, and a card drag did that on every mouse event — re-resolving the
+                    // whole board each time (2026-10-09, "dragging is a bit slow").
+                    if state != nil { state = nil }
                     return
                 }
                 state = Canvas2DProjection.marqueeRect(

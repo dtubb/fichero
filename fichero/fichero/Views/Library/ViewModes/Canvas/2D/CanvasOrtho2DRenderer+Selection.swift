@@ -44,6 +44,8 @@ extension CanvasOrtho2DRenderer {
     /// (#4601): orthoScale grows as the user zooms out, so the world-space
     /// bars grow by the same ratio and cancel out on screen.
     func refreshSelectionDecoration() {
+        // Rebuilt at the cards' current places, so any offset a drag gave the handles is spent.
+        decorator.root.position = .zero
         updateSelectionPlates()
         decorator.showsFrames = false
         // Frame and corner handles for ONE selected card only (2026-09-30): resizing is a one-card

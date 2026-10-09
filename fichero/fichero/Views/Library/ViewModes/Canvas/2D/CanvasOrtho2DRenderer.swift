@@ -176,6 +176,8 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// The ring each selected card carries now (`updateSelectionPlates`), so a ring is rebuilt only
     /// when its card's size or the zoom changed it.
     var platedRings: [String: CanvasSelectionFrame.Ring] = [:]
+    /// Card entities by id (`cardEntity`), so the drag path never searches the scene.
+    var cardEntitiesById: [String: Entity] = [:]
 
     /// Called after every camera move with the new pose; the host remembers it per folder.
     var onCameraChange: (((position: SIMD3<Float>, scale: Float)) -> Void)?
@@ -273,16 +275,29 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         // moved card widened the board's bounds, `reconcile` re-fitted, and every other card
         // jumped on screen: one move looked like the whole board re-laying out.
         cameraIsAutoFit = false
-        if let entity = placeablesRoot.findEntity(named: id) {
-            entity.position = scenePosition(world, keepingDepthOf: entity)
-        }
-        // The frame belongs to the card, so it travels with it mid-drag —
+        guard let entity = cardEntity(id) else { return }
+        entity.position = scenePosition(world, keepingDepthOf: entity)
+        // The handles belong to the card, so they travel with it mid-drag —
         // otherwise dragging a selected card leaves its selection behind,
-        // which reads as the selection having been lost. Not during a GROUP
-        // drag: every refresh rebuilds every selected card's frame, so moving
-        // 50 selected cards rebuilt 2,500 frames per mouse move and hung the
-        // app (sampled 2026-09-30). A group's frames are hidden while it moves.
-        if selection.contains(id), !isGroupDragging { refreshSelectionDecoration() }
+        // which reads as the selection having been lost. They are MOVED, not
+        // rebuilt: rebuilding them (new meshes) on every mouse event is what
+        // made a drag trail the pointer (2026-10-09). The ring is the card's
+        // child and moves with it at no cost. Not during a GROUP drag: a
+        // group's handles are hidden while it moves.
+        if selection.count == 1, selection.contains(id), !isGroupDragging,
+           let applied = placeablesById[id] {
+            let offset = entity.position - Canvas2DProjection.scenePosition(applied.position)
+            decorator.root.position = SIMD3<Float>(offset.x, offset.y, 0)
+        }
+    }
+
+    /// A card's entity, from the index kept as cards are built and removed: `findEntity(named:)`
+    /// searches the whole tree, and a drag asks on every mouse event for every card it carries.
+    func cardEntity(_ id: String) -> Entity? {
+        if let entity = cardEntitiesById[id], entity.parent != nil { return entity }
+        let found = placeablesRoot.findEntity(named: id)
+        cardEntitiesById[id] = found
+        return found
     }
 
     /// A group drag hides the selection frames while the cards move and draws them once at the end.
@@ -304,7 +319,8 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
             to: world,
             // A page drawn inside a group is part of that group's card, never a drop target of
             // its own: dragging a group would otherwise drop it onto its own pages (#5570).
-            among: placeablesById.filter { $0.value.containerId == nil }
+            // Lazy: this runs on every drag event, so it builds no array of every card.
+            among: placeablesById.lazy.filter { $0.value.containerId == nil }
                 .map { (id: $0.key, position: $0.value.position) },
             excluding: excluding
         )

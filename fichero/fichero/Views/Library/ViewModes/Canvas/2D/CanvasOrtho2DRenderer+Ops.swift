@@ -17,6 +17,7 @@ extension CanvasOrtho2DRenderer {
             let card = makeCard(placeable)
             CanvasEmphasisPainter.apply(emphasis, to: card, id: placeable.id)
             placeablesRoot.addChild(card)
+            cardEntitiesById[placeable.id] = card
         case .move(let id, let position):
             applyMove(id: id, to: position)
         case .resize(let id, let size):
@@ -31,6 +32,7 @@ extension CanvasOrtho2DRenderer {
             placeablesById[id] = nil
             texturedIds.remove(id)
             placeablesRoot.findEntity(named: id)?.removeFromParent()
+            cardEntitiesById[id] = nil
         case .setEdges(let edges):
             rebuildEdges(edges)
         case .setSelection(let newSelection):

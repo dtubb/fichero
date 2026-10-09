@@ -241,7 +241,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     func dropTargetId(nearWorld world: SIMD3<Double>, excluding: String) -> String? {
         CanvasDropResolver.nearestId(
             to: world,
-            among: placeablesById.map { (id: $0.key, position: $0.value.position) },
+            among: placeablesById.lazy.map { (id: $0.key, position: $0.value.position) },
             excluding: excluding
         )
     }

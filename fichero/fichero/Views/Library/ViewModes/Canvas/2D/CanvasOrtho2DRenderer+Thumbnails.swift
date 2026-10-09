@@ -17,6 +17,7 @@ extension CanvasOrtho2DRenderer {
         // components — else a card reskinning mid-search comes back bright.
         CanvasEmphasisPainter.apply(emphasis, to: card, id: id)
         placeablesRoot.addChild(card)
+        cardEntitiesById[id] = card
     }
 
     func loadThumbnail(sourceId: String, into entity: ModelEntity, retriesLeft: Int = 12) {
