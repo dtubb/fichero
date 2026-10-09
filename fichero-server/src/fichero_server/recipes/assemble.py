@@ -87,6 +87,16 @@ FIND_DOCUMENTS = "find-documents-in-a-folder"
 #: Preparing faded pages (their contrast raised on a new rendition) before lines, where the sample shows them
 #: (`source.onboard.auto.prepare-damaged-images`, #5580).
 PREPARE = "prepare-the-image"
+#: Steps Fichero carries out itself, with no model to choose (`source.recipe.fichero-does-it-steps`, #5619): the
+#: built-in each runs and why, in words. The Start plan runs them as their shipped workflows (`start.py`).
+FICHERO_DOES_IT: dict[str, tuple[dict[str, str], tuple[str, ...]]] = {
+    "split-pages": ({"builtin": "page-splitter"},
+                    ("Fichero's page splitter: finds the document in each photograph with Apple Vision and cuts an "
+                     "open spread at its gutter, on this Mac, free",
+                     "a closed notebook or a single page is kept whole; an unclear gutter is proposed, never cut")),
+    "work-out-dates": ({"builtin": "date-rules"},
+                       ("Fichero's date rules read the dates the names step found, on this Mac, free",)),
+}
 
 #: Jobs whose model must know the project's language (section 8, rule 3).
 LANGUAGE_JOBS = frozenset({"correct", "translate-transliterate-normalise", "find-names-tag-words",
@@ -610,6 +620,12 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
                           "reasons": ["reads the text already there and the pages' thumbnails, on this Mac, free",
                                       f"proposes; accepts by itself only a document at least "
                                       f"{AUTO_ACCEPT_ABOVE:.0%} sure (one undo restores)"]})
+            continue
+        if job in FICHERO_DOES_IT:
+            # Fichero carries it out itself: no model to choose, so never "Fichero has no model" (#5619).
+            pin, why = FICHERO_DOES_IT[job]
+            steps.append({"id": job, "job": job, **_topic(job), "model": dict(pin), "runs_on": "this-mac",
+                          "uses_cloud": False, "reasons": list(why)})
             continue
         if job == PREPARE:
             # Fichero's own measure and contrast, no model to choose (`recipes/prepare.py`).

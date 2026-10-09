@@ -211,6 +211,7 @@ struct LocalRuntimeModelsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                SettingsModelDownloadLine(key: ModelDownloads.key(entry))
             }
             Spacer()
             catalogAction(entry, row: row)
@@ -222,19 +223,6 @@ struct LocalRuntimeModelsView: View {
     private func catalogAction(_ entry: Components.Schemas.LocalModelCatalogEntry, row: LocalInferenceDisplay.CatalogRow) -> some View {
         if row.disabled {
             Image(systemName: "nosign").foregroundStyle(.secondary)
-        } else if let job = store.downloads[entry.modelId],
-                  !LocalInferenceDisplay.isTerminal(state: job.state, error: job.error, percent: job.percent) {
-            HStack(spacing: 8) {
-                if let fraction = LocalInferenceDisplay.progressFraction(current: job.current, total: job.total, percent: job.percent) {
-                    ProgressView(value: fraction).frame(width: 100)
-                } else {
-                    ProgressView().controlSize(.small)
-                }
-                Button("Cancel") {
-                    Task { await store.cancelDownload(modelId: entry.modelId) }
-                }
-                .buttonStyle(.borderless)
-            }
         } else if row.installed {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
             Button("Delete", role: .destructive) {
@@ -242,10 +230,10 @@ struct LocalRuntimeModelsView: View {
             }
             .buttonStyle(.borderless)
         } else {
-            Button("Download") {
-                Task { await store.downloadModel(modelId: entry.modelId) }
+            // The one download path (#5620): a job Activity lists; the catalog is read again when it is done.
+            SettingsModelDownloadButton(key: ModelDownloads.key(entry), name: entry.displayName) {
+                Task { await store.refreshCatalog() }
             }
-            .buttonStyle(.borderless)
         }
     }
 

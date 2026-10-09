@@ -8,8 +8,9 @@ import OSLog
 /// Surfaces the `/api/local-inference/*` spine (#3114–#3116/#3119) — MLX runtime
 /// provisioning, the model catalog, and per-profile service status — through the
 /// generated OpenAPI client. A view never calls the client directly: it reads
-/// `runtime` / `catalog` / `serviceStatuses` / `downloads` and invokes the mutation
-/// methods, which own all endpoint access (knowledge-consistency mandate).
+/// `runtime` / `catalog` / `serviceStatuses` and invokes the mutation methods, which
+/// own all endpoint access (knowledge-consistency mandate). A model is downloaded
+/// through the one path, `ModelDownloads` (#5620), never here.
 ///
 /// Endpoints owned (this store is their sole Swift accessor — #3677 coverage):
 ///   - `GET    /api/local-inference/runtime`                        — runtime status (`load`, `pollRuntimeUntilSettled`)
@@ -20,10 +21,7 @@ import OSLog
 ///   - `GET    /api/local-inference/profiles/{profile_id}/status`   — per-profile status (`refreshStatus`)
 ///   - `POST   /api/local-inference/profiles/{profile_id}/start`    — start a profile (`startProfile`)
 ///   - `POST   /api/local-inference/profiles/{profile_id}/stop`     — stop a profile (`stopProfile`)
-///   - `POST   /api/local-inference/models/{model_id}/download`     — start a model download (`downloadModel`)
 ///   - `DELETE /api/local-inference/models/{model_id}`              — delete a model (`deleteModel`)
-///   - `GET    /api/local-inference/models/downloads/{job_id}`      — poll download job (`downloadModel`)
-///   - `POST   /api/local-inference/models/downloads/{job_id}/cancel` — cancel a download (`cancelDownload`)
 ///
 /// One instance per app session, held on `AppState` (the sidecar is app-wide,
 /// not library-scoped).
@@ -35,9 +33,6 @@ final class LocalInferenceStore {
     private(set) var profiles: [Components.Schemas.LocalProviderProfile] = []
     /// Per-profile live service status, keyed by profile id.
     private(set) var serviceStatuses: [String: Components.Schemas.LocalInferenceServiceStatus] = [:]
-    /// In-flight (or last-seen) download jobs, keyed by model id — drives the
-    /// per-row progress bar without re-rendering the whole list.
-    private(set) var downloads: [String: Components.Schemas.LocalInferenceModelDownloadJobResponse] = [:]
 
     private(set) var isLoading = false
     private(set) var loadError: String?
@@ -131,53 +126,10 @@ final class LocalInferenceStore {
         }
     }
 
-    // MARK: - Catalog / Downloads
+    // MARK: - Catalog
 
-    /// Start a model download and poll its job to terminal, streaming progress
-    /// into `downloads[modelId]` (per-row update, no list re-render).
-    func downloadModel(modelId: String) async {
-        do {
-            let response = try await client.api
-                .downloadLocalInferenceModelApiLocalInferenceModelsModelIdDownloadPost(
-                    path: .init(modelId: modelId)
-                )
-            guard case .ok(let okResp) = response else {
-                loadError = "Download failed for \(modelId)"
-                return
-            }
-            var job = try okResp.body.json
-            downloads[modelId] = job
-
-            while !Task.isCancelled,
-                  !LocalInferenceDisplay.isTerminal(state: job.state, error: job.error, percent: job.percent) {
-                try await Task.sleep(for: pollInterval)
-                guard case .ok(let poll) = try await client.api
-                    .getLocalInferenceModelDownloadApiLocalInferenceModelsDownloadsJobIdGet(
-                        path: .init(jobId: job.jobId)
-                    ) else { break }
-                job = try poll.body.json
-                downloads[modelId] = job
-            }
-            await refreshCatalog()
-        } catch {
-            if error.isCancellationError { return }   // superseded/cancelled download — not a failure
-            loadError = error.localizedDescription
-            log.error("Download failed for \(modelId): \(error.localizedDescription)")
-        }
-    }
-
-    func cancelDownload(modelId: String) async {
-        guard let jobId = downloads[modelId]?.jobId else { return }
-        do {
-            _ = try await client.api
-                .cancelLocalInferenceModelDownloadApiLocalInferenceModelsDownloadsJobIdCancelPost(
-                    path: .init(jobId: jobId)
-                )
-        } catch {
-            if error.isCancellationError { return }   // superseded — not a failure
-            log.error("Cancel download failed for \(modelId): \(error.localizedDescription)")
-        }
-    }
+    // Downloads are not here: every model downloads through the one path, `ModelDownloads` (#5620,
+    // `source.find.one-download-path`), a job Activity lists; the catalog is read again when one finishes.
 
     func deleteModel(modelId: String) async {
         do {
@@ -187,7 +139,6 @@ final class LocalInferenceStore {
                 )
             switch response {
             case .ok:
-                downloads[modelId] = nil
                 loadError = nil
                 await refreshCatalog()
             case .undocumented(let statusCode, _) where statusCode == 409:
@@ -205,7 +156,8 @@ final class LocalInferenceStore {
         }
     }
 
-    private func refreshCatalog() async {
+    /// Read the catalog again (a model was deleted, or a download finished: `ModelDownloads.finished`).
+    func refreshCatalog() async {
         guard case .ok(let okResp)? = try? await client.api
             .listLocalInferenceCatalogApiLocalInferenceCatalogGet() else { return }
         catalog = (try? okResp.body.json.items) ?? catalog

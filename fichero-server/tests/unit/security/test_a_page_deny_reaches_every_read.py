@@ -94,7 +94,7 @@ APP_LEVEL = {
         "/api/storage/snapshots/{snapshot_id}", "/api/tasks/{task_id}", "/api/tasks/{task_id}/result",
         "/api/tasks/reindex/{task_id}/progress", "/api/tasks/metrics/{task_id}/data",
         "/api/tasks/vector-repair/{task_id}/progress", "/api/tasks/kg-metrics/{task_id}/data",
-        "/api/local-inference/profiles/{profile_id}/status", "/api/local-inference/models/downloads/{job_id}",
+        "/api/local-inference/profiles/{profile_id}/status",
         "/api/policies/orchestration/{rule_id}", "/api/providers/{provider_id}", "/api/providers/{provider_id}/models",
         "/api/models/huggingface/{model_id:path}", "/api/model-comparison/comparison/{comparison_id}",
         "/api/mcp-servers/{server_id}")},

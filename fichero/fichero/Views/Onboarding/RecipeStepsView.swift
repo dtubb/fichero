@@ -37,7 +37,7 @@ struct RecipeStepsView: View {
             ForEach(recipe.steps, id: \.id) { step in
                 RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil),
                               explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,
-                              onFix: onFix)
+                              onFix: fixHandler(for: step))
                 if onFix != nil { planEditControls(for: step) }  // Ready only: take a step out (#5627)
                 if onFix != nil, finder != nil, store.readsMaterial(step.job) {
                     Button("Find a Reader…") { findingFor = FinderStep(id: step.id, job: step.job) }
@@ -63,9 +63,31 @@ struct RecipeStepsView: View {
             }
         }
     }
+
+    /// A step problem's fix button (#5619, `source.find.choose-a-model-opens-the-finder`): Choose a model…,
+    /// Download a model… and Use a cloud model… open the model finder for THIS step's job; the other fixes (let
+    /// pages leave, a licence) go to setup's own handler. Without a project the finder cannot list anything, so
+    /// every fix goes to setup's handler.
+    private func fixHandler(for step: Components.Schemas.RecipeStep) -> ((String) -> Void)? {
+        guard let onFix else { return nil }
+        return { fix in
+            if Self.fixRoute(fix, hasProject: finder != nil) == .finder {
+                findingFor = FinderStep(id: step.id, job: step.job)
+            } else {
+                onFix(fix)
+            }
+        }
+    }
+
+    /// Where a fix goes: the model finder for the step, or setup's handler.
+    enum FixRoute: Equatable { case finder, setup }
+
+    static func fixRoute(_ fix: String, hasProject: Bool) -> FixRoute {
+        hasProject && RecipeSetupStore.fixOpensFinder(fix) ? .finder : .setup
+    }
 }
 
-/// Set Up… › Ready's model finder for one reading step (#5611): the finder for the step's job, the
+/// Set Up… › Ready's model finder for one step (#5611, #5619): the finder for the step's job, the
 /// project's scripts and languages and its first material, with Use for This Step where the plan
 /// offers an installed reader instead of the step's download.
 struct ModelFinderSheet: View {
@@ -76,12 +98,11 @@ struct ModelFinderSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Find a Reader for \(setup.title(ofStepId: step.id))").font(.headline)
+            Text(Self.title(job: step.job, step: setup.title(ofStepId: step.id), setup: setup)).font(.headline)
             ScrollView {
                 ModelFinderView(
                     store: project.modelFinderStore,
-                    query: .init(job: step.job, scripts: setup.scripts, languages: setup.languages,
-                                 material: setup.materials.first ?? "handwriting"),
+                    query: setup.finderQuery(job: step.job),
                     activity: project.activityStore,
                     step: .init(id: step.id, setup: setup)
                 )
@@ -93,6 +114,12 @@ struct ModelFinderSheet: View {
         }
         .padding()
         .frame(minWidth: 480, minHeight: 420)
+    }
+
+    /// "Find a Reader for Read each line" for a step that reads the material, else "Choose a Model for Find
+    /// statements" (#5619: the finder answers for any step's job).
+    static func title(job: String, step: String, setup: RecipeSetupStore) -> String {
+        setup.readsMaterial(job) ? "Find a Reader for \(step)" : "Choose a Model for \(step)"
     }
 }
 

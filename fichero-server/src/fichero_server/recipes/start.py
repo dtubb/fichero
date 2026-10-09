@@ -153,7 +153,9 @@ def _with_readers(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _uses_cloud(step: dict) -> bool:
-    return str(step.get("runs_on") or "").startswith("cloud") or "cloud" in (step.get("model") or {})
+    from fichero_server.recipes.recipe import pin_leaves_this_mac
+
+    return str(step.get("runs_on") or "").startswith("cloud") or pin_leaves_this_mac(step.get("model"))
 
 
 def _automatic_skip(step: dict, automatic: dict | None) -> tuple[str, str] | None:

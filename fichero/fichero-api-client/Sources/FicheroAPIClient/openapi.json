@@ -13595,7 +13595,7 @@
           "recipes"
         ],
         "summary": "Model Candidates",
-        "description": "Every reader candidate for these scripts and languages (comma-separated codes or names), from the\nshipped cards, the models installed on this Mac, Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is never reached inside this call: with `online=true` the search is\nthe open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier\nsearches kept; a later call lists what the job found. Never searched when this engine works offline.\nRefused (422), in words, for an unknown script, language, material or job.",
+        "description": "Every candidate for a step's job (a reader's by default; any job a card can name, #5619) for these scripts\nand languages (comma-separated codes or names), from the shipped cards, the models on this Mac (and the\nperson's own Ollama and LM Studio servers), Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is never reached inside this call: with `online=true` the search is\nthe open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier\nsearches kept; a later call lists what the job found. Never searched when this engine works offline, nor for\na job that is not a reader's (the search finds readers). Refused (422), in words, for an unknown script,\nlanguage, material or job.",
         "operationId": "model_candidates_api_recipes_candidates_get",
         "parameters": [
           {
@@ -42361,138 +42361,6 @@
         }
       }
     },
-    "/api/local-inference/models/{model_id}/download": {
-      "post": {
-        "tags": [
-          "local-inference"
-        ],
-        "summary": "Download Local Inference Model",
-        "description": "Start or reuse a local model install job (MLX, spaCy, Kraken or Whisper).\n\nOne endpoint for every local runtime: MLX models go to the MLX store, and\nspaCy/Kraken/Whisper go to the coordinator, both returning the same job so\nthe UI polls /models/downloads/{job_id} uniformly (Shape A).",
-        "operationId": "download_local_inference_model_api_local_inference_models__model_id__download_post",
-        "parameters": [
-          {
-            "name": "model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "title": "Model Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LocalInferenceModelDownloadJobResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/local-inference/models/downloads/{job_id}": {
-      "get": {
-        "tags": [
-          "local-inference"
-        ],
-        "summary": "Get Local Inference Model Download",
-        "description": "Return progress for a managed MLX model download job.",
-        "operationId": "get_local_inference_model_download_api_local_inference_models_downloads__job_id__get",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "title": "Job Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LocalInferenceModelDownloadJobResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/local-inference/models/downloads/{job_id}/cancel": {
-      "post": {
-        "tags": [
-          "local-inference"
-        ],
-        "summary": "Cancel Local Inference Model Download",
-        "description": "Cancel a managed MLX model download job.",
-        "operationId": "cancel_local_inference_model_download_api_local_inference_models_downloads__job_id__cancel_post",
-        "parameters": [
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "title": "Job Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LocalInferenceModelDownloadJobResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/local-inference/models/{model_id}": {
       "delete": {
         "tags": [
@@ -42675,7 +42543,7 @@
           "local-models"
         ],
         "summary": "Download Model",
-        "description": "Start downloading a model in the background.\n\nArgs:\n    model_type: \"whisper\" or \"embeddings\"\n    model_id: Model identifier (e.g., \"base\" for Whisper, \"intfloat/multilingual-e5-large\" for embeddings)",
+        "description": "Start downloading a model in the background.\n\nArgs:\n    model_type: whisper, embeddings, spacy, mlx or kraken (a Kraken reader)\n    model_id: Model identifier (e.g., \"base\" for Whisper, \"intfloat/multilingual-e5-large\" for embeddings)\n\nOne path for every model (`source.find.one-download-path`, #5620): a `download-model` job in Activity.",
         "operationId": "download_model_api_local_models_download__model_type___model_id__post",
         "parameters": [
           {
@@ -67577,54 +67445,6 @@
           "freed_bytes"
         ],
         "title": "LocalInferenceModelDeleteResponse"
-      },
-      "LocalInferenceModelDownloadJobResponse": {
-        "properties": {
-          "job_id": {
-            "type": "string",
-            "title": "Job Id"
-          },
-          "model_id": {
-            "type": "string",
-            "title": "Model Id"
-          },
-          "state": {
-            "type": "string",
-            "title": "State"
-          },
-          "current": {
-            "type": "integer",
-            "title": "Current"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "percent": {
-            "type": "number",
-            "title": "Percent"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
-          },
-          "error": {
-            "type": "string",
-            "nullable": true,
-            "title": "Error"
-          }
-        },
-        "type": "object",
-        "required": [
-          "job_id",
-          "model_id",
-          "state",
-          "current",
-          "total",
-          "percent",
-          "message"
-        ],
-        "title": "LocalInferenceModelDownloadJobResponse"
       },
       "LocalInferenceProfileListResponse": {
         "properties": {

@@ -322,18 +322,6 @@ def _runtime_status_response() -> LocalInferenceRuntimeStatusResponse:
     )
 
 
-def _download_job_response(job_id: str) -> LocalInferenceModelDownloadJobResponse:
-    job = get_mlx_model_store().job(job_id)
-    if job is None:
-        # Not an MLX job — it may be a spaCy/Kraken/Whisper install (Shape A).
-        from fichero_server.llm.local_model_catalog import get_local_model_coordinator
-
-        job = get_local_model_coordinator().job(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail=f"Model download job not found: {job_id}")
-    return LocalInferenceModelDownloadJobResponse(**job.to_dict())
-
-
 def _capabilities_response() -> LocalInferenceCapabilitiesResponse:
     payload: LocalInferenceCapabilities = get_local_inference_capabilities()
     return LocalInferenceCapabilitiesResponse(**payload.model_dump())
@@ -450,74 +438,9 @@ async def remove_local_inference_runtime() -> LocalInferenceRuntimeStatusRespons
     return _runtime_status_response()
 
 
-@router.post(
-    "/models/{model_id:path}/download",
-    response_model=LocalInferenceModelDownloadJobResponse,
-)
-async def download_local_inference_model(
-    model_id: Annotated[str, Path(min_length=1)],
-) -> LocalInferenceModelDownloadJobResponse:
-    """Start or reuse a local model install job (MLX, spaCy, Kraken or Whisper).
-
-    One endpoint for every local runtime: MLX models go to the MLX store, and
-    spaCy/Kraken/Whisper go to the coordinator, both returning the same job so
-    the UI polls /models/downloads/{job_id} uniformly (Shape A).
-    """
-    from fichero_server.llm.local_model_catalog import (
-        get_local_model_coordinator,
-        owns,
-    )
-
-    try:
-        if owns(model_id):
-            job = await get_local_model_coordinator().start_install(model_id)
-        else:
-            job = await get_mlx_model_store().start_download(model_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except LocalModelHardwareError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        # A runtime that is not ready (no transcriber, spaCy extra absent) is a
-        # 409 the user can act on, not a 503 server fault.
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return LocalInferenceModelDownloadJobResponse(**job.to_dict())
-
-
-@router.get(
-    "/models/downloads/{job_id}",
-    response_model=LocalInferenceModelDownloadJobResponse,
-)
-async def get_local_inference_model_download(
-    job_id: Annotated[str, Path(min_length=1)],
-) -> LocalInferenceModelDownloadJobResponse:
-    """Return progress for a managed MLX model download job."""
-    return _download_job_response(job_id)
-
-
-@router.post(
-    "/models/downloads/{job_id}/cancel",
-    response_model=LocalInferenceModelDownloadJobResponse,
-)
-async def cancel_local_inference_model_download(
-    job_id: Annotated[str, Path(min_length=1)],
-) -> LocalInferenceModelDownloadJobResponse:
-    """Cancel a managed MLX model download job."""
-    job = get_mlx_model_store().job(job_id)
-    if job is None:
-        # Coordinator (spaCy/Kraken/Whisper) jobs are not cancellable mid-flight
-        # — a pip install or venv build has no safe interrupt — so return the
-        # job's current state rather than pretending it was cancelled.
-        from fichero_server.llm.local_model_catalog import get_local_model_coordinator
-
-        coordinator_job = get_local_model_coordinator().job(job_id)
-        if coordinator_job is None:
-            raise HTTPException(status_code=404, detail=f"Model download job not found: {job_id}")
-        return LocalInferenceModelDownloadJobResponse(**coordinator_job.to_dict())
-    if job.state not in {"queued", "running"}:
-        return LocalInferenceModelDownloadJobResponse(**job.to_dict())
-    await get_mlx_model_store().cancel(job_id)
-    return _download_job_response(job_id)
+# A model downloads through ONE path: `POST /api/local-models/download/{runtime}/{model}` (the `model.download`
+# action), a `download-model` job Activity lists (#5620, `source.find.one-download-path`). The download, poll
+# and cancel routes that were here were a second path, outside Activity, and are gone.
 
 
 @router.delete(

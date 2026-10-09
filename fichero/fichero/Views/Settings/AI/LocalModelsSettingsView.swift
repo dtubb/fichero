@@ -83,6 +83,7 @@ struct LocalModelsSettingsView: View {
                         .foregroundStyle(.red)
                         .textSelection(.enabled)
                 }
+                SettingsModelDownloadLine(key: .init(runtime: type, model: model.modelId))
             }
 
             Spacer()
@@ -98,14 +99,13 @@ struct LocalModelsSettingsView: View {
             } else if model.downloadState == "downloading" {
                 ProgressView().controlSize(.small)
             } else {
-                Button("Download") {
-                    Task { await store.downloadModel(type: type, modelId: model.modelId) }
+                // The one download path (#5620): a job Activity lists. Disabled rather than failing
+                // silently: the section header above says what to do about it.
+                SettingsModelDownloadButton(key: .init(runtime: type, model: model.modelId), name: model.displayName,
+                                            enabled: model.available ?? true,
+                                            help: model.unavailableReason ?? "Download it to this Mac") {
+                    Task { await store.modelDownloaded(type: type, modelId: model.modelId) }
                 }
-                .buttonStyle(.borderless)
-                // Disabled rather than failing silently: the section header
-                // above says what to do about it.
-                .disabled(!(model.available ?? true))
-                .help(model.unavailableReason ?? "")
             }
         }
         .opacity((model.available ?? true) ? 1 : 0.5)

@@ -41,21 +41,34 @@ final class ModelFinderStore {
     /// Why the last online search failed, from Activity or the engine.
     private(set) var searchFailure: String?
     private(set) var isLoading = false
-    /// Candidates whose download was asked for here, by id; Activity shows the download job.
-    private(set) var downloading: Set<String> = []
     var errorMessage: String?
+    /// The project's downloads (#5620, `source.find.one-download-path`): the one download path, shared by the
+    /// finder, setup's To download first and Settings; a card says what its download's job says.
+    let downloads: ModelDownloads
 
     @ObservationIgnored private var seenInActivity = false
     @ObservationIgnored private var unseenSnapshots = 0
 
     private let client: FicheroClient
 
-    init(client: FicheroClient, list: Components.Schemas.ModelCandidateList? = nil) {
+    init(client: FicheroClient, list: Components.Schemas.ModelCandidateList? = nil,
+         downloads: ModelDownloads? = nil) {
         self.client = client
+        self.downloads = downloads ?? ModelDownloads(client: client)
         if let list {
             candidates = list.items
             sources = list.sources
         }
+        // A model downloaded here is now on this Mac: the cards say so (their `installed` and `download`).
+        self.downloads.onFinished = { [weak self] _ in
+            Task { await self?.reload() }
+        }
+    }
+
+    /// Read the list again for the same query (a download finished), never searching online.
+    func reload() async {
+        guard query != nil else { return }
+        await read(online: false)
     }
 
     /// Whether the online search is still going: the line "Searching online…" shows while it is.
@@ -113,28 +126,18 @@ final class ModelFinderStore {
         await read(online: true)
     }
 
-    /// Download a candidate's model through the one download route
-    /// (`POST /api/local-models/download/{runtime}/{model}`), by the runtime and model its `download`
-    /// names (#5612); the card says Downloading… and Activity shows the job. A candidate the engine
-    /// names no download for (here already, fetched by the run, or run elsewhere) has no action.
+    /// Download a candidate's model through the one download path (`ModelDownloads.start`, #5620), by the
+    /// runtime and model its `download` names (#5612); the card then says what the download's job says, and
+    /// Activity lists it. A candidate the engine names no download for (here already, fetched by the run, or
+    /// run elsewhere) has no action.
     func download(_ candidate: Components.Schemas.ModelCandidate) async {
-        guard let download = candidate.download else { return }
-        do {
-            let response = try await client.api.downloadModelApiLocalModelsDownloadModelTypeModelIdPost(
-                path: .init(modelType: download.runtime, modelId: download.model)
-            )
-            switch response {
-            case .ok:
-                downloading.insert(candidate.id)
-            case .unprocessableContent:
-                errorMessage = "Could not download \(candidate.name)."
-            case .undocumented(let code, _):
-                errorMessage = "Could not download \(candidate.name) (HTTP \(code))."
-            }
-        } catch {
-            if error.isCancellationError { return }
-            errorMessage = "Could not download \(candidate.name): \(error.localizedDescription)"
-        }
+        guard let key = Self.downloadKey(candidate) else { return }
+        await downloads.start(key, name: candidate.name)
+    }
+
+    /// The download a candidate names, as the one download path keys it; nil when it names none.
+    static func downloadKey(_ candidate: Components.Schemas.ModelCandidate) -> ModelDownloads.Key? {
+        candidate.download.map { ModelDownloads.Key(runtime: $0.runtime, model: $0.model) }
     }
 
     /// Whether the candidate's model is on this Mac, in words (`installed`); nil where the engine says
@@ -171,7 +174,7 @@ final class ModelFinderStore {
     private func read(online: Bool) async {
         guard let query else { return }
         guard !query.scripts.isEmpty else {
-            errorMessage = "Name at least one script in the project's setup to find readers."
+            errorMessage = "Name at least one script in the project's setup to find models for its steps."
             return
         }
         isLoading = true
@@ -194,13 +197,13 @@ final class ModelFinderStore {
                 errorMessage = nil
                 follow(list.searchJob)
             case .unprocessableContent:
-                errorMessage = "The engine would not look for readers for these answers."
+                errorMessage = "The engine would not look for models for these answers."
             case .undocumented(let code, _):
-                errorMessage = "Could not find readers (HTTP \(code))."
+                errorMessage = "Could not find models (HTTP \(code))."
             }
         } catch {
             if error.isCancellationError { return }
-            errorMessage = "Could not find readers: \(error.localizedDescription)"
+            errorMessage = "Could not find models: \(error.localizedDescription)"
         }
     }
 

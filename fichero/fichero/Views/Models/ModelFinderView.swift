@@ -40,7 +40,7 @@ struct ModelFinderView: View {
                     .foregroundStyle(.orange)
             }
             if store.candidates.isEmpty, !store.isLoading, store.errorMessage == nil {
-                Text("No reader was found for these answers yet. Search Online looks further.")
+                Text(Self.nothingFound(job: query.job))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -71,6 +71,15 @@ struct ModelFinderView: View {
                 .help("Look in Kraken's model repository and on Hugging Face; Activity shows the search")
         }
     }
+
+    /// What the finder says when the engine lists nothing for the step's job: a reader can be searched for
+    /// online; any other job's model is one already on this Mac or on a server of yours (#5619).
+    static func nothingFound(job: String) -> String {
+        job == ModelFinderStore.readingJob || job == "read-a-page"
+            ? "No reader was found for these answers yet. Search Online looks further."
+            : "No model on this Mac does this yet. A text model in your MLX store, or on an Ollama or LM Studio "
+              + "server of yours (Settings › AI), is offered here once it is there."
+    }
 }
 
 /// One candidate as a card (`source.find.app-card-says`): its name, why it is offered, its size in
@@ -91,6 +100,14 @@ struct ModelFinderCard: View {
             Text(candidate.offeredBecause).font(.callout)
             Text(Self.facts(candidate)).font(.caption).foregroundStyle(.secondary)
             Text(candidate.measured).font(.caption).foregroundStyle(.secondary)
+            // What its download's job says while it runs, or why it failed (#5620).
+            if let key = ModelFinderStore.downloadKey(candidate), let line = store.downloads.line(key) {
+                let failed = Self.failed(store.downloads.state(key))
+                Label(line, systemImage: failed ? "exclamationmark.triangle" : "arrow.down.circle")
+                    .font(.caption)
+                    .foregroundStyle(failed ? .orange : .secondary)
+                    .textSelection(.enabled)
+            }
             if let refused = candidate.refused {
                 Label(refused, systemImage: "xmark.circle")
                     .font(.caption)
@@ -104,12 +121,16 @@ struct ModelFinderCard: View {
     @ViewBuilder
     private var actions: some View {
         HStack(spacing: 6) {
-            if store.downloading.contains(candidate.id) {
-                Text("Downloading…").font(.callout).foregroundStyle(.secondary)
-            } else if candidate.download != nil {
-                Button("Download") { Task { await store.download(candidate) } }
+            if let key = ModelFinderStore.downloadKey(candidate) {
+                if store.downloads.isActive(key) {
+                    ProgressView().controlSize(.small)
+                } else if store.downloads.state(key) != .done {
+                    Button(Self.failed(store.downloads.state(key)) ? "Try Again" : "Download") {
+                        Task { await store.download(candidate) }
+                    }
                     .controlSize(.small)
                     .help("Download it to this Mac; Activity shows the download")
+                }
             }
             if let step {
                 // Any candidate: the engine refuses, in words, one that does not do the step's job.
@@ -117,9 +138,14 @@ struct ModelFinderCard: View {
                     Task { await step.setup.useCandidate(candidate, forStep: step.id) }
                 }
                 .controlSize(.small)
-                .help("Read this step with it; a model still to download is then a download Start offers")
+                .help("Use it for this step; a model still to download is then a download Start offers")
             }
         }
+    }
+
+    static func failed(_ state: ModelDownloads.State?) -> Bool {
+        if case .failed? = state { return true }
+        return false
     }
 
     /// "Found on Hugging Face · 1.2 GB · Not on this Mac yet · Runs on this Mac · licence: cc-by-nc-4.0".

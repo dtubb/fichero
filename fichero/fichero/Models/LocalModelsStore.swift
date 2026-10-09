@@ -105,20 +105,9 @@ final class LocalModelsStore {
         }
     }
 
-    func downloadModel(type: String, modelId: String) async {
-        do {
-            let response = try await client.api.downloadModelApiLocalModelsDownloadModelTypeModelIdPost(
-                path: .init(modelType: type, modelId: modelId)
-            )
-            switch response {
-            case .ok:
-                await refreshOneModel(type: type, modelId: modelId)
-            case .unprocessableContent, .undocumented:
-                errorMessage = "Download failed"
-            }
-        } catch {
-            errorMessage = "Download failed: \(error.localizedDescription)"
-        }
+    /// A download asked for through the one path (`ModelDownloads`, #5620) finished: re-read that one row.
+    func modelDownloaded(type: String, modelId: String) async {
+        await refreshOneModel(type: type, modelId: modelId)
     }
 
     func deleteModel(type: String, modelId: String) async {
