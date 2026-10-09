@@ -368,7 +368,6 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/whisper_runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/working_lines.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/base.py
-$(SRCROOT)/../fichero-server/src/fichero_server/loaders/docling_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/document_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/iiif_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/image_loader.py
