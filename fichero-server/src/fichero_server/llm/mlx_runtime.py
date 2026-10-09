@@ -46,6 +46,27 @@ MLX_WHISPER_DEPENDENCIES = (
     "tqdm",
 )
 _RUNTIME_DIRNAME = "mlx-runtime"
+
+def bundled_versions() -> dict[str, str] | None:
+    """The MLX packages bundled inside the app's engine (#4973), or None when they are not.
+
+    In the app MLX ships with the engine and there is nothing to provision: the runtime reports
+    itself ready with these versions, and models run in the engine (`llm/mlx_in_process.py`).
+    """
+    from importlib import metadata
+
+    from fichero_server.llm.mlx_in_process import runs_in_process
+
+    if not runs_in_process():
+        return None
+    found = {}
+    for key, dist in (("mlx_lm_version", "mlx-lm"), ("mlx_vlm_version", "mlx-vlm"), ("mlx_whisper_version", "mlx-whisper")):
+        try:
+            found[key] = metadata.version(dist)
+        except metadata.PackageNotFoundError:
+            pass
+    return found
+
 _METADATA_FILENAME = "runtime.json"
 
 
@@ -106,6 +127,9 @@ class MLXRuntime:
         provision, so its presence is the honest signal, and it already records
         the version we installed.
         """
+        bundled = bundled_versions()
+        if bundled is not None:  # the app: MLX ships inside the engine, nothing to provision (#4973)
+            return bool(bundled.get("mlx_lm_version")) and bool(bundled.get("mlx_vlm_version"))
         metadata = self._metadata()
         return (
             self.python_path().exists()
@@ -128,6 +152,9 @@ class MLXRuntime:
         one Provision click installs whatever half is missing because
         ``_provision`` installs all three every time.
         """
+        bundled = bundled_versions()
+        if bundled is not None:
+            return bool(bundled.get("mlx_whisper_version"))
         metadata = self._metadata()
         return self.python_path().exists() and bool(metadata.get("mlx_whisper_version"))
 
@@ -135,7 +162,7 @@ class MLXRuntime:
         """The recorded package versions ONLY -- no disk walk (#5228). ``status()`` adds up the
         runtime's disk usage by walking every file (22,869 on the maintainer's Mac, ~1.1 s), and the
         engine's health check -- the app's heartbeat -- asked for it on every poll just to read these."""
-        metadata = self._metadata()
+        metadata = bundled_versions() or self._metadata()
         return {key: metadata.get(key) for key in ("mlx_lm_version", "mlx_vlm_version", "mlx_whisper_version")}
 
     def status(self) -> dict[str, object]:
@@ -143,9 +170,7 @@ class MLXRuntime:
         return {
             "provisioned": self.is_provisioned(),
             "audio_ready": self.has_audio(),
-            "mlx_lm_version": self._metadata().get("mlx_lm_version"),
-            "mlx_vlm_version": self._metadata().get("mlx_vlm_version"),
-            "mlx_whisper_version": self._metadata().get("mlx_whisper_version"),
+            **self.versions(),
             "disk_usage_bytes": self._disk_usage_bytes(),
             "python_path": str(python_path) if python_path.exists() else None,
             "runtime_dir": str(self.runtime_dir),

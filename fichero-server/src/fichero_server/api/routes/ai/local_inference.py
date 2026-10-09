@@ -197,11 +197,15 @@ def installed_local_model_entries(provider_type: str) -> list[LocalModelCatalogE
 
 
 def _new_manager(profile: LocalProviderProfile) -> LocalInferenceServiceManager:
-    process = (
-        ManagedLocalInferenceProcess(profile)
-        if profile.managed_by_app
-        else ExternalLocalInferenceProcess()
-    )
+    from fichero_server.llm.mlx_in_process import InProcessLocalInferenceProcess, runs_in_process
+
+    if not profile.managed_by_app:
+        process = ExternalLocalInferenceProcess()
+    elif runs_in_process() and not profile.command:
+        # The app's engine: MLX is bundled and runs here (#4973); a dev engine starts its own Python.
+        process = InProcessLocalInferenceProcess(profile)
+    else:
+        process = ManagedLocalInferenceProcess(profile)
     manager = LocalInferenceServiceManager(profile, process)
     _MANAGERS[profile.id] = manager
     return manager

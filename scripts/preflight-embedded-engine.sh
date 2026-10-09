@@ -70,6 +70,10 @@ engine_is_current() {
     echo "Embedded engine is INCOMPLETE: the staged copy has no Kraken (app_packages/kraken) — rebuilding"
     return 1
   fi
+  if [ ! -d "$ENGINE_APP/Contents/Resources/app_packages/mlx_vlm" ]; then
+    echo "Embedded engine is INCOMPLETE: the staged copy has no MLX (app_packages/mlx_vlm) — rebuilding"
+    return 1
+  fi
   # A staged engine with no bytecode is a 3-5x slower engine (#3940).
   if [ -z "$(find "$ENGINE_APP/Contents/Resources" -name '*.pyc' -print -quit 2>/dev/null)" ]; then
     echo "Embedded engine has NO bytecode — precompiling"
@@ -182,6 +186,15 @@ KRAKEN_INSTALL_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
   "$ENGINE_APP/Contents/Resources/app_packages" || {
     echo "error: could not install Kraken into the staged engine." >&2
     echo "       Kraken segmentation and recognition would be unusable in this build." >&2
+    exit 1
+  }
+
+# MLX ships inside the engine too (#4973, ruled 2026-10-09): local vision, OCR, text and Whisper
+# models run on it, and the sandboxed app cannot build it after install. Same seam as Kraken.
+"$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/install_mlx_into_engine_bundle.py" \
+  "$ENGINE_APP/Contents/Resources/app_packages" || {
+    echo "error: could not install MLX into the staged engine." >&2
+    echo "       Local MLX models (vision, OCR, text, Whisper) would be unusable in this build." >&2
     exit 1
   }
 

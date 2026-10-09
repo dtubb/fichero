@@ -39,11 +39,21 @@ def convert_command(merged: Path, dest: Path, python: str) -> list[str]:
 
 def convert_for_mlx(merged: Path, dest: Path, *, run: Callable[[list[str]], Any] | None = None) -> None:
     """Convert and quantise a merged Hugging Face model into `dest` (4-bit MLX)."""
-    from fichero_server.llm.mlx_runtime import get_mlx_runtime
+    from fichero_server.llm.mlx_runtime import bundled_versions, get_mlx_runtime
 
-    python = str(get_mlx_runtime().require_python_path())
     if dest.exists():
         shutil.rmtree(dest)
+    if run is None and bundled_versions() is not None:  # the app: mlx-vlm ships inside the engine (#4973)
+        from mlx_vlm.convert import convert
+
+        try:
+            convert(hf_path=str(merged), mlx_path=str(dest), quantize=True, q_bits=Q_BITS)
+        except Exception as exc:
+            raise ConversionFailed(str(exc)[-800:]) from exc
+        if not any(dest.glob("*.safetensors")):
+            raise ConversionFailed(f"mlx_vlm.convert wrote no weights into {dest.name}")
+        return
+    python = str(get_mlx_runtime().require_python_path())
     command = convert_command(merged, dest, python)
     if run is not None:
         run(command)

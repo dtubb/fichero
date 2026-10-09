@@ -243,6 +243,21 @@ def download_whisper_model(model_id: str, home: Path | None = None) -> Path:
         _DOWNLOAD_STATE[model_spec.model_id] = ("installed", None)
         return target
 
+    from fichero_server.llm.mlx_runtime import bundled_versions
+
+    if bundled_versions() is not None:  # the app: MLX ships inside the engine, so fetch here (#4973)
+        from huggingface_hub import snapshot_download
+
+        cache_dir = whisper_cache_dir(home)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        _DOWNLOAD_STATE[model_spec.model_id] = ("downloading", None)
+        try:
+            snapshot_download(repo_id=model_spec.repo_id, revision=model_spec.revision, cache_dir=str(cache_dir))
+        except Exception as exc:
+            _DOWNLOAD_STATE[model_spec.model_id] = ("failed", str(exc))
+            raise
+        _DOWNLOAD_STATE[model_spec.model_id] = ("installed", None)
+        return target
     try:
         python_path = get_mlx_runtime().require_audio_python_path()
     except MLXAudioRuntimeMissingError as exc:
@@ -306,13 +321,24 @@ def transcribe_sync(
 ) -> str:
     """Transcribe one audio file with mlx-whisper in the managed runtime."""
     model_spec = spec(model_id)
-    python_path = get_mlx_runtime().require_audio_python_path()
     model_path = snapshot_path(model_spec, home)
     if not model_path.exists():
         raise WhisperModelNotInstalledError(
             f"{model_spec.display_name} is not downloaded. Download it in "
             f"Settings -> AI -> Local Models before transcribing."
         )
+    from fichero_server.llm.mlx_runtime import bundled_versions
+
+    if bundled_versions() is not None:  # the app: mlx-whisper ships inside the engine (#4973)
+        import mlx_whisper
+
+        options = {"language": language} if language and language != "auto" else {}
+        try:
+            result = mlx_whisper.transcribe(file_path, path_or_hf_repo=str(model_path), **options)
+        except Exception as exc:
+            raise WhisperTranscriptionError(f"Whisper transcription failed: {exc}") from exc
+        return str(result.get("text", "")).strip()
+    python_path = get_mlx_runtime().require_audio_python_path()
 
     env = {"HF_HUB_OFFLINE": "1", "HF_HOME": str(whisper_store_dir(home))}
     try:

@@ -264,7 +264,7 @@ missing_packages = [
     "lightning==2.6.1",
     "coremltools~=9.0",
     "shapely~=2.1.2",
-    "safetensors~=0.7.0",
+    "safetensors~=0.8.0",  # 0.8 (2026-10-09): transformers, which the MLX step needs, requires >=0.8
     "htrmopo~=0.6",
     # iso639-lang moved to the briefcase `requires` (2026-10-04, #5472): the engine's
     # language search imports it. It still satisfies kraken, already installed.
@@ -284,6 +284,30 @@ missing_packages = [
 # torch to satisfy its own pin.
 no_deps_packages = [
     "torchvision==0.29.0",  # matches torch==2.14.0, the bundle's torch at the 2026-09-20 trial
+]
+
+# MLX bundling (#4973, ruled 2026-10-09: everything the app needs ships inside it). Installed at
+# BUILD time by `scripts/install_mlx_into_engine_bundle.py`, after the Kraken step, the same way:
+# never provisioned at run time (the sandboxed app could not: "Operation not permitted"). The engine
+# runs the MLX servers (mlx_lm, mlx_vlm) in its own process, not a separate Python (llm/local_inference.py).
+[tool.fichero.mlx_bundle]
+# Each --no-deps: mlx-vlm declares opencv-python, and the bundle already has opencv-python-headless
+# (the same cv2), so a normal resolve would land a second cv2; their real needs are listed below.
+no_deps_packages = [
+    "mlx-lm==0.31.3",
+    "mlx-vlm==0.6.17",
+    "mlx-whisper==0.4.3",
+    "mlx-audio==0.5.8",
+]
+# What those need that the bundle lacks, resolved normally against the bundle's own pins.
+missing_packages = [
+    "mlx==0.32.3",
+    "transformers==5.19.0",
+    "sentencepiece>=0.2.0",
+    "llguidance>=1.7.0",
+    "miniaudio>=1.61",
+    "sounddevice>=0.5.3",
+    "numba",
 ]
 
 # Build system requirements
