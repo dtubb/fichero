@@ -99,6 +99,32 @@ a second, honour the server's limits: about 3 days at 4/s), at the reader's size
 0.5–1 TB, not several TB). The project keeps IIIF references, not copies. Roughly 300–800 GPU-hours for a
 32B model (twice for 70B): a RAC-sized request; a 1,000-page pilot measures the real rate first.
 
+### Rehearsal before ACENET (maintainer 2026-10-09: know it works before the cluster)
+
+Three layers, cheapest first; each is a test environment for the same runner:
+
+1. **Scheduler logic, no GPU:** Slurm in Docker on the M4 (submit, arrays, `sacct` states, timeout,
+   requeue, failed batches). Free; runs in the test suite.
+2. **The GPU work itself:** the worker image on a paid GPU: Hugging Face Jobs (already used for vision
+   LoRA training, #5398) or a rented GPU machine. Proves the image, vLLM serving, 32B/70B memory, LoRA
+   training, and measures pages per second. Not Slurm, so it does not test the runner.
+3. **A full rehearsal:** a rented GPU machine (one or a few H100s by the hour) set up like a cluster:
+   Slurm and Apptainer installed, outbound internet blocked on the "compute" side, a login side with
+   internet. The whole flow runs against it exactly as it would on ACENET. A few dollars an hour.
+
+Only after layer 3 passes does the request go to a real cluster.
+
+### Other sites (not only Canadians)
+
+Nothing here is ACENET-only. Most university and national clusters use Slurm and Apptainer (Singularity),
+Globus for data and an allocation account; they differ in MFA, automation access, internet on compute
+nodes, GPU types and limits. So a cluster profile records the site's choices: scheduler (Slurm first;
+LSF and PBS later if needed), container runtime, how unattended access works (automation node, MFA per
+session, Globus Compute), transfer (Globus or SFTP), allocation, GPU types, walltime limit, and whether
+compute nodes are online. ACENET (Rorqual) is the first profile; others (for example Princeton's
+Research Computing clusters, Penn's, the US ACCESS resources) are added by filling a profile and running
+Test Connection, each site's details CONFIRMED with that site rather than assumed.
+
 ## Behaviors
 
 - `compute.hpc.key-once` — **[GAP]** (#5642) Fichero makes the key; the person pastes the public half into CCDB once; the private half is in the Keychain; no `~/.ssh` access.
@@ -112,6 +138,8 @@ a second, honour the server's limits: about 3 days at 4/s), at the reader's size
 - `compute.hpc.results-exactly-once` — **[GAP]** (#5642) results fold in once, with job, node, model and image digest, even if downloaded twice or resubmitted.
 - `compute.hpc.mfa-modes` — **[GAP]** (#5642) one MFA push per session before automation-node access; none after.
 - `compute.hpc.slim-worker-image` — **[GAP]** (#5642) the worker image carries only what jobs need, multi-arch, Apptainer-ready.
+- `compute.hpc.rehearsed-before-a-cluster` — **[GAP]** (#5642) the runner passes Slurm-in-Docker (logic), a paid GPU (the work) and a rented Slurm+Apptainer machine (the whole flow) before a real cluster.
+- `compute.hpc.site-profiles` — **[GAP]** (#5642) a cluster profile holds the site's scheduler, container runtime, unattended-access mode, transfer, allocation, GPU types, walltime and compute-node internet; nothing is ACENET-only.
 - `compute.hpc.iiif-at-scale` — **[GAP]** (#5642) a million-page IIIF run fetches politely at reader size outside the login node, keeps references, and starts with a measured pilot.
 
 ## Test matrix
