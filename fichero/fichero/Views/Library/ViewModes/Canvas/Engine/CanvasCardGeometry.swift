@@ -72,6 +72,12 @@ enum CanvasCardGeometry {
         return true
     }
 
+    /// A card's corner radius: the card mesh and the selection ring around it both use it, so the
+    /// ring follows the card's corners (#5631).
+    nonisolated static func cornerRadius(width: Float, height: Float) -> Float {
+        min(width, height) * 0.08
+    }
+
     /// Area-preserving dimensions for a card: `width * height == area` in
     /// every case, with `width / height == aspect` (or `fallback` when the
     /// aspect is unknown or degenerate).

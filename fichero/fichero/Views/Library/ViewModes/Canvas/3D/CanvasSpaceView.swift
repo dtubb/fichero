@@ -60,6 +60,11 @@ struct CanvasSpaceView: View {
 
     @State var renderer = CanvasScene3DRenderer()
     @State var controller: CanvasInteractionController?
+    /// Where each card was first placed, so nothing the person did not ask for moves it (#5629).
+    @State var placementMemory = CanvasPlacementMemory()
+    /// The scope whose saved places, items and first page shapes are in; nothing is drawn before
+    /// it is this board's scope, so the first frame is the settled board (#5629).
+    @State var settledScope: String?
     @State private var cameraBaseline: CGSize = .zero
     @State private var zoomBaseline: Float = 0
     @State var optionHeld = false
@@ -114,12 +119,18 @@ struct CanvasSpaceView: View {
     /// same sequence `CanvasSceneState.resolve` slots.
     private var placeableCount: Int { nodes.count + renderableItems.count }
 
+    /// Held by `CanvasPlacementMemory` (#5629): a pane resize, a card arriving or a page shape
+    /// landing changes the default grid and must not move a card nobody moved.
     private func resolvedState(in viewportSize: CGSize) -> CanvasSceneState {
+        let rows = layoutStore?.layout(for: scopeKey) ?? []
+        let columns = CanvasGridPlacement.sharedColumnCount(
+            itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
+        )
         var state = CanvasSceneState.resolve(
             nodes: nodes,
             connections: connections,
             links: links,
-            layoutRows: layoutStore?.layout(for: scopeKey) ?? [],
+            layoutRows: rows,
             items: itemStore?.items(for: scopeKey) ?? [],
             // Daniel's ruling (2026-08-19, #4601): a folder with no saved
             // layout opens as a PAGE-ORDER grid, left to right, in BOTH
@@ -127,16 +138,15 @@ struct CanvasSpaceView: View {
             // different from 2D. Columns come from the ONE shared derivation
             // (§18.1 defect 3), which takes no camera precisely so this and the
             // 2D canvas cannot produce different boards; saved rows still win.
-            defaultPlacement: .grid(
-                columns: CanvasGridPlacement.sharedColumnCount(
-                    itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
-                )
-            ),
+            defaultPlacement: .grid(columns: columns),
             // Pitch from the board's ACTUAL card extents, not the nominal
             // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
             // area, so a double-spread is 1.22 wide and needs the room.
             gridCell: gridCell,
             arrangement: CanvasArrangement.stored(arrangementRaw)
+        )
+        state = placementMemory.pin(
+            state, scope: scopeKey, savedIds: Set(rows.map(\.itemId)), columns: columns, cell: gridCell
         )
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
@@ -167,6 +177,11 @@ struct CanvasSpaceView: View {
 
     private var scene: some View {
         GeometryReader { geo in
+            // Resolved HERE, where SwiftUI watches every input (the 2D canvas's #5476 fix), and not
+            // at all until the scope has settled and the pane has a size (#5629): drawn earlier, the
+            // first frame was a default grid the saved places then replaced.
+            let board = CanvasOpenGate.mayDraw(settledScope: settledScope, scope: scopeKey, viewport: geo.size)
+                ? resolvedState(in: geo.size) : nil
             RealityView { content in
                 // BEFORE the first reconcile (first-load fix, 2026-08-22):
                 // `configureController()` runs in `.task`, which fires after
@@ -176,12 +191,16 @@ struct CanvasSpaceView: View {
                 renderer.storageService = storageService
                 content.add(renderer.camera)
                 content.add(renderer.root)
-                renderer.reconcile(to: resolvedState(in: geo.size))
+                guard let board else { return }
+                renderer.reconcile(to: board)
             } update: { _ in
                 renderer.storageService = storageService
+                guard let board else { return }
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
-                renderer.reconcile(to: resolvedState(in: geo.size))
+                renderer.reconcile(to: board)
             }
+            // A scope being switched to keeps the old board hidden until the new one has settled.
+            .opacity(board == nil ? 0 : 1)
             .highPriorityGesture(marqueeGesture(in: geo.size), isEnabled: marqueeModifiersHeld)
             .highPriorityGesture(nodeDrag)
             .highPriorityGesture(tapSelect)
@@ -249,9 +268,7 @@ struct CanvasSpaceView: View {
                 // derives from the arrangement's span, which nothing computed
                 // until something asked to fit. Same shape as the 2D canvas.
                 renderer.needsFitOnNextContent = true
-                guard let folderId = folderScopeId else { return }
-                await layoutStore?.loadLayout(folderId: folderId)
-                await itemStore?.loadItems(folderId: folderId)
+                await settleBoard()
             }
         }
     }
@@ -327,6 +344,25 @@ struct CanvasSpaceView: View {
             .padding(.vertical, 5)
             .background(.regularMaterial, in: Capsule())
             .padding(.top, 8)
+    }
+
+    // MARK: - Opening settled (#5629)
+
+    /// Load what the first frame depends on, then let the board draw: the scope's saved places
+    /// and items, and the first cards' page shapes. The same waits as the 2D canvas, each bounded.
+    private func settleBoard() async {
+        let scope = scopeKey
+        if let folderId = folderScopeId {
+            await layoutStore?.loadLayout(folderId: folderId)
+            await itemStore?.loadItems(folderId: folderId)
+            await CanvasOpenGate.wait(
+                until: { (layoutStore?.hasLoaded(folderId) ?? true) && (itemStore?.hasLoaded(folderId) ?? true) },
+                deadline: CanvasOpenGate.storeLoadDeadline
+            )
+        }
+        await CanvasOpenGate.prefetchAspects(forSourceIds: nodes.compactMap(\.sourceId), using: storageService)
+        guard !Task.isCancelled else { return }
+        settledScope = scope
     }
 
     // MARK: - Controller

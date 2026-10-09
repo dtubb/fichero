@@ -138,7 +138,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     func apply(_ ops: [CanvasSceneOp]) {
         // Cards moving TOGETHER are a transition to watch; one echoing in from
         // another window is feedback (R10 / §20.2).
-        moveDuration = CanvasMoveAnimation.duration(for: ops)
+        moveDuration = CanvasMoveAnimation.duration(for: ops, opening: needsFitOnNextContent)
         for operation in ops { applyOne(operation) }
         // Decoration is derived from the cards, so it settles ONCE after the
         // whole op list rather than per-op: a batch that moves three selected
@@ -168,14 +168,14 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// True while several selected cards move together (see `setGroupDragging`).
     var isGroupDragging = false
 
-    /// True while the camera is the automatic fit, not a place the person chose. While it is, a
-    /// board that re-flows (the grid widens as page aspects load) is fitted again, so a folder opened
-    /// for the first time shows every card; the fit is never remembered as the person's camera.
+    /// True while the camera is the automatic fit, not a place the person chose: the fit is never
+    /// remembered as the person's camera. It is not re-fitted either (#5629): a board that opens
+    /// settled has nothing to re-fit to.
     var cameraIsAutoFit = false
 
-    /// Cards currently carrying a selection plate (`updateSelectionPlates`).
-    var platedIds: Set<String> = []
-    var lastFittedBounds: SIMD4<Float>?
+    /// The ring each selected card carries now (`updateSelectionPlates`), so a ring is rebuilt only
+    /// when its card's size or the zoom changed it.
+    var platedRings: [String: CanvasSelectionFrame.Ring] = [:]
 
     /// Called after every camera move with the new pose; the host remembers it per folder.
     var onCameraChange: (((position: SIMD3<Float>, scale: Float)) -> Void)?
@@ -186,9 +186,10 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     func reconcile(to newState: CanvasSceneState) {
         apply(CanvasSceneDiff.compute(from: appliedState, to: newState))
         appliedState = newState
-        if cameraIsAutoFit, !needsFitOnNextContent, contentBounds() != lastFittedBounds {
-            fit()
-        }
+        // The camera fits ONCE, when the board opens (#5629). It used to re-fit whenever the
+        // cards' bounds changed on an untouched camera, so a card arriving or a page shape landing
+        // re-centred and re-zoomed the view and every card jumped on screen. It never re-fits
+        // unasked now; Zoom to Fit (⌘=) is the person asking.
         if needsFitOnNextContent, !placeablesById.isEmpty {
             needsFitOnNextContent = false
             if let saved = cameraToRestoreOnNextContent {
@@ -210,22 +211,13 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         camera.position = SIMD3<Float>(point.x, point.y, camera.position.z)
     }
 
-    /// The cards' centre bounds (min x, min y, max x, max y), for noticing a re-flow.
-    func contentBounds() -> SIMD4<Float>? {
-        let points = placeablesById.values.map { Canvas2DProjection.scenePosition($0.position) }
-        guard !points.isEmpty else { return nil }
-        let xs = points.map(\.x), ys = points.map(\.y)
-        return SIMD4(xs.min()!, ys.min()!, xs.max()!, ys.max()!)
-    }
-
-    /// Fit the board, as the automatic camera: not remembered, and re-fitted if the board re-flows.
+    /// Fit the board, as the automatic camera: not remembered as the person's camera.
     func fit() {
         let wasCallback = onCameraChange
         onCameraChange = nil
         defer {
             onCameraChange = wasCallback
             cameraIsAutoFit = true
-            lastFittedBounds = contentBounds()
         }
         fitCamera()
     }
@@ -364,7 +356,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     // one is at its file_length ceiling) and Swift's `private` is FILE-scoped.
     func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
         let (width, height) = cardDimensions(placeable)
-        let mesh = MeshResource.generatePlane(width: width, height: height, cornerRadius: min(width, height) * 0.08)
+        let mesh = MeshResource.generatePlane(
+            width: width, height: height, cornerRadius: CanvasCardGeometry.cornerRadius(width: width, height: height)
+        )
         let entity = ModelEntity(mesh: mesh, materials: [cardMaterial(for: placeable)])
         entity.name = placeable.id
         entity.position = Canvas2DProjection.scenePosition(placeable.position)

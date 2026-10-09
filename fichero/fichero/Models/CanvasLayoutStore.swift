@@ -138,6 +138,12 @@ final class CanvasLayoutStore {
         layouts[scopeId] ?? []
     }
 
+    /// Whether `scopeId`'s layout has loaded (an empty layout counts). A canvas waits for this
+    /// before drawing, so its first frame shows the saved places (#5629).
+    func hasLoaded(_ scopeId: String) -> Bool {
+        layouts[scopeId] != nil
+    }
+
     /// JSON decoder mapping backend snake_case keys onto the camelCase
     /// `CanvasItemLayout` properties.
     private static let decoder: JSONDecoder = {

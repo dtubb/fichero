@@ -79,6 +79,11 @@ extension CanvasOrtho2DRenderer {
         guard let entity = placeablesRoot.findEntity(named: id) else { return }
         var transform = entity.transform
         transform.translation = scenePosition(position, keepingDepthOf: entity)
+        // An opening board places its cards; only a change the person can watch animates (#5629).
+        guard moveDuration > 0 else {
+            entity.transform = transform
+            return
+        }
         entity.move(to: transform, relativeTo: entity.parent, duration: moveDuration)
     }
 }

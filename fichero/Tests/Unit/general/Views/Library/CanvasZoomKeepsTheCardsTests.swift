@@ -130,43 +130,61 @@ struct CanvasZoomKeepsTheCardsTests {
         #expect(positions(renderer) == before, "no card moved on zoom")
     }
 
-    // WHY: "the layout only places never-placed cards, consistently". Two tall pages with no saved
-    // places must end up laid out the same whether their page shapes were known at first load or
-    // landed afterwards, and a zoom after that changes nothing. Before the fix the late shapes never
-    // reached the layout, so the column stayed on the nominal pitch and the tall cards overlapped.
-    @Test("unplaced cards get the same layout on first load and after their pages load and a zoom")
-    func unplacedCardsLayOutConsistently() async {
+    // WHY: ruled 2026-10-09 (#5629): no card moves unless the person moves it. Page shapes that
+    // land after the board is up (they set the grid's spacing) used to re-lay never-placed cards;
+    // now they change nothing, and neither does a zoom after them. A board that knows its shapes
+    // when it opens is laid out on them and its tall cards do not overlap.
+    @Test("page shapes landing after open move no card; known at open, they lay the board out")
+    func lateShapesMoveNothing() async {
         let nodes = pages(), size = CGSize(width: 700, height: 600)
         let lateStore = makeStore(), late = CanvasOrtho2DRenderer()
         let (lateWindow, lateHost) = mount(nodes, store: lateStore, renderer: late, size: size)
         defer { lateWindow.contentView = nil }
         #expect(await settle(lateHost) { late.placeablesById.count == 2 })
+        let opened = positions(late)
 
         // chinese-vertical's two pages are 2876×4926 and 2811×4853: about 0.58 wide per 1 tall.
         for node in nodes { CanvasCardGeometry.recordAspect(0.58, forSourceId: node.sourceId ?? "") }
+        await settle(lateHost) { false }
+        #expect(positions(late) == opened, "late page shapes moved the cards")
+
+        late.setOrthoScale(late.orthoScale / 3)
+        lateStore.layouts[wholeLibraryRoomId] = []
+        await settle(lateHost) { false }
+        #expect(positions(late) == opened, "a zoom afterwards moves nothing")
 
         let knownStore = makeStore(), known = CanvasOrtho2DRenderer()
         let (knownWindow, knownHost) = mount(nodes, store: knownStore, renderer: known, size: size)
         defer { knownWindow.contentView = nil }
         #expect(await settle(knownHost) { known.placeablesById.count == 2 })
-
-        let same = await settle(lateHost) { positions(late) == positions(known) }
-        #expect(same, "late page shapes re-lay the board as a first load would: \(positions(late)) vs \(positions(known))")
-
-        late.setOrthoScale(late.orthoScale / 3)
-        lateStore.layouts[wholeLibraryRoomId] = []
-        await settle(lateHost) { false }
-        #expect(positions(late) == positions(known), "a zoom afterwards moves nothing")
-
-        // And the two tall cards do not overlap: their centres are at least one tall card apart.
         let ids = nodes.map(\.id)
-        if let first = positions(late)[ids[0]], let second = positions(late)[ids[1]] {
+        if let first = positions(known)[ids[0]], let second = positions(known)[ids[1]] {
             let tall = CanvasCardGeometry.dimensions(
                 area: Float(CanvasGridPlacement.cardArea), aspect: 0.58, fallback: 4 / 3
             )
             let apart = abs(first.x - second.x) >= Double(tall.width) || abs(first.y - second.y) >= Double(tall.height)
             #expect(apart, "the two pages overlap: \(first) and \(second)")
         }
+    }
+
+    // WHY: the default grid's columns follow the pane's shape, so a pane resize used to re-lay
+    // every never-placed card. Through the real view: resizing the pane moves nothing.
+    @Test("resizing the pane moves no card")
+    func resizeMovesNothing() async {
+        let nodes = pages() + pages(), store = makeStore(), renderer = CanvasOrtho2DRenderer()
+        let (window, host) = mount(nodes, store: store, renderer: renderer, size: CGSize(width: 1100, height: 400))
+        defer { window.contentView = nil }
+        #expect(await settle(host) { renderer.placeablesById.count == 4 })
+        let opened = positions(renderer)
+
+        let view = CanvasSceneView(
+            nodes: nodes, connections: [], selectedNodeIds: .constant([]),
+            layoutStore: store, renderer: renderer
+        )
+        host.rootView = AnyView(view.frame(width: 300, height: 900))
+        await settle(host) { false }
+
+        #expect(positions(renderer) == opened, "a resize re-laid the board")
     }
 
     // WHY: one position source. The Preview's folder canvas (a narrow pane) and the Library's canvas

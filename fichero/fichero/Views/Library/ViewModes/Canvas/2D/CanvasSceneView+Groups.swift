@@ -19,17 +19,20 @@ extension CanvasSceneView {
         }
     }
 
-    /// Load every group's pages and layout once, in parallel with nothing else on the board: the
-    /// frames draw at once, empty, and fill as their pages arrive.
+    /// Load every group's pages and layout once. The ones on the board at open load before its
+    /// first frame (`settleBoard`); a group added later draws at once, empty, and fills.
     func loadGroupPages() async {
         guard let pagesOfGroup else { return }
         for nodeId in groupNodeIds.sorted() where groupPages[nodeId] == nil {
             let pages = await pagesOfGroup(nodeId)
             guard !Task.isCancelled else { return }
-            groupPages[nodeId] = pages
+            // The group's own layout BEFORE its pages are shown (#5629): shown first, the pages
+            // took the default grid and then slid to their saved places when the layout landed.
             if let scope = SpatialLibraryProjector.documentId(fromNodeId: nodeId) {
                 await layoutStore?.loadLayout(folderId: scope)
+                guard !Task.isCancelled else { return }
             }
+            groupPages[nodeId] = pages
         }
     }
 

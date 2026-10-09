@@ -150,7 +150,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     func apply(_ ops: [CanvasSceneOp]) {
         // Cards moving TOGETHER are a transition to watch; one echoing in from
         // another window is feedback (R10 / §20.2).
-        moveDuration = CanvasMoveAnimation.duration(for: ops)
+        moveDuration = CanvasMoveAnimation.duration(for: ops, opening: needsFitOnNextContent)
         for operation in ops { applyOne(operation) }
         if !ops.isEmpty { refreshSelectionDecoration() }
     }

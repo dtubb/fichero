@@ -413,6 +413,36 @@ homeless until a map-view UI spec exists (#5128).
     has a size, so a zoom moves the camera and no card. Tested in
     `fichero/Tests/Unit/general/Views/Library/CanvasZoomKeepsTheCardsTests.swift` (the real view, store
     and renderer), not yet seen in the app.
+- `library.canvas.cards-move-only-when-asked` — **[PARTIAL]** (#5629; tested, not yet seen in the app)
+  Ruled 2026-10-09: on the Canvas and in Space a card moves only when a person moves it: a drag, an
+  Arrange, or a move made in another window (someone's drag too). The board opens with every card
+  already where it stays and the camera at its fit: the first frame is the settled one, and no card
+  is drawn and then moved. After that nothing else moves a card: a pane resize, a card arriving (it
+  takes a free cell of the grid the board opened with, shifting nothing), page shapes loading, a
+  refresh, a selection, a zoom, a save's round trip. The camera fits once, on open (or returns to
+  where the person left it, `library.canvas.a-board-remembers-its-camera`), and never re-fits unasked.
+  - **Why it jumped (2026-10-09):** the canvas drew on its first frame, before the folder's saved
+    places and items had loaded and before any page's shape was known. It drew the default grid; the
+    saved places then arrived and the cards slid to them (animated, many at once); page shapes then
+    widened the grid and the board re-flowed, with the camera re-fitting behind it. The default grid
+    also followed the pane's shape and the number of cards, so a resize or a new card re-laid it.
+  - **Now:** the canvas draws nothing until its scope's saved places and items have loaded, the
+    first cards' page shapes are known (at most 120 pages, waited for at most 1.5 s) and the groups'
+    pages have loaded (each wait bounded); the opening placement is never animated; every card is
+    then held where it was first drawn unless a saved place says otherwise; the camera fits once.
+  - Not covered: a page whose shape arrives after the open (past the 120 or the 1.5 s) keeps its
+    place, so a much taller or wider page than its neighbours can overlap them until arranged.
+  - Tested in `fichero/Tests/Unit/general/Views/Library/CanvasOpensSettledTests.swift` (the hold, the
+    gate, the opening reconcile, the camera) and `CanvasZoomKeepsTheCardsTests.swift` (the real view:
+    late page shapes and a pane resize move nothing).
+- `library.canvas.selection-ring-is-thin` — **[PARTIAL]** (#5631; tested, not yet seen in the app) a
+  selected card on the 2D canvas wears a thin system-style ring, about 3 points in the accent colour,
+  just outside the card's edge and following its rounded corners, the same on-screen thickness at
+  every zoom. The card itself does not change size or place.
+  - **Why (2026-10-09):** the selection was an accent plate padded by 8% of the card in world units,
+    so zoomed onto a page it showed as a solid band about 30 points wide.
+  - Tested in `CanvasOpensSettledTests.swift` (the ring's geometry, and through the real renderer
+    across zooms).
 - `library.modes.the-view-follows-the-node` — **[PARTIAL]** (#5428; built 33310028f, tested in
   `fichero/Tests/Unit/general/Views/Library/LibraryViewFollowsNodeTests.swift`, not yet seen in the
   app) Ruled 2026-10-04, Finder-like: clicking a source (an image or a PDF, the same rule) in the
@@ -697,6 +727,6 @@ resolved and moved; the other three's status is corrected below.
 - `library.modes.table-expand-lists-contents-not-entities` — **[GAP]** (#5282) expanding a folder in Table or List lists its files and subfolders to any depth, never entity or claim rows (two levels landed in 6540d91f5; child folders do not yet expand further).
 - `library.modes.bottom-pane-scrolls-to-its-last-row` — **[BROKEN]** (#5004) a Library pane along the bottom scrolls to its end with the whole last row visible above the bottom bar (the scroll content takes a bottom inset).
 - `library.canvas.moving-one-card-moves-only-it` **[PARTIAL]** (#5423; tested in `fichero/Tests/Unit/general/Views/Library/CanvasMoveOneCardTests.swift`, not yet seen in the app): moving one card on the 2D canvas moves only that card and saves its place; every other card keeps where it was. The automatic layout places only cards that have never been placed. Tested by moving one card and checking that the others did not move.
-  - **Why it broke (2026-10-04):** the saved places were right, but the board's automatic camera re-fitted whenever the cards' bounds changed. A moved card changes them, so the view re-centred and re-zoomed and every other card jumped on screen. A card the person moves or resizes now ends the automatic camera, as a pan does; a board that re-flows by itself is still fitted again.
+  - **Why it broke (2026-10-04):** the saved places were right, but the board's automatic camera re-fitted whenever the cards' bounds changed. A moved card changes them, so the view re-centred and re-zoomed and every other card jumped on screen. A card the person moves or resizes now ends the automatic camera, as a pan does. Since 2026-10-09 the camera never re-fits after the open at all (`library.canvas.cards-move-only-when-asked`).
 - `library.table.outline-cached-not-per-render` **[GAP]** (#5255): in Table mode the outline rows, the dated and undated groups and the arrow-key row order are rebuilt only when the folder's documents, the expanded set or the sort change, never on a click, so a 100,000-item folder stays as quick to click as a 144-page one.
 - `library.listing.slim-rows-paged-by-cursor` **[GAP]** (#5260): a folder listing in the sidebar, the Library views and the dataset views fetches small rows (name, kind, parent, dates, child count, status, thumbnail), a screen at a time by cursor as it scrolls; a document's metadata, runs and text come only when it is selected. A 100,000-item folder shows its first screen in under 100 ms.
