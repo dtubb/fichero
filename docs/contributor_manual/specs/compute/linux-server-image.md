@@ -53,6 +53,18 @@ only ever asks Fichero to do this, through its MCP tools (`compute.target.every-
   (VERIFIED: no `mlx` dependency line in `fichero-server/pyproject.toml`). PyTorch now is, on the
   integration branch (VERIFIED there, `pyproject.toml:317-319`).
 
+## Ruled 2026-10-09: the full app as a container for a PC or a NAS
+
+The maintainer: a Docker container of the full engine, so someone can run Fichero on an ordinary Linux
+PC or a NAS (Synology, QNAP and others run Docker). It is the same full image as the cluster
+coordinator (`hpc-runner-acenet.md`), multi-arch (amd64, arm64): projects live on that machine's disks,
+always on; the Mac app (and later iPhone and iPad) connect to it as a remote server through the existing
+pairing, over the local network or Tailscale. Without a GPU it runs Kraken, YOLO, spaCy, search and
+embeddings on the CPU; large vision models come from a chosen cloud provider, Ollama elsewhere, or a
+cluster run. Two images in all: **full** (this) and **worker** (cluster jobs only). To spec on 2026-10-10
+with #5642: the compose file, volumes for projects and models, the first-run pairing, updates, and the
+NAS's limits (memory, ARM CPUs). Behaviour: `server.image.runs-on-a-pc-or-nas` — **[GAP]** (#5642).
+
 ## The design (proposed)
 
 ### Two images from one recipe
