@@ -963,12 +963,24 @@ final class ActivityTableTests: XCTestCase {
         // WHY: the engine's why_wait can carry the same "Waiting: " a job's reason does; without
         // stripping it the popover read "Heavy work is held back: Waiting: the Mac is hot".
         let summary = ActivityPopoverSummary(
-            jobs: [],
+            jobs: [ActivityJob(id: "e", name: "Embed for search", total: 2, state: .waiting, reason: "Waiting: the Mac is hot")],
             paused: false,
             machine: Components.Schemas.MachineState(memoryPressure: nil, thermalState: .serious, onBattery: false,
                                                      inUse: false, whyWait: "Waiting: the Mac is hot")
         )
         XCTAssertEqual(summary.heldBack, "Heavy work is held back: the Mac is hot")
+    }
+
+    func testActivityPopoverSummary_nothingIsHeldBackWhenNothingWaits() {
+        // WHY: the maintainer, 2026-10-09: the popover said "Heavy work is held back: you're using the
+        // Mac" with nothing running or waiting. The Mac in use holds nothing when there is nothing to hold.
+        let summary = ActivityPopoverSummary(
+            jobs: [],
+            paused: false,
+            machine: Components.Schemas.MachineState(memoryPressure: nil, thermalState: .nominal, onBattery: false,
+                                                     inUse: true, whyWait: "Waiting: you're using the Mac")
+        )
+        XCTAssertNil(summary.heldBack)
     }
 
     func testActivityPopoverSummary_nothingHeldBackWhenNothingWaitsOnTheMac() {

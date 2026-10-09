@@ -78,7 +78,8 @@ struct ActivityPopoverSummary: Equatable {
         waitingReason = reasons.max { lhs, rhs in
             lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key > rhs.key
         }?.key
-        heldBack = Self.heldBack(paused: paused, whyWait: machine?.whyWait, waitingReason: waitingReason)
+        heldBack = Self.heldBack(paused: paused, whyWait: waitingCount > 0 ? machine?.whyWait : nil,
+                                 waitingReason: waitingReason)
         macReadings = (machine.map(Self.readings) ?? [])
             + (processCpuPercent.map { [Self.cpuReading($0, cpuCount: cpuCount)] } ?? [])
     }
@@ -126,7 +127,8 @@ struct ActivityPopoverSummary: Equatable {
         return MacReading(id: "cpu", symbol: "cpu", value: value, help: "Fichero's processor use: " + value + whole)
     }
 
-    /// A person's pause first; else the throttle's own reason now
+    /// A person's pause first; else, only while some work waits (nothing held back is not "held back",
+    /// maintainer 2026-10-09), the throttle's own reason now
     /// (`machine.why_wait`, `execution/throttle.py`: memory, heat, battery,
     /// the person at the Mac); else the reason a waiting job gives. A lane's
     /// wait is not one.
