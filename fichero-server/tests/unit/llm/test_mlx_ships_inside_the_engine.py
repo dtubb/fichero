@@ -110,3 +110,16 @@ def test_the_kv_cache_is_quantized_only_past_a_page_and_harder_when_the_model_is
     assert mlx_in_process.kv_settings(3 * GB, 64 * GB)["MLX_VLM_MAX_NUM_SEQS"] == "4", "a big Mac reads 4 pages at once"
     monkeypatch.setenv("FICHERO_KV_BITS", "6")
     assert mlx_in_process.kv_settings(3 * GB, 16 * GB)["KV_BITS"] == "6", "a setting can be tried without a build"
+
+
+def test_the_runtime_status_says_audio_and_settings_offers_no_provision_when_bundled(bundled):
+    """The status route dropped audio_ready and the Whisper version (so audio always read as missing),
+    and Settings offered Provision for a runtime the app already carries (found live, 2026-10-09)."""
+    from fichero_server.api.routes.ai import local_inference as route
+    from fichero_server.api.routes.ai import provider_models
+
+    status = route._runtime_status_response()
+    assert status.audio_ready and status.mlx_whisper_version == "0.4.3"
+    row = provider_models._mlx_runtime_row() if hasattr(provider_models, "_mlx_runtime_row") else None
+    if row is not None:
+        assert row.install_action is None and "bundled" in row.size_note

@@ -317,8 +317,10 @@ def _runtime_status_response() -> LocalInferenceRuntimeStatusResponse:
     job = payload.get("job")
     return LocalInferenceRuntimeStatusResponse(
         provisioned=bool(payload["provisioned"]),
+        audio_ready=bool(payload.get("audio_ready")),
         mlx_lm_version=payload.get("mlx_lm_version"),
         mlx_vlm_version=payload.get("mlx_vlm_version"),
+        mlx_whisper_version=payload.get("mlx_whisper_version"),
         disk_usage_bytes=int(payload.get("disk_usage_bytes", 0)),
         python_path=payload.get("python_path"),
         runtime_dir=str(payload["runtime_dir"]),

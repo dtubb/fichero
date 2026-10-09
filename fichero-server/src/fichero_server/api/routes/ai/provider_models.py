@@ -1178,14 +1178,17 @@ def _mlx_runtime_row() -> LocalRuntimeRow:
         logger.warning("local-runtimes: MLX status failed: %s", exc)
         provisioned = False
         reason = f"MLX runtime status unavailable: {exc}"
+    from fichero_server.llm.mlx_runtime import bundled_versions
+
+    bundled = bundled_versions() is not None  # the app: MLX ships inside it (#4973), nothing to provision
     return LocalRuntimeRow(
         provider_type="mlx",
         name="MLX (local vision & text)",
         installed=provisioned,
         available=True,
-        size_note="~2 GB runtime + models",
+        size_note="bundled with the app; models download separately" if bundled else "~2 GB runtime + models",
         reason=reason,
-        install_action=LocalRuntimeAction(
+        install_action=None if bundled else LocalRuntimeAction(
             method="POST", path="/api/local-inference/runtime/provision"
         ),
         status_path="/api/local-inference/runtime",
