@@ -263,10 +263,14 @@ final class CanvasInteractionController {
         dragCurrentPosition = nil
         // Grabbing a card that is ALREADY part of the selection keeps the
         // selection — Finder never collapses a multi-selection to the one item
-        // you happened to grab. Grabbing an unselected card selects just it.
-        guard !currentSelection.contains(id) else { return }
-        select(id)
+        // you happened to grab. Grabbing an unselected card selects just it,
+        // but only when the drag ends (2026-10-09): the Inspector and Reader
+        // follow the selection, and loading them mid-drag made a direct drag hang.
+        selectWhenDropped = currentSelection.contains(id) ? nil : id
     }
+
+    /// An unselected card being dragged, selected on release (see `beginDrag`).
+    private(set) var selectWhenDropped: String?
 
     func dragMoved(id: String, position: SIMD3<Double>) {
         guard draggingId == id else { return }
@@ -284,6 +288,8 @@ final class CanvasInteractionController {
             draggingId = nil
             dragOriginPosition = nil
             dragCurrentPosition = nil
+            if let pending = selectWhenDropped { select(pending) }
+            selectWhenDropped = nil
         }
         let snapped = snap(position)
         switch DropOutcome.classify(draggedId: id, target: dropTarget, position: snapped, modifiers: modifiers) {

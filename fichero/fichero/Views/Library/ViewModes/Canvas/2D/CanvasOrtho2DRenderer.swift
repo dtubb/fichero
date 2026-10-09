@@ -37,7 +37,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// and that is the whole fix for #4409's blue flash: see
     /// `CanvasSelectionDecorator` for what the old card-owned arrangement cost.
     let decorator = CanvasSelectionDecorator(
-        showsHandles: true, accentColor: .controlAccentColorCompat
+        // No resize handles on the canvas (maintainer 2026-10-09): the thin ring is the selection; a card's
+        // size follows its page. With none drawn, the handle hit test finds none either.
+        showsHandles: false, accentColor: .controlAccentColorCompat
     )
     let camera = Entity()
 

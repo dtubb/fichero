@@ -276,6 +276,7 @@ struct CanvasSpaceView: View {
             }
             .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
+            .onDisappear { controller?.onMoveInto = nil }
             .task(id: folderScopeId) {
                 configureController()
                 // Frame the arrangement once this scope has content (#4411).
@@ -421,8 +422,10 @@ struct CanvasSpaceView: View {
             scopeId: scopeKey,
             selection: $selectedNodeIds
         )
-        renderer.onIntent = { controller.dispatch($0) }
-        renderer.isDragSuppressed = { controller.isDragging($0) }
+        // Weak, and the view's own callback dropped on close: the view holds the renderer and the
+        // controller, so a strong capture either way kept every closed canvas alive (leaks, 2026-10-09).
+        renderer.onIntent = { [weak controller] in controller?.dispatch($0) }
+        renderer.isDragSuppressed = { [weak controller] in controller?.isDragging($0) ?? false }
         renderer.storageService = storageService
         controller.onMoveInto = { moveIntoContainer($0, $1) }
         self.controller = controller

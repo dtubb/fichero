@@ -349,6 +349,7 @@ struct CanvasSceneView: View {
             // card out in it and saves those places. As a default for unplaced cards only, it did
             // nothing to any card a person had moved, and once positions save that is all of them.
             .onChange(of: arrangementRaw) { _, raw in arrangeBoard(CanvasArrangement.stored(raw), in: geo.size) }
+            .onDisappear { controller?.onMoveInto = nil }
             .task(id: folderScopeId) {
                 configureController()
                 // Frame the board once this scope has content — the default grid
@@ -374,10 +375,12 @@ struct CanvasSceneView: View {
             scopeId: scopeKey,
             selection: $selectedNodeIds
         )
-        renderer.onIntent = { controller.dispatch($0) }
+        // Weak, and the view's own callback dropped on close: the view holds the renderer and the
+        // controller, so a strong capture either way kept every closed canvas alive (leaks, 2026-10-09).
+        renderer.onIntent = { [weak controller] in controller?.dispatch($0) }
         let scope = scopeKey
         renderer.onCameraChange = { CanvasCameraMemory.remember($0, for: scope) }
-        renderer.isDragSuppressed = { controller.isDragging($0) }
+        renderer.isDragSuppressed = { [weak controller] in controller?.isDragging($0) ?? false }
         renderer.storageService = storageService
         controller.onMoveInto = { moveIntoContainer($0, $1) }
         self.controller = controller

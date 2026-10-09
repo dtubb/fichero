@@ -302,8 +302,8 @@ struct SelectionSurfaceParityTests {
         #expect(box.value == ["doc:a", "doc:b"])
     }
 
-    @Test("Grabbing an UNSELECTED card selects just it")
-    func dragOnAnUnselectedCardSelectsIt() {
+    @Test("Dragging an UNSELECTED card selects just it, when it is dropped, not while it moves")
+    func dragOnAnUnselectedCardSelectsIt() async {
         let box = SelectionBox(["doc:a"])
         let controller = CanvasInteractionController(
             layoutStore: NullLayoutStore(), itemStore: NullItemStore(),
@@ -311,7 +311,10 @@ struct SelectionSurfaceParityTests {
         )
 
         controller.beginDrag("doc:c")
+        // The Inspector and Reader follow the selection; changing it mid-drag made the drag hang (2026-10-09).
+        #expect(box.value == ["doc:a"], "the selection waits while the card moves")
 
+        await controller.endDrag(id: "doc:c", position: SIMD3<Double>(1, 1, 0), dropTarget: nil, modifiers: [])
         #expect(box.value == ["doc:c"])
     }
 

@@ -36,7 +36,7 @@ struct ActivityModeIndicator: Equatable {
             look = held ? .held : .running
             title = held ? "Waiting" : (hasRunningWork ? "Running" : "Idle")
             symbol = held ? "hourglass" : (hasRunningWork ? "play.circle.fill" : "play.circle")
-            help = (held ? "Waiting: \(why ?? ""). Run Now cannot override this. " : "")
+            help = (held ? "Waiting because \(why ?? ""), which Run Now cannot override. " : "")
                 + "Running now, even while you use the Mac or it is on battery. "
                 + "Click to run automatically again."
             primary = .automatic
@@ -45,7 +45,7 @@ struct ActivityModeIndicator: Equatable {
             title = held ? "Waiting" : (hasRunningWork ? "Running" : "Idle")
             symbol = held ? "hourglass" : (hasRunningWork ? "play.circle.fill" : "play.circle")
             help = held
-                ? "Waiting: \(why ?? ""). Click to run now anyway."
+                ? "Waiting because \(why ?? ""). Click to run it now anyway."
                 : "Background work runs when the Mac is free. Click to run it now, even while you use the Mac."
             primary = .started
         }

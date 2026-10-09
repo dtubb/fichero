@@ -10,6 +10,7 @@
 @testable import Fichero
 import FicheroAPIClient
 import Foundation
+import RealityKit
 import simd
 import Testing
 
@@ -289,5 +290,22 @@ struct CanvasSelectionResizeTests {
         #expect(CanvasSelectionFrame.resizedSize(
             from: zero, corner: .topTrailing, sceneDelta: SIMD2(1, 1), proportional: true
         ) == zero)
+    }
+}
+
+// MARK: - No handles on the canvas (maintainer 2026-10-09)
+
+@MainActor
+@Suite("The 2D canvas draws no resize handles")
+struct CanvasDrawsNoHandlesTests {
+    @Test("a selected resizable card gets its ring and no corner handles, so nothing grabs a corner either")
+    func noHandles() {
+        let renderer = CanvasOrtho2DRenderer()
+        renderer.decorator.update(items: [item("a")])
+        var names: [String] = []
+        func walk(_ entity: Entity) { names.append(entity.name); entity.children.forEach(walk) }
+        walk(renderer.decorator.root)
+        #expect(!names.isEmpty, "the selection ring is drawn")
+        #expect(names.allSatisfy { CanvasSelectionFrame.handle(fromEntityName: $0) == nil })
     }
 }
