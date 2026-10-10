@@ -14,6 +14,17 @@ import pytest
 
 from fichero_server.models import ActionAudit, Document, DocType
 
+
+@pytest.fixture(autouse=True)
+def _kraken_readers_on_this_mac(monkeypatch):
+    """The recipe's pinned Kraken reader counts as downloaded: Start waits for a missing one
+    (`source.recipe.missing-model-offered`), which `tests/unit/recipes/test_kraken_reader_offered_before_start.py`
+    pins; here it is not the subject."""
+    from fichero_server.recipes import start
+
+    monkeypatch.setattr(start, "_kraken_reader_here", lambda name: True)
+
+
 RECIPE = {"fichero_recipe": 1, "id": "t/kraken", "version": "0.2.0", "title": "t", "steps": [
     {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"}},
     {"id": "read", "job": "read-a-line", "model": {"zenodo": "10.5281/zenodo.13788177"}},

@@ -127,6 +127,18 @@ def _kraken_bundle_names() -> set[str]:
     return {"kraken", "htrmopo", "lightning"}
 
 
+def _mlx_bundle_names() -> set[str]:
+    """#4973/#5638: MLX, Whisper, YOLO and the other extras ship by their own build step
+    (`scripts/install_mlx_into_engine_bundle.py`, reading `[tool.fichero.mlx_bundle]`), as Kraken does. Each
+    distribution's import name is its name with dashes as underscores (mlx-vlm -> mlx_vlm, av, pypdf), read
+    fresh from the table. The build's own import check (`check_engine_imports_bundled.py`) proves them against
+    the real bundle."""
+    with open(PYPROJECT, "rb") as fh:
+        table = tomllib.load(fh)["tool"]["fichero"]["mlx_bundle"]
+    names = [Requirement(r).name for r in (*table.get("no_deps_packages", ()), *table.get("missing_packages", ()))]
+    return {_norm(n).replace("-", "_") for n in names}
+
+
 def _bundled_import_names() -> set[str]:
     bundled = _bundled_distributions()
     names: set[str] = set()
@@ -134,6 +146,7 @@ def _bundled_import_names() -> set[str]:
         if any(_norm(d) in bundled for d in dists):
             names.add(module)
     names |= _kraken_bundle_names()
+    names |= _mlx_bundle_names()
     return names
 
 

@@ -85,12 +85,10 @@ class InProcessLocalInferenceProcess(ManagedLocalInferenceProcess):
             return
         model_spec = self._model_spec()
         self._refuse_if_memory_is_short()
-        try:
-            from fichero_server.llm.mlx_model_store import get_mlx_model_store
+        from fichero_server.llm.mlx_model_store import get_mlx_model_store
 
-            os.environ.update(get_mlx_model_store().env())
-        except Exception:  # noqa: BLE001 -- the store's cache paths are optional settings
-            logger.debug("MLX model store environment not applied", exc_info=True)
+        # Not swallowed: without the store's cache paths the server would look for its models somewhere else.
+        os.environ.update(get_mlx_model_store().env())
         self.last_error = None
         self._gone = False
         port = self._port()

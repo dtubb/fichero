@@ -123,10 +123,9 @@ llm/__init__.py::_log_provider_quota_hit 1
 llm/__init__.py::_model_has_capability 1
 llm/language_coverage.py::_ensure_derived_coverage 1
 llm/local_inference.py::ManagedLocalInferenceProcess._environment 1
+llm/mlx_in_process.py::InProcessLocalInferenceProcess.stop 1
 llm/mlx_model_store.py::MLXModelStore.cancel 1
 llm/multilingual.py::detect_language 1
-loaders/docling_loader.py::DoclingLoader._extract_images 1
-loaders/docling_loader.py::DoclingLoader._extract_tables 2
 loaders/document_loader.py::DocumentLoader._load_with_kreuzberg 1
 loaders/iiif_loader.py::IIIFLoader.load 1
 loaders/kreuzberg_cache.py::_strip_quarantine 1

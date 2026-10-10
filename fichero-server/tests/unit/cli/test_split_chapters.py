@@ -6,6 +6,11 @@ from pathlib import Path
 
 import fitz
 import httpx
+import pytest
+
+# The outline is read with pypdf, which the app bundles (`[tool.fichero.mlx_bundle]`) but the dev environment
+# need not carry; where it is missing these say so as a skip rather than fail on an import.
+pytest.importorskip("pypdf")
 from typer.testing import CliRunner
 
 from fichero_cli import __main__ as cli
