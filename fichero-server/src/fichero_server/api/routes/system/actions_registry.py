@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.security import authz
 from fichero_server.actions import ActionContext, ActionNotFoundError, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionRefused
 from fichero_server.api.auth import action_context, library_access_denial_payload
 from fichero_server.db.app import get_app_db
 from fichero_server.api.main import (
@@ -151,6 +152,8 @@ async def invoke_action(
         raise HTTPException(status_code=404, detail=f"Unknown action: {body.name}")
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors())
+    except ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except authz.AuthorizationError as exc:
         raise LibraryAccessDeniedError(
             library_access_denial_payload(
@@ -396,6 +399,8 @@ async def undo_action(
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors())
+    except ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except authz.AuthorizationError as exc:
         raise LibraryAccessDeniedError(
             library_access_denial_payload(

@@ -407,3 +407,21 @@ def test_finddocs_a_second_run_supersedes_the_first(client, db, tmp_path, jobs_r
     assert r.status_code == 409 and "replaced by a later run" in r.json()["detail"]
     assert {d["state"] for d in _proposal(client, first)["documents"]} == {"proposed"}
     assert client.post(f"/api/find-documents/proposals/{second}/accept", json={}).status_code == 200
+
+
+def test_finddocs_redo_of_an_accept_a_later_run_replaced_is_refused_in_words(client, db, tmp_path,
+                                                                             jobs_run_by_the_test):
+    """Accept, undo, then a later run supersedes the proposal: redoing the accept is refused (409, in words),
+    never a 500, and changes nothing."""
+    pages, _truth, _groups = correspondence_box()
+    folder, _ids = _project(db, tmp_path, pages)
+    first = _run(client, db, [folder.id], accept_above=None)["proposal_ids"][0]
+    accepted = client.post(f"/api/find-documents/proposals/{first}/accept", json={"document_indexes": [0]})
+    assert accepted.status_code == 200, accepted.text
+    undo = client.post(f"/api/actions/audit/{accepted.json()['audit_id']}/undo")
+    assert undo.status_code == 200, undo.text
+    _run(client, db, [folder.id], accept_above=None)
+    redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+    assert redo.status_code == 409, redo.text
+    assert "replaced by a later run" in redo.json()["detail"]
+    assert {d["state"] for d in _proposal(client, first)["documents"]} == {"proposed"}

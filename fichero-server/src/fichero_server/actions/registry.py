@@ -195,6 +195,12 @@ class ActionNotFoundError(KeyError):
     """Raised by ``invoke``/``get`` for an unregistered action name."""
 
 
+class ActionRefused(Exception):
+    """An action refusing, changing nothing, because what it would act on has changed since (a redo of an
+    accept whose proposal a later run replaced). Its message says so in words; routes, the undo/redo route
+    among them, answer 409."""
+
+
 # =============================================================================
 # The registry
 # =============================================================================

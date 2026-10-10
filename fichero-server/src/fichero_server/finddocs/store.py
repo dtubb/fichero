@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from fichero_server.actions.registry import ActionRefused
 from fichero_server.models.found_documents import DocumentsProposal
 
 #: The artifact kind a proposal is stored as, and the method that made it.
@@ -20,7 +21,7 @@ PROVIDER = "fichero"
 MODEL = "find-documents/rules-1"
 
 
-class ProposalOutOfDate(Exception):
+class ProposalOutOfDate(ActionRefused):
     """A proposal that no longer describes the folder: superseded by a later run, or a document whose pages
     are no longer the folder's loose pages (grouped, moved or deleted since). The routes answer 409."""
 
