@@ -200,6 +200,22 @@ involve the company it names. Lessons the tool must carry:
   documents still proposed (pages, kind, confidence, reasons) with Accept, Reject and Accept All at least
   95/90/80/70% sure, through the same actions; pinned by `fichero/Tests/Unit/general/Models/FoundDocumentsStoreTests.swift`.
   *Not built: proposals drawn on the canvas (`finddocs.canvas.drawn`).*
+- `finddocs.adjust` — **[OK]** (#5550) before accepting, a person can adjust a proposal: split a proposed
+  document at a page, join a document to the next, or move a document's first page to the document before
+  it or its last page to the document after it. An adjustment changes the stored proposal only (no node in
+  the library changes): the documents are renumbered in the folder's order, each document an adjustment
+  touched says the person set it (`adjusted_by`, its confidence 1.0, no machine score, a reason naming what
+  the person did), a proposed group keeps the documents it held (a split document's halves both, a joined
+  document once), and each adjustment adds its labelled examples (`finddocs.corrections-teach`). Each is one
+  audited action (`finddocs.split`, `finddocs.join`, `finddocs.move_page`; `POST
+  /api/find-documents/proposals/{id}/split|join|move-page`), undone exactly by one undo of its audit row
+  (`finddocs.unadjust`: the documents, groups and examples as they were) and redone by undoing that.
+  Refused in words, changing nothing: a document index or page out of range, a split at a document's first
+  page, a move that would empty a document (join it instead) or has no neighbour (422); a proposal a later
+  run superseded, a document already accepted or rejected, or one whose pages are no longer the folder's
+  loose pages (409). Accepting afterwards makes the adjusted documents. Pinned by
+  `fichero-server/tests/unit/finddocs/test_find_documents_adjust.py`. **Built 2026-10-10 (engine).**
+  *Not built: the app's surface (moving a card on the canvas, `finddocs.canvas.drawn`).*
 - `finddocs.corrections-teach` — **[PARTIAL]** (#5550) every accept, reject and adjustment is kept as a
   labelled example for the project. **Built 2026-10-07 (engine):** accepted and rejected documents keep
   their state on the stored proposal (`finddocs.reject`, undoable). **Built 2026-10-10 (engine):** each
@@ -207,8 +223,15 @@ involve the company it names. Lessons the tool must carry:
   that made the proposal, accepting by itself, or the person), so a person's answer can be told from the
   run's; a superseded proposal is kept with its answers. Pinned by
   `test_finddocs_run_accept_is_boundaries_only` and
-  `test_finddocs_person_accept_records_the_person`. *Not built: an adjustment (a moved card) recorded,
-  and the states exported as training examples.*
+  `test_finddocs_person_accept_records_the_person`. **Built 2026-10-10 (engine):** each adjustment
+  (`finddocs.adjust`) appends to the proposal's `examples` one labelled example per join it decided: the
+  two pages (`left_page_id`, `right_page_id`), `boundary` true (a document starts at the right page) or
+  false (they are one document), the adjustment, who decided it (`decided_by`, the person), when (`at`),
+  the proposal, and what the run had said of that join (`run_probability`, `run_reasons`, its named
+  signals). A split records a boundary; a join records no boundary; a move records both (no boundary
+  between the moved page and its new neighbour, a boundary between it and the page it left). Undoing the
+  adjustment removes its examples. Pinned by `test_find_documents_adjust.py`. *Not built: the states and
+  examples exported as training examples.*
 - `finddocs.recipe-step` — **[OK]** (#5550) onboarding organises by itself: a recipe that reads a project
   of loose pages has the step "Find documents in a folder" after reading, names and dates (ruled 2026-10-10:
   parties group the documents, dates order them; `recipes/assemble.STEP_ORDER`),

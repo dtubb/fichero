@@ -1,8 +1,9 @@
 """Find the Documents, from the API (`finddocs.*`, specs/source/finding-documents.md, #5550).
 
 Start a run on folders or a selection of pages (`finddocs.run`, one background job), follow it, read the
-proposals it stored, and accept or reject them (`finddocs.accept`, `finddocs.reject`: audited, undone by one
-undo through `/api/actions/audit/{id}/undo`). The MCP and the command line get these from the contract.
+proposals it stored, adjust them (`finddocs.split`, `finddocs.join`, `finddocs.move_page`), and accept or reject
+them (`finddocs.accept`, `finddocs.reject`): each audited, undone by one undo through
+`/api/actions/audit/{id}/undo`. The MCP and the command line get these from the contract.
 """
 from __future__ import annotations
 
@@ -19,12 +20,17 @@ from fichero_server.api.main import (
 )
 from fichero_server.db import Database
 from fichero_server.finddocs import accept as _accept  # noqa: F401  (registers finddocs.accept, .reject)
+from fichero_server.finddocs import adjust as finddocs_adjust  # registers finddocs.split, .join, .move_page
 from fichero_server.finddocs import store as finddocs_store
 from fichero_server.models.found_documents import (
     DocumentsProposal,
     FindDocumentsAcceptRequest,
     FindDocumentsAcceptResult,
+    FindDocumentsAdjustResult,
+    FindDocumentsJoinRequest,
+    FindDocumentsMovePageRequest,
     FindDocumentsRejectRequest,
+    FindDocumentsSplitRequest,
     FindDocumentsRequest,
     FindDocumentsRun,
 )
@@ -162,3 +168,69 @@ async def reject_find_documents_proposal(
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return finddocs_store.read(db, proposal_id)
+
+
+_ADJUST_RESPONSES = {
+    409: {"description": "The proposal is out of date: a later run replaced it, the document is already accepted "
+                         "or rejected, or its pages were grouped, moved or deleted since."},
+    422: {"description": "No such document or page in the proposal, or the adjustment cannot be made."},
+}
+
+
+def _adjust(db: Database, name: str, proposal_id: str, body: BaseModel, ctx: ActionContext) -> FindDocumentsAdjustResult:
+    try:
+        result = registry.invoke(db, name, {"proposal_id": proposal_id, **body.model_dump()}, ctx)
+    except finddocs_adjust.AdjustmentNotPossible as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except finddocs_store.ProposalOutOfDate as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return FindDocumentsAdjustResult(proposal=finddocs_store.read(db, proposal_id), audit_id=result.audit_id,
+                                     examples=result.result["examples"])
+
+
+@router.post("/proposals/{proposal_id}/split", response_model=FindDocumentsAdjustResult,
+             summary="Split a proposed document at a page (an adjustment the project learns from)",
+             responses=_ADJUST_RESPONSES)
+async def split_find_documents_document(
+    proposal_id: str,
+    body: FindDocumentsSplitRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> FindDocumentsAdjustResult:
+    """The named page starts a new document: the proposal's documents are renumbered, both halves are set by
+    this caller, and the proposal keeps the example "a document starts here" between the two pages. Nothing in
+    the library changes; one undo of `audit_id` restores the proposal exactly."""
+    return _adjust(db, "finddocs.split", proposal_id, body, ctx)
+
+
+@router.post("/proposals/{proposal_id}/join", response_model=FindDocumentsAdjustResult,
+             summary="Join a proposed document to the next (an adjustment the project learns from)",
+             responses=_ADJUST_RESPONSES)
+async def join_find_documents_documents(
+    proposal_id: str,
+    body: FindDocumentsJoinRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> FindDocumentsAdjustResult:
+    """The document and the one after it become one, set by this caller, and the proposal keeps the example "one
+    document" across the join. Nothing in the library changes; one undo of `audit_id` restores the proposal."""
+    return _adjust(db, "finddocs.join", proposal_id, body, ctx)
+
+
+@router.post("/proposals/{proposal_id}/move-page", response_model=FindDocumentsAdjustResult,
+             summary="Move a proposed document's first or last page to its neighbour (an adjustment the project "
+                     "learns from)",
+             responses=_ADJUST_RESPONSES)
+async def move_find_documents_page(
+    proposal_id: str,
+    body: FindDocumentsMovePageRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> FindDocumentsAdjustResult:
+    """`to: previous` moves the document's first page to the end of the document before it; `to: next` moves its
+    last page to the start of the one after it. Both documents are set by this caller; the proposal keeps two
+    examples: one document across the page's new join, a new document across the one it left. Nothing in the
+    library changes; one undo of `audit_id` restores the proposal."""
+    return _adjust(db, "finddocs.move_page", proposal_id, body, ctx)

@@ -74,6 +74,9 @@ class ProposedDocument(BaseModel):
     state: ProposalState = "proposed"
     accepted_as: str | None = Field(None, description="The group node (or the one page) it became.")
     decided_by: FoundDocumentsDecision | None = None
+    adjusted_by: FoundDocumentsDecision | None = Field(
+        None, description="The person who set this document's pages by an adjustment (split, join, move a page): "
+                          "its confidence is then theirs (1.0), not the run's (`finddocs.adjust`).")
 
 
 class ProposedGroup(BaseModel):
@@ -87,6 +90,26 @@ class ProposedGroup(BaseModel):
     state: ProposalState = "proposed"
     accepted_as: str | None = None
     decided_by: FoundDocumentsDecision | None = None
+
+
+#: How a person adjusted a proposal (`finddocs.adjust`).
+Adjustment = Literal["split", "join", "move-page"]
+
+
+class BoundaryExample(BaseModel):
+    """One labelled example a person's adjustment gave: whether a document starts between two pages, with what
+    the run had said of that join (`finddocs.corrections-teach`)."""
+
+    left_page_id: str
+    right_page_id: str
+    boundary: bool = Field(description="True: a document starts at the right page; false: the two are one document.")
+    adjustment: Adjustment
+    decided_by: FoundDocumentsDecision
+    at: str = Field(description="When it was decided (ISO 8601, UTC).")
+    proposal_id: str
+    run_probability: float | None = Field(None, description="The run's probability that a document starts at the "
+                                                            "right page, when it scored that join.")
+    run_reasons: list[str] = Field(default_factory=list, description="The run's named signals for that join.")
 
 
 class DocumentsProposal(BaseModel):
@@ -105,6 +128,8 @@ class DocumentsProposal(BaseModel):
     created_at: str | None = None
     state: ProposalCurrency = "current"
     superseded_by: str | None = Field(None, description="The later proposal for the same pages.")
+    examples: list[BoundaryExample] = Field(
+        default_factory=list, description="The labelled examples a person's adjustments gave, oldest first.")
 
 
 class FindDocumentsRequest(BaseModel):
@@ -126,6 +151,28 @@ class FindDocumentsAcceptRequest(BaseModel):
 
 class FindDocumentsRejectRequest(BaseModel):
     document_indexes: list[int] = Field(min_length=1)
+
+
+class FindDocumentsSplitRequest(BaseModel):
+    document_index: int = Field(description="The proposed document to split.")
+    page_id: str = Field(description="The page that starts the second document: one of its pages, not its first.")
+
+
+class FindDocumentsJoinRequest(BaseModel):
+    document_index: int = Field(description="The proposed document joined to the one after it.")
+
+
+class FindDocumentsMovePageRequest(BaseModel):
+    document_index: int = Field(description="The proposed document a page moves out of.")
+    to: Literal["previous", "next"] = Field(
+        description="previous: its first page moves to the end of the document before it; next: its last page "
+                    "moves to the start of the document after it.")
+
+
+class FindDocumentsAdjustResult(BaseModel):
+    proposal: DocumentsProposal
+    examples: list[BoundaryExample] = Field(description="The labelled examples this adjustment added.")
+    audit_id: str = Field(description="The adjustment's audit row: undoing it restores the proposal exactly.")
 
 
 class FindDocumentsAcceptResult(BaseModel):
