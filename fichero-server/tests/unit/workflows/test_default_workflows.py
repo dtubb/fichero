@@ -1637,6 +1637,9 @@ _PRESET_NAMES = sorted(p["name"] for p in _load_preset_files())
 # expects a clear preflight refusal keyless, NOT a pass. Text-generative presets
 # still pass on Apple Intelligence. DeepL still fails keyless (explicit cloud).
 _KEYLESS_EXPECTED_REFUSALS = {
+    # explicit cloud with no key: the gate below makes every machine keyless (a DeepL key in a
+    # developer's shell made this pass there and fail on the M4, 2026-10-10)
+    "Translate (DeepL)",
     # generative-vision (needs a vision LLM Apple can't provide)
     "Accounts → Spreadsheet (CSV)",
     "AI Convert to HTML",
@@ -1657,9 +1660,6 @@ _KEYLESS_EXPECTED_REFUSALS = {
     "Transcribe Paleography",
     "Translate to English (Historical)",
 }
-# NOTE: Translate (DeepL) is NOT here — this gate does not stub get_api_key, so
-# its credential check does not fire and it passes (its keyless refusal is
-# asserted in test_preflight_credentials, which does stub the keychain).
 
 
 @pytest.mark.parametrize("preset_name", _PRESET_NAMES)
@@ -1673,6 +1673,8 @@ def test_every_default_preset_passes_execution_gate(
     from fichero_server.workflows.runtime import to_workflow_def
 
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
+    monkeypatch.delenv("DEEPL_API_KEY", raising=False)
+    monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: None)  # keyless, on every machine
     for tier in ("SMALL", "MEDIUM", "LARGE"):
         monkeypatch.setenv(f"FICHERO_{tier}_PROVIDER", "apple")
         monkeypatch.setenv(f"FICHERO_{tier}_MODEL", "apple-intelligence")

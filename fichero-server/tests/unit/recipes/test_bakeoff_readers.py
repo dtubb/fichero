@@ -41,9 +41,12 @@ LINES_PER_PAGE = 44  # the corpus fixture's PAGE file
 
 @pytest.fixture(autouse=True)
 def homes(tmp_path, monkeypatch):
-    """Kraken's readers and the MLX store in the test's own folders, never this Mac's."""
+    """Kraken's readers, the MLX store and the model store (with its kept repository listing) in the test's
+    own folders, never this Mac's nor the session's: a full run's find-models job had kept Zenodo's live
+    listing in the session's store, and these tests compared readers that exist only online (M4, 2026-10-10)."""
     from fichero_server.llm import mlx_model_store
 
+    monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(tmp_path / "store"))
     monkeypatch.setenv("FICHERO_KRAKEN_DATA_DIR", str(tmp_path / "kraken-data"))
     store = mlx_model_store.MLXModelStore(tmp_path / "mlx")
     monkeypatch.setattr(mlx_model_store, "get_mlx_model_store", lambda: store)

@@ -588,6 +588,18 @@ _share_real_embedding_cache(_pathlib.Path(os.environ["FICHERO_BASE_PATH"]) / "mo
 _install_real_state_guard()
 
 from fichero_server.api.main import app  # noqa: E402
+
+# Tests never read Zenodo. A full run's find-models job (queued by a test asking for the online search)
+# fetched the live listing into the session's model store, and later tests saw readers that exist only
+# online (M4, 2026-10-10). A test that wants a listing records one (`discovery._harvest`).
+import fichero_server.llm.kraken_runtime as _kraken_runtime  # noqa: E402
+
+
+def _no_zenodo_in_tests() -> dict:
+    raise RuntimeError("tests never read Zenodo's model listing; record one with discovery._harvest")
+
+
+_kraken_runtime.repository_listing = _no_zenodo_in_tests
 # The library dependencies the routes were built with, taken with `app` (#5407). A test that
 # reloads `fichero_server.api.main` (the multi-user and auth tests do, to re-read their env) makes
 # NEW function objects that no route uses; the `client` fixture importing them at its own time
