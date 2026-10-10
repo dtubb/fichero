@@ -125,6 +125,33 @@ def _place_from_pypdfium2(target: Path, logger=None) -> bool:
         return False
 
 
+def _bind_path() -> Path:
+    """Where kreuzberg extracts and binds pdfium: `std::env::temp_dir()/kreuzberg-pdfium/` (kreuzberg 4.x
+    `pdf/bundled.rs`; there is no setting for another path)."""
+    return Path(os.environ.get("TMPDIR", "/tmp")) / "kreuzberg-pdfium" / "libpdfium.dylib"
+
+
+def _sandboxed() -> bool:
+    from fichero_server.security.security_scoped_access import _engine_is_sandboxed
+
+    return _engine_is_sandboxed()
+
+
+def _remove_quarantined_bind(logger=None) -> None:
+    """Delete a quarantined pdfium a sandboxed engine left at the bind path (it wrote it, so it may
+    delete it). Left there, anything that loads it raises macOS's "libpdfium.dylib Not Opened" dialog
+    (seen 2026-10-10 at 07:53, a copy written at 00:09 by the hard-link fallback)."""
+    bind = _bind_path()
+    if _is_quarantined(bind):
+        try:
+            bind.unlink()
+            if logger:
+                logger.info("pdfium: removed a quarantined copy at %s", bind)
+        except OSError as exc:
+            if logger:
+                logger.warning("pdfium: could not remove the quarantined copy at %s: %s", bind, exc)
+
+
 def prepare_pdfium(logger=None) -> None:
     """Point kreuzberg's pdfium bind path at the SIGNED bundled dylib.
 
@@ -142,6 +169,9 @@ def prepare_pdfium(logger=None) -> None:
     a regular file at the path kreuzberg binds, and the extractor skips its
     doomed quarantined write because the path exists.
     """
+    if _sandboxed():
+        _remove_quarantined_bind(logger)
+        return
     try:
         import kreuzberg  # noqa: PLC0415 — resolve the wheel's location
 
@@ -185,6 +215,9 @@ def prepare_pdfium(logger=None) -> None:
             # it may be quarantined, in which case only entitled builds load.
             shutil.copy2(bundled, target)
             _strip_quarantine(target)
+            if _is_quarantined(target):
+                target.unlink()  # never leave a quarantined dylib where something can load it
+                return
         if logger:
             logger.info("pdfium bind path hardlinked to bundled dylib: %s", target)
     except Exception as exc:  # pragma: no cover - defensive
@@ -230,7 +263,17 @@ def kreuzberg_pdf_usable(logger=None) -> bool:
     import subprocess
     import tempfile
 
-    bind = Path(os.environ.get("TMPDIR", "/tmp")) / "kreuzberg-pdfium" / "libpdfium.dylib"
+    if _sandboxed():
+        # A sandboxed engine cannot give kreuzberg a loadable pdfium: kreuzberg always extracts its own
+        # copy to $TMPDIR, which the sandbox quarantines (macOS then shows "libpdfium.dylib Not
+        # Opened"), the hard link to the signed bundle copy is refused, and the probe's worker cannot
+        # start (it hung 60 s, 2026-10-10 00:10). PDFs go to fitz/pypdfium2, whose pdfium is the
+        # signed one inside the bundle. No probe, so nothing ever extracts.
+        _KREUZBERG_PDF_USABLE = False
+        if logger:
+            logger.info("kreuzberg PDF extraction off in the sandboxed app: PDFs extract with the bundled pdfium")
+        return _KREUZBERG_PDF_USABLE
+    bind = _bind_path()
     if _is_quarantined(bind):
         # The sandbox could neither hard-link the bundled pdfium here nor strip the quarantine from its copy,
         # and a quarantined pdfium wedges the bind: the probe below would hang its full 60 s on every run
