@@ -195,8 +195,14 @@ async def test_words_not_on_the_page_are_not_anchored_on_the_sentence(client, db
 
 @pytest.mark.asyncio
 async def test_a_page_not_tied_to_lines_keeps_the_words_span_with_no_line(client, db, test_package, page):
-    """WHY: before the tie (or on a page with no lines) the quotation still sits on its words in the page
-    text; it names no line rather than a guessed one."""
+    """WHY: on a page with no lines the quotation still sits on its words in the page text; it names no
+    line rather than a guessed one. (A page whose lines carry their own words is found on them without a
+    tie, #5654 item 4: here the lines are taken away, so only the page's stored text is left.)"""
+    from datetime import datetime, timezone
+
+    kraken = db.get(SegmentPass, page["kraken"].id)
+    kraken.deleted_at = datetime.now(timezone.utc)
+    db.save(kraken)
     await _extract(test_package, page, [{
         "name": SPEAKER, "verb": "dijo", "object": SAID,
         "source_text": f"El alcalde Pedro Ruiz dijo «{SAID}», y se fue.",

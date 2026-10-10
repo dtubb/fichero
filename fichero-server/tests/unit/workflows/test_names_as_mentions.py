@@ -198,19 +198,68 @@ async def test_spacys_spans_are_kept_every_one_on_its_line(client, db, test_pack
 
 
 @pytest.mark.asyncio
-async def test_a_page_not_tied_keeps_the_span_and_names_its_line_once_tied(client, db, test_package, page, reader):
-    """source.extract.names-as-mentions, and slice 2's "when the page isn't tied, keep the text span without
-    a line". WHY: a name read before the lines were tied is still a place on the page; once tied, a rerun
-    names its line instead of adding a second mention."""
+async def test_a_name_rests_on_the_line_that_carries_its_own_words(client, db, test_package, page, monkeypatch):
+    """source.extract.names-as-mentions (#5654 item 4): a page whose lines carry their own words (Kraken
+    read them line by line; here a PAGE file gave them) has no tie, and its text IS its lines
+    (`source.point.text-is-derived`). WHY: on the demo every spaCy name on a Kraken page had `source_anchor`
+    null, only a character offset, because a line was found only through the tie."""
+    from fichero_server.api.routes.document.segment_readings import document_text
+
+    line = _lines(db, page["kraken"].id)
+    monkeypatch.setattr(spacy_ner, "_load_pipeline", lambda lang: _Ents([("Juan de Mena", "PER"), ("Ruiz", "PER")]))
+
+    result = await _entities(test_package, page, LLMConfig(provider="spacy", model=""))
+
+    # "Ruiz" is written on line 1 (in "Pedro Ruiz") and on line 2; the one on line 2 rests on line 2.
+    text = document_text(db, page["doc"].id).text
+    on_line_2 = text.index("Ruiz", text.index(LINES[1]))
+    (support,) = [s for s in _entity(client, db, "Ruiz")["source_supports"] if s["source_char_start"] == on_line_2]
+    anchor = support["source_anchor"]
+    assert anchor is not None, "a name on a line that carries its own words kept no line"
+    assert anchor["segment_id"] == line[1].id
+    (own,) = [r for r in _ok(client.get(f"/api/segments/{line[1].id}/readings"))["items"]
+              if r["id"] == anchor["representation_id"]]
+    assert own["content"][anchor["char_start"]:anchor["char_end"]] == "Ruiz"
+    assert ("Ruiz", "Ruiz") in _mentions(client, line[1].id)
+    assert _mentions(client, line[2].id) == [("Juan de Mena", "Juan de Mena")]
+    assert result["summary"]["mentions_on_lines"] == 3
+
+
+@pytest.mark.asyncio
+async def test_a_name_on_no_line_keeps_its_span_and_no_anchor(client, db, test_package, monkeypatch):
+    """source.extract.names-as-mentions: "a page not tied keeps the span with no line". A page with no lines
+    at all (only its stored text) still gives each name its character span, a null anchor, and no failure."""
+    text = "Ante mí el escribano compareció Juan de Mena, vecino de Popayán."
+    doc = Document(name="venta.txt", page_content=text, status=Status.completed)
+    db.save(doc)
+    monkeypatch.setattr(spacy_ner, "_load_pipeline", lambda lang: _Ents([("Juan de Mena", "PER")]))
+
+    result = await extract_entities_only(
+        {"documents": [{"id": doc.id}]},
+        {"library_path": str(test_package), "selected_doc_ids": [doc.id], "task_id": "run-no-lines"},
+        LLMConfig(provider="spacy", model=""),
+    )
+
+    (support,) = _entity(client, db, "Juan de Mena")["source_supports"]
+    assert text[support["source_char_start"]:support["source_char_end"]] == "Juan de Mena"
+    assert support["source_anchor"] is None
+    assert result["summary"]["mentions_on_lines"] == 0
+
+
+@pytest.mark.asyncio
+async def test_a_rerun_after_the_tie_names_the_line_once(client, db, test_package, page, reader):
+    """source.extract.names-as-mentions: "a rerun after the tie names the line in place of a second
+    mention". WHY: a name read before the page reading was tied already rests on its line (through the
+    line's own words); once tied, a rerun keeps ONE mention there, not two."""
     llm = LLMConfig(provider="openai", model="gpt-4o-mini")
     answer = _EntitiesOnly(people=[_EntityOnly(name="Juan de Mena", aliases=[])])
+    line = [row.id for row in _lines(db, page["kraken"].id)]
     await _entities(test_package, page, llm, answer)
     (support,) = _entity(client, db, "Juan de Mena")["source_supports"]
     assert page["text"][support["source_char_start"]:support["source_char_end"]] == "Juan de Mena"
-    assert support["source_anchor"] is None
+    assert support["source_anchor"]["segment_id"] == line[2]
 
     _run(client, db, page)
-    line = [row.id for row in _lines(db, page["kraken"].id)]
     await _entities(test_package, page, llm, answer)
     (support,) = _entity(client, db, "Juan de Mena")["source_supports"]
     assert support["source_anchor"]["segment_id"] == line[2]

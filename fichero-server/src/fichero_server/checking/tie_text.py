@@ -344,7 +344,7 @@ class LineSpan(NamedTuple):
     stretch's character span in that text."""
 
     segment_id: str
-    representation_id: str
+    representation_id: str | None
     start: int
     end: int
 
@@ -360,11 +360,9 @@ def line_spans(db: Any, document_id: str, text: str) -> list[LineSpan]:
 
     reading = page_reading(db, document_id)
     found = working_lines(db, document_id) if reading is not None and text else None
-    if found is None:
-        return []
     out: list[LineSpan] = []
     at = 0
-    for row in found.lines:
+    for row in found.lines if found is not None else []:
         stretch = next((r for r in readings_of_segment(db, row.id)
                         if r.derived_from_artifact_id == reading.id and r.content and not r.provisional), None)
         if stretch is None:
@@ -374,6 +372,34 @@ def line_spans(db: Any, document_id: str, text: str) -> list[LineSpan]:
             continue
         at = idx + len(stretch.content)
         out.append(LineSpan(row.id, stretch.id, idx, at))
+    return out or own_line_spans(db, document_id, text)
+
+
+def own_line_spans(db: Any, document_id: str, text: str) -> list[LineSpan]:
+    """The page's lines as spans of `text` when nothing was tied (#5654 item 4): a page whose lines carry
+    their own words (Kraken read them line by line, or a PAGE/ALTO file gave them) has no page reading to
+    tie, and its text IS its lines' readings (`source.point.text-is-derived`). Each span of that derived
+    text is found in `text`, in order, verbatim, exactly as a tied stretch is; one not found (the text is
+    not the lines' words, or a line was expanded) is left out. A provisional reading (an unconverted box)
+    is no record an anchor may keep, so its line is named without one. Read-only."""
+    from fichero_server.api.routes.document.segment_readings import document_text
+    from fichero_server.models.anchors import PROVISIONAL_ID_PREFIXES
+
+    if not text:
+        return []
+    derived = document_text(db, document_id)
+    out: list[LineSpan] = []
+    at = 0
+    for span in derived.spans:
+        stretch = derived.text[span.start:span.end]
+        idx = text.find(stretch, at) if stretch.strip() else -1
+        if idx < 0:
+            continue
+        at = idx + len(stretch)
+        reading_id = span.representation_id
+        if reading_id is not None and reading_id.startswith(PROVISIONAL_ID_PREFIXES):
+            reading_id = None
+        out.append(LineSpan(span.segment_id, reading_id, idx, at))
     return out
 
 

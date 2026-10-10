@@ -424,16 +424,20 @@ level it was made for.
   *Built (#5488): each place the page text writes the name is a supporting source on the entity with
   its span (`extractors.write_mentions`); through the tie seam (`tie_text.line_spans`, `line_anchor`)
   it names the line it is on and the reading the tie gave that line, and is read as a mention by
-  `GET /api/segments/{id}/statements`. spaCy's spans are kept, every occurrence (`EntitySpan.occurrences`,
+  `GET /api/segments/{id}/statements`. A page with no tie whose lines carry their own words (Kraken read
+  them line by line, or a PAGE/ALTO file gave them) is found the same way through its derived text
+  (`tie_text.own_line_spans`, #5654 item 4: on the demo every spaCy name on a Kraken page had a null
+  anchor); a statement written through `_write_kg_rows` rests on its line by the same helper. spaCy's spans are kept, every occurrence (`EntitySpan.occurrences`,
   cut to the name where a person's span ran on into a descriptor) and its aliases'; a language model's
   name and aliases are found as written, whole words, exactly (`extractors.name_spans`), never loosely.
-  A page not tied keeps the span with no line, and a rerun after the tie names the line in place of a
+  A page with no lines keeps the span with no line, and a rerun after the tie names the line in place of a
   second mention. A name not written on the page is kept unanchored with `mention_unanchored_reason`.
-  Writers: Extract Entities (`extract_entities_only`, spaCy and model paths) and every writer through
-  `_write_kg_rows` (the section extractors, Extract All, Extract Statements, KG Writer). Pinned by
-  `fichero-server/tests/unit/workflows/test_names_as_mentions.py` (4 tests). Not built: the NLP draft
-  at import (`importers/nlp_draft.py`) passes no page text to the writer, so its names stay on the
-  document.*
+  Writers: Extract Entities (`extract_entities_only`, spaCy and model paths), the NLP draft at import
+  (`importers/nlp_draft.py`, which passes the whole page as grounding text since 2026-10-10) and every
+  writer through `_write_kg_rows` (the section extractors, Extract All, Extract Statements, KG Writer).
+  Pinned by `fichero-server/tests/unit/workflows/test_names_as_mentions.py` (8 tests; the line-by-line
+  page by `test_a_name_rests_on_the_line_that_carries_its_own_words`, the page with no lines by
+  `test_a_name_on_no_line_keeps_its_span_and_no_anchor`).*
 - `source.extract.statements-on-segments` — **[PARTIAL]** (#4932) *Built: the read from a segment
   (`GET /api/segments/{id}/statements`) and the Inspector section; every claim written through
   `_write_kg_rows` whose words are found on the page (exactly or by the closest real span) fills
