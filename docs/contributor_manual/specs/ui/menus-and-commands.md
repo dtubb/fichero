@@ -576,6 +576,18 @@ either way (shared components), but scope of the cross-platform tests depends on
   `os(macOS)`-only gate that would silently exclude iPad. This spec's own "Cross-platform" section
   above already commits to the shared-component design that would make parity fall out for free
   once built — the gap is verifying/completing that build, not a design question.
+- `help.save-logs-for-support` — **[PARTIAL]** (#5656; built 2026-10-10, tests written and not yet
+  run — becomes **[OK]** when the manager's run passes them) **Help › Save Logs for Support…**, in the
+  dev feature tier only (`SupportLogs.isOffered(for:)`), sits after the User Manual link. It saves
+  one zip, `Fichero Logs <yyyy-MM-dd HH.mm>.zip`, through a save panel that starts on the Desktop
+  (so the sandbox grants the write), then reveals it in Finder. The zip holds everything under the
+  app's `Library/Logs/Fichero` as the sandboxed app sees it (engine.log capped to its last 20 MB,
+  starting on a whole line) plus `about.txt`: version and build, feature tier, macOS version, model
+  identifier, memory, free disk, date, and the logs folder (or that it was not found). A failure
+  shows in an alert. App-side by design, an exception to "logic in the engine": it is needed
+  when the engine is not running. *Test:* `Tests/Unit/general/App/SaveLogsForSupportTests.swift`
+  (the collector against a temp logs folder with an over-cap engine.log; the tier gate; a source
+  read that the Help group mounts the item behind the gate).
 
 ---
 
