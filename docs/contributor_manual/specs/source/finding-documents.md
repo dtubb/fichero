@@ -38,6 +38,21 @@ teacher; the person's corrections and the teacher's decisions train the **projec
 this task (the same distillation loop as the readers), which then runs locally, quickly, and asks the
 teacher only where it is unsure.
 
+## Ruled 2026-10-10 (the maintainer, after the Organise review)
+
+- **The auto-accept covers boundaries only.** At or above the threshold, which pages form a document is
+  accepted; the document's kind is left as a proposed kind on its node (the one proposed-kind mechanism
+  `classify` uses), and cases are always proposed, never accepted by the run. This applies the 2026-10-08
+  ruling that a kind is proposed, never assigned.
+- **The auto-accept is off until a scored box.** The 95% is a hand-set score today, never checked against a
+  box a person broke down. Until a real box (Istmina first) is scored against a person's breakdown and shows
+  boundaries at least 99% right at that level, Find the Documents proposes and accepts nothing by itself;
+  then it switches on at the measured level.
+- **Organise runs after names and dates.** Parties come from the names found; officials who appear on every
+  document (a judge, a secretary) are not parties and link nothing.
+- **An accepted case is a group node**, holding its documents in their order, made only when a person accepts
+  the case.
+
 ## Evidence Find the Documents uses (each signal named in the proposal's reasons)
 
 | Signal | From | Says |
@@ -169,7 +184,7 @@ involve the company it names. Lessons the tool must carry:
   run as background work. **Built 2026-10-07 (engine):** setup's answer `loose_pages` adds it (unset, it
   is on when the open project holds a folder of loose page images, as "Everything automatic after
   Start" lays out for a box); Start runs it as its own card (`find-documents`) under the recipe's row.
-  **Default (ruled by the maintainer 2026-10-08):** Find the Documents accepts by itself a document at
+  **Superseded in part 2026-10-10 (above): boundaries only, and off until a scored box.** **Default (ruled by the maintainer 2026-10-08):** Find the Documents accepts by itself a document at
   least 95% sure and proposes the rest for a person. One setting, `finddocs.AUTO_ACCEPT_ABOVE`: the
   recipe step's `accept_above` (the project's setting; empty leaves every proposal for the person) and
   the run's own default (`POST /api/find-documents/runs` with `accept_above` left out, so the MCP tool
