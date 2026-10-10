@@ -28,3 +28,25 @@ def test_projects_are_closed_before_local_models_are_unloaded(test_package, monk
         db.execute("CREATE TABLE IF NOT EXISTS quit_probe (x INTEGER)")
         db.execute("INSERT INTO quit_probe VALUES (1)")
     assert seen == {"open": [], "wal": False}, seen
+
+
+def test_the_app_database_is_checkpointed_with_the_projects(tmp_path, monkeypatch):
+    from fichero_server.api import main as api_main
+    from fichero_server.db import app as app_db_module
+
+    app_db = app_db_module.AppDatabase(tmp_path / "app.duckdb")
+    monkeypatch.setattr(app_db_module, "_app_db", app_db)
+    app_db.conn.execute("CREATE TABLE IF NOT EXISTS quit_probe (x INTEGER)")
+    app_db.conn.execute("INSERT INTO quit_probe VALUES (1)")
+    assert Path(f"{tmp_path / 'app.duckdb'}.wal").exists()
+
+    seen = {}
+
+    async def unload_models():
+        seen["wal"] = Path(f"{tmp_path / 'app.duckdb'}.wal").exists()
+
+    monkeypatch.setattr(api_main, "shutdown_managed_local_inference_services", unload_models)
+    with TestClient(api_main.app):
+        pass
+    assert seen == {"wal": False}
+    assert app_db.conn.execute("SELECT count(*) FROM quit_probe").fetchone()[0] == 1, "still usable after quit"

@@ -20,6 +20,8 @@ from datetime import datetime, timedelta
 from fichero_server.core.timeutil import ensure_utc, utc_now
 from pathlib import Path
 
+import duckdb
+
 from fichero_server.core.duckdb_session import connect_utc, rebuild_secondary_indexes
 from pydantic import BaseModel
 from fichero_server.db.storage import settings
@@ -2119,3 +2121,15 @@ def get_app_db() -> AppDatabase:
     if _app_db is None:
         _app_db = AppDatabase()
     return _app_db
+
+
+def checkpoint_app_db() -> None:
+    """At quit, write the app database's WAL into its file, so a quit that is cut short leaves nothing to replay
+    (#5644). A checkpoint, not a close: a request still finishing may hold the connection."""
+    if _app_db is None:
+        return
+    try:
+        with _app_db._lock:
+            _app_db.conn.execute("CHECKPOINT")
+    except duckdb.Error as exc:
+        logger.warning("app database not checkpointed at quit: %s", exc)

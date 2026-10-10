@@ -1095,6 +1095,9 @@ async def lifespan(app: FastAPI):
     # project with a WAL to replay at the next open (#5644; 2026-10-10).
     logger.info("Fichero API shutting down: closing projects")
     db_manager.close_all()
+    from fichero_server.db.app import checkpoint_app_db
+
+    checkpoint_app_db()
     # Await the start before stopping: a short-lived process (a test, a failed
     # launch) can reach shutdown while the executor has not run yet, and the
     # advertiser would then register AFTER we tried to stop it — a zombie that
