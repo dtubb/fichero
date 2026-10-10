@@ -2,8 +2,8 @@ import Foundation
 
 /// What a window shows selected when it opens a project with no selection of its own (ruled
 /// 2026-10-10, `sidebar.project.opens-on-sources`): the project's Sources folder, where its
-/// material lands, never Workflows. A first launch opens My Project on its Sources; a project
-/// opened with no saved selection opens on its Sources too. The engine makes the folder
+/// material lands, never Workflows. A first launch opens on Sources, in the sidebar's top section
+/// (the always-there project's); a project opened with no saved selection opens on its Sources too. The engine makes the folder
 /// (`sidebar.project.has-a-sources-folder`) and names it; the app finds it by that name.
 enum OpeningSelection {
     /// The name the engine gives every project's Sources folder (`importers/sources_folder.py`).

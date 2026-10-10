@@ -7,15 +7,15 @@ struct FirstRunCardConfig {
     let primaryTitle: String
     let primaryIcon: String
     let primaryAction: () -> Void
-    /// A second, plainer choice under the main button (first launch's Use My Project for Now).
-    /// Either way the window shows My Project's Sources (`OpeningSelection`).
+    /// A second, plainer choice under the main button (first launch's Start Without a Project).
+    /// Either way the window opens on Sources, the sidebar's top section (`OpeningSelection`).
     var secondary: (title: String, action: () -> Void)?
 }
 
 /// A first launch (ruled 2026-10-10, `source.onboard.first-launch-offers-setup`): first run is
 /// not done and the person has set up no project, so every project the app knows of is the
-/// always-there one (My Project). Setup then opens by itself, offering Set Up a New Project… or
-/// Use My Project for Now. `LibraryWindow` decides it once when it arms its sheets, so the project
+/// always-there one (which has no name). Setup then opens by itself, offering Set Up a New
+/// Project… or Start Without a Project. `LibraryWindow` decides it once when it arms its sheets, so the project
 /// setup makes does not close setup under the person.
 func firstLaunchOffersSetUp(firstRunCompleted: Bool, knownProjectPaths: [String]) -> Bool {
     !firstRunCompleted && knownProjectPaths.allSatisfy { AlwaysThereProject.isPackage(path: $0) }
@@ -29,16 +29,9 @@ enum FirstLaunchChoices {
         + "The first step is setting up a project for your material."
     static let setUpNewProject = "Set Up a New Project…"
 
-    /// "Use My Project for Now", with the always-there project's name as the person has it.
-    static func useAlwaysThereProject(named name: String) -> String {
-        "Use \(name) for Now"
-    }
-
-    /// The same, named as the always-there project is now (My Project unless renamed).
-    @MainActor
-    static func useAlwaysThereProject() -> String {
-        useAlwaysThereProject(named: LibraryManager.shared.globalLibrary?.displayName ?? AlwaysThereProject.defaultName)
-    }
+    /// The plainer choice: close setup and work in the always-there project, which has no name
+    /// (ruled 2026-10-10), so the choice names none. The window opens on Sources.
+    static let startWithoutProject = "Start Without a Project"
 }
 
 enum FirstRunStep: Int, CaseIterable, Identifiable {

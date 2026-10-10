@@ -43,9 +43,24 @@ extension SidebarView {
     /// Unified sidebar content with feature-gated sections per library.
     @ViewBuilder
     var unifiedContent: some View {
+        // Mail/Finder (ruled 2026-10-10): the always-there project's own items at the top with no
+        // heading row, then the projects a person set up under Projects
+        // (`sidebar.top-section-is-the-always-there-project`, `sidebar.projects-heading`).
+        let sections = SidebarProjectSections.split(
+            filteredLibraryHeaders, libraryId: { $0.libraryId }, alwaysThereId: LibraryManager.globalLibraryId
+        )
         List(selection: sidebarSelectionBinding) {
-            ForEach(filteredLibraryHeaders) { libraryHeader in
-                unifiedLibrarySection(libraryHeader)
+            if let top = sections.top {
+                alwaysThereProjectItems(top)
+            }
+            if !sections.projects.isEmpty {
+                Section {
+                    ForEach(sections.projects) { libraryHeader in
+                        unifiedLibrarySection(libraryHeader)
+                    }
+                } header: {
+                    Text(SidebarProjectSections.projectsHeading)
+                }
             }
             // App-level destinations pinned once at the bottom, not repeated
             // under every library (#1456).

@@ -295,12 +295,12 @@ extension LibraryManager {
     }
 
     /// Rename a project's display name (does not rename the package on disk). The always-there
-    /// project is renamed the same way (ruled 2026-10-10, `library.always-there-project.renamed`):
-    /// its name is kept under its path in the saved display names like any project's.
+    /// project is refused: it has no name (ruled 2026-10-10, `library.always-there-project.no-name`).
     func renameLibrary(id: UUID, to newName: String) {
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        guard let library = getLibrary(id: id) else { return }
+        // The always-there project has no name and is never renamed (ruled 2026-10-10).
+        guard id != Self.globalLibraryId, let library = getLibrary(id: id) else { return }
 
         library.displayName = trimmed
         saveLibraryDisplayNames()

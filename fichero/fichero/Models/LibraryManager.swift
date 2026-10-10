@@ -434,8 +434,7 @@ class LibraryManager {
             self.id = id ?? UUID()
             self.url = url
             self.host = host
-            // The always-there project reads as the name a person gave it, or as its default name
-            // when the name that reached here is none or one the app gave it before (a saved "Local").
+            // The always-there project has no name, whatever name reached here (a saved "Local").
             self.displayName = AlwaysThereProject.displayName(forPath: url.path, given: displayName)
             self.document = document
 
@@ -603,8 +602,8 @@ class LibraryManager {
         let library = LibraryReference(
             url: globalURL,
             document: document,
-            // Named like any project (ruled 2026-10-10): the name saved for its path, else the default.
-            displayName: getSavedLibraryDisplayNames()[globalURL.path.nfcNormalized] ?? AlwaysThereProject.defaultName,
+            // No name in the UI (ruled 2026-10-10, `sidebar.top-section-is-the-always-there-project`).
+            displayName: "",
             id: Self.globalLibraryId,
             startAccessing: false  // No security-scoped access needed for app support folder
         )

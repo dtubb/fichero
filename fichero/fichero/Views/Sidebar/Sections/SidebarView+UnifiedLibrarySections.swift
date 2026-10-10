@@ -84,14 +84,11 @@ extension SidebarView {
             // not inflate an individual library's disclosure label.
             let totalCount = flattenedLibraryItems(libraryId: libraryId, buckets: buckets).count
 
-            // EVERY library — including the global one — gets its own header
-            // row (#4102). The global library used to render headless, from
-            // when it was the only library and the row was dead chrome (#608).
-            // With several libraries open that made its contents look like
-            // they belonged to no library, and floated its "Default Workflows"
-            // subfolders at the sidebar's top level next to the real library
-            // rows. One consistent shape: a library is always a disclosure
-            // group you can collapse.
+            // Every project a person set up gets its own header row (#4102):
+            // a disclosure group you can collapse, under the Projects heading.
+            // The always-there project is drawn headless above them instead
+            // (`alwaysThereProjectItems`, ruled 2026-10-10), so its items read
+            // as the sidebar's own top section, not as floating rows.
             DisclosureGroup(
                 isExpanded: Binding(
                     get: { sidebarState.isLibraryExpanded(library.id) },
@@ -119,6 +116,20 @@ extension SidebarView {
             // the whole selection treatment. Ceiling: a ⇧-range cannot span a
             // library header — Finder's sidebar headers behave the same.
             .listRowInsets(SidebarRowMetrics.insets(.library))
+        }
+    }
+
+    /// The always-there project at the sidebar's top (ruled 2026-10-10,
+    /// `sidebar.top-section-is-the-always-there-project`): its own items (Sources, Workflows,
+    /// Models, and its knowledge rows while they hold something) drawn at the top level with no
+    /// heading row, since it has no name. The rows are the same nodes, with the same ids, as when
+    /// they sat under its header, so selection and routing are unchanged.
+    @ViewBuilder
+    func alwaysThereProjectItems(_ libraryHeader: SidebarItem) -> some View {
+        if let libraryId = libraryHeader.libraryId,
+           let library = libraryManager.getLibrary(id: libraryId) {
+            let buckets = unifiedLibraryBuckets(for: libraryHeader, library: library, libraryId: libraryId)
+            unifiedLibrarySections(libraryId: libraryId, buckets: buckets)
         }
     }
 
@@ -254,8 +265,9 @@ extension SidebarView {
     /// view renders — so a feature-gated bucket that draws no rows contributes
     /// no destinations either.
     var currentLibraryVisibleDestinations: [SidebarDestination] {
+        // The always-there project has no header to collapse: its items are always visible.
         guard let libraryId = libraryManager.currentLibraryId,
-              sidebarState.isLibraryExpanded(libraryId),
+              libraryId == LibraryManager.globalLibraryId || sidebarState.isLibraryExpanded(libraryId),
               let library = libraryManager.getLibrary(id: libraryId),
               let header = filteredLibraryHeaders.first(where: { $0.libraryId == libraryId })
         else { return [] }

@@ -68,7 +68,9 @@ final class KnownLibraryRegistryStore {
             switch response {
             case .ok(let okResponse):
                 let body = try okResponse.body.json
-                libraries = body.libraries.map { lib in
+                // The always-there project is always open and has no name (ruled 2026-10-10): it is
+                // never a recent project to open.
+                libraries = body.libraries.filter { !AlwaysThereProject.isPackage(path: $0.path) }.map { lib in
                     KnownLibraryMenuEntry(
                         id: lib.id ?? lib.path,
                         path: lib.path,
@@ -229,8 +231,6 @@ struct KnownLibraryMenuEntry: Identifiable, Equatable {
     let lastAccessed: Date?
 
     var displayName: String {
-        // The always-there project: its recorded name, or its default when none or a retired one.
-        if AlwaysThereProject.isPackage(path: path) { return AlwaysThereProject.displayName(forPath: path, given: name) }
         if let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines),
            !trimmedName.isEmpty {
             return trimmedName

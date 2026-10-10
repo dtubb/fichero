@@ -164,7 +164,7 @@ extension FirstRunWindow {
                         primaryTitle: FirstLaunchChoices.setUpNewProject,
                         primaryIcon: "arrow.right",
                         primaryAction: { advance() },
-                        secondary: (FirstLaunchChoices.useAlwaysThereProject(), { finish() })
+                        secondary: (FirstLaunchChoices.startWithoutProject, { finish() })
                     ),
                     footer: {
                         HStack(spacing: 8) {

@@ -70,9 +70,9 @@ struct LibraryHeaderRow: View {
     }
 
     var body: some View {
-        // The always-there project has a menu like any project (ruled 2026-10-10): it is renamed,
-        // and gets folders and imports, from its row; it is never closed, deleted or shared
-        // (`ProjectRowMenuOffers`). Its menu is never empty (#116), since Rename is always there.
+        // Only projects a person set up have this row; the always-there project has no row and no
+        // name (ruled 2026-10-10). `ProjectRowMenuOffers` still refuses it everything but folders
+        // and imports, so the menu is never empty (#116) whatever row it lands on.
         header.contextMenu { libraryContextMenu }
     }
 
@@ -82,8 +82,10 @@ struct LibraryHeaderRow: View {
 
     @ViewBuilder
     private var libraryContextMenu: some View {
-        Button("Rename Project…", action: onRename)
-            .disabled(!canWrite)
+        if offers.rename {
+            Button("Rename Project…", action: onRename)
+                .disabled(!canWrite)
+        }
         // The prototype (document type) editor from the library itself
         // (Daniel 2026-08-13: "yes to contextual menu" — prototypes are just
         // nodes of this library). Same sheet the inspector's picker opens.
@@ -215,9 +217,10 @@ struct LibraryHeaderRow: View {
 #endif
 
 /// What a project row's context menu offers (ruled 2026-10-10,
-/// `library.always-there-project.never-closed`): every project is renamed from its row; the
-/// always-there project is never closed, deleted or shared (the engine never releases it: "The
-/// engine's global library is not a project; it is never released").
+/// `library.always-there-project.never-closed`): every project a person set up is renamed, shared,
+/// closed and deleted from its row; the always-there project has no name and is never renamed,
+/// closed, deleted or shared (the engine never releases it: "The engine's global library is not a
+/// project; it is never released").
 nonisolated struct ProjectRowMenuOffers: Equatable {
     let rename: Bool
     let share: Bool
@@ -225,6 +228,6 @@ nonisolated struct ProjectRowMenuOffers: Equatable {
     let delete: Bool
 
     static func forProject(isAlwaysThere: Bool, multiuser: Bool) -> Self {
-        Self(rename: true, share: multiuser && !isAlwaysThere, close: !isAlwaysThere, delete: !isAlwaysThere)
+        Self(rename: !isAlwaysThere, share: multiuser && !isAlwaysThere, close: !isAlwaysThere, delete: !isAlwaysThere)
     }
 }
