@@ -264,13 +264,22 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     status = await with_accounts(db, runner.status(db, job_id))
     pages = _pages(db, status.get("documents"), status.get("folder_id"))
     names, dates, statements = _knowledge(db, pages)
+    from fichero_server.workflows import run_account as accounts
+
     failed: list[StageFailures] = []
     for step in status["steps"]:
-        account: Optional[RunAccount] = step.get("account")
-        if account is None or not account.pages_failed:
-            continue
-        failed.append(StageFailures(steps=step["steps"], thread_id=step["child_id"], pages_failed=account.pages_failed,
-                                    failures=account.failures, offer=account.offer.label if account.offer else None))
+        # Each batch the stage failed pages of, its run carried past (#5540), then the stage's own run.
+        children = [b["child_id"] for b in step.get("failed_batches") or [] if b.get("child_id")]
+        if step.get("child_id") and step["child_id"] not in children:
+            children.append(step["child_id"])
+        for child in dict.fromkeys(children) if step.get("card") == "workflow" else ():
+            account: Optional[RunAccount] = (step.get("account") if child == step.get("child_id")
+                                             else await accounts.run_account(db, child))
+            if account is None or not account.pages_failed:
+                continue
+            failed.append(StageFailures(steps=step["steps"], thread_id=child, pages_failed=account.pages_failed,
+                                        failures=account.failures,
+                                        offer=account.offer.label if account.offer else None))
     proposed, accepted, groups = _found_documents(db, status["steps"])
     entries, pages_split = _entries(status["steps"])
     made = RecipeRunSummary(

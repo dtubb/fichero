@@ -2281,7 +2281,7 @@ Projects
   batch's pages at once. Folders go in the order of the project's material. The whole-project Start, a
   folder's Start and an import's run are the same loop (an import is usually one batch). **[OK, provisional]**
   (#5540: a default chosen while the maintainer was away, awaiting his ruling; built 2026-10-10:
-  `runner._settle_batch`, `runner._did_no_page`, `runner.OUTRIGHT_IN_A_ROW`; tested in
+  `runner._note_batch`, `runner._did_no_page`, `runner._halted`, `runner.OUTRIGHT_IN_A_ROW`, `run_view.summary`; tested in
   `test_recipe_batches_to_spec.py::test_a_page_failing_in_one_batch_does_not_stop_the_next`,
   `::test_a_step_failing_outright_three_batches_in_a_row_stops_the_run`) a step that fails or is not run on a
   batch does not end the run: the step's failed batches are kept on it (`failed_batches`: the folder, the step's

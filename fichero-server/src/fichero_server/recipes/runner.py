@@ -622,15 +622,19 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
     detail["folders_total"] = len({b["folder"] for b in batches if b["units"]})
     detail["folders_done"] = sum(1 for b in batches[:detail["batches_done"]] if b["last"] and b["units"])
     problems: list[str] = []
+    halted: str | None = None
     for number, batch in enumerate(batches):
         if number < detail["batches_done"]:  # finished before an interruption (`source.recipe.batch-checkpoint`)
             continue
         problems = _run_batch(db, job_id, detail, batch, tree, started_by, final=number == len(batches) - 1)
-        if problems or _stop_asked(job_id):  # the batches after a failed or stopped one do not run
+        if _stop_asked(job_id):  # a person's Stop ends the run after this batch; a failure does not (#5540)
             break
         detail["batches_done"], detail["batch_states"] = number + 1, [None] * len(cards)
         detail["folders_done"] += 1 if batch["last"] and batch["units"] else 0
+        halted = _halted(cards, steps)
         jobs.save_detail(db, job_id, json.dumps(detail), reason=f"Running the recipe: {_folders_words(detail)}")
+        if halted:  # a step that did nothing on batch after batch: its model is broken, not a page (#5540)
+            break
     finished = sum(1 for s in steps if s["state"] == "done")
     total = detail["folders_total"]
     folders = f"; {_folders_words(detail)}" if total else ""
@@ -640,13 +644,82 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
         jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
         raise jobs.JobCancelled(words)
     over = f" over {total} {'folder' if total == 1 else 'folders'}" if total else ""
-    words = (f"Stopped: {'; '.join(problems)}; {finished} of {len(steps)} steps done{folders}" if problems else
-             f"Done: {len(steps)} steps run{over}" + (f", {len(detail['skipped'])} skipped (see why)"
-                                                      if detail["skipped"] else ""))
+    failures = _failures_words(db, cards, steps, total)
+    if halted:
+        words = f"Stopped: {halted}{folders}"
+    elif failures:
+        words = f"Done with failures: {failures}{folders}"
+    else:
+        words = f"Done: {len(steps)} steps run{over}" + (f", {len(detail['skipped'])} skipped (see why)"
+                                                         if detail["skipped"] else "")
     jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
-    if problems:
+    if halted or failures:
         raise RuntimeError(words)
     return {"steps": steps}
+
+
+#: ponytail: a step that does none of a batch's pages on this many batches in a row stops the run (#5540,
+#: provisional): its model is missing or broken, and carrying on would only fail every folder after. A guess at
+#: "more than bad luck"; change it with a ruling.
+OUTRIGHT_IN_A_ROW = 3
+
+
+def _note_batch(step: dict[str, Any], batch: dict[str, Any], state: str, child: str | None, why: str | None) -> None:
+    """A batch a step failed on, was not run on, or failed some pages of, kept on the step (`failed_batches`):
+    the run carries on past it (#5540), and its end, its summary and Read Again name it."""
+    step.setdefault("failed_batches", []).append(
+        {"folder": batch["folder"], "state": state, "child_id": child, "why": why})
+
+
+def _did_no_page(db: Any, card: dict[str, Any], child: str | None, scratch: dict[str, Any]) -> tuple[bool, int]:
+    """(whether the step did none of the batch's pages, the pages it failed) from its workflow runs' own accounts
+    (#5555); a run with no account never reached a page. A step that is not a workflow cannot say which pages it
+    did, so it did none."""
+    if card["card"] != "workflow":
+        return True, 0
+    from fichero_server.workflows import run_account as accounts
+
+    children = [r["child_id"] for r in scratch.get("readers") or [] if r.get("child_id")] or [child]
+    done = failed = 0
+    for thread_id in children:
+        account = asyncio.run(accounts.run_account(db, thread_id)) if thread_id else None
+        if account is not None:
+            done, failed = done + account.pages_done, failed + account.pages_failed
+    return done == 0, failed
+
+
+def _halted(cards: list[dict[str, Any]], steps: list[dict[str, Any]]) -> str | None:
+    """Why the run stops: a step that failed outright on `OUTRIGHT_IN_A_ROW` batches in a row; None to carry on."""
+    for card, step in zip(cards, steps):
+        if step.get("outright_in_a_row", 0) >= OUTRIGHT_IN_A_ROW:
+            why = next((b["why"] for b in reversed(step.get("failed_batches") or []) if b["state"] == "failed"), None)
+            return (f"step {', '.join(card['steps'])} failed on {step['outright_in_a_row']} folders in a row "
+                    f"without doing a page ({why or 'no reason given'})")
+    return None
+
+
+def _failures_words(db: Any, cards: list[dict[str, Any]], steps: list[dict[str, Any]], total: int) -> str:
+    """"step lines, read failed on 1 of 4 folders (B: why)", for each step with a batch it failed or did not run."""
+    from fichero_server.models import Document
+
+    def name(folder: str | None) -> str:
+        doc = db.get(Document, folder) if folder else None
+        return doc.name if doc is not None else "pages in no folder"
+
+    out = []
+    for card, step in zip(cards, steps):
+        for state, verb in (("failed", "failed"), ("not run", "not run")):
+            bad = [b for b in step.get("failed_batches") or [] if b["state"] == state]
+            if not bad:
+                continue
+            by_folder: dict[str | None, str] = {}
+            for b in bad:
+                by_folder.setdefault(b["folder"], b["why"] or "no reason given")
+            shown = [f"{name(f)}: {why}" for f, why in list(by_folder.items())[:3]]
+            more = f"; and {len(by_folder) - 3} more" if len(by_folder) > 3 else ""
+            out.append(f"step {', '.join(card['steps'])} {verb} on {len(by_folder)} of {total} "
+                       f"{'folder' if total == 1 else 'folders'} ({'; '.join(shown)}{more})")
+    return "; ".join(out)
 
 
 def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree,
@@ -672,6 +745,7 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
         if blocked:
             here[index]["state"] = "not run"
             _settle(step, "not run", None, blocked)
+            _note_batch(step, batch, "not run", None, blocked)
             problems.append(f"step {named} not run: {blocked}")
             continue
         if card["card"] == "publish" and not final:  # the site is the whole project: written once, at the end
@@ -745,6 +819,14 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             from fichero_server import kept_export
 
             kept_export.queue_rewrites(db, documents)
+        if state in ("done", "failed"):
+            # The run carries on past a failed batch (#5540, provisional): the step's failed pages are kept on it,
+            # and a step that did none of a batch's pages counts towards stopping the run (`_halted`).
+            none_done, pages_failed = _did_no_page(db, card, child, scratch)
+            outright = state == "failed" and none_done
+            step["outright_in_a_row"] = step.get("outright_in_a_row", 0) + 1 if outright else 0
+            if state == "failed" or pages_failed:
+                _note_batch(step, batch, state, child, why or (f"{pages_failed} pages failed" if pages_failed else None))
         if state not in ("done", "cancelled"):
             problems.append(f"step {named} {state}: {why or 'no reason given'}")
         jobs.save_detail(db, job_id, json.dumps(detail))  # the step's end on this batch is a checkpoint
