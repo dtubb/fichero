@@ -247,10 +247,17 @@ def local_reads_at_once(spec: Any, *, physical_bytes: Any = None) -> int:
     from fichero_server.llm import kraken_runtime
 
     total = (physical_bytes or kraken_runtime._physical_memory_bytes)()
-    if not total:
+    return reads_at_once_for(mlx_memory_need_bytes(spec), total)
+
+
+def reads_at_once_for(need_bytes: int | None, total_bytes: int | None) -> int:
+    """`local_reads_at_once` from the model's need and the Mac's memory: the client's read slots AND the
+    in-process server's batch size (`mlx_in_process.kv_settings`), so the server never serves fewer at
+    once than it is sent -- the rest waited silent past the read timeout (2026-10-10)."""
+    if not total_bytes:
         return 1
-    weights = max(0, mlx_memory_need_bytes(spec) - _MLX_LOAD_MARGIN_BYTES)
-    fits = int((total * _LOCAL_READS_SHARE - weights) // _MLX_LOAD_MARGIN_BYTES)
+    weights = max(0, (need_bytes or 0) - _MLX_LOAD_MARGIN_BYTES)
+    fits = int((total_bytes * _LOCAL_READS_SHARE - weights) // _MLX_LOAD_MARGIN_BYTES)
     return max(1, min(LOCAL_READS_CEILING, fits))
 
 

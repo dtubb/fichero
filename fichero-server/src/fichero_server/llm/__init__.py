@@ -1687,6 +1687,8 @@ async def _call_model_abatch(
                     timeout=budget,
                 )
             except asyncio.TimeoutError as timeout_exc:
+                if budget is None:
+                    raise  # no wall clock for a local model: its read timeout, said by the local slot (#5537)
                 raise RuntimeError(
                     f"LangChain {config.provider}/{config.model} batch call "
                     f"exceeded {budget}s — provider hang"
@@ -1706,11 +1708,15 @@ async def _call_model_abatch(
                 timeout=budget,
             )
         except asyncio.TimeoutError as timeout_exc:
+            if budget is None:
+                raise  # no wall clock for a local model: its read timeout, said by the local slot (#5537)
             raise RuntimeError(
                 f"LangChain {config.provider}/{config.model} batch call "
                 f"exceeded {budget}s — provider hang"
             ) from timeout_exc
     except asyncio.TimeoutError as exc:
+        if budget is None:
+            raise  # no wall clock here: a read timeout inside the call, said as such by the local slot
         raise RuntimeError(
             f"LangChain {config.provider}/{config.model} batch call "
             f"exceeded {budget}s — provider hang"
@@ -1896,6 +1902,8 @@ async def chat(
                     model.ainvoke(messages), timeout=budget,
                 )
         except asyncio.TimeoutError as exc:
+            if budget is None:
+                raise  # no wall clock for a local model: its read timeout, said by the local slot (#5537)
             raise RuntimeError(
                 f"LangChain {config.provider}/{config.model} chat exceeded "
                 f"{budget}s — provider hang"
@@ -2813,6 +2821,8 @@ async def vision(
                 model.ainvoke([message]), timeout=budget,
             )
     except asyncio.TimeoutError as exc:
+        if budget is None:
+            raise  # no wall clock for a local model: its read timeout, said by the local slot (#5537)
         raise RuntimeError(
             f"LangChain {config.provider}/{config.model} vision exceeded "
             f"{budget}s — provider hang"
@@ -3540,6 +3550,8 @@ async def chat_structured(
                 structured_model.ainvoke(messages), timeout=budget,
             )
     except asyncio.TimeoutError as exc:
+        if budget is None:
+            raise  # no wall clock for a local model: its read timeout, said by the local slot (#5537)
         raise RuntimeError(
             f"LangChain {config.provider}/{config.model} structured call "
             f"exceeded {budget}s — provider hang"

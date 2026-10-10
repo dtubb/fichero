@@ -53,16 +53,20 @@ def kv_settings(need_bytes: int | None, physical_bytes: int | None) -> dict[str,
     The KV cache grows with every token read and written. Quantized only past `QUANTIZED_KV_START`
     tokens, a page read stays at full precision and only a long output is compressed: 8 bits from
     token 5000 (mlx_vlm's own start) is close to lossless. A tight fit gets 4 bits from token 1024,
-    so the model fits rather than fails. One page at a time on a Mac of 16 GB or less (a batch holds a
-    cache per page); up to 4 on a bigger one. Each is overridden by its environment variable, so a
+    so the model fits rather than fails. Pages at once: as many as the client sends
+    (`local_inference.reads_at_once_for`). Each is overridden by its environment variable, so a
     setting can be tried without a build."""
+    from fichero_server.llm.local_inference import reads_at_once_for
+
     total = physical_bytes or 0
     tight = bool(need_bytes and total and need_bytes > total * TIGHT_SHARE)
     settings = {
         "KV_BITS": "4" if tight else "8",
         "QUANTIZED_KV_START": "1024" if tight else "5000",
         "KV_QUANT_SCHEME": "uniform",
-        "MLX_VLM_MAX_NUM_SEQS": "1" if not total or total <= 16 * 1024**3 else "4",
+        # As many at once as the client sends (`local_inference.reads_at_once_for`, the one rule): a
+        # smaller batch left the other reads queued with no bytes past the 120 s read timeout (2026-10-10).
+        "MLX_VLM_MAX_NUM_SEQS": str(reads_at_once_for(need_bytes, total)),
     }
     return {key: os.environ.get(f"FICHERO_{key}", value) for key, value in settings.items()}
 

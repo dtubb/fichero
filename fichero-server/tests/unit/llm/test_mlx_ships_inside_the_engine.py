@@ -104,10 +104,22 @@ def test_the_kv_cache_is_quantized_only_past_a_page_and_harder_when_the_model_is
     for key in ("KV_BITS", "QUANTIZED_KV_START", "KV_QUANT_SCHEME", "MLX_VLM_MAX_NUM_SEQS"):
         monkeypatch.delenv(f"FICHERO_{key}", raising=False)
     roomy = mlx_in_process.kv_settings(3 * GB, 16 * GB)
-    assert (roomy["KV_BITS"], roomy["QUANTIZED_KV_START"], roomy["MLX_VLM_MAX_NUM_SEQS"]) == ("8", "5000", "1")
+    assert (roomy["KV_BITS"], roomy["QUANTIZED_KV_START"]) == ("8", "5000")
     tight = mlx_in_process.kv_settings(5 * GB, 8 * GB)
     assert (tight["KV_BITS"], tight["QUANTIZED_KV_START"]) == ("4", "1024")
     assert mlx_in_process.kv_settings(3 * GB, 64 * GB)["MLX_VLM_MAX_NUM_SEQS"] == "4", "a big Mac reads 4 pages at once"
+
+
+def test_the_server_reads_as_many_pages_at_once_as_it_is_sent(monkeypatch):
+    """2026-10-10 in the Dev Embedded app: the client sent a 3B's pages 4 at once on a 16 GB Mac and the server
+    batched 1, so the others waited with no bytes past the 120 s read timeout and the step failed "provider
+    hang". One rule decides both."""
+    from fichero_server.llm import local_inference
+
+    monkeypatch.delenv("FICHERO_MLX_VLM_MAX_NUM_SEQS", raising=False)
+    for need, total in ((3 * GB, 8 * GB), (3 * GB, 16 * GB), (6 * GB, 16 * GB), (3 * GB, 64 * GB)):
+        sent = local_inference.reads_at_once_for(need, total)
+        assert mlx_in_process.kv_settings(need, total)["MLX_VLM_MAX_NUM_SEQS"] == str(sent), (need, total)
     monkeypatch.setenv("FICHERO_KV_BITS", "6")
     assert mlx_in_process.kv_settings(3 * GB, 16 * GB)["KV_BITS"] == "6", "a setting can be tried without a build"
 
