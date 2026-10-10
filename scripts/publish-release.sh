@@ -40,8 +40,9 @@ if [[ $DRY == 1 ]]; then
 fi
 
 "${PYTHON:-python3}" scripts/gen_site_releases.py
-git add -- "${STAMP_FILES[@]}" docs/_latest.md
-git add -- docs/_releases* 2>/dev/null || true
+# Every tracked file the release changed (the stamp, the contract re-exported at the stamped version) plus the snippets.
+git add -u
+git add -- docs/_latest.md docs/_releases* 2>/dev/null || true
 if ! git diff --cached --quiet; then
   git commit -m "release: Fichero $VERSION (build $BUILD)"
 fi
