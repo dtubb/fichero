@@ -49,15 +49,6 @@ func projectOffersSetUp(reason: LibraryEmptyReason, isLoaded: Bool, rootCollecti
     reason.offersImport && libraryIsLoadedAndEmpty(isLoaded: isLoaded, rootCollections: rootCollections)
 }
 
-/// A first launch (ruled 2026-10-10, `source.onboard.first-launch-offers-setup`): first run is
-/// not done and the person has set up no project, so every project the app knows of is the
-/// always-there one (My Project). Setup then opens by itself, offering Set Up a New Project… or
-/// Use My Project for Now. Decided once when the window arms its sheets, so the project setup
-/// makes does not close setup under the person.
-func firstLaunchOffersSetUp(firstRunCompleted: Bool, knownProjectPaths: [String]) -> Bool {
-    !firstRunCompleted && knownProjectPaths.allSatisfy { AlwaysThereProject.isPackage(path: $0) }
-}
-
 /// Main window view - simplified to just track one library per window
 struct LibraryWindow: View {
     @Environment(LibraryManager.self) var libraryManager
@@ -75,22 +66,19 @@ struct LibraryWindow: View {
 
     @State private var hasInitialized = false
     @State private var showingFileImporter = false
-    // #4783: the "provably unreachable" branch in `libraryWindowContent` was
-    // seen live once, so it must be diagnosable, not just theoretically
-    // impossible. Guards the one-shot `.notice` log in that branch so a
-    // window stuck there logs ONCE, not every re-render.
+    // #4783: the "provably unreachable" branch in `libraryWindowContent` was seen live once, so it
+    // must be diagnosable, not just theoretically impossible. Guards the one-shot `.notice` log in
+    // that branch so a window stuck there logs ONCE, not every re-render.
     @State private var loggedUnresolvedLibraryOnce = false
     // ponytail: NEVER auto-present a sheet in the same update cycle that flips
-    // `isBackendRunning` — that's when DocumentTabView swaps ContentView in and
-    // the window's NSToolbar does its FIRST full layout. Presenting mid-layout
-    // re-enters the toolbar update and double-inserts an item → EXC_BREAKPOINT
-    // in -[NSToolbar _insertNewItemWithItemIdentifier:…] (#3163, same class as
-    // the AddProvider first-launch crash fixed in AppState.loadProviders).
-    // This flag trails backend-ready by a settle beat (see the .task in `body`)
-    // so the first-run sheet can only present AFTER that first toolbar layout.
+    // `isBackendRunning` — that's when DocumentTabView swaps ContentView in and the window's
+    // NSToolbar does its FIRST full layout. Presenting mid-layout re-enters the toolbar update and
+    // double-inserts an item → EXC_BREAKPOINT in -[NSToolbar _insertNewItemWithItemIdentifier:…]
+    // (#3163, same class as the AddProvider first-launch crash fixed in AppState.loadProviders).
+    // This flag trails backend-ready by a settle beat (see the .task in `body`) so the first-run
+    // sheet can only present AFTER that first toolbar layout.
     @State private var firstRunSheetArmed = false
-    /// `firstLaunchOffersSetUp`, decided when the sheet is armed.
-    @State private var firstLaunchDue = false
+    @State private var firstLaunchDue = false  // `firstLaunchIsDue`, decided when armed (2026-10-10)
     /// File › Set Up New Project… in this window (#5482); internal for LibraryWindow+Actions.
     @State var showingNewProjectSetUp = false
     @State var hostWindow: NSWindow?
@@ -273,10 +261,8 @@ struct LibraryWindow: View {
                     // #4017b: and the library is VERIFIED empty. The flag alone
                     // said "nobody set a boolean", which is not the same fact as
                     // "this user has nothing yet" — so onboarding presented over
-                    // a loaded library full of documents. Or a first launch: no project the
-                    // person set up, only My Project, whose Sources folder now makes it
-                    // never "empty" (ruled 2026-10-10).
-                    && (windowLibraryIsLoadedAndEmpty || firstLaunchDue)
+                    // a loaded library full of documents.
+                    && windowLibraryIsLoadedAndEmpty
             },
             set: {
                 guard !$0 else { return }
@@ -301,8 +287,7 @@ struct LibraryWindow: View {
                     && projectSetUpIsDue(
                         requestedLibraryId: libraryManager.setUpRequestedLibraryId,
                         windowLibraryId: windowState.libraryId,
-                        firstRunShowing: !featureManager.firstRunCompleted
-                            && (windowLibraryIsLoadedAndEmpty || firstLaunchDue)
+                        firstRunShowing: !featureManager.firstRunCompleted && windowLibraryIsLoadedAndEmpty
                     )
             },
             set: { if !$0 { libraryManager.setUpRequestedLibraryId = nil } }
@@ -340,9 +325,9 @@ struct LibraryWindow: View {
         }
     }
 
-    /// #4017b: this window's library is VERIFIED loaded and empty. Read by first run and by setup.
+    /// #4017b: VERIFIED loaded and empty, or a first launch (2026-10-10). Read by first run and setup.
     private var windowLibraryIsLoadedAndEmpty: Bool {
-        libraryIsLoadedAndEmpty(
+        firstLaunchDue || libraryIsLoadedAndEmpty(
             isLoaded: libraryManager.loadedLibraryIds.contains(windowState.libraryId),
             rootCollections: windowState.library?.documentStore.collections ?? []
         )
@@ -387,12 +372,7 @@ struct LibraryWindow: View {
             guard appState.isBackendRunning, !firstRunSheetArmed else { return }
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
-            firstLaunchDue = firstLaunchOffersSetUp(
-                firstRunCompleted: featureManager.firstRunCompleted,
-                knownProjectPaths: libraryManager.openLibraries.map(\.url.path)
-                    + libraryManager.getSavedLibraryPaths()
-                    + LibraryRecents.shared.entries.map(\.path)
-            )
+            firstLaunchDue = firstLaunchIsDue
             firstRunSheetArmed = true
         }
     }

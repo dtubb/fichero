@@ -246,6 +246,16 @@ extension LibraryWindow {
         }
     }
 
+    /// `firstLaunchOffersSetUp` over every project the app knows of: open, saved and recent.
+    var firstLaunchIsDue: Bool {
+        firstLaunchOffersSetUp(
+            firstRunCompleted: FeatureManager.shared.firstRunCompleted,
+            knownProjectPaths: libraryManager.openLibraries.map(\.url.path)
+                + libraryManager.getSavedLibraryPaths()
+                + LibraryRecents.shared.entries.map(\.path)
+        )
+    }
+
     var closeLibraryAction: FocusedLibraryAction? {
         guard let library = windowState.library,
               library.id != LibraryManager.globalLibraryId else {

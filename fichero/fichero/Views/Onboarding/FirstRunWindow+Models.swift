@@ -8,8 +8,17 @@ struct FirstRunCardConfig {
     let primaryIcon: String
     let primaryAction: () -> Void
     /// A second, plainer choice under the main button (first launch's Use My Project for Now).
-    var secondaryTitle: String?
-    var secondaryAction: (() -> Void)?
+    /// Either way the window shows My Project's Sources (`OpeningSelection`).
+    var secondary: (title: String, action: () -> Void)?
+}
+
+/// A first launch (ruled 2026-10-10, `source.onboard.first-launch-offers-setup`): first run is
+/// not done and the person has set up no project, so every project the app knows of is the
+/// always-there one (My Project). Setup then opens by itself, offering Set Up a New Project… or
+/// Use My Project for Now. `LibraryWindow` decides it once when it arms its sheets, so the project
+/// setup makes does not close setup under the person.
+func firstLaunchOffersSetUp(firstRunCompleted: Bool, knownProjectPaths: [String]) -> Bool {
+    !firstRunCompleted && knownProjectPaths.allSatisfy { AlwaysThereProject.isPackage(path: $0) }
 }
 
 /// First launch's two choices (ruled 2026-10-10, `source.onboard.first-launch-offers-setup`).
@@ -23,6 +32,11 @@ enum FirstLaunchChoices {
     /// "Use My Project for Now", with the always-there project's name as the person has it.
     static func useAlwaysThereProject(named name: String) -> String {
         "Use \(name) for Now"
+    }
+
+    /// The same, named as the always-there project is now (My Project unless renamed).
+    static func useAlwaysThereProject() -> String {
+        useAlwaysThereProject(named: LibraryManager.shared.globalLibrary?.displayName ?? AlwaysThereProject.defaultName)
     }
 }
 

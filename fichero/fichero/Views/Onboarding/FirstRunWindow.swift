@@ -139,11 +139,6 @@ struct FirstRunWindow: View {
         .background(Color(platformColor: .controlBackgroundColor))
     }
 
-    /// The always-there project's name as the person has it (My Project unless renamed).
-    private var alwaysThereProjectName: String {
-        libraryManager.globalLibrary?.displayName ?? AlwaysThereProject.defaultName
-    }
-
     private func isBeforeProject(_ item: FirstRunStep) -> Bool {
         [.welcome, .permissions, .cloud].contains(item)
     }
@@ -165,14 +160,11 @@ extension FirstRunWindow {
                         icon: "books.vertical",
                         title: "Set up your first project",
                         body: "Four steps: your project, your material, what you want to do, and the plan. "
-                            + "Fichero proposes how the work will be done, and nothing runs until you press Start. "
-                            + "Or start in \(alwaysThereProjectName) and set up a project later.",
+                            + "Fichero proposes how the work will be done, and nothing runs until you press Start.",
                         primaryTitle: FirstLaunchChoices.setUpNewProject,
                         primaryIcon: "arrow.right",
                         primaryAction: { advance() },
-                        // Either way the window shows My Project's Sources (`OpeningSelection`).
-                        secondaryTitle: FirstLaunchChoices.useAlwaysThereProject(named: alwaysThereProjectName),
-                        secondaryAction: { finish() }
+                        secondary: (FirstLaunchChoices.useAlwaysThereProject(), { finish() })
                     ),
                     footer: {
                         HStack(spacing: 8) {
@@ -332,10 +324,7 @@ extension FirstRunWindow {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            if let secondaryTitle = config.secondaryTitle, let secondaryAction = config.secondaryAction {
-                Button(secondaryTitle, action: secondaryAction)
-                    .frame(maxWidth: .infinity)
-            }
+            if let secondary = config.secondary { Button(secondary.title, action: secondary.action).frame(maxWidth: .infinity) }
         }
         .padding(22)
         .frame(maxWidth: .infinity, minHeight: 280, alignment: .leading)

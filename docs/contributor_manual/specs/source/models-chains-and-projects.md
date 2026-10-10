@@ -2544,6 +2544,17 @@ Setup
   (`LibraryWindow.swift:235`), so after the first launch a new project never offers setup. *Test:*
   creating a project through the app's create path with `firstRunCompleted = true` presents setup
   for that project.
+- `source.onboard.first-launch-offers-setup` — **[PARTIAL]** **Built 2026-10-10 (app), not yet seen,
+  as ruled after the maintainer's cold-launch test that day:** a first launch (first run not done, and
+  every project the app knows of is the always-there My Project: none open, saved or recent) opens
+  setup by itself. It starts with a welcome ("Welcome to Fichero", what Fichero does, and that the
+  first step is setting up a project), then **Set Up a New Project…** as the main action and **Use My
+  Project for Now** (the always-there project's name as the person has it) as the other; either way
+  the window shows My Project's Sources (`sidebar.project.opens-on-sources`). The decision is made once
+  when the window arms its sheets, so the project setup makes does not close setup. Later launches do
+  not show it. Pinned by `fichero/Tests/Unit/general/App/ProjectNamingTests.swift`
+  (`firstLaunchOffersSetUp`, `FirstLaunchChoices`). *Not pinned: the sheet presenting in the real
+  window.*
 - `source.onboard.reachable` — **[PARTIAL]** (#5421) **Built 2026-10-04:** File › Set Up Project…
   (the key window's project) and Set Up… on an empty project's main view (`projectOffersSetUp`)
   both call `LibraryManager.requestSetUp(for:)`, the one request the window presents as
