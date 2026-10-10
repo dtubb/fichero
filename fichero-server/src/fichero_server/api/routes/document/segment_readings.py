@@ -37,7 +37,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.auth import action_context
@@ -74,6 +74,8 @@ from fichero_server.models.readings import (
     counting_level,
     doubtful_read,
     legacy_reading_segment_id,
+    read_kind_as_level,
+    reading_kind_filter,
     project_record_rule,
     reading_kinds,
     resolve_counting,
@@ -134,6 +136,13 @@ class ReadingRead(BaseModel):
     retracted: bool = False
     source_anchor: SourceAnchor | None = None
     created_at: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def _older_kind_read_as_level(cls, data: Any) -> Any:
+        """A provisional reading out of a ``normalized_text`` artifact reads as a transcription at
+        level regularised, like a stored row (`source.reading.normalized-text-is-a-level`)."""
+        return read_kind_as_level(data)
 
 
 class ReadingListResponse(BaseModel):
@@ -396,7 +405,7 @@ def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription
         return {}
     by_segment: dict[str, list[ReadingRead]] = {}
     for rep_row in db.query_in(ContentRepresentation, "segment_id", ids):
-        if rep_row.kind == kind:
+        if matches_kind_filter(rep_row, kind):
             by_segment.setdefault(rep_row.segment_id, []).append(_reading_read_from_row(rep_row))
     if not by_segment:
         return {}
@@ -410,10 +419,10 @@ def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription
     marked = ground_truth_pass_ids(db, pass_of.values())
     measures = ReadingMeasures(db)
     for segment_id, items in by_segment.items():
-        counted = counting_by_kind(
-            db, segment_id, items, rule=rule, choices=choices.get(segment_id, []), retired_memo=retired_memo,
-            on_ground_truth=pass_of.get(segment_id) in marked, measures=measures,
-        ).get(kind)
+        counted = counting_of_kind_filter(
+            db, segment_id, items, kind, rule=rule, choices=choices.get(segment_id, []),
+            retired_memo=retired_memo, on_ground_truth=pass_of.get(segment_id) in marked, measures=measures,
+        )
         if counted is not None and counted.representation_id is not None:
             texts[segment_id] = next(i.content for i in items if i.id == counted.representation_id)
     return texts
@@ -753,6 +762,26 @@ def counting_by_kind(
     return answers
 
 
+def matches_kind_filter(item: Any, kind: str) -> bool:
+    """Whether a reading (a row or a `ReadingRead`) is one a ``kind`` filter asks for: of that kind, or,
+    for an older aliased kind (``normalized_text``), of the kind it aliases at its level
+    (`source.reading.normalized-text-is-a-level`), so an old caller's filter still finds them."""
+    want_kind, want_level = reading_kind_filter(kind)
+    return item.kind == want_kind and (want_level is None or counting_level(item.level) == want_level)
+
+
+def counting_of_kind_filter(
+    db: Database, segment_id: str, items: list[ReadingRead], kind: str, **kwargs: Any,
+) -> CountingAnswer | None:
+    """The counting answer a ``kind`` filter asks for: the kind's (`counting_by_kind`), or, for an older
+    aliased kind, the answer at its level (`counting_by_kind_and_level`) -- counted beside the line as
+    written, never over it."""
+    want_kind, want_level = reading_kind_filter(kind)
+    if want_level is None:
+        return counting_by_kind(db, segment_id, items, **kwargs).get(want_kind)
+    return counting_by_kind_and_level(db, segment_id, items, **kwargs).get((want_kind, want_level))
+
+
 def text_for_names(db: Database, document_id: str, text: str) -> str:
     """The text names and statements are read from (#5651, `source.reading.abbreviation-markup-parsed`).
 
@@ -817,8 +846,12 @@ async def list_segment_readings(
         raise _as_http_error(exc) from exc
     counting = counting_by_kind(db, segment_id, items)
     if kind is not None:
-        items = [item for item in items if item.kind == kind]
-        counting = {key: value for key, value in counting.items() if key == kind}
+        # An older kind (`normalized_text`) is answered as the kind at its level, keyed by the kind
+        # asked for, so an old caller reads what it read before (`source.reading.normalized-text-is-a-level`).
+        answer = (counting_of_kind_filter(db, segment_id, items, kind) if reading_kind_filter(kind)[1]
+                  else counting.get(kind))
+        items = [item for item in items if matches_kind_filter(item, kind)]
+        counting = {kind: answer} if answer is not None else {}
     return ReadingListResponse(items=items, count=len(items), counting=counting)
 
 
@@ -1735,7 +1768,7 @@ def document_text(
     # children carry text of this kind is a rival reading of those children, not more of the
     # page: the finest level that has text is the page's text, and the coarser reading stays a
     # reading of its own segment (readings route, export), just not a second copy here.
-    carrying = {row.id for row in rows if any(item.kind == kind for item in page_readings[row.id])}
+    carrying = {row.id for row in rows if any(matches_kind_filter(item, kind) for item in page_readings[row.id])}
     read_through_children = {
         row.parent_segment_id for row in rows if row.id in carrying and row.parent_segment_id
     }
@@ -1746,7 +1779,8 @@ def document_text(
     # character once, as above), so the words stay readings of their own segments.
     reads_itself = {
         row.id for row in rows
-        if any(item.kind == kind and item.provenance_kind is ProvenanceKind.human for item in page_readings[row.id])
+        if any(matches_kind_filter(item, kind) and item.provenance_kind is ProvenanceKind.human
+               for item in page_readings[row.id])
     }
     read_through_children -= reads_itself
     parent_of = {row.id: row.parent_segment_id for row in rows}
@@ -1770,14 +1804,15 @@ def document_text(
     marked = ground_truth_pass_ids(db, (row.pass_id for row in rows))
     measures = ReadingMeasures(db)
     for row in rows:
-        items = [item for item in page_readings[row.id] if item.kind == kind]
+        items = [item for item in page_readings[row.id] if matches_kind_filter(item, kind)]
         if not items or row.id in read_through_children or _under_a_line_read_by_a_person(row.id):
             continue
-        counted = counting_by_kind(
-            db, row.id, items, rule=record_rule, choices=choices_by_segment.get(row.id, []),
+        # An older kind (`normalized_text`) is read as the kind at its level (`matches_kind_filter`).
+        counted = counting_of_kind_filter(
+            db, row.id, items, kind, rule=record_rule, choices=choices_by_segment.get(row.id, []),
             lines_read_by_a_person_skip_their_words=True, on_ground_truth=row.pass_id in marked,
             measures=measures,
-        ).get(kind)
+        )
         if counted is None or counted.representation_id is None:
             # The line HAS readings and none of them counts (a strict project
             # where people disagree). Leaving a hole would be a lie about the

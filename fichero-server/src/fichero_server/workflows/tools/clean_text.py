@@ -55,9 +55,13 @@ TOOL_CONFIG = LLMToolConfig(
     update_page_content=False,
     trigger_embedding=False,
     metadata_field="clean_text",
-    # The text cleaned (OCR slips, whitespace, hyphenation, headers): a normalised text, beside the
-    # transcription, never over it (#5599).
-    reading_kind="normalized_text",
+    # The text cleaned (OCR slips, whitespace, hyphenation, headers) is a CORRECTION of the transcription
+    # as written, not a level of its own (`source.reading.normalized-text-is-a-level`, ruled 2026-10-10):
+    # a transcription at level as_written, derived from the node's reading it cleans when it has one,
+    # beside it and never over it (#5599).
+    reading_kind="transcription",
+    reading_level="as_written",
+    reading_corrects_node_reading=True,
 )
 
 CLEAN_TEXT_CONFIG = {

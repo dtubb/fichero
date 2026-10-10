@@ -72,23 +72,35 @@ def page_from_library(
     pass_id: str | None = None,
     order_id: str | None = None,
     reading_kind: str = "transcription",
+    reading_level: str | None = None,
     georeference: bool = False,
 ) -> tuple[SourcePage, ExportChoices]:
     """The library's page as the one `SourcePage` every format speaks.
 
     Defaults are the spec's: the WORKING pass, the order as written, the counting reading of the
     requested kind. Whatever was used is returned in `ExportChoices`.
+
+    `reading_level` exports one level of the kind (`source.reading.levels`): the readings at that level
+    and the one that counts there. An older kind (`normalized_text`) is the kind at its level
+    (`source.reading.normalized-text-is-a-level`), so its old rows are exported as that level.
     """
     from fichero_server.api.routes.document.segment_readings import (
         ReadingMeasures,
         counting_by_kind,
+        counting_by_kind_and_level,
         document_text,
         is_unconverted_pass,
         readings_of_segment,
         retired_readings_of,
     )
     from fichero_server.models import Document, Segment
-    from fichero_server.models.readings import CountingBasis, project_record_rule
+    from fichero_server.models.readings import (
+        CountingBasis,
+        canonical_reading_level,
+        counting_level,
+        project_record_rule,
+        reading_kind_filter,
+    )
     from fichero_server.models.reading_orders import AS_WRITTEN, ReadingOrder, ReadingOrderEntry
     from fichero_server.models.segments import SegmentPass
 
@@ -150,6 +162,13 @@ def page_from_library(
         for link in db.query_in(TypedLink, "from_id", sorted(ids)):
             if link.link_type == "controls" and link.deleted_at is None and link.to_id in ids:
                 controls[link.from_id] = link.to_id
+    # The kind and level exported: an older kind is the kind at its level (`normalized_text` is a
+    # transcription, regularised); a level named is that level of the kind.
+    want_kind, want_level = reading_kind_filter(reading_kind)
+    if reading_level is not None:
+        want_level = canonical_reading_level(reading_level)
+    if want_level is not None:
+        choices.notes.append(f"reading level: {want_level}")
     segments: list[PageSegment] = []
     rule = project_record_rule(db)
     retired_memo: dict[tuple[str, str], set[str]] = {}
@@ -160,20 +179,22 @@ def page_from_library(
     for row in rows:
         # A word its line's edit took out is written with its shape and no text, and its
         # retired readings are not alternatives either (#5190, `retired-words-in-the-export`).
-        retired = retired_readings_of(db, row.id, reading_kind, rule, retired_memo)
+        retired = retired_readings_of(db, row.id, want_kind, rule, retired_memo)
         items = [
             i for i in readings_of_segment(db, row.id)
-            if i.kind == reading_kind and not i.retracted and i.id not in retired
+            if i.kind == want_kind and (want_level is None or counting_level(i.level) == want_level)
+            and not i.retracted and i.id not in retired
         ]
         # A run that writes its pass keeps its artifact too, so the read seam offers a line's
         # stored reading AND its artifact echo. The export writes the words once: an echo that a
         # stored reading says word for word is dropped; a correction keeps the machine's original.
         said = {i.content for i in items if not i.provisional}
         items = [i for i in items if not (i.provisional and i.content in said)]
+        counting = dict(rule=rule, retired_memo=retired_memo, on_ground_truth=on_ground_truth, measures=measures)
         counted = (
-            counting_by_kind(db, row.id, items, rule=rule, retired_memo=retired_memo,
-                             on_ground_truth=on_ground_truth, measures=measures).get(reading_kind)
-            if items else None
+            None if not items
+            else counting_by_kind(db, row.id, items, **counting).get(want_kind) if want_level is None
+            else counting_by_kind_and_level(db, row.id, items, **counting).get((want_kind, want_level))
         )
         counting_id = counted.representation_id if counted else None
         if row.kind == "line" and counted is not None and counted.basis is CountingBasis.newest_machine_unchosen:
@@ -438,12 +459,13 @@ def export_page(
     pass_id: str | None = None,
     order_id: str | None = None,
     reading_kind: str = "transcription",
+    reading_level: str | None = None,
 ) -> PageExport:
     """One page, validated, with the loss report and the choices that were made."""
     spec = format_named(format_name)  # UnknownFormat names what this build has
     page, choices = page_from_library(
         db, document_id, pass_id=pass_id, order_id=order_id, reading_kind=reading_kind,
-        georeference=spec.name in ("iiif-georef", "qgis-points"),
+        reading_level=reading_level, georeference=spec.name in ("iiif-georef", "qgis-points"),
     )
     page.identity = {
         "fichero-source": document_id,

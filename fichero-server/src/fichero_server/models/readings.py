@@ -32,7 +32,7 @@ from enum import Enum
 from functools import lru_cache
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from fichero_server.core.timeutil import utc_now
 from fichero_server.models.knowledge import ProvenanceKind
@@ -134,6 +134,52 @@ def canonical_reading_level(level: str | None) -> str | None:
 def counting_level(level: str | None) -> str:
     """The level a reading competes at when "which counts" is worked out: its own, or as written."""
     return canonical_reading_level(level) or BASE_READING_LEVEL
+
+
+#: Older kinds that are a transcription AT A LEVEL, not a kind of their own
+#: (`source.reading.normalized-text-is-a-level`, ruled 2026-10-10): a reading stored under one reads
+#: back as ``(kind, level)`` -- its own level kept when it recorded one -- and a write under one is
+#: stored as that. The stored row is never rewritten. A filter that asks for the old kind is answered
+#: with the readings of the kind at that level (:func:`reading_kind_filter`).
+READING_KIND_ALIASES: dict[str, tuple[str, str]] = {
+    "normalized_text": ("transcription", "regularised"),
+}
+
+
+def canonical_reading_kind_and_level(kind: str, level: str | None) -> tuple[str, str | None]:
+    """A reading's kind and level as the engine reads them: an aliased kind is a transcription at its
+    level (its own recorded level wins); any other kind is returned as it is, level untouched.
+
+    THE one read-side mapping: ``ContentRepresentation``, ``ReadingChoice`` and the readings list's
+    ``ReadingRead`` call it when they are built, so every list, count and export sees the same shape."""
+    alias = READING_KIND_ALIASES.get(kind)
+    if alias is None:
+        return kind, level
+    aliased_kind, aliased_level = alias
+    return aliased_kind, canonical_reading_level(level) or aliased_level
+
+
+def reading_kind_filter(kind: str) -> tuple[str, str | None]:
+    """What a ``kind`` filter asks for: ``(kind, None)`` for a kind (every level), or, for an older
+    aliased kind (``normalized_text``), the kind at its level -- so an old caller's filter keeps
+    finding the readings it found before."""
+    alias = READING_KIND_ALIASES.get(kind)
+    return alias if alias is not None else (kind, None)
+
+
+def read_kind_as_level(data: Any, *, has_level: bool = True) -> Any:
+    """``mode="before"`` validator body: an aliased kind read as ``(kind, level)`` on a row's dict (a
+    record with no level, a ``ReadingChoice``, takes the kind only)."""
+    if isinstance(data, dict):
+        kind = data.get("kind")
+        if isinstance(kind, Enum):
+            kind = kind.value
+        if isinstance(kind, str) and kind in READING_KIND_ALIASES:
+            new_kind, new_level = canonical_reading_kind_and_level(kind, data.get("level"))
+            data = {**data, "kind": new_kind}
+            if has_level:
+                data["level"] = new_level
+    return data
 
 
 class LibraryReadingLevel(BaseModel):
@@ -334,6 +380,13 @@ class ReadingChoice(BaseModel):
     chosen_at: datetime = Field(default_factory=utc_now)
     #: Set when a later choice replaces this one. Never deleted.
     superseded_at: datetime | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _older_kind_read_as_level(cls, data: Any) -> Any:
+        """A choice stored under ``normalized_text`` is a choice of a transcription
+        (`source.reading.normalized-text-is-a-level`): it names its reading, whose level it counts at."""
+        return read_kind_as_level(data, has_level=False)
 
 
 class ReadingAnchorMismatch(ValueError):

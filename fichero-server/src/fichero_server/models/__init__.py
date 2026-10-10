@@ -28,7 +28,7 @@ Usage:
     db.delete(doc)
 """
 
-from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator
+from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator, model_validator
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
 from enum import Enum
@@ -1023,6 +1023,16 @@ class ContentRepresentation(BaseModel):
     #: Set by ``representation.retract``, the inverse of a create. The ROW
     #: STAYS: something that was said and withdrawn is part of the record.
     retracted_at: datetime | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _older_kind_read_as_level(cls, data: Any) -> Any:
+        """`source.reading.normalized-text-is-a-level`: a row stored as ``normalized_text`` reads back
+        as a transcription at level regularised (its own level kept), and a write under that kind is
+        stored as one. The one mapping is ``readings.canonical_reading_kind_and_level``."""
+        from fichero_server.models.readings import read_kind_as_level
+
+        return read_kind_as_level(data)
 
 
 class ContentRepresentationRevision(BaseModel):

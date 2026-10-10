@@ -395,12 +395,37 @@ class LLMToolConfig:
     # (`representation.create`, derived from the artifact, under the run), so whatever looks for a
     # translation finds one. The artifact stays as the record of the run. None = not a reading.
     reading_kind: str | None = None
+    # The level of that reading when it is a transcription at a level (`source.reading.levels`,
+    # `source.reading.normalized-text-is-a-level`): a modernised text is a transcription, modernised;
+    # an OCR clean-up is a correction of the transcription as written. None = no level recorded.
+    reading_level: str | None = None
+    # The reading is a CORRECTION of the node's reading of its kind at its level (the Clean text tool):
+    # it is derived from the newest live one when the node has one. Never retires it -- a machine's
+    # correction is a reading beside the one it corrects (`source.reading.corrections-are-new`).
+    reading_corrects_node_reading: bool = False
 
     # The attribute of the node this output IS (`source.extract.attributes-cite`, #5600): when set, the
     # answer is also written as that attribute's value on the node it was made from, citing the run
     # (`workflows.attribute_sources`); a value a person set is never overwritten. ``prototype`` is the
     # node's kind, proposed as its prototype (`kinds-proposed-as-prototypes`). None = not an attribute.
     attribute_key: str | None = None
+
+
+def _node_reading_corrected(db: Any, document_id: str, tool_config: LLMToolConfig) -> str | None:
+    """The node's reading a correcting step's reading is derived from: the newest live one of its kind at
+    its level (`reading_corrects_node_reading`), or none -- the run's artifact then says what it read."""
+    if not tool_config.reading_corrects_node_reading or not tool_config.reading_kind:
+        return None
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.readings import counting_level
+
+    level = counting_level(tool_config.reading_level)
+    rows = [
+        r for r in db.query(ContentRepresentation, document_id=document_id)
+        if r.segment_id is None and r.retracted_at is None and r.kind == tool_config.reading_kind
+        and counting_level(r.level) == level
+    ]
+    return max(rows, key=lambda r: (r.created_at, r.id)).id if rows else None
 
 
 def find_existing_artifact(
@@ -636,7 +661,8 @@ def _write_segment_reading(
     cleaned, _script_note = split_script_classification(content or "")
     write_readings(
         db, document_id=document_id, readings=[(segment_target["segment_id"], cleaned)],
-        artifact_id=artifact_id, run_id=task_id, kind=kind, library_path=library_path,
+        artifact_id=artifact_id, run_id=task_id, kind=kind,
+        level=tool_config.reading_level if tool_config.reading_kind else None, library_path=library_path,
     )
 
 
@@ -778,7 +804,9 @@ def _save_artifact_sync(
 
             write_readings(
                 db, document_id=resolved_doc_id, readings=[(None, content)], artifact_id=artifact_id,
-                run_id=task_id, kind=tool_config.reading_kind, library_path=library_path,
+                run_id=task_id, kind=tool_config.reading_kind, level=tool_config.reading_level,
+                library_path=library_path,
+                derived_from={None: _node_reading_corrected(db, resolved_doc_id, tool_config)},
             )
         if tool_config.attribute_key and attribute_value not in (None, ""):
             # A core write, like the reading: the answer is the node's attribute (or kind), citing this run.

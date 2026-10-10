@@ -11,6 +11,7 @@ import logging
 from dataclasses import replace
 from typing import Any
 
+from fichero_server.models.readings import canonical_reading_kind_and_level, canonical_reading_level
 from fichero_server.workflows.types import State
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.llm_base import BASE_OUTPUT_PORTS, merge_config_schema
@@ -53,21 +54,37 @@ ANALYZE_CONFIG = {
     "reading_kind": {
         "type": "string",
         "description": (
-            "The kind of reading the answer is (translation, normalized_text, regest...). Set, "
+            "The kind of reading the answer is (translation, regest, transcription...). Set, "
             "the answer is a reading of that kind on the page and its artifact carries that "
             "type; unset, it is an 'analysis' artifact."
+        ),
+        "x-hidden": True,
+    },
+    "reading_level": {
+        "type": "string",
+        "description": (
+            "The level of a transcription the answer is (regularised, modernised...): a modernised "
+            "text is a transcription at level modernised, beside the one as written."
         ),
         "x-hidden": True,
     },
 }
 
 
-def tool_config_for(reading_kind: str | None) -> VisionToolConfig:
+def tool_config_for(reading_kind: str | None, reading_level: str | None = None) -> VisionToolConfig:
     """The save config for one run: an answer that is a reading is filed as that reading's kind
-    (artifact and reading), and no longer copied into `metadata["analysis"]`."""
+    (artifact and reading), and no longer copied into `metadata["analysis"]`.
+
+    A transcription at a level (`source.reading.normalized-text-is-a-level`) -- a modernised text, or a
+    preset saved before 2026-10-10 that still names ``normalized_text`` -- is a reading of kind
+    transcription at that level, and its artifact is typed by the LEVEL: never ``transcription``, which
+    is the page reader's own output (the page's text, a pass), and this is not a reading of the page."""
     if not reading_kind:
         return TOOL_CONFIG
-    return replace(TOOL_CONFIG, artifact_type=reading_kind, reading_kind=reading_kind, metadata_field=None)
+    kind, level = canonical_reading_kind_and_level(reading_kind, canonical_reading_level(reading_level))
+    artifact_type = level if kind == "transcription" and level else reading_kind
+    return replace(TOOL_CONFIG, artifact_type=artifact_type, reading_kind=kind, reading_level=level,
+                   metadata_field=None)
 
 
 # =============================================================================
@@ -139,7 +156,7 @@ async def analyze(
         llm_config=llm_config,
         library_path=state.get("library_path", ""),
         task_id=state.get("task_id"),
-        tool_config=tool_config_for(inputs.get("reading_kind")),
+        tool_config=tool_config_for(inputs.get("reading_kind"), inputs.get("reading_level")),
         # Vision-specific
         vision_mode="llm",  # Analyze always uses LLM
         max_image_dimension=inputs.get("max_image_dimension", 2048),

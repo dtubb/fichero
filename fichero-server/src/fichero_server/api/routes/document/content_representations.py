@@ -39,7 +39,9 @@ from fichero_server.models.readings import (
     UnknownReadingLevel,
     assert_known_reading_kind,
     assert_known_reading_level,
+    canonical_reading_kind_and_level,
     counting_level,
+    reading_kind_filter,
 )
 from fichero_server.models.segments import (
     ProvisionalSegmentIdError,
@@ -361,6 +363,10 @@ def create_representation(
     it is why there is no update action here at all.
     """
     assert_known_reading_kind(db, params.kind)
+    # `source.reading.normalized-text-is-a-level`: a write under an older kind (`normalized_text`) is
+    # stored as the kind at its level -- a transcription, regularised unless it names its own level.
+    kind, level = canonical_reading_kind_and_level(params.kind, params.level)
+    params = params.model_copy(update={"kind": kind, "level": level})
     # `source.reading.levels`: a level outside the library's list is refused, naming the list; an older
     # spelling (`normalised`, the recipes' `as-written`) is stored as the level it means.
     params = params.model_copy(update={"level": assert_known_reading_level(db, params.level)})
@@ -722,6 +728,9 @@ def choose_reading(
     """
     _assert_a_person(ctx, "a reading")
     assert_known_reading_kind(db, params.kind)
+    # A choice under an older kind (`normalized_text`) is a choice of the kind it is: its reading says
+    # the level (`source.reading.normalized-text-is-a-level`).
+    params = params.model_copy(update={"kind": reading_kind_filter(params.kind)[0]})
     assert_not_provisional(params.representation_id, what="representation_id")
     segment = _live_segment(db, params.segment_id)
     reading = db.get(ContentRepresentation, params.representation_id)
@@ -735,9 +744,10 @@ def choose_reading(
     # A choice supersedes the earlier choices AT ITS OWN LEVEL only (`source.reading.counts-per-level`):
     # choosing which expanded reading counts says nothing about which as-written one does.
     level = counting_level(reading.level)
+    # Filtered here, not in the query: a choice stored under an older kind reads as this one.
     existing = [
-        row for row in db.query(ReadingChoice, segment_id=segment.id, kind=params.kind)
-        if _choice_level(db, row) in (None, level)
+        row for row in db.query(ReadingChoice, segment_id=segment.id)
+        if row.kind == params.kind and _choice_level(db, row) in (None, level)
     ]
     live = [row for row in existing if row.superseded_at is None]
     now = utc_now()
@@ -806,7 +816,14 @@ def unchoose_reading(
     """Withdraw a choice, putting the segment back to "worked out"."""
     _assert_a_person(ctx, "a reading")
     segment = _live_segment(db, params.segment_id)
-    existing = db.query(ReadingChoice, segment_id=segment.id, kind=params.kind)
+    # An older kind (`normalized_text`) withdraws the choices at its level only; a choice stored under
+    # it reads as the kind it is, so it is filtered here rather than in the query.
+    kind, level = reading_kind_filter(params.kind)
+    params = params.model_copy(update={"kind": kind})
+    existing = [
+        row for row in db.query(ReadingChoice, segment_id=segment.id)
+        if row.kind == kind and (level is None or _choice_level(db, row) in (None, level))
+    ]
     live = [row for row in existing if row.superseded_at is None]
     _supersede_choices(db, existing, utc_now())
     before = {

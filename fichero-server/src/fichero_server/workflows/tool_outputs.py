@@ -153,7 +153,8 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     "text_translate": _d("document", "reading", "artifact"),
     "text_translate_review": _d("document", "reading", "artifact"),
     "translate": _d("document", "reading", "artifact"),
-    # the historical presets name their reading kind (translation, normalized_text, regest); an
+    # the historical presets name their reading kind (translation, regest; Modernización a transcription
+    # at level modernised, `source.reading.normalized-text-is-a-level`); an
     # analyze node that names none still writes only an 'analysis' artifact
     "analyze": _d("page", "reading", "artifact"),
     # descriptions: a caption or a description of the page is a `description` reading of it
@@ -164,7 +165,8 @@ TOOL_OUTPUTS: dict[str, OutputDeclaration] = {
     "summarize_file": _d("document", "reading", "artifact"),
     "summarize_folder": _d("group", "reading", "artifact"),
     "summarize_collection": _d("group", "reading", "artifact"),
-    # the cleaned text is `normalized_text`; a rewrite is a `paraphrase` (a `translation` when it
+    # the cleaned text is a correction of the transcription as written (kind transcription, level
+    # as_written); a rewrite is a `paraphrase` (a `translation` when it
     # names a target language)
     "clean_text": _d("document", "reading", "artifact"),
     "rewrite": _d("document", "reading", "artifact"),
