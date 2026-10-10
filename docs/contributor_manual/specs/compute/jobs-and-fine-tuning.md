@@ -317,6 +317,12 @@ so every model it loads is held on purpose, counted, and let go. One rule set fo
    shows progress per folder, not one bar for 400,000 pages. Background throttling and the memory rules
    apply between pages and between batches. A cheap step that every later step needs (finding lines,
    splitting pages) may run a batch ahead, so the next batch never waits for it.
+   Behaviours (`source/models-chains-and-projects.md`): `source.recipe.folder-scoped-start` (Start on one
+   folder), `source.recipe.batch-at-archive-scale` (a folder or 500 pages a batch, every step on a batch
+   before the next), `source.recipe.batch-checkpoint` (each batch a checkpoint; resume redoes nothing) and
+   `activity.run.progress-per-folder` ("N of M folders"). Not built from this rule: the person's folder
+   first and moving a folder to the front, the plan's per-batch time, disk and batch count, and a cheap
+   step running a batch ahead.
 
 Built (#5529, 54c493940): rules 4, 5, 6, and 3 for Kraken. Not built (#5537): the budget (2), the per-runtime
 owners and idle/close unloading for MLX, spaCy, embeddings, Whisper and YOLO (1, 3), the leak test per
