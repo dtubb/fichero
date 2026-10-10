@@ -2,43 +2,78 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.10.09
+## 2026.10.10
 
+Everything since 2026.09.20, the last public release.
+
+- Launch: Fichero no longer stops at start with "Fichero Server Couldn't Restart", and starts in about half the time.
 - Setting up a project: Set Up asks four short questions, proposes a plan you can edit, and Start runs it all — reading, then organising (Find the Documents).
-- Models: one way to find, download and choose a model for any step, in Set Up, the Inspector and Settings.
-- Activity: one Start / Stop control in the toolbar and in Activity, and each run says what it is working on.
-- Archive model: names, statements, quotations, dates and attributes sit on their line and say who set them; you can correct them where they appear.
+- A Project menu: Set Up…, Start (⇧⌘↩), Find the Documents (⇧⌘D) and Run the Recipe on This Folder….
+- Big projects run a folder at a time, and Activity says how many folders are done.
+- Models: one way to find, download and choose a model for any step; YOLO finds a page's regions and can be trained on yours.
+- Archive model: names, statements, quotations, dates and attributes sit on their line and say who set them.
+- Editing pages like Preview, import of paired files, a Reader with one line per manuscript line, and pairing a second Mac fixed.
+
+**Launch.** A project that was running a recipe when Fichero last quit could stop the engine at
+start: the run resumed while the sidebar loaded, the two waited for each other, and the app said
+"Fichero Server Couldn't Restart". They no longer can. Launch is also about twice as fast: on a Mac
+with five projects open, the first is usable in about five and a half seconds. Hold Shift while
+Fichero launches to start with nothing open and the window layout forgotten; your projects are not
+changed.
 
 **Set Up and Start.** A new project is set up in four steps: your project, your material, what you
 want to do, and Ready. The goals read in order — transcribe, search, translate, then the knowledge
 graph with entities and statements under it — and the script is proposed from the language. Ready
 shows the plan, what will not run and why, and what to download first; a step can be taken out and
 put back. Start then runs everything: pages are sorted (blank, typed, handwritten) and each is read
-by a reader for its kind, faded pages are prepared first, diaries split into dated entries, and Find
-the Documents organises the pages, accepting its own proposals at 95% confidence and proposing the
-rest. The project window shows the run as it goes and its summary when it ends.
+by a reader for its kind, faded pages are prepared first, diaries split into dated entries, names
+and dates are found, and then Find the Documents organises the pages. Every project has a Sources
+folder, where new material lands.
+
+**The Project menu and running on a folder.** Set Up…, Start and each stage's commands are in one
+Project menu. Right-click a folder to Find the Documents in it or to Run the Recipe on This Folder…
+alone. A large project — hundreds of folders of a few hundred pages each — is worked through a
+folder at a time (at most 500 pages), every step finishing a folder before the next begins, so the
+first volume is readable early; Activity says "3 of 800 folders done", and a run that stops picks
+up where it left off without redoing anything.
+
+**Find the Documents.** It proposes where each document starts and ends, what kind it is, and which
+documents belong to one case, with its reasons. A folder's Inspector lists the proposals to Accept,
+Reject or Accept All above a level you choose; one Undo restores the folder. It now runs after names
+and dates are found, so the people named group documents into cases and dates put them in order; a
+judge or notary who signs most of a folder links nothing. It records who decided each document and
+who chose each kind, refuses a proposal a later run replaced or whose pages you have regrouped since,
+and accepts nothing by itself until it has been checked against a box a person sorted.
 
 **Models.** Download works from Set Up, Settings and the Inspector through one path, and shows as an
-Activity job with its progress; a project whose path has a space no longer fails to download.
-Choose a model… opens the model finder for that step, with installed and downloadable models, their
-size, licence and where they run. Split pages and Work out dates need no model. Text steps use the
-MLX or Ollama models already on this Mac; a model elsewhere is used only when it is free and you
-agree. Local models get time while they keep answering, and a page that stops is read once more.
+Activity job with its progress. Choose a model… opens the model finder for that step, with installed
+and downloadable models, their size, licence and where they run. Text steps use the MLX or Ollama
+models already on this Mac; a model elsewhere is used only when it is free and you agree. A YOLO
+layout model can find a page's regions as a recipe step, and can be fine-tuned on this Mac on the
+regions you corrected; a Kraken reader trains here on the same schedule as on Hugging Face. The
+search models you already have now show as installed.
 
 **Activity.** A Start / Stop button in the main toolbar and the Activity window: Start runs waiting
 work even while you use the Mac or it is on battery, Stop pauses everything, and pressing again goes
 back to automatic. Work held for battery or use starts by itself when the hold clears; when memory is
-short, heavy work runs one job at a time. A waiting row says what it really waits for, and a running
-import shows the step and page it is on, its stages and its log, with Pause and Stop.
+short, heavy work runs one job at a time. A waiting row says what it really waits for.
 
 **The archive.** Names, statements, quotations and diary entries sit on the line and reading they
 came from; a correction to a line shows in the entry without re-running. Attributes and dates say
 whether a person or a run set them, and a run never overwrites a person. Correct a name or a
-statement from its mark in the Inspector. The catalogue no longer writes over a folder's text.
-Exports carry dates, attributes, readings and mentions. Agents can do all of this through MCP.
+statement from its mark in the Inspector. Exports carry dates, attributes, readings and mentions.
+Agents can do all of this through MCP.
 
-**Starting fresh.** Hold Shift while Fichero launches to start with nothing open and the window
-layout forgotten; your projects are not changed.
+**Editing, importing and reading** (from the 2026.09.29 build). Segments are drawn as their shapes
+and edited the way Preview does: a Shape tool, Reshape, eight resize handles, and a Segment menu with
+Delete, Join, Split, Direction and Language. Files dropped together import as one set, so an image
+pairs with its PAGE, ALTO, hOCR, TEI, .box or .txt file. The Reader shows one line per manuscript line
+in its own direction, and scripts macOS lacks draw with bundled fonts.
+
+**Fixed.** PDFs no longer bring up "libpdfium.dylib Not Opened". A redo that the project has moved
+past is refused in words. Pairing a second Mac works again, over Tailscale and on a signed build
+(from the 2026.09.26 build). Recordings are left out of steps that read page images, and M4A audio
+transcribes in the app.
 
 ## 2026.09.29
 
