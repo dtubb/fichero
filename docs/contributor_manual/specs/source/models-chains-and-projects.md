@@ -2745,10 +2745,15 @@ The recipe and its format
   when taken, when an update is offered and before each run, and the check lists by step: unknown
   jobs, newer schema, unmet inputs, missing pins, models this Mac cannot run, refused cloud steps,
   missing keys, unbound targets, missing prompts or variables.
-- `source.job.find-documents` — **[GAP]** (#4949) a step can propose which consecutive pages of a folder form
-  one document, for a person to confirm (the existing Group action makes it so).
-- `source.job.split-into-entries` — **[GAP]** (#4949) a step can split a diary, register or ledger into
-  dated entries.
+- `source.job.find-documents` — **[PARTIAL]** (#4949) a step can propose which consecutive pages of a folder form
+  one document, for a person to confirm (the existing Group action makes it so). *Built: owned by
+  `finding-documents.md` -- the recipe step (`finddocs.recipe-step`, [OK]) and the proposals; accepting them as
+  groups is `finddocs.accept-makes-groups` [PARTIAL]. Tested in
+  `fichero-server/tests/unit/recipes/test_find_documents_step.py`.*
+- `source.job.split-into-entries` — **[PARTIAL]** (#4949) a step can split a diary, register or ledger into
+  dated entries. *Built: the recipe's entries stage (`recipes/runner.py`, the `entries` card), tested in
+  `fichero-server/tests/unit/recipes/test_diary_entries_step.py`; the entries as units are
+  `source.extract.entries-are-units` [PARTIAL].*
 - `source.job.extract-to-table` — **[GAP]** (#4949, #5365) a step can fill one row per document or entry
   with the project's metadata fields, each value tied to the text it came from, exportable as a
   spreadsheet.
