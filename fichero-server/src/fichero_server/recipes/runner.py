@@ -481,9 +481,9 @@ _Tree = dict[str, tuple[str | None, str, str]]
 
 def _tree(db: Any) -> _Tree:
     """Every live document, read once a run (one query, not one a page)."""
-    rows = db.execute_fetchall("SELECT id, parent_id, doc_type, COALESCE(file_type, '') FROM documents "
-                               "WHERE deleted_at IS NULL")
-    return {r[0]: (r[1], str(r[2]), str(r[3])) for r in rows}
+    from fichero_server.db.document_tree import live_tree
+
+    return {doc_id: tuple(node) for doc_id, node in live_tree(db).items()}
 
 
 def folder_scope(db: Any, folder_id: str, tree: _Tree | None = None) -> set[str]:
@@ -561,13 +561,9 @@ def _card_pages(db: Any, card: dict[str, Any], units: list[str], tree: _Tree) ->
     photographs = [u for u in units if _is_photograph(tree, u)]
     if card.get("job") == "split-pages":
         return photographs
-    cut: dict[str, list[str]] = {}
-    if photographs:
-        marks = ", ".join("?" for _ in photographs)
-        for doc_id, parent in db.execute_fetchall(
-                f"SELECT id, parent_id FROM documents WHERE deleted_at IS NULL AND doc_type = 'chunk' "
-                f"AND parent_id IN ({marks}) ORDER BY created_at, id", photographs):
-            cut.setdefault(parent, []).append(doc_id)
+    from fichero_server.db.document_tree import live_chunks_of
+
+    cut = live_chunks_of(db, photographs)
     return [page for unit in units for page in (cut.get(unit) or [unit])]
 
 

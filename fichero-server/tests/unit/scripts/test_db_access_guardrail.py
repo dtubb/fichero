@@ -59,6 +59,9 @@ ALLOWLIST: frozenset[str] = frozenset(
         # moved here FROM api/routes/document/dataset.py — this IS the typed
         # persistence entry point the rule asks for.
         "db/dataset_query.py",
+        # The recipe runner's whole-project tree reads (2026-10-10): the SQL moved here FROM
+        # recipes/runner.py, behind typed functions — the persistence entry point the rule asks for.
+        "db/document_tree.py",
         "db/embeddings.py",
         "db/migrations/schema.py",
         "db/manager.py",
