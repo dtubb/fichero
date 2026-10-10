@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action
 from fichero_server.finddocs import store
 from fichero_server.models.found_documents import (
-    Decision,
+    FoundDocumentsDecision,
     FindDocumentsAcceptRequest,
     FindDocumentsRejectRequest,
 )
@@ -83,7 +83,7 @@ def _set_state(item: Any, saved: list[Any] | None) -> None:
         return
     # An audit row from before `decided_by` holds [state, accepted_as].
     item.state, item.accepted_as, decided = (list(saved) + [None])[:3]
-    item.decided_by = Decision.model_validate(decided) if decided else None
+    item.decided_by = FoundDocumentsDecision.model_validate(decided) if decided else None
 
 
 def _restate(proposal: Any, states: dict[str, Any]) -> None:
@@ -93,15 +93,15 @@ def _restate(proposal: Any, states: dict[str, Any]) -> None:
         _set_state(g, states.get("groups", {}).get(str(g.index)))
 
 
-def _decision(proposal: Any, ctx: ActionContext) -> Decision:
+def _decision(proposal: Any, ctx: ActionContext) -> FoundDocumentsDecision:
     """The run's own auto-accept runs as the run that made the proposal (`job._run`); anything else is a
     person's: the routes never set a run id."""
     if ctx.run_id and ctx.run_id == proposal.job_id:
-        return Decision(by="run", run_id=ctx.run_id)
-    return Decision(by="person", actor=ctx.actor)
+        return FoundDocumentsDecision(by="run", run_id=ctx.run_id)
+    return FoundDocumentsDecision(by="person", actor=ctx.actor)
 
 
-def _kind_source(proposal: Any, document: Any, decision: Decision) -> dict:
+def _kind_source(proposal: Any, document: Any, decision: FoundDocumentsDecision) -> dict:
     """Who chose a document's kind, in `attribute_sources`' shape: the run that proposed it (its proposal,
     method and reasons), with ``accepted_by`` when a person accepted it."""
     from fichero_server.workflows import attribute_sources

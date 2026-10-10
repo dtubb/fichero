@@ -150,16 +150,16 @@ ACTION_SPECS: tuple[ActionSpec, ...] = (
         keyboard_patterns=("Button(\"Set Up New Project…\"",),
     ),
     ActionSpec(
-        action="Open...",
+        action="Open…",
         expected=("menu", "keyboard"),
-        menu_patterns=("Button(\"Open...\"",),
-        keyboard_patterns=("Button(\"Open...\"",),
+        menu_patterns=("Button(\"Open…\"",),
+        keyboard_patterns=("Button(\"Open…\"",),
     ),
     ActionSpec(
-        action="Close Database",
+        action="Close Project",
         expected=("menu", "keyboard"),
-        menu_patterns=("Button(\"Close Database\"",),
-        keyboard_patterns=("Button(\"Close Database\"",),
+        menu_patterns=("Button(\"Close Project\"",),
+        keyboard_patterns=("Button(\"Close Project\"",),
     ),
     ActionSpec(
         action="New Window",
@@ -168,10 +168,10 @@ ACTION_SPECS: tuple[ActionSpec, ...] = (
         keyboard_patterns=("Button(\"New Window\"",),
     ),
     ActionSpec(
-        action="Save Database As...",
+        action="Save Project As…",
         expected=("menu", "keyboard"),
-        menu_patterns=("Button(\"Save Database As...\"",),
-        keyboard_patterns=("Button(\"Save Database As...\"",),
+        menu_patterns=("Button(\"Save Project As…\"",),
+        keyboard_patterns=("Button(\"Save Project As…\"",),
     ),
     ActionSpec(
         action="New Folder",

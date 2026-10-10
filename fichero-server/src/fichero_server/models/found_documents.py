@@ -50,7 +50,7 @@ class PageFinding(BaseModel):
     reason: str
 
 
-class Decision(BaseModel):
+class FoundDocumentsDecision(BaseModel):
     """Who accepted or rejected a proposed document or group: the run that made the proposal (its own
     auto-accept) or a person. A person's answer is a label; the run's is not (`finddocs.corrections-teach`)."""
 
@@ -73,7 +73,7 @@ class ProposedDocument(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     state: ProposalState = "proposed"
     accepted_as: str | None = Field(None, description="The group node (or the one page) it became.")
-    decided_by: Decision | None = None
+    decided_by: FoundDocumentsDecision | None = None
 
 
 class ProposedGroup(BaseModel):
@@ -86,7 +86,7 @@ class ProposedGroup(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     state: ProposalState = "proposed"
     accepted_as: str | None = None
-    decided_by: Decision | None = None
+    decided_by: FoundDocumentsDecision | None = None
 
 
 class DocumentsProposal(BaseModel):

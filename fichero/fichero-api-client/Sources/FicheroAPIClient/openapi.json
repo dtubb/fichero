@@ -56160,36 +56160,6 @@
         ],
         "title": "DatasetSort"
       },
-      "Decision": {
-        "properties": {
-          "by": {
-            "type": "string",
-            "enum": [
-              "run",
-              "person"
-            ],
-            "title": "By"
-          },
-          "run_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Run Id",
-            "description": "The run that accepted it by itself."
-          },
-          "actor": {
-            "type": "string",
-            "nullable": true,
-            "title": "Actor",
-            "description": "The person who decided."
-          }
-        },
-        "type": "object",
-        "required": [
-          "by"
-        ],
-        "title": "Decision",
-        "description": "Who accepted or rejected a proposed document or group: the run that made the proposal (its own\nauto-accept) or a person. A person's answer is a label; the run's is not (`finddocs.corrections-teach`)."
-      },
       "DeclaredSign": {
         "properties": {
           "id": {
@@ -61631,6 +61601,36 @@
           "items"
         ],
         "title": "FormatListResponse"
+      },
+      "FoundDocumentsDecision": {
+        "properties": {
+          "by": {
+            "type": "string",
+            "enum": [
+              "run",
+              "person"
+            ],
+            "title": "By"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id",
+            "description": "The run that accepted it by itself."
+          },
+          "actor": {
+            "type": "string",
+            "nullable": true,
+            "title": "Actor",
+            "description": "The person who decided."
+          }
+        },
+        "type": "object",
+        "required": [
+          "by"
+        ],
+        "title": "FoundDocumentsDecision",
+        "description": "Who accepted or rejected a proposed document or group: the run that made the proposal (its own\nauto-accept) or a person. A person's answer is a label; the run's is not (`finddocs.corrections-teach`)."
       },
       "FrameworkCreateRequest": {
         "properties": {
@@ -74399,7 +74399,7 @@
             "description": "The group node (or the one page) it became."
           },
           "decided_by": {
-            "$ref": "#/components/schemas/Decision",
+            "$ref": "#/components/schemas/FoundDocumentsDecision",
             "nullable": true
           }
         },
@@ -74461,7 +74461,7 @@
             "title": "Accepted As"
           },
           "decided_by": {
-            "$ref": "#/components/schemas/Decision",
+            "$ref": "#/components/schemas/FoundDocumentsDecision",
             "nullable": true
           }
         },

@@ -393,6 +393,7 @@ nav:
               - Jobs, Engines, Fine-tuning & Publishing: contributor_manual/specs/compute/jobs-and-fine-tuning.md
               - Teaching Small Models from Big Ones: contributor_manual/specs/compute/distillation.md
               - Running on a University Cluster (ACENET): contributor_manual/specs/compute/hpc-runner-acenet.md
+              - Training, Scoring & Choosing Models: contributor_manual/specs/compute/training-and-evaluation.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Export:
@@ -446,6 +447,7 @@ nav:
               - Image Preparation: contributor_manual/specs/source/image-preparation.md
               - Undeciphered Scripts: contributor_manual/specs/source/undeciphered-scripts.md
               - Finding the Documents: contributor_manual/specs/source/finding-documents.md
+              - Structured Data from Documents: contributor_manual/specs/source/structured-data.md
               - Synced Folder: contributor_manual/specs/source/synced-folder.md
               - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
               - Build Notes (identity & storage): contributor_manual/specs/source/build-notes-identity-and-storage.md
