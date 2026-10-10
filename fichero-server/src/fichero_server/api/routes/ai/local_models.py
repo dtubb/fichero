@@ -146,12 +146,12 @@ def yolo_models() -> list[LocalModelInfoResponse]:
     from fichero_server.llm import yolo_runtime
 
     rows = []
-    for model_id, (repo, _file, trained_on) in yolo_runtime.YOLO_MODELS.items():
+    for model_id, (repo, _file, trained_on, expected) in yolo_runtime.YOLO_MODELS.items():
         path = yolo_runtime.model_path(model_id)
         size = path.stat().st_size if path else 0
         rows.append(LocalModelInfoResponse(
             model_id=model_id, model_type="yolo", display_name=f"YOLO layout ({repo})",
-            size_bytes=size, is_downloaded=path is not None, expected_size_mb=round(size / 1_000_000),
+            size_bytes=size, is_downloaded=path is not None, expected_size_mb=round(expected / 1_000_000),
             path=str(path) if path else None, metadata={"repo_id": repo, "capabilities": ["regions"]},
             note=f"Finds a page's regions. Trained on {trained_on}.", available=True,
             download_state="installed" if path else "idle",

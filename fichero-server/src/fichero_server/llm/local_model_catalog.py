@@ -243,9 +243,27 @@ def whisper_catalog_entries() -> list[Any]:
     return entries
 
 
+def yolo_catalog_entries() -> list[Any]:
+    """The layout models this Mac can fetch (`yolo_runtime.YOLO_MODELS`), downloaded or not, as Kraken's readers
+    are listed (#5654): its size before it is downloaded, its file's once it is. Downloaded through the one
+    path (`POST /api/local-models/download`, runtime `yolo`)."""
+    from fichero_server.llm import yolo_runtime
+
+    entries = []
+    for model_id, (repo, _file, trained_on, expected) in yolo_runtime.YOLO_MODELS.items():
+        path = yolo_runtime.model_path(model_id)
+        entries.append(_make_entry(
+            provider_type=ProviderType.yolo, model_id=model_id, display_name=f"YOLO layout ({repo})",
+            capabilities=["regions"], installed=path is not None, download_size_bytes=expected,
+            disk_usage_bytes=path.stat().st_size if path else 0, min_memory_bytes=None, memory_class=None,
+            supported=True, unsupported_reason=None, note=f"Finds a page's regions. Trained on {trained_on}.",
+            tested_status="untested", license_label="AGPL-3.0", source=_source(path is not None)))
+    return entries
+
+
 def catalog_entries() -> list[Any]:
     """Every non-MLX local model as a LocalModelCatalogEntry."""
-    return spacy_catalog_entries() + kraken_catalog_entries() + whisper_catalog_entries()
+    return spacy_catalog_entries() + kraken_catalog_entries() + whisper_catalog_entries() + yolo_catalog_entries()
 
 
 def owns(model_id: str) -> bool:
@@ -253,12 +271,14 @@ def owns(model_id: str) -> bool:
     from fichero_server.llm.kraken_runtime import recognition_spec
     from fichero_server.llm.local_models import SPACY_MODELS
     from fichero_server.llm.whisper_runtime import WHISPER_MLX_MODELS
+    from fichero_server.llm.yolo_runtime import YOLO_MODELS
 
     return (
         model_id in SPACY_MODELS
         or model_id == KRAKEN_MODEL_ID
         or recognition_spec(model_id) is not None
         or model_id in WHISPER_MLX_MODELS
+        or model_id in YOLO_MODELS
     )
 
 
@@ -407,6 +427,15 @@ class LocalModelInstallCoordinator:
             return 0
         if model_id in WHISPER_MLX_MODELS:
             return LocalModelManager().delete_whisper_model(model_id)
+        from fichero_server.llm import yolo_runtime
+
+        if model_id in yolo_runtime.YOLO_MODELS:  # its one weights file (#5654)
+            path = yolo_runtime.model_path(model_id)
+            if path is None:
+                return 0
+            freed = path.stat().st_size
+            path.unlink()
+            return freed
         # spaCy models are pip packages — delete raises, honestly.
         return LocalModelManager().delete_spacy_model(model_id)
 

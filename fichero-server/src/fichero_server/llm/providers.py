@@ -45,6 +45,8 @@ class ProviderType(str, Enum):
     # Its own provider row so Settings shows a "Local Whisper", not audio buried
     # under oMLX.
     whisper = "whisper"
+    # On-device page layout (YOLO, ultralytics): finds a page's regions, reads nothing (#5654).
+    yolo = "yolo"
     # Local servers
     ollama = "ollama"
     lmstudio = "lmstudio"
@@ -465,6 +467,26 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         supports_streaming=False,
         default_model="kraken-blla",
         icon="text.viewfinder",
+        color="indigo",
+        sort_order=6,
+    ),
+    ProviderType.yolo: ProviderInfo(
+        type=ProviderType.yolo,
+        name="YOLO (page layout)",
+        description=(
+            "On-device page layout: finds a page's regions (text, titles, tables, pictures) and reads "
+            "nothing. Answers no prompts. A small download (about 6 MB)."
+        ),
+        api_key_env=None,
+        api_key_url=None,
+        is_local=True,
+        is_builtin=False,
+        supports_chat=False,
+        supports_vision=False,
+        supports_embeddings=False,
+        supports_streaming=False,
+        default_model="yolo-doclaynet-11n",
+        icon="rectangle.3.group",
         color="indigo",
         sort_order=6,
     ),

@@ -17,10 +17,11 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
-#: The layout models this Mac can fetch: id -> (Hugging Face repository, file, what it was trained on).
-YOLO_MODELS: dict[str, tuple[str, str, str]] = {
+#: The layout models this Mac can fetch: id -> (Hugging Face repository, file, what it was trained on, the file's
+#: size in bytes as the Hub lists it, so a model not yet downloaded says its size, #5654).
+YOLO_MODELS: dict[str, tuple[str, str, str, int]] = {
     "yolo-doclaynet-11n": ("hantian/yolo-doclaynet", "yolov11n-doclaynet.pt",
-                           "DocLayNet (printed and born-digital pages), YOLO11 nano, AGPL-3.0"),
+                           "DocLayNet (printed and born-digital pages), YOLO11 nano, AGPL-3.0", 5_558_611),
 }
 DEFAULT_MODEL = "yolo-doclaynet-11n"
 
