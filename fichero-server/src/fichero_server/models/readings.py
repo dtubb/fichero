@@ -78,11 +78,115 @@ BUILTIN_READING_KINDS: tuple[tuple[str, str], ...] = (
     ("paraphrase", "Paraphrase"),
 )
 
-#: The levels that ship (`source.reading.level-recorded`). An OPEN list, and
-#: unlike ``kind`` it is NOT checked against a table: a level is never
-#: inferred, so an unrecognised one is the project's business, and a reading
-#: with no level reads back as none rather than as ``as_written``.
-BUILTIN_READING_LEVELS: tuple[str, ...] = ("as_written", "expanded", "normalised")
+#: The levels that ship (`source.reading.levels`, ruled 2026-10-10). A level is
+#: how far a transcription has been taken from the ink, NOT a kind of reading:
+#: an expanded transcription is still a transcription. Checked on write against
+#: this library's ``libraryreadinglevels`` rows exactly as kinds are, so a
+#: project can add its own; never inferred, so a reading with no level reads
+#: back as none rather than as ``as_written``.
+#:
+#: * graphemic -- letter for letter, letterforms told apart (long s, r rotunda);
+#: * as_written -- the letters, abbreviations kept as the scribe wrote them;
+#: * expanded -- abbreviations opened (``dha`` -> ``dicha``);
+#: * regularised -- u/v, i/j and long s regularised, spelling otherwise kept;
+#: * modernised -- spelling and punctuation made modern.
+BUILTIN_READING_LEVELS: tuple[tuple[str, str], ...] = (
+    ("graphemic", "Graphemic"),
+    ("as_written", "As written"),
+    ("expanded", "Expanded"),
+    ("regularised", "Regularised"),
+    ("modernised", "Modernised"),
+)
+
+#: The level a reading with none counts beside (`source.reading.counts-per-level`): every reading made
+#: before levels were recorded was the line's transcription as read, so it competes with ``as_written``.
+BASE_READING_LEVEL = "as_written"
+
+#: Older spellings of a shipped level, read as that level and never made into a level of their own.
+#: ``normalised`` was the third shipped level until 2026-10-10 (stored rows keep it and read back as
+#: ``regularised``); ``as-written`` is the spelling recipes and the app's setup sheet send
+#: (``recipes/seed/spanish-hands/recipe.yaml``, ``RecipeSetupPlanFields.swift``).
+READING_LEVEL_ALIASES: dict[str, str] = {
+    "normalised": "regularised",
+    "normalized": "regularised",
+    "regularized": "regularised",
+    "modernized": "modernised",
+}
+
+
+def canonical_reading_level(level: str | None) -> str | None:
+    """A level as the engine spells it: lower case, ``_`` for ``-`` and spaces, aliases resolved.
+
+    ``"as-written"`` and ``"As written"`` are ``as_written``; ``"normalised"`` is ``regularised``. An
+    empty level is no level. Anything else is returned spelled the same way, for the vocabulary check
+    to accept or refuse -- never silently made into a new level by a spelling difference.
+    """
+    if level is None:
+        return None
+    key = "_".join(level.strip().lower().replace("-", " ").split())
+    if not key:
+        return None
+    return READING_LEVEL_ALIASES.get(key, key)
+
+
+def counting_level(level: str | None) -> str:
+    """The level a reading competes at when "which counts" is worked out: its own, or as written."""
+    return canonical_reading_level(level) or BASE_READING_LEVEL
+
+
+class LibraryReadingLevel(BaseModel):
+    """One reading level this library allows. Table ``libraryreadinglevels``.
+
+    The same shape and posture as :class:`LibraryReadingKind`: seeded idempotently when a library
+    opens with :data:`BUILTIN_READING_LEVELS`, additive only, a builtin never deleted.
+    """
+
+    model_config = {"from_attributes": True}
+
+    id: str = Field(default_factory=_new_id)
+    #: The value stored in ``ContentRepresentation.level``.
+    key: str
+    label: str
+    builtin: bool = False
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class UnknownReadingLevel(ValueError):
+    """Raised when a write names a level this library does not have; names the allowed list."""
+
+    def __init__(self, level: str, allowed: list[str]) -> None:
+        self.level = level
+        self.allowed = allowed
+        super().__init__(
+            f"unknown reading level {level!r}; this library allows: "
+            + ", ".join(sorted(allowed))
+        )
+
+
+def reading_levels(db: Any) -> list[str]:
+    """Every level key this library allows: the table, or the shipped keys when it is empty."""
+    rows = db.query(LibraryReadingLevel)
+    keys = [row.key for row in rows if row.key]
+    if keys:
+        return keys
+    return [key for key, _label in BUILTIN_READING_LEVELS]
+
+
+def assert_known_reading_level(db: Any, level: str | None) -> str | None:
+    """The level a write should store, or :class:`UnknownReadingLevel`.
+
+    `source.reading.levels`. ``None`` is allowed (a level is never inferred). The level is spelled the
+    engine's way first (:func:`canonical_reading_level`), so ``as-written`` is ``as_written`` and
+    ``normalised`` is ``regularised``. Checked on write only, like kinds: a stored row under a level
+    since withdrawn still reads back.
+    """
+    canonical = canonical_reading_level(level)
+    if canonical is None:
+        return None
+    allowed = reading_levels(db)
+    if canonical not in allowed:
+        raise UnknownReadingLevel(level or "", allowed)
+    return canonical
 
 
 class LibraryReadingKind(BaseModel):

@@ -36,7 +36,10 @@ from fichero_server.models.readings import (
     ReadingAnchorMismatch,
     ReadingChoice,
     UnknownReadingKind,
+    UnknownReadingLevel,
     assert_known_reading_kind,
+    assert_known_reading_level,
+    counting_level,
 )
 from fichero_server.models.segments import (
     ProvisionalSegmentIdError,
@@ -172,7 +175,7 @@ def _as_http_error(exc: Exception) -> HTTPException:
         return exc  # already a refusal with its status (the stale 409 carries its own detail)
     if isinstance(exc, ProvisionalSegmentIdError):
         return HTTPException(422, str(exc))
-    if isinstance(exc, (UnknownReadingKind, ReadingAnchorMismatch)):
+    if isinstance(exc, (UnknownReadingKind, UnknownReadingLevel, ReadingAnchorMismatch)):
         return HTTPException(422, str(exc))
     if isinstance(exc, ChoiceNeedsAPerson):
         return HTTPException(403, str(exc))
@@ -194,12 +197,14 @@ def _refuse_if_the_counting_reading_moved(
     writer can offer keep-mine / take-theirs / compare -- and NOTHING is written. The typed words stay
     with the writer; the engine never keeps a half-applied edit.
     """
-    from fichero_server.api.routes.document.segment_readings import counting_by_kind, readings_of_segment
+    from fichero_server.api.routes.document.segment_readings import counting_by_kind_and_level, readings_of_segment
 
     if segment is None:
         raise HTTPException(status_code=422, detail="expected_counting_id needs the segment_id whose counting reading it names")
     items = readings_of_segment(db, segment.id)
-    answer = counting_by_kind(db, segment.id, items).get(params.kind)
+    # The reading that counts AT THE LEVEL being written (`source.reading.counts-per-level`): an expanded
+    # reading written against the as-written one that counts is not stale because of it.
+    answer = counting_by_kind_and_level(db, segment.id, items).get((params.kind, counting_level(params.level)))
     current = answer.representation_id if answer is not None else None
     if current == params.expected_counting_id:
         return
@@ -356,6 +361,9 @@ def create_representation(
     it is why there is no update action here at all.
     """
     assert_known_reading_kind(db, params.kind)
+    # `source.reading.levels`: a level outside the library's list is refused, naming the list; an older
+    # spelling (`normalised`, the recipes' `as-written`) is stored as the level it means.
+    params = params.model_copy(update={"level": assert_known_reading_level(db, params.level)})
     if params.kind == WORLD_POINT:
         # A place on the earth is checked and stored in WGS 84 with the CRS it arrived in, or held
         # unconverted as `unknown` -- never guessed (`models/geo.py`, #5122).
@@ -663,6 +671,12 @@ def _assert_a_person(ctx: ActionContext, what: str) -> None:
         raise ChoiceNeedsAPerson(what, kind.value)
 
 
+def _choice_level(db: Database, choice: ReadingChoice) -> str | None:
+    """The level a choice is about: its reading's (None when the reading is not a stored row)."""
+    reading = db.get(ContentRepresentation, choice.representation_id)
+    return counting_level(reading.level) if reading is not None else None
+
+
 def _supersede_choices(db: Database, rows: list, at) -> list[str]:
     """Stamp every live choice as superseded. Rows are NEVER deleted."""
     superseded: list[str] = []
@@ -718,7 +732,13 @@ def choose_reading(
             f"reading {reading.id} reads segment {reading.segment_id}, not {segment.id}"
         )
 
-    existing = db.query(ReadingChoice, segment_id=segment.id, kind=params.kind)
+    # A choice supersedes the earlier choices AT ITS OWN LEVEL only (`source.reading.counts-per-level`):
+    # choosing which expanded reading counts says nothing about which as-written one does.
+    level = counting_level(reading.level)
+    existing = [
+        row for row in db.query(ReadingChoice, segment_id=segment.id, kind=params.kind)
+        if _choice_level(db, row) in (None, level)
+    ]
     live = [row for row in existing if row.superseded_at is None]
     now = utc_now()
     _supersede_choices(db, existing, now)

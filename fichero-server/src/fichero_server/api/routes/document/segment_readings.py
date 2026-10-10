@@ -57,6 +57,8 @@ from fichero_server.models.source_declarations import project_facts
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
 from fichero_server.models.readings import (
+    BASE_READING_LEVEL,
+    BUILTIN_READING_LEVELS,
     ChoiceNeedsAPerson,
     CountingAnswer,
     PassAnswer,
@@ -67,6 +69,9 @@ from fichero_server.models.readings import (
     ReadingCandidate,
     ReadingChoice,
     UnknownReadingKind,
+    UnknownReadingLevel,
+    canonical_reading_level,
+    counting_level,
     legacy_reading_segment_id,
     project_record_rule,
     reading_kinds,
@@ -148,7 +153,7 @@ class ReadingListResponse(BaseModel):
 def _as_http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, ProvisionalSegmentIdError):
         return HTTPException(422, str(exc))
-    if isinstance(exc, (UnknownReadingKind, ReadingAnchorMismatch)):
+    if isinstance(exc, (UnknownReadingKind, UnknownReadingLevel, ReadingAnchorMismatch)):
         return HTTPException(422, str(exc))
     if isinstance(exc, ChoiceNeedsAPerson):
         return HTTPException(403, str(exc))
@@ -282,7 +287,9 @@ def _reading_read_from_row(row: ContentRepresentation) -> ReadingRead:
         content=row.content,
         language=row.language,
         script=row.script,
-        level=row.level,
+        # `normalised` (the old third level) reads back as `regularised`, the level it means; the row
+        # itself is never rewritten (`source.reading.levels`).
+        level=canonical_reading_level(row.level),
         # A row written before this slice has no recorded maker, and saying
         # `unknown` is the truth about it -- never `human`, which is the
         # defect #4868/#4869 exist to stop.
@@ -579,7 +586,12 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
     afterwards counts). ⌘Z retracts the line reading, so this answers nothing retired and the words
     count again with nothing about them written.
     """
-    line_items = [i for i in readings_of_segment(db, line.id) if i.kind == kind]
+    # The line AS WRITTEN (`source.reading.counts-per-level`): a person's expanded or regularised reading
+    # of the line is not an edit of what it says, so it retires no word.
+    line_items = [
+        i for i in readings_of_segment(db, line.id)
+        if i.kind == kind and counting_level(i.level) == BASE_READING_LEVEL
+    ]
     if not line_items:
         return {}
     by_id = {i.id: i for i in line_items}
@@ -610,7 +622,8 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
     for row in siblings:
         older = [
             i for i in readings_of_segment(db, row.id)
-            if i.kind == kind and i.created_at < counted.created_at
+            if i.kind == kind and counting_level(i.level) == BASE_READING_LEVEL
+            and i.created_at < counted.created_at
         ]
         if not older:
             continue
@@ -643,7 +656,7 @@ def retired_readings_of(
     return memo[(segment.parent_segment_id, kind)]
 
 
-def counting_by_kind(
+def counting_by_kind_and_level(
     db: Database,
     segment_id: str,
     items: list[ReadingRead],
@@ -654,8 +667,14 @@ def counting_by_kind(
     lines_read_by_a_person_skip_their_words: bool = False,
     on_ground_truth: bool | None = None,
     measures: ReadingMeasures | None = None,
-) -> dict[str, CountingAnswer]:
-    """The counting answer for each kind present, worked out fresh.
+) -> dict[tuple[str, str], CountingAnswer]:
+    """The counting answer for each (kind, level) present, worked out fresh (`source.reading.counts-per-level`).
+
+    A level is how far a transcription was taken from the ink, so the readings of one kind compete only
+    with the readings AT THEIR LEVEL: a person's expanded reading of a line never replaces its as-written
+    one, and a person's as-written correction never retires an expanded one. A reading with no level
+    competes at ``as_written`` (`readings.counting_level`). A choice counts at the level of the reading it
+    names; a correction retires only a reading at its own level.
 
     Nothing about it is stored (`source.reading.chosen-is-worked-out`), so
     this is computed on every read rather than cached: a cache would be a
@@ -678,28 +697,58 @@ def counting_by_kind(
     memo = retired_memo if retired_memo is not None else {}
     # Which machine reading counts is ranked by checking and measured score (#5558). A caller counting a
     # whole page hands one `measures` in; otherwise this segment's are looked up here.
-    # They are looked up only where they can change the answer: two or more machine readings of a kind.
-    answers: dict[str, CountingAnswer] = {}
-    for kind in sorted({item.kind for item in items}):
-        retired = (
-            set() if lines_read_by_a_person_skip_their_words
-            else retired_readings_of(db, segment_id, kind, rule, memo)
-        )
-        of_kind = [item for item in items if item.kind == kind]
+    # They are looked up only where they can change the answer: two or more machine readings at a level.
+    answers: dict[tuple[str, str], CountingAnswer] = {}
+    retired_of_kind: dict[str, set[str]] = {}
+    for kind, level in sorted({(item.kind, counting_level(item.level)) for item in items}):
+        if kind not in retired_of_kind:
+            retired_of_kind[kind] = (
+                set() if lines_read_by_a_person_skip_their_words
+                else retired_readings_of(db, segment_id, kind, rule, memo)
+            )
+        retired = retired_of_kind[kind]
+        at_level = [item for item in items if item.kind == kind and counting_level(item.level) == level]
         ranked = None
-        if sum(item.provenance_kind is not ProvenanceKind.human and not item.provisional for item in of_kind) > 1:
+        if sum(item.provenance_kind is not ProvenanceKind.human and not item.provisional for item in at_level) > 1:
             if measures is None:
                 measures = ReadingMeasures(db)
             ranked = measures
-        answers[kind] = resolve_counting(
+        answers[(kind, level)] = resolve_counting(
             rule,
+            # A choice names its reading, and `resolve_counting` skips one whose reading is not among
+            # these candidates, so a choice made at another level never decides this one.
             [row for row in choices if row.kind == kind],
             [
                 _candidate(item, on_ground_truth, ranked).model_copy(update={"retracted": True})
                 if item.id in retired else _candidate(item, on_ground_truth, ranked)
-                for item in of_kind
+                for item in at_level
             ],
         )
+    return answers
+
+
+def _level_rank(level: str) -> tuple[bool, int, str]:
+    """``as_written`` first, then the shipped levels in order, then a project's own by name."""
+    order = [key for key, _label in BUILTIN_READING_LEVELS]
+    return (level != BASE_READING_LEVEL, order.index(level) if level in order else len(order), level)
+
+
+def counting_by_kind(
+    db: Database,
+    segment_id: str,
+    items: list[ReadingRead],
+    **kwargs: Any,
+) -> dict[str, CountingAnswer]:
+    """The counting answer for each kind present: the one at ``as_written`` (a reading with no level
+    included) when the kind has readings there, else at the first level it has (`_level_rank`).
+
+    What the page's text, segment lists, the readings list and export read (`source.reading.counts-per-level`),
+    so an expanded or regularised reading of a line never stands in for what the line says as written.
+    `counting_by_kind_and_level` has every level's answer."""
+    answers: dict[str, CountingAnswer] = {}
+    by_level = counting_by_kind_and_level(db, segment_id, items, **kwargs)
+    for (kind, _level), answer in sorted(by_level.items(), key=lambda pair: (pair[0][0], _level_rank(pair[0][1]))):
+        answers.setdefault(kind, answer)
     return answers
 
 
@@ -1239,6 +1288,9 @@ def _line_readings_for(db: Database, pairs: list[tuple[str, str]]) -> list[Conte
             items = readings_of.get((row.id, kind), [])
             if not items:
                 continue
+            # The word at the level `counting_by_kind` answers for (as written, else its first level).
+            level = min((counting_level(i.level) for i in items), key=_level_rank)
+            items = [i for i in items if counting_level(i.level) == level]
             answer = resolve_counting(
                 rule, choices_of.get((row.id, kind), []), [_candidate(_reading_read_from_row(i)) for i in items],
             )

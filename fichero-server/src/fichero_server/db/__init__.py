@@ -1339,6 +1339,7 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.campaigns import Campaign, CampaignMembership, ReadingCampaigns
         from fichero_server.models.rights import RightsRecord
         from fichero_server.models.signs import DeclaredSign
+        from fichero_server.models.readings import LibraryReadingLevel
         from fichero_server.models import (
             ActionAudit,
             AgentNote,
@@ -1476,6 +1477,7 @@ class Database(DatabaseEmbeddingMixin):
             LibraryLinkType,
             TypedLink,
             LibraryReadingKind,
+            LibraryReadingLevel,
             Milestone,
             MutationLog,
             PatternInstance,
@@ -2563,6 +2565,15 @@ class Database(DatabaseEmbeddingMixin):
             if key in existing:
                 continue
             self.save(LibraryReadingKind(key=key, label=label, builtin=True))
+
+        # The reading LEVELS (`source.reading.levels`, ruled 2026-10-10), seeded the same way: additive,
+        # a key already present (a project's relabelling, a level it added) left exactly as it is.
+        from fichero_server.models.readings import BUILTIN_READING_LEVELS, LibraryReadingLevel
+
+        existing_levels = {row.key for row in self.query(LibraryReadingLevel)}
+        for key, label in BUILTIN_READING_LEVELS:
+            if key not in existing_levels:
+                self.save(LibraryReadingLevel(key=key, label=label, builtin=True))
 
     def _seed_builtin_link_types(self) -> None:
         """Seed the shipped link types (source-model slice 10, #4931).
