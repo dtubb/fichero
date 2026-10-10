@@ -37,6 +37,10 @@ def mac(monkeypatch):
         (lambda: BATTERY if state["battery"] else None, False),
         (lambda: IN_USE if state["in_use"] else None, False),
     ])
+    # What the popover REPORTS reads the same signals (`machine_state`); unfaked, it read this Mac's
+    # real keyboard idle, so the test passed only while someone was typing (2026-10-09, overnight).
+    monkeypatch.setattr(throttle, "mac_is_in_use", lambda: IN_USE if state["in_use"] else None)
+    monkeypatch.setattr(throttle, "on_battery", lambda: BATTERY if state["battery"] else None)
     return state
 
 
