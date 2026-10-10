@@ -82,7 +82,7 @@ KRAKEN_MODEL_PREFIX = "kraken:"
 _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
                  "fichero_server.training.job", "fichero_server.workflows.task_workers",
                  "fichero_server.remote_read.job", "fichero_server.training.reasons_job",
-                 "fichero_server.training.local", "fichero_server.sync_folder", "fichero_server.checking.job",
+                 "fichero_server.training.local", "fichero_server.training.yolo_local", "fichero_server.sync_folder", "fichero_server.checking.job",
                  "fichero_server.recipes.runner", "fichero_server.training.evaluation",
                  "fichero_server.kept_export", "fichero_server.recipes.discovery",
                  "fichero_server.api.routes.kg.review")

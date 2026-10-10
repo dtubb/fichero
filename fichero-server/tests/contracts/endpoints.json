@@ -11405,6 +11405,16 @@
         "response_model": null
       },
       {
+        "method": "POST",
+        "path": "/training/regions/here",
+        "operation_id": "start_regions_training_here_api_training_regions_here_post",
+        "summary": "Fine-tune a layout model on the regions a person corrected, on this Mac",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TrainRegionsHereRequest",
+        "response_model": "TrainingStartedHere"
+      },
+      {
         "method": "GET",
         "path": "/training/set",
         "operation_id": "preview_training_set_api_training_set_get",

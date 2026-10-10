@@ -136,6 +136,20 @@ def _action_start_here(db: Database, params: TrainKrakenHereRequest, ctx: Action
                                emit_type="job.created")
 
 
+from fichero_server.training.yolo_local import TrainRegionsHereRequest  # noqa: E402
+
+
+@action("training.start_regions_here", TrainRegionsHereRequest, domains=["job"], undoable=False)
+def _action_start_regions_here(db: Database, params: TrainRegionsHereRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.training import yolo_local
+
+    _every_page_readable(db, params.scope_ids, ctx)
+    started = yolo_local.start(db, params, started_by=ctx.actor or "owner")
+    return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
+                               after={"job_id": started["job_id"], "kind": yolo_local.KIND},
+                               emit_type="job.created")
+
+
 @action("training.cancel", CancelTrainingParams, domains=["job"], undoable=False)
 def _action_cancel(db: Database, params: CancelTrainingParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     state = _training_job().request_cancel(db, params.job_id)
@@ -179,6 +193,26 @@ async def start_kraken_training_here(
     with `/training/jobs/{job_id}`. Refused with a base reader that is not installed."""
     try:
         result = registry.invoke(db, "training.start_here", request.model_dump(), ctx)
+    except (ValueError, RuntimeError, LookupError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return TrainingStartedHere(**result.result)
+
+
+@router.post("/regions/here", response_model=TrainingStartedHere,
+             summary="Fine-tune a layout model on the regions a person corrected, on this Mac")
+async def start_regions_training_here(
+    request: TrainRegionsHereRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> TrainingStartedHere:
+    """Queue a `train-regions-on-this-mac` job (`prep.yolo.fine-tune-from-corrected-regions`, #5525): the
+    regions a person drew or corrected in these folders or pages become YOLO labels, and the base layout model is
+    fine-tuned on them on this Mac's GPU, on the local-model lane, gently (it holds while the Mac is in use and
+    resumes from its last epoch). The model lands in this project with its region-overlap score on the held-out
+    pages, and a recipe's find-regions step can use it (`{"yolo": "<its id>"}`). Refused when the base model is
+    not downloaded or no page in scope has a person's regions."""
+    try:
+        result = registry.invoke(db, "training.start_regions_here", request.model_dump(), ctx)
     except (ValueError, RuntimeError, LookupError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TrainingStartedHere(**result.result)

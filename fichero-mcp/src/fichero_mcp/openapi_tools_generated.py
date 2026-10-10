@@ -7960,6 +7960,20 @@ def fichero_training_cancel_reasons_job(
     return _rt.call("POST", f"/api/training/reasons/{job_id}/cancel")
 
 
+def fichero_training_start_regions_here(
+    *,
+    base: Annotated[Optional[str], Field(description='the layout model to start from. Default: "yolo-doclaynet-11n".')] = None,
+    batch_size: Annotated[Optional[int], Field(description='Batch Size. Default: 4.')] = None,
+    epochs: Annotated[Optional[int], Field(description='Epochs. Default: 30.')] = None,
+    held_out_ids: Annotated[Optional[list[Any]], Field(description='pages kept out of training and used to score the model (region overlap)')] = None,
+    image_size: Annotated[Optional[int], Field(description='Image Size. Default: 1024.')] = None,
+    name: Annotated[str, Field(description='what to call the trained model.')],
+    scope_ids: Annotated[list[Any], Field(description='folders or pages whose corrected regions are the training set.')],
+) -> Any:
+    'Fine-tune a layout model on the regions a person corrected, on this Mac\n\nQueue a `train-regions-on-this-mac` job (`prep.yolo.fine-tune-from-corrected-regions`, #5525): the\nregions a person drew or corrected in these folders or pages become YOLO labels, and the base layout model is\nfine-tuned on them on this Mac\'s GPU, on the local-model lane, gently (it holds while the Mac is in use and\nresumes from its last epoch). The model lands in this project with its region-overlap score on the held-out\npages, and a recipe\'s find-regions step can use it (`{"yolo": "<its id>"}`). Refused when the base model is\nnot downloaded or no page in scope has a person\'s regions.\n\nRoute: POST /api/training/regions/here (toolset `training`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/training/regions/here", json=_rt.body({"base": base, "batch_size": batch_size, "epochs": epochs, "held_out_ids": held_out_ids, "image_size": image_size, "name": name, "scope_ids": scope_ids}))
+
+
 def fichero_training_preview_set(
     *,
     held_out_ids: Annotated[Optional[list[str]], Field(description='Pages kept home as the test.')] = None,
@@ -9322,6 +9336,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_training_reasons_ab_status", "training", "GET", "/api/training/reasons-ab/{job_id}", fichero_training_reasons_ab_status),
     GeneratedTool("fichero_training_reasons_job_status", "training", "GET", "/api/training/reasons/{job_id}", fichero_training_reasons_job_status),
     GeneratedTool("fichero_training_cancel_reasons_job", "training", "POST", "/api/training/reasons/{job_id}/cancel", fichero_training_cancel_reasons_job),
+    GeneratedTool("fichero_training_start_regions_here", "training", "POST", "/api/training/regions/here", fichero_training_start_regions_here),
     GeneratedTool("fichero_training_preview_set", "training", "GET", "/api/training/set", fichero_training_preview_set),
     GeneratedTool("fichero_training_start_vision_lora", "training", "POST", "/api/training/vision-lora", fichero_training_start_vision_lora),
     GeneratedTool("fichero_triggers_list", "triggers", "GET", "/api/triggers", fichero_triggers_list),

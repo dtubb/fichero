@@ -589,6 +589,8 @@ $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons_ab.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons_job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/vision_bases.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/yolo_local.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/yolo_set.py
 $(SRCROOT)/../fichero-server/src/fichero_server/verification_targets.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/action_store.py

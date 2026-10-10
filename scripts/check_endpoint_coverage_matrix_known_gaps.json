@@ -287,5 +287,6 @@
   "POST /api/find-documents/proposals/{proposal_id}/reject": "Find the Documents (#5550): engine, CLI and MCP (the find-documents toolset) first; the app's Organise > Find the Documents, its proposals on the canvas and Accept/Reject are not built yet",
   "GET /api/recipes/project/runs/{job_id}/summary": "store missing by design (#5577): the app reads the same summary on the recipe run's node of GET /api/activity/jobs/{job_id}; this route serves the CLI and MCP",
   "POST /api/claims/batch/transition": "#5613: the only Swift call was the hand-rolled entityService.batchTransitionClaims, uncalled and sending `state` where the engine takes `to_state` (it would have 422'd), so it was deleted; reached from the CLI and MCP; a Mac surface adds it through the generated client with its caller",
-  "GET /api/recipes/project/automatic": "what runs by itself (#5362): the engine read first, served to the CLI and MCP; the app's setup and Activity do not show it yet"
+  "GET /api/recipes/project/automatic": "what runs by itself (#5362): the engine read first, served to the CLI and MCP; the app's setup and Activity do not show it yet",
+  "POST /api/training/regions/here": "fine-tuning a layout model on this Mac (#5525): engine, CLI and MCP (fichero_training_start_regions_here) first; the app's Train button on a folder's regions is the next slice"
 }

@@ -16828,6 +16828,42 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("fine-tune-a-layout-model-on-the-regions-a-person-corrected-on-this-mac", hidden=True)
+    @target_app.command("start-regions-here")
+    def training_start_regions_here_post(
+        ctx: typer.Context,
+        base: Optional[str] = typer.Option(None, '--base', help='the layout model to start from. Default: "yolo-doclaynet-11n".'),
+        batch_size: Optional[int] = typer.Option(None, '--batch-size', help='Batch Size. Default: 4.'),
+        epochs: Optional[int] = typer.Option(None, '--epochs', help='Epochs. Default: 30.'),
+        held_out_ids: Optional[list[str]] = typer.Option(None, '--held-out-ids', help='pages kept out of training and used to score the model (region overlap) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        image_size: Optional[int] = typer.Option(None, '--image-size', help='Image Size. Default: 1024.'),
+        name: str = typer.Option(..., '--name', help='what to call the trained model.'),
+        scope_ids: list[str] = typer.Option(..., '--scope-ids', help='folders or pages whose corrected regions are the training set. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Fine-tune a layout model on the regions a person corrected, on this Mac (POST /api/training/regions/here)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/training/regions/here"
+            params = None
+            payload = _build_json_payload({
+                "base": base,
+                "batch_size": batch_size,
+                "epochs": epochs,
+                "held_out_ids": held_out_ids,
+                "image_size": image_size,
+                "name": name,
+                "scope_ids": scope_ids,
+            }, {
+                "base": {'type': 'string', 'title': 'Base', 'description': 'the layout model to start from', 'default': 'yolo-doclaynet-11n', 'x-cli-required': False},
+                "batch_size": {'type': 'integer', 'maximum': 32.0, 'minimum': 1.0, 'title': 'Batch Size', 'default': 4, 'x-cli-required': False},
+                "epochs": {'type': 'integer', 'maximum': 300.0, 'minimum': 1.0, 'title': 'Epochs', 'default': 30, 'x-cli-required': False},
+                "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'pages kept out of training and used to score the model (region overlap)', 'x-cli-required': False},
+                "image_size": {'type': 'integer', 'maximum': 2048.0, 'minimum': 320.0, 'title': 'Image Size', 'default': 1024, 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'description': 'what to call the trained model', 'x-cli-required': True},
+                "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'folders or pages whose corrected regions are the training set', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("what-a-set-from-these-pages-would-hold-and-the-flagged-lines-it-leaves-out", hidden=True)
     @target_app.command("preview-set")
     def training_preview_set_get(

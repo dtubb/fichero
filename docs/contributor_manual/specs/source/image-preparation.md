@@ -142,7 +142,7 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
 - `prep.methods-are-cards-the-recipe-chooses` — **[GAP]** (#5382, #4951) each preparation job has several cards (Apple Vision, contour, YOLO stock or trained, Kraken regions); the recipe names one per step, material kind and folder; the bake-off replaces it only on evidence.
 - `prep.yolo-detectors-run-and-train` — **[GAP]** (#5382, #5525) a YOLO page and region detector runs
   locally and is trainable in Fichero from corrected outlines. Made concrete by the four lines below.
-- `prep.yolo.regions-card` — **[GAP]** (#5525) the recipe's `find-regions` job has a YOLO card: a layout
+- `prep.yolo.regions-card` — **[PARTIAL]** (#5525) **Built 2026-10-10:** `recipes/regions.py`, `llm/yolo_runtime.py`; pinned by `fichero-server/tests/unit/recipes/test_yolo_regions_card.py`. *Not yet: a trained model offered as a card by setup.* the recipe's `find-regions` job has a YOLO card: a layout
   model runs in the local model lane (PyTorch on the Mac's GPU) and writes a region pass into the page
   model: text block, heading, marginal note, page header, page footer, table, picture, each a region
   segment with its outline and confidence. Today `find-regions` has no card and Start sends the person to
@@ -150,14 +150,14 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
   (`hantian/yolo-doclaynet`, AGPL like Fichero). **Measured 2026-10-10:** it runs (0.1 s a page warm, 6 s
   for the first load), but on two handwritten Sergio photos it saw one "Picture" at 26–28% confidence.
   The stock model is only a starting point for fine-tuning.
-- `prep.yolo.fine-tune-from-corrected-regions` — **[GAP]** (#5525, #5397) the regions a person corrects
+- `prep.yolo.fine-tune-from-corrected-regions` — **[PARTIAL]** (#5525, #5397) **Built 2026-10-10 (this Mac):** `training/yolo_set.py` and `training/yolo_local.py`, started by `POST /api/training/regions/here` (so the MCP tool and the CLI command); the real trainer ran on the GPU (two epochs, 11 s). Pinned by `fichero-server/tests/unit/training/test_yolo_regions_training.py`. *Not yet: the Hugging Face path, the bake-off adopting it, a Train button in the app.* the regions a person corrects
   become a training set (exported as YOLO labels by `formats/yolo.py`, the same set builder as Kraken's,
   #5513), and the stock model is fine-tuned on it with Ultralytics, on this Mac or as a Hugging Face job.
   The result is a project model card, scored by region overlap on held-out pages against the stock
   card, and the bake-off adopts it only on evidence.
 - `prep.yolo.page-detector` — **[GAP]** (#5382) the same pipeline with one class, the page, finds and crops
   the page in a photograph (the old `yolov8s-fichero.pt` page model is the baseline to beat).
-- `prep.yolo.quiet-in-the-sandbox` — **[GAP]** (#5525) Ultralytics runs offline in the app: its settings
+- `prep.yolo.quiet-in-the-sandbox` — **[PARTIAL]** (#5525) **Built 2026-10-10:** settings, datasets, weights and runs under the shared models folder, sync and loggers off (`yolo_runtime._quiet`). *Not yet checked in the sandboxed app.* Ultralytics runs offline in the app: its settings
   live in the engine's own folder (not `/tmp`), nothing is synced or checked online, and the weights come
   from the model store.
 

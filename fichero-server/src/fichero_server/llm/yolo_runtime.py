@@ -46,7 +46,17 @@ def _models_path() -> Path:
 
 
 def model_path(model_id: str) -> Path | None:
-    """The downloaded weights of a known model, or None."""
+    """The weights of a known model: downloaded to the store, or trained in an open project; else None."""
+    from fichero_server.training.yolo_local import TRAINED_PREFIX
+
+    if model_id.startswith(TRAINED_PREFIX):
+        from fichero_server.training.project_models import _open_projects, model_folder
+
+        for package in _open_projects():
+            trained = model_folder(package, model_id) / "model.pt"
+            if trained.is_file():
+                return trained
+        return None
     spec = YOLO_MODELS.get(model_id)
     if spec is None:
         return None

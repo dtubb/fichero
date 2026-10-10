@@ -238,7 +238,7 @@ what a corrected set holds and how it is scored differs by kind:
 | spaCy names | a frontier model naming people, places, things | agreement with a second tagger | names as mentions on segments (#5488) | precision and recall per kind of name |
 | Tesseract line reader (#5554) | a frontier vision model reading each line | a second reader that is not the one trained | line readings on the page's lines, as line image + text | character and word error rate against the base language data |
 | Apple Vision (#5554) | — (no training API) | — | the project's names, places and terms as its custom-word list | character and word error rate with and without the list |
-| Apple Foundation Models adapter (#5556) | a frontier model doing the text step | agreement with a second model | the step's corrected outputs (names normalised, claims) | the step's own score; retrained when macOS changes the on-device model |
+| Apple Foundation Models adapter (#5556) | a frontier model doing the text step | agreement with a second model | the step's corrected outputs (names normalised, claims) | the step's own score; retrained for every on-device model version (see below) |
 | Create ML word tagger or detector (#5556) | as spaCy names or YOLO regions | as those rows | as those rows | as those rows |
 
 Tesseract fine-tunes its line reader from corrected lines (tesstrain, starting from the language's data), on the CPU, small enough for the 8 GB Mac; the result is a model in the project like any other (#5554).
@@ -248,6 +248,22 @@ reader is given words, not trained (#5554).
 Models trained elsewhere (YOLO, and Kraken where it converts) can be converted to Core ML to run on the
 Neural Engine, in less memory on the 8 GB Mac; a converted model is scored against its original before it
 replaces it (#5556).
+
+**Apple's training paths, checked 2026-10-10** (Golden Gate, macOS 26, is the target; macOS 27 shipped since):
+- **Foundation Models adapters** train only with Apple's adapter toolkit, whose release 26.0.0 is its last and
+  works for the macOS 26 model alone; it does not work with macOS 27's model, and no toolkit for 27 is
+  published. Training needs a Mac with at least 32 GB or a Linux GPU, so not the 8 and 16 GB Macs here (a
+  Hugging Face GPU job could). An adapter (about 160 MB) fits one on-device model version: a Mac updated to 27
+  cannot use a 26 adapter. Deploying one needs Apple's adapter entitlement and arrives by Background Assets,
+  never in the app bundle. Lowest priority of the Apple paths.
+- **Create ML** (on the Mac, small): the word tagger (names) and object detector (regions) are unchanged in 2026
+  and train on any of these Macs; they run on macOS 26 and 27.
+- **Core ML** stays the format for converted classical and detection models (coremltools 9 targets macOS 26).
+  At WWDC26 Apple named **Core AI** Core ML's successor for neural networks on macOS 27: inference only, models
+  converted from PyTorch with Core AI's own converter (`torch.export` to an `AIProgram`). Nothing trains in Core
+  AI; on macOS 26 a converted YOLO or Kraken model runs through Core ML.
+- **macOS 27's Foundation Models** take images with text, give each response's token counts, and add an OCR tool;
+  none of this is on macOS 26, so none of it is assumed.
 
 ### Cascade: small first, big when unsure
 

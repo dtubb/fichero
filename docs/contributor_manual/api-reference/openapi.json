@@ -5825,6 +5825,70 @@
         }
       }
     },
+    "/api/training/regions/here": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Fine-tune a layout model on the regions a person corrected, on this Mac",
+        "description": "Queue a `train-regions-on-this-mac` job (`prep.yolo.fine-tune-from-corrected-regions`, #5525): the\nregions a person drew or corrected in these folders or pages become YOLO labels, and the base layout model is\nfine-tuned on them on this Mac's GPU, on the local-model lane, gently (it holds while the Mac is in use and\nresumes from its last epoch). The model lands in this project with its region-overlap score on the held-out\npages, and a recipe's find-regions step can use it (`{\"yolo\": \"<its id>\"}`). Refused when the base model is\nnot downloaded or no page in scope has a person's regions.",
+        "operationId": "start_regions_training_here_api_training_regions_here_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainRegionsHereRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingStartedHere"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/training/vision-lora": {
       "post": {
         "tags": [
@@ -86821,6 +86885,65 @@
         ],
         "title": "TrainKrakenRequest",
         "description": "The Kraken card: a recognition model fine-tuned with `ketos train`."
+      },
+      "TrainRegionsHereRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "what to call the trained model"
+          },
+          "scope_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scope Ids",
+            "description": "folders or pages whose corrected regions are the training set"
+          },
+          "held_out_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Held Out Ids",
+            "description": "pages kept out of training and used to score the model (region overlap)"
+          },
+          "base": {
+            "type": "string",
+            "title": "Base",
+            "description": "the layout model to start from",
+            "default": "yolo-doclaynet-11n"
+          },
+          "epochs": {
+            "type": "integer",
+            "maximum": 300.0,
+            "minimum": 1.0,
+            "title": "Epochs",
+            "default": 30
+          },
+          "image_size": {
+            "type": "integer",
+            "maximum": 2048.0,
+            "minimum": 320.0,
+            "title": "Image Size",
+            "default": 1024
+          },
+          "batch_size": {
+            "type": "integer",
+            "maximum": 32.0,
+            "minimum": 1.0,
+            "title": "Batch Size",
+            "default": 4
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "scope_ids"
+        ],
+        "title": "TrainRegionsHereRequest",
+        "description": "Fine-tune a layout model on the regions a person corrected in these folders or pages."
       },
       "TrainResponse": {
         "properties": {
