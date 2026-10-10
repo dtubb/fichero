@@ -1084,6 +1084,12 @@ async def lifespan(app: FastAPI):
         )
     parent_watcher.cancel()
     await stop_periodic_snapshot_task(periodic_snapshot_task)
+    # The projects close FIRST, straight after the last thing that writes to them: the app gives the engine
+    # about two seconds after SIGTERM before SIGKILL (`TerminationDeadlinePolicy.quit`), and closing last --
+    # after Bonjour, Tailscale and unloading local models -- meant most quits never got here, leaving every
+    # project with a WAL to replay at the next open (#5644; 2026-10-10).
+    logger.info("Fichero API shutting down: closing projects")
+    db_manager.close_all()
     # Await the start before stopping: a short-lived process (a test, a failed
     # launch) can reach shutdown while the executor has not run yet, and the
     # advertiser would then register AFTER we tried to stop it — a zombie that
@@ -1100,8 +1106,7 @@ async def lifespan(app: FastAPI):
     with suppress(asyncio.CancelledError):
         await warm_started
     await shutdown_managed_local_inference_services()
-    # Shutdown: close all database connections
-    logger.info("Fichero API shutting down...")
+    # Anything that opened a project during the steps above is closed too (close_all is idempotent).
     db_manager.close_all()
 
 
