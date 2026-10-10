@@ -2244,8 +2244,8 @@ Projects
   steps still run. A recipe with nothing runnable, or one that fails the recipe check, never starts.
 
 Profiles (the defaults section of a recipe)
-- `source.recipe.missing-model-offered` — **[OK]** (#5367; built: `missing_models` in `recipes/start.py`, the plan's `downloads`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py`) a step pinned to a model that is not on this
-  Mac and can be downloaded (today: a spaCy pipeline) is named in the Start plan with the model and its size,
+- `source.recipe.missing-model-offered` — **[OK]** (#5367; built: `missing_models` in `recipes/start.py`, the plan's `downloads`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py` and, for a Kraken reader, `fichero-server/tests/unit/recipes/test_kraken_reader_offered_before_start.py`) a step pinned to a model that is not on this
+  Mac and can be downloaded (a spaCy pipeline, or a catalogue or Zenodo Kraken reader; MLX models are `local_models_to_download`) is named in the Start plan with the model and its size,
   and the plan offers the download (`downloads`, each a `download-model` job on the network lane); Start is
   refused until it is there, so the step never fails at run time for want of it.
 - `source.recipe.done-is-not-redone` — **[OK]** (#5390; built: `recipes/done.py`, the plan's `done`/`of`/`note` and Start's `redo`; tested in `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`) a started recipe does not run a step again on a

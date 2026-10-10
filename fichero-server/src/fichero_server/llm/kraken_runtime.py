@@ -315,8 +315,7 @@ def resolve_recognition_model(model_ref: str) -> tuple[str, str | None]:
         if not resolved:
             raise RuntimeError(
                 f"Kraken recognition model '{model_ref}' is not downloaded — "
-                "install it from Settings -> AI -> Local Inference (the on-device "
-                "model catalog)."
+                "download it first: Set Up… › Ready offers it, as does Settings › Models."
             )
         return resolved, model_ref
     if not model_ref:

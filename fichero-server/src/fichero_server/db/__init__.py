@@ -1175,7 +1175,8 @@ class Database(DatabaseEmbeddingMixin):
             failed = 0  # rebuilt moments ago in `connect_utc`; nothing stale is left to repair
         else:
             rebuilt, failed = rebuild_secondary_indexes(conn)
-            logger.warning("rebuilt %d secondary indexes on %s (one-time repair, #5644)", rebuilt, self.path)
+            if rebuilt:
+                logger.warning("rebuilt %d secondary indexes on %s (one-time repair, #5644)", rebuilt, self.path)
         if not has_settings or failed:
             return  # a new library has nothing to repair; a failed index is tried again next open
         try:

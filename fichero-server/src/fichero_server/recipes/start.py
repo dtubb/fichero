@@ -388,19 +388,39 @@ def card_inputs(step_jobs: list[str]) -> tuple[list[str], list[str]]:
 
 def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The downloadable models the plan's steps are pinned to that are not on this Mac
-    (`source.recipe.missing-model-offered`): today spaCy pipelines, each offered as a `download-model` job."""
+    (`source.recipe.missing-model-offered`): spaCy pipelines and Kraken readers (a catalogue or Zenodo reader;
+    a reader trained here is never a download), each offered as a `download-model` job."""
+    from fichero_server.llm import kraken_runtime
     from fichero_server.llm.local_models import SPACY_MODELS, spacy_pipeline_available
 
     out: dict[str, dict[str, Any]] = {}
     for run in runs:
         name = run.get("model_override")
-        if run.get("provider_override") != "spacy" or not name or spacy_pipeline_available(name):
+        runtime = run.get("provider_override")
+        if not name:
             continue
-        entry = out.setdefault(name, {"runtime": "spacy", "model": name, "steps": [],
-                                      "size_mb": SPACY_MODELS.get(name, {}).get("disk_mb"),
-                                      "action": "model.download", "params": {"runtime": "spacy", "model": name}})
+        if runtime == "spacy":
+            if spacy_pipeline_available(name):
+                continue
+            size_mb = SPACY_MODELS.get(name, {}).get("disk_mb")
+        elif runtime == "kraken":
+            spec = kraken_runtime.recognition_spec(name)
+            if not spec or "trained" in spec or _kraken_reader_here(name):
+                continue
+            size_mb = spec.get("size_mb")
+        else:
+            continue
+        entry = out.setdefault(name, {"runtime": runtime, "model": name, "steps": [], "size_mb": size_mb,
+                                      "action": "model.download", "params": {"runtime": runtime, "model": name}})
         entry["steps"] += run["steps"]
     return list(out.values())
+
+
+def _kraken_reader_here(name: str) -> bool:
+    """Whether the Kraken reader `name` is downloaded to this Mac."""
+    from fichero_server.llm import kraken_runtime
+
+    return bool(kraken_runtime.recognition_model_path(name))
 
 
 def _waits_for(download: dict[str, Any]) -> str:
@@ -408,7 +428,8 @@ def _waits_for(download: dict[str, Any]) -> str:
     used instead (`source.onboard.auto.installed-model-first`), never an edit of the recipe."""
     steps = ", ".join(download["steps"])
     if download["runtime"] != "mlx":
-        return (f"steps {steps} need the {download['runtime']} model {download['model']} ({download['size_mb']} MB), "
+        size = f"{download['size_mb']} MB" if download.get("size_mb") else "size not stated"
+        return (f"steps {steps} need the {download['runtime']} model {download['model']} ({size}), "
                 f"which is not on this Mac: download it first")
     instead = [i["name"] for i in download.get("instead") or []]
     size = f"{download['size_mb']} MB" if download.get("size_mb") else "size not stated"
