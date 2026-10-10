@@ -70,7 +70,7 @@ class TestEmbedRecordsWhyItDidNotEmbed:
             monkeypatch.setattr(
                 type(db), "_embedding_text_for_document", lambda *_a, **_k: ""
             )
-            assert db.embed(Document(name="blank.txt")) is False
+            assert db.embed(Document(name="blank.txt")).embedded is False
             assert db.last_embed_outcome.reason == "no_embeddable_text"
             assert not db.last_embed_outcome.is_infrastructure_failure
         finally:
@@ -93,7 +93,7 @@ class TestEmbedRecordsWhyItDidNotEmbed:
 
             monkeypatch.setattr(type(db), "save_passage_embeddings", _explode)
 
-            assert db.embed(Document(name="page.txt")) is False
+            assert db.embed(Document(name="page.txt")).embedded is False
             outcome = db.last_embed_outcome
             assert outcome.reason == "embedding_failed"
             assert outcome.is_infrastructure_failure, (

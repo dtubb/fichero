@@ -58,4 +58,3 @@ tests/unit/scripts/test_coverage_ratchet_guardrail.py::TestTheCommittedBaselineI
 # ---- #5100 (1) ----
 # Duplicating a 1,050-deep tree exhausts the per-connection DuckDB cap (1.5 GB; the recursive
 # walk cannot spill). Both the depth and the cap are intentional; which gives is open on #5100.
-tests/unit/api/test_document_actions.py::TestDocumentDuplicateAction::test_duplicate_survives_trees_deeper_than_the_recursion_limit

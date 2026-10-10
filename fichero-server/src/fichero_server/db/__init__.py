@@ -2015,9 +2015,22 @@ class Database(DatabaseEmbeddingMixin):
         # silently drop updates.
         cols = list(data.keys())
         placeholders = ", ".join(f"${c}" for c in cols)
-        sql = self._upsert_sql(sql_table, cols, placeholders)
 
-        self._execute(sql, data)
+        # A NEW row takes a plain INSERT. DuckDB 1.5 holds ~32 KB per column for every row an
+        # ON CONFLICT statement inserts inside an open transaction, until commit: 1.35 MB per
+        # Document, so an atomic action saving ~1,000 new rows (duplicating a 1,000-page folder)
+        # hit the memory cap. Updating an existing row through ON CONFLICT costs nothing extra.
+        # Upstream: duckdb/duckdb#26830. Gate then lock, as save_many takes them, so the lookup
+        # and the write are one step.
+        self._ensure_transaction_started()
+        with self._transaction_gate, self._lock:
+            exists = self._execute(f"SELECT 1 FROM {sql_table} WHERE id = $id", {"id": data["id"]}, fetch="one")
+            sql = (
+                self._upsert_sql(sql_table, cols, placeholders)
+                if exists
+                else f"INSERT INTO {sql_table} ({', '.join(cols)}) VALUES ({placeholders})"
+            )
+            self._execute(sql, data)
 
         if type(obj).__name__ == "SavedSearch":
             self._save_saved_search_document(obj)
