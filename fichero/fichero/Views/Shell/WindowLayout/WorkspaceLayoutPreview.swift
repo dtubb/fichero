@@ -94,8 +94,8 @@ struct WorkspaceLayoutPreview: View {
         switch kind {
         case .library:
             if let content = config.libraryContentKind { return content.capitalized }
-            if let layout = config.libraryLayout { return "\(ItemListPane.name) · \(layout)" }
-            return ItemListPane.name
+            if let layout = config.libraryLayout { return "\(ItemsPane.name) · \(layout)" }
+            return ItemsPane.name
         case .preview:
             return config.previewWordBoxes == true ? "Word boxes" : "Source"
         case .reading: return "Reader"

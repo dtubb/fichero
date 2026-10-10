@@ -23,7 +23,7 @@ struct SettingsSectionInfo {
         case .knowledge:
             return SettingsSectionInfo(title: "Knowledge", symbol: "point.3.filled.connected.trianglepath.dotted", tint: .pink)
         case .libraryView:
-            return SettingsSectionInfo(title: ItemListPane.name, symbol: "square.grid.2x2", tint: .blue)
+            return SettingsSectionInfo(title: ItemsPane.name, symbol: "square.grid.2x2", tint: .blue)
         case .previewView:
             return SettingsSectionInfo(title: "Preview", symbol: "sidebar.right", tint: .teal)
         case .readerView:

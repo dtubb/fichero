@@ -143,7 +143,15 @@ extension ContentView {
         )
         // sidebarSelectionId returns nil for "activity" with no run ID; use the
         // fixed tag so the Activity row stays highlighted after relaunch (#648).
-        sidebarSelectionState.selectedItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
+        // Nothing restored in Items: the project opens on its Sources folder, never
+        // Workflows (ruled 2026-10-10, `sidebar.project.opens-on-sources`).
+        sidebarSelectionState.selectedItemId = OpeningSelection.selectionId(
+            restoredId: restoredId, viewModeType: storedViewModeType, roots: newCollections
+        )
+        if restoredId == nil, storedViewModeType == "library",
+           let sources = OpeningSelection.sourcesFolder(in: newCollections) {
+            viewMode = .library(sources)
+        }
         // Setting the id highlights a row that EXISTS; a restored nested
         // folder's row usually doesn't yet (ancestors unexpanded, children
         // unloaded — Daniel, 2026-08-23: "sidebar should have the appropriate

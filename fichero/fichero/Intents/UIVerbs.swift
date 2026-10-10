@@ -96,7 +96,7 @@ enum UIPane: String, CaseIterable, AppEnum {
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Pane")
     static let caseDisplayRepresentations: [UIPane: DisplayRepresentation] = [
-        .library: "Item List", .preview: "Preview", .reader: "Reader", .inspector: "Inspector",
+        .library: "Items", .preview: "Preview", .reader: "Reader", .inspector: "Inspector",
         .activity: "Activity", .chat: "Chat", .segments: "Segments"
     ]
 

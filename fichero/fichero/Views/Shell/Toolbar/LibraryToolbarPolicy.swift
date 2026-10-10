@@ -27,7 +27,7 @@ struct LibraryPaneToggleModel: Equatable {
 
     /// Menu/toolbar title. Matches the "… Pane" wording of the neighbouring
     /// preview/reading toggles.
-    var title: String { ItemListPane.name }
+    var title: String { ItemsPane.name }
 
     /// ONE constant, position-encoded glyph (#4360). Visibility state is the
     /// native `Toggle` on-state on the toolbar's glass, not a glyph swap: the
@@ -50,10 +50,10 @@ struct LibraryPaneToggleModel: Equatable {
     static let shortcutHint = "⇧⌘G"
 
     var help: String {
-        if !isVisible { return "\(ItemListPane.showLabel) (\(Self.shortcutHint))" }
+        if !isVisible { return "\(ItemsPane.showLabel) (\(Self.shortcutHint))" }
         return canHide
-            ? "\(ItemListPane.hideLabel) (\(Self.shortcutHint))"
-            : "The \(ItemListPane.name) is the only pane showing"
+            ? "\(ItemsPane.hideLabel) (\(Self.shortcutHint))"
+            : "\(ItemsPane.name) is the only pane showing"
     }
 }
 

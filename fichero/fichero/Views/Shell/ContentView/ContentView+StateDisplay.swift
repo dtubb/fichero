@@ -38,7 +38,7 @@ extension ContentView {
                 viewName = DocumentTitle.displayName(for: document)
             } else {
                 // Nothing selected: the window names the project it shows (ruled 2026-10-10).
-                viewName = windowState.library?.displayName ?? ItemListPane.name
+                viewName = windowState.library?.displayName ?? ItemsPane.name
             }
         case .chat(let conversation):
             viewName = conversation?.title ?? "Chat"

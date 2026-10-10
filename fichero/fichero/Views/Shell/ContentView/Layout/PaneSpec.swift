@@ -37,7 +37,7 @@ struct PaneSpec: Identifiable, Equatable {
 
         var title: String {
             switch self {
-            case .library: ItemListPane.name
+            case .library: ItemsPane.name
             case .preview: "Preview"
             case .reading: "Reader"
             case .inspector: "Inspector"

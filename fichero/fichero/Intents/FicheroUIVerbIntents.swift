@@ -35,7 +35,7 @@ struct OpenNodeIntent: AppIntent {
 
 struct SelectNodesIntent: AppIntent {
     static let title: LocalizedStringResource = "Select Nodes"
-    static let description = IntentDescription("Select nodes in the Item List by id, as clicking them does.")
+    static let description = IntentDescription("Select nodes in Items by id, as clicking them does.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Node IDs")
@@ -67,7 +67,7 @@ struct RevealSegmentsIntent: AppIntent {
 
 struct ShowPaneIntent: AppIntent {
     static let title: LocalizedStringResource = "Show Pane"
-    static let description = IntentDescription("Show a pane (Item List, Preview, Reader, Inspector, Activity) in the front window.")
+    static let description = IntentDescription("Show a pane (Items, Preview, Reader, Inspector, Activity) in the front window.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Pane")

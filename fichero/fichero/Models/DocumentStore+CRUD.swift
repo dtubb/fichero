@@ -84,7 +84,7 @@ extension DocumentStore {
 
         await loadCollections()
 
-        if selectedCollection == nil, let first = collections.first(where: { $0.parentId == nil }) {
+        if selectedCollection == nil, let first = OpeningSelection.collectionToOpen(in: collections) {
             await selectCollection(first)
         }
     }

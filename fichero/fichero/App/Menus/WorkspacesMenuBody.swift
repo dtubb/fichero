@@ -159,7 +159,7 @@ struct WorkspacesMenuBody: View {
     /// own doc comment says it mirrors) without adding a dependency on that file.
     private static func title(for kind: PaneKind) -> String {
         switch kind {
-        case .library: ItemListPane.name
+        case .library: ItemsPane.name
         case .preview: "Preview"
         case .reading: "Reader"
         case .inspector: "Inspector"

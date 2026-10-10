@@ -21,8 +21,8 @@ enum PaneFocus: Hashable {
     /// Human name for the pane — VoiceOver announcements on pane moves.
     var paneTitle: String {
         switch self {
-        case .sidebar: return "Sidebar"
-        case .content: return ItemListPane.name
+        case .sidebar: return "Projects"  // the sidebar pane is Projects (ruled 2026-10-10)
+        case .content: return ItemsPane.name
         case .preview: return "Preview"
         case .reading: return "Reader"
         case .chat: return "Chat"

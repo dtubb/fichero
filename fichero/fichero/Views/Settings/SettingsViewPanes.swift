@@ -19,7 +19,7 @@ struct LibraryViewSettingsPane: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(ItemListPane.name)
+        .navigationTitle(ItemsPane.name)
     }
 }
 

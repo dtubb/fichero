@@ -145,7 +145,15 @@ extension ContentView {
                 for: storedViewModeType,
                 itemId: storedViewModeItemId
             )
-            selectedSidebarItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
+            // Nothing restored: the project's Sources folder when its top level is already here
+            // (else `handleCollectionsChange` picks it when it loads), never Workflows (2026-10-10).
+            selectedSidebarItemId = OpeningSelection.selectionId(
+                restoredId: restoredId, viewModeType: storedViewModeType, roots: documentStore.collections
+            )
+            if restoredId == nil, storedViewModeType == "library",
+               let sources = OpeningSelection.sourcesFolder(in: documentStore.collections) {
+                viewMode = .library(sources)
+            }
         }
         // #4453: a persisted id can name something that no longer exists — the
         // item was deleted (possibly in another window) since this state was

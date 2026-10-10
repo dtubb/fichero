@@ -406,8 +406,9 @@ final class DocumentStore {
                 await self?.prefetchChildContainerChildren(of: collections)
             }
 
-            // Auto-select first root collection if none selected
-            if selectedCollection == nil, let first = collections.first(where: { $0.parentId == nil }) {
+            // Auto-select the project's Sources (else its first root) if none selected — never
+            // Default Workflows while Sources is there (ruled 2026-10-10).
+            if selectedCollection == nil, let first = OpeningSelection.collectionToOpen(in: collections) {
                 await selectCollection(first)
             }
         } catch {

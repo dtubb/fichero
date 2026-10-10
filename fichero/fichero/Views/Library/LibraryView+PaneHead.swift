@@ -35,7 +35,7 @@ extension LibraryView {
     /// Explicitly typed (the reader's type-checker rule applied here).
     private var librarySelector: PaneKindSelector<ViewDisplayMode> {
         PaneKindSelector(
-            kindTitle: ItemListPane.name,
+            kindTitle: ItemsPane.name,
             kindIcon: ToolbarSymbols.breadcrumbLibrary,
             currentKind: .library,
             lenses: availableDisplayModes,
