@@ -64,11 +64,14 @@ def _plan(db: Any) -> dict[str, Any]:
 
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
-            redo: list[str] | None = None) -> str:
-    """Queue one run of the plan; `documents` None is all the project's material; `redo` names the steps to run
-    again on pages that already have their output (`source.recipe.done-is-not-redone`)."""
-    detail = {"runs": plan["runs"], "skipped": plan["skipped"], "documents": documents, "redo": list(redo or [])}
-    words = "Waiting to run the recipe" + (f" on {len(documents)} new pages" if documents is not None else "")
+            redo: list[str] | None = None, folder_id: str | None = None) -> str:
+    """Queue one run of the plan; `documents` None is all the project's material, or with `folder_id` that
+    folder's (`source.recipe.folder-scoped-start`); `redo` names the steps to run again on pages that already have
+    their output (`source.recipe.done-is-not-redone`)."""
+    detail = {"runs": plan["runs"], "skipped": plan["skipped"], "documents": documents, "redo": list(redo or []),
+              "folder_id": folder_id}
+    words = "Waiting to run the recipe" + (f" on {len(documents)} new pages" if documents is not None else
+                                           " on one folder" if folder_id else "")
     return jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
                                reason=words, started_by=started_by)
 
@@ -466,44 +469,229 @@ def run(db: Any, subject: str) -> dict[str, Any]:
 STOPPED_BEFORE = "the run was stopped before this step"
 
 
-def _run(db: Any, job_id: str) -> dict[str, Any]:
-    from fichero_server.recipes.start import count_pages  # noqa: F401  (the same material Start counts)
+#: ponytail: the most pages a batch hands a step at once (`source.recipe.batch-at-archive-scale`, rule 9 of
+#: `compute/jobs-and-fine-tuning.md`): a batch is one folder, or this many of its pages, whichever is smaller. A
+#: photograph cut into pages counts once (its pages go with it), so a batch can hold a few more pages than this.
+#: Rule 9's "about 500"; change it with a measurement, not a guess.
+BATCH_PAGE_LIMIT = 500
 
+#: id -> (parent id, doc type, file type) for every live document.
+_Tree = dict[str, tuple[str | None, str, str]]
+
+
+def _tree(db: Any) -> _Tree:
+    """Every live document, read once a run (one query, not one a page)."""
+    rows = db.execute_fetchall("SELECT id, parent_id, doc_type, COALESCE(file_type, '') FROM documents "
+                               "WHERE deleted_at IS NULL")
+    return {r[0]: (r[1], str(r[2]), str(r[3])) for r in rows}
+
+
+def folder_scope(db: Any, folder_id: str, tree: _Tree | None = None) -> set[str]:
+    """The folder and every live document under it, at any depth (`source.recipe.folder-scoped-start`). LookupError
+    when it is not a live document of this project."""
+    tree = _tree(db) if tree is None else tree
+    if folder_id not in tree:
+        raise LookupError(f"{folder_id} is not a folder in this project")
+    children: dict[str, list[str]] = {}
+    for doc_id, (parent, _kind, _type) in tree.items():
+        if parent is not None:
+            children.setdefault(parent, []).append(doc_id)
+    scope, todo = {folder_id}, [folder_id]
+    while todo:
+        for child in children.get(todo.pop(), ()):
+            if child not in scope:
+                scope.add(child)
+                todo.append(child)
+    return scope
+
+
+def _is_photograph(tree: _Tree, doc_id: str) -> bool:
+    _parent, kind, file_type = tree.get(doc_id, (None, "", ""))
+    return kind == "file" and file_type == "image"
+
+
+def _units(db: Any, brought: list[str] | None, folder_id: str | None, tree: _Tree) -> list[str]:
+    """What the run is batched by, in the material's order: each page, except a page cut from a photograph, which
+    is its photograph (cut before or during the run, a photograph is one unit, so the batches are the same on a
+    resume). Only the folder's, given one."""
+    from fichero_server.recipes.done import pages_for
+
+    within = folder_scope(db, folder_id, tree) if folder_id else None
+    units: list[str] = []
+    seen: set[str] = set()
+    for page in pages_for(db, {}, brought):
+        if page not in tree:
+            continue
+        parent, kind, _type = tree[page]
+        unit = parent if kind == "chunk" and parent is not None and _is_photograph(tree, parent) else page
+        if unit in seen or (within is not None and unit not in within):
+            continue
+        seen.add(unit)
+        units.append(unit)
+    return units
+
+
+def _folder_of(tree: _Tree, doc_id: str) -> str | None:
+    """A page's nearest folder; None for a page in no folder."""
+    seen = {doc_id}
+    parent = tree.get(doc_id, (None, "", ""))[0]
+    while parent is not None and parent in tree and parent not in seen:
+        if tree[parent][1] == "folder":
+            return parent
+        seen.add(parent)
+        parent = tree[parent][0]
+    return None
+
+
+def _batches(tree: _Tree, units: list[str], limit: int) -> list[dict[str, Any]]:
+    """The run's batches (`source.recipe.batch-at-archive-scale`): by folder, in the material's order, each at most
+    `limit` units; `last` marks a folder's last batch. No material is one empty batch, so every step still says
+    what it found."""
+    by_folder: dict[str | None, list[str]] = {}
+    for unit in units:
+        by_folder.setdefault(_folder_of(tree, unit), []).append(unit)
+    out = [{"folder": folder, "units": these[i:i + limit], "last": i + limit >= len(these)}
+           for folder, these in by_folder.items() for i in range(0, len(these), limit)]
+    return out or [{"folder": None, "units": [], "last": True}]
+
+
+def _card_pages(db: Any, card: dict[str, Any], units: list[str], tree: _Tree) -> list[str]:
+    """The pages a card runs on in one batch: for a split, the batch's photographs; for any other card, its pages,
+    a photograph cut into pages (before the run or earlier in it) giving its pages. One query a batch."""
+    photographs = [u for u in units if _is_photograph(tree, u)]
+    if card.get("job") == "split-pages":
+        return photographs
+    cut: dict[str, list[str]] = {}
+    if photographs:
+        marks = ", ".join("?" for _ in photographs)
+        for doc_id, parent in db.execute_fetchall(
+                f"SELECT id, parent_id FROM documents WHERE deleted_at IS NULL AND doc_type = 'chunk' "
+                f"AND parent_id IN ({marks}) ORDER BY created_at, id", photographs):
+            cut.setdefault(parent, []).append(doc_id)
+    return [page for unit in units for page in (cut.get(unit) or [unit])]
+
+
+#: How bad a step's end on a batch is: over the batches, the worst end is the step's.
+_WORSE = {"done": 0, "cancelled": 1, "not run": 2, "failed": 3}
+
+
+def _settle(step: dict[str, Any], state: str, child: str | None, why: str | None) -> None:
+    """A step's end on one batch, added to its end over the run: a worse end before stands. A step not run on a
+    batch names no job (its state is its own, not an earlier batch's job's, `status`)."""
+    if step["state"] in _WORSE and _WORSE[step["state"]] > _WORSE.get(state, 0):
+        return
+    kept = None if state == "not run" else step.get("child_id")
+    step.update(state=state, child_id=child if child is not None else kept, why=why)
+
+
+def _add(step: dict[str, Any], scratch: dict[str, Any]) -> None:
+    """A batch's account of a step (pages done, left out, by kind, what it made), added to the step's."""
+    for key, value in scratch.items():
+        before = step.get(key)
+        if isinstance(value, list):
+            step[key] = (before or []) + value
+        elif isinstance(value, dict):
+            merged = dict(before or {})
+            for k, v in value.items():
+                both = isinstance(v, int) and isinstance(merged.get(k, 0), int)
+                merged[k] = merged.get(k, 0) + v if both else v
+            step[key] = merged
+        elif isinstance(value, int) and isinstance(before, int):
+            step[key] = before + value
+        else:
+            step[key] = value
+
+
+def _folders_words(detail: dict[str, Any]) -> str:
+    """`activity.run.progress-per-folder`: "3 of 800 folders done"."""
+    total = detail.get("folders_total") or 0
+    return f"{detail.get('folders_done', 0)} of {total} {'folder' if total == 1 else 'folders'} done"
+
+
+def _run(db: Any, job_id: str) -> dict[str, Any]:
     row = jobs.read_job(db, job_id)
     # Said at once: working out each step's pages can take a while on a big project (#5610, #5606).
     jobs.save_detail(db, job_id, row["detail"] or "{}", reason="Getting ready: working out which pages each step needs")
     detail = json.loads(row["detail"] or "{}")
     started_by = row["started_by"] or "owner"
-    from fichero_server.recipes.done import pages_for, split_done
-
-    brought = detail.get("documents")  # None: all the project's material
-    redo = set(detail.get("redo") or [])
-    steps = [{"steps": card["steps"], "card": card["card"], "state": "waiting", "child_id": None}
-             for card in detail["runs"]]
-    detail["steps"] = steps
+    cards = detail["runs"]
+    if not (detail.get("steps") and "batches_done" in detail):  # a resumed run keeps its checkpoint
+        detail["steps"] = [{"steps": card["steps"], "card": card["card"], "state": "waiting", "child_id": None}
+                           for card in cards]
+        detail["batches_done"], detail["batch_states"] = 0, [None] * len(cards)
+    steps = detail["steps"]
+    tree = _tree(db)
+    batches = _batches(tree, _units(db, detail.get("documents"), detail.get("folder_id"), tree), BATCH_PAGE_LIMIT)
+    detail["batches_total"] = len(batches)
+    detail["folders_total"] = len({b["folder"] for b in batches if b["units"]})
+    detail["folders_done"] = sum(1 for b in batches[:detail["batches_done"]] if b["last"] and b["units"])
     problems: list[str] = []
-    for index, (card, step) in enumerate(zip(detail["runs"], steps)):
+    for number, batch in enumerate(batches):
+        if number < detail["batches_done"]:  # finished before an interruption (`source.recipe.batch-checkpoint`)
+            continue
+        problems = _run_batch(db, job_id, detail, batch, tree, started_by, final=number == len(batches) - 1)
+        if problems or _stop_asked(job_id):  # the batches after a failed or stopped one do not run
+            break
+        detail["batches_done"], detail["batch_states"] = number + 1, [None] * len(cards)
+        detail["folders_done"] += 1 if batch["last"] and batch["units"] else 0
+        jobs.save_detail(db, job_id, json.dumps(detail), reason=f"Running the recipe: {_folders_words(detail)}")
+    finished = sum(1 for s in steps if s["state"] == "done")
+    total = detail["folders_total"]
+    folders = f"; {_folders_words(detail)}" if total else ""
+    if _stop_asked(job_id):  # the row ends cancelled, saying who stopped it and what was done (#5609)
+        words = f"Stopped by you; {finished} of {len(steps)} steps done{folders}" + (
+            f" ({'; '.join(problems)})" if problems else "")
+        jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
+        raise jobs.JobCancelled(words)
+    over = f" over {total} {'folder' if total == 1 else 'folders'}" if total else ""
+    words = (f"Stopped: {'; '.join(problems)}; {finished} of {len(steps)} steps done{folders}" if problems else
+             f"Done: {len(steps)} steps run{over}" + (f", {len(detail['skipped'])} skipped (see why)"
+                                                      if detail["skipped"] else ""))
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
+    if problems:
+        raise RuntimeError(words)
+    return {"steps": steps}
+
+
+def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree,
+               started_by: str, *, final: bool) -> list[str]:
+    """Every step on one batch, in order (`source.recipe.batch-at-archive-scale`); each step's end on it is saved
+    as it ends, so a resume runs only the steps still to do on it (`source.recipe.batch-checkpoint`). The problems."""
+    from fichero_server.recipes.done import split_done
+
+    cards, steps, states = detail["runs"], detail["steps"], detail["batch_states"]
+    redo = set(detail.get("redo") or [])
+    # This batch's own ends, for `_blocked`: a step waits on what an earlier step gave on these pages.
+    here = [{"state": state or "waiting"} for state in states]
+    problems: list[str] = []
+    for index, (card, step) in enumerate(zip(cards, steps)):
+        if states[index] is not None:  # done on this batch before an interruption
+            continue
         named = ", ".join(card["steps"])
         if _stop_asked(job_id):  # Stop on the run's row: no step after the stopped one runs (#5609)
-            step.update(state="not run", why=STOPPED_BEFORE)
+            here[index]["state"] = "not run"
+            _settle(step, "not run", None, STOPPED_BEFORE)
             continue
-        blocked = _blocked(detail["runs"], steps, index)
+        blocked = _blocked(cards, here, index)
         if blocked:
-            step.update(state="not run", why=blocked)
+            here[index]["state"] = "not run"
+            _settle(step, "not run", None, blocked)
             problems.append(f"step {named} not run: {blocked}")
             continue
-        # The pages are worked out now, so pages a split made earlier in this run are among them.
-        documents = pages_for(db, card, brought)
+        if card["card"] == "publish" and not final:  # the site is the whole project: written once, at the end
+            continue
+        scratch: dict[str, Any] = {}
+        # The pages are worked out now, so pages a split made earlier in this batch are among them.
+        documents = _card_pages(db, card, batch["units"], tree)
         if not redo.intersection(card["steps"]):
-            documents, done = split_done(db, card, documents)
-            step["already_done"] = done
+            documents, scratch["already_done"] = split_done(db, card, documents)
         if documents and _reads_page_images(card.get("job")):
             # A recording is not a page: the steps that read page images leave it out and say so, instead of
             # failing the step on a file they can never read (2026-10-10, found in the Dev Embedded app).
             recordings = _recordings(db, documents)
             if recordings:
                 documents = [d for d in documents if d not in recordings]
-                step["recordings_left_out"] = len(recordings)
+                scratch["recordings_left_out"] = len(recordings)
         kinds: dict[str, str] = {}
         if card.get("job") in _NOT_ON_BLANK_VERSOS and documents:
             # The pages sorted by kind (#5578); blank ones, the backs of leaves as their images show or a page a
@@ -514,17 +702,23 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
             blank = [d for d in documents if kinds.get(d) == sorting.BLANK]
             if blank:
                 documents = [d for d in documents if kinds.get(d) != sorting.BLANK]
-                step["blank_versos"] = len(blank)
+                scratch["blank_versos"] = len(blank)
             if card.get("readers"):
-                step["kinds"] = dict(sorted(Counter(kinds.get(d) or "unsorted" for d in documents).items()))
+                scratch["kinds"] = dict(sorted(Counter(kinds.get(d) or "unsorted" for d in documents).items()))
         if not documents:
-            step.update(state="done", child_id=None, why="already done on every page")
+            _add(step, scratch)
+            here[index]["state"] = states[index] = "done"
+            if step["state"] == "waiting":
+                step.update(state="done", child_id=None, why="already done on every page")
+            jobs.save_detail(db, job_id, json.dumps(detail))
             continue
-        step["state"] = "running"
-        jobs.save_detail(db, job_id, json.dumps(detail),
-                         reason=jobs.STOPPING if _stop_asked(job_id) else f"Running step {named}")
+        # Running on this batch: its state is its own until this batch's job ends, not an earlier batch's job's.
+        before, before_child = step["state"], step.get("child_id")
+        step.update(state="running", child_id=None)
+        jobs.save_detail(db, job_id, json.dumps(detail), reason=jobs.STOPPING if _stop_asked(job_id) else
+                         f"Running step {named}: {_folders_words(detail)}")
         if card["card"] == "workflow" and card.get("readers"):
-            child, state, why = _run_by_reader(db, card, documents, kinds, job_id, step)
+            child, state, why = _run_by_reader(db, card, documents, kinds, job_id, scratch)
         elif card["card"] == "workflow":
             child, state, why = _run_workflow(db, card, documents, job_id)
         elif card["card"] == "check":
@@ -532,11 +726,11 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
         elif card["card"] == "find-documents":
             child, state, why = _run_find_documents(db, card, documents, job_id, started_by)
         elif card["card"] == "entries":
-            child, state, why = _run_entries(db, card, documents, job_id, step)
+            child, state, why = _run_entries(db, card, documents, job_id, scratch)
         elif card["card"] == "prepare":
-            child, state, why = _run_prepare(db, documents, job_id, step)
+            child, state, why = _run_prepare(db, documents, job_id, scratch)
         elif card["card"] == "regions":
-            child, state, why = _run_regions(db, card, documents, job_id, step)
+            child, state, why = _run_regions(db, card, documents, job_id, scratch)
         elif card["card"] == "publish":
             child, state, why = _run_publish(db, card, job_id)
         elif card["card"] == "embed":
@@ -545,7 +739,11 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
             child, state, why = _run_export(db, card, documents)
         if state != "done" and _stop_asked(job_id):  # it was stopped with the run (#5609)
             state, why = "cancelled", "Stopped by you"
-        step.update(state=state, child_id=child, why=why)
+        _add(step, scratch)
+        # An earlier batch's worse end stands (`_settle`).
+        step.update(state=before if before != "running" else "waiting", child_id=before_child)
+        _settle(step, state, child, why)
+        here[index]["state"] = states[index] = state
         if card["card"] == "workflow" and state == "done":
             # The step changed these pages' work: every kept export rewrites them (#5485).
             from fichero_server import kept_export
@@ -553,19 +751,8 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
             kept_export.queue_rewrites(db, documents)
         if state not in ("done", "cancelled"):
             problems.append(f"step {named} {state}: {why or 'no reason given'}")
-    finished = sum(1 for s in steps if s["state"] == "done")
-    if _stop_asked(job_id):  # the row ends cancelled, saying who stopped it and what was done (#5609)
-        words = f"Stopped by you; {finished} of {len(steps)} steps done" + (
-            f" ({'; '.join(problems)})" if problems else "")
-        jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
-        raise jobs.JobCancelled(words)
-    words = (f"Stopped: {'; '.join(problems)}; {finished} of {len(steps)} steps done" if problems else
-             f"Done: {len(steps)} steps run" + (f", {len(detail['skipped'])} skipped (see why)"
-                                                 if detail["skipped"] else ""))
-    jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
-    if problems:
-        raise RuntimeError(words)
-    return {"steps": steps}
+        jobs.save_detail(db, job_id, json.dumps(detail))  # the step's end on this batch is a checkpoint
+    return problems
 
 
 def _blocked(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: int) -> str | None:
@@ -612,7 +799,9 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
             reason = f"Waiting for the recipe run {ahead[0]} to finish: recipe runs go one at a time"
     return {"job_id": job_id, "state": row["state"], "reason": reason, "documents": detail.get("documents"),
             "steps": steps, "skipped": detail.get("skipped", []), "refusals": detail.get("refusals", []),
-            "started_by": row["started_by"]}
+            "started_by": row["started_by"], "folder_id": detail.get("folder_id"),
+            # `activity.run.progress-per-folder`: written by the run as it goes; absent before it starts.
+            "folders_done": detail.get("folders_done"), "folders_total": detail.get("folders_total")}
 
 
 def started_plan(db: Any, job_id: str) -> dict[str, Any]:

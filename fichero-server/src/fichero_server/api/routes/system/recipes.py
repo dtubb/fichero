@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
@@ -902,6 +902,8 @@ class StartRecord(BaseModel):
     workflows: list[str]
     pages: int
     job_id: Optional[str] = Field(default=None, description="the recipe run Start queued (`run-a-recipe`)")
+    folder_id: Optional[str] = Field(default=None, description=(
+        "the folder that Start ran on; null: the whole project (source.recipe.folder-scoped-start)"))
 
 
 class StartReader(BaseModel):
@@ -1042,9 +1044,14 @@ class StartPlan(BaseModel):
     addable: list[str] = Field(default_factory=list, description=(
         "layers this project can add now: the addable ones less those it has and those its purpose brings "
         "(source.onboard.add-layer)"))
+    folder_id: Optional[str] = Field(default=None, description=(
+        "the folder the plan and its estimate cover, its folders inside it included; null: the whole project "
+        "(source.recipe.folder-scoped-start)"))
 
 
-def _start_plan(db: Database) -> dict[str, Any]:
+def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]:
+    """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
+    LookupError for a folder not in the project."""
     from fichero_server.recipes import runner
     from fichero_server.recipes.done import annotate, material
     from fichero_server.recipes.layers import addable_now, explain
@@ -1063,13 +1070,17 @@ def _start_plan(db: Database) -> dict[str, Any]:
     only = set(proposal["steps"]) | set(unfinished) if started and proposal else None
     plan = plan_start(setup["recipe"], stays_local=stays_local, only=only,
                       job_answers=(setup["answers"] or {}).get("job_answers"))
-    pages = material(db)
+    within = runner.folder_scope(db, folder_id) if folder_id else None
+    pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])
     plan["estimate"]["counted"] = pages["sentence"]
     plan["started"] = started
     plan["proposed"] = explain(setup["recipe"], proposal)
     plan["addable"] = addable_now(setup["answers"] or {})
-    annotate(db, plan, unfinished)
+    plan["folder_id"] = folder_id
+    if within is not None and not pages["pages"]:
+        plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
+    annotate(db, plan, unfinished, within)
     return plan
 
 
@@ -1088,14 +1099,23 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     plan["workflows"] = [r for r in plan["runs"] if r["card"] == "workflow"]
     counted = plan["estimate"].get("counted")
     plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"]), "counted": counted}
-    return annotate(db, plan)
+    within = runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id") else None
+    return annotate(db, plan, within=within)
 
 
 @router.get("/project/start", response_model=StartPlan)
-async def get_start_plan(db: Database = Depends(get_library_database)) -> StartPlan:
-    """What Start would run on this project, with the estimate, before anything runs
-    (`source.onboard.estimate-before-start`)."""
-    return StartPlan(**_start_plan(db))
+async def get_start_plan(
+    folder_id: Optional[str] = Query(default=None, description=(
+        "plan Start on this folder alone: its live pages, its folders inside it included "
+        "(source.recipe.folder-scoped-start); omit for the whole project")),
+    db: Database = Depends(get_library_database),
+) -> StartPlan:
+    """What Start would run on this project, or on one folder of it, with the estimate, before anything runs
+    (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
+    try:
+        return StartPlan(**_start_plan(db, folder_id))
+    except LookupError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 class StartParams(BaseModel):
@@ -1103,6 +1123,8 @@ class StartParams(BaseModel):
     withdraw: bool = Field(default=False, description="take the first yes back (undo)")
     redo: list[str] = Field(default_factory=list, description="step ids to run again on pages that already have "
                             "their output (`source.recipe.done-is-not-redone`)")
+    folder_id: Optional[str] = Field(default=None, description="run on this folder alone "
+                                     "(`source.recipe.folder-scoped-start`); null: the whole project")
 
 
 class StartRequest(BaseModel):
@@ -1111,6 +1133,9 @@ class StartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     redo: list[str] = Field(default_factory=list, description="step ids to run again on pages that already have "
                             "their output; the others run only on pages that do not")
+    folder_id: Optional[str] = Field(default=None, description=(
+        "run the whole recipe on this folder alone: its live pages, its folders inside it included "
+        "(source.recipe.folder-scoped-start); null: the whole project"))
 
 
 @router.post("/project/start", response_model=StartPlan)
@@ -1123,12 +1148,16 @@ async def start_project(
     undoable), and run the recipe over the project's material as one `run-a-recipe` job
     (`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.
     Refused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).
+    With `folder_id`, the run covers that folder's live pages alone, and a folder not in the project, or one
+    with no pages, is refused with 422 (`source.recipe.folder-scoped-start`).
     The response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is."""
+    folder_id = request.folder_id if request else None
     try:
-        registry.invoke(db, "project.start", {"redo": request.redo if request else []}, ctx)
+        registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id},
+                        ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return StartPlan(**_as_started(db, _start_plan(db)))
+    return StartPlan(**_as_started(db, _start_plan(db, folder_id)))
 
 
 class UseInsteadRequest(BaseModel):
@@ -1237,7 +1266,10 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
     if params.withdraw:
         record = None
     else:
-        plan = _start_plan(db)
+        try:
+            plan = _start_plan(db, params.folder_id)
+        except LookupError as exc:  # a folder not in the project
+            raise ValueError(str(exc)) from exc
         if plan["refusals"]:
             raise ValueError("Start is refused: " + "; ".join(plan["refusals"]))
         from fichero_server.recipes import runner
@@ -1250,7 +1282,9 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             "recipe_version": recipe.get("version"),
             "workflows": [w["workflow"] for w in plan["workflows"]],
             "pages": plan["estimate"]["pages"],
-            "job_id": runner.enqueue(db, plan, documents=None, started_by=ctx.actor or "owner", redo=params.redo),
+            "job_id": runner.enqueue(db, plan, documents=None, started_by=ctx.actor or "owner", redo=params.redo,
+                                     folder_id=params.folder_id),
+            "folder_id": params.folder_id,
         }
         # Start runs what an added layer proposed (source.onboard.add-layer): the proposal is done with.
         from fichero_server.recipes.project import write_proposed
@@ -1328,6 +1362,13 @@ class RecipeRunStatus(BaseModel):
     state: str
     reason: Optional[str] = None
     documents: Optional[list[str]] = Field(default=None, description="the pages an import brought; none: all")
+    folder_id: Optional[str] = Field(default=None, description=(
+        "the folder the run covers; null: the whole project, or an import's pages (source.recipe.folder-scoped-start)"))
+    folders_done: Optional[int] = Field(default=None, description=(
+        "the folders every step has finished on (activity.run.progress-per-folder); null before the run started"))
+    folders_total: Optional[int] = Field(default=None, description=(
+        "the folders the run goes over, a batch at a time (source.recipe.batch-at-archive-scale); null before "
+        "the run started"))
     steps: list[RecipeRunStep]
     skipped: list[SkippedStep]
     refusals: list[str] = Field(default_factory=list, description=(

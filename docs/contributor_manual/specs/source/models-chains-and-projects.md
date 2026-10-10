@@ -2238,12 +2238,16 @@ Projects
 - `source.recipe.run-status-is-activity` — **[OK]** (#5498; built: `runner.status`; tested as above) a recipe
   run's step states are its steps' own jobs, the rows Activity shows, so the run's status and Activity are one
   account; a run still waiting says what it waits for (recipe runs go one at a time).
-- `source.recipe.folder-scoped-start` — **[GAP]** (#5540) Start, and the Start plan before it, can be given
-  one folder node (`folder_id`): the plan, its estimate and each step's "already done on N of M pages" then
-  cover only that folder's live pages, those of its folders inside it included, and the run started from it
-  touches no page outside it. With no folder it is the whole project, as before. The engine works out the
+- `source.recipe.folder-scoped-start` — **[OK]** (#5540; built 2026-10-10: `folder_id` on `GET|POST
+  /api/recipes/project/start` and `runner.enqueue`, `runner.folder_scope`, `done.material`/`annotate` `within`;
+  tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) Start, and the Start plan before
+  it, can be given one folder node (`folder_id`): the plan, its estimate and each step's "already done on N of M
+  pages" then cover only that folder's live pages, those of its folders inside it included, and the run started
+  from it touches no page outside it. With no folder it is the whole project, as before. The engine works out the
   folder's pages; a folder that is not in the project is refused (422), and one with no pages refuses Start.
-- `source.recipe.batch-at-archive-scale` — **[GAP]** (#5540; rule 9 of `compute/jobs-and-fine-tuning.md`) a
+  Not built: the app's "Run the whole recipe on this folder" command that sends it.
+- `source.recipe.batch-at-archive-scale` — **[OK]** (#5540; rule 9 of `compute/jobs-and-fine-tuning.md`; built
+  2026-10-10: `runner._batches`, `runner._run_batch`, `runner.BATCH_PAGE_LIMIT`; tested as above) a
   run goes a batch at a time: a batch is one folder (a page's nearest folder; pages in no folder are one
   folder of their own), or at most 500 pages of it, whichever is smaller (a photograph cut into pages
   counts once, and its pages go with it). Every step finishes on a batch before the next batch starts, so
@@ -2251,17 +2255,22 @@ Projects
   batch's pages at once. Folders go in the order of the project's material. The whole-project Start, a
   folder's Start and an import's run are the same loop (an import is usually one batch). A step that fails
   or is not run on a batch ends the run after that batch: the batches after it do not run, and Start runs
-  them again. A step that covers the whole project at once (publish) runs once, on the last batch.
-- `source.recipe.batch-checkpoint` — **[GAP]** (#5540) every finished batch is a checkpoint on the run's row:
-  its `folders_done` of `folders_total`, the batches done, and, inside the batch being run, which steps
-  finished on it. A stop, quit or crash resumes the run at the next unfinished step of the unfinished batch,
-  and within that step at its next unfinished page (`source.recipe.done-is-not-redone`): a finished batch,
-  or a step finished on the interrupted batch, is never run again, even a step that cannot tell what it has
-  done.
-- `activity.run.progress-per-folder` — **[GAP]** (#5540) a recipe run's row says how far it is in folders,
-  not one figure for every page: "Running step lines, read: 3 of 800 folders done" while it runs, and
-  "Done: 4 steps run over 800 folders" when it ends; its status carries `folders_done` and `folders_total`
-  (and `folder_id` for a folder's run).
+  them again. A step that covers the whole project at once (publish) runs once, on the last batch. A step's
+  state over the run is its worst on any batch; its counts (already done, blank versos, by kind, what it made)
+  add up over the batches.
+- `source.recipe.batch-checkpoint` — **[OK]** (#5540; built 2026-10-10: the run's `batches_done`,
+  `batch_states`, `folders_done`, `folders_total` in its row's detail; tested as above) every finished batch is a
+  checkpoint on the run's row: its `folders_done` of `folders_total`, the batches done, and, inside the batch
+  being run, which steps finished on it. A quit or crash (the run is carried on when the project opens again)
+  resumes at the next unfinished step of the unfinished batch, and within that step at its next unfinished page
+  (`source.recipe.done-is-not-redone`): a finished batch, or a step finished on the interrupted batch, is never
+  run again, even a step that cannot tell what it has done. A person's Stop ends the run (#5609); Start then
+  begins a new run, which skips only what `source.recipe.done-is-not-redone` can tell is done.
+- `activity.run.progress-per-folder` — **[OK]** (#5540; built 2026-10-10: `runner._folders_words`, `folders_done`
+  and `folders_total` on `GET /api/recipes/project/runs/{id}`; tested as above) a recipe run's row says how far
+  it is in folders, not one figure for every page: "Running step lines, read: 3 of 800 folders done" while it
+  runs, and a run that fails or is stopped says how many folders it finished; its status carries
+  `folders_done` and `folders_total` (and `folder_id` for a folder's run). Not built: the app showing them.
 - `source.recipe.step-skipped-says-why` — **[OK]** (#5390; built: `recipes/start.py` `skipped`; tested as above) a step Start cannot run (no model, a
   condition Start cannot honour yet, a cloud step in a project that keeps its pages on this Mac, a
   job no card runs yet) is skipped, and the plan and the recipe run name the step and why; the other

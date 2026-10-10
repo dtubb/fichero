@@ -86,7 +86,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-464/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-747/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -207,6 +207,7 @@
    "entities",
    "graph",
    "vectors"
-  ]
+  ],
+  "folder_id": null
  }
 }

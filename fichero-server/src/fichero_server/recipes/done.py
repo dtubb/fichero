@@ -90,19 +90,21 @@ def _words(n: int, key: str) -> str:
     return f"{n} {one if n == 1 else many}"
 
 
-def material(db: Any) -> dict[str, Any]:
+def material(db: Any, within: set[str] | None = None) -> dict[str, Any]:
     """The project's pages, as the plan counts them, and what they are in words (#5498): the pages a started
     recipe runs over (`pages_for`), one figure for the estimate and the run. The sentence says what is counted
     ("4 photographs + 1 PDF page = 5 pages"), what the project holds that is not (the PDF a page came from, a
     photograph since cut into pages, folders), and photographs that share a file name, so a count that grows
-    with copies taken in twice says so rather than jumping without a word."""
+    with copies taken in twice says so rather than jumping without a word. `within`: only these documents (a
+    folder's, `runner.folder_scope`; `source.recipe.folder-scoped-start`)."""
     from collections import Counter
 
     from fichero_server.models import Document
 
-    ids = pages_for(db, {}, None)
+    ids = [i for i in pages_for(db, {}, None) if within is None or i in within]
     docs = {d.id: d for d in db.query(Document)
-            if not d.deleted_at and getattr(d, "node_kind", None) not in ("workflow", "entry")}
+            if not d.deleted_at and getattr(d, "node_kind", None) not in ("workflow", "entry")
+            and (within is None or d.id in within)}
     counted: Counter[str] = Counter()
     for doc_id in ids:
         doc = docs.get(doc_id)
@@ -221,12 +223,13 @@ def split_done(db: Any, card: dict[str, Any], pages: list[str]) -> tuple[list[st
     return todo, len(pages) - len(todo)
 
 
-def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]] | None = None) -> dict[str, Any]:
+def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]] | None = None,
+             within: set[str] | None = None) -> dict[str, Any]:
     """Each run in the Start plan with `done`, `of` and a `note`, as things stand now; a run whose steps the last
     run did not finish (`unfinished`, `runner.unfinished_steps`) says so with `last_run` and `last_why`, and
-    that Start runs it again (#5498)."""
+    that Start runs it again (#5498). `within`: only these documents (a folder's)."""
     for card in plan.get("runs", []):
-        pages = pages_for(db, card, None)
+        pages = [p for p in pages_for(db, card, None) if within is None or p in within]
         _todo, done = split_done(db, card, pages)
         card["done"], card["of"] = done, len(pages)
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
