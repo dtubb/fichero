@@ -75141,6 +75141,7 @@
           "spacy",
           "kraken",
           "whisper",
+          "yolo",
           "ollama",
           "lmstudio",
           "omlx",

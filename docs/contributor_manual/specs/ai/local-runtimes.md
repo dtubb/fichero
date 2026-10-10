@@ -283,6 +283,10 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   in process on the GPU (`llm/yolo_runtime.py`, `recipes/regions.py`; built 2026-10-10). *Not yet:* it runs in the
   recipe's own job rather than as a job on the local ML lane, so it does not yet take its turn with the other
   heavy models.
+  **[OK]** (#5654) its model is listed as Kraken's readers are: `GET /api/local-models?model_type=yolo` gives its
+  size before it is downloaded (`YOLO_MODELS` carries the file's size, 5.6 MB; it said 0), and the models
+  catalog (`GET /api/local-inference/catalog`, MCP `fichero_models_catalog`) lists it under the `yolo` provider
+  type, downloaded or not, and deletes it. Tests: `fichero-server/tests/unit/api/test_yolo_size_and_catalog_5654.py`.
 
 ### C. Loading, residency and speed
 

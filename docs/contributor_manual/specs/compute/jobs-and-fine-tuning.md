@@ -369,6 +369,13 @@ What the memory check does for a local model's load (#5537), each pinned in
   four batches, ran the server out of memory mid-read. Pinned in
   `fichero-server/tests/unit/llm/test_reads_follow_memory_5537.py` with injected memory. The rule is
   set from that evidence, not a profile; the run's peak memory is how it is re-measured.
+  **[OK]** (#5654) the model lane runs that same number: in a project's work each call is a job on the
+  model lane, which runs one job at a time, so the review read one page at a time while the plan said "reads
+  4 pages at once" (2026-10-10 demo). Calls to the engine's own model server for the model the lane has
+  running share the lane, as many at once as `local_inference.reads_at_once_for_model` (the number the plan
+  states, the read slot holds and the server batches); any other job (a Kraken page, an embed, another
+  model) waits for them all to end. Pinned through the real lane in
+  `fichero-server/tests/unit/jobs/test_model_lane_reads_what_the_plan_says_5654.py`.
 - `compute.apple-vision.bounded-and-deadlined` — **[OK]** (#5392, #5537) every Apple Vision call in
   the engine (a Transcribe page, a PDF page, a node on the apple provider through `llm.vision`, Economy
   HTR, the page splitter's outline) passes one engine-wide gate (`vision_base._apple_vision_call`, and

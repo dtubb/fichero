@@ -1120,7 +1120,9 @@ and node, not by job); a retry action for failed pages.
   for now: queued heavy jobs run one at a time and wait while a Kraken page holds Kraken's lock
   (`fichero-server/tests/unit/jobs/test_job_queue.py`); a workflow's Kraken pages are on the same lane, and a vision
   model reading Kraken's lines waits on the network off it (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still a gap:
-  measuring, and co-running when both fit.
+  measuring, and co-running when both fit. One model is not two (#5654): several reads of the one model the
+  engine's model server has loaded run at once, as many as `compute.memory.reads-follow-memory` allows, and
+  nothing else runs beside them (`fichero-server/tests/unit/jobs/test_model_lane_reads_what_the_plan_says_5654.py`).
 - `activity.lane.thumbnails-first` — **[PARTIAL]** (#5585) a new import's thumbnails are made before
   heavy local work queued after them: they are cheap, and they are what the person sees. The local
   ML lane takes no job of a library while a thumbnail job of that library queued at or before it is
@@ -1172,6 +1174,12 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/jobs/test_throttle.py`). A long job checks at its own boundaries: training on this Mac holds
   at every batch while the Mac is in use, hot or on battery, and lets memory go when it is tight
   (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`). Still a gap: slowing rather than waiting, and the other lanes.
+  **[OK]** (#5654) a job waiting for memory on the model lane names its own model and that model's own need:
+  a call to a model on this Mac's model server its need ("Qwen2.5-VL 3B (OCR) needs about 3.9 GB …"), or,
+  with that model already loaded, one more read's margin; a Kraken page "Kraken needs about 2.5 GB …". Before,
+  every job said Kraken's floor ("Kraken and the other local models need about 2.5 GB", seen during an MLX
+  step on the 2026-10-10 demo). `throttle.model_need`; tests:
+  `fichero-server/tests/unit/jobs/test_memory_wait_names_its_model_5654.py`.
 
 ### E. Durability
 
@@ -1425,6 +1433,15 @@ code path.
   memory and a *Read the N pages that failed* button (`compute.run.read-failed-again`).
   Tests: `fichero-server/tests/unit/jobs/test_run_account_5555.py`; the row's words,
   `ActivityTableTests` (Swift, `testActivityRunAccount_*`).
+  **[OK]** (#5654) one count of failed pages: the account and the job tree said pages_failed 0 and failed 1
+  for one run (2026-10-10 demo). In the tree a page's row read again (after a passing cause) counts once, by
+  its last attempt, as the account counts it; and the account reads the per-page results of a step that read
+  all its pages in one call (not fanned out), so a page that step failed is counted and listed. Tests:
+  `fichero-server/tests/unit/jobs/test_run_failures_one_truth_5654.py`.
+  **[OK]** (#5654) a recipe run's status points at the step it is running: while a step runs, its
+  `child_id` is the step's own job (the recipe run's newest job not yet ended) and a workflow step carries
+  that run's account (before, both were null until the step ended). Tests:
+  `fichero-server/tests/unit/jobs/test_recipe_status_points_at_running_step_5654.py`.
 - `activity.window.icons-names-info` — **[OK]** (#5560) every row of the table shows an SF Symbol for its kind
   (a run, a step, a page, a model load, training, other work) beside its name and one for its state
   (running, waiting, paused, failed, stopped, done) beside its state; a page is named by its file

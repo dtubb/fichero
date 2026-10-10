@@ -4750,7 +4750,7 @@ def fichero_local_inference_validate_profile(
     max_concurrency: Annotated[Optional[int], Field(description='Max Concurrency. Default: 1.')] = None,
     model_id: Annotated[str, Field(description='Model Id.')],
     name: Annotated[str, Field(description='Name.')],
-    provider_type: Annotated[str, Field(description='Supported LLM provider types. One of: apple, mock, spacy, kraken, whisper, ollama, lmstudio, omlx, huggingface, openrouter, openai, anthropic, google, groq, together, deepseek, mistral, cohere, dashscope, xai, perplexity, fireworks, deepl, azure, bedrock.')],
+    provider_type: Annotated[str, Field(description='Supported LLM provider types. One of: apple, mock, spacy, kraken, whisper, yolo, ollama, lmstudio, omlx, huggingface, openrouter, openai, anthropic, google, groq, together, deepseek, mistral, cohere, dashscope, xai, perplexity, fireworks, deepl, azure, bedrock.')],
     python_executable: Annotated[Optional[str], Field(description='Python Executable.')] = None,
     startup_policy: Annotated[Optional[str], Field(description='When the app should start a managed local provider. One of: on_demand, eager, manual.')] = None,
     startup_timeout_seconds: Annotated[Optional[float], Field(description='Startup Timeout Seconds. Default: 300.0.')] = None,
