@@ -96,7 +96,7 @@ model fits (ruled 2026-10-03: Kraken and YOLO train on a 16 GB Mac).
 
 **Another Mac you own** (`fichero-mac`; maintainer, 2026-10-10): a Mac of the person's that runs Fichero
 (an M4 with 16 GB, an M4 iMac with 24 GB), reached over their tailnet, is a place to train and to read,
-gently: it runs work only inside the run window its owner sets (idle, on power, overnight), never fills its
+gently: it runs work only when that Mac is idle (ruled 2026-10-10) and within any further window its owner sets, never fills its
 disk, and gives the model back. A Mac shared with someone else (a family member's) says so, and its owner
 agrees to it once, in words.
 
@@ -257,8 +257,8 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   Fichero shows a pairing code, the person confirms it, and the paired token is the target's credential (the
   device pairing `device-connection-auth-design` describes, over `tailscale serve`, never `funnel`). Nothing is
   installed: that Mac runs the same Fichero, and `compute.connect.version-must-match` holds.
-- `compute.target.mac-run-window` — **[GAP]** (#5238) the target holds its owner's run window (only when idle,
-  only on power, only overnight, a disk floor); work there waits outside it, saying which rule holds it, as the
+- `compute.target.mac-run-window` — **[GAP]** (#5238) work there runs only while that Mac is idle (ruled
+  2026-10-10), within any further window its owner sets (overnight, a disk floor); work waits outside it, saying which rule holds it, as the
   local lane's gentle training already does on this Mac.
 - `compute.target.fit-by-that-macs-memory` — **[GAP]** (#5238, #5641) whether a model fits is decided by that
   Mac's memory, reported by its own engine, never this Mac's: a 7–8B vision model at 4-bit fits the 24 GB iMac
