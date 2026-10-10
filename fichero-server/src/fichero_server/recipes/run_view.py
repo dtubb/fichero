@@ -112,7 +112,10 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
             running = step
     waiting = status["reason"] if status["state"] == "waiting" else None
     account = running.get("account") if running else None
-    if waiting is None and account is not None and status["state"] == "running":
+    from fichero_server.execution.jobs import STOPPING
+
+    # A run asked to stop says so, never what its running step's pages still wait for (#5609, #5654).
+    if waiting is None and account is not None and status["state"] == "running" and status["reason"] != STOPPING:
         waiting = account.waiting_reason
     status["waiting_for"] = waiting
     status["estimate_seconds_left"] = account.estimate_seconds_left if account is not None else None

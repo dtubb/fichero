@@ -27,7 +27,7 @@ from fichero_server.llm.providers import (
 # The local runtimes that are real providers but answer no prompts: a
 # part-of-speech tagger, a line segmenter, an audio transcriber. A chat model
 # picker must never offer one (#4671).
-_NON_CHAT_PROVIDERS = {ProviderType.spacy, ProviderType.kraken, ProviderType.whisper}
+_NON_CHAT_PROVIDERS = {ProviderType.spacy, ProviderType.kraken, ProviderType.whisper, ProviderType.yolo}  # yolo: #5654
 
 
 class TestTheFieldIsAdditive:

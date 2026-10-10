@@ -134,7 +134,7 @@ class TestProviderCatalog:
         # local set includes them.
         local_types = {
             "apple", "ollama", "lmstudio", "omlx", "mock",
-            "spacy", "kraken", "whisper",
+            "spacy", "kraken", "whisper", "yolo",  # yolo: page layout, #5654
         }
 
         for provider in data:
