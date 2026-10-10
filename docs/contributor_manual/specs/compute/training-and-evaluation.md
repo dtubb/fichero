@@ -271,8 +271,10 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   bake-off's minimum) — that every new model is scored on before it can be chosen; a model worse
   than the current choice on the gold set by more than the tolerance is shown as worse and is not
   proposed. The tolerance is the project's noise band.
-- **The noise band:** one number per project, in CER points, default 0.5 (the Sergio ruling); a
-  difference smaller than it is not a win, and the table says "too close to call". The same band
+- **The noise band** (ruled 2026-10-10: **measured per project**): each project measures its own noise from
+  repeated scoring of its held-out pages (the same model run twice, and models known to be equal), per model
+  kind in that kind's unit, and keeps it with the measurement; until measured, the 0.5 CER points of the
+  Sergio ruling stands in, labelled as not yet measured. A difference smaller than it is not a win, and the table says "too close to call". The same band
   serves the bake-off's ranking bands, the reasons A/B and regression. Today the bake-off uses one
   point and the reasons A/B 0.5 (see "Contradictions").
 
@@ -479,7 +481,8 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   person marks; every new model of a kind is scored on it before it can be chosen, and one worse than the
   current choice by more than the noise band is shown as worse and not proposed.
 - `training.regression.noise-band-one-number` — **[PARTIAL]** (#4951, #5531) the project has one noise
-  band in CER points, default 0.5 (ruled 2026-10-03), used by the bake-off's bands, the reasons A/B and
+  band per model kind, measured from its own held-out pages (ruled 2026-10-10) and kept with how it was
+  measured (0.5 CER points stands in, labelled, until then), used by the bake-off's bands, the reasons A/B and
   regression, and shown on every table; built as two constants (bake-off one point; reasons A/B 0.005)
   and a request field on the reasons A/B.
 
@@ -539,13 +542,13 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 
 ## Open questions (each with a recommendation)
 
-1. **One noise band or one per kind?** CER points fit readers; layout and names use precision and
+1. **Ruled 2026-10-10: measured per project** (in each model kind's unit). Was: **One noise band or one per kind?** CER points fit readers; layout and names use precision and
    recall. *Recommend:* one band per project expressed in the kind's unit (0.5 CER points for
    readers; 1 point of F1 or mAP50 for the rest, to be measured), one setting, one sentence.
 2. **Who picks the held-out pages?** Fichero's stratified pick against the person's own choice.
    *Recommend:* Fichero picks and shows; the person may swap; the pick is recorded on the card so a
    later comparison uses the same pages.
-3. **Models or Training as the sidebar node's name?** The maintainer corrected 2026-10-04 that
+3. **Ruled 2026-10-10: Models.** Was: **Models or Training as the sidebar node's name?** The maintainer corrected 2026-10-04 that
    models do not generally live in the sidebar, and the wireframe says "under the project's Models".
    *Recommend:* keep one node, named Models, holding the project's trained models and their bases;
    downloaded models stay in Settings.
