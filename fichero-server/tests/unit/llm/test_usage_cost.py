@@ -19,6 +19,18 @@ from fichero_server.llm.usage import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _vendored_prices_only(monkeypatch, tmp_path):
+    """Price from the vendored snapshot, never a registry downloaded mid-session (2026-10-10: a background
+    refresh fetched the live registry into the test state folder, a later load preferred it, and a row it no
+    longer carried came back unpriced -- this file failed only in the full llm/ run)."""
+    from fichero_server.llm import model_types
+
+    monkeypatch.setattr(model_types, "_cached_registry_path", lambda: tmp_path / "absent" / "model_prices.json")
+    monkeypatch.setattr(model_types, "_schedule_registry_refresh", lambda cache: None)
+    monkeypatch.setattr(model_types, "_PRICE_TABLE", None)
+
+
 class _Message:
     """Stand-in for a langchain AIMessage."""
 
