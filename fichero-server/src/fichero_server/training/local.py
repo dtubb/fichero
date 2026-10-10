@@ -173,10 +173,14 @@ def ketos_args(request: TrainKrakenHereRequest, data: Path, out: Path, *, base_f
     """`ketos` arguments: the Hugging Face trainer's settings (`hf_kraken_train.py`), sized for a Mac."""
     args = ["-d", DEVICE, "--threads", str(threads), "--workers", "0", "train", "-f", "page", "-B",
             str(request.batch_size), "-p", "0.9", "-o", str(out)]
+    # The Hugging Face trainer's schedule (`compute.tune.kraken-schedule-is-fixed`, #5448): constant, with a
+    # ceiling, whatever schedule the base carries. Without them a PP-OCRv6 base (cosine) has an infinite step
+    # count under early stopping and ketos stops at once; this path lacked both until 2026-10-10.
     if request.epochs:
         args += ["-q", "fixed", "-N", str(request.epochs)]
     else:
-        args += ["-q", "early", "--min-epochs", "5", "--lag", "5"]
+        args += ["-q", "early", "-N", "50", "--min-epochs", "5", "--lag", "5"]
+    args += ["--schedule", "constant"]
     if resume is not None:
         args += ["--resume", str(resume)]
     elif base_file:
