@@ -72,6 +72,7 @@ from fichero_server.models.readings import (
     UnknownReadingLevel,
     canonical_reading_level,
     counting_level,
+    doubtful_read,
     legacy_reading_segment_id,
     project_record_rule,
     reading_kinds,
@@ -1050,12 +1051,17 @@ def artifacts_a_person_worked_on(db: Database, artifact_ids: Any) -> set[str]:
     return worked
 
 
-def _pass_candidates(db: Database, document_id: str, georeferencing: bool = False) -> list[PassCandidate]:
+def _pass_candidates(
+    db: Database, document_id: str, georeferencing: bool = False, texts: dict[str, str] | None = None,
+) -> list[PassCandidate]:
     """Every live pass of a document, with what the ranking needs to know.
 
     `has_human_segment` is worked out HERE and passed in, because
     `resolve_working_pass` must never read a pass's maker alone: a machine run
     a historian corrected by hand is theirs, and only its segments say so.
+
+    `texts`, when given, is filled with each pass's source result's text, by pass id: what
+    `_judged_candidates` judges a machine read by (#5654), read from the result already loaded here.
     """
     candidates: list[PassCandidate] = []
     pass_rows = list(db.query(SegmentPass, document_id=document_id))
@@ -1088,6 +1094,8 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
             from_text_layer = source_type == TEXT_LAYER_ARTIFACT_TYPE
             # A read the checker flagged (#5522) is never the working pass until a person chooses it.
             flagged = artifact is not None and read_flag_of(artifact) is not None
+            if texts is not None and artifact is not None and isinstance(artifact.content, str):
+                texts[pass_row.id] = artifact.content
         candidates.append(
             PassCandidate(
                 pass_id=pass_row.id,
@@ -1108,10 +1116,13 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
 _UNCONVERTED_RESULT_SQL = "ocr_geometry IS NOT NULL AND geometry_superseded_by_pass_id IS NULL"
 
 
-def _unconverted_candidates(db: Database, document_id: str) -> list[PassCandidate]:
+def _unconverted_candidates(
+    db: Database, document_id: str, texts: dict[str, str] | None = None,
+) -> list[PassCandidate]:
     """Each unconverted result of a page as the provisional pass the segments route serves for it,
     judged as the ranking needs: touched by a person when a person made it, drew a box in it
-    (`_box_is_hand_drawn`, the same signal its served segments carry) or corrected it (#5222)."""
+    (`_box_is_hand_drawn`, the same signal its served segments carry) or corrected it (#5222).
+    `texts` as in `_pass_candidates`."""
     from datetime import timezone
 
     from fichero_server.models.segments import _box_is_hand_drawn, legacy_pass_id
@@ -1121,6 +1132,8 @@ def _unconverted_candidates(db: Database, document_id: str) -> list[PassCandidat
         if a.ocr_geometry is not None  # raw-geometry-ok: unconverted only; its block is its only geometry
     ]
     corrected = artifacts_a_person_worked_on(db, (a.id for a in results))
+    if texts is not None:
+        texts.update({legacy_pass_id(a.id): a.content for a in results if isinstance(a.content, str)})
     return [
         PassCandidate(
             pass_id=legacy_pass_id(a.id),
@@ -1136,6 +1149,44 @@ def _unconverted_candidates(db: Database, document_id: str) -> list[PassCandidat
     ]
 
 
+def _project_scripts(db: Database) -> set[str]:
+    """The scripts this project's setup names (`scripts`), and its languages' usual scripts
+    (`recipes.names.usual_script`): what a page's machine read is expected to be written in (#5654).
+    Empty for a project never set up, or one whose setup cannot be read."""
+    from pathlib import Path
+
+    import yaml
+
+    from fichero_server.recipes.names import usual_script
+    from fichero_server.recipes.project import read_project_setup
+
+    try:
+        answers = read_project_setup(Path(str(db.path)).parent)["answers"]
+    except (OSError, ValueError, yaml.YAMLError):
+        return set()
+    if not isinstance(answers, dict):
+        return set()
+    named = {str(code) for code in answers.get("scripts") or [] if code}
+    usual = {usual_script(str(tag)) for tag in answers.get("languages") or [] if tag}
+    return {code for code in named | usual if code}
+
+
+def _judged_candidates(db: Database, document_id: str) -> list[PassCandidate]:
+    """A page's real passes and unconverted results, each machine read nobody touched judged by
+    `doubtful_read` (#5654 item 2) when the page has more than one: so a newer read longer than a page
+    holds, or mostly another script's letters (the demo's Apple Vision regions read: 250,355
+    characters, Cyrillic), never takes the page from a sound one. One machine read is never judged:
+    it is the page's only machine text either way."""
+    texts: dict[str, str] = {}
+    candidates = _pass_candidates(db, document_id, texts=texts) + _unconverted_candidates(db, document_id, texts=texts)
+    machine = [row for row in candidates if not row.touched_by_a_person and not row.from_text_layer]
+    if len(machine) > 1:
+        scripts = _project_scripts(db)
+        for row in machine:
+            row.doubtful = doubtful_read(texts.get(row.pass_id), scripts)
+    return candidates
+
+
 def working_pass(db: Database, document_id: str) -> PassAnswer:
     """The page's working pass and why (`source.pass.working`, #5467): THE one answer the segments
     route, the page's text, the Order list, the text cache and export all read. Its real passes and
@@ -1143,7 +1194,7 @@ def working_pass(db: Database, document_id: str) -> PassAnswer:
     return resolve_working_pass(
         project_record_rule(db),
         list(db.query(SegmentPassChoice, document_id=document_id)),
-        _pass_candidates(db, document_id) + _unconverted_candidates(db, document_id),
+        _judged_candidates(db, document_id),
     )
 
 
@@ -1153,7 +1204,7 @@ def ranked_passes(db: Database, document_id: str) -> list[PassAnswer]:
     return rank_passes(
         project_record_rule(db),
         list(db.query(SegmentPassChoice, document_id=document_id)),
-        _pass_candidates(db, document_id) + _unconverted_candidates(db, document_id),
+        _judged_candidates(db, document_id),
     )
 
 

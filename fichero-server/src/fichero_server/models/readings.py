@@ -25,9 +25,11 @@ is imported BY ``models/__init__.py``, never the other way round.
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from enum import Enum
+from functools import lru_cache
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -693,11 +695,68 @@ class PassCandidate(BaseModel):
     #: pass at all (#5463, #5467): newest by date, it would otherwise take the page from its real
     #: passes while nobody has looked at it.
     unconverted: bool = False
+    #: Why this machine read cannot be the page's text by default, or None (#5654 item 2,
+    #: :func:`doubtful_read`): it ranks after every sound machine pass, never out.
+    doubtful: str | None = None
     created_at: datetime
 
     @property
     def touched_by_a_person(self) -> bool:
         return self.provenance_kind is ProvenanceKind.human or self.has_human_segment
+
+
+#: The most characters a page's text can plausibly hold (#5654 item 2): about twice the densest
+#: printed page (a broadsheet newspaper page holds some 50,000-60,000). A machine read past it is
+#: noise (the demo's Apple Vision regions read of one manuscript page: 250,355 characters).
+PAGE_TEXT_BOUND = 100_000
+TOO_LONG_FOR_A_PAGE = "longer than a page can hold"
+NOT_THE_PAGES_SCRIPT = "mostly letters of another script than the page's"
+
+
+def doubtful_read(text: str | None, scripts: Any = ()) -> str | None:
+    """Why a machine read cannot be the working text when nobody chose it, or None (#5654 item 2).
+
+    Two plain tests, both on positive evidence: its text is longer than any page holds
+    (`PAGE_TEXT_BOUND`), or most of its letters are of a script the page is not written in
+    (`scripts`: the project's and the page's scripts, as ISO 15924 codes; no test without them,
+    and none for a script the letters cannot tell apart, such as `Jpan`). A read with no text is
+    not doubted: a page's lines may carry words tied to them since."""
+    from fichero_server.llm.language_policy import _script_codes_by_first_word, script_of_text
+
+    if not text:
+        return None
+    if len(text) > PAGE_TEXT_BOUND:
+        return TOO_LONG_FOR_A_PAGE
+    expected = {_detectable_script(code, _script_codes_by_first_word()) for code in scripts or () if code}
+    if not expected or None in expected:
+        return None
+    found = script_of_text(text[:4000])
+    return NOT_THE_PAGES_SCRIPT if found is not None and found not in expected else None
+
+
+def _detectable_script(code: str, table: dict[str, str]) -> str | None:
+    """The code `script_of_text` answers for letters of `code` ("Latf" Fraktur -> "Latn"), or None
+    when no letter answers it ("Jpan" mixes Han and kana; "Zyyy" is no script)."""
+    from fichero_server.formats.pagexml import _schema_vocabularies
+
+    name = _schema_vocabularies()[1].get(code, "").split(" - ", 1)[-1].strip()
+    found = code if code in table.values() else (
+        table.get(re.split(r"[\s,(]", name, maxsplit=1)[0].lower()) if name else None)
+    return found if found in _letter_scripts() else None
+
+
+@lru_cache(maxsize=1)
+def _letter_scripts() -> frozenset[str]:
+    """Every code `script_of_text` can answer: a script some Unicode letter's name starts with.
+    Worked out once, from the stdlib's own names (the same signal `script_of_text` reads)."""
+    import unicodedata
+
+    from fichero_server.llm.language_policy import _script_codes_by_first_word
+
+    table = _script_codes_by_first_word()
+    words = {unicodedata.name(chr(cp), " ").split(" ", 1)[0].lower()
+             for cp in range(0x30000) if chr(cp).isalpha()}
+    return frozenset(table[word] for word in words if word in table)
 
 
 class PassAnswer(BaseModel):
@@ -726,6 +785,10 @@ def resolve_working_pass(
 
     A pass edited outside Fichero (a synced folder's file, #4952) is passed over by every tier
     but a choice: an outside edit never takes the record by itself.
+
+    Among the passes nobody touched, a doubtful machine read (:func:`doubtful_read`, #5654: longer
+    than a page holds, or mostly another script's letters) comes after every sound one: newest
+    still wins, among the sound reads first.
 
     An unconverted result (a run's boxes not yet made a pass) is a candidate only when a person
     corrected it or the page has no pass at all (#5467). THIS is the one place a page's working
@@ -792,11 +855,15 @@ def rank_passes(
     touched = [row for row in eligible if row.touched_by_a_person]
     text_layer = [row for row in eligible if not row.touched_by_a_person and row.from_text_layer]
     rest = [row for row in eligible if not row.touched_by_a_person and not row.from_text_layer]
+    # A doubtful machine read (#5654 item 2: longer than a page holds, or another script's letters) ranks
+    # after every sound one, newest first, so a newer noisy pass never takes a page from a reader's pass.
+    sound, doubtful = [row for row in rest if not row.doubtful], [row for row in rest if row.doubtful]
     eligible_ids = {row.pass_id for row in eligible}
     passed_over = [row for row in passes_with_makers if row.pass_id not in eligible_ids]
     chosen_id = ranked[0].pass_id if ranked else None
     for rows, basis in (
-        (touched, PassBasis.human_touched), (text_layer, PassBasis.text_layer), (rest, machine), (passed_over, machine),
+        (touched, PassBasis.human_touched), (text_layer, PassBasis.text_layer), (sound, machine),
+        (doubtful, machine), (passed_over, machine),
     ):
         ranked += [PassAnswer(pass_id=row.pass_id, basis=basis) for row in newest_first(rows) if row.pass_id != chosen_id]
     return ranked

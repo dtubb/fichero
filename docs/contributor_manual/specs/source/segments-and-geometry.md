@@ -744,7 +744,17 @@ Passes, orders, links
   `fichero-server/tests/unit/api/test_the_engine_serves_the_drawn_pass.py`. **App half built 2026-10-05
   (#5467):** the app ranks no pass. It reads the engine's working mark (`SegmentStore.workingPass`), the
   Segments list takes the one pass-filtered read (`SegmentStore.workingSegments`), and Preview draws by
-  the engine's `drawn` and `rank` (`SegmentDisplay.drawingOrder`). The app's copy of the ladder
+  the engine's `drawn` and `rank` (`SegmentDisplay.drawingOrder`). **A noisy read never wins by default
+  (#5654 item 2, built 2026-10-10):** among the machine passes nobody touched, when a page has more than
+  one, a read that is longer than a page can hold (`PAGE_TEXT_BOUND`, 100,000 characters, about twice
+  a broadsheet newspaper page) or whose letters are mostly of a script the project does not name (its
+  setup's scripts and its languages' usual scripts; no test when it names none, or a script letters
+  cannot tell, such as `Jpan`) ranks after every sound machine read (`doubtful_read`, judged from the
+  pass's source result's text). Newest still wins among the sound reads; a page with one read keeps it;
+  a person's choice and a person's work win as before. On the demo c01_012_right.jpg's Apple Vision
+  regions read (250,355 characters, Cyrillic) was the working text over its Kraken read. Pinned by
+  `fichero-server/tests/unit/api/test_a_noisy_read_is_not_the_working_pass.py`. Not built: preferring the
+  recipe's own read step's pass by its model (the rule judges the noise, not the reader). The app's copy of the ladder
   (`OCRGeometrySelection`) and the artifact path's own ranking are deleted. The Inspector's focused
   artifact still goes first on Preview (ruled 2026-08-27; whether the list and the text should follow it
   is an open question in `segment-editor.md`). On the diary page with
