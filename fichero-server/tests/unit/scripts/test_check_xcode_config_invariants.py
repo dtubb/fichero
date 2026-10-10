@@ -61,9 +61,17 @@ def test_missing_excluded_archs_is_caught(tmp_path):
 
 @pytest.mark.build_config
 def test_wrong_deployment_floor_is_caught(tmp_path):
-    pbx = _real_pbx().replace("MACOSX_DEPLOYMENT_TARGET = 26.0", "MACOSX_DEPLOYMENT_TARGET = 25.0")
+    """macOS 26 is no longer supported (2026-10-10): a target left at 26 is caught."""
+    pbx = _real_pbx().replace("MACOSX_DEPLOYMENT_TARGET = 27.0", "MACOSX_DEPLOYMENT_TARGET = 26.0")
     problems = _run_against(tmp_path, pbx)
-    assert any("DEPLOYMENT_TARGET" in p or "macOS 26" in p for p in problems)
+    assert any("MACOSX_DEPLOYMENT_TARGET floor is 27" in p for p in problems)
+
+
+@pytest.mark.build_config
+def test_an_ios_target_left_at_26_is_caught(tmp_path):
+    pbx = _real_pbx().replace("IPHONEOS_DEPLOYMENT_TARGET = 27.0", "IPHONEOS_DEPLOYMENT_TARGET = 26.5")
+    problems = _run_against(tmp_path, pbx)
+    assert any("IPHONEOS_DEPLOYMENT_TARGET floor is 27" in p for p in problems)
 
 
 @pytest.mark.build_config

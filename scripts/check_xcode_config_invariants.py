@@ -13,7 +13,8 @@ Invariants (verified 2026-09-09, spec: docs/contributor_manual/specs/xcode-build
   * Debug config -> ENABLE_APP_SANDBOX = NO (unsandboxed so tests reach temp-dir fixtures).
   * Dev Embedded / Release / App Store configs -> ENABLE_APP_SANDBOX = YES.
   * arm64-only: EXCLUDED_ARCHS = x86_64 present on the project configs.
-  * Deployment floor macOS 26: every MACOSX_DEPLOYMENT_TARGET is 26.x.
+  * Deployment floor macOS 27 (maintainer, 2026-10-10: 26 is no longer supported): every
+    MACOSX_DEPLOYMENT_TARGET and IPHONEOS_DEPLOYMENT_TARGET is 27.x.
   * FicheroTests -> SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor (else ~575 SIGTRAPs).
 
 Run: python scripts/check_xcode_config_invariants.py
@@ -111,11 +112,12 @@ def check() -> list[str]:
     if "EXCLUDED_ARCHS = x86_64" not in pbx:
         problems.append("EXCLUDED_ARCHS = x86_64 missing (arm64-only / Golden Gate)")
 
-    # 5. Deployment floor macOS 26.
-    targets = set(re.findall(r"MACOSX_DEPLOYMENT_TARGET = ([\d.]+);", pbx))
-    bad = {t for t in targets if not t.startswith("26")}
-    if bad:
-        problems.append(f"MACOSX_DEPLOYMENT_TARGET floor is macOS 26; found {sorted(bad)}")
+    # 5. Deployment floor macOS 27 and iOS 27 (26 is no longer supported, 2026-10-10).
+    for setting in ("MACOSX_DEPLOYMENT_TARGET", "IPHONEOS_DEPLOYMENT_TARGET"):
+        targets = set(re.findall(rf"{setting} = ([\d.]+);", pbx))
+        bad = {t for t in targets if not t.startswith("27")}
+        if bad:
+            problems.append(f"{setting} floor is 27; found {sorted(bad)}")
 
     # 6. FicheroTests runs on the main actor by default — checked on the
     # FicheroTests target's OWN config blocks, not a whole-file substring (which
@@ -146,7 +148,7 @@ def main() -> int:
         return 1
     print(
         "OK check_xcode_config_invariants: Dev Local unsandboxed (Debug), Release/AppStore/"
-        "Dev Embedded sandboxed, arm64-only, macOS 26 floor, FicheroTests MainActor-isolated."
+        "Dev Embedded sandboxed, arm64-only, macOS and iOS 27 floor, FicheroTests MainActor-isolated."
     )
     return 0
 
