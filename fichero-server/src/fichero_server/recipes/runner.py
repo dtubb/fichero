@@ -378,6 +378,18 @@ def _run_prepare(db: Any, documents: list[str], parent: str,
     return None, "done", None
 
 
+def _run_regions(db: Any, card: dict[str, Any], documents: list[str], parent: str,
+                 step: dict[str, Any]) -> tuple[str | None, str, str | None]:
+    """Each page image's regions found by the step's YOLO model and saved as its regions (`prep.yolo.regions-card`,
+    #5525); the step's account (`regions_found`) says how many pages and regions, and pages with no image."""
+    from fichero_server.recipes.regions import find_regions
+
+    step["regions_found"] = find_regions(db, documents, parent, card["model"], stop=lambda: _stop_asked(parent))
+    if _stop_asked(parent):
+        return None, "cancelled", "Stopped by you"
+    return None, "done", None
+
+
 def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
     """The card's own job, a child of the recipe's row, waited on until it ends (any end), or until its project
     closes (#5608)."""
@@ -523,6 +535,8 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
             child, state, why = _run_entries(db, card, documents, job_id, step)
         elif card["card"] == "prepare":
             child, state, why = _run_prepare(db, documents, job_id, step)
+        elif card["card"] == "regions":
+            child, state, why = _run_regions(db, card, documents, job_id, step)
         elif card["card"] == "publish":
             child, state, why = _run_publish(db, card, job_id)
         elif card["card"] == "embed":

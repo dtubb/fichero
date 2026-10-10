@@ -51,6 +51,14 @@ class StagePrepared(BaseModel):
     no_image: int = Field(description="pages with no image to look at (a PDF's page, a text file)")
 
 
+class StageRegions(BaseModel):
+    """What a stage that finds regions with a YOLO layout model did (`prep.yolo.regions-card`, #5525)."""
+
+    pages: int = Field(description="page images whose regions were found and saved")
+    regions: int = Field(description="regions found on them")
+    no_image: int = Field(description="pages with no image to look at (a PDF's page, a text file)")
+
+
 class RecipeRunStep(BaseModel):
     """One stage of a recipe run: the card that carries one or more recipe steps."""
 
@@ -78,6 +86,8 @@ class RecipeRunStep(BaseModel):
         "a stage that splits a diary or register into its dated entries: its pages and entries (#5581)"))
     prepared: Optional[StagePrepared] = Field(default=None, description=(
         "a stage that prepares faded pages before lines: how many it prepared and left alone (#5580)"))
+    regions_found: Optional[StageRegions] = Field(default=None, description=(
+        "a stage that finds regions with a YOLO layout model: its pages and regions (#5525)"))
 
 
 class SkippedStep(BaseModel):

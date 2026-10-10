@@ -758,6 +758,13 @@ def _run_download(subject: str, db=None) -> None:
         download_recognition_model(name)
         say_installed(runtime, name)
         return
+    if runtime == "yolo":
+        from fichero_server.llm.yolo_runtime import download
+
+        _say_progress(db, f"Downloading the layout model {name}")
+        download(name)
+        say_installed(runtime, name)
+        return
     if runtime not in _DOWNLOADABLE:
         raise ValueError(f"no download for {subject!r}")
     _say_progress(db, f"Downloading the {runtime} model {name}")
@@ -820,6 +827,11 @@ def enqueue_download(db, runtime: str, name: str, *, started_by: str = "owner") 
 
         if recognition_spec(name) is None:
             raise ValueError(f"no download for kraken:{name}: not a Kraken reader this Mac can fetch")
+    elif runtime == "yolo":
+        from fichero_server.llm.yolo_runtime import YOLO_MODELS
+
+        if name not in YOLO_MODELS:
+            raise ValueError(f"no download for yolo:{name}: not a layout model this Mac can fetch")
     elif runtime not in _DOWNLOADABLE or name not in _DOWNLOADABLE[runtime]:
         raise ValueError(f"no download for {runtime}:{name}")
     register_job_kinds()

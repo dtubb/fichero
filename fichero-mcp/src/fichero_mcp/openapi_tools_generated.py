@@ -4832,7 +4832,7 @@ def fichero_local_models_download(
     model_type: Annotated[str, Field(description='Model Type')],
     model_id: Annotated[str, Field(description='Model Id')],
 ) -> Any:
-    'Download Model\n\nStart downloading a model in the background.\n\nArgs:\n    model_type: whisper, embeddings, spacy, mlx or kraken (a Kraken reader)\n    model_id: Model identifier (e.g., "base" for Whisper, "intfloat/multilingual-e5-large" for embeddings)\n\nOne path for every model (`source.find.one-download-path`, #5620): a `download-model` job in Activity.\n\nRoute: POST /api/local-models/download/{model_type}/{model_id} (toolset `local-models`; changes data, as the agent account when one exists).'
+    'Download Model\n\nStart downloading a model in the background.\n\nArgs:\n    model_type: whisper, embeddings, spacy, mlx, kraken (a Kraken reader) or yolo (a layout model)\n    model_id: Model identifier (e.g., "base" for Whisper, "intfloat/multilingual-e5-large" for embeddings)\n\nOne path for every model (`source.find.one-download-path`, #5620): a `download-model` job in Activity.\n\nRoute: POST /api/local-models/download/{model_type}/{model_id} (toolset `local-models`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/local-models/download/{model_type}/{model_id}")
 
 

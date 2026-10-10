@@ -5,6 +5,16 @@
 # Hugging Face pin whose commit SHA has not been fixed yet ("main" is not a pin; the flagship's
 # measurement fixes it, #4950).
 cards:
+  - id: yolo:hf/hantian/yolo-doclaynet/yolov11n@unpinned
+    pin: {yolo: yolo-doclaynet-11n}
+    jobs: [find-regions]
+    scripts: any
+    languages: any
+    material: [print, typescript, handwriting]
+    licence: AGPL-3.0
+    size_gb: 0.006
+    trainable: true          # fine-tuned on a project's corrected regions (prep.yolo.fine-tune-from-corrected-regions)
+    note: A YOLO11 layout model trained on DocLayNet; finds text blocks, headings, tables, pictures, page headers and footers. Weak on handwritten pages until fine-tuned (measured 2026-10-10).
   - id: kraken:builtin/blla@bundled
     pin: {kraken: blla, kraken_version: bundled}
     jobs: [find-lines]

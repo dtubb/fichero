@@ -42598,7 +42598,7 @@
           "local-models"
         ],
         "summary": "Download Model",
-        "description": "Start downloading a model in the background.\n\nArgs:\n    model_type: whisper, embeddings, spacy, mlx or kraken (a Kraken reader)\n    model_id: Model identifier (e.g., \"base\" for Whisper, \"intfloat/multilingual-e5-large\" for embeddings)\n\nOne path for every model (`source.find.one-download-path`, #5620): a `download-model` job in Activity.",
+        "description": "Start downloading a model in the background.\n\nArgs:\n    model_type: whisper, embeddings, spacy, mlx, kraken (a Kraken reader) or yolo (a layout model)\n    model_id: Model identifier (e.g., \"base\" for Whisper, \"intfloat/multilingual-e5-large\" for embeddings)\n\nOne path for every model (`source.find.one-download-path`, #5620): a `download-model` job in Activity.",
         "operationId": "download_model_api_local_models_download__model_type___model_id__post",
         "parameters": [
           {
@@ -76498,6 +76498,11 @@
             "$ref": "#/components/schemas/StagePrepared",
             "nullable": true,
             "description": "a stage that prepares faded pages before lines: how many it prepared and left alone (#5580)"
+          },
+          "regions_found": {
+            "$ref": "#/components/schemas/StageRegions",
+            "nullable": true,
+            "description": "a stage that finds regions with a YOLO layout model: its pages and regions (#5525)"
           }
         },
         "type": "object",
@@ -84403,6 +84408,33 @@
         ],
         "title": "StageReader",
         "description": "One reader's workflow run in a stage with a reader per kind (#5578)."
+      },
+      "StageRegions": {
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "page images whose regions were found and saved"
+          },
+          "regions": {
+            "type": "integer",
+            "title": "Regions",
+            "description": "regions found on them"
+          },
+          "no_image": {
+            "type": "integer",
+            "title": "No Image",
+            "description": "pages with no image to look at (a PDF's page, a text file)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "regions",
+          "no_image"
+        ],
+        "title": "StageRegions",
+        "description": "What a stage that finds regions with a YOLO layout model did (`prep.yolo.regions-card`, #5525)."
       },
       "StartDownload": {
         "properties": {

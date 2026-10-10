@@ -46,7 +46,9 @@ OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export
                "split-into-entries": "entries",
                # Faded pages get a prepared rendition, their contrast raised, before lines; the original is kept
                # (`source.onboard.auto.prepare-damaged-images`, #5580).
-               "prepare-the-image": "prepare"}
+               "prepare-the-image": "prepare",
+               # A page's regions found by a YOLO layout model (`prep.yolo.regions-card`, #5525).
+               "find-regions": "regions"}
 #: Jobs that need no model.
 #: The fixes setup offers as a button for a skipped step (`RecipeStepRow.fixTitle`).
 _FIX_BUTTONS = frozenset({"choose-model", "allow-cloud"})
@@ -60,7 +62,6 @@ EMBED_JOB = "make-a-vector"
 START_JOBS = frozenset(WORKFLOW_FOR_JOB) | frozenset(OTHER_CARDS) | {EMBED_JOB, "train-a-model"}
 #: What to use instead, by hand, for a job Start cannot run by itself (the shipped workflow or tool that does it).
 BY_HAND_FIX = {
-    "find-regions": "run the Detect Segments (Apple Vision) workflow by hand",
     "translate-transliterate-normalise": "run the Translate workflow (or Modernización, for Spanish) by hand",
     "link-to-authorities": "link each name to an authority from its Inspector",
     "place-in-a-gazetteer": "run the Extract Geo workflow by hand: it finds the places and puts them on the map",
@@ -279,6 +280,11 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                     skip(sid, f"{label}: the entries are split by a text model, and {pin} is not one", "choose-model")
                     continue
                 entry.update(provider=override[0], model=override[1])
+            elif job == "find-regions":
+                if not pin.get("yolo"):
+                    skip(sid, f"{label}: regions are found by a YOLO layout model, and {pin} is not one", "choose-model")
+                    continue
+                entry.update(provider="yolo", model=str(pin["yolo"]))
             elif job == "find-documents-in-a-folder":
                 # The project's setting: None leaves every proposal for the person.
                 entry.update(accept_above=settings.get("accept_above"))
@@ -389,18 +395,24 @@ def card_inputs(step_jobs: list[str]) -> tuple[list[str], list[str]]:
 
 def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The downloadable models the plan's steps are pinned to that are not on this Mac
-    (`source.recipe.missing-model-offered`): spaCy pipelines and Kraken readers (a catalogue or Zenodo reader;
-    a reader trained here is never a download), each offered as a `download-model` job."""
+    (`source.recipe.missing-model-offered`): spaCy pipelines, Kraken readers (a catalogue or Zenodo reader;
+    a reader trained here is never a download) and YOLO layout models, each offered as a `download-model` job."""
     from fichero_server.llm import kraken_runtime
     from fichero_server.llm.local_models import SPACY_MODELS, spacy_pipeline_available
 
     out: dict[str, dict[str, Any]] = {}
     for run in runs:
-        name = run.get("model_override")
-        runtime = run.get("provider_override")
+        name = run.get("model_override") or (run.get("model") if run.get("card") == "regions" else None)
+        runtime = run.get("provider_override") or (run.get("provider") if run.get("card") == "regions" else None)
         if not name:
             continue
-        if runtime == "spacy":
+        if runtime == "yolo":
+            from fichero_server.llm.yolo_runtime import YOLO_MODELS, is_installed
+
+            if name not in YOLO_MODELS or is_installed(name):
+                continue
+            size_mb = None
+        elif runtime == "spacy":
             if spacy_pipeline_available(name):
                 continue
             size_mb = SPACY_MODELS.get(name, {}).get("disk_mb")
