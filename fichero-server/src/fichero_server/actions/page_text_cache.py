@@ -411,7 +411,7 @@ def _reembed(db: Any, document_id: str) -> None:
     if doc is not None and doc.page_content:
         with _embed_gate:
             outcome = db.embed(doc)
-        if outcome.is_infrastructure_failure:  # the job fails, so Activity shows it
+        if not outcome and outcome.is_infrastructure_failure:  # the job fails, so Activity shows it
             raise RuntimeError(f"Could not embed {document_id}: {outcome.error}")
 
 

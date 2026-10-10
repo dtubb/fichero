@@ -243,9 +243,9 @@ def test_registered_tool_survives_one_canned_invocation(
     assert tool_fn is not None, f"executable tool {tool_name} has no implementation"
 
     # Keep the smoke hermetic: no vector writes, no similarity lookups.
-    from fichero_server.db import Database
+    from fichero_server.db import Database, EmbedOutcome
 
-    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
+    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: EmbedOutcome(embedded=False, reason="no_embeddable_text"))
     monkeypatch.setattr(
         "fichero_server.knowledge.entity_vectors.find_similar", lambda *args, **kwargs: []
     )

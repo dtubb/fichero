@@ -506,7 +506,7 @@ def ingest_file(
         # container vector behind (the pages embedded themselves).
         if auto_embed and doc.page_content:
             outcome = db.embed(doc)
-            if outcome.is_infrastructure_failure:
+            if not outcome and outcome.is_infrastructure_failure:
                 logger.error("Embedding is not working: %s was imported unsearchable (%s)", path.name, outcome.error)
 
         _touch_ancestor_documents(db, doc.parent_id)

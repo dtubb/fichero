@@ -14,6 +14,7 @@ import threading
 import time
 
 
+from fichero_server.db import EmbedOutcome
 from fichero_server.db.manager import db_manager
 from fichero_server.execution import jobs
 
@@ -241,7 +242,7 @@ class TestTheCorrectionReembedRunsThroughTheQueue:
                           json={"op": "move", "indices": [3], "bbox": [0.5, 0.9, 0.1, 0.05]}).status_code == 200
         row = live_rows_in_order(db, db.get(Artifact, art.id).geometry_superseded_by_pass_id)[0]
         embedded: list[str] = []
-        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: embedded.append(doc.page_content))
+        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: embedded.append(doc.page_content) or EmbedOutcome(embedded=True))
 
         jobs.set_paused(True)
         ctx = ActionContext(actor="historian", library_path=None, is_bootstrap=True)

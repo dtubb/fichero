@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import pytest
 
+from fichero_server.db import EmbedOutcome
+
 import fichero_server.api.routes.kg.nlp_draft_purge  # noqa: F401  (registers the purge action)
 import fichero_server.api.routes.entity.entities  # noqa: F401
 import fichero_server.api.routes.claim.links  # noqa: F401
@@ -128,7 +130,7 @@ class TestTheReReadIsAJobOfItsOwn:
         from fichero_server.execution import jobs
 
         monkeypatch.setattr(nlp_draft, "auto_nlp_enabled", lambda: True)
-        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: None)
+        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: EmbedOutcome(embedded=True))
         doc = _page(db, "Quito 1810.")
         jobs.set_paused(True)
         try:
@@ -151,6 +153,6 @@ class TestTheReReadIsAJobOfItsOwn:
         doc = _page(db, "Quito 1810.")
         reread: list[str] = []
         monkeypatch.setattr(page_text_cache, "reread_names_after_commit", lambda d, i: reread.append(i))
-        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: None)
+        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: EmbedOutcome(embedded=True))
         page_text_cache._reembed(db, doc.id)
         assert reread == []
