@@ -75,7 +75,7 @@ struct ToolbarSurfaceLitStateTests {
     @Test("the words still flip, so state reads without colour")
     func wordsStillCarryTheState() throws {
         let source = try Self.toolbarSource
-        for pair in ["\"Hide Preview\" : \"Show Preview\"",
+        for pair in ["SourcePane.hideLabel : SourcePane.showLabel",
                      "\"Hide Reader\" : \"Show Reader\"",
                      "\"Hide Chat\" : \"Show Chat\"",
                      "ItemsPane.hideLabel : ItemsPane.showLabel",

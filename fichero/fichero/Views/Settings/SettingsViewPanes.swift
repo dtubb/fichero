@@ -33,7 +33,7 @@ struct PreviewViewSettingsPane: View {
         @Bindable var settings = viewSettings
         Form {
             Section("Layout") {
-                Picker("Preview position", selection: Binding(
+                Picker("\(SourcePane.name) position", selection: Binding(
                     get: { settings.previewMode.layout },
                     set: { settings.previewMode = $0.previewMode }
                 )) {
@@ -44,7 +44,7 @@ struct PreviewViewSettingsPane: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Preview")
+        .navigationTitle(SourcePane.name)
     }
 }
 

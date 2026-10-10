@@ -27,7 +27,7 @@ struct SegmentMenuContent: View {
         Button(editing ? "Stop Editing Segments" : "Edit Segments") { target?.toggleEditing() }
             .disabled(target == nil)
         if target == nil {
-            Text("Show a page in the Preview to edit its segments")
+            Text("Show a page in \(SourcePane.name) to edit its segments")
         } else if !editing {
             Text("Turn on Edit Segments to change segments")
         } else if count == 0 {

@@ -138,7 +138,7 @@ struct ReaderLineRow: View {
         .buttonStyle(.plain)
         .disabled(onPick == nil)
         .accessibilityLabel("Picture of the line")
-        .help(onPick == nil ? "" : "Show this line in the Preview")
+        .help(onPick == nil ? "" : "Show this line in \(SourcePane.name)")
     }
 
     private var words: some View {

@@ -104,7 +104,7 @@
             <result type="boolean" description="Whether the request was accepted."/>
         </command>
 
-        <command name="reveal segments" code="FICHrvsg" description="Select segments in the Preview showing their page and zoom to them, as clicking a line in the Reader does.">
+        <command name="reveal segments" code="FICHrvsg" description="Select segments in Source showing their page and zoom to them, as clicking a line in the Reader does.">
             <cocoa class="FicheroRevealSegmentsCommand"/>
             <direct-parameter description="The segment ids.">
                 <type type="text" list="yes"/>
@@ -113,7 +113,7 @@
             <parameter name="in page" code="inpg" type="text" description="The page (document) id the segments are on.">
                 <cocoa key="documentId"/>
             </parameter>
-            <result description="The segment ids revealed; none when no Preview shows the page.">
+            <result description="The segment ids revealed; none when no Source pane shows the page.">
                 <type type="text" list="yes"/>
             </result>
         </command>

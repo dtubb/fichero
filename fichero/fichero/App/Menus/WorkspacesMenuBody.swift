@@ -160,7 +160,7 @@ struct WorkspacesMenuBody: View {
     private static func title(for kind: PaneKind) -> String {
         switch kind {
         case .library: ItemsPane.name
-        case .preview: "Preview"
+        case .preview: SourcePane.name
         case .reading: "Reader"
         case .inspector: "Inspector"
         case .chat: "Chat"

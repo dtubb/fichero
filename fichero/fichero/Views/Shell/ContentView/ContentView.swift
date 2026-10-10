@@ -23,7 +23,7 @@ enum PaneFocus: Hashable {
         switch self {
         case .sidebar: return "Projects"  // the sidebar pane is Projects (ruled 2026-10-10)
         case .content: return ItemsPane.name
-        case .preview: return "Preview"
+        case .preview: return SourcePane.name
         case .reading: return "Reader"
         case .chat: return "Chat"
         case .inspector: return "Inspector"

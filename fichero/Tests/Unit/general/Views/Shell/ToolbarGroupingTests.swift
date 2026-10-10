@@ -87,7 +87,7 @@ struct ToolbarGroupingTests {
         // Show/Hide (Daniel, 2026-08-29: Buttons, not accent-filled Toggles —
         // "changing colors — that's a bad UX"; the WORDS carry the state).
         let library = group.range(of: "libraryPaneToggleButton")
-        let preview = group.range(of: "\"Hide Preview\" : \"Show Preview\"")
+        let preview = group.range(of: "SourcePane.hideLabel : SourcePane.showLabel")
         let reading = group.range(of: "\"Hide Reader\" : \"Show Reader\"")
         let chat = group.range(of: "\"Hide Chat\" : \"Show Chat\"")
         #expect(library != nil)

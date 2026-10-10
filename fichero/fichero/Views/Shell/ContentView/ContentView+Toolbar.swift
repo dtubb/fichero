@@ -188,11 +188,11 @@ extension ContentView {
                     Button {
                         setCanvasPaneVisible(!paneVisibility.canvas)
                     } label: {
-                        Label(paneVisibility.canvas ? "Hide Preview" : "Show Preview",
+                        Label(paneVisibility.canvas ? SourcePane.hideLabel : SourcePane.showLabel,
                               systemImage: ToolbarSymbols.previewPane)
                             .toolbarSurfaceLit(paneVisibility.canvas)
                     }
-                    .help(paneVisibility.canvas ? "Hide the Preview" : "Show the Preview")
+                    .help(paneVisibility.canvas ? SourcePane.hideLabel : SourcePane.showLabel)
 
                     Button {
                         setReadingPaneVisible(!paneVisibility.reading)

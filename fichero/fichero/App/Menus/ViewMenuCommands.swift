@@ -82,7 +82,7 @@ struct ViewMenuCommands: View {
             SortSection()
         }
 
-        Menu("Preview") {
+        Menu(SourcePane.name) {
             PreviewModeSection(viewSettings: viewSettings)
             RepresentationSection()
         }

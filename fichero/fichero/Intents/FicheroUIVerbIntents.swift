@@ -48,9 +48,9 @@ struct SelectNodesIntent: AppIntent {
 }
 
 struct RevealSegmentsIntent: AppIntent {
-    static let title: LocalizedStringResource = "Reveal Lines in Preview"
+    static let title: LocalizedStringResource = "Reveal Lines in Source"
     static let description = IntentDescription(
-        "Select segments in the Preview showing their page, and zoom to them, as clicking a line in the Reader does."
+        "Select segments in Source showing their page, and zoom to them, as clicking a line in the Reader does."
     )
     static let openAppWhenRun = true
 
@@ -67,7 +67,7 @@ struct RevealSegmentsIntent: AppIntent {
 
 struct ShowPaneIntent: AppIntent {
     static let title: LocalizedStringResource = "Show Pane"
-    static let description = IntentDescription("Show a pane (Items, Preview, Reader, Inspector, Activity) in the front window.")
+    static let description = IntentDescription("Show a pane (Items, Source, Reader, Inspector, Activity) in the front window.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Pane")

@@ -195,7 +195,7 @@ extension ContentView {
             // consequence of the click that just happened.
             if sourceRevealDocument != nil, !paneVisibility.canvas, !paneVisibility.reading {
                 HStack(spacing: 12) {
-                    Text("The source opened, but Preview and the Reader are both closed.")
+                    Text("The source opened, but \(SourcePane.name) and the Reader are both closed.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     Spacer()

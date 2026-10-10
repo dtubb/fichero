@@ -78,7 +78,7 @@ struct SourceProvenanceCard: View {
             Divider()
 
             Button(action: onReveal) {
-                Label("Reveal in Preview", systemImage: "sidebar.right")
+                Label("Reveal in \(SourcePane.name)", systemImage: "sidebar.right")
             }
             .buttonStyle(.borderless)
             .font(.callout)

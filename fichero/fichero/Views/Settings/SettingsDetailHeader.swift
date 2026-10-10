@@ -25,7 +25,7 @@ struct SettingsSectionInfo {
         case .libraryView:
             return SettingsSectionInfo(title: ItemsPane.name, symbol: "square.grid.2x2", tint: .blue)
         case .previewView:
-            return SettingsSectionInfo(title: "Preview", symbol: "sidebar.right", tint: .teal)
+            return SettingsSectionInfo(title: SourcePane.name, symbol: "sidebar.right", tint: .teal)
         case .readerView:
             return SettingsSectionInfo(title: "Reader", symbol: "book", tint: .orange)
         case .inspectorView:

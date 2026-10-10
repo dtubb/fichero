@@ -14,6 +14,10 @@ struct FirstRunCardConfig {
 
 /// First launch's two choices (ruled 2026-10-10, `source.onboard.first-launch-offers-setup`).
 enum FirstLaunchChoices {
+    /// The welcome at the top of first launch's setup: what Fichero does, and that the first step
+    /// is a project.
+    static let welcome = "Fichero reads, organises and connects your scanned sources, PDFs and notes. "
+        + "The first step is setting up a project for your material."
     static let setUpNewProject = "Set Up a New Project…"
 
     /// "Use My Project for Now", with the always-there project's name as the person has it.

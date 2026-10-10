@@ -89,7 +89,7 @@ struct ToolbarSymbolsTests {
     func toolbarTogglesAreNative() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         #expect(!source.contains("\"rectangle\""))
-        #expect(source.contains("\"Hide Preview\" : \"Show Preview\""))
+        #expect(source.contains("SourcePane.hideLabel : SourcePane.showLabel"))
         #expect(!source.contains("Toggle(isOn: $showDocumentCanvas"))
     }
 

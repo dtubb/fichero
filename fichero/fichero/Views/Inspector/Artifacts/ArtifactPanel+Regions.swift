@@ -128,7 +128,7 @@ struct ArtifactRegionsSection: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Select this region — it highlights in the Preview; click again to deselect")
+        .help("Select this region — it highlights in \(SourcePane.name); click again to deselect")
     }
 
     /// LINE-level rows only: word rows would be one row per word — noise. The

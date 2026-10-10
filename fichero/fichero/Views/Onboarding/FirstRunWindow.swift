@@ -157,7 +157,7 @@ extension FirstRunWindow {
         case .welcome:
             stepPage(
                 title: "Welcome to Fichero",
-                subtitle: "A research workspace for scanned sources, PDFs, notes, and knowledge graphs.",
+                subtitle: FirstLaunchChoices.welcome,
                 systemImage: "doc.richtext"
             ) {
                 firstRunCard(

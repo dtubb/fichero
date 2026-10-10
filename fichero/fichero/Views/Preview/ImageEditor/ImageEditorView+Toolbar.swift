@@ -15,7 +15,7 @@ extension ImageEditorView {
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(Color.accentColor)
-                .help("Done — edits are already saved; return to Preview")
+                .help("Done — edits are already saved; return to \(SourcePane.name)")
                 .accessibilityIdentifier("imageEditDone")
 
                 Divider().frame(height: 20)

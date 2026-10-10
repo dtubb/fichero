@@ -16,3 +16,13 @@ nonisolated enum ItemsPane {
     static var showLabel: String { "Show \(name)" }
     static var hideLabel: String { "Hide \(name)" }
 }
+
+/// The preview/editor pane's name: **Source** (ruled 2026-10-10; it was "Preview"). Only the words
+/// people read change: the pane's types, files and identifiers keep "Preview". The Preview/Edit
+/// lens inside the pane keeps its name. Change only this line (and the App Intents literals).
+nonisolated enum SourcePane {
+    static let name = "Source"
+
+    static var showLabel: String { "Show \(name)" }
+    static var hideLabel: String { "Hide \(name)" }
+}

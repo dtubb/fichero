@@ -60,7 +60,7 @@ extension ContentView {
     /// Explicitly typed (the reader's type-checker rule applied here).
     var previewSelector: PaneKindSelector<PreviewLens> {
         PaneKindSelector(
-            kindTitle: "Preview",
+            kindTitle: SourcePane.name,
             kindIcon: ToolbarSymbols.previewPane,
             currentKind: .preview,
             lenses: PreviewLens.allCases,

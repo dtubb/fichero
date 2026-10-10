@@ -116,7 +116,7 @@ struct PreviewModeSection: View {
                 if availablePreviewModes.contains(.widescreen) {
                     PreviewModeButton(
                         mode: .widescreen,
-                        label: "Show Side Preview",
+                        label: "Show \(SourcePane.name) at the Side",
                         icon: "rectangle.split.2x1",
                         shortcut: "j",
                         current: viewSettings.previewMode
@@ -128,7 +128,7 @@ struct PreviewModeSection: View {
                 if availablePreviewModes.contains(.standard) {
                     PreviewModeButton(
                         mode: .standard,
-                        label: "Show Bottom Preview",
+                        label: "Show \(SourcePane.name) at the Bottom",
                         icon: "rectangle.split.1x2",
                         shortcut: "b",
                         current: viewSettings.previewMode
@@ -140,7 +140,7 @@ struct PreviewModeSection: View {
                 if availablePreviewModes.contains(.none) {
                     PreviewModeButton(
                         mode: .none,
-                        label: "Hide Preview",
+                        label: SourcePane.hideLabel,
                         icon: "square",
                         shortcut: "h",
                         current: viewSettings.previewMode
