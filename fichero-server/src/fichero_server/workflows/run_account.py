@@ -14,7 +14,8 @@ in each fanned-out step) and its pages' rows in the job table (what a page is wa
 * the offer at the end: "Read the 3 pages that failed" (or "... not done" after an interruption), one
   action (`read_again`) that runs the same workflow, with the same model, over those pages only.
 
-A page counts as done when every fanned-out step that has started has done it, and as failed when any step
+A page counts as done when every fanned-out step that has started has done it (and every step that read all
+its pages in one call, from that step's per-page results, #5654), and as failed when any step
 failed it (a page a step skipped because the step before failed it is that one failure, not two).
 """
 from __future__ import annotations
@@ -105,6 +106,29 @@ def _source_documents(state: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def _one_call_steps(state: dict[str, Any], fanned: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """The per-page results of each step that read every page in one call, not fanned out (#5654): its
+    output's `results`, one per file, in file order, each with its error. A fanned-out step's aggregate
+    (in `parallel_results` already) is not counted twice."""
+    outputs = state.get("outputs")
+    if not isinstance(outputs, dict):
+        return {}
+    files = state.get("files")
+    documents = _source_documents(state)
+    found: dict[str, list[dict[str, Any]]] = {}
+    for node, output in outputs.items():
+        results = output.get("results") if isinstance(output, dict) else None
+        if (str(node) in fanned or "success_count" in output or not isinstance(results, list) or not results
+                or not all(isinstance(r, dict) and r.get("file") for r in results)
+                or (isinstance(files, list) and len(results) != len(files))):
+            continue
+        found[str(node)] = [
+            {"index": i, "file": r["file"], "error": r.get("error"),
+             "document_id": (documents[i].get("id") if i < len(documents) else None)}
+            for i, r in enumerate(results)]
+    return found
+
+
 def build_account(*, status: str | None, reason: str | None, state: dict[str, Any] | None,
                   pending_writes: Iterable[Any] = (), started_at: datetime | None = None,
                   run_usage: dict[str, Any] | None = None, live_peaks: dict[str, int] | None = None,
@@ -113,6 +137,7 @@ def build_account(*, status: str | None, reason: str | None, state: dict[str, An
     """The account from what the run recorded. Pure: every input is passed in."""
     state = state if isinstance(state, dict) else {}
     steps = results_by_step(state, pending_writes)
+    steps.update(_one_call_steps(state, steps))
     pages: dict[Any, dict[str, Any]] = {}
     for node, items in steps.items():
         last: dict[Any, dict[str, Any]] = {}

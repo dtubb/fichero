@@ -92,6 +92,11 @@ _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.impor
 #: `recipes`: a started recipe's run (#5390), which only waits on its steps' own jobs; one at a time, so two
 #: recipes never hold each other's checks.
 LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "recipes": 1}
+#: The one exception to the model lane's one job at a time (#5654, `compute.memory.reads-follow-memory`):
+#: calls to the engine's own model server for the model it has loaded share the lane, as many at once as
+#: that model's need and this Mac's memory allow (`local_inference.reads_at_once_for_model`, at most
+#: `LOCAL_READS_CEILING`), the number the plan states. The lane keeps that many threads.
+CO_RUN_KIND = "ask-a-model"
 #: The lanes whose jobs are heavy on this Mac's memory: while memory is busy they run one job at a time
 #: between them (`activity.throttle.one-heavy-when-memory-tight`, #5622).
 HEAVY_LANES = ("local-ml", "images")
@@ -507,9 +512,16 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
         else:
             for child in node["children"]:
                 usage += roll(child)
-                failed += child["failed"]
-            node["done"] = sum(c["done"] for c in node["children"])
-            node["total"] = sum(c["total"] for c in node["children"])
+            # A page read again (after a passing cause, #5555) is one page: its last attempt counts, as in
+            # the run's account (#5654: the tree said failed 1 for a page read again and done).
+            last: dict[Any, dict[str, Any]] = {}
+            for child in node["children"]:  # in the order they were made
+                page = child["document_id"] and not child["children"]
+                last[(child["kind"], child["document_id"]) if page else child["id"]] = child
+            counted = list(last.values())
+            failed += sum(c["failed"] for c in counted)
+            node["done"] = sum(c["done"] for c in counted)
+            node["total"] = sum(c["total"] for c in counted)
         node["name"] = kind_name(node["kind"])
         node["failed"] = failed  # the pages under it that failed; each says why on its own row
         # What a running row works on now (#5561): its running child by name, and what that one works on.
@@ -1682,6 +1694,30 @@ class _Lane:
         #: What each running job is for, by job id (its model, `provider:model`): the network
         #: lane's share per provider counts these.
         self.running: dict[str, str | None] = {}
+        #: The running jobs that are calls to the engine's own model server (`CO_RUN_KIND`).
+        self.calls: set[str] = set()
+
+    @property
+    def threads_wanted(self) -> int:
+        if self.name != "local-ml":
+            return self.slots
+        from fichero_server.llm.local_inference import LOCAL_READS_CEILING
+
+        return max(self.slots, LOCAL_READS_CEILING)
+
+    def may_start(self, kind: str, model: str | None) -> bool:
+        """Whether a job may start now: a free slot, or on the model lane a call to the engine's own
+        model server joining the calls to the same model already running, up to its reads at once."""
+        running = dict(self.running)
+        if len(running) < self.slots:
+            return True
+        if self.name != "local-ml" or kind != CO_RUN_KIND or not (model or "").startswith("omlx:"):
+            return False
+        if set(running) - self.calls or set(running.values()) != {model}:
+            return False
+        from fichero_server.llm.local_inference import reads_at_once_for_model
+
+        return len(running) < (reads_at_once_for_model(model) or 1)
 
 
 class _Scheduler:
@@ -1761,7 +1797,7 @@ class _Scheduler:
                     lane.rewoken.add(key)
                 lane.threads = [t for t in lane.threads if t.is_alive()]
                 # A lane with no library to look at has no thread (#5503): one would only poll.
-                while lane.libraries and len(lane.threads) < lane.slots:
+                while lane.libraries and len(lane.threads) < lane.threads_wanted:
                     # The local-ML lane's one thread keeps the name tests and logs know it by.
                     name = "fichero-jobs" if lane.name == "local-ml" else f"fichero-jobs-{lane.name}"
                     thread = threading.Thread(target=self._loop, args=(lane,), name=name, daemon=True)
@@ -1795,6 +1831,7 @@ class _Scheduler:
                         self._run(lane, *picked)
                     finally:
                         lane.running.pop(picked[2][0], None)
+                        lane.calls.discard(picked[2][0])
                         if lane.name in HEAVY_LANES:  # a heavy job held for this one may go now
                             for name in HEAVY_LANES:
                                 if name != lane.name:
@@ -1880,6 +1917,8 @@ class _Scheduler:
                     lane_look_again = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
             while (picked := self._next(lane, background=held is None)) is not None:
                 key, db, row = picked
+                if not lane.may_start(row[1], row[3]):
+                    return None  # the lane is full: its running job's thread picks this when it ends
                 if lane.name == "local-ml":
                     reason = why_wait(person_waiting=True)  # memory and heat hold even these
                     if reason:
@@ -1907,6 +1946,8 @@ class _Scheduler:
                      if handed_in is not None and is_paused() else None, row[0]],
                 )
                 lane.running[row[0]] = row[3]
+                if row[1] == CO_RUN_KIND:
+                    lane.calls.add(row[0])
                 return key, db, row, handed_in
             if held:
                 lane.look_again_at = lane_look_again

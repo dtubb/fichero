@@ -261,6 +261,25 @@ def reads_at_once_for(need_bytes: int | None, total_bytes: int | None) -> int:
     return max(1, min(LOCAL_READS_CEILING, fits))
 
 
+def reads_at_once_for_model(model: str | None) -> int | None:
+    """`local_reads_at_once` for a model named as a call names it (`omlx:<model>`, or the bare model):
+    the one number the call's read slot (`llm.model_call_slot`) and the model lane (`execution.jobs`,
+    how many of its calls run at once) both hold to, and the plan states (#5654). None for a model the
+    catalogue does not size, or another provider's."""
+    if not model:
+        return None
+    provider, _, name = model.partition(":") if ":" in model else ("omlx", "", model)
+    if provider != "omlx":
+        return None
+    from fichero_server.llm.local_model_choice import model_to_serve
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+    try:
+        return local_reads_at_once(get_mlx_model_store().spec(model_to_serve(name)))
+    except KeyError:
+        return None
+
+
 def local_read_plan(spec: Any, *, physical_bytes: Any = None) -> str:
     """The plan's words for a local model before Start (#5537, rule 8): its need, how many pages at
     once it reads on this Mac, and the peak that comes to (the weights once, a margin per read)."""

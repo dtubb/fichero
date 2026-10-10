@@ -1456,14 +1456,9 @@ def _stopped_answering(exc: BaseException) -> Exception | None:
 def _local_reads_at_once(config: LLMConfig) -> int | None:
     """How many reads at once this local model may be asked on this Mac; None for a model the
     catalogue does not size (a developer's own server command)."""
-    from fichero_server.llm.local_inference import local_reads_at_once
-    from fichero_server.llm.local_model_choice import model_to_serve
-    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+    from fichero_server.llm.local_inference import reads_at_once_for_model
 
-    try:
-        return local_reads_at_once(get_mlx_model_store().spec(model_to_serve(config.model)))
-    except KeyError:
-        return None
+    return reads_at_once_for_model(f"omlx:{config.model}")
 
 
 #: How long a failed request waits to see its server's exit: the stream's error can arrive a moment
