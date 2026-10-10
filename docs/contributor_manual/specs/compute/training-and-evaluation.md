@@ -30,6 +30,16 @@ on the same held-out pages; a comparison is a ranked table with cost and time be
 this" is an audited choice for a scope; a winner must beat the current choice by more than the
 noise; and the person's corrections of the new model's output feed the next training.
 
+## Ruled 2026-10-10 (the maintainer, answering this spec's questions)
+
+- **The default place is an onboarding question**, answered from the number of pages and the cost: Hugging
+  Face is the sensible recommendation when it can train every kind the recipe needs; a person who has ACENET
+  (or another cluster) is offered it; this Mac and their other Macs remain the free choice.
+- **Spending:** every paid run shows its price before Start, and two caps hold: one for the app and one for
+  each project. A run that would pass either is refused before it starts, saying which cap and by how much.
+- **The person's other Macs** (an M4 and an M4 iMac) run work only when idle.
+- The noise band is measured per project; the node is Models (recorded below).
+
 ## Prior art
 
 - **Kraken** reports character and word accuracy on a validation set after every epoch and keeps
@@ -340,7 +350,7 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 - `training.place.this-mac-gentle` — **[PARTIAL]** (#5397) training on this Mac is a row with its time;
   Kraken readers are built (`compute.tune.on-this-mac`); YOLO, spaCy and a small LoRA on this Mac are not.
 - `training.place.other-macs` — **[GAP]** (#5238) the person's other Macs reached over Tailscale (an M4 with
-  16 GB, an M4 iMac with 24 GB) are places, each with its measured memory, used when idle or on power;
+  16 GB, an M4 iMac with 24 GB) are places, each with its measured memory, used only when idle (ruled 2026-10-10);
   `compute/targets-and-connection.md` lists Linux machines and clusters and no Mac.
 - `training.place.hf-priced-first` — **[PARTIAL]** (#5398) the Hugging Face row shows the hardware's hourly
   price and an estimated time before Train; built: the price is read at start
@@ -354,6 +364,13 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   pressed with the person's yes for these pages (`pages_may_leave`, false by default; `PagesMayNotLeave`).
   Built: `fichero-server/src/fichero_server/training/job.py`; tested in
   `fichero-server/tests/unit/training/test_training_job.py`.
+- `training.place.default-from-onboarding` — **[GAP]** (#5440) the project's default training place is asked
+  at onboarding, proposed from the number of pages and the cost (Hugging Face recommended when it trains every
+  kind the recipe needs; a cluster offered when the person has one; this Mac and their other Macs as the free
+  choice); the Train sheet starts there and can be changed.
+- `training.cost.app-and-project-caps` — **[GAP]** (#5440) the app has a spending cap and each project has its
+  own; a paid run (Hugging Face, a provider) that would pass either is refused before it starts, naming the
+  cap, what is spent and what the run would add; what was spent is shown against both.
 - `training.place.cost-before-train` — **[GAP]** (#5440) the sheet's total (time, money, hours of allocation,
   greenhouse gas with its basis, `activity.ghg.estimate-with-its-basis`) is shown before Train, each figure
   measured, estimated or unknown.
