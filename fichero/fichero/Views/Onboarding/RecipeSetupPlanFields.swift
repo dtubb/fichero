@@ -128,7 +128,7 @@ struct OfferedJobsList: View {
                 ForEach(others, id: \.id) { job in
                     HStack(alignment: .firstTextBaseline) {
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(store.title(ofJob: job.id)).font(.callout)
+                            Text(store.title(ofJob: job.id)).font(.body)
                             if let topic = store.explanation(ofJob: job.id) {
                                 Text(topic.short).font(.caption).foregroundStyle(.secondary)
                             }
@@ -183,7 +183,7 @@ struct RecipeStartFields: View {
                     .font(.headline)
                 ForEach(plan.refusals, id: \.self) { refusal in
                     Label(refusal, systemImage: "exclamationmark.triangle")
-                        .font(.callout)
+                        .font(.body)
                         .foregroundStyle(.orange)
                 }
                 RecipeDownloadRows(store: store, downloads: project?.modelFinderStore.downloads)

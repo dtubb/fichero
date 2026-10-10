@@ -27,12 +27,12 @@ nonisolated enum SegmentHierarchy {
 
     /// How strongly a level's outline is drawn, times its tone's strength: each finer level lighter than the
     /// one it sits in. A line's shade is at most 1 (`RegionColours`), so a line (<= 0.8) is always lighter
-    /// than its region (1), and a word (its line's shade x 0.55) lighter than its line.
+    /// than its region (1), and a word (its line's shade x 0.7) lighter than its line.
     static func strokeStrength(_ level: Level) -> Double {
         switch level {
         case .region: 1
         case .line: 0.8
-        case .word: 0.55
+        case .word: 0.7
         case .letter: 0.4
         }
     }
@@ -43,7 +43,7 @@ nonisolated enum SegmentHierarchy {
     }
 
     /// The region's faint wash of its hue (no other level fills at rest; hover and selection do).
-    static let regionWash = 0.06
+    static let regionWash = 0.1
 
     /// What the selection does to one box (`children-drawn-as-children`): selecting a parent LIGHTS its
     /// children and DIMS what is outside it; selecting a child shows its PARENT's outline at full strength.

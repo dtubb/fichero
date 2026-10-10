@@ -48,7 +48,7 @@ struct SetupWhereItLivesFields: View {
                     .truncationMode(.middle)
             }
             if let created = store.created {
-                Label("Made: \(created.displayName)", systemImage: "checkmark.circle").font(.callout)
+                Label("Made: \(created.displayName)", systemImage: "checkmark.circle").font(.body)
             }
             if let error = store.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
@@ -158,7 +158,7 @@ struct ProjectIntakeChoice: View {
             if store.ingestMode == .move {
                 Label("Your original files will be removed from where they are now.",
                       systemImage: "exclamationmark.triangle")
-                    .font(.callout)
+                    .font(.body)
                     .foregroundStyle(.orange)
             }
         }
@@ -195,7 +195,7 @@ struct RecipeMaterialSourceFields: View {
             Text("Or add material later; it comes in the way chosen above.")
                 .font(.caption).foregroundStyle(.secondary)
             if let added = store.materialAdded {
-                Label(added, systemImage: "checkmark.circle").font(.callout)
+                Label(added, systemImage: "checkmark.circle").font(.body)
             }
             if let syncFolders, let path = store.tiedFolderPath, let folder = syncFolders.folder(atPath: path) {
                 SyncedFolderSection(store: syncFolders, folder: folder)
@@ -410,7 +410,7 @@ private struct FlowTokens: View {
                     .buttonStyle(.borderless)
                     .accessibilityLabel("Remove \(name(code))")
                 }
-                .font(.callout)
+                .font(.body)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)

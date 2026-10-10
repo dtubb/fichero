@@ -12,7 +12,7 @@ nonisolated enum RegionColours {
     static let paletteCount = 12
 
     /// The last line of a region is drawn at this strength; the first at full (`colour.reading-order-gradient`).
-    static let lightestStrength = 0.45
+    static let lightestStrength = 0.7  // was 0.45: the last lines read as faint (maintainer, 2026-10-09)
 
     /// What colours a segment: its region's place in the palette, and how strongly it is drawn (1 for the
     /// first line in reading order, down to `lightestStrength` for the last).

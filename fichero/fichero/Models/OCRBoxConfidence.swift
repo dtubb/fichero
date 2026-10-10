@@ -66,7 +66,7 @@ enum OCRBoxConfidence {
     /// Stroke opacity for one box. The uncertain one is present but recessive:
     /// still findable, no longer an assertion.
     static func strokeOpacity(_ confidence: Double?) -> Double {
-        isUncertain(confidence) ? 0.35 : 0.8
+        isUncertain(confidence) ? 0.55 : 1  // was 0.35 / 0.8: too faint on a dark page (2026-10-09)
     }
 
     /// Whether the box's recognised TEXT may be drawn inside it.

@@ -21,7 +21,7 @@ struct RecipeDownloadRows: View {
                 ForEach(store.downloads, id: \.model) { download in
                     let key = Self.key(download)
                     HStack(alignment: .firstTextBaseline) {
-                        Text(Self.words(download, store: store)).font(.callout)
+                        Text(Self.words(download, store: store)).font(.body)
                         Spacer()
                         if let downloads, downloads.isActive(key) {
                             ProgressView().controlSize(.small)

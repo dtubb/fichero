@@ -136,7 +136,7 @@ extension FirstRunWindow {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             Text(title)
-                .font(.callout)
+                .font(.body)
             LocalPrivateBadge()
             Spacer()
             Text(detail)

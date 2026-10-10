@@ -75,11 +75,11 @@ struct BakeoffSection: View {
                     .fixedSize()
                 }
                 if let confirmation {
-                    Label(confirmation, systemImage: "checkmark.circle").font(.callout)
+                    Label(confirmation, systemImage: "checkmark.circle").font(.body)
                 }
             }
             if let error = store.errorMessage {
-                Label(error, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
+                Label(error, systemImage: "exclamationmark.triangle").font(.body).foregroundStyle(.orange)
             }
         }
         .padding(.leading, 12)
@@ -105,12 +105,12 @@ struct BakeoffSection: View {
         let label = "Comparing readers on \(comparison.pages.count) pages. It runs in Activity; you can carry on."
         if let job, job.total > 0 {
             ProgressView(value: Double(job.current), total: Double(job.total)) {
-                Text(label).font(.callout)
+                Text(label).font(.body)
             } currentValueLabel: {
                 Text("\(job.current) of \(job.total)")
             }
         } else {
-            ProgressView { Text(label).font(.callout) }
+            ProgressView { Text(label).font(.body) }
                 .progressViewStyle(.linear)
         }
     }

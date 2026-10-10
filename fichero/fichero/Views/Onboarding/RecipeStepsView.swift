@@ -179,14 +179,14 @@ struct RecipeStepRow: View {
         case .title(let text):
             Text(text).font(.headline)
         case .sentence(let text):
-            Text(text).font(.callout)
+            Text(text).font(.body)
         case .place(let text, let cloud):
             Label(text, systemImage: cloud ? "cloud" : "desktopcomputer")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         case .problem(let text):
             Label(text, systemImage: "exclamationmark.triangle")
-                .font(.callout)
+                .font(.body)
                 .foregroundStyle(.orange)
         case .fix(let title, let fix):
             Button(title) { onFix?(fix) }
@@ -236,7 +236,7 @@ struct TopicExplanation: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                Text(topic.short).font(.callout)
+                Text(topic.short).font(.body)
             }
         }
         .textSelection(.enabled)
@@ -327,7 +327,7 @@ struct InspectorProjectLayers: View {
                           plan: Components.Schemas.StartPlan) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("For the pages already here: \(plan.estimate.pages) pages · \(RecipeStartFields.cost(plan.estimate.totalCostUsd))")
-                .font(.callout)
+                .font(.body)
             ForEach(proposed.steps, id: \.step) { step in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(step.title).bold()
