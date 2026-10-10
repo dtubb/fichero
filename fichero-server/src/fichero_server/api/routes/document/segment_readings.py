@@ -1512,7 +1512,10 @@ def _why_omitted(
 #:     derivation itself is unchanged, the bump re-derives every page once so each gains it.
 #: 13: a checked or better-measured machine reading counts over a newer rough one (#5558), so a page's
 #:     text can change; the bump re-derives every page once.
-DERIVATION_VERSION = 13
+#: 14: a reading stored under `normalized_text` reads as a transcription at level regularised (#5653,
+#:     `source.reading.normalized-text-is-a-level`): on a line with no as-written reading it is now the
+#:     line's transcription, and a person's makes the line read from itself; the bump re-derives once.
+DERIVATION_VERSION = 14
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 #: Re-pinned without a bump for #5467: the working pass is read through `working_pass`; a page
@@ -1520,7 +1523,7 @@ DERIVATION_VERSION = 13
 #: unconverted result derives nothing the cache stores (`page_text_cache._derives_text`).
 #: Re-pinned without a bump for #5522: a pass whose result the read checker flagged waits to be
 #: chosen. No result carried a flag before #5522, so no cached page's text changes.
-DERIVATION_SOURCE_SHA256 = "91d4c0c3ae00e9540c3806c4411bd904893954c6f9edb82730758e7f826fdb50"
+DERIVATION_SOURCE_SHA256 = "0adf17d779f0f94fbaf7c082d6f7532de3c0b29d814d9a9782ca31e977f217f7"
 
 
 def derivation_source_digest() -> str:
