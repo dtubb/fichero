@@ -815,7 +815,10 @@ def _reader_config(config_cls: Callable[..., object]) -> object:
     auto 28 s, CPU 13 s, MPS 11 s, with the model already loaded)."""
     from fichero_server.core.compute_preferences import compute_preferences, torch_accelerator
 
-    return config_cls(accelerator=torch_accelerator(compute_preferences()["device"]), device=1)
+    # num_line_workers=0: Kraken's default (2) extracts lines in a multiprocessing Pool, whose semaphore the
+    # app sandbox refuses ("[Errno 1] Operation not permitted"), so every reader failed in the app and worked
+    # in a terminal (2026-10-10). 0 is Kraken's own in-process path; training already runs with --workers 0.
+    return config_cls(accelerator=torch_accelerator(compute_preferences()["device"]), device=1, num_line_workers=0)
 
 
 def _segmenter() -> object:
