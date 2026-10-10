@@ -62,6 +62,8 @@ def test_extract_entities_preset_persists_entities_and_is_idempotent(tmp_path: P
         "entities_created": 2,
         "entities_reused": 2,
         "entities_suppressed": 0,
+        "documents_left_out": 0,
+        "left_out": [],
     }
 
     second = asyncio.run(
@@ -79,6 +81,8 @@ def test_extract_entities_preset_persists_entities_and_is_idempotent(tmp_path: P
         "entities_created": 0,
         "entities_reused": 4,
         "entities_suppressed": 0,
+        "documents_left_out": 0,
+        "left_out": [],
     }
 
     entities = db.query(KnowledgeEntity)
@@ -147,6 +151,8 @@ def test_extract_entities_tool_accepts_singleton_document_payload_without_unpack
         "entities_created": 2,
         "entities_reused": 0,
         "entities_suppressed": 0,
+        "documents_left_out": 0,
+        "left_out": [],
     }
 
 

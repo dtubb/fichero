@@ -25,6 +25,7 @@ import json
 import pytest
 
 from fichero_server.checking import tie_text
+from fichero_server.formats.abbreviation_markup import as_written  # the set holds lines as written (#5651)
 from fichero_server.execution import jobs
 from fichero_server.llm import kraken_runtime
 from fichero_server.llm.working_lines import READ_ONTO_PASS, write_readings
@@ -154,7 +155,7 @@ def test_a_rough_kraken_reread_does_not_displace_the_tied_stretch_of_a_better_re
     assert _counting(db, lines) == tied
     derived = client.get(f"/api/segments/document/{page['doc'].id}/text", params={"pass_id": page["kraken"].id})
     assert "rough" not in derived.json()["text"]
-    assert [t for t in _training_set_texts(db, page, tmp_path) if t] == [t for t in tied if t]
+    assert [t for t in _training_set_texts(db, page, tmp_path) if t] == [as_written(t) for t in tied if t]
 
 
 def test_with_no_scores_the_newest_machine_reading_still_counts(client, db, page, reader, tmp_path):
@@ -208,7 +209,7 @@ def test_mosquera_a_checked_cloud_page_reading_keeps_its_tied_lines(client, db, 
     _measure(db, page, STOCK, "kraken", damage=0)  # even measured perfect, an unchecked rough read ranks below
     _reread(db, page)
     assert _counting(db, _lines(db, page["kraken"].id)) == tied
-    assert [t for t in _training_set_texts(db, page, tmp_path) if t] == [t for t in tied if t]
+    assert [t for t in _training_set_texts(db, page, tmp_path) if t] == [as_written(t) for t in tied if t]
 
 
 def test_a_doubtful_tied_stretch_does_not_inherit_its_page_readings_check(client, db, page, reader):

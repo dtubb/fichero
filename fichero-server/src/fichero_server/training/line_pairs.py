@@ -37,12 +37,16 @@ def _points(coords: str) -> list[tuple[float, float]]:
 def lines_with_ids(page_xml: str) -> list[tuple[str, list[tuple[float, float]], str]]:
     """(PAGE id, polygon in pixels, text) for each TextLine with an outline and some text, in file order.
     Fichero's writer gives a line the id of its segment (`formats.harness.xml_id`), so the same line
-    is found again in the episode ledger."""
+    is found again in the episode ledger. The text is AS WRITTEN (#5651): a corpus's abbreviation markup
+    (`dha$.dicha`) is not ink, so neither a student's answer nor the checked text a teacher is scored
+    against carries it -- the same text the Kraken set holds (`kraken_set.drop_flagged_lines`)."""
+    from fichero_server.formats.abbreviation_markup import as_written
+
     root = parse_xml_string(page_xml)
     found = []
     for line in root.iter(f"{_NS}TextLine"):
         coords = line.find(f"{_NS}Coords")
-        text = "".join(u.text or "" for u in line.iter(f"{_NS}Unicode")).strip()
+        text = as_written("".join(u.text or "" for u in line.iter(f"{_NS}Unicode"))).strip()
         if coords is not None and coords.get("points") and text:
             found.append((line.get("id") or "", _points(coords.get("points")), text))
     return found
