@@ -164,10 +164,19 @@ class RecipeRunSummary(BaseModel):
     not_run: list[RecipeRunStep] = Field(description="the stages that did not run, failed or were stopped, with why")
 
 
-def _pages(db: Any, documents: Optional[list[str]]) -> list[str]:
+def _pages(db: Any, documents: Optional[list[str]], folder_id: Optional[str] = None) -> list[str]:
+    """The pages the run ran over: an import's, a folder's (`source.recipe.folder-scoped-start`), or the project's."""
     from fichero_server.recipes.done import pages_for
+    from fichero_server.recipes.runner import folder_scope
 
-    return pages_for(db, {}, documents)
+    pages = pages_for(db, {}, documents)
+    if folder_id is None:
+        return pages
+    try:
+        within = folder_scope(db, folder_id)
+    except LookupError:  # the folder was deleted since: none of its pages are live
+        return []
+    return [p for p in pages if p in within]
 
 
 def _has_reading(db: Any, doc_id: str) -> bool:
@@ -250,7 +259,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     from fichero_server.recipes import runner
 
     status = await with_accounts(db, runner.status(db, job_id))
-    pages = _pages(db, status.get("documents"))
+    pages = _pages(db, status.get("documents"), status.get("folder_id"))
     names, dates, statements = _knowledge(db, pages)
     failed: list[StageFailures] = []
     for step in status["steps"]:

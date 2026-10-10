@@ -173,6 +173,8 @@ def test_a_folder_start_covers_only_that_folders_pages(client, db, archive, step
     assert run["state"] == "done" and run["folder_id"] == archive["A"], run
     touched = {page for _step, pages in steps.ran for page in pages}
     assert touched == inside, "the run touched pages outside the folder, or missed one inside it"
+    summary = client.get(f"/api/recipes/project/runs/{run['job_id']}/summary").json()
+    assert summary["pages"] == 3, "the summary counts the folder's pages, not the project's"
 
 
 def test_a_folder_not_in_the_project_is_refused(client, db, archive, steps):
