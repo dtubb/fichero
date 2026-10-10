@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: you want the document's text in modern Spanish orthography — same words, modern spelling, expanded abbreviations — beside the diplomatic transcription. Writes a normalised-text reading on the page; the original transcription is untouched.
+Use this when: you want the document's text in modern Spanish orthography — same words, modern spelling, expanded abbreviations — beside the diplomatic transcription. Writes a transcription at level modernised on the page, beside the one as written; the original transcription is untouched.
 
 | | |
 | --- | --- |
@@ -27,7 +27,8 @@ Settings this step uses:
 | Option | Value |
 | --- | --- |
 | `prompt` | Produce a MODERNIZED Spanish reading of this historical document, for a reader who cannot handle the period orthography. Use the existing transcription as context if provided; read the image where it is silent. Rules: modern spelling and accents (hacer, hijo, dijo, ciudad), expand every abbreviation silently, normalize u/v i/j, separate run-together words, add light modern punctuation — but change NO wording: this is the same text in modern clothes, not a paraphrase. Keep line breaks loosely by paragraph rather than by manuscript line. Mark unresolved readings [UNCERTAIN: ...]. Output only the modernized text. |
-| `reading_kind` | normalized_text |
+| `reading_kind` | transcription |
+| `reading_level` | modernised |
 | `thinking_mode` | medium |
 
 What this step asks the model:

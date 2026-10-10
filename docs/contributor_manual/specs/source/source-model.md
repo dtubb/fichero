@@ -498,12 +498,13 @@ level it was made for.
   (`LLMToolConfig.reading_kind`), and the one artifact save writes that reading on the node it was
   made from (`representation.create`, derived from the run's artifact, under the run). Translate,
   Translate Text and Translate Review write a `translation` reading; the three historical presets name
-  theirs on the Analyze step (`translation`, `normalized_text`, and a new seeded kind `regest`), file
+  theirs on the Analyze step (`translation`, a transcription at level `modernised` -- its artifact typed
+  `modernised`, `source.reading.normalized-text-is-a-level` -- and a new seeded kind `regest`), file
   their artifact under that kind instead of `analysis`, and no longer copy it into
   `metadata["analysis"]`. The same seam for the other text tools: Describe and Caption write a
   `description` reading of the page; Summarize, Summarize File, Summarize Folder and Summarize
-  Collection a `description` reading of what they summarise; Clean Up Text a `normalized_text`
-  reading; Rewrite a `paraphrase` reading (a new seeded kind), or a `translation` when it names a
+  Collection a `description` reading of what they summarise; Clean Up Text a correction of the
+  transcription as written (a transcription at level `as_written`); Rewrite a `paraphrase` reading (a new seeded kind), or a `translation` when it names a
   target language; AI Convert a `markdown`, `html` or `svg` reading (LaTeX and CSV have no kind and
   stay the artifact). A read the read guard flags writes no reading. Pinned by
   `fichero-server/tests/unit/workflows/test_text_outputs_are_readings.py` (each preset and each tool
