@@ -35,6 +35,7 @@ enum FirstLaunchChoices {
     }
 
     /// The same, named as the always-there project is now (My Project unless renamed).
+    @MainActor
     static func useAlwaysThereProject() -> String {
         useAlwaysThereProject(named: LibraryManager.shared.globalLibrary?.displayName ?? AlwaysThereProject.defaultName)
     }

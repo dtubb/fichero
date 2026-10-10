@@ -23,9 +23,9 @@ struct SettingsSectionInfo {
         case .knowledge:
             return SettingsSectionInfo(title: "Knowledge", symbol: "point.3.filled.connected.trianglepath.dotted", tint: .pink)
         case .libraryView:
-            return SettingsSectionInfo(title: ItemsPane.name, symbol: "square.grid.2x2", tint: .blue)
+            return SettingsSectionInfo(title: LocalizedStringKey(ItemsPane.name), symbol: "square.grid.2x2", tint: .blue)
         case .previewView:
-            return SettingsSectionInfo(title: SourcePane.name, symbol: "sidebar.right", tint: .teal)
+            return SettingsSectionInfo(title: LocalizedStringKey(SourcePane.name), symbol: "sidebar.right", tint: .teal)
         case .readerView:
             return SettingsSectionInfo(title: "Reader", symbol: "book", tint: .orange)
         case .inspectorView:
