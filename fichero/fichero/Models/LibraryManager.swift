@@ -207,6 +207,10 @@ class LibraryManager {
         /// "What has been run" section reads it from here.
         @ObservationIgnored lazy var runHistoryStore = RunHistoryStore(client: ficheroClient)
 
+        /// Find the Documents' proposals waiting for a person (#5550): a folder's Inspector lists them
+        /// with Accept, Reject and Accept All Above.
+        @ObservationIgnored lazy var foundDocumentsStore = FoundDocumentsStore(client: ficheroClient)
+
         /// This project's kept exports (#5485): setup's Kept exported screen keeps them, and the
         /// project's Inspector lists them with Write Now and Remove.
         @ObservationIgnored lazy var keptExportStore = KeptExportStore(client: ficheroClient)

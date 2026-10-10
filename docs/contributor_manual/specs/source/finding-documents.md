@@ -155,8 +155,11 @@ involve the company it names. Lessons the tool must carry:
   (made if missing, the classifications code), groups the documents of a fully accepted group, and
   arranges the folder's canvas (the Arrange code); one undo of its audit row (`finddocs.unaccept`)
   restores the folder, the prototypes and the canvas; redo accepts again. Pinned by
-  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py`. *App: Accept, Reject and Accept
-  All Above a Confidence are not built.*
+  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py`. **Built 2026-10-10 (app):** Find
+  the Documents on a folder or a selection (library and sidebar menus); a folder's Inspector lists the
+  documents still proposed (pages, kind, confidence, reasons) with Accept, Reject and Accept All at least
+  95/90/80/70% sure, through the same actions; pinned by `fichero/Tests/Unit/general/Models/FoundDocumentsStoreTests.swift`.
+  *Not built: proposals drawn on the canvas (`finddocs.canvas.drawn`).*
 - `finddocs.corrections-teach` — **[PARTIAL]** (#5550) every accept, reject and adjustment is kept as a
   labelled example for the project. **Built 2026-10-07 (engine):** accepted and rejected documents keep
   their state on the stored proposal (`finddocs.reject`, undoable). *Not built: an adjustment (a moved
