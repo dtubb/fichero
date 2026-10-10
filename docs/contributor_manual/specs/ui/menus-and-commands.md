@@ -201,6 +201,62 @@ restated here; three are a cluster of undo-scope GAPs living in `audited-action-
 
 ---
 
+## RULED 2026-10-10 — the Project menu, stage by stage
+
+The maintainer ruled the menu bar's shape and its one rule for verbs:
+
+- **The bar:** `Fichero · File · Edit · View · Go · Page · Project · Window · Help`. **Project** replaces
+  **Knowledge**, which retires. **Read** becomes **Page** in a later slice (#5652); until then the bar
+  reads `… Go · Read · Segment · Project · …`.
+- **Project** is one menu: **Set Up…** and **Start** (⇧⌘↩) at the top, then one titled section per
+  recipe stage, in the order a recipe runs them: **Read · Organise · Structure · Connect · Train**. A
+  stage lists only verbs the app has; a stage with none yet shows nothing.
+- **Every context-menu verb is also in the menu bar**, through ONE shared `Focused*Button` (or the one
+  `*MenuItem` it renders), so the two never disagree (`menus.context-matches-bar`).
+- **File makes, opens and closes projects;** it says Project, never Library (renamed 2026-10-03), and
+  `…`, never `...`. Setting up the key window's project is Project › Set Up….
+
+Behaviours (slice 1):
+
+- `menus.project.bar` — **[PARTIAL]** (#5652) **Built 2026-10-10 (app), not yet seen:** a top-level
+  **Project** menu replaces Knowledge (`CommandMenu("Project")` in `ReadKnowledgeMenuCommands.swift`,
+  composed there because the app's `.commands` builder is at its 10-entry limit); pinned by
+  `MenuTerminologyBoundaryTests.testProjectMenuDeclaresTheStageSectionsInRecipeOrder`. *Not built:*
+  Read → Page (#5652).
+- `menus.project.setup-and-start-first` — **[OK]** **Built 2026-10-10 (app), not yet seen:** Project's
+  first items are **Set Up…** (`FocusedSetUpButton`, the window's `setUpProjectAction`, the same setup
+  as Inspector › Recipe › Set Up…) and **Start** ⇧⌘↩ (`FocusedStartRecipeButton`, the same
+  `RecipeSetupStore.start` call setup's Start makes; a plan not read yet is read on the press; a plan
+  that cannot start opens Set Up… so its steps say why; a kept Start lands on the run in Activity, as
+  setup's does). Each is disabled with its reason under it when there is no project, or when the plan
+  refuses (the refusal is the reason); pinned by
+  `MenuTerminologyBoundaryTests.testProjectMenuDeclaresTheStageSectionsInRecipeOrder`,
+  `testStartSaysWhyItCannotAct`, and `MenuShortcutUniquenessTests.projectMenuChordsAreUnique`.
+- `menus.project.stage-sections` — **[PARTIAL]** (#5652) **Built 2026-10-10 (app), not yet seen:** the
+  stages are `ProjectMenuStage` in recipe order, each a titled `Section`: **Organise** › Find the
+  Documents (⇧⌘D), **Connect** › SPARQL Console… (moved from Knowledge); **Workflows ▸** and **Chat ▸**
+  (moved from Knowledge) follow the stages. *Not built:* **Read** › Reading ▸ (#5652), **Structure**
+  (no verb yet), **Train** › Train a Model… and the Models node's model-row menu (#5652).
+- `menus.project.find-the-documents-one-component` — **[OK]** **Built 2026-10-10 (app), not yet seen:**
+  Find the Documents is ONE item, `FindDocumentsMenuItem` (`FocusedCommandButtons+Recipe.swift`),
+  rendered by Project › Organise (`FocusedFindDocumentsButton`, on the key window's library selection,
+  else the folder the window shows), the library's context menu and the sidebar's (on the clicked
+  folder, or the selection it is part of); what it looks through is one pure policy,
+  `FindDocumentsScope`. Disabled with its reason when there is no project or nothing fits. The chord
+  is **⇧⌘D**, not ⌥⌘K, which the Preview's Check markup tool already has; pinned by
+  `MenuTerminologyBoundaryTests.testFindTheDocumentsIsOneComponent`, `testFindDocumentsScope`, and
+  `MenuShortcutUniquenessTests.projectMenuChordsAreUnique`.
+- `menus.file.says-project` — **[OK]** **Built 2026-10-10 (app), not yet seen:** File reads Set Up New
+  Project…, Open…, Open Recent ▸ (No Recent Projects), Close Project, … Save Project As…, Export ▸
+  (BibTeX (.bib)…, Markdown Static Site…), Grant Folder Access…; File › Set Up Project… is gone (it is
+  Project › Set Up…); pinned by
+  `MenuTerminologyBoundaryTests.testFileMenuLabelsSayProjectAndUseTheEllipsis`.
+- `menus.project.later-slices` — **[GAP]** (#5652) Train a Model… with the Models node rename and the
+  model row's menu; Project › Read › Reading ▸ and Read → Page; Activity's Stop and Read Again in the
+  menu bar; Edit parity for every context-menu verb.
+
+---
+
 ## Intent (the design)
 
 A command exists **once** and appears wherever it is useful — the menu bar (discovery, keyboard
@@ -284,6 +340,10 @@ only when a term repeats.*
 > `Knowledge` (`ReadKnowledgeMenuCommands`) replace the former `CommandMenu("Data")`. The remaining
 > per-menu item placements below are still the proposal; only the top-level bar and the
 > Import/Find/Full-Screen moves (see Changelog) have landed.
+>
+> **Superseded 2026-10-10** by "RULED 2026-10-10 — the Project menu" above: Knowledge retired into
+> **Project**, and Read becomes **Page** (#5652). Items below marked **[GAP]** were proposed and never
+> built (#5652).
 
 Two domain menus (**Read**, **Knowledge**) carry the archival workflow; the rest are the macOS
 standards, each cleaned to its true job. Title-case labels; verbs for actions; ellipsis where more
@@ -293,20 +353,26 @@ uniform per group.
 - **File** — get sources in and out (Parts III, IX). New Library… (no chord), Open…, Open Recent ▸, Close
   Library · New Window (**⌘N**, always a separate window), New Tab (**⌘T**, always a tab in the key
   window's tab group; macOS), Duplicate Window (#5286: the Finder and Safari grammar) · **Import ▸** (Link/Copy/Move Files…, New Folder) · **Export
-  ▸** (Markdown…, Word…, BibTeX…, Markdown Static Site…) · Grant Folder Access… · Print…
+  ▸** (Markdown…, Word…, BibTeX…, Markdown Static Site…) · Grant Folder Access… · Print… **[GAP]**
+  (#5652; no Print… exists). *Changed 2026-10-10:* New Library… is Set Up New Project…, Close Library
+  is Close Project.
 - **Edit** — change the selection. Undo/Redo · Cut/Copy/Paste · Delete · Select All · Rename · Find…
   (the app's own search surfaces own ⌘F; keep the routed Select All / Undo from `MenuShortcutBoundaryTests`.)
 - **View** — how it LOOKS (Part V, appearance only). As Icons/List/Columns/Gallery (⌘1–6) · **Sort By
   ▸** · **Preview ▸** (Side/Bottom/Hide, Representation) · Show/Hide Sidebar · Show/Hide Inspector
   (⌃⌘I) · Panes ▸ · **Workspaces ▸** (⌘⌥1–5, Save…, Manage…) · Enter Full Screen. (Submenus, per the
   ratified nesting.)
-- **Go** — move around. Back/Forward · Enclosing Folder · Reveal in Sidebar · recent locations.
+- **Go** — move around. Back/Forward · Enclosing Folder · Reveal in Sidebar **[GAP]** (#5652; not
+  built) · recent locations.
 - **Read** — the reading & annotating surface (Parts IV, VI). **Reader Lens ▸** (Content, Translation,
-  Artifact…) · **Representation ▸** · **Annotate ▸** (markup tools, ruler) · **Extract ▸** (Run OCR,
-  Run NLP, Detect Language) · Zoom (In/Out/Actual Size/Fit) · **Magnifier ▸** (Loupe, panel) · Next/
-  Previous Page. Everything you do WHILE reading a source lives here, not scattered in View.
-- **Knowledge** — making & querying meaning (Parts VII, VIII; the AI/data workflow). New Claim, New
-  Entity · SPARQL Console… (#3298, its own window) · **Workflows ▸** (New Workflow/Chain/Comparison/
+  Artifact…) · **Representation ▸** **[GAP]** · **Annotate ▸** (markup tools, ruler) **[GAP]** ·
+  **Extract ▸** (Run OCR, Run NLP, Detect Language) **[GAP]** (#5652; none of the three exists — the
+  Read menu has Reader Lens ▸, Zoom ▸ and Rotate) · Zoom (In/Out/Actual Size/Fit) · **Magnifier ▸**
+  (Loupe, panel) · Next/Previous Page. Everything you do WHILE reading a source lives here, not
+  scattered in View.
+- **Knowledge** — **retired 2026-10-10 into Project** (see the ruling above). Making & querying meaning
+  (Parts VII, VIII; the AI/data workflow). New Claim, New Entity **[GAP]** (#5652; never built) ·
+  SPARQL Console… (#3298, its own window; now Project › Connect) · **Workflows ▸** (New Workflow/Chain/Comparison/
   Schedule/Trigger, Run Workflow on Selection…) · **Chat ▸** (New Chat) · **Search ▸** (Search, Saved
   Searches). "Knowledge Graph View" retired with the KG sidebar mode (#4705 increment 3). This is
   today's "Data" menu, renamed and completed to read as the meaning-making stage — and its items are
@@ -475,6 +541,9 @@ either way (shared components), but scope of the cross-platform tests depends on
 - `menus.context-matches-bar` — **[PROPOSED]** (#4693) a verb in both a context menu and the menu bar is the
   SAME component (same label/icon/shortcut/enablement). *Test:* the `SidebarContextMenuPolicyTests`
   pure-function shape — assert the context menu's verb list is drawn from the shared components.
+  **Ruled 2026-10-10:** every context-menu verb is also in the menu bar, through one shared component.
+  *Built 2026-10-10 for Find the Documents* (`menus.project.find-the-documents-one-component`); the
+  rest is #5652.
 - `menus.undo-reaches-every-mutating-action` — **[OK]** ⌘Z is a central, multi-level undo seam,
   not a one-button special case. Verified at HEAD 2026-09-19: `ActionInvokeService.invokeAction`
   (`Services/ActionInvokeService.swift:62-68`) records EVERY successful audited mutation into the
