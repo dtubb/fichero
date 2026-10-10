@@ -290,35 +290,12 @@ extension LibraryView {
             Label("Bookmark…", systemImage: "bookmark")
         }
 
-        // Find the Documents (#5550) on a folder or a selection of pages.
-        let findScope = findDocumentsScope(for: document)
+        // Find the Documents (#5550) on a folder or a selection of pages: the Project menu's own item.
+        let findScope = FindDocumentsScope.forClick(
+            on: document.id, isFolder: document.docType == .folder, selection: selection
+        )
         if !findScope.isEmpty {
-            Button {
-                findDocuments(in: findScope)
-            } label: {
-                Label("Find the Documents", systemImage: "doc.on.doc")
-            }
-        }
-    }
-
-    /// The selection when the clicked item is in a selection of several (Finder semantics),
-    /// else the clicked folder; nothing for a lone page, which has no documents to find.
-    private func findDocumentsScope(for document: Document) -> [String] {
-        if selection.contains(document.id) && selection.count > 1 {
-            return Array(selection)
-        }
-        return document.docType == .folder ? [document.id] : []
-    }
-
-    /// Starts the job; Activity shows its progress, and the folder updates as it accepts.
-    private func findDocuments(in scopeIds: [String]) {
-        guard let library = activeLibraryReference else { return }
-        Task {
-            do {
-                _ = try await library.documentService.findDocuments(scopeIds: scopeIds)
-            } catch {
-                documentStore.error = error
-            }
+            FindDocumentsMenuItem(scopeIds: findScope, library: activeLibraryReference)
         }
     }
 

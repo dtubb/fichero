@@ -120,7 +120,7 @@ struct ActivityDetailsView: View {
             if let libraryId = selection.libraryId {
                 LibraryManager.shared.requestSetUp(for: libraryId)
             } else {
-                failure = "Couldn't open the project's setup: open it with File › Set Up Project…"
+                failure = "Couldn't open the project's setup: open it with Project › Set Up…"
             }
         }
         actionFailure = failure

@@ -468,7 +468,7 @@ extension LibraryView {
 
             #if os(macOS)
             // An empty project offers its setup here (`source.onboard.reachable`, #5421): the
-            // same request File › Set Up Project… makes, presented by the window.
+            // same request Project › Set Up… makes, presented by the window.
             if projectOffersSetUp(
                 reason: reason,
                 isLoaded: libraryManager.loadedLibraryIds.contains(windowState.libraryId),

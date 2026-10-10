@@ -216,7 +216,7 @@ struct LibraryWindow: View {
         .focusedSceneValue(\.newLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleNewLibrary() }))
         .focusedSceneValue(\.saveLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleSaveLibrary() }))
         .focusedSceneValue(\.closeLibraryAction, closeLibraryAction)
-        // File › Set Up Project… for this window's project (`source.onboard.reachable`, #5421).
+        // Project › Set Up… for this window's project (`source.onboard.reachable`, #5421).
         .focusedSceneValue(\.setUpProjectAction, FocusedLibraryAction(
             isEnabled: true,
             target: windowState.libraryId.uuidString,
@@ -278,7 +278,7 @@ struct LibraryWindow: View {
                 .environment(appState)
         }
         .modifier(NewProjectSetUpSheet(isPresented: $showingNewProjectSetUp) { assignLibrary(id: $0) })
-        // Setup for THIS window's project (#5421): File › Set Up Project…, or an empty project's
+        // Setup for THIS window's project (#5421): Project › Set Up…, or an empty project's
         // Set Up…. The same flow as Inspector › Info › Recipe › Set Up….
         // Armed like first run (#3163), and never gated on `firstRunCompleted`.
         .sheet(isPresented: Binding(

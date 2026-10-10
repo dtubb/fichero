@@ -20,7 +20,6 @@ struct FileMenuCommands: View {
     @FocusedValue(\.duplicateWindowAction) private var duplicateWindowAction
     @FocusedValue(\.saveLibraryAction) private var saveLibraryAction
     @FocusedValue(\.closeLibraryAction) private var closeLibraryAction
-    @FocusedValue(\.setUpProjectAction) private var setUpProjectAction
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
     @Environment(\.openWindow) private var openWindow
     @State private var registry = KnownLibraryRegistryStore.shared
@@ -50,7 +49,7 @@ struct FileMenuCommands: View {
             }
             // No chord: ⌘N is New Window, as in Finder and Safari (#5286).
 
-            Button("Open...") {
+            Button("Open…") {
                 if let openLibraryAction {
                     openLibraryAction.run()
                 } else {
@@ -68,7 +67,7 @@ struct FileMenuCommands: View {
             Menu("Open Recent") {
                 if BackendHost.appDefault.isLocal {
                     if LibraryRecents.shared.entries.isEmpty {
-                        Text("No Recent Libraries")
+                        Text("No Recent Projects")
                     } else {
                         ForEach(LibraryRecents.shared.entries) { entry in
                             Button(entry.displayName) {
@@ -84,11 +83,11 @@ struct FileMenuCommands: View {
                     }
                 } else if let fetchError = registry.fetchError,
                           registry.libraries.isEmpty {
-                    Text("Couldn’t load recent libraries")
+                    Text("Couldn’t load recent projects")
                     Text(fetchError)
                         .foregroundStyle(.secondary)
                 } else if registry.libraries.isEmpty {
-                    Text("No Recent Libraries")
+                    Text("No Recent Projects")
                 } else {
                     ForEach(registry.libraries) { library in
                         Button(library.displayName) {
@@ -111,21 +110,13 @@ struct FileMenuCommands: View {
                     : registry.libraries.isEmpty && registry.fetchError == nil
             )
 
-            // One Group: the outer Group is at @ViewBuilder's 10-entry arity limit.
-            Group {
-                // Setup for the key window's project, the same flow as Inspector › Info ›
-                // Recipe › Set Up… (`source.onboard.reachable`, #5421).
-                Button("Set Up Project…") {
-                    setUpProjectAction?.run()
-                }
-                .disabled(setUpProjectAction == nil)
-
-                Button("Close Library") {
-                    closeLibraryAction?.run()
-                }
-                .keyboardShortcut("w", modifiers: [.command, .control])
-                .disabled(closeLibraryAction == nil)
+            // Setup for the key window's project is Project › Set Up… (ruled 2026-10-10): File
+            // makes, opens and closes projects; the Project menu sets one up and starts it.
+            Button("Close Project") {
+                closeLibraryAction?.run()
             }
+            .keyboardShortcut("w", modifiers: [.command, .control])
+            .disabled(closeLibraryAction == nil)
 
             Divider()
 
@@ -203,7 +194,7 @@ struct FileMenuCommands: View {
 
             Divider()
 
-            Button("Save Library As...") {
+            Button("Save Project As…") {
                 saveLibraryAction?.run()
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
@@ -223,14 +214,14 @@ struct FileMenuCommands: View {
                 Button {
                     Task { await exportBibtex() }
                 } label: {
-                    Label("BibTeX (.bib)...", systemImage: "text.quote")
+                    Label("BibTeX (.bib)…", systemImage: "text.quote")
                 }
                 .disabled(currentLibrary == nil)
 
                 Button {
                     Task { await exportEleventySite() }
                 } label: {
-                    Label("Markdown Static Site...", systemImage: "globe")
+                    Label("Markdown Static Site…", systemImage: "globe")
                 }
                 .disabled(currentLibrary == nil)
             } label: {
@@ -246,7 +237,7 @@ struct FileMenuCommands: View {
             // bookmark is handed to the RUNNING engine, so previews recover
             // without a relaunch.
             #if os(macOS)
-            Button("Grant Folder Access...") {
+            Button("Grant Folder Access…") {
                 FolderAccessManager.shared.requestFolderAccess { granted in
                     logger.info("Manual folder grant: \(granted ? "granted" : "declined")")
                 }
@@ -321,7 +312,7 @@ private extension FileMenuCommands {
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Open"
-        panel.message = "Choose a Fichero library to open."
+        panel.message = "Choose a Fichero project to open."
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let library = libraryManager.openLibrary(at: url)

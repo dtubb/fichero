@@ -285,6 +285,8 @@ extension ContentView {
             .focusedSceneValue(\.rotateImagesRight, rotateImagesAction(degrees: -90))
             .focusedSceneValue(\.groupSelectedItems, groupItemsAction)
             .focusedSceneValue(\.ungroupSelectedItem, ungroupItemAction)
+            // The Project menu: this window's project and Find the Documents' scope (ruled 2026-10-10).
+            .focusedSceneValue(\.projectMenu, projectMenuTarget)
     }
 
     /// NavigationSplitView + the FIRST half of its modifier chain.

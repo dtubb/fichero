@@ -241,7 +241,7 @@ struct SaveLibraryActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
-/// FocusedValue key for File › Set Up Project…: asks for setup of the key window's project
+/// FocusedValue key for Project › Set Up…: asks for setup of the key window's project
 /// (`source.onboard.reachable`, #5421).
 struct SetUpProjectActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
