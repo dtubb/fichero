@@ -193,6 +193,14 @@ struct GoMenuCommands: Commands {
         // `CommandGroup(after: .help)` in FicheroApp would be the 11th entry.
         CommandGroup(after: .help) {
             Link("Fichero User Manual", destination: URL(string: "https://tubb.ca/apps/fichero/")!)
+            // Help › Save Logs for Support… (#5656): dev tier only. The tier is
+            // a launch constant, so reading it here needs no observation.
+            #if os(macOS)
+            if SupportLogs.isOffered(for: FeatureManager.shared.activeBuildTier) {
+                Divider()
+                SaveLogsForSupportButton()
+            }
+            #endif
         }
     }
 }
