@@ -34,9 +34,12 @@ struct ProjectMenuTarget: Equatable {
     let library: LibraryManager.LibraryReference?
     /// The folders, or the pages, Find the Documents would look through; empty when nothing fits.
     let findDocumentsScope: [String]
+    /// The one folder Run the Recipe on This Folder… would run on; nil when there is none.
+    var recipeFolderId: String?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.projectId == rhs.projectId && lhs.findDocumentsScope == rhs.findDocumentsScope
+            && lhs.recipeFolderId == rhs.recipeFolderId
     }
 }
 
@@ -72,7 +75,9 @@ struct FocusedStartRecipeButton: View {
 
     var body: some View {
         let store = target?.library?.recipeSetupStore
-        let reason = Self.disabledReason(hasProject: store != nil, plan: store?.startPlan)
+        // A folder's plan (Run the Recipe on This Folder…) is not the project's: read as not read yet.
+        let projectPlan = store?.startPlanFolderId == nil ? store?.startPlan : nil
+        let reason = Self.disabledReason(hasProject: store != nil, plan: projectPlan)
         Button("Start") {
             guard let store, let projectId = target?.projectId else { return }
             Task { await start(store, projectId: projectId) }
@@ -94,7 +99,7 @@ struct FocusedStartRecipeButton: View {
     }
 
     private func start(_ store: RecipeSetupStore, projectId: UUID) async {
-        if store.startPlan == nil { await store.loadStartPlan() }
+        if store.startPlan == nil || store.startPlanFolderId != nil { await store.loadStartPlan() }
         guard store.canStart else {
             setUpProjectAction?.run()
             return
@@ -107,6 +112,93 @@ struct FocusedStartRecipeButton: View {
             openWindow(id: ActivityWindowSelectionState.detailWindowID)
         }
         #endif
+    }
+}
+
+// MARK: - Read › Run the Recipe on This Folder…
+
+/// The one folder "Run the Recipe on This Folder…" acts on (`source.recipe.folder-scoped-start`, #5540).
+/// Pure, so every surface agrees.
+enum RecipeFolderScope {
+    /// Why the item cannot act: no single folder.
+    static let noFolderReason = "Select one folder to run the recipe on"
+
+    /// A context menu: the clicked folder, unless it is one of several selected (Finder semantics: the
+    /// verb would act on the selection, and the recipe runs on one folder); a page is nothing.
+    static func forClick(on id: String, isFolder: Bool, selection: Set<String>) -> String? {
+        if selection.contains(id) && selection.count > 1 { return nil }
+        return isFolder ? id : nil
+    }
+
+    /// The menu bar: the one selected folder; or, with nothing selected, the folder the window shows.
+    /// Several selected, or one page, is nothing.
+    static func forSelection(
+        _ selection: Set<String>, shownFolderId: String?, isFolder: (String) -> Bool
+    ) -> String? {
+        if selection.count > 1 { return nil }
+        if let only = selection.first { return isFolder(only) ? only : nil }
+        if let shownFolderId, isFolder(shownFolderId) { return shownFolderId }
+        return nil
+    }
+}
+
+/// THE "Run the Recipe on This Folder…" item: one label and one action, rendered by the Project menu and by
+/// the library's and the sidebar's folder context menus. It reads the folder's Start plan (`folder_id`) and,
+/// when the plan can start, starts the run on that folder and opens it in Activity, as Start does; when it
+/// cannot, Set Up… opens so the steps say why, as Start does.
+struct RunRecipeOnFolderMenuItem: View {
+    let folderId: String?
+    let library: LibraryManager.LibraryReference?
+    @FocusedValue(\.setUpProjectAction) private var setUpProjectAction
+    @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button {
+            guard let folderId, let library else { return }
+            Task { await run(folderId: folderId, library: library) }
+        } label: {
+            Label("Run the Recipe on This Folder…", systemImage: "play.rectangle")
+        }
+        .disabled(folderId == nil || library == nil)
+    }
+
+    private func run(folderId: String, library: LibraryManager.LibraryReference) async {
+        let store = library.recipeSetupStore
+        await store.loadStartPlan(folderId: folderId)
+        guard store.canStart, await store.start(folderId: folderId) else {
+            setUp(library)
+            return
+        }
+        #if os(macOS)
+        if let selection = FirstRunWindow.startedRunSelection(jobId: store.startedRunJobId, projectId: library.id) {
+            ActivityWindowSelectionState.shared.select(selection)
+            openWindow(id: ActivityWindowSelectionState.detailWindowID)
+        }
+        #endif
+    }
+
+    /// Set Up… for the folder's project: the same request the Project menu's Set Up… makes.
+    private func setUp(_ library: LibraryManager.LibraryReference) {
+        if let libraryManager {
+            libraryManager.requestSetUp(for: library.id)
+        } else {
+            setUpProjectAction?.run()
+        }
+    }
+}
+
+/// Project › Read › Run the Recipe on This Folder… on the key window's one folder; disabled with why otherwise.
+struct FocusedRunRecipeOnFolderButton: View {
+    @FocusedValue(\.projectMenu) private var target
+
+    var body: some View {
+        RunRecipeOnFolderMenuItem(folderId: target?.recipeFolderId, library: target?.library)
+        if target == nil {
+            Text("Open a project to run its recipe")
+        } else if target?.recipeFolderId == nil {
+            Text(RecipeFolderScope.noFolderReason)
+        }
     }
 }
 
@@ -191,15 +283,19 @@ extension ContentView {
             return nil
         }()
         let store = documentStore
-        let scope = FindDocumentsScope.forSelection(browserSelection, shownFolderId: shownFolderId) { id in
+        let isFolder = { (id: String) -> Bool in
             let document = store.currentDocuments.first { $0.id == id }
                 ?? store.childrenCache.values.lazy.flatMap({ $0 }).first { $0.id == id }
             return document?.docType == .folder
         }
+        let scope = FindDocumentsScope.forSelection(browserSelection, shownFolderId: shownFolderId, isFolder: isFolder)
         return ProjectMenuTarget(
             projectId: windowState.libraryId,
             library: libraryManager.getLibrary(id: windowState.libraryId),
-            findDocumentsScope: scope
+            findDocumentsScope: scope,
+            recipeFolderId: RecipeFolderScope.forSelection(
+                browserSelection, shownFolderId: shownFolderId, isFolder: isFolder
+            )
         )
     }
 }

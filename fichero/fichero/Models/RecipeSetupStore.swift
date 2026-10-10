@@ -245,10 +245,18 @@ final class RecipeSetupStore {
     /// Start is offered only when the engine has a plan with nothing refused.
     var canStart: Bool { startPlan.map { $0.refusals.isEmpty && !$0.workflows.isEmpty } ?? false }
 
-    func loadStartPlan() async {
+    /// The folder the shown plan covers (`source.recipe.folder-scoped-start`); nil: the whole project.
+    private(set) var startPlanFolderId: String?
+
+    /// Read what Start would run: on the whole project, or with `folderId` on that folder alone (its
+    /// live pages, its folders inside it included; `source.recipe.folder-scoped-start`).
+    func loadStartPlan(folderId: String? = nil) async {
         do {
-            if case .ok(let success) = try await client.api.getStartPlanApiRecipesProjectStartGet() {
+            if case .ok(let success) = try await client.api.getStartPlanApiRecipesProjectStartGet(
+                query: .init(folderId: folderId)
+            ) {
                 startPlan = try success.body.json
+                if startPlanFolderId != folderId { startPlanFolderId = folderId }
             }
         } catch {
             if error.isCancellationError { return }
@@ -262,16 +270,27 @@ final class RecipeSetupStore {
     /// read again; a store that never showed one has nothing waiting.
     func modelInstalled() {
         guard startPlan != nil else { return }
-        Task { await loadStartPlan() }
+        Task { await loadStartPlan(folderId: startPlanFolderId) }
     }
 
     /// Record the first yes. Returns whether the engine kept it. The refused steps are
     /// already on screen (the plan loads with the step), so a refusal only says so.
-    func start() async -> Bool {
+    /// With `folderId`, the run covers that folder's live pages alone (`source.recipe.folder-scoped-start`);
+    /// without it, the whole project, sent as before (no body).
+    func start(folderId: String? = nil) async -> Bool {
         do {
-            switch try await client.api.startProjectApiRecipesProjectStartPost() {
+            let response: Operations.StartProjectApiRecipesProjectStartPost.Output
+            if let folderId {
+                response = try await client.api.startProjectApiRecipesProjectStartPost(
+                    body: .json(.init(folderId: folderId))
+                )
+            } else {
+                response = try await client.api.startProjectApiRecipesProjectStartPost()
+            }
+            switch response {
             case .ok(let success):
                 startPlan = try success.body.json
+                if startPlanFolderId != folderId { startPlanFolderId = folderId }
                 return true
             case .unprocessableContent:
                 errorMessage = "Start was refused; the steps below say why."

@@ -95,6 +95,8 @@ extension SidebarItemRow {
                 if processDoc.docType == .folder {
                     // Find the Documents (#5550): the Project menu's own item, as the library grid offers it.
                     FindDocumentsMenuItem(scopeIds: [processDoc.id], library: library)
+                    // Run the Recipe on This Folder… (#5540): the Project menu's own item.
+                    RunRecipeOnFolderMenuItem(folderId: processDoc.id, library: library)
                 }
                 #if os(macOS)
                 if processDoc.docType != .folder {

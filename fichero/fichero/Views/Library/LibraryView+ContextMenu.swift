@@ -297,6 +297,12 @@ extension LibraryView {
         if !findScope.isEmpty {
             FindDocumentsMenuItem(scopeIds: findScope, library: activeLibraryReference)
         }
+        // Run the Recipe on This Folder… (#5540) on the clicked folder: the Project menu's own item.
+        if let recipeFolder = RecipeFolderScope.forClick(
+            on: document.id, isFolder: document.docType == .folder, selection: selection
+        ) {
+            RunRecipeOnFolderMenuItem(folderId: recipeFolder, library: activeLibraryReference)
+        }
     }
 
     // Image stack/group (#3535): combine 2+ selected images into ONE
