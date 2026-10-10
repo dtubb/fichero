@@ -41,10 +41,8 @@ _TOOL_DEFS: dict[str, ToolDef] = {}
 
 # Tool implementations are imported on first read, not at module import (#3950).
 _TOOLS_LOADED = False
-# Guards the load against the lifespan warm-up thread racing a request thread.
+# Guards only the stamping after the import; never held across an import (see below).
 _TOOLS_LOCK = threading.Lock()
-# Ident of the thread currently importing, so IT alone may re-enter (see below).
-_LOADING_THREAD_ID: int | None = None
 
 
 def _ensure_tools_loaded() -> None:
@@ -70,42 +68,38 @@ def _ensure_tools_loaded() -> None:
     THREAD SAFETY
     -------------
     The lifespan warms this on an executor THREAD while requests are already
-    being served, so two threads can arrive here at once. The re-entrancy pass
-    below is therefore keyed to the loading THREAD, not a bare bool: a plain
-    `if _loading: return` would let a *request* thread skip the load and read
-    the half-populated registry — resurrecting the 116-incomplete-defs bug as
-    a race. Other threads block on the lock and get a complete registry.
+    being served, so two threads can arrive here at once. No lock of ours is
+    ever held across the import: a request thread that imports `tools`
+    directly holds that module's import lock and then reads TOOLS here, while
+    a job thread holding our lock waits on the same import, a deadlock the
+    import machinery cannot see (it hung the engine at start, 2026-10-10).
+    Python's own module lock serialises the import instead: another thread
+    blocks until `tools` has finished and gets a complete registry. The same
+    thread re-entering mid-import (tools/mcp.py reads TOOLS while the package
+    is still executing) gets the dicts as they are, which the decorators are
+    still populating; blocking there would deadlock on ourselves.
     """
-    global _TOOLS_LOADED, _LOADING_THREAD_ID
+    global _TOOLS_LOADED
     if _TOOLS_LOADED:
         return
-    if _LOADING_THREAD_ID == threading.get_ident():
-        # Re-entrant on the SAME thread: tools/mcp.py imports TOOLS/TOOL_DEFS
-        # from this module while the tools package is still executing. Hand the
-        # dicts back as-is — they are the same objects the decorators are
-        # populating, and blocking here would deadlock on ourselves.
-        return
+    # This ONE import is the whole mechanism: every tool registers by
+    # being imported in tools/__init__.py. Do NOT special-case
+    # individual tools here (#3951) — zoom and consistency_check were
+    # listed separately and so were registered ONLY by the eager call
+    # this replaced. A tool not in tools/__init__.py does not exist.
+    from fichero_server.workflows import tools
+
+    if getattr(tools.__spec__, "_initializing", False):
+        return  # still executing on this thread: the re-entrant read above
     with _TOOLS_LOCK:
-        # Re-check: another thread may have finished while we waited.
         if _TOOLS_LOADED:
             return
-        _LOADING_THREAD_ID = threading.get_ident()
-        try:
-            # This ONE import is the whole mechanism: every tool registers by
-            # being imported in tools/__init__.py. Do NOT special-case
-            # individual tools here (#3951) — zoom and consistency_check were
-            # listed separately and so were registered ONLY by the eager call
-            # this replaced. A tool not in tools/__init__.py does not exist.
-            from fichero_server.workflows import tools  # noqa: F401
-
-            # Built-in palette defs are installed before any decorator runs,
-            # so stamp every def once the set is complete (#5596).
-            for tool_def in _TOOL_DEFS.values():
-                _stamp_output_declaration(tool_def)
-            _TOOLS_LOADED = True
-            logger.debug("Loaded tool implementations")
-        finally:
-            _LOADING_THREAD_ID = None
+        # Built-in palette defs are installed before any decorator runs,
+        # so stamp every def once the set is complete (#5596).
+        for tool_def in _TOOL_DEFS.values():
+            _stamp_output_declaration(tool_def)
+        _TOOLS_LOADED = True
+        logger.debug("Loaded tool implementations")
 
 
 def _stamp_output_declaration(tool_def: ToolDef) -> ToolDef:
