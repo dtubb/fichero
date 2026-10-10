@@ -50,7 +50,7 @@ enum SearchMatchSource: String, CaseIterable, Sendable {
         switch self {
         case .semantic: return "Matched by meaning"
         case .fulltext: return "Contains the words you typed"
-        case .entity: return "Matched the name of an entity in this library"
+        case .entity: return "Matched the name of an entity in this project"
         case .claim: return "Matched a claim recorded about this document"
         case .kg: return "Reached through the knowledge graph"
         }

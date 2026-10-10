@@ -30,7 +30,7 @@ private struct SidebarVisualPreview: View {
                     row(id: "doc-c", name: "Small Text", icon: "folder")
                     row(id: "doc-d", name: "Working", icon: "folder")
                 } label: {
-                    Text("Library")
+                    Text("Project")
                         .font(.caption)
                         .fontWeight(.bold)
                         .foregroundStyle(.primary)

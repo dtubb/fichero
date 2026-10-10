@@ -243,7 +243,7 @@ extension KnowledgeGraphInspectorSection {
         case .pageOrFolderOnly:
             return "Prune trivially-true claims in \(documentScope.confirmationTarget)?"
         case .libraryWide:
-            return "Prune trivially-true claims across the whole library?"
+            return "Prune trivially-true claims across the whole project?"
         }
     }
 
@@ -252,7 +252,7 @@ extension KnowledgeGraphInspectorSection {
         case .pageOrFolderOnly:
             return "This updates claim curation state for the current scope and refreshes the inspector list."
         case .libraryWide:
-            return "This scans the whole library, updates matching claims, and may write a persistent suppress is-a copulas rule."
+            return "This scans the whole project, updates matching claims, and may write a persistent suppress is-a copulas rule."
         }
     }
 

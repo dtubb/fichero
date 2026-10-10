@@ -118,7 +118,7 @@ struct NewEntitySheet: View {
 
     private func save() {
         guard let entityService else {
-            errorText = "This window has no library to create the entity in."
+            errorText = "This window has no project to create the entity in."
             return
         }
         isSaving = true

@@ -118,7 +118,7 @@ struct EntitySplitSheet: View {
         // The library from the service this sheet was handed, by object identity, as
         // EntityMergeSheet resolves it: its `actionsService` is the audited seam (#5129).
         guard let library = entityService.flatMap({ LibraryManager.shared.library(owningService: $0) }) else {
-            errorText = "This window has no library to split the entity in."
+            errorText = "This window has no project to split the entity in."
             return
         }
         isSaving = true

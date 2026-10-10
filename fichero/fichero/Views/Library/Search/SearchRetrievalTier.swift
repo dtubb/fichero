@@ -75,7 +75,7 @@ enum SearchRetrievalTier: String, CaseIterable, Identifiable, Sendable {
     /// Why the top rung is unavailable, when it is — never a dead row with
     /// no explanation.
     static let noGraphHelp =
-        "This library has no reviewed knowledge-graph entities yet, so the graph leg has nothing to search."
+        "This project has no reviewed knowledge-graph entities yet, so the graph leg has nothing to search."
 
     /// Whether the graph rung can be offered.
     ///

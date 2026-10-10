@@ -264,7 +264,7 @@ extension ContentView {
             guard let library = targetLibrary else {
                 isImporting = false
                 importProgress = nil
-                importError = "No library available for import."
+                importError = "No project available for import."
                 logger.error("Run file drop import failed: no target library")
                 return
             }

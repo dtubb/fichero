@@ -245,7 +245,7 @@ struct EntityDetailView: View {
                     .underline()
             }
             .buttonStyle(.plain)
-            .help("Search the library for \"\(displayName)\" — double-click to rename")
+            .help("Search the project for \"\(displayName)\" — double-click to rename")
             .simultaneousGesture(TapGesture(count: 2).onEnded { beginRename() })
             .contextMenu {
                 Button("Rename") { beginRename() }

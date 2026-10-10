@@ -65,14 +65,14 @@ struct ResearchBrowserPane: View {
                 } else {
                     Image(systemName: "arrow.down.doc")
                 }
-                Text("Save to Library")
+                Text("Save to Project")
                     .font(.system(size: 12))
             }
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
         .disabled(isSaving || urlString.isEmpty)
-        .help("Download this page or file into your Fichero library")
+        .help("Download this page or file into your Fichero project")
         .overlay(saveMessageOverlay, alignment: .bottom)
     }
 

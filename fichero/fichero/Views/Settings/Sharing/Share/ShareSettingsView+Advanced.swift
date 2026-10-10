@@ -64,7 +64,7 @@ extension ShareSettingsView {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Every device that has joined this library will have to scan a new QR code to get back in.")
+            Text("Every device that has joined this project will have to scan a new QR code to get back in.")
         }
     }
 }

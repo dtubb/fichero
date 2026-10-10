@@ -229,6 +229,8 @@ struct KnownLibraryMenuEntry: Identifiable, Equatable {
     let lastAccessed: Date?
 
     var displayName: String {
+        // The always-there project: its recorded name, or its default when none or a retired one.
+        if AlwaysThereProject.isPackage(path: path) { return AlwaysThereProject.displayName(forPath: path, given: name) }
         if let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines),
            !trimmedName.isEmpty {
             return trimmedName

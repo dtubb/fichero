@@ -97,7 +97,7 @@ extension SidebarItemRow {
         case .schedule: return "\(item.name), schedule"
         case .trigger: return "\(item.name), trigger"
         case .folder: return "\(item.name), \(item.category.rawValue) folder"
-        case .libraryHeader: return "\(item.name), library"
+        case .libraryHeader: return "\(item.name), project"
         case .batch, .comparison, .activityRun:
             return item.name
         }

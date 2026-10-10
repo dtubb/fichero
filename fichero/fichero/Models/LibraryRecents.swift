@@ -19,6 +19,13 @@ final class LibraryRecents {
         let path: String
         let displayName: String
         var id: String { path }
+
+        /// The always-there project's entry reads as its default name when the recorded one is a
+        /// name the app gave it before (`AlwaysThereProject.displayName`).
+        init(path: String, displayName: String) {
+            self.path = path
+            self.displayName = AlwaysThereProject.displayName(forPath: path, given: displayName)
+        }
     }
 
     private(set) var entries: [Entry] = []

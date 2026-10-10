@@ -225,7 +225,7 @@ extension KnowledgeGraphInspectorSection {
                 )
             }
         }
-        Button("Library-wide") {
+        Button("Project-wide") {
             Task {
                 await applyBulkAction(
                     action,
@@ -241,7 +241,7 @@ extension KnowledgeGraphInspectorSection {
         Button(documentScopeLabel) {
             requestPruneTrivialAction(.pageOrFolderOnly)
         }
-        Button("Library-wide") {
+        Button("Project-wide") {
             requestPruneTrivialAction(.libraryWide)
         }
     }

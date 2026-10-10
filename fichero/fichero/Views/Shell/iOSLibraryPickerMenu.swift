@@ -60,7 +60,7 @@ struct IOSLibraryPickerMenu: View {
             }
 
             if entries.isEmpty && registry.fetchError == nil {
-                Text("No Libraries")
+                Text("No Projects")
             }
 
             Divider()
@@ -71,7 +71,7 @@ struct IOSLibraryPickerMenu: View {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
         } label: {
-            Label("Libraries", systemImage: "books.vertical")
+            Label("Projects", systemImage: "books.vertical")
         }
         .task {
             await registry.refresh()

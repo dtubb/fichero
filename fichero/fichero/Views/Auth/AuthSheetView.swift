@@ -112,7 +112,7 @@ private struct LoginFormView: View {
     }
 
     var body: some View {
-        AuthCard(title: "Sign In", subtitle: "Sign in to open your libraries.") {
+        AuthCard(title: "Sign In", subtitle: "Sign in to open your projects.") {
             VStack(spacing: 12) {
                 TextField("Username", text: $username)
                     .textContentType(.username)
@@ -199,7 +199,7 @@ private struct RedeemInviteFormView: View {
     var body: some View {
         AuthCard(
             title: "Accept Invitation",
-            subtitle: "You've been invited to this library. Choose a password to finish setting up your account."
+            subtitle: "You've been invited to this project. Choose a password to finish setting up your account."
         ) {
             VStack(spacing: 12) {
                 SecureField("Password", text: $password)

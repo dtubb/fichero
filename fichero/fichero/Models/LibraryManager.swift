@@ -434,7 +434,9 @@ class LibraryManager {
             self.id = id ?? UUID()
             self.url = url
             self.host = host
-            self.displayName = displayName
+            // The always-there project reads as the name a person gave it, or as its default name
+            // when the name that reached here is none or one the app gave it before (a saved "Local").
+            self.displayName = AlwaysThereProject.displayName(forPath: url.path, given: displayName)
             self.document = document
 
             // Persist this backend's SPKI pin so the pinned session validates
@@ -596,12 +598,13 @@ class LibraryManager {
         // Load or create Global library document
         let document = FicheroDocument()
 
-        // Create Local library reference with fixed ID
+        // The always-there project's reference, with its fixed ID and its one name
         // Note: apiClient.currentLibraryPath is set in LibraryReference.init()
         let library = LibraryReference(
             url: globalURL,
             document: document,
-            displayName: "Local",
+            // Named like any project (ruled 2026-10-10): the name saved for its path, else the default.
+            displayName: getSavedLibraryDisplayNames()[globalURL.path.nfcNormalized] ?? AlwaysThereProject.defaultName,
             id: Self.globalLibraryId,
             startAccessing: false  // No security-scoped access needed for app support folder
         )

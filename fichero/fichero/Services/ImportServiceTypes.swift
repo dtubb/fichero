@@ -24,8 +24,8 @@ enum IngestMode: String, Codable {
     var description: String {
         switch self {
         case .link: return "Reference files in place (no disk usage)"
-        case .copy: return "Duplicate files into library"
-        case .move: return "Move files into library (original deleted)"
+        case .copy: return "Duplicate files into project"
+        case .move: return "Move files into project (original deleted)"
         case .index: return "Work on the folder in place and keep it up to date"
         }
     }

@@ -80,7 +80,7 @@ final class BackupStore {
     @discardableResult
     func create(reason: String = "") async -> Bool {
         guard let libraryPath = client.currentLibraryPath, !libraryPath.isEmpty else {
-            statusMessage = "No library open"
+            statusMessage = "No project open"
             return false
         }
         isCreating = true

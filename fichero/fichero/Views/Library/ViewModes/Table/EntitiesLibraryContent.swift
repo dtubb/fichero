@@ -302,7 +302,7 @@ struct EntitiesLibraryContent: View {
             return "No entities match the current filter."
         }
         return folderId == nil
-            ? "No entities in this library yet. Run knowledge extraction to populate them."
+            ? "No entities in this project yet. Run knowledge extraction to populate them."
             : "No entities in this folder yet."
     }
 

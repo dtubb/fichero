@@ -90,7 +90,7 @@ extension ContentView {
                     // out the beat instead; the library resolving re-renders
                     // this closure and the real panel mounts injected.
                     PaneEmptyStateView(
-                        reason: "Opening library…",
+                        reason: "Opening project…",
                         systemImage: "clock"
                     )
                 }

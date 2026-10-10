@@ -195,7 +195,7 @@ struct CaptureUserManageView: View {
     }
 
     private var libraryRow: some View {
-        LabeledContent("Library") {
+        LabeledContent("Project") {
             HStack {
                 Text(policy.libraryName.isEmpty ? "None" : policy.libraryName)
                     .foregroundStyle(policy.libraryName.isEmpty ? .secondary : .primary)
@@ -242,7 +242,7 @@ struct CaptureUserManageView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .navigationTitle("Choose Library")
+            .navigationTitle("Choose Project")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { activePicker = nil }
@@ -259,7 +259,7 @@ struct CaptureUserManageView: View {
                     ContentUnavailableView(
                         "No Workflows",
                         systemImage: "arrow.triangle.branch",
-                        description: Text("Add workflows to this library first.")
+                        description: Text("Add workflows to this project first.")
                     )
                 } else {
                     List {

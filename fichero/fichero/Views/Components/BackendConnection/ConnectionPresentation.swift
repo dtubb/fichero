@@ -204,7 +204,7 @@ enum ConnectionPresentation {
                 title: ownership == .appManaged ? "Starting the Fichero server…" : "Connecting…",
                 shortTitle: ownership == .appManaged ? "Starting server…" : "Connecting…",
                 detail: ownership == .appManaged
-                    ? "Your libraries run on a local server. This can take a few moments."
+                    ? "Your projects run on a local server. This can take a few moments."
                     : "",
                 symbol: "ellipsis.circle",
                 isError: false,

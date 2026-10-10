@@ -102,12 +102,12 @@ struct BackendSettingsView: View {
     private var connectionDescription: String {
         if appState.isBackendRunning {
             return EngineConfig.requiresExternalBackendConnection
-                ? "This Mac is connected to another Fichero library."
+                ? "This Mac is connected to another Fichero project."
                 : "Fichero is running on this Mac."
         }
         return EngineConfig.requiresExternalBackendConnection
-            ? "Check the shared library link in Advanced if this Mac should reconnect."
-            : "Start the library on this Mac to share it with other devices."
+            ? "Check the shared project link in Advanced if this Mac should reconnect."
+            : "Start the project on this Mac to share it with other devices."
     }
 
 }

@@ -263,7 +263,7 @@ struct KGMapView: View {
     private func load() async {
         guard let service = entityService
                 ?? LibraryManager.shared.globalLibrary?.entityService else {
-            loadError = "No library"
+            loadError = "No project"
             return
         }
         isLoading = true

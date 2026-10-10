@@ -76,7 +76,7 @@ final class EntityService {
             switch self {
             case .validationError(let message): return message
             case .unexpectedResponse(let code): return "Unexpected response from the server (status \(code))."
-            case .noLibrary: return "No library is selected."
+            case .noLibrary: return "No project is selected."
             }
         }
     }
@@ -144,7 +144,7 @@ final class EntityService {
 
     func listLibraryEntityTypes() async throws -> [LibraryEntityTypeItem] {
         guard let lib = client.currentLibraryPath, !lib.isEmpty else {
-            throw ServiceError.validationError("No library selected")
+            throw ServiceError.validationError("No project selected")
         }
         // Non-silent: surface non-2xx and decode failures instead of returning []
         // (which silently drops custom ontology types and changes extractor
@@ -194,7 +194,7 @@ final class EntityService {
 
     func removeLibraryEntityType(key: String) async throws {
         guard let lib = client.currentLibraryPath, !lib.isEmpty else {
-            throw ServiceError.validationError("No library selected")
+            throw ServiceError.validationError("No project selected")
         }
         // Non-silent: a rejected delete must throw so the UI keeps the chip
         // instead of appearing to succeed (#1672).
@@ -221,7 +221,7 @@ final class EntityService {
     /// and decodes into `[ClassificationValue]`.
     func listDocumentPrototypes() async throws -> [Components.Schemas.ClassificationValue] {
         guard client.currentLibraryPath != nil else {
-            throw ServiceError.validationError("No library selected")
+            throw ServiceError.validationError("No project selected")
         }
         // Non-silent: a failed load must surface a backend/API error, not render
         // as "No types defined" empty state (#1671).

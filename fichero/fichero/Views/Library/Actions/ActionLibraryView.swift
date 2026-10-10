@@ -91,7 +91,7 @@ struct ActionLibraryView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationTitle("Library")
+        .navigationTitle("Actions")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {

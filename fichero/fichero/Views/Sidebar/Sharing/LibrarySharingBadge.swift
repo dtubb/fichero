@@ -82,7 +82,7 @@ struct LibrarySharingBadge: View {
         if let role = snapshot.currentUserRole {
             return "Shared — your role: \(role.capitalized)"
         }
-        return "Shared library"
+        return "Shared project"
     }
 
     @ViewBuilder
@@ -121,7 +121,7 @@ struct LibrarySharingBadge: View {
                     showPopover = false
                     showShareSheet = true
                 } label: {
-                    Label("Share Library…", systemImage: "person.badge.plus")
+                    Label("Share Project…", systemImage: "person.badge.plus")
                 }
                 .buttonStyle(.borderless)
             }

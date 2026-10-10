@@ -164,7 +164,7 @@ enum PaneContentPlan {
         hasLibrary: Bool = true
     ) -> Plan {
         guard hasLibrary else {
-            let reason = "No library is open. Open a library to see its contents."
+            let reason = "No project is open. Open a project to see its contents."
             return Plan(
                 library: .empty(reason), preview: .empty(reason),
                 reader: .empty(reason), inspector: .empty(reason)

@@ -148,7 +148,7 @@ struct EntityMergeSheet: View {
         // trade. nil fails visibly: a sheet that cannot name the library it is
         // about to change must not guess one (#4306/#4461).
         guard let library = owningLibrary else {
-            errorText = "This window has no library to merge the entities in."
+            errorText = "This window has no project to merge the entities in."
             return
         }
         isSaving = true

@@ -217,7 +217,7 @@ enum MobileCaptureQueueStoreError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noLibraryAvailable:
-            return "No paired library is available yet."
+            return "No paired project is available yet."
         case .importFailed:
             return "The paired engine did not return a document."
         }

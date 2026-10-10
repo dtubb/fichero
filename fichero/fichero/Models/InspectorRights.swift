@@ -37,7 +37,7 @@ enum InspectorRights {
 
     struct Row: Equatable, Identifiable {
         let recordId: String
-        /// "On the library", "On this page", "On this segment".
+        /// "On the project", "On this page", "On this segment".
         let place: String
         /// "local models only · agreement 2026-07 · by owner".
         let detail: String
@@ -49,7 +49,7 @@ enum InspectorRights {
         var lines = [
             Line(title: "Who may see it", value: answer.restricted
                  ? "Only " + ((answer.readers ?? []).isEmpty ? "nobody named" : (answer.readers ?? []).joined(separator: ", "))
-                 : "Everyone the library's permissions allow"),
+                 : "Everyone the project's permissions allow"),
             Line(title: "Models", value: modelUseWords(answer.modelUse))
         ]
         if !answer.labels.isEmpty { lines.append(Line(title: "Labels", value: answer.labels.joined(separator: ", "))) }
@@ -61,7 +61,7 @@ enum InspectorRights {
         case "none": "May not be sent to any model"
         case "local": "Local models only"
         case "cloud": "Local or cloud models"
-        case nil: "No rule here; the library's AI settings decide"
+        case nil: "No rule here; the project's AI settings decide"
         case let other?: other
         }
     }
@@ -85,7 +85,7 @@ enum InspectorRights {
 
     static func place(of record: Record, targetKind: String, targetId: String, pageId: String) -> String {
         switch record.targetKind {
-        case "library": "On the library"
+        case "library": "On the project"
         case "document" where record.targetId == pageId: "On this page"
         case "document": "On a folder above"
         case "segment" where record.targetKind == targetKind && record.targetId == targetId: "On this segment"

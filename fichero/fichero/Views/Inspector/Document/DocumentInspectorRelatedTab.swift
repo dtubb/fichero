@@ -60,7 +60,7 @@ struct DocumentInspectorRelatedTab: View {
                     "No Related Documents",
                     systemImage: "doc.on.doc",
                     description: Text(
-                        "Related documents appear once this library has embeddings or extracted entities."
+                        "Related documents appear once this project has embeddings or extracted entities."
                     )
                 )
             } else {

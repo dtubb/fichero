@@ -15,7 +15,7 @@ struct AgentConsentSheet: View {
 
     private var explanation: String {
         request.purpose
-            ?? "It will connect to this library through Fichero and act as a user with the "
+            ?? "It will connect to this project through Fichero and act as a user with the "
                 + "permissions you grant. You can revoke it any time in Settings."
     }
 
@@ -130,7 +130,7 @@ private struct AgentConsentPreviewHarness: View {
     AgentConsentSheet(
         request: AgentConsentRequest(
             clientName: "MCP · research-tools",
-            purpose: "It wants to read documents and run workflows in this library."
+            purpose: "It wants to read documents and run workflows in this project."
         ),
         onDecision: { _, _ in }
     )

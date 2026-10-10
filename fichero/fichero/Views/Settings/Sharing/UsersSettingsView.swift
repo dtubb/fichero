@@ -20,9 +20,9 @@ struct UsersSettingsView: View {
                 )
             } else {
                 ContentUnavailableView(
-                    "No library open",
+                    "No project open",
                     systemImage: "person.2",
-                    description: Text("Open a library to manage account access.")
+                    description: Text("Open a project to manage account access.")
                 )
             }
         }

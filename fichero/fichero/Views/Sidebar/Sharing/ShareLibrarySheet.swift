@@ -79,7 +79,7 @@ struct ShareLibrarySheet: View {
                 membersSection
             }
             .formStyle(.grouped)
-            .navigationTitle("Share Library")
+            .navigationTitle("Share Project")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

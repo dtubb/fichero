@@ -111,7 +111,7 @@ struct SegmentsPaneView: View {
         case .noPage:
             ContentUnavailableView(
                 "No Page", systemImage: "list.bullet.rectangle",
-                description: Text("Select a page in the Library to list its segments.")
+                description: Text("Select a page to list its segments.")
             )
         }
     }

@@ -146,7 +146,7 @@ extension EntityKindRow {
                     Button(claimScopeLabel) {
                         requestPruneTrivialAction(.pageOrFolderOnly)
                     }
-                    Button("Library-wide") {
+                    Button("Project-wide") {
                         requestPruneTrivialAction(.libraryWide)
                     }
                 }
@@ -179,7 +179,7 @@ extension EntityKindRow {
                 )
             }
         }
-        Button("Library-wide") {
+        Button("Project-wide") {
             Task {
                 await applyClaimBulkAction(
                     action,

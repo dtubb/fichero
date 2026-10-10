@@ -27,7 +27,7 @@ extension ReadingPaneView {
             }
             .buttonStyle(.plain)
             .draggable(export)
-            .help("Drag out as a CSV file (or onto a sidebar folder to make a library node), or click to save…")
+            .help("Drag out as a CSV file (or onto a sidebar folder to make a project node), or click to save…")
             .accessibilityLabel("Save table as CSV")
             .accessibilityIdentifier("readerTableExportChip")
         }

@@ -26,7 +26,7 @@ struct MobileCaptureQueueView: View {
                     Button {
                         pickerSource = .library
                     } label: {
-                        Label("Choose From Library", systemImage: "photo.on.rectangle")
+                        Label("Choose From Photos", systemImage: "photo.on.rectangle")
                     }
                     #else
                     Button {
@@ -42,7 +42,7 @@ struct MobileCaptureQueueView: View {
                     Button {
                         pickerSource = .library
                     } label: {
-                        Label("Choose From Library", systemImage: "photo.on.rectangle")
+                        Label("Choose From Photos", systemImage: "photo.on.rectangle")
                     }
                     #endif
 
@@ -58,7 +58,7 @@ struct MobileCaptureQueueView: View {
                         ContentUnavailableView(
                             "No Captures Yet",
                             systemImage: "camera",
-                            description: Text("Save photos, PDFs, and web pages here before the paired library is reachable.")
+                            description: Text("Save photos, PDFs, and web pages here before the paired project is reachable.")
                         )
                     } else {
                         ForEach(queue.items) { item in
@@ -83,7 +83,7 @@ struct MobileCaptureQueueView: View {
                         Text("\(queue.uploadedCount)")
                     }
 
-                    Text("Uploads stay on this device until Fichero can reach the paired library again.")
+                    Text("Uploads stay on this device until Fichero can reach the paired project again.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 

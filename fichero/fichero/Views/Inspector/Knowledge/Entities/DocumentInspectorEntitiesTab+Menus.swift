@@ -81,7 +81,7 @@ extension DocumentInspectorEntitiesTab {
             // for the table's inline rename; THIS context-menu path is the one that IS
             // wired today) — stable id so a UI test can drive it without label matching.
             .accessibilityIdentifier("kg.entity.menu.rename")
-        Button("Find in Library") {
+        Button("Find in Project") {
             postSearch(for: entity, kind: EntityKind(apiType: entity.entityType) ?? .other)
         }
         // Smart folder in ONE click (#4114): runs the mention search AND
@@ -160,7 +160,7 @@ extension DocumentInspectorEntitiesTab {
                 )
             }
         }
-        Button("Library-wide") {
+        Button("Project-wide") {
             Task {
                 await applyBulkAction(
                     action,

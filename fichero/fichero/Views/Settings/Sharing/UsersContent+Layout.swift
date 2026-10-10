@@ -23,7 +23,7 @@ extension UsersContent {
                 } header: {
                     Text("All Accounts")
                 } footer: {
-                    Text("Owner accounts can manage users and all libraries.")
+                    Text("Owner accounts can manage users and all projects.")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -54,7 +54,7 @@ extension UsersContent {
                     InviteAccountSection(store: store)
                 } else {
                     Section {
-                        Text("Multi-user mode is off, so this library has one account and "
+                        Text("Multi-user mode is off, so this project has one account and "
                              + "nobody to invite. Turn it on in Settings → Engine, and Fichero "
                              + "will restart its engine to apply it.")
                             .font(.caption)
@@ -78,7 +78,7 @@ extension UsersContent {
                 .textContentType(.username)
             SecureField("Password", text: $newPassword)
                 .textContentType(.newPassword)
-            Toggle("Owner (can manage users and all libraries)", isOn: $newIsOwner)
+            Toggle("Owner (can manage users and all projects)", isOn: $newIsOwner)
 
             if let accountError {
                 Text(accountError)
@@ -118,7 +118,7 @@ extension UsersContent {
                     Text(authzSnapshot.currentUserRole?.capitalized ?? "No role")
                         .foregroundStyle(.secondary)
                 }
-                LabeledContent("Library access") {
+                LabeledContent("Project access") {
                     Text(targetAccessText(authzSnapshot))
                         .foregroundStyle(.secondary)
                 }
@@ -129,9 +129,9 @@ extension UsersContent {
                 ProgressView("Loading sharing…")
             }
         } header: {
-            Text("Library Sharing")
+            Text("Project Sharing")
         } footer: {
-            Text("Owners can assign roles for the current library when multi-user mode is enabled.")
+            Text("Owners can assign roles for the current project when multi-user mode is enabled.")
                 .foregroundStyle(.secondary)
         }
 
@@ -149,7 +149,7 @@ extension UsersContent {
 
             Section("Add Member") {
                 if unassignedUsers.isEmpty {
-                    Text("Every account already has a role for this library.")
+                    Text("Every account already has a role for this project.")
                         .foregroundStyle(.secondary)
                 } else {
                     Picker("User", selection: $pendingUserId) {

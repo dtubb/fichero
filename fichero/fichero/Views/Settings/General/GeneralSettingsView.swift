@@ -88,7 +88,7 @@ struct GeneralSettingsView: View {
             // the per-search override lives in the results bar.
             Section("Search") {
                 Picker("When performing a search", selection: $searchDefaultScopeIsFolder) {
-                    Text("Search This Library").tag(false)
+                    Text("Search This Project").tag(false)
                     Text("Search the Current Folder").tag(true)
                 }
                 Text("You can switch the scope of any search from the results bar.")

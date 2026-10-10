@@ -51,7 +51,7 @@ struct LibraryHeaderRow: View {
     @State private var showDeleteLibraryConfirmation = false
 
     private static let readOnlyHelp =
-        "You have view-only access to this library. Ask an owner for edit access to rename or add files."
+        "You have view-only access to this project. Ask an owner for edit access to rename or add files."
 
     private var isGlobal: Bool { library.id == LibraryManager.globalLibraryId }
 
@@ -70,23 +70,19 @@ struct LibraryHeaderRow: View {
     }
 
     var body: some View {
-        // #116: the `if !isGlobal` used to sit INSIDE `.contextMenu`, so
-        // right-clicking the Global library header opened a real, EMPTY menu —
-        // a panel with nothing in it, which reads as broken rather than as
-        // "nothing applies here". The condition is now outside, so no menu is
-        // attached at all: the right-click does nothing visible, which is
-        // #4421's rule (absent beats present-and-useless). The Global library
-        // genuinely cannot be renamed, shared or closed.
-        if isGlobal {
-            header
-        } else {
-            header.contextMenu { libraryContextMenu }
-        }
+        // The always-there project has a menu like any project (ruled 2026-10-10): it is renamed,
+        // and gets folders and imports, from its row; it is never closed, deleted or shared
+        // (`ProjectRowMenuOffers`). Its menu is never empty (#116), since Rename is always there.
+        header.contextMenu { libraryContextMenu }
+    }
+
+    private var offers: ProjectRowMenuOffers {
+        ProjectRowMenuOffers.forProject(isAlwaysThere: isGlobal, multiuser: EngineConfig.multiuserEnabled)
     }
 
     @ViewBuilder
     private var libraryContextMenu: some View {
-        Button("Rename Library…", action: onRename)
+        Button("Rename Project…", action: onRename)
             .disabled(!canWrite)
         // The prototype (document type) editor from the library itself
         // (Daniel 2026-08-13: "yes to contextual menu" — prototypes are just
@@ -97,8 +93,8 @@ struct LibraryHeaderRow: View {
         .disabled(!canWrite)
         // Owners share from here — same sheet as the sidebar sharing badge
         // (#3149). Gated on multi-user mode + write access.
-        if EngineConfig.multiuserEnabled {
-            Button("Share Library…", action: onShare)
+        if offers.share {
+            Button("Share Project…", action: onShare)
                 .disabled(!canWrite)
         }
         // Where the package actually lives (Daniel, 2026-08-25: "we should
@@ -117,18 +113,24 @@ struct LibraryHeaderRow: View {
             .disabled(!canWrite)
         Button("Import Files…", action: onImport)
             .disabled(!canWrite)
-        Divider()
+        if offers.close || offers.delete {
+            Divider()
+        }
         // Close removes the library from the sidebar + the global registry
         // WITHOUT deleting the .fichero package on disk (#1661). Stays enabled
         // for viewers — it's a local sidebar op, not a library mutation.
-        Button("Close Library", action: onClose)
+        if offers.close {
+            Button("Close Project", action: onClose)
+        }
         // Delete = close AND move the package to the TRASH (recoverable,
         // never an unlink) after an explicit confirmation. Write access
         // required — a viewer must not be able to trash a shared library.
-        Button("Delete Library…", role: .destructive) {
-            showDeleteLibraryConfirmation = true
+        if offers.delete {
+            Button("Delete Project…", role: .destructive) {
+                showDeleteLibraryConfirmation = true
+            }
+            .disabled(!canWrite)
         }
-        .disabled(!canWrite)
     }
 
     /// Close the library, then move its package to the Trash. Trash, not
@@ -165,7 +167,7 @@ struct LibraryHeaderRow: View {
         .sheet(isPresented: $showTypeEditor) {
             PrototypeEditorSheet(entityService: library.entityService)
         }
-        .alert("Delete Library?", isPresented: $showDeleteLibraryConfirmation) {
+        .alert("Delete Project?", isPresented: $showDeleteLibraryConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Move to Trash", role: .destructive) {
                 deleteLibraryMovingToTrash()
@@ -211,3 +213,18 @@ struct LibraryHeaderRow: View {
     .padding()
 }
 #endif
+
+/// What a project row's context menu offers (ruled 2026-10-10,
+/// `library.always-there-project.never-closed`): every project is renamed from its row; the
+/// always-there project is never closed, deleted or shared (the engine never releases it: "The
+/// engine's global library is not a project; it is never released").
+nonisolated struct ProjectRowMenuOffers: Equatable {
+    let rename: Bool
+    let share: Bool
+    let close: Bool
+    let delete: Bool
+
+    static func forProject(isAlwaysThere: Bool, multiuser: Bool) -> Self {
+        Self(rename: true, share: multiuser && !isAlwaysThere, close: !isAlwaysThere, delete: !isAlwaysThere)
+    }
+}

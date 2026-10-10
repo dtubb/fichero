@@ -293,7 +293,7 @@ struct ForceDirectedGraphView: View {
         }
         guard let service = entityService
                 ?? LibraryManager.shared.globalLibrary?.entityService else {
-            loadError = "No library"
+            loadError = "No project"
             return
         }
         do {

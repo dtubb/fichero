@@ -31,7 +31,7 @@ extension DocumentInspectorEntitiesTab {
                 Image(systemName: "arrow.triangle.merge")
             }
             .buttonStyle(.plain)
-            .help("Reconcile duplicate entities — choose a scope (folder or library)")
+            .help("Reconcile duplicate entities — choose a scope (folder or project)")
             .accessibilityLabel("Reconcile entities")
 
             if entitySelection.count > 1 {

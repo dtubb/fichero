@@ -48,7 +48,7 @@ enum PairingBlocker: Equatable {
     /// The headline. Each cause names ITSELF.
     var headline: String {
         switch self {
-        case .engineIsRemote: return "This library is hosted on another machine"
+        case .engineIsRemote: return "This project is hosted on another machine"
         case .engineNotRunning: return "Fichero's engine isn't running"
         case .sharingNotStarted: return "Sharing hasn't started yet"
         case .addressMissing: return "Fichero needs this Mac's address"
@@ -61,7 +61,7 @@ enum PairingBlocker: Equatable {
     var detail: String {
         switch self {
         case .engineIsRemote:
-            return "Sharing happens on the Mac that hosts the library. This one is connected to an engine elsewhere."
+            return "Sharing happens on the Mac that hosts the project. This one is connected to an engine elsewhere."
         case .engineNotRunning:
             return "The QR code needs a running engine to pair against."
         case .sharingNotStarted:
@@ -223,7 +223,7 @@ struct PairingCardView: View {
         }
         .buttonStyle(.bordered)
 
-        Text("This link lets a device connect to your library — share only with people you trust.")
+        Text("This link lets a device connect to your project — share only with people you trust.")
             .font(.caption)
             .foregroundStyle(.secondary)
 

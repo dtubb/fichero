@@ -32,11 +32,11 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
         case .missingDeviceName:
             return "Enter a device name."
         case .missingLibraryPath:
-            return "This QR code does not include a shared library. Show a new QR code on the Mac."
+            return "This QR code does not include a shared project. Show a new QR code on the Mac."
         case .invalidInviteLink:
             return "The invite link is incomplete or invalid."
         case .libraryPathNotConfirmed:
-            return "The Mac did not confirm access to the library named in this QR code. "
+            return "The Mac did not confirm access to the project named in this QR code. "
                 + "Show a fresh QR code on the Mac and scan it again."
         case .contractMismatch(let headline, let detail):
             return headline + ". " + detail

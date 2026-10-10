@@ -48,7 +48,7 @@ struct SnapshotsView: View {
             }
             Button("Cancel", role: .cancel) { pendingRestore = nil }
         } message: { _ in
-            Text("This overwrites the current library with the snapshot’s contents. "
+            Text("This overwrites the current project with the snapshot’s contents. "
                 + "The backend keeps a backup of the replaced files, but any changes made "
                 + "since the snapshot will be replaced.")
         }
@@ -97,7 +97,7 @@ struct SnapshotsView: View {
             ContentUnavailableView(
                 "No backups yet",
                 systemImage: "externaldrive.badge.timemachine",
-                description: Text("Create a snapshot to capture this library’s current state.")
+                description: Text("Create a snapshot to capture this project’s current state.")
             )
         } else {
             List {
@@ -194,9 +194,9 @@ struct SnapshotsSettingsTab: View {
                 SnapshotsView(store: library.backupStore)
             } else {
                 ContentUnavailableView(
-                    "No library open",
+                    "No project open",
                     systemImage: "externaldrive.badge.timemachine",
-                    description: Text("Open a library to manage its backups.")
+                    description: Text("Open a project to manage its backups.")
                 )
             }
         }

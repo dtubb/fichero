@@ -20,7 +20,7 @@ extension ArtifactsInspectorPane {
 
     func translate(to language: TranslationLanguage) {
         guard let actionsService = owningLibrary?.actionsService else {
-            actionError = "No library available to translate."
+            actionError = "No project available to translate."
             return
         }
         isTranslating = true

@@ -43,7 +43,7 @@ enum ConversionNoticeText {
     static func line(_ status: ConversionSnapshot) -> String? {
         if status.running {
             let done = status.pagesConverted + status.pagesSkipped + status.pagesNotConverted.count
-            return "Bringing this library's older results into the page model: \(done) of "
+            return "Bringing this project's older results into the page model: \(done) of "
                 + "\(done + status.pagesRemaining) pages. You can keep working."
         }
         guard status.runId != nil, !status.seen, let verdict = status.verdict else { return nil }
@@ -61,13 +61,13 @@ enum ConversionNoticeText {
                 if let have = status.diskAvailableBytes { line += ", \(bytes(have)) free" }
                 line += ")"
             }
-            return line + ". It will try again the next time this library opens."
+            return line + ". It will try again the next time this project opens."
         case "refused_snapshot":
             return "Older results were not brought into the page model: no safe snapshot could be made "
-                + "first. It will try again the next time this library opens."
+                + "first. It will try again the next time this project opens."
         case "failed":
             return "Bringing older results into the page model stopped before it finished. "
-                + "Nothing is half done; it will carry on the next time this library opens."
+                + "Nothing is half done; it will carry on the next time this project opens."
         default:
             return nil
         }

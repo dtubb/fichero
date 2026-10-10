@@ -26,7 +26,7 @@ struct EngineSettingsView: View {
                     }
                 }
 
-                LabeledContent("Library") {
+                LabeledContent("Project") {
                     HStack {
                         Text(libraryDescription)
                             .foregroundStyle(.secondary)
@@ -67,7 +67,7 @@ struct EngineSettingsView: View {
                 if let restartError {
                     Text(restartError).foregroundStyle(.red).font(.caption)
                 } else {
-                    Text("Fichero's server indexes, searches, transcribes, and runs workflows for this library.")
+                    Text("Fichero's server indexes, searches, transcribes, and runs workflows for this project.")
                         .font(.caption)
                 }
             }
@@ -85,7 +85,7 @@ struct EngineSettingsView: View {
 
     private var libraryDescription: String {
         EngineConfig.requiresExternalBackendConnection
-            ? "Connected to a shared Fichero library."
+            ? "Connected to a shared Fichero project."
             : "Local engine for this Mac."
     }
 
@@ -122,8 +122,8 @@ struct EngineSettingsView: View {
         // The toggle applies itself by restarting, so there is no "please restart"
         // instruction to give — just report what the engine is doing now.
         return backendMultiuser
-            ? "The engine is enforcing per-library access."
-            : "The engine is not enforcing per-library access."
+            ? "The engine is enforcing per-project access."
+            : "The engine is not enforcing per-project access."
     }
 
     private func restartEngine() async {

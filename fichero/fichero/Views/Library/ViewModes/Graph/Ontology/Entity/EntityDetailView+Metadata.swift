@@ -12,7 +12,7 @@ extension EntityDetailView {
         // asked whether the GLOBAL library existed, which is true in every
         // session and says nothing about this surface's scope.
         guard owningLibrary != nil else {
-            metadataSaveMessage = "This window has no library to save the entity in."
+            metadataSaveMessage = "This window has no project to save the entity in."
             return
         }
         guard let entityId = entity.id else {

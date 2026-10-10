@@ -99,7 +99,7 @@ struct RetrievalInfo: Codable, Hashable {
 
     /// Human summary, e.g. "Searched library · 5 documents · 3 claims".
     var summary: String {
-        var parts = ["Searched library"]
+        var parts = ["Searched project"]
         if documentCount > 0 {
             parts.append("\(documentCount) document\(documentCount == 1 ? "" : "s")")
         }

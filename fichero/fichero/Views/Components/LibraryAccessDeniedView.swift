@@ -114,7 +114,7 @@ struct LibraryAccessDeniedView: View {
             Label("No Access to \(libraryName)", systemImage: symbol)
         } description: {
             VStack(spacing: 6) {
-                Text(error.errorDescription ?? "You don't have access to this library.")
+                Text(error.errorDescription ?? "You don't have access to this project.")
                 if let libraryPath {
                     Text(libraryPath)
                         .font(.callout)
@@ -141,7 +141,7 @@ struct LibraryAccessDeniedView: View {
             if let onGrantAccess {
                 Button("Grant Access…") { Task { await onGrantAccess() } }
                     .buttonStyle(.borderedProminent)
-                    .help("Choose this library (or a folder holding it) so Fichero may open it")
+                    .help("Choose this project (or a folder holding it) so Fichero may open it")
                 retryButton(title: "Try Again")
             } else {
                 retryButton(title: "Try Again", prominent: true)
@@ -157,7 +157,7 @@ struct LibraryAccessDeniedView: View {
         case .requestAccess:
             // Nothing the app can do for you here — the owner must grant access.
             // Be explicit about that, then offer to switch accounts / retry.
-            Text("Ask this library's owner to grant you access, then try again.")
+            Text("Ask this project's owner to grant you access, then try again.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -213,7 +213,7 @@ struct LibraryAccessDeniedView: View {
 #Preview("Forbidden") {
     LibraryAccessDeniedView(
         libraryName: "Marshall Diaries",
-        error: .forbidden(reason: "not_a_member", message: "You don't have access to this library."),
+        error: .forbidden(reason: "not_a_member", message: "You don't have access to this project."),
         identity: nil,
         onRetry: {},
         onSignIn: {},

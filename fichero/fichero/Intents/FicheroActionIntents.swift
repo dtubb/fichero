@@ -9,7 +9,7 @@ enum FicheroIntentError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noOpenLibrary:
-            return "Open a library before running an action."
+            return "Open a project before running an action."
         case .noSelectedDocuments:
             return "Select at least one document first."
         }

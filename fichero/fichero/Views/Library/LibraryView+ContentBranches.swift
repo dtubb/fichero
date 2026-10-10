@@ -54,7 +54,7 @@ extension LibraryView {
                 Text("Starting the Fichero server…")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                Text("Your libraries run on a local server. This can take a few moments.")
+                Text("Your projects run on a local server. This can take a few moments.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -64,7 +64,7 @@ extension LibraryView {
             // the explicit access state — which library, why, who you are, and the
             // next action — instead of the generic "couldn't load" text.
             LibraryAccessDeniedView(
-                libraryName: libraryReference?.displayName ?? "this library",
+                libraryName: libraryReference?.displayName ?? "this project",
                 error: denial,
                 libraryPath: libraryReference?.url.path,
                 identity: appState.identityStore,
@@ -368,9 +368,9 @@ extension LibraryView {
             )
         } else {
             ContentUnavailableView(
-                "No Library",
+                "No Project",
                 systemImage: "tray",
-                description: Text("The Data view needs an open library.")
+                description: Text("The Data view needs an open project.")
             )
         }
     }

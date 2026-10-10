@@ -30,7 +30,7 @@ extension ShareLibrarySheet {
                         }
                     }
                 }
-                Text("This link lets \(sharedPersonName) connect to your library — "
+                Text("This link lets \(sharedPersonName) connect to your project — "
                     + "it carries a single-use code that expires. Share only with them.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

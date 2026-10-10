@@ -105,7 +105,7 @@ struct WorkspacesMenuBody: View {
                 Label("New Tab", systemImage: "plus.rectangle.on.rectangle")
                     .labelStyle(.titleAndIcon)
             }
-            .help("Open this library in a new tab of this window")
+            .help("Open this project in a new tab of this window")
             .disabled(commands == nil)
 
             Button {

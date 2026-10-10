@@ -22,11 +22,11 @@ extension ShareSettingsView {
             }
 
             if isLoadingAuthz {
-                LabeledContent("Library ACL") {
+                LabeledContent("Project Role") {
                     ProgressView().controlSize(.small)
                 }
             } else if let authzSnapshot {
-                LabeledContent("Library ACL") {
+                LabeledContent("Project Role") {
                     Text(authzSnapshot.currentUserRole?.capitalized ?? "No role")
                         .foregroundStyle(.secondary)
                 }
@@ -35,12 +35,12 @@ extension ShareSettingsView {
                         .foregroundStyle(.secondary)
                 }
             } else if let authzError {
-                LabeledContent("Library ACL") {
+                LabeledContent("Project Role") {
                     Text(authzError)
                         .foregroundStyle(.red)
                 }
             } else {
-                LabeledContent("Library ACL") {
+                LabeledContent("Project Role") {
                     Text("Not loaded")
                         .foregroundStyle(.secondary)
                 }

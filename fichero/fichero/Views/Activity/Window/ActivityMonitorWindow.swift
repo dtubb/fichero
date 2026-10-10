@@ -43,15 +43,15 @@ struct ActivityMonitorWindow: View {
         Group {
             if libraries.isEmpty {
                 ContentUnavailableView(
-                    "No Library Open",
+                    "No Project Open",
                     systemImage: "tray",
-                    description: Text("Open a library to monitor its workflow activity.")
+                    description: Text("Open a project to monitor its workflow activity.")
                 )
             } else if groups.allSatisfy(\.rows.isEmpty) {
                 ContentUnavailableView(
                     "No Runs Yet",
                     systemImage: "clock.arrow.circlepath",
-                    description: Text("Workflow runs from every open library appear here.")
+                    description: Text("Workflow runs from every open project appear here.")
                 )
             } else {
                 VStack(spacing: 0) {

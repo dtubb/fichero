@@ -88,7 +88,7 @@ struct DocumentPickerSheet: View {
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     if searchText.isEmpty {
-                        Text("Import files to the library first")
+                        Text("Import files to the project first")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

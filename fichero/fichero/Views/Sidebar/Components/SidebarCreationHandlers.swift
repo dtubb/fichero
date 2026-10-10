@@ -201,7 +201,7 @@ extension SidebarView {
     func createFolder(_ name: String) async {
         let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
         guard let library = targetLibrary else {
-            sidebarState.newFolderErrorMessage = "No library available"
+            sidebarState.newFolderErrorMessage = "No project available"
             return
         }
         let parentId = sidebarState.newFolderParentId

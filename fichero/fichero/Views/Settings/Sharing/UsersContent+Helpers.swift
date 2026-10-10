@@ -9,7 +9,7 @@ extension UsersContent {
     internal func lastOwnerExplanation(isSoleOwner: Bool) -> String {
         if isSoleOwner {
             return "You're the only owner, so you can't remove or downgrade your own access — "
-                + "the library would be left with nobody who can administer it. "
+                + "the project would be left with nobody who can administer it. "
                 + "Give someone else the Owner role first, then they can change yours."
         }
         return "You can't remove your own access. Another owner can do it for you."

@@ -288,7 +288,7 @@ extension DynamicConfigView {
         .pickerStyle(.menu)
 
         if folderOptions.isEmpty {
-            Text("No folders found. Create one in Library first.")
+            Text("No folders found. Create one in the project first.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .italic()

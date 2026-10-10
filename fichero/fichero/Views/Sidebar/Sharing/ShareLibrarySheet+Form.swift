@@ -41,7 +41,7 @@ extension ShareLibrarySheet {
         } header: {
             Text("Share With")
         } footer: {
-            Text("The person gets the chosen role for this library. Editors change content; "
+            Text("The person gets the chosen role for this project. Editors change content; "
                 + "viewers are read-only. To make someone an Owner (full admin), use "
                 + "Settings → People.")
                 .foregroundStyle(.secondary)

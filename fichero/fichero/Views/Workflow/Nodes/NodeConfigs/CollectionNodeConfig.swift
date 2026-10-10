@@ -47,7 +47,7 @@ struct CollectionNodeConfig: View {
                 node.config?["collection_id"] = .string(newValue)
             }
             if folderOptions.isEmpty {
-                Text("No folders found. Create a folder in Library first.")
+                Text("No folders found. Create a folder in the project first.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
                     .italic()

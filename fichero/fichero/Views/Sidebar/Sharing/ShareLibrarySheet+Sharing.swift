@@ -116,8 +116,8 @@ extension ShareLibrarySheet {
     /// coupling this cross-platform sheet to that AppKit-only type.
     var shareLinkUnavailableReason: (headline: String, detail: String)? {
         guard EngineConfig.engineIsLocal else {
-            return ("This library is hosted on another machine",
-                    "Sharing happens on the Mac that hosts the library, not on this one.")
+            return ("This project is hosted on another machine",
+                    "Sharing happens on the Mac that hosts the project, not on this one.")
         }
         guard hostingEnabled else {
             return ("Sharing is off",

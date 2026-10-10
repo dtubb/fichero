@@ -273,7 +273,7 @@ struct EntitySourceGroupsView: View {
 
     private func loadInspector() async {
         guard let entityService else {
-            loadError = "This window has no library to read the entity from."
+            loadError = "This window has no project to read the entity from."
             return
         }
         isLoading = true

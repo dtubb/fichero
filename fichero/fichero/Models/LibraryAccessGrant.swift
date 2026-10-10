@@ -28,7 +28,7 @@ struct LibraryAccessGrant {
         init(libraryURL: URL) {
             directoryURL = libraryURL
             message = "Fichero may not open \u{201C}\(libraryURL.deletingPathExtension().lastPathComponent)\u{201D}: it is "
-                + "outside the folders this Mac's engine may open. Choose the library, or a folder holding it, "
+                + "outside the folders this Mac's engine may open. Choose the project, or a folder holding it, "
                 + "to grant access."
             prompt = "Grant Access"
         }

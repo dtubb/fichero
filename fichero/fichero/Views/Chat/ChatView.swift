@@ -278,14 +278,14 @@ struct ChatView: View {
             ContentUnavailableView(
                 "No Knowledge Used",
                 systemImage: "point.3.connected.trianglepath.dotted",
-                description: Text("When a reply draws on entities or claims from the library, it appears here.")
+                description: Text("When a reply draws on entities or claims from the project, it appears here.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             let replies = summary.repliesWithKnowledge
             let plural = replies == 1 ? "y" : "ies"
             VStack(alignment: .leading, spacing: 12) {
-                Text("This conversation drew on library knowledge across \(replies) repl\(plural).")
+                Text("This conversation drew on project knowledge across \(replies) repl\(plural).")
                     .font(.callout)
                 HStack(spacing: 16) {
                     knowledgeStat(summary.entityReferences, "Entity", "point.3.connected.trianglepath.dotted")

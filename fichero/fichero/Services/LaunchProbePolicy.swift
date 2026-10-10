@@ -40,6 +40,6 @@ enum LaunchProbePolicy {
     static func stillConnectingDiagnosis(host: String) -> String {
         "Still trying to reach \(host) — it hasn't answered yet. "
             + "Fichero keeps retrying in the background; "
-            + "your library is shown from its last local state."
+            + "your project is shown from its last local state."
     }
 }

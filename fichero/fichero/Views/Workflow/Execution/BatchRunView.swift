@@ -87,7 +87,7 @@ struct BatchRunView: View {
             }
             Section("Folders — one separate run each") {
                 if folders.isEmpty {
-                    Text("No folders at this level. Open a library folder that contains sub-folders.")
+                    Text("No folders at this level. Open a project folder that contains sub-folders.")
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
                     ForEach(folders, id: \.id) { folder in

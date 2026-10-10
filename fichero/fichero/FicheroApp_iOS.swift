@@ -105,9 +105,9 @@ private struct FicheroSharedPlatformRoot: View {
                         .environment(library.apiClient)
                 } else {
                     ContentUnavailableView(
-                        "Library Unavailable",
+                        "Project Unavailable",
                         systemImage: "externaldrive.badge.exclamationmark",
-                        description: Text("Fichero could not load the Local library.")
+                        description: Text("Fichero could not load the project.")
                     )
                 }
             }

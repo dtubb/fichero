@@ -171,7 +171,7 @@ struct DocumentBibliographyPanel: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { _ in
-            Text("Removes this reference from the library bibliography. This can be undone.")
+            Text("Removes this reference from the project bibliography. This can be undone.")
         }
         .alert(
             "Couldn't delete reference",

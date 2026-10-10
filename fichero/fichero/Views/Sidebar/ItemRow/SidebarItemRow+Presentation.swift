@@ -156,7 +156,7 @@ extension SidebarItemRow {
                             }
                         }
                         if !sections.libraryOwn.isEmpty {
-                            Section(library?.displayName ?? "This Library") {
+                            Section(library?.displayName ?? "This Project") {
                                 workflowSubmenu(sections.libraryOwn, resolution: resolution)
                             }
                         }

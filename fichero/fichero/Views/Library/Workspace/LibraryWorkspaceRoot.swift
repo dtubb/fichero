@@ -107,7 +107,7 @@ struct LibraryWorkspaceRoot: View {
                     Text("Capture is unavailable on Apple TV.")
                     #elseif os(visionOS)
                     Button { capturePickerSource = .library } label: {
-                        Label("Choose from Library", systemImage: "photo.on.rectangle")
+                        Label("Choose from Photos", systemImage: "photo.on.rectangle")
                     }
                     #else
                     Button {
@@ -120,7 +120,7 @@ struct LibraryWorkspaceRoot: View {
                         Label("Scan Document", systemImage: "doc.viewfinder")
                     }
                     Button { capturePickerSource = .library } label: {
-                        Label("Choose from Library", systemImage: "photo.on.rectangle")
+                        Label("Choose from Photos", systemImage: "photo.on.rectangle")
                     }
                     #endif
                     Divider()
@@ -133,7 +133,7 @@ struct LibraryWorkspaceRoot: View {
                 } label: {
                     Label("Capture", systemImage: "camera")
                 }
-                .help("Capture or import a document into this library")
+                .help("Capture or import a document into this project")
             }
         }
         .sheet(isPresented: $showingCaptureQueue) {

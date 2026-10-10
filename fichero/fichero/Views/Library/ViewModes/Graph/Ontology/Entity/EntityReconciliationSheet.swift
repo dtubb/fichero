@@ -16,8 +16,8 @@ enum EntityReconciliationScope: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .folder: return "Folder"
-        case .library: return "Library"
-        case .crossLibrary: return "Cross-Library"
+        case .library: return "Project"
+        case .crossLibrary: return "Cross-Project"
         case .external: return "External"
         }
     }
@@ -52,10 +52,10 @@ enum EntityReconciliationScope: String, CaseIterable, Identifiable {
     var help: String {
         switch self {
         case .folder: return "Find duplicate entities within this document / folder"
-        case .library: return "Find duplicate entities across the whole library"
+        case .library: return "Find duplicate entities across the whole project"
         case .crossLibrary:
-            return "Cross-library reconciliation — Fichero can find matches across "
-                + "libraries but cannot merge across them yet (#3527)"
+            return "Cross-project reconciliation — Fichero can find matches across "
+                + "projects but cannot merge across them yet (#3527)"
         case .external:
             return "Wikidata and Wikipedia enrichment works one entity at a time — "
                 + "right-click an entity in the Entities table and choose "

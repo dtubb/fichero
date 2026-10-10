@@ -44,7 +44,7 @@ struct LiveUpdatesPausedPill: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(message)
         .accessibilityHint(onReconnect == nil
-            ? "This device has no access to live updates for this library."
+            ? "This device has no access to live updates for this project."
             : "The connection to the engine dropped; tap Reconnect to resume live updates.")
     }
 }

@@ -75,7 +75,7 @@ extension SidebarView {
         do {
             guard let library = libraryManager.openLibraries.first else {
                 logger.warning("No library available to load automation data")
-                automationLoadError = "No library available for Automation."
+                automationLoadError = "No project available for Automation."
                 return
             }
             let automationService = library.automationService

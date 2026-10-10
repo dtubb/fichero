@@ -149,7 +149,7 @@ struct WorkflowListView: View {
                 }
             }
         }
-        .navigationTitle("Workflow Library")
+        .navigationTitle("Workflows")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {

@@ -84,7 +84,7 @@ struct ExtractEntitiesNodeConfig: View {
                                     .font(.caption2)
                             }
                             .buttonStyle(.plain)
-                            .help("Remove \(type) from this library's extraction targets")
+                            .help("Remove \(type) from this project's extraction targets")
                             .accessibilityLabel("Remove entity type \(type)")
                         }
                     }
@@ -109,7 +109,7 @@ struct ExtractEntitiesNodeConfig: View {
                 .buttonStyle(.plain)
                 .disabled(newTypeName.trimmingCharacters(in: .whitespaces).isEmpty || isAdding)
                 .accessibilityLabel("Add extraction target")
-                .help("Register this extraction target in your library")
+                .help("Register this extraction target in your project")
             }
 
             if let err = addError {

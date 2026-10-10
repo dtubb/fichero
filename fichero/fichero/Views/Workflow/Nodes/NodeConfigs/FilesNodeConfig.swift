@@ -53,10 +53,10 @@ private extension FilesNodeConfig {
                 Image(systemName: "cursorarrow.rays")
                     .foregroundStyle(.teal)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Uses library selection at run time")
+                    Text("Uses the project's selection at run time")
                         .font(.caption)
                         .fontWeight(.medium)
-                    Text("Select documents in the library before running.")
+                    Text("Select documents in the project before running.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -112,7 +112,7 @@ private extension FilesNodeConfig {
                 ContentUnavailableView(
                     "No Files Available",
                     systemImage: "doc",
-                    description: Text("Import files in Library first.")
+                    description: Text("Import files into the project first.")
                 )
             } else {
                 List {

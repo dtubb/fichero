@@ -229,7 +229,7 @@ extension LibraryWindow {
         savePanel.allowedContentTypes = [.package]
         savePanel.canCreateDirectories = true
         savePanel.nameFieldStringValue = library.displayName + ".fichero"
-        savePanel.message = "Choose a location to save your library"
+        savePanel.message = "Choose a location to save your project"
 
         savePanel.begin { response in
             guard response == .OK, let url = savePanel.url else { return }

@@ -232,9 +232,9 @@ struct AuditHistorySettingsTab: View {
                 AuditHistoryView(store: library.auditStore)
             } else {
                 ContentUnavailableView(
-                    "No library open",
+                    "No project open",
                     systemImage: "clock",
-                    description: Text("Open a library to see its change history.")
+                    description: Text("Open a project to see its change history.")
                 )
             }
         }

@@ -352,8 +352,8 @@ struct SidebarView: View {
                 isPresented: $sidebarState.showingFileImporter,
                 importFiles: handleImportedFiles
             )
-            .alert("Rename Library", isPresented: $showingRenameLibraryPrompt) {
-                TextField("Library Name", text: $pendingLibraryName)
+            .alert("Rename Project", isPresented: $showingRenameLibraryPrompt) {
+                TextField("Project Name", text: $pendingLibraryName)
                 Button("Cancel", role: .cancel) { }
                 Button("Rename") {
                     guard let libraryId = libraryToRenameId else { return }
@@ -361,7 +361,7 @@ struct SidebarView: View {
                     rebuildCaches()
                 }
             } message: {
-                Text("Set a new display name for this library.")
+                Text("Set a new display name for this project.")
             }
             // "Share Library…" (#3149) — same sheet the LibrarySharingBadge popover
             // presents, reached here from the library-header context menu.

@@ -115,7 +115,7 @@ extension ChatInspector {
         if showsTouchScopeActions {
             return "Search above or tap Add Current Selection to focus your chat."
         }
-        return "Search above or drag documents from Library to focus your chat."
+        return "Search above or drag documents from the project to focus your chat."
     }
 
     var loadingView: some View {

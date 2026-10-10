@@ -239,7 +239,7 @@ extension ZoomableImagePreview {
                 )
                 guard self.renditionIndex == targetIndex else { return }  // a newer flip won
                 guard let markup else {
-                    self.svgRenditionError = "This window has no library to read the redraw from."
+                    self.svgRenditionError = "This window has no project to read the redraw from."
                     return
                 }
                 self.svgRenditionMarkup = markup

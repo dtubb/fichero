@@ -225,7 +225,7 @@ struct DocumentTabView: View {
                 .environment(library.activityStore)
                 .environment(library.workflowExecutionStore)
         } else {
-            Text("Library not found")
+            Text("Project not found")
                 .font(.headline)
                 .foregroundColor(.secondary)
         }

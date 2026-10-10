@@ -12,7 +12,7 @@ import UniformTypeIdentifiers
 /// VoiceOver value for a library header row: the current-library state is
 /// otherwise only conveyed by the accent icon tint (#584 follow-up).
 func sidebarLibraryHeaderAccessibilityValue(isCurrent: Bool) -> String {
-    isCurrent ? "current library" : ""
+    isCurrent ? "current project" : ""
 }
 
 // MARK: - Library Section Header
@@ -109,17 +109,17 @@ struct LibrarySectionHeader: View {
             // library" signal — expose the same state non-visually.
             .accessibilityValue(sidebarLibraryHeaderAccessibilityValue(isCurrent: isCurrentLibrary))
             .accessibilityHint(
-                "Drag files from Finder to import, or drop a sidebar item to move to the library root."
+                "Drag files from Finder to import, or drop a sidebar item to move to the project root."
             )
             // Full name on hover — the name Text can truncate in a narrow
             // sidebar and has no other way to reveal itself.
             .help(libraryName)
     }
 
-    /// Display name for this library row. "Global" for the global library,
-    /// the user's display name otherwise.
+    /// Display name for this project row: its display name, the always-there project's included
+    /// (named like any project, ruled 2026-10-10).
     private var libraryName: String {
-        library.id == LibraryManager.globalLibraryId ? "Global" : library.displayName
+        library.displayName
     }
 
     /// Row content — extracted into a `@ViewBuilder` to keep the body
@@ -178,9 +178,9 @@ struct LibrarySectionHeader: View {
         let location = library.locationDescriptor.label
         if itemCount > 0 {
             let plural = itemCount == 1 ? "document" : "documents"
-            return "\(libraryName), library, \(location), \(itemCount) \(plural)"
+            return "\(libraryName), project, \(location), \(itemCount) \(plural)"
         }
-        return "\(libraryName), library, \(location)"
+        return "\(libraryName), project, \(location)"
     }
 
     /// Route a drop on the library header, identifying an internal drag

@@ -25,7 +25,7 @@ enum WorkflowInputSource: String, Codable, CaseIterable {
     var helpText: String {
         switch self {
         case .collection: return "Run on every document in the current folder"
-        case .currentSelection: return "Run only on documents you have selected in the library"
+        case .currentSelection: return "Run only on documents you have selected in the project"
         }
     }
 }
