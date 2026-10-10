@@ -50,7 +50,8 @@ A segment has any number of **readings**. A reading has:
   a reading with no level says so.
 
   The kind *normalized text* that shipped before levels were checked is a transcription at a level
-  (*regularised*); reading its rows as that is owed (`source.reading.normalized-text-is-a-level`).
+  (*regularised*), and its rows read as that (`source.reading.normalized-text-is-a-level`). An OCR
+  clean-up is not a level: it is a correction of the transcription as written.
 
   > **TEI's `<choice>` is two readings, not normalisation prose** (noted 2026-09-27, for whoever
   > builds TEI import or the reading editor next). `<choice><orig>vnto</orig><reg>unto</reg></choice>`
@@ -279,11 +280,27 @@ Readings
   `::test_writing_an_expanded_reading_is_not_stale_against_the_as_written_one` and
   `::test_a_persons_as_written_correction_still_counts_over_the_files`. Not built: the readings list
   reports one counting answer per kind; a per-level answer on the wire needs a contract change.
-- `source.reading.normalized-text-is-a-level` — **[GAP]** (#5653) the kind `normalized_text` is a
-  transcription at level regularised: its rows read as that, without rewriting them, and a write under
-  it is stored as that. Not built in the levels slice: the readings list's `kind` filter, the counting
-  answer's keys and the PAGE export's `reading_kind` all still name `normalized_text`, so reading it as
-  a transcription would empty them; they move together.
+- `source.reading.normalized-text-is-a-level` — **[OK]** (#5653; pinned by `tests/unit/api/test_normalized_text_is_a_level.py::TestOldRowsReadAsATranscriptionAtALevel::test_it_counts_at_its_level_beside_the_line_as_written_never_over_it`) the kind `normalized_text` is a
+  transcription at level regularised. A row stored under it reads as kind transcription, level
+  regularised (its own level kept when it recorded one) wherever readings are listed, counted and
+  exported, and the row is never rewritten: one mapping, `readings.canonical_reading_kind_and_level`,
+  applied as the reading (`ContentRepresentation`), a choice (`ReadingChoice`) and the readings list's
+  item are built. It counts at its level, beside the line as written and never over it. A write under the
+  old kind is stored as a transcription at that level; a choice under it is a choice of a transcription.
+  A filter that still names it (the readings list's `kind`, whose counting answer is keyed by the kind
+  asked for; `counting_texts`; the page's text; the PAGE export's `reading_kind`) is answered with the
+  transcription at level regularised, so older callers find what they found; the PAGE export also takes
+  a level of the kind (`page_from_library(reading_level=...)`). The writers: the Modernización preset
+  writes a transcription at level *modernised* (its prompt asks for modern spelling, accents and
+  punctuation, beyond u/v and i/j), its run's artifact typed `modernised`, never `transcription`; a saved
+  Analyze step that still names `normalized_text` writes at *regularised*; Clean text writes a
+  correction of the transcription as written (kind transcription, level as written), derived from the
+  node's as-written reading it cleans when the node has one, beside it. A row updated for another reason
+  (a choice superseded) is saved in the new shape, which means the same. Also pinned by
+  `tests/unit/api/test_normalized_text_is_a_level.py` (the filter, the PAGE export, writes and choices
+  under the old kind) and `tests/unit/workflows/test_text_outputs_are_readings.py::test_clean_text_writes_a_correction_of_the_transcription_as_written`,
+  `::test_a_historical_preset_saves_a_reading_of_its_kind`,
+  `::test_a_saved_analyze_step_that_still_names_normalized_text_writes_a_transcription_at_a_level`.
 - `source.reading.abbreviation-markup-parsed` — **[PARTIAL]** (#5651; pinned by `tests/unit/api/test_names_read_expanded_text.py::test_no_markup_reaches_spacy`) a corpus's abbreviation markup in a
   line's text (`dha$.dicha`, `Parq.$^l$.Parroquial`, `$ant:Miguel`, `le:$-`; PAGE `custom` `abbrev
   {offset; length; expansion}`) is read into the line as written (markup gone, abbreviation kept:

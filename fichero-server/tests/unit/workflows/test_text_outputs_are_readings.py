@@ -141,10 +141,14 @@ def test_a_rerun_describes_the_folder_once_not_once_per_run(
 # ── source.extract.text-outputs-are-readings: the historical presets ────────
 
 HISTORICAL = [
-    # (preset name, reading kind, the model's stubbed answer)
-    ("Translate to English (Historical)", "translation", "In the town of Madrid, on the twentieth day"),
-    ("Modernización (Spanish)", "normalized_text", "En la villa de Madrid, a veinte días"),
-    ("Regesto (Archival Abstract)", "regest", "1601, Madrid. Escritura de venta otorgada por Juan de Ocampo."),
+    # (preset name, reading kind, its level, the run's artifact type, the model's stubbed answer)
+    ("Translate to English (Historical)", "translation", None, "translation",
+     "In the town of Madrid, on the twentieth day"),
+    # A modernised text is a transcription at level modernised (`source.reading.normalized-text-is-a-level`):
+    # the prompt asks for modern spelling and accents, beyond regularising u/v and i/j.
+    ("Modernización (Spanish)", "transcription", "modernised", "modernised", "En la villa de Madrid, a veinte días"),
+    ("Regesto (Archival Abstract)", "regest", None, "regest",
+     "1601, Madrid. Escritura de venta otorgada por Juan de Ocampo."),
 ]
 
 
@@ -213,9 +217,9 @@ def _run_preset(library_path: Path, preset_name: str, thread_id: str, document_i
         runner._remove_workflow_state(thread_id)
 
 
-@pytest.mark.parametrize(("preset_name", "kind", "answer"), HISTORICAL)
+@pytest.mark.parametrize(("preset_name", "kind", "level", "artifact_type", "answer"), HISTORICAL)
 def test_a_historical_preset_saves_a_reading_of_its_kind(
-    one_page_library, monkeypatch, preset_name, kind, answer
+    one_page_library, monkeypatch, preset_name, kind, level, artifact_type, answer
 ):
     _install_deterministic_workflow_stubs(monkeypatch)
     library_path, _db = one_page_library
@@ -233,6 +237,7 @@ def test_a_historical_preset_saves_a_reading_of_its_kind(
         f"{preset_name} left no {kind} reading on the page; found {_readings(library_path, 'folio-1')!r}"
     )
     reading = readings[0]
+    assert reading.level == level
     assert reading.producer_run_id.startswith(thread_id)
     assert reading.provenance_kind is ProvenanceKind.workflow
 
@@ -242,7 +247,7 @@ def test_a_historical_preset_saves_a_reading_of_its_kind(
         f"{preset_name} still files its answer as 'analysis'"
     )
     record = next(a for a in artifacts if a.id == reading.derived_from_artifact_id)
-    assert record.artifact_type == kind, "the run's record carries the kind of what it made"
+    assert record.artifact_type == artifact_type, "the run's record carries the kind (or level) of what it made"
     page = db.get(Document, "folio-1")
     assert page.page_content == "En la villa de madrid a veynte dias", "the transcription is untouched"
     assert "analysis" not in (page.metadata or {})
@@ -343,8 +348,9 @@ TEXT_TOOLS = [
     ("rewrite", {"text": PAGE_TEXT, "target_language": "English"}, "folio-1", "rewrite", "translation",
      "In the town of Madrid on the twentieth day"),
     # Programmatic by default: no model; the reading is the cleaner's own output.
+    # A correction of the transcription as written, not a level (`source.reading.normalized-text-is-a-level`).
     ("clean_text", {"text": "En  la villa de ma-\ndrid a veynte dias"}, "folio-1", "clean_text",
-     "normalized_text", None),
+     "transcription", None),
 ]
 
 
@@ -455,3 +461,44 @@ def test_convert_to_csv_writes_no_reading(page_in_a_folder, monkeypatch):
         "fecha,lugar\n1601,Madrid"
     ]
     assert not [r for r in _readings(library_path, "folio-1") if r.retracted_at is None]
+
+
+# ── source.reading.normalized-text-is-a-level: the writers of the old kind ──
+
+
+def test_clean_text_writes_a_correction_of_the_transcription_as_written(page_in_a_folder, monkeypatch):
+    """WHY (ruled 2026-10-10): an OCR clean-up is a correction, not a level. Filed as `normalized_text`
+    it read as a regularised transcription it is not; it is the transcription as written, corrected,
+    derived from the reading it cleans -- which stays, beside it."""
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models import ContentRepresentation
+
+    _install_deterministic_workflow_stubs(monkeypatch)
+    library_path, db = page_in_a_folder
+    raw = "En  la villa de ma-\ndrid a veynte dias"
+    cleaned = registry.invoke(db, "representation.create", {
+        "document_id": "folio-1", "kind": "transcription", "level": "as_written", "content": raw},
+        ActionContext(actor="historian", library_path=str(library_path), is_bootstrap=True)).result["id"]
+
+    _run_one_tool(library_path, "clean-text-as-written", "clean_text", {"text": raw})
+
+    db = db_manager.get_database(library_path)
+    (made,) = [r for r in db.query(ContentRepresentation, document_id="folio-1")
+               if r.producer_run_id and r.producer_run_id.startswith("clean-text-as-written")]
+    assert (made.kind, made.level) == ("transcription", "as_written")
+    assert made.derived_from_representation_id == cleaned, "it names the reading it cleans"
+    assert made.provenance_kind is ProvenanceKind.workflow
+    assert db.get(ContentRepresentation, cleaned).retracted_at is None, "the cleaned reading stays"
+
+
+def test_a_saved_analyze_step_that_still_names_normalized_text_writes_a_transcription_at_a_level():
+    """WHY: a library's saved copy of an older preset still says `reading_kind: normalized_text`; its next
+    run must not make a new row of a kind that no longer is, nor type its artifact `transcription` (the
+    page reader's output)."""
+    from fichero_server.workflows.tools.analyze import tool_config_for
+
+    old = tool_config_for("normalized_text")
+    assert (old.reading_kind, old.reading_level, old.artifact_type) == ("transcription", "regularised", "regularised")
+    modern = tool_config_for("transcription", "modernized")
+    assert (modern.reading_kind, modern.reading_level, modern.artifact_type) == (
+        "transcription", "modernised", "modernised")
