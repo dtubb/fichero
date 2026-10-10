@@ -313,6 +313,27 @@ def delete_whisper_model(model_id: str, home: Path | None = None) -> int:
     return freed
 
 
+def decode_16k_mono(file_path: str | Path):
+    """Any recording as Whisper wants it: float32 samples, mono, 16 kHz.
+
+    With the bundled PyAV (ffmpeg's libraries, in-process), so AAC/M4A -- a voice memo, the commonest
+    recording -- decodes as well as WAV, MP3 and FLAC. miniaudio did not read M4A ("failed to decode file",
+    found 2026-10-10 in the Dev Embedded app)."""
+    import av
+    import numpy as np
+
+    chunks = []
+    with av.open(str(file_path)) as container:
+        stream = next(s for s in container.streams if s.type == "audio")
+        resampler = av.AudioResampler(format="flt", layout="mono", rate=16000)
+        for frame in container.decode(stream):
+            for out in resampler.resample(frame):
+                chunks.append(out.to_ndarray().reshape(-1))
+        for out in resampler.resample(None):
+            chunks.append(out.to_ndarray().reshape(-1))
+    return np.concatenate(chunks).astype(np.float32) if chunks else np.zeros(0, dtype=np.float32)
+
+
 def transcribe_sync(
     file_path: str,
     model_id: str = "base",
@@ -331,16 +352,12 @@ def transcribe_sync(
 
     if bundled_versions() is not None:  # the app: mlx-whisper ships inside the engine (#4973)
         import mlx_whisper
-        import numpy as np
-        import miniaudio
 
         options = {"language": language} if language and language != "auto" else {}
         try:
-            # Decoded here with the bundled miniaudio (mp3, wav, flac, ogg) to Whisper's 16 kHz mono:
-            # mlx-whisper would otherwise run the ffmpeg CLI, which the app does not have (#5638).
-            decoded = miniaudio.decode_file(file_path, output_format=miniaudio.SampleFormat.FLOAT32,
-                                            nchannels=1, sample_rate=16000)
-            audio = np.frombuffer(decoded.samples, dtype=np.float32)
+            # Decoded here to Whisper's 16 kHz mono: mlx-whisper would otherwise run the ffmpeg CLI, which the
+            # app does not have (#5638).
+            audio = decode_16k_mono(file_path)
             result = mlx_whisper.transcribe(audio, path_or_hf_repo=str(model_path), **options)
         except Exception as exc:
             raise WhisperTranscriptionError(f"Whisper transcription failed: {exc}") from exc

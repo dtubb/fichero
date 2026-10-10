@@ -24,6 +24,7 @@ WORKFLOW_FOR_JOB = {
     "find-lines": "detect_regions_kraken",
     "read-a-line": "transcribe_kraken",
     "read-a-page": "transcribe_htr",
+    "transcribe-speech": "transcribe_audio",
     "correct": "transcribe_paleography_review",
     "find-names-tag-words": "catalogue_stage_2_extract_entities",
     "find-statements": "catalogue_stage_3_extract_svo",

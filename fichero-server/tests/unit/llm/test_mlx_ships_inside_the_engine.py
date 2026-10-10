@@ -194,9 +194,7 @@ def test_whisper_downloads_and_transcribes_in_the_engine(no_separate_python, mon
     target.mkdir(parents=True, exist_ok=True)
     import numpy as np
 
-    monkeypatch.setitem(sys.modules, "miniaudio", types.SimpleNamespace(
-        SampleFormat=types.SimpleNamespace(FLOAT32="f32"),
-        decode_file=lambda *a, **k: types.SimpleNamespace(samples=np.zeros(16000, np.float32).tobytes())))
+    monkeypatch.setattr(whisper_runtime, "decode_16k_mono", lambda path: np.zeros(16000, np.float32))
     monkeypatch.setitem(sys.modules, "mlx_whisper", types.SimpleNamespace(
         transcribe=lambda audio, **k: {"text": " hello "}))
     assert whisper_runtime.transcribe_sync("a.mp3", "tiny", "en", tmp_path) == "hello"

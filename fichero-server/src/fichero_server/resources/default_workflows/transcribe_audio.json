@@ -1,0 +1,60 @@
+{
+ "name": "Transcribe Audio",
+ "description": "Use this when: a recording should become text. Whisper reads it on this Mac (it ships with the app; its model downloads once). The transcript is saved as the recording's reading, timed.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Transcribe",
+ "tags": [
+  "preset",
+  "transcribe",
+  "audio",
+  "speech",
+  "whisper",
+  "local"
+ ],
+ "config": {
+  "preset_version": 1
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "whisper",
+   "tool": "audio_transcribe",
+   "label": "Whisper — transcribe speech",
+   "position_x": 320,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "audio_mode": "local_whisper",
+    "whisper_model_size": "base",
+    "language": "auto",
+    "update_page_content": true
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "edge-files-whisper",
+   "source": "files-source",
+   "target": "whisper",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "edge-files-whisper-documents",
+   "source": "files-source",
+   "target": "whisper",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

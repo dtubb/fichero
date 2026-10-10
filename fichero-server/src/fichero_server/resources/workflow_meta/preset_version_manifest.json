@@ -155,6 +155,10 @@
   "preset_version": 1,
   "sha256": "892cf76676d4d472f6307938fdc3f73b7a0dfea1a9452c82bb76d1af285c22a7"
  },
+ "transcribe_audio.json": {
+  "preset_version": 1,
+  "sha256": "0ee565bd85620221df667efae544b494af5f09b0520ee4541aa4b2d928079beb"
+ },
  "transcribe_auto_detect.json": {
   "preset_version": 6,
   "sha256": "31b591acf658a7b61989b00a19aa76ef5db17fc5bb00f82371dd4abfb5e5a678"

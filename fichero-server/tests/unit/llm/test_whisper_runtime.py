@@ -236,3 +236,29 @@ def test_a_transcriber_that_printed_nothing_is_an_error_not_an_empty_string(
 
     with pytest.raises(WhisperTranscriptionError, match="no result payload"):
         whisper_runtime.transcribe_sync("/tmp/audio.wav", "tiny", "en", home=tmp_path)
+
+
+def test_a_voice_memo_decodes_for_whisper_in_the_engine(tmp_path):
+    """AAC in an M4A -- a voice memo -- decodes in-process to Whisper's 16 kHz mono (2026-10-10: miniaudio could
+    not read it, so every recording from a phone failed "failed to decode file" in the app)."""
+    av = pytest.importorskip("av")  # bundled in the app (`[tool.fichero.mlx_bundle]`), not a dev dependency
+    import numpy as np
+
+    from fichero_server.llm.whisper_runtime import decode_16k_mono
+
+    memo = tmp_path / "memo.m4a"
+    with av.open(str(memo), "w") as out:
+        stream = out.add_stream("aac", rate=44100, layout="mono")
+        t = np.arange(44100 * 2) / 44100  # two seconds of a 440 Hz tone
+        tone = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32).reshape(1, -1)
+        frame = av.AudioFrame.from_ndarray(tone, format="flt", layout="mono")
+        frame.sample_rate = 44100
+        for packet in stream.encode(frame):
+            out.mux(packet)
+        for packet in stream.encode(None):
+            out.mux(packet)
+
+    audio = decode_16k_mono(memo)
+    assert audio.dtype == np.float32 and audio.ndim == 1
+    assert abs(len(audio) / 16000 - 2.0) < 0.15, len(audio)
+    assert 0.15 < float(np.abs(audio).max()) <= 1.0
