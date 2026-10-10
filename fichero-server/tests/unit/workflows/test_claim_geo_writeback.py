@@ -240,3 +240,17 @@ class TestNoInventedCoordinates:
         for name, (lat, lon) in _GAZETTEER.items():
             assert -90 <= lat <= 90 and -180 <= lon <= 180, name
             assert (lat, lon) != (0.0, 0.0), f"{name} sits at Null Island"
+
+
+def test_placing_claims_announces_them(library, monkeypatch):
+    """A claim that gained a place is a knowledge-graph change: the Inspector and the map hold what
+    they loaded until an event says otherwise (#4420, the change-event seam)."""
+    from fichero_server.workflows.tools import _workflow_change_emit
+
+    seen = []
+    monkeypatch.setattr(_workflow_change_emit, "emit_change", lambda library_path, **kw: seen.append(kw))
+    claim = _claim(library, claim_location="Popayán")
+
+    attach_geocoded_places(library, document_ids=["d1"], points_by_name=geo.geocode_places_with_source(["Popayán"]))
+
+    assert any(kw["type"] == "claim.updated" and claim.id in kw["claim_ids"] for kw in seen), seen

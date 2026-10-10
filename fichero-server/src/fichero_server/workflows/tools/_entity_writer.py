@@ -1214,6 +1214,7 @@ def attach_geocoded_places(
         return {"updated": 0, "already_placed": 0, "unmatched_names": len(points_by_name)}
 
     matched_keys: set[str] = set()
+    placed_claim_ids: list[str] = []
     updated = 0
     already_placed = 0
 
@@ -1255,7 +1256,15 @@ def attach_geocoded_places(
                 )
             ]
             db.save(claim)
+            placed_claim_ids.append(claim.id)
             updated += 1
+
+    if placed_claim_ids:
+        # The claims gained a place: announce it here, as `_write_kg_rows` does, so the
+        # Knowledge Graph inspector and the map read them again (#4420, change-event seam).
+        from fichero_server.workflows.tools._workflow_change_emit import emit_workflow_kg_changes_for_db
+
+        emit_workflow_kg_changes_for_db(db, claim_ids=placed_claim_ids, document_ids=list(document_ids))
 
     return {
         "updated": updated,

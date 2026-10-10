@@ -54,14 +54,18 @@ from _scan_files import scan_rglob
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 
 KG_MODELS = frozenset({"KnowledgeClaim", "KnowledgeClaimLink", "KnowledgeEntity"})
-CHANGE_EMITTERS = frozenset({"emit_change", "emit_workflow_kg_changes"})
+CHANGE_EMITTERS = frozenset({"emit_change", "emit_workflow_kg_changes", "emit_workflow_kg_changes_for_db"})
 TOOLS_PREFIX = "workflows/tools/"
 PROPAGATION_ROUNDS = 2
 
-# Modules that may persist KG rows without emitting, each with a reason.
-# Empty: every module the sweep currently flags was read and is a real
-# finding, reported on #4392.
-ALLOWED_SILENT_WRITERS: dict[str, str] = {}
+# Modules that may persist KG rows without emitting, each with a reason, each read before it was
+# added (2026-10-10; geo_extract's placements and cleanup's merges were real and now announce).
+ALLOWED_SILENT_WRITERS: dict[str, str] = {
+    "workflows/tools/llm_base.py": (
+        "reaches only importers.derivatives.queue_embedding, which queues an embed job and writes no "
+        "knowledge-graph row; the bounded name resolution over-reaches there"
+    ),
+}
 
 
 def _modules() -> dict[str, ast.Module]:
@@ -139,10 +143,45 @@ def _kg_persisting_functions(modules: dict[str, ast.Module]) -> set[tuple[str, s
     return persisting
 
 
+def _silently_persisting(modules: dict[str, ast.Module]) -> set[tuple[str, str]]:
+    """KG-persisting functions whose writes nothing announces on the way up.
+
+    A function that calls a change emitter announces what it wrote, so reaching it is not a silent
+    write: `_write_kg_rows` emits for every caller since #4392, and counting it as silent flagged
+    `kg_writer` and `extract_svo_only` for writes the helper already announces."""
+    announcing = {
+        (module, fn.name)
+        for module, tree in modules.items()
+        for fn in _functions(tree)
+        if _called_names(fn) & CHANGE_EMITTERS
+    }
+    seeds = {
+        (module, fn.name)
+        for module, tree in modules.items()
+        for fn in _functions(tree)
+        if ".save(" in (body := ast.unparse(fn)) and any(model in body for model in KG_MODELS)
+    } - announcing
+    silent = set(seeds)
+    for _round in range(PROPAGATION_ROUNDS):
+        for module, tree in modules.items():
+            imports = _imported_names(tree)
+            local = {fn.name for fn in _functions(tree)}
+            for fn in _functions(tree):
+                key = (module, fn.name)
+                if key in silent or key in announcing:
+                    continue
+                for name in _called_names(fn):
+                    target = (imports[name], name) if name in imports else ((module, name) if name in local else None)
+                    if target in silent:
+                        silent.add(key)
+                        break
+    return silent
+
+
 def _silent_kg_writers() -> dict[str, list[str]]:
-    """tools module -> resolved persisting helpers it calls without emitting."""
+    """tools module -> resolved persisting helpers it calls without anything emitting."""
     modules = _modules()
-    persisting = _kg_persisting_functions(modules)
+    persisting = _silently_persisting(modules)
     findings: dict[str, list[str]] = {}
 
     for module, tree in modules.items():

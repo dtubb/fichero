@@ -797,6 +797,7 @@ def _apply_groups(
 
     by_name: dict[str, KnowledgeEntity] = {e.canonical_name: e for e in entities}
     merged = 0
+    changed_ids: list[str] = []
     for group in groups:
         canonical_name = group.get("canonical")
         aliases = group.get("aliases") or []
@@ -821,13 +822,20 @@ def _apply_groups(
                 continue
             if name not in new_aliases:
                 new_aliases.append(name)
+            changed_ids.append(absorbed.id)
             merged += 1
         if new_aliases != (canonical_entity.aliases or []):
             canonical_entity.aliases = new_aliases
             try:
                 db.save(canonical_entity)
+                changed_ids.append(canonical_entity.id)
             except Exception as exc:
                 logger.warning(f"alias update failed for {canonical_entity.id}: {exc}")
+    if changed_ids:
+        # Merged entities: announce them so every observer reads them again (#4420, change-event seam).
+        from fichero_server.workflows.tools._workflow_change_emit import emit_workflow_kg_changes_for_db
+
+        emit_workflow_kg_changes_for_db(db, entity_ids=changed_ids)
     return merged
 
 

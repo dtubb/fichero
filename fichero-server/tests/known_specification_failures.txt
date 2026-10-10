@@ -22,8 +22,6 @@
 tests/unit/importers/test_import_embedding_report_contract.py::TestPageChildrenEmbeddingIsNotSilentlySkipped::test_page_children_default_to_being_embedded
 
 # ---- #4420 (10) ----
-tests/unit/seams/test_change_event_seam.py::test_every_kg_writing_tool_emits_a_change_event
-tests/unit/seams/test_change_event_seam.py::test_kg_writer_emits_a_change_event
 tests/unit/seams/test_declared_port_seam.py::test_every_declared_input_port_is_fillable_by_some_tool_output
 tests/unit/seams/test_discarded_result_seam.py::test_no_success_status_is_discarded_at_its_call_site
 tests/unit/seams/test_optional_callback_seam.py::test_claim_source_navigation_is_supplied_everywhere
