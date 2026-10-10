@@ -72,6 +72,18 @@ def test_a_new_project_is_created_with_its_sources_folder(tmp_path, monkeypatch)
         db_manager.close_database(target)
 
 
+def test_the_global_library_has_its_sources_folder_too(tmp_path):
+    """WHY: on a first launch the app shows the global library (Local); with no Sources folder it
+    opened on Workflows with nowhere for material to go (maintainer, 2026-10-10)."""
+    package = tmp_path / "global.fichero"
+    package.mkdir()
+    try:
+        db = db_manager.get_database(package)
+        assert len(_root_folders_named_sources(db)) == 1
+    finally:
+        db_manager.close_database(package)
+
+
 def test_an_import_naming_no_folder_lands_in_sources(client, db, tmp_path):
     """WHY: the whole point of the folder -- a drop onto the project (no folder named) used to land
     at the top level. The document's parent must be the Sources folder, not None."""

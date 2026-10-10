@@ -219,10 +219,8 @@ class DatabaseManager:
                     # never re-made after a delete, and nothing already in the project moves.
                     # Tests set FICHERO_SKIP_SOURCES_FOLDER=1 (conftest) for the same reason
                     # as the workflow skip above; the tests of this rule switch it back on.
-                    if (
-                        not is_global_library_package(package_path)
-                        and os.environ.get("FICHERO_SKIP_SOURCES_FOLDER") != "1"
-                    ):
+                    # The global library too (maintainer, 2026-10-10): a first launch shows its Sources.
+                    if os.environ.get("FICHERO_SKIP_SOURCES_FOLDER") != "1":
                         from fichero_server.importers.sources_folder import (
                             ensure_sources_folder_on_open,
                         )
