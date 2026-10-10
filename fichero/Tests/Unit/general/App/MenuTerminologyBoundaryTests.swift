@@ -74,6 +74,7 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertLessThan(start.lowerBound, stages.lowerBound)
 
         // Each built stage is a titled Section holding its verbs; Workflows ▸ and Chat ▸ moved here.
+        XCTAssertTrue(body.contains("case .read:\n            Section(stage.title) {\n                FocusedRunRecipeOnFolderButton()"))
         XCTAssertTrue(body.contains("case .organise:\n            Section(stage.title) {\n                FocusedFindDocumentsButton()"))
         XCTAssertTrue(body.contains("case .connect:\n            Section(stage.title) {"))
         XCTAssertTrue(body.contains("Button(\"SPARQL Console…\")"))
@@ -116,6 +117,64 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         for file in ["Views/Library/LibraryView+ContextMenu.swift", "Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift"] {
             XCTAssertFalse(try Self.appSource(file).contains("findDocuments(scopeIds:"), "\(file) calls the service itself")
         }
+    }
+
+    /// `source.recipe.folder-scoped-start` (#5540): "Run the Recipe on This Folder…" is written once, in
+    /// `RunRecipeOnFolderMenuItem`, and the Project menu and both folder context menus render that component;
+    /// no surface calls the store's folder start itself.
+    func testRunTheRecipeOnThisFolderIsOneComponent() throws {
+        let root = try AppSource.root().standardizedFileURL
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+        var labelSites: [String] = []
+        var componentSites: [String] = []
+        var startSites: [String] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            let relative = AppSource.relativePath(of: url, under: root)
+            let source = try String(contentsOf: url, encoding: .utf8)
+            for line in source.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("//") { continue }
+                if trimmed.contains("\"Run the Recipe on This Folder…\"") { labelSites.append(relative) }
+                if trimmed.contains("RunRecipeOnFolderMenuItem(") && !trimmed.hasPrefix("struct ") {
+                    componentSites.append(relative)
+                }
+                if trimmed.contains("start(folderId:") && !trimmed.hasPrefix("func ") { startSites.append(relative) }
+            }
+        }
+        XCTAssertEqual(labelSites, ["App/Menus/FocusedCommands/FocusedCommandButtons+Recipe.swift"])
+        XCTAssertEqual(
+            Set(componentSites),
+            [
+                "App/Menus/FocusedCommands/FocusedCommandButtons+Recipe.swift",
+                "Views/Library/LibraryView+ContextMenu.swift",
+                "Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift",
+            ]
+        )
+        XCTAssertEqual(startSites, ["App/Menus/FocusedCommands/FocusedCommandButtons+Recipe.swift"],
+                       "only the shared item starts a folder's run")
+    }
+
+    /// The one folder the recipe runs on, from a context menu and from the menu bar (#5540).
+    func testRecipeFolderScope() {
+        // A context menu: the clicked folder; a page, or a folder among several selected, is nothing.
+        XCTAssertEqual(RecipeFolderScope.forClick(on: "f", isFolder: true, selection: []), "f")
+        XCTAssertEqual(RecipeFolderScope.forClick(on: "f", isFolder: true, selection: ["f"]), "f")
+        XCTAssertEqual(RecipeFolderScope.forClick(on: "f", isFolder: true, selection: ["a", "b"]), "f",
+                       "a folder clicked outside the selection is the one clicked")
+        XCTAssertNil(RecipeFolderScope.forClick(on: "f", isFolder: true, selection: ["f", "g"]))
+        XCTAssertNil(RecipeFolderScope.forClick(on: "p", isFolder: false, selection: []))
+
+        let folders: Set<String> = ["f", "g", "shown"]
+        let isFolder = { (id: String) in folders.contains(id) }
+        // The menu bar: one selected folder → it; one page, or several → nothing.
+        XCTAssertEqual(RecipeFolderScope.forSelection(["f"], shownFolderId: "shown", isFolder: isFolder), "f")
+        XCTAssertNil(RecipeFolderScope.forSelection(["p"], shownFolderId: "shown", isFolder: isFolder))
+        XCTAssertNil(RecipeFolderScope.forSelection(["f", "g"], shownFolderId: "shown", isFolder: isFolder))
+        // Nothing selected → the folder the window shows, if it is one.
+        XCTAssertEqual(RecipeFolderScope.forSelection([], shownFolderId: "shown", isFolder: isFolder), "shown")
+        XCTAssertNil(RecipeFolderScope.forSelection([], shownFolderId: "p", isFolder: isFolder))
+        XCTAssertNil(RecipeFolderScope.forSelection([], shownFolderId: nil, isFolder: isFolder))
+        XCTAssertEqual(RecipeFolderScope.noFolderReason, "Select one folder to run the recipe on")
     }
 
     /// What Find the Documents looks through, from a context menu and from the menu bar.

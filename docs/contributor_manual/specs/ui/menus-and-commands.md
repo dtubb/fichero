@@ -233,7 +233,9 @@ Behaviours (slice 1):
   `MenuTerminologyBoundaryTests.testProjectMenuDeclaresTheStageSectionsInRecipeOrder`,
   `testStartSaysWhyItCannotAct`, and `MenuShortcutUniquenessTests.projectMenuChordsAreUnique`.
 - `menus.project.stage-sections` — **[PARTIAL]** (#5652) **Built 2026-10-10 (app), not yet seen:** the
-  stages are `ProjectMenuStage` in recipe order, each a titled `Section`: **Organise** › Find the
+  stages are `ProjectMenuStage` in recipe order, each a titled `Section`: **Read** › Run the Recipe on
+  This Folder… (`RunRecipeOnFolderMenuItem`, also in both folder context menus; #5540,
+  `source.recipe.folder-scoped-start` in `source/models-chains-and-projects.md`), **Organise** › Find the
   Documents (⇧⌘D), **Connect** › SPARQL Console… (moved from Knowledge); **Workflows ▸** and **Chat ▸**
   (moved from Knowledge) follow the stages. *Not built:* **Read** › Reading ▸ (#5652), **Structure**
   (no verb yet), **Train** › Train a Model… and the Models node's model-row menu (#5652).

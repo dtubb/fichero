@@ -143,6 +143,9 @@ final class ActivityStore: ChangeEventConsumer {
     /// The log of a row and the rows under it (#5561), newest last, keyed by
     /// the row's job id: one key patched, and only when it changed.
     private(set) var jobLogs: [String: [ActivityJobLogLine]] = [:]
+    /// A recipe run's folders done of its folders in all (`activity.run.progress-per-folder`, #5540), keyed
+    /// by the run's id: read from its status each time its tree is read, one key patched, only when changed.
+    private(set) var recipeRunFolders: [String: RecipeRunFolders] = [:]
     /// The recipe run the project window's strip shows (#5576, #5577): the
     /// project's running recipe run, seen on the jobs poll, and once it ends,
     /// that run until the person puts it away. Its words are its tree's
@@ -618,11 +621,24 @@ extension ActivityStore {
         do {
             if let tree = try await activityService.getJobTree(id: threadId) {
                 if runTrees[threadId] != tree { runTrees[threadId] = tree }
+                if tree.kind == Self.recipeRunKind { await readRecipeRunFolders(jobId: threadId) }
             } else {
                 runsWithoutTree.insert(threadId)
             }
         } catch {
             log.debug("ActivityStore: tree for \(threadId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// A recipe run's folders from its status (`GET /api/recipes/project/runs/{id}`), patched on its ONE key.
+    /// A failed read keeps what was shown.
+    private func readRecipeRunFolders(jobId: String) async {
+        do {
+            guard let status = try await activityService.getRecipeRunStatus(jobId: jobId),
+                  let folders = RecipeRunFolders(status) else { return }
+            if recipeRunFolders[jobId] != folders { recipeRunFolders[jobId] = folders }
+        } catch {
+            log.debug("ActivityStore: recipe run \(jobId, privacy: .public) status failed \(error.localizedDescription, privacy: .public)")
         }
     }
 

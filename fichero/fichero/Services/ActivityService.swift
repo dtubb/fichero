@@ -219,6 +219,23 @@ class ActivityService {
         }
     }
 
+    /// One recipe run's status (`GET /api/recipes/project/runs/{job_id}`): its folders done of its
+    /// folders in all (`activity.run.progress-per-folder`, #5540). nil for a job that is not a recipe run.
+    func getRecipeRunStatus(jobId: String) async throws -> Components.Schemas.RecipeRunStatus? {
+        switch try await client.api.recipeRunStatusApiRecipesProjectRunsJobIdGet(path: .init(jobId: jobId)) {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent:
+            return nil
+        case .undocumented(let statusCode, let payload):
+            if statusCode == 404 { return nil }
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw denial
+            }
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     // MARK: - Background jobs (#user-machine-always-useful FIX 2)
 
     /// Snapshot of currently-running background jobs + rough process CPU%.

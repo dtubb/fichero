@@ -279,15 +279,8 @@ final class RecipeSetupStore {
     /// without it, the whole project, sent as before (no body).
     func start(folderId: String? = nil) async -> Bool {
         do {
-            let response: Operations.StartProjectApiRecipesProjectStartPost.Output
-            if let folderId {
-                response = try await client.api.startProjectApiRecipesProjectStartPost(
-                    body: .json(.init(folderId: folderId))
-                )
-            } else {
-                response = try await client.api.startProjectApiRecipesProjectStartPost()
-            }
-            switch response {
+            let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? = folderId.map { .json(.init(folderId: $0)) }
+            switch try await client.api.startProjectApiRecipesProjectStartPost(body: body) {
             case .ok(let success):
                 startPlan = try success.body.json
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }

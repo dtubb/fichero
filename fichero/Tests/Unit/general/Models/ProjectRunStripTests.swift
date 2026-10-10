@@ -341,4 +341,60 @@ final class ProjectRunStripTests: XCTestCase {
         XCTAssertEqual(Self.treeReads("older-run"), 0)
         XCTAssertEqual(Self.treeReads(jobId), 1, "only the first launch read the closed run's tree")
     }
+
+    // MARK: - activity.run.progress-per-folder (#5540)
+
+    func testFolderWords_sayHowFarInFolders_onlyForARunOverSeveral() {
+        // WHY: at archive scale one page figure for 800 folders says nothing; a run over one folder
+        // (an import's one batch) would only repeat what its stage says.
+        XCTAssertEqual(RecipeRunFolders(done: 3, total: 800).words, "3 of 800 folders")
+        XCTAssertEqual(RecipeRunFolders(done: 0, total: 2).words, "0 of 2 folders")
+        XCTAssertNil(RecipeRunFolders(done: 0, total: 1).words)
+        XCTAssertNil(RecipeRunFolders(done: 0, total: 0).words)
+    }
+
+    func testStrip_aRunOverManyFolders_saysHowManyAreDone_fromItsStatus() async throws {
+        // WHY: the engine counts folders done on the run's status (`folders_done`, `folders_total`); the strip
+        // must say them after the stage, through the store, read with the run's tree.
+        let store = Self.store()
+        let tree = try Self.runningTree()
+        let jobId = try XCTUnwrap(tree["id"] as? String)
+        XCTAssertEqual(tree["kind"] as? String, ActivityStore.recipeRunKind, "the recorded tree is a recipe run")
+        let status: [String: Any] = [
+            "job_id": jobId, "state": "running", "steps": [Any](), "skipped": [Any](),
+            "folders_done": 3, "folders_total": 800,
+            "reason": "Running the recipe: 3 of 800 folders done"
+        ]
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsList(Self.recipeRow(jobId))),
+            Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(tree)),
+            Stub(path: "/api/recipes/project/runs/\(jobId)", method: "GET", status: 200, body: try Self.json(status))
+        ])
+
+        await store.refreshBackgroundJobs()
+
+        XCTAssertEqual(store.recipeRunFolders[jobId], RecipeRunFolders(done: 3, total: 800))
+        let strip = try XCTUnwrap(ProjectRunStrip(store: store))
+        XCTAssertEqual(strip.title, "Transcribe (Kraken) · stage 1 of 3 · 3 of 800 folders")
+    }
+
+    func testStrip_aRunOverOneFolder_saysNothingMoreThanItsStage() async throws {
+        let store = Self.store()
+        let tree = try Self.runningTree()
+        let jobId = try XCTUnwrap(tree["id"] as? String)
+        let status: [String: Any] = [
+            "job_id": jobId, "state": "running", "steps": [Any](), "skipped": [Any](),
+            "folders_done": 0, "folders_total": 1
+        ]
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/activity/jobs", method: "GET", status: 200, body: Self.jobsList(Self.recipeRow(jobId))),
+            Stub(path: "/api/activity/jobs/\(jobId)", method: "GET", status: 200, body: try Self.json(tree)),
+            Stub(path: "/api/recipes/project/runs/\(jobId)", method: "GET", status: 200, body: try Self.json(status))
+        ])
+
+        await store.refreshBackgroundJobs()
+
+        XCTAssertEqual(store.recipeRunFolders[jobId], RecipeRunFolders(done: 0, total: 1))
+        XCTAssertEqual(ProjectRunStrip(store: store)?.title, "Transcribe (Kraken) · stage 1 of 3")
+    }
 }

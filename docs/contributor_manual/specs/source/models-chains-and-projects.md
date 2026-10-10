@@ -2245,12 +2245,19 @@ Projects
   pages" then cover only that folder's live pages, those of its folders inside it included, and the run started
   from it touches no page outside it. With no folder it is the whole project, as before. The engine works out the
   folder's pages; a folder that is not in the project is refused (422), and one with no pages refuses Start.
-  App **[GAP]**: one item, "Run the Recipe on This Folder…", in the Project menu's Read section and in the
-  library's and the sidebar's folder context menus (one component, one label, one action). It acts on one folder:
-  the clicked folder in a context menu; in the menu bar the one selected folder, or with nothing selected the folder
-  the window shows; with anything else it is disabled and says "Select one folder to run the recipe on". It reads
-  the folder's Start plan (`folder_id`) and, when the plan can start, starts it on that folder and opens the run in
-  Activity, as Start does; when it cannot, Set Up… opens so the steps say why, as Start does.
+  App **[PARTIAL]** (built 2026-10-10, not yet seen in a build: `RunRecipeOnFolderMenuItem`, `RecipeFolderScope`,
+  `RecipeSetupStore.loadStartPlan(folderId:)`/`start(folderId:)`; tested in
+  `MenuTerminologyBoundaryTests.testRunTheRecipeOnThisFolderIsOneComponent`, `testRecipeFolderScope`,
+  `testProjectMenuDeclaresTheStageSectionsInRecipeOrder`, and
+  `RecipeSetupStoreTests.folderPlanAndStartSendTheFolder`): one item, "Run the Recipe on This Folder…", in the
+  Project menu's Read section and in the library's and the sidebar's folder context menus (one component, one
+  label, one action). It acts on one folder: the clicked folder in a context menu (not a folder among several
+  selected); in the menu bar the one selected folder, or with nothing selected the folder the window shows; with
+  anything else the menu bar's item is disabled and says "Select one folder to run the recipe on", and a context
+  menu does not offer it. It reads the folder's Start plan (`folder_id`) and, when the plan can start, starts it
+  on that folder and opens the run in Activity, as Start does; when it cannot, Set Up… opens so the steps say why,
+  as Start does. Not seen: Set Up… then shows the whole project's plan, so a refusal only the folder has (a folder
+  with no pages) is not on its screen.
 - `source.recipe.batch-at-archive-scale` — **[OK]** (#5540; rule 9 of `compute/jobs-and-fine-tuning.md`; built
   2026-10-10: `runner._batches`, `runner._run_batch`, `runner.BATCH_PAGE_LIMIT`; tested as above) a
   run goes a batch at a time: a batch is one folder (a page's nearest folder; pages in no folder are one
@@ -2275,11 +2282,15 @@ Projects
   and `folders_total` on `GET /api/recipes/project/runs/{id}`; tested as above) a recipe run's row says how far
   it is in folders, not one figure for every page: "Running step lines, read: 3 of 800 folders done" while it
   runs, and a run that fails or is stopped says how many folders it finished; its status carries
-  `folders_done` and `folders_total` (and `folder_id` for a folder's run). App **[GAP]**: the project window's run
-  strip says how far the run is in folders after its stage ("Read lines · stage 1 of 3 · 3 of 800 folders"), from
-  the run's `folders_done` and `folders_total`, only when the run goes over more than one folder (a folder's run
-  or an import's single batch says nothing extra); the figure is read again each time the run's row changes, one
-  run's entry replaced in place.
+  `folders_done` and `folders_total` (and `folder_id` for a folder's run). App **[OK]** (built 2026-10-10, not yet
+  seen in a build: `RecipeRunFolders`, `ActivityStore.recipeRunFolders`, `ProjectRunStrip`; tested in
+  `ProjectRunStripTests.testFolderWords_sayHowFarInFolders_onlyForARunOverSeveral`,
+  `testStrip_aRunOverManyFolders_saysHowManyAreDone_fromItsStatus`,
+  `testStrip_aRunOverOneFolder_saysNothingMoreThanItsStage`): the project window's run strip says how far the run
+  is in folders after its stage ("Transcribe (Kraken) · stage 1 of 3 · 3 of 800 folders"), from the run's
+  `folders_done` and `folders_total` (`GET /api/recipes/project/runs/{id}`), only when the run goes over more than
+  one folder (a run over one folder, as an import's one batch, says nothing extra); the figure is read again each
+  time the run's tree is, one run's entry replaced in place.
 - `source.recipe.step-skipped-says-why` — **[OK]** (#5390; built: `recipes/start.py` `skipped`; tested as above) a step Start cannot run (no model, a
   condition Start cannot honour yet, a cloud step in a project that keeps its pages on this Mac, a
   job no card runs yet) is skipped, and the plan and the recipe run name the step and why; the other

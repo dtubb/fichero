@@ -427,6 +427,40 @@ struct RecipeSetupStoreTests {
         #expect(store.errorMessage != nil)
     }
 
+    /// WHY (`source.recipe.folder-scoped-start`, #5540): Run the Recipe on This Folder… must plan and start
+    /// the run on that folder alone, or it would run the whole archive; and Start, with no folder, must send
+    /// exactly what it sent before (no query, no body), or the whole-project run would change under it.
+    @Test("a folder's plan and start send folder_id; with no folder nothing changes")
+    func folderPlanAndStartSendTheFolder() async {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        // Each request recorded under "<n> <method>": its query, its JSON body, and its body's size.
+        let store = makeStore { request in
+            RecipesMockURLProtocol.calls += 1
+            let body = request.bodyOrStream()
+            RecipesMockURLProtocol.bodies["\(RecipesMockURLProtocol.calls) \(request.httpMethod ?? "")"] = [
+                "query": request.url?.query ?? "",
+                "json": (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:],
+                "bytes": body.count
+            ]
+            return Self.reply(request, 200, Self.planJSON(refusals: ""))
+        }
+        func seen(_ key: String) -> [String: Any] { RecipesMockURLProtocol.bodies[key] ?? [:] }
+
+        await store.loadStartPlan(folderId: "folder-7")
+        #expect(seen("1 GET")["query"] as? String == "folder_id=folder-7")
+        #expect(store.startPlanFolderId == "folder-7")
+        #expect(await store.start(folderId: "folder-7"))
+        #expect((seen("2 POST")["json"] as? [String: Any])?["folder_id"] as? String == "folder-7")
+        #expect(store.startPlanFolderId == "folder-7")
+
+        await store.loadStartPlan()
+        #expect(seen("3 GET")["query"] as? String == "", "the whole project: no folder in the query")
+        #expect(store.startPlanFolderId == nil)
+        #expect(await store.start())
+        #expect(seen("4 POST")["bytes"] as? Int == 0, "the whole project's Start sends no body, as before")
+        #expect(RecipesMockURLProtocol.calls == 4)
+    }
+
     /// WHY (#5583, `source.onboard.auto.installed-model-first`): a step waiting for a model download
     /// stayed refused after the download finished until setup was opened again. The engine now says
     /// `model.installed` on the change stream; the store reads the shown plan again on it, and a

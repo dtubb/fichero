@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 // The project window's own account of its recipe run (#5576, #5577;
@@ -27,7 +28,8 @@ struct ProjectRunStrip: Equatable {
     init?(store: ActivityStore) {
         guard let jobId = store.projectRunId else { return nil }
         self.init(jobId: jobId, node: store.runTrees[jobId],
-                  job: store.backgroundJobs.first { $0.id == jobId })
+                  job: store.backgroundJobs.first { $0.id == jobId },
+                  folders: store.recipeRunFolders[jobId])
     }
 
     /// Preview seam: the words given.
@@ -39,8 +41,9 @@ struct ProjectRunStrip: Equatable {
         self.failed = failed
     }
 
-    /// The strip from the run's node and its row on the jobs poll: pure, so a test can build it.
-    init(jobId: String, node: ActivityJobNode?, job: ActivityJob?) {
+    /// The strip from the run's node, its row on the jobs poll and its folders done of its folders
+    /// (`activity.run.progress-per-folder`): pure, so a test can build it.
+    init(jobId: String, node: ActivityJobNode?, job: ActivityJob?, folders: RecipeRunFolders? = nil) {
         self.jobId = jobId
         let state = node?.state ?? (job?.state == .running ? "running" : "waiting")
         let ended = ["done", "failed", "cancelled"].contains(state)
@@ -58,7 +61,8 @@ struct ProjectRunStrip: Equatable {
         }
         failed = []
         let words = Self.liveWords(state: state, node: node, job: job)
-        title = words.title
+        // How far the run is in folders, after its stage, for a run over more than one (#5540).
+        title = [words.title, folders?.words].compactMap { $0 }.joined(separator: " · ")
         detail = words.detail
     }
 
@@ -82,6 +86,30 @@ struct ProjectRunStrip: Equatable {
         case "running": return ("Recipe run starting", reason)
         default: return ("Recipe run waiting", reason)
         }
+    }
+}
+
+/// A recipe run's folders done of its folders in all (`activity.run.progress-per-folder`, #5540), as the
+/// run's status carries them (`folders_done`, `folders_total`). The engine counts; the app only words it.
+struct RecipeRunFolders: Equatable {
+    let done: Int
+    let total: Int
+
+    /// nil before the run has worked out its folders.
+    init?(_ status: Components.Schemas.RecipeRunStatus) {
+        guard let total = status.foldersTotal else { return nil }
+        self.init(done: status.foldersDone ?? 0, total: total)
+    }
+
+    init(done: Int, total: Int) {
+        self.done = done
+        self.total = total
+    }
+
+    /// "3 of 800 folders"; nil for a run over one folder or none (an import's one batch, a folder with none inside),
+    /// where it would say nothing the stage does not.
+    var words: String? {
+        total > 1 ? "\(done) of \(total) folders" : nil
     }
 }
 
