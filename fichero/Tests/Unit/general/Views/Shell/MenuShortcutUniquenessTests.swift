@@ -199,6 +199,22 @@ struct MenuShortcutUniquenessTests {
         }
     }
 
+    /// The Project menu's chords (ruled 2026-10-10): Start is ⇧⌘↩ and Find the Documents is ⇧⌘D
+    /// (⌥⌘K is the Preview's Check markup tool), each minted once, on its shared button, and claimed by nothing else ANYWHERE in the app — not only
+    /// under `App/` and `Views/Shell/`, since a context menu or a pane could mint either.
+    @Test("Project › Start (⇧⌘↩) and Find the Documents (⇧⌘D) are each minted once, app-wide")
+    func projectMenuChordsAreUnique() throws {
+        let mints = try allMints(everywhere: true)
+        let recipeButtons = "App/Menus/FocusedCommands/FocusedCommandButtons+Recipe.swift"
+        for chord in ["return-command+shift", "d-command+shift"] {
+            let sites = mints.filter { "\($0.key)-\($0.modifiers)" == chord }
+            let siteList = sites.map { "\($0.file):\($0.line)" }.joined(separator: ", ")
+            #expect(sites.count == 1, "\(chord) is minted \(sites.count) times: \(siteList)")
+            #expect(sites.first?.file == recipeButtons, "\(chord) belongs to the recipe buttons: \(siteList)")
+            #expect(Self.systemReservedChords[chord] == nil, "\(chord) is a reserved chord")
+        }
+    }
+
     // MARK: - Source scan
 
     /// Every shortcut mint under `App/` and `Views/Shell/`:
@@ -214,7 +230,7 @@ struct MenuShortcutUniquenessTests {
     /// The workspace digit slots (⌘⌥1–5, minted from `BuiltInWorkspaceLayout` DATA, not a source
     /// literal) are asserted separately in test 1 above, against the loupe only — they are Assistant/
     /// data-driven, not scannable text, and test 1 already proves them internally unique.
-    private func allMints() throws -> [Mint] {
+    private func allMints(everywhere: Bool = false) throws -> [Mint] {
         let root = try AppSource.root().standardizedFileURL
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil) else {
             return []
@@ -222,7 +238,7 @@ struct MenuShortcutUniquenessTests {
         var mints: [Mint] = []
         for case let url as URL in enumerator where url.pathExtension == "swift" {
             let relative = AppSource.relativePath(of: url, under: root)
-            guard relative.hasPrefix("App/") || relative.hasPrefix("Views/Shell/") else { continue }
+            guard everywhere || relative.hasPrefix("App/") || relative.hasPrefix("Views/Shell/") else { continue }
             let source = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
             mints.append(contentsOf: try Self.mints(inSource: source, file: relative))
         }

@@ -162,14 +162,16 @@ struct FindDocumentsMenuItem: View {
     }
 }
 
-/// Project › Organise › Find the Documents (⌥⌘K) on the key window's selection.
+/// Project › Organise › Find the Documents (⇧⌘D) on the key window's selection. Not ⌥⌘K, which the
+/// Preview's Check markup tool has (`PreviewMarkupToolsRow`). The chord is here, on the menu bar's
+/// item, not on the shared item: a context menu shows no chords.
 struct FocusedFindDocumentsButton: View {
     @FocusedValue(\.projectMenu) private var target
 
     var body: some View {
         let scope = target?.findDocumentsScope ?? []
         FindDocumentsMenuItem(scopeIds: scope, library: target?.library)
-            .keyboardShortcut("k", modifiers: [.command, .option])
+            .keyboardShortcut("d", modifiers: [.command, .shift])
         if target == nil {
             Text("Open a project to find its documents")
         } else if scope.isEmpty {
