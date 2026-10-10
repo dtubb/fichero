@@ -63,7 +63,7 @@ def memory_free(monkeypatch):
     from fichero_server.execution import throttle
 
     monkeypatch.setattr(throttle, "memory_is_busy", lambda: False)
-    monkeypatch.setattr(throttle, "why_wait", lambda person_waiting=False: None)
+    monkeypatch.setattr(throttle, "why_wait", lambda person_waiting=False, **_: None)
 
 
 @pytest.mark.asyncio

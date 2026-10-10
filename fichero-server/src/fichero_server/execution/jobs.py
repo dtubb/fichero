@@ -1545,7 +1545,10 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
     if lane_name == "local-ml":
         from fichero_server.execution.throttle import why_wait
 
-        held = why_wait(person_waiting=attached or _watched(db, job_id))
+        found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id])
+        model = found[0] if found else None
+        held = why_wait(person_waiting=attached or _watched(db, job_id), model=model,
+                        loaded=lane is not None and model is not None and model == lane.loaded_model)
         if held:
             return held
         first_kinds = [name for name, k in KINDS.items() if k.first]
@@ -1928,7 +1931,8 @@ class _Scheduler:
                 if not lane.may_start(row[1], row[3]):
                     return None  # the lane is full: its running job's thread picks this when it ends
                 if lane.name == "local-ml":
-                    reason = why_wait(person_waiting=True)  # memory and heat hold even these
+                    # memory and heat hold even these; memory by this job's own model's need (#5654)
+                    reason = why_wait(person_waiting=True, model=row[3], loaded=row[3] == lane.loaded_model)
                     if reason:
                         db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'waiting'", [reason, row[0]])
                         lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS

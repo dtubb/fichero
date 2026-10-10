@@ -18,7 +18,7 @@ import logging
 import os
 import subprocess
 import time
-from typing import Callable
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +247,29 @@ def memory_is_tight() -> str | None:
     return memory_short()
 
 
+def model_need(model: str | None, *, loaded: bool = False) -> dict[str, Any]:
+    """What one job's model needs free to start, for `memory_short` (#5654): a model on this Mac's model
+    server its own need under its own name (`local_inference.mlx_memory_need_bytes`), or, already loaded (its
+    weights in use), one more read's margin; a Kraken page, Kraken's floor under Kraken's name. Anything else
+    (no model, one the catalogue does not size): the shared floor, {}."""
+    provider, _, name = (model or "").partition(":")
+    if provider == "kraken":
+        return {"what": "Kraken"}
+    if provider != "omlx" or not name:
+        return {}
+    from fichero_server.llm import local_inference
+    from fichero_server.llm.local_model_choice import model_to_serve
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+    try:
+        spec = get_mlx_model_store().spec(model_to_serve(name))
+    except KeyError:
+        return {}
+    if loaded:
+        return {"need_bytes": local_inference._MLX_LOAD_MARGIN_BYTES, "what": f"{spec.display_name}'s next read"}
+    return {"need_bytes": local_inference.mlx_memory_need_bytes(spec), "what": spec.display_name}
+
+
 def mac_is_hot() -> str | None:
     state = thermal_state_level()
     return "Waiting: the Mac is hot" if state is not None and state >= _THERMAL_SERIOUS else None
@@ -302,17 +325,19 @@ def _started() -> bool:
     return is_started()
 
 
-def why_wait(*, person_waiting: bool = False) -> str | None:
+def why_wait(*, person_waiting: bool = False, model: str | None = None, loaded: bool = False) -> str | None:
     """The first reason heavy local work should wait now, in words, or None. While *Start* is on, every
     caller is answered as for work a person waits for (one place, so the lane, the rows, the popover's
-    `machine.why_wait` and a long job's own checks agree)."""
+    `machine.why_wait` and a long job's own checks agree). For one job, `model` (and whether the lane has
+    it `loaded`) makes the memory check that model's own need, named (`model_need`, #5654)."""
     if not _enabled():
         return None
     person_waiting = person_waiting or _started()
+    need = model_need(model, loaded=loaded) if model else {}
     for probe, applies_when_waited_for in PROBES:
         if person_waiting and not applies_when_waited_for:
             continue
-        reason = probe()
+        reason = memory_short(**need) if probe is memory_is_tight and need else probe()
         if reason:
             return reason
     return None
