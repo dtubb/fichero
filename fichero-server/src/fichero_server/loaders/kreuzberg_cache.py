@@ -81,6 +81,20 @@ def _strip_quarantine(path: Path) -> None:
         pass  # not quarantined / no libc — both fine
 
 
+def _is_quarantined(path: Path) -> bool:
+    """Whether `path` exists and carries com.apple.quarantine (libc getxattr; macOS only)."""
+    import ctypes
+    import ctypes.util
+
+    if not path.exists():
+        return False
+    try:
+        libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+        return libc.getxattr(str(path).encode(), b"com.apple.quarantine", None, 0, 0, 0) >= 0
+    except Exception:
+        return False
+
+
 def _place_from_pypdfium2(target: Path, logger=None) -> bool:
     """Copy pypdfium2's wheel dylib beside kreuzberg's binding, dev-venv only.
 
@@ -216,6 +230,16 @@ def kreuzberg_pdf_usable(logger=None) -> bool:
     import subprocess
     import tempfile
 
+    bind = Path(os.environ.get("TMPDIR", "/tmp")) / "kreuzberg-pdfium" / "libpdfium.dylib"
+    if _is_quarantined(bind):
+        # The sandbox could neither hard-link the bundled pdfium here nor strip the quarantine from its copy,
+        # and a quarantined pdfium wedges the bind: the probe below would hang its full 60 s on every run
+        # before the fitz split took over (seen 2026-10-10 in the Dev Embedded app). Go straight to fitz.
+        _KREUZBERG_PDF_USABLE = False
+        if logger:
+            logger.warning("kreuzberg PDF extraction off for this run: its pdfium copy at %s is quarantined "
+                           "(text-layer PDFs extract via fitz)", bind)
+        return _KREUZBERG_PDF_USABLE
     try:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             f.write(_PROBE_PDF)
