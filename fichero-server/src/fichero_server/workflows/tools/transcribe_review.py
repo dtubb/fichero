@@ -201,7 +201,7 @@ async def transcribe_review(
         postprocess_text=sanitize_transcription,
     )
     library_path = state.get("library_path", "")
-    if library_path and inputs.get("save_to_db", True):
+    if library_path and result.get("artifacts"):
         import asyncio
 
         await asyncio.to_thread(_onto_lines, result, library_path, state.get("task_id"))
