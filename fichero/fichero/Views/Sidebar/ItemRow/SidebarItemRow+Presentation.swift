@@ -92,6 +92,14 @@ extension SidebarItemRow {
                 } label: {
                     Label("Add to Workspace…", systemImage: "square.grid.2x2")
                 }
+                if processDoc.docType == .folder {
+                    // Find the Documents (#5550), as the library grid offers it on a folder.
+                    Button {
+                        findDocuments(in: processDoc)
+                    } label: {
+                        Label("Find the Documents", systemImage: "doc.on.doc")
+                    }
+                }
                 #if os(macOS)
                 if processDoc.docType != .folder {
                     // Export a real copy of the source file (#4121) — the same
@@ -210,6 +218,19 @@ extension SidebarItemRow {
     /// Same executor as the grid menu (#4121): batchExclude + local refresh.
     private func toggleExcludeFromProcessing(_ doc: Document) {
         toggleExclusion(doc, scope: .processing, excluded: !doc.excludeFromProcessing)
+    }
+
+    /// Starts Find the Documents on this folder; Activity shows the job.
+    private func findDocuments(in folder: Document) {
+        guard let library else { return }
+        Task { @MainActor in
+            do {
+                _ = try await library.documentService.findDocuments(scopeIds: [folder.id])
+            } catch {
+                sidebarRowLogger.error("Find the Documents failed: \(error.localizedDescription, privacy: .public)")
+                library.documentStore.error = error
+            }
+        }
     }
 
     /// One exclusion toggle for both scopes — grid-menu parity (#4121).

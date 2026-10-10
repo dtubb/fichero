@@ -630,6 +630,24 @@ extension DocumentService {
         }
     }
 
+    /// Find the Documents (#5550): one background job proposes which pages of the
+    /// folders (or the selected pages) form documents, and accepts by itself those
+    /// at least 95% sure (the engine's default, left by omitting `acceptAbove`).
+    /// Activity shows the job. POST /api/find-documents/runs. Returns the job id.
+    func findDocuments(scopeIds: [String]) async throws -> String {
+        logger.info("Finding documents in \(scopeIds.count) item(s)")
+        let request = Components.Schemas.FindDocumentsRequest(scopeIds: scopeIds)
+        let response = try await client.api.startFindDocumentsApiFindDocumentsRunsPost(
+            body: .json(request)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.jobId
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     /// Reverse a group/stack — the engine restores each child to its original
     /// parent and order (#3535). POST /api/documents/groups/{group_id}/ungroup
     func ungroupDocument(groupId: String) async throws {
