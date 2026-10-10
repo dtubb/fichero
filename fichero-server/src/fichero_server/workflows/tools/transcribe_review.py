@@ -181,7 +181,7 @@ async def transcribe_review(
         skip_if_artifact_exists=inputs.get("skip_if_artifact_exists", True),
     )
 
-    return await process_vision(
+    result = await process_vision(
         files=files,
         documents=documents,
         prompt=prompt,
@@ -200,3 +200,33 @@ async def transcribe_review(
         # commentary-shaped so the run goes red.
         postprocess_text=sanitize_transcription,
     )
+    library_path = state.get("library_path", "")
+    if library_path and inputs.get("save_to_db", True):
+        import asyncio
+
+        await asyncio.to_thread(_onto_lines, result, library_path, state.get("task_id"))
+    return result
+
+
+def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None) -> None:
+    """The review's corrections become the page's text (#5654, `source.job.correct-onto-lines`): each
+    saved review is put onto its page's lines as readings (`working_lines.correct_lines`), and what was
+    done is said per page in the step's notes and its per-file result (`lines`). A review that cannot be
+    matched to the lines stays the page's `transcription_review` artifact, and says "not tied to lines"."""
+    from fichero_server.db import db_manager
+    from fichero_server.llm.working_lines import correct_lines
+    from fichero_server.models import Artifact, Document
+
+    db = db_manager.get_database(library_path)
+    by_artifact = {r.get("artifact_id"): r for r in result.get("results") or [] if isinstance(r, dict)}
+    notes = result.setdefault("notes", [])
+    for artifact_id in result.get("artifacts") or []:
+        artifact = db.get(Artifact, artifact_id) if artifact_id else None
+        if artifact is None or artifact.artifact_type != "transcription_review":
+            continue  # a review of a segment is already a reading of it (`segment.<type>`)
+        _made, said = correct_lines(db, document_id=artifact.document_id, text=artifact.content or "",
+                                    artifact_id=artifact.id, run_id=run_id, library_path=library_path)
+        page = db.get(Document, artifact.document_id)
+        notes.append(f"{getattr(page, 'name', None) or artifact.document_id}: {said}")
+        if artifact_id in by_artifact:
+            by_artifact[artifact_id]["lines"] = said

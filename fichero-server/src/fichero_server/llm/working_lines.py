@@ -108,6 +108,7 @@ def write_readings(
     kind: str = "transcription",
     level: str | None = None,
     library_path: str | None = None,
+    derived_from: dict[str | None, str] | None = None,
 ) -> list[str]:
     """Each `(segment_id, text)` written as a reading of that line (`representation.create`), derived from
     the reader's page artifact (whose provider and model say who read it), under `run_id`: a machine's
@@ -115,7 +116,9 @@ def write_readings(
     translation of a page with no lines, a folder's description, #5599). An empty text writes nothing: a
     line read as nothing has not been given words. `level` is the level the reader read at
     (`source.reading.levels`): a reader that expands abbreviations writes `expanded`, which counts beside
-    the line as written, never over it; unset, no level is recorded, as before. Returns the readings' ids."""
+    the line as written, never over it; unset, no level is recorded, as before. `derived_from` names, per segment,
+the reading a new one was made from (a correction names the reading it corrects, `correct`). Returns the
+readings' ids."""
     import fichero_server.api.routes.document.content_representations  # noqa: F401  (representation.create)
     from fichero_server.actions.registry import ActionContext, registry
 
@@ -126,5 +129,74 @@ def write_readings(
             continue
         made.append(registry.invoke(db, "representation.create", {
             "document_id": document_id, "segment_id": segment_id, "kind": kind, "content": text.strip(),
-            "derived_from_artifact_id": artifact_id, "level": level}, ctx).result["id"])
+            "derived_from_artifact_id": artifact_id, "level": level,
+            "derived_from_representation_id": (derived_from or {}).get(segment_id)}, ctx).result["id"])
     return made
+
+
+#: What a correcting step's per-page result says when its text cannot be put onto the page's lines.
+NOT_TIED = "not tied to lines"
+
+
+def correct_lines(
+    db: Any,
+    *,
+    document_id: str,
+    text: str,
+    artifact_id: str,
+    run_id: str | None,
+    level: str = "as_written",
+    library_path: str | None = None,
+) -> tuple[list[str], str]:
+    """A correcting step's text (the paleographer's review, `correct`, #5654) put onto the page's lines.
+
+    The step was shown the page's lines in reading order (`tool_context`: one line per segment, `id | box |
+    maker | text`). Its answer is matched back to them: by segment id when every line it gave starts with
+    one, else line for line when it gave as many lines as it was shown. Each line whose text it changed
+    gets a reading of the answer (`write_readings`: a transcription at `level`, derived from the step's
+    artifact, whose model made it, and from the line's counting reading, which it corrects). A line it left
+    unchanged gets nothing; a line whose counting reading is a person's gets nothing (a run never writes
+    over a person). An answer that cannot be matched writes nothing and says why, starting `NOT_TIED`: the
+    artifact stays the step's only output, never guessed onto the lines. Returns (readings made, what was
+    done, in words). The page's text cache follows from the readings (`actions/page_text_cache.py`)."""
+    from fichero_server.api.routes.document.segment_readings import document_text
+    from fichero_server.models import ContentRepresentation
+
+    if any(r.derived_from_artifact_id == artifact_id
+           for r in db.query(ContentRepresentation, document_id=document_id)):
+        return [], "already on the lines"
+    derived = document_text(db, document_id, include_furniture=True)
+    shown = [(s.segment_id, s.representation_id, derived.text[s.start:s.end]) for s in derived.spans
+             if s.representation_id]
+    if not shown:
+        return [], f"{NOT_TIED}: the page has no read lines; kept as the page's review"
+    answer = [line.strip() for line in (text or "").splitlines() if line.strip()]
+    ids = {segment_id for segment_id, _, _ in shown}
+    by_id: dict[str, str] = {}
+    for line in answer:
+        parts = [part.strip() for part in line.split("|")]
+        if len(parts) >= 2 and parts[0] in ids:
+            by_id[parts[0]] = parts[-1]
+    if answer and len(by_id) == len(answer):
+        corrected = dict(by_id)
+    elif len(answer) == len(shown):
+        corrected = {segment_id: new for (segment_id, _, _), new in zip(shown, answer)}
+    else:
+        return [], (f"{NOT_TIED}: the review gave {len(answer)} line(s) for the page's {len(shown)}; "
+                    "kept as the page's review")
+    counting = {r.id: r for r in db.query_in(ContentRepresentation, "id", [rid for _, rid, _ in shown])}
+    readings, derived_from, people = [], {}, 0
+    for segment_id, representation_id, old in shown:
+        new = corrected.get(segment_id)
+        if not new or " ".join(new.split()) == " ".join(old.split()):
+            continue
+        kind = getattr(counting.get(representation_id), "provenance_kind", None)
+        if getattr(kind, "value", kind) == "human":
+            people += 1
+            continue
+        readings.append((segment_id, new))
+        derived_from[segment_id] = representation_id
+    made = write_readings(db, document_id=document_id, readings=readings, artifact_id=artifact_id,
+                          run_id=run_id, level=level, library_path=library_path, derived_from=derived_from)
+    said = f"{len(made)} of {len(shown)} line(s) corrected"
+    return made, said + (f"; {people} line(s) a person read kept" if people else "")
