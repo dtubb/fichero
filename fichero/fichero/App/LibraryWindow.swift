@@ -49,6 +49,15 @@ func projectOffersSetUp(reason: LibraryEmptyReason, isLoaded: Bool, rootCollecti
     reason.offersImport && libraryIsLoadedAndEmpty(isLoaded: isLoaded, rootCollections: rootCollections)
 }
 
+/// A first launch (ruled 2026-10-10, `source.onboard.first-launch-offers-setup`): first run is
+/// not done and the person has set up no project, so every project the app knows of is the
+/// always-there one (My Project). Setup then opens by itself, offering Set Up a New Project… or
+/// Use My Project for Now. Decided once when the window arms its sheets, so the project setup
+/// makes does not close setup under the person.
+func firstLaunchOffersSetUp(firstRunCompleted: Bool, knownProjectPaths: [String]) -> Bool {
+    !firstRunCompleted && knownProjectPaths.allSatisfy { AlwaysThereProject.isPackage(path: $0) }
+}
+
 /// Main window view - simplified to just track one library per window
 struct LibraryWindow: View {
     @Environment(LibraryManager.self) var libraryManager
@@ -80,6 +89,8 @@ struct LibraryWindow: View {
     // This flag trails backend-ready by a settle beat (see the .task in `body`)
     // so the first-run sheet can only present AFTER that first toolbar layout.
     @State private var firstRunSheetArmed = false
+    /// `firstLaunchOffersSetUp`, decided when the sheet is armed.
+    @State private var firstLaunchDue = false
     /// File › Set Up New Project… in this window (#5482); internal for LibraryWindow+Actions.
     @State var showingNewProjectSetUp = false
     @State var hostWindow: NSWindow?
@@ -262,8 +273,10 @@ struct LibraryWindow: View {
                     // #4017b: and the library is VERIFIED empty. The flag alone
                     // said "nobody set a boolean", which is not the same fact as
                     // "this user has nothing yet" — so onboarding presented over
-                    // a loaded library full of documents.
-                    && windowLibraryIsLoadedAndEmpty
+                    // a loaded library full of documents. Or a first launch: no project the
+                    // person set up, only My Project, whose Sources folder now makes it
+                    // never "empty" (ruled 2026-10-10).
+                    && (windowLibraryIsLoadedAndEmpty || firstLaunchDue)
             },
             set: {
                 guard !$0 else { return }
@@ -288,7 +301,8 @@ struct LibraryWindow: View {
                     && projectSetUpIsDue(
                         requestedLibraryId: libraryManager.setUpRequestedLibraryId,
                         windowLibraryId: windowState.libraryId,
-                        firstRunShowing: !featureManager.firstRunCompleted && windowLibraryIsLoadedAndEmpty
+                        firstRunShowing: !featureManager.firstRunCompleted
+                            && (windowLibraryIsLoadedAndEmpty || firstLaunchDue)
                     )
             },
             set: { if !$0 { libraryManager.setUpRequestedLibraryId = nil } }
@@ -373,6 +387,12 @@ struct LibraryWindow: View {
             guard appState.isBackendRunning, !firstRunSheetArmed else { return }
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
+            firstLaunchDue = firstLaunchOffersSetUp(
+                firstRunCompleted: featureManager.firstRunCompleted,
+                knownProjectPaths: libraryManager.openLibraries.map(\.url.path)
+                    + libraryManager.getSavedLibraryPaths()
+                    + LibraryRecents.shared.entries.map(\.path)
+            )
             firstRunSheetArmed = true
         }
     }

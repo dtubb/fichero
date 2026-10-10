@@ -7,6 +7,19 @@ struct FirstRunCardConfig {
     let primaryTitle: String
     let primaryIcon: String
     let primaryAction: () -> Void
+    /// A second, plainer choice under the main button (first launch's Use My Project for Now).
+    var secondaryTitle: String?
+    var secondaryAction: (() -> Void)?
+}
+
+/// First launch's two choices (ruled 2026-10-10, `source.onboard.first-launch-offers-setup`).
+enum FirstLaunchChoices {
+    static let setUpNewProject = "Set Up a New Project…"
+
+    /// "Use My Project for Now", with the always-there project's name as the person has it.
+    static func useAlwaysThereProject(named name: String) -> String {
+        "Use \(name) for Now"
+    }
 }
 
 enum FirstRunStep: Int, CaseIterable, Identifiable {
