@@ -415,6 +415,19 @@ class LocalModelInfo:
 # =============================================================================
 
 
+def _fastembed_source_repo(model_id: str) -> str | None:
+    """The Hugging Face repo FastEmbed really downloads `model_id` from, or None when it doesn't list it."""
+    try:
+        from fastembed import TextEmbedding
+
+        for entry in TextEmbedding.list_supported_models():
+            if entry.get("model") == model_id:
+                return (entry.get("sources") or {}).get("hf")
+    except ImportError:
+        pass
+    return None
+
+
 class LocalModelManager:
     """Manages locally-downloaded AI models.
 
@@ -588,6 +601,12 @@ class LocalModelManager:
         short_dir = self.embeddings_path / short_name
         if short_dir.exists():
             return short_dir
+
+        # FastEmbed's own cache: Hugging Face's `models--org--name`, named after the repo it really
+        # downloads from (e5-large comes from qdrant/multilingual-e5-large-onnx), else the id itself.
+        for repo in (_fastembed_source_repo(model_id), model_id):
+            if repo and (hub := self.embeddings_path / f"models--{repo.replace('/', '--')}").exists():
+                return hub
 
         # Default to the direct path
         return direct

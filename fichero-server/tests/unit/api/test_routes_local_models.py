@@ -57,7 +57,20 @@ class TestListLocalModels:
         assert r.status_code == 200
         data = r.json()
         assert "models" in data
-        assert len(data["models"]) == 2
+        assert len([m for m in data["models"] if m["model_type"] != "yolo"]) == 2
+
+    def test_yolo_layout_models_are_listed_downloaded_or_not(self, client, tmp_path):
+        weights = tmp_path / "yolov11n-doclaynet.pt"
+        weights.write_bytes(b"x" * 10)
+        with patch("fichero_server.llm.yolo_runtime.model_path", return_value=None):
+            idle = client.get("/api/local-models?model_type=yolo").json()["models"]
+        with patch("fichero_server.llm.yolo_runtime.model_path", return_value=weights):
+            here = client.get("/api/local-models?model_type=yolo").json()["models"]
+            everything = client.get("/api/local-models").json()["models"]
+        assert [m["model_id"] for m in idle] == ["yolo-doclaynet-11n"]
+        assert idle[0]["download_state"] == "idle" and not idle[0]["is_downloaded"]
+        assert here[0]["is_downloaded"] and here[0]["download_state"] == "installed"
+        assert any(m["model_type"] == "yolo" for m in everything)
 
     def test_filter_by_whisper(self, client):
         models = [_make_model_entry("base", "whisper")]

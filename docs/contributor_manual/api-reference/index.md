@@ -807,6 +807,15 @@ run off this Mac (422). Through the audited, non-undoable action `reading.start_
 (`reading.resend_failed`; 409 while the run is still going). `POST /api/reading-at-scale/jobs/{job_id}/cancel`
 stops it (`reading.cancel_at_scale`): its running shards are cancelled on Hugging Face.
 
+### Training a layout model on this Mac
+
+`POST /api/training/regions/here` fine-tunes a YOLO layout model on the regions a person drew or corrected
+(`train-regions-on-this-mac`, the audited action `training.start_regions_here`, `training/yolo_local.py`):
+the regions are exported as a YOLO set, trained on the GPU in the engine's process with the same gentle
+checks as Kraken here, and the model lands in the project's Models with its card (`model.pt` and
+`fichero-card.json`, scored as region overlap mAP50 on the held-out pages). `GET /api/training/jobs/{job_id}`
+follows it.
+
 ### Training a reader on this Mac
 
 `POST /api/training/kraken/here` queues the same Kraken card on this Mac (`train-on-this-mac`, the

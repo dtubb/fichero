@@ -140,6 +140,25 @@ def installed_readers(model_type: str) -> list[LocalModelInfoResponse]:
     ]
 
 
+def yolo_models() -> list[LocalModelInfoResponse]:
+    """The layout models this Mac can fetch (`llm/yolo_runtime.YOLO_MODELS`), downloaded or not, so the
+    model finder and Settings show YOLO beside the readers (`runtime.yolo.none-yet`)."""
+    from fichero_server.llm import yolo_runtime
+
+    rows = []
+    for model_id, (repo, _file, trained_on) in yolo_runtime.YOLO_MODELS.items():
+        path = yolo_runtime.model_path(model_id)
+        size = path.stat().st_size if path else 0
+        rows.append(LocalModelInfoResponse(
+            model_id=model_id, model_type="yolo", display_name=f"YOLO layout ({repo})",
+            size_bytes=size, is_downloaded=path is not None, expected_size_mb=round(size / 1_000_000),
+            path=str(path) if path else None, metadata={"repo_id": repo, "capabilities": ["regions"]},
+            note=f"Finds a page's regions. Trained on {trained_on}.", available=True,
+            download_state="installed" if path else "idle",
+        ))
+    return rows
+
+
 @router.get("", response_model=LocalModelListResponse)
 def list_local_models(model_type: str | None = None) -> LocalModelListResponse:
     """List the local models, optionally of one type: whisper, embeddings, spacy, mlx or kraken.
@@ -160,12 +179,14 @@ def list_local_models(model_type: str | None = None) -> LocalModelListResponse:
         models = mgr.list_spacy_models()
     elif model_type in _READERS:
         return LocalModelListResponse(models=installed_readers(model_type))
+    elif model_type == "yolo":
+        return LocalModelListResponse(models=yolo_models())
     else:
         models = mgr.list_all()
 
     rows = [LocalModelInfoResponse(**m.to_dict()) for m in models]
     if model_type is None:
-        rows += [row for kind in _READERS for row in installed_readers(kind)]
+        rows += [row for kind in _READERS for row in installed_readers(kind)] + yolo_models()
     return LocalModelListResponse(models=rows)
 
 
