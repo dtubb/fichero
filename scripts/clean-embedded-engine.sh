@@ -22,7 +22,9 @@ fi
 EXPECTED_VERSION="$(grep -m1 '^version = "' "$ROOT_DIR/fichero-server/pyproject.toml" | sed -E 's/^version = "([^"]+)".*/\1/')"
 BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ENGINE_APP/Contents/Info.plist" 2>/dev/null || true)"
 METADATA_PATH="$(find "$ENGINE_APP/Contents/Resources/app" -maxdepth 2 -path '*/fichero_server-*.dist-info/METADATA' -print -quit 2>/dev/null || true)"
-PACKAGE_VERSION="$(awk -F': ' '$1 == "Version" { print $2; exit }' "$METADATA_PATH" 2>/dev/null || true)"
+# An empty METADATA_PATH (no staged engine yet) must not reach awk: awk "" reads stdin and the release hung an hour (2026-10-10).
+PACKAGE_VERSION=""
+[ -n "$METADATA_PATH" ] && PACKAGE_VERSION="$(awk -F': ' '$1 == "Version" { print $2; exit }' "$METADATA_PATH" 2>/dev/null || true)"
 if [ -z "$EXPECTED_VERSION" ] || [ "$BUNDLE_VERSION" != "$EXPECTED_VERSION" ] || [ "$PACKAGE_VERSION" != "$EXPECTED_VERSION" ]; then
   echo "error: embedded engine version mismatch (expected=$EXPECTED_VERSION bundle=$BUNDLE_VERSION package=$PACKAGE_VERSION)" >&2
   exit 1
