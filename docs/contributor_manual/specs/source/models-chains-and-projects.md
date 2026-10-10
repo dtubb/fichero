@@ -2544,7 +2544,7 @@ Setup
   (`LibraryWindow.swift:235`), so after the first launch a new project never offers setup. *Test:*
   creating a project through the app's create path with `firstRunCompleted = true` presents setup
   for that project.
-- `source.onboard.first-launch-offers-setup` — **[PARTIAL]** **Built 2026-10-10 (app), not yet seen,
+- `source.onboard.first-launch-offers-setup` — **[PARTIAL]** (#5655) **Built 2026-10-10 (app), not yet seen,
   as ruled after the maintainer's cold-launch test that day:** a first launch (first run not done, and
   every project the app knows of is the always-there My Project: none open, saved or recent) opens
   setup by itself. It starts with a welcome ("Welcome to Fichero", what Fichero does, and that the
