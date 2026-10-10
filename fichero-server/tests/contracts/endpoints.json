@@ -8896,7 +8896,13 @@
         "operation_id": "get_start_plan_api_recipes_project_start_get",
         "summary": "Get Start Plan",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "folder_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": null,
         "response_model": "StartPlan"
       },

@@ -12864,17 +12864,21 @@ def register_generated_openapi_commands(
     @target_app.command("get-start-plan")
     def recipes_get_start_plan_get(
         ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project.'),
     ) -> None:
         """Get Start Plan (GET /api/recipes/project/start)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/project/start"
-            params = None
+            params = {
+                "folder_id": folder_id,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("start-project")
     def recipes_start_project_post(
         ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.'),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Start Project (POST /api/recipes/project/start)."""
@@ -12882,8 +12886,10 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/recipes/project/start"
             params = None
             payload = _build_json_payload({
+                "folder_id": folder_id,
                 "redo": redo,
             }, {
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project', 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
             }, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)

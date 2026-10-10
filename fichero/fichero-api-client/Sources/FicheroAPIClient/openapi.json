@@ -13916,8 +13916,22 @@
           "recipes"
         ],
         "summary": "Get Start Plan",
-        "description": "What Start would run on this project, with the estimate, before anything runs\n(`source.onboard.estimate-before-start`).",
+        "description": "What Start would run on this project, or on one folder of it, with the estimate, before anything runs\n(`source.onboard.estimate-before-start`). 422 for a folder not in the project.",
         "operationId": "get_start_plan_api_recipes_project_start_get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project",
+              "title": "Folder Id"
+            },
+            "description": "plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -13925,6 +13939,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StartPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -13936,7 +13960,7 @@
           "recipes"
         ],
         "summary": "Start Project",
-        "description": "The first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.",
+        "description": "The first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nWith `folder_id`, the run covers that folder's live pages alone, and a folder not in the project, or one\nwith no pages, is refused with 422 (`source.recipe.folder-scoped-start`).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.",
         "operationId": "start_project_api_recipes_project_start_post",
         "parameters": [
           {
@@ -76500,6 +76524,24 @@
             "title": "Documents",
             "description": "the pages an import brought; none: all"
           },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "the folder the run covers; null: the whole project, or an import's pages (source.recipe.folder-scoped-start)"
+          },
+          "folders_done": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Folders Done",
+            "description": "the folders every step has finished on (activity.run.progress-per-folder); null before the run started"
+          },
+          "folders_total": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Folders Total",
+            "description": "the folders the run goes over, a batch at a time (source.recipe.batch-at-archive-scale); null before the run started"
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/RecipeRunStep"
@@ -84915,6 +84957,12 @@
             "type": "array",
             "title": "Addable",
             "description": "layers this project can add now: the addable ones less those it has and those its purpose brings (source.onboard.add-layer)"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "the folder the plan and its estimate cover, its folders inside it included; null: the whole project (source.recipe.folder-scoped-start)"
           }
         },
         "type": "object",
@@ -84990,6 +85038,12 @@
             "nullable": true,
             "title": "Job Id",
             "description": "the recipe run Start queued (`run-a-recipe`)"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "the folder that Start ran on; null: the whole project (source.recipe.folder-scoped-start)"
           }
         },
         "type": "object",
@@ -85009,6 +85063,12 @@
             "type": "array",
             "title": "Redo",
             "description": "step ids to run again on pages that already have their output; the others run only on pages that do not"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project"
           }
         },
         "additionalProperties": false,
