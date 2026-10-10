@@ -865,6 +865,11 @@ async def lifespan(app: FastAPI):
     reset_sse_shutdown()
     _reset_first_registry_200_signal(app)
 
+    from fichero_server.llm.mlx_runtime import remove_runtimes_the_app_no_longer_uses
+
+    for folder in remove_runtimes_the_app_no_longer_uses():
+        logger.info("Removed a Python environment the app no longer uses: %s", folder)
+
     # Write/rotate the bootstrap auth token NOW that the server is actually
     # starting, so the Swift app can read ~/Library/Application Support/Fichero/
     # .api-key before its first authenticated request (#2388).

@@ -360,6 +360,27 @@ class MLXRuntime:
 _RUNTIME_MANAGER: MLXRuntime | None = None
 
 
+#: Python environments earlier builds made at run time, before MLX and Kraken shipped inside the app (#4973).
+_LEGACY_RUNTIME_DIRNAMES = (_RUNTIME_DIRNAME, "kraken-runtime")
+
+
+def remove_runtimes_the_app_no_longer_uses(home: Path | None = None) -> list[str]:
+    """In the app, delete the Python environments earlier builds provisioned at run time (2026-10-10: two
+    half-built ones found in the maintainer's container). Only a folder that IS such an environment (it has
+    a `pyvenv.cfg`) is removed; nothing happens outside the app. Returns the folders removed."""
+    import shutil
+
+    if bundled_versions() is None:
+        return []
+    removed = []
+    for name in _LEGACY_RUNTIME_DIRNAMES:
+        folder = model_store_root(home) / name
+        if (folder / "pyvenv.cfg").is_file():
+            shutil.rmtree(folder, ignore_errors=True)
+            removed.append(str(folder))
+    return removed
+
+
 def mlx_runtime_dir(home: Path | None = None) -> Path:
     override = os.environ.get("FICHERO_MLX_RUNTIME_DIR")
     if override:

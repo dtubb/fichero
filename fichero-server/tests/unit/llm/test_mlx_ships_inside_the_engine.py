@@ -214,3 +214,32 @@ def test_a_trained_model_lands_in_the_engine(no_separate_python, monkeypatch, tm
     monkeypatch.setitem(sys.modules, "mlx_vlm.convert", types.SimpleNamespace(convert=convert))
     mlx_landing.convert_for_mlx(tmp_path / "merged", tmp_path / "out")
     assert any((tmp_path / "out").glob("*.safetensors"))
+
+
+
+def test_the_app_removes_the_python_environments_it_no_longer_uses(bundled, tmp_path, monkeypatch):
+    """Earlier builds provisioned MLX and Kraken environments at run time; in the app they are dead weight and
+    read as if a second Python were needed (two found in the maintainer's container, 2026-10-10). Only a folder
+    that is an environment goes; the models stay."""
+    from fichero_server.llm.mlx_runtime import remove_runtimes_the_app_no_longer_uses
+
+    monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(tmp_path))
+    for name in ("mlx-runtime", "kraken-runtime"):
+        (tmp_path / name / "bin").mkdir(parents=True)
+        (tmp_path / name / "pyvenv.cfg").write_text("home = /old/app\n")
+    (tmp_path / "models" / "mlx").mkdir(parents=True)
+    removed = remove_runtimes_the_app_no_longer_uses()
+    assert sorted(removed) == sorted(str(tmp_path / n) for n in ("mlx-runtime", "kraken-runtime"))
+    assert not (tmp_path / "mlx-runtime").exists() and not (tmp_path / "kraken-runtime").exists()
+    assert (tmp_path / "models" / "mlx").is_dir()
+
+
+def test_outside_the_app_the_runtime_environments_are_kept(tmp_path, monkeypatch):
+    from fichero_server.llm import mlx_runtime
+
+    monkeypatch.setattr(mlx_runtime, "bundled_versions", lambda: None)
+    monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(tmp_path))
+    (tmp_path / "mlx-runtime").mkdir()
+    (tmp_path / "mlx-runtime" / "pyvenv.cfg").write_text("")
+    assert mlx_runtime.remove_runtimes_the_app_no_longer_uses() == []
+    assert (tmp_path / "mlx-runtime").is_dir()
