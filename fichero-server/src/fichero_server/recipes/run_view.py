@@ -66,6 +66,9 @@ class RecipeRunStep(BaseModel):
     blank_versos: Optional[int] = Field(default=None, description=(
         "pages a lining or reading stage left out as blank (the back of a written leaf, or a page a person called "
         "blank, #5579); null when none"))
+    recordings_left_out: Optional[int] = Field(default=None, description=(
+        "recordings a stage that reads page images left out: a recording is not a page (2026-10-10); null when "
+        "none"))
     kinds: Optional[dict[str, int]] = Field(default=None, description=(
         "a stage with a reader per kind: the pages it read, by kind (handwriting, print, typescript; 'unsorted' "
         "for a page with no image to sort, #5578)"))

@@ -485,6 +485,13 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
         if not redo.intersection(card["steps"]):
             documents, done = split_done(db, card, documents)
             step["already_done"] = done
+        if documents and _reads_page_images(card.get("job")):
+            # A recording is not a page: the steps that read page images leave it out and say so, instead of
+            # failing the step on a file they can never read (2026-10-10, found in the Dev Embedded app).
+            recordings = _recordings(db, documents)
+            if recordings:
+                documents = [d for d in documents if d not in recordings]
+                step["recordings_left_out"] = len(recordings)
         kinds: dict[str, str] = {}
         if card.get("job") in _NOT_ON_BLANK_VERSOS and documents:
             # The pages sorted by kind (#5578); blank ones, the backs of leaves as their images show or a page a
@@ -630,3 +637,28 @@ def register_job_kinds() -> None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="recipes",
                            qos=set_utility_qos, name="Run the recipe",
                            cancel=request_cancel)
+
+
+#: What a page image gives: a job that takes only these reads page images, so a recording is no input for it.
+_FROM_A_PAGE_IMAGE = frozenset({"page_image", "lines", "line_readings", "regions", "signs"})
+
+
+def _reads_page_images(job_id: str | None) -> bool:
+    from fichero_server.recipes.jobs import get_job
+
+    job = get_job(job_id or "")
+    if job is None or not job.takes:
+        return False
+    return all(set(take.split("|")) <= _FROM_A_PAGE_IMAGE for take in job.takes)
+
+
+def _recordings(db: Any, documents: list[str]) -> set[str]:
+    from fichero_server.models import Document
+
+    found = set()
+    for doc_id in documents:
+        doc = db.get(Document, doc_id)
+        kind = str(getattr(getattr(doc, "file_type", None), "value", getattr(doc, "file_type", "")) or "")
+        if kind in ("audio", "video"):
+            found.add(doc_id)
+    return found
