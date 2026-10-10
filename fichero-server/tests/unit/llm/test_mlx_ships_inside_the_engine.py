@@ -118,8 +118,14 @@ def test_the_runtime_status_says_audio_and_settings_offers_no_provision_when_bun
     from fichero_server.api.routes.ai import local_inference as route
     from fichero_server.api.routes.ai import provider_models
 
+    from fichero_server.llm.mlx_runtime import get_mlx_runtime
+
+    old_python = get_mlx_runtime().python_path()  # a runtime provisioned before MLX was bundled, still on disk
+    old_python.parent.mkdir(parents=True, exist_ok=True)
+    old_python.write_text("#!/bin/sh\n")
     status = route._runtime_status_response()
     assert status.audio_ready and status.mlx_whisper_version == "0.4.3"
+    assert status.python_path is None and status.disk_usage_bytes == 0, "no separate Python is reported in the app"
     row = provider_models._mlx_runtime_row() if hasattr(provider_models, "_mlx_runtime_row") else None
     if row is not None:
         assert row.install_action is None and "bundled" in row.size_note

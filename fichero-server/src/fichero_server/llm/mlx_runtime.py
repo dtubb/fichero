@@ -181,12 +181,15 @@ class MLXRuntime:
 
     def status(self) -> dict[str, object]:
         python_path = self.python_path()
+        # In the app MLX is built in: there is no separate Python or runtime folder to report, even when an old
+        # provisioned one is still on disk from before (#4973; seen 2026-10-10 in the Dev Embedded app).
+        bundled = bundled_versions() is not None
         return {
             "provisioned": self.is_provisioned(),
             "audio_ready": self.has_audio(),
             **self.versions(),
-            "disk_usage_bytes": self._disk_usage_bytes(),
-            "python_path": str(python_path) if python_path.exists() else None,
+            "disk_usage_bytes": 0 if bundled else self._disk_usage_bytes(),
+            "python_path": None if bundled or not python_path.exists() else str(python_path),
             "runtime_dir": str(self.runtime_dir),
             "job": self._job.to_dict() if self._job is not None else None,
         }
