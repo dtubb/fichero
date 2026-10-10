@@ -7,6 +7,8 @@ Each .fichero package directory gets its own Database instance.
 from __future__ import annotations
 
 import logging
+
+import duckdb
 import os
 import threading
 from pathlib import Path
@@ -567,6 +569,24 @@ class DatabaseManager:
         """Return a stable snapshot of package paths with live connections."""
         with self._lock:
             return sorted(self._databases)
+
+    def checkpoint_all(self) -> None:
+        """At quit, before runs are stopped: write every open project's WAL into its file (#5644). Stopping the
+        runs can take longer than the app waits before SIGKILL (2026-10-10: one run in flight, three projects
+        left with a WAL). A project whose connection is busy for more than a moment is skipped, not waited on:
+        `close_all` still closes it, and its WAL replays safely at the next open."""
+        with self._lock:
+            databases = list(self._databases.items())
+        for key, db in databases:
+            if not db._lock.acquire(timeout=0.2):
+                logger.info("Not checkpointed at quit (busy): %s", key)
+                continue
+            try:
+                db.conn.execute("CHECKPOINT")
+            except duckdb.Error as exc:
+                logger.info("Not checkpointed at quit (%s): %s", key, exc)
+            finally:
+                db._lock.release()
 
     def close_all(self):
         """Close every package's shared connection."""
