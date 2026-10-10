@@ -97,7 +97,12 @@ def _registry() -> tuple[list[str], dict[str, object]]:
     from fichero_server.workflows import registry
     from fichero_server.workflows.tool_outputs import TOOL_OUTPUTS
 
-    return [tool.name for tool in registry.list_tools()], dict(TOOL_OUTPUTS)
+    # A tool a test registered (a probe or a mock, defined in a test module) is not a product tool: in a full
+    # run the suite's earlier tests leave theirs registered, and this real-registry check counted them (M4,
+    # 2026-10-10). Run on its own it never sees them.
+    names = [tool.name for tool in registry.list_tools()
+             if not getattr(registry._TOOLS.get(tool.name), "__module__", "").startswith("tests.")]
+    return names, dict(TOOL_OUTPUTS)
 
 
 def main(argv: list[str]) -> int:
