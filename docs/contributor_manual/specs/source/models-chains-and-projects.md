@@ -2093,6 +2093,20 @@ Jobs and chains
   reading of the same line (Apple Vision's OCR, a stock Kraken read) stays as history and never counts
   while a better reading of the line exists. On Mosquera this is 319 of 374 pages, whose only shaped
   lines are Apple Vision's (C01_030: `WtrtNI-`, `¥eTIQ`) or stock Kraken's.
+- `source.job.correct-onto-lines` — **[OK]** (#5654) *Built 2026-10-10: the paleographer's review
+  (`workflows/tools/transcribe_review.py`, the `correct` job's workflow) is shown the page's lines
+  (`tool_context`), and each review it saves is put back onto them (`llm/working_lines.correct_lines`):
+  matched by segment id when every line of the answer names one, else line for line when the answer has as
+  many lines as it was shown; each changed line gets a reading through `write_readings`
+  (`representation.create`, under the run, so `workflow`, never `human`). Pinned by
+  `fichero-server/tests/unit/workflows/test_review_corrects_the_lines_5654.py`.* a correcting step's
+  corrections land as readings on the lines of the page's working pass, one per line it changed: a
+  transcription, as written unless the step says otherwise, made by the step's model and naming the line's
+  counting reading it corrects. A line it left unchanged gets no new reading, and a line a person read keeps
+  the person's reading. The page's text then reads the corrections, so the steps after it (names,
+  statements, search) read the corrected lines. A correction that cannot be matched to the lines is never
+  guessed onto them: it stays the page's review, and the step's result for that page says "not tied to
+  lines".
 - `source.lines.read-the-marked-line` — **[BROKEN]** (#5445) a vision model reading Kraken's lines is shown
   the target line alone: the crop is cut to the line's own polygon with the outside masked (or the
   target is marked), never a crop in which a neighbouring line is more complete than the target. Today
