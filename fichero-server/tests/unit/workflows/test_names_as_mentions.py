@@ -247,3 +247,56 @@ async def test_a_statement_rests_on_the_line_its_words_start_on(client, db, test
     said = _ok(client.get(f"/api/segments/{line[2]}/statements"))
     assert [(c["claim_id"], c["via"]) for c in said["claims"]] == [(row.id, "anchor")]
     assert [(m["name"], m["excerpt"]) for m in said["mentions"]] == [("Juan de Mena", "Juan de Mena")]
+
+
+def test_spacys_statements_rest_on_their_lines(client, db, test_package, page, reader):
+    """source.extract.statements-on-segments, for spaCy's free SVO tier (the import's NLP draft). WHY:
+    the draft passed the writer no page text for names and only the page's first 500 characters for
+    statements, so no spaCy claim had a span and none rested on a line (2026-10-10)."""
+    from fichero_server.importers import nlp_draft
+    from fichero_server.knowledge.spacy_ner import EntitySpan
+    from fichero_server.knowledge.spacy_svo import ProposedTriple
+
+    _run(client, db, page)
+    tied = dict((row.id, r) for row, r in _tied(db, page))
+    line = [row.id for row in _lines(db, page["kraken"].id)]
+    text = page["text"]
+    said = "firmó ante Juan de Mena."
+    start = text.index(said)
+    ner = lambda t, language=None: [EntitySpan(text="Ruiz", fichero_type="person", start=t.index("Ruiz"),  # noqa: E731
+                                               end=t.index("Ruiz") + 4, label="PER")]
+    svo = lambda t, language=None: [ProposedTriple(subject="Ruiz", verb="firmó ante", object="Juan de Mena",  # noqa: E731
+                                                   sentence=said, char_start=start, char_end=start + len(said))]
+
+    result = nlp_draft.run_nlp_draft(db, db.get(Document, page["doc"].id), language="es",
+                                     ner_fn=ner, svo_fn=svo, filter_fn=lambda p, t: (p, []))
+
+    (row,) = [c for c in db.query(KnowledgeClaim, source_document_id=page["doc"].id)
+              if c.id in result.claim_ids and "Juan de Mena" in (c.text or "")]
+    assert text[row.source_char_start:row.source_char_end] == said
+    anchor = _ok(client.get(f"/api/claims/{row.id}"))["source_anchor"]
+    assert anchor["segment_id"] == line[2] and anchor["representation_id"] == tied[line[2]].id
+    assert [c["claim_id"] for c in _ok(client.get(f"/api/segments/{line[2]}/statements"))["claims"]] == [row.id]
+    (named,) = [c for c in db.query(KnowledgeClaim, source_document_id=page["doc"].id)
+                if c.id in result.claim_ids and c.id != row.id]
+    assert text[named.source_char_start:named.source_char_end] == "Ruiz", "a spaCy name kept no span on its page"
+
+
+def test_a_statement_after_the_first_500_characters_is_found_on_the_page(db):
+    """The writer looks for a statement's words in the whole page, not only the stored excerpt (its first
+    500 characters): one later on the page kept no span, so it could never rest on its line."""
+    from fichero_server.models.knowledge import EntityType
+    from fichero_server.workflows.tools.extractors import _write_kg_rows
+
+    late = "Juan Pérez vende a María Gómez una casa en la calle del Carmen."
+    text = "Ante mí el escribano y los testigos, en la ciudad de Popayán. " * 10 + late
+    doc = Document(name="venta.txt", page_content=text)
+    db.save(doc)
+    _, claim_ids = _write_kg_rows(
+        db, {"name": "nlp_draft_svo", "entity_type": EntityType.person},
+        [{"name": "Juan Pérez", "verb": "vende", "object": "una casa", "source_text": late}],
+        doc.id, source_excerpt=text[:500], grounding_text=text, provider="spacy", model="spacy_svo")
+
+    (claim,) = [db.get(KnowledgeClaim, cid) for cid in claim_ids]
+    assert text.index(late) > 500
+    assert text[claim.source_char_start:claim.source_char_end] == late

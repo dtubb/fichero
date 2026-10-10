@@ -3011,8 +3011,11 @@ def _write_kg_rows(
         fuzzy_paraphrase: str | None = None
         unverified_source_text: str | None = None
         if raw_source_text:
-            if page_excerpt:
-                idx = page_excerpt.find(raw_source_text)
+            # Looked for in the WHOLE page (`page_text`: the grounding text, else the excerpt), never only
+            # the stored excerpt, its first 500 characters: a statement later on the page was "not
+            # found", so it had no span and could not rest on its line (2026-10-10).
+            if page_text:
+                idx = page_text.find(raw_source_text)
                 if idx >= 0:
                     verbatim_source_text = raw_source_text
                     char_start = idx
@@ -3023,10 +3026,10 @@ def _write_kg_rows(
                     # dropped word, a case shift) still points at real page text
                     # (#4494 follow-up). When one lands, store the page's OWN
                     # words and keep the model's version as a labelled signal.
-                    anchor = _fuzzy_anchor(page_excerpt, raw_source_text)
+                    anchor = _fuzzy_anchor(page_text, raw_source_text)
                     if anchor is not None:
                         char_start, char_end = anchor
-                        verbatim_source_text = page_excerpt[char_start:char_end]
+                        verbatim_source_text = page_text[char_start:char_end]
                         if verbatim_source_text.strip() != raw_source_text.strip():
                             fuzzy_paraphrase = raw_source_text
                     else:

@@ -336,6 +336,8 @@ def _write_draft(db, doc, entities, kept_proposals, text: str) -> tuple[list[str
             items,
             doc.id,
             page_label=page_label,
+            source_excerpt=text[:500],
+            grounding_text=text,  # the page the names are found in, so each rests on its line
             provider="spacy",
             model="spacy_ner",
         )
@@ -361,6 +363,7 @@ def _write_draft(db, doc, entities, kept_proposals, text: str) -> tuple[list[str
             doc.id,
             page_label=page_label,
             source_excerpt=text[:500],
+            grounding_text=text,  # the whole page: a statement after its first 500 characters is found too
             provider="spacy",
             model="spacy_svo",
         )
