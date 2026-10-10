@@ -241,12 +241,13 @@ read of the calling loop before it can be called fully resolved.
   ("andagueda" surfacing "Andagoya," a different place, as the #1 semantic-only hit) was not
   re-run this pass — the infrastructure to fix it (leg weighting, `_lexical_evidence_strength`)
   exists, but the specific regression case is unconfirmed either way.
-- `search.embedding-failure-honesty` — **[PARTIAL]** (#4395) `EmbedOutcome` now distinguishes
-  "no embeddable text" from "the embedding model failed to load," and the import summary reports
-  an embedded count — two of the issue's four asks are clearly built. Not independently
-  re-verified: whether an infrastructure-level embedding failure actually STOPS an import loudly
-  (vs. continuing silently, document by document, each individually counted) — the calling loop
-  at the ingest call site was not traced closely enough to say either way.
+- `search.embedding-failure-honesty` — **[PARTIAL]** (#4395) `embed()` returns its `EmbedOutcome`
+  (truthy only when vectors were written) and every call site reads it: "no embeddable text" and
+  "excluded" are skips; "no passages produced" is logged as a malfunction; "embedding failed" (the
+  model cannot load) is an error in the import log, and a re-embed after a correction fails its
+  job so Activity shows it. Pinned by `tests/unit/db/test_embed_outcome_contract.py` and the
+  discarded-result seam. Not built: an import does not stop at the first infrastructure failure;
+  it carries on and counts each document.
 - `search.embedding-model-only-while-needed` — **[OK]** (→ #5283, ruled 2026-10-01) the
   embedding model (bge-m3, about 1.5 GB of the engine's 1.8 GB, measured 2026-09-30) is loaded
   when something needs it — an embed or a semantic search — and **released once nothing has

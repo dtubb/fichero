@@ -1129,7 +1129,7 @@ class TestLanceDB:
             lambda saved_doc, vector, text=None: save_calls.append((saved_doc.id, vector, text or "")),
         )
 
-        result = temp_db.embed(doc, mode="page")
+        result = temp_db.embed(doc, mode="page").embedded
 
         assert result is True
         assert save_calls == [("doc-page", [0.1, 0.2, 0.3], "embedded body")]
@@ -1139,7 +1139,7 @@ class TestLanceDB:
         monkeypatch.setattr(temp_db, "_embedding_text_for_document", lambda _doc: "embedded body")
         monkeypatch.setattr(temp_db, "save_passage_embeddings", lambda *_args, **_kwargs: 0)
 
-        result = temp_db.embed(doc)
+        result = temp_db.embed(doc).embedded
 
         assert result is False
 

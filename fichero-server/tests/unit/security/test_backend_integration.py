@@ -35,7 +35,7 @@ class TestDatabaseSearch:
 
         # Mock the embedder to avoid loading model
         with patch.object(db, '_embed_text', return_value=[0.1] * TEST_EMBEDDING_DIM):
-            result = db.embed(doc)
+            result = db.embed(doc).embedded
 
         assert result is True
         assert db.has_embedding(doc.id)
@@ -48,7 +48,7 @@ class TestDatabaseSearch:
         doc = Document(name="x.txt", page_content="hi")
         db.save(doc)
 
-        result = db.embed(doc)
+        result = db.embed(doc).embedded
         assert result is False
         db.close()
 

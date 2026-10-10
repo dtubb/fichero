@@ -32,7 +32,7 @@ import pytest
 
 from tests.integration._seedlib import seed
 
-from fichero_server.db import Database, db_manager
+from fichero_server.db import Database, EmbedOutcome, db_manager
 from fichero_server.llm import LLMConfig
 from fichero_server.models import DocType, Document, FileType
 from fichero_server.workflows.runtime import build_initial_state
@@ -86,7 +86,7 @@ def _common_stubs(monkeypatch):
         "fichero_server.llm.resolve_model_alias",
         lambda provider, model: ("fake", "fake-model"),
     )
-    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
+    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: EmbedOutcome(embedded=False, reason="no_embeddable_text"))
     monkeypatch.setattr(
         "fichero_server.knowledge.entity_vectors.find_similar", lambda *a, **k: []
     )

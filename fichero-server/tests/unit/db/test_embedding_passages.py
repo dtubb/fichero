@@ -249,7 +249,7 @@ def test_passage_vectors_store_anchor_and_search_returns_matching_passage(
         return [[1.0, 0.0] if "Camilo" in text else [0.0, 1.0] for text in texts]
 
     with patch.object(db, "_embed_texts", side_effect=_vectors):
-        assert db.embed(doc) is True
+        assert db.embed(doc).embedded is True
 
     table = db.lance.open_table("embeddings")
     rows = table.search().limit(100).to_list()
@@ -486,7 +486,7 @@ def test_local_embeddings_still_work_when_local_only_enabled(tmp_path, monkeypat
     monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
 
     with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
-        assert db.embed(doc) is True
+        assert db.embed(doc).embedded is True
 
     row = db.lance.open_table("embeddings").search().limit(1).to_list()[0]
     assert row[EMBEDDING_MODEL_ID_FIELD] == PINNED_EMBEDDING_MODEL_ID
@@ -504,7 +504,7 @@ def test_non_latin_passages_store_and_embed_without_error(tmp_path) -> None:
     db.save(doc)
 
     with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
-        assert db.embed(doc) is True
+        assert db.embed(doc).embedded is True
 
     rows = db.lance.open_table("embeddings").search().limit(10).to_list()
     assert len(rows) == 1

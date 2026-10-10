@@ -24,6 +24,7 @@ import duckdb
 import pytest
 from fastapi.testclient import TestClient
 
+from _scan_files import scan_rglob
 from fichero_server.db import Database
 from fichero_server.db.manager import db_manager
 from fichero_server.models import DocType, Document, FileType, Status
@@ -290,7 +291,7 @@ def test_every_engine_open_goes_through_connect_utc():
 
     root = Path(fichero_server.__file__).parent
     bare = []
-    for path in root.rglob("*.py"):
+    for path in scan_rglob(root, "*.py"):
         if path.name == "duckdb_session.py":
             continue
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):

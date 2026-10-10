@@ -178,6 +178,7 @@ nav:
               - Transcribe (Auto-Detect): reference_manual/tool_references/workflows/transcribe-auto-detect.md
               - Transcribe (Kraken): reference_manual/tool_references/workflows/transcribe-kraken.md
               - Transcribe + Review (Pipeline): reference_manual/tool_references/workflows/transcribe-review-pipeline.md
+              - Transcribe Audio: reference_manual/tool_references/workflows/transcribe-audio.md
               - Transcribe HTR: reference_manual/tool_references/workflows/transcribe-htr.md
               - Transcribe Manuscript: reference_manual/tool_references/workflows/transcribe-manuscript.md
               - Transcribe Paleography: reference_manual/tool_references/workflows/transcribe-paleography.md

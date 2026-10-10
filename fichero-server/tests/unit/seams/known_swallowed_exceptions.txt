@@ -24,7 +24,6 @@ api/routes/document/artifacts.py::_delete_artifact_impl 2
 api/routes/document/artifacts.py::align_transcript_to_regions 1
 api/routes/document/documents.py::import_file 1
 api/routes/document/documents.py::related_documents 2
-api/routes/document/documents.py::update_document_impl 1
 api/routes/entity/entities.py::delete_entity_impl 2
 api/routes/entity/inspector.py::inspector 2
 api/routes/ingest/core.py::_apply_sidecar_renditions 1

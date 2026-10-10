@@ -26,7 +26,7 @@ import pytest
 
 from tests.integration._seedlib import seed
 
-from fichero_server.db import Database, db_manager
+from fichero_server.db import Database, EmbedOutcome, db_manager
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.models import Artifact, DocType, Document, FileType, Workflow
 from fichero_server.workflows.builder import build_graph
@@ -509,7 +509,7 @@ def _install_deterministic_workflow_stubs(
         "chat_structured_with_fallback",
         fake_structured,
     )
-    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
+    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: EmbedOutcome(embedded=False, reason="no_embeddable_text"))
     monkeypatch.setattr(
         "fichero_server.knowledge.entity_vectors.find_similar",
         lambda *args, **kwargs: [],
@@ -1073,7 +1073,7 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
         "supports_batch",
         False,
     )
-    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
+    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: EmbedOutcome(embedded=False, reason="no_embeddable_text"))
     monkeypatch.setattr(
         "fichero_server.knowledge.entity_vectors.find_similar",
         lambda *args, **kwargs: [],
@@ -1269,7 +1269,7 @@ def test_catalogue_twostage_folder_uses_page_records_for_page_scoped_kg(
         fake_stage2_claims,
     )
     monkeypatch.setattr("fichero_server.llm.resolve_model_alias", lambda p, m: ("fake", "fake-model"))
-    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
+    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: EmbedOutcome(embedded=False, reason="no_embeddable_text"))
     monkeypatch.setattr(
         "fichero_server.knowledge.entity_vectors.find_similar",
         lambda *args, **kwargs: [],

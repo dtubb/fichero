@@ -1734,9 +1734,9 @@ async def embed_document(doc_id: str, db: Database = Depends(get_library_databas
     if not doc or getattr(doc, "deleted_at", None) is not None:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
-    success = db.embed(doc)
+    outcome = db.embed(doc)
 
-    return EmbedDocumentResponse(document_id=doc_id, embedded=success)
+    return EmbedDocumentResponse(document_id=doc_id, embedded=outcome.embedded)
 
 
 # =============================================================================

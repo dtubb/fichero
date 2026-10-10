@@ -111,7 +111,7 @@ class TestPartiallyEmbeddedLibrary:
             page_content="Asprilla appears again in the parish census of 1801.",
         )
         db.save(embedded_match, auto_embed=False)
-        assert db.embed(embedded_match) is True
+        assert db.embed(embedded_match).embedded is True
         return never_embedded, embedded_match
 
     def test_never_embedded_sibling_is_dropped_by_an_embedded_match_hybrid(self, db):
@@ -210,7 +210,7 @@ class TestPartiallyEmbeddedLibrary:
             page_content="Nothing about the query term here at all, just filler prose.",
         )
         db.save(unrelated_embedded, auto_embed=False)
-        assert db.embed(unrelated_embedded) is True
+        assert db.embed(unrelated_embedded).embedded is True
 
         results, _total, _stats = db.search(
             query="Asprilla", search_type="fulltext", min_score=0.0, limit=10
@@ -227,7 +227,7 @@ class TestPartiallyEmbeddedLibrary:
             page_content="Asprilla appears in the parish census of 1801.",
         )
         db.save(embedded_match, auto_embed=False)
-        assert db.embed(embedded_match) is True
+        assert db.embed(embedded_match).embedded is True
 
         results, _total, _stats = db.search(
             query="Asprilla", search_type="hybrid", min_score=0.0, limit=10
@@ -255,7 +255,7 @@ class TestEmbeddedDocIdsCache:
             page_content="Nothing relevant here, just filler prose.",
         )
         db.save(q, auto_embed=False)
-        assert db.embed(q) is True
+        assert db.embed(q).embedded is True
 
         p = Document(
             name="deed.txt", path="/tmp/deed.txt", doc_type=DocType.file,
@@ -276,7 +276,7 @@ class TestEmbeddedDocIdsCache:
         # a stale cache would keep re-scanning P as "uncovered" every search
         # even though it is now indexed, and a version-blind cache could
         # equally have kept the OLD id set forever.
-        assert db.embed(p) is True
+        assert db.embed(p).embedded is True
         assert db._get_embedded_doc_ids() == {q.id, p.id}
 
         # And P must still be found -- now via the index leg, not the
@@ -293,7 +293,7 @@ class TestEmbeddedDocIdsCache:
             page_content="Quimbalanda signed the deed in 1799.",
         )
         db.save(p, auto_embed=False)
-        assert db.embed(p) is True
+        assert db.embed(p).embedded is True
 
         # Prime the cache: P is embedded, so it is covered (not scanned).
         db.search(query="Quimbalanda", search_type="fulltext", min_score=0.0, limit=10)
@@ -333,7 +333,7 @@ class TestFtsFindsRowsEmbeddedAfterAnEarlierFtsQuery:
             page_content="Zamboronza appears in the first record.",
         )
         db.save(first, auto_embed=False)
-        assert db.embed(first) is True
+        assert db.embed(first).embedded is True
 
         # An FTS query runs now, before the second document exists at all --
         # if this codebase built a persisted index and only searched it,
@@ -348,7 +348,7 @@ class TestFtsFindsRowsEmbeddedAfterAnEarlierFtsQuery:
             page_content="Quibdonia appears only in the second record.",
         )
         db.save(second, auto_embed=False)
-        assert db.embed(second) is True
+        assert db.embed(second).embedded is True
 
         # Embedded strictly AFTER the earlier FTS query above -- must still
         # be found by a fresh fulltext query for its unique term.

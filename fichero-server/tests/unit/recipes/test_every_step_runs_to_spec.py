@@ -54,8 +54,10 @@ def embedded(monkeypatch):
     seen: list[str] = []
 
     def embed(self, doc, *, mode="passage"):
+        from fichero_server.db import EmbedOutcome
+
         seen.append(doc.id)
-        return True
+        return EmbedOutcome(embedded=True, document_id=doc.id)
 
     monkeypatch.setattr(Database, "embed", embed)
     return seen

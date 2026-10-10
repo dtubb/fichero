@@ -8,6 +8,7 @@ import pytest
 import fichero_server.api.routes.document.content_representations  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.routes.document.segment_conversion import live_rows_in_order
+from fichero_server.db import EmbedOutcome
 from fichero_server.media.transcript_alignment_service import resolve_transcript
 from fichero_server.models import ActionAudit, Artifact, ContentRepresentation, Document
 from fichero_server.models.segments import Segment
@@ -61,7 +62,7 @@ class TestAReadingChangeRefreshesTheCache:
         import time
 
         seen = []
-        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: seen.append(doc.page_content))
+        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: seen.append(doc.page_content) or EmbedOutcome(embedded=True))
         _correct(db, page, row)
         # The embed is a job on the one local-model lane (#5359): it can queue behind another test's
         # first real embedder load (~13 s measured), so the wait is generous; it returns when seen.
@@ -76,7 +77,7 @@ class TestAReadingChangeRefreshesTheCache:
         page, art, row = _converted(db, client)
         release = threading.Event()
         started = threading.Event()
-        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: (started.set(), release.wait(10)))
+        monkeypatch.setattr(type(db), "embed", lambda self, doc, *a, **k: (started.set(), release.wait(10), EmbedOutcome(embedded=True))[-1])
         try:
             _correct(db, page, row)  # would hang for 10 s if the embed ran on the request path
             assert started.wait(60)  # may queue behind another job on the lane; see above

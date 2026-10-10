@@ -33,7 +33,7 @@ from tests.unit.workflows.test_default_workflow_e2e_harness import (
     _load_workflow_by_name,
 )
 
-from fichero_server.db import Database, db_manager
+from fichero_server.db import Database, EmbedOutcome, db_manager
 from fichero_server.execution.runner import _detect_empty_text_output
 from fichero_server.models import DocType, Document, FileType, Status
 from fichero_server.models.knowledge import KnowledgeEntity
@@ -90,7 +90,7 @@ def _stub_entity_model(monkeypatch, impl) -> None:
         "chat_structured_with_fallback",
         impl,
     )
-    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
+    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: EmbedOutcome(embedded=False, reason="no_embeddable_text"))
     monkeypatch.setattr(
         "fichero_server.knowledge.entity_vectors.find_similar", lambda *a, **k: []
     )

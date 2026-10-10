@@ -2599,11 +2599,11 @@ def update_document_impl(
     # edit stays in LanceDB until a manual reindex — and search returns
     # the *old* content as if the edit never happened. (#481 follow-up)
     if "page_content" in update_data and doc.page_content:
-        try:
-            db.embed(doc)
+        outcome = db.embed(doc)
+        if outcome:
             logger.info(f"Re-embedded {doc_id} after page_content edit")
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Re-embed after edit failed for {doc_id}: {exc}")
+        else:
+            logger.warning(f"Re-embed after edit did not embed {doc_id}: {outcome.reason} {outcome.error or ''}")
         # Names and claims follow the edited text too, as a queued job of their own (#5361).
         from fichero_server.actions.page_text_cache import queue_reread_names
 

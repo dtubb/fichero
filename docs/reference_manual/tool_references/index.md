@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 58 shipped workflows and 128 tools.
+This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 59 shipped workflows and 128 tools.
 
 - [Every workflow](workflows/index.md) — the presets, step by step.
 - [Every tool](tools/index.md) — the single steps a workflow is built from.
@@ -43,6 +43,7 @@ Workflows are grouped into folders that follow the route work takes: prepare the
 - [Transcribe (Auto-Detect)](workflows/transcribe-auto-detect.md) — Use this when: you don't know the document's script type and want automatic routing. Classifies the script type (Typescript / Manuscript / HTR / Paleography) then runs the matching transcription profile — including two-pass review for historical and archaic scripts.
 - [Transcribe (Kraken)](workflows/transcribe-kraken.md) — Use this when: you want fully on-device HTR from Kraken — its own neural baseline segmentation plus a CC-BY recognition model (McCATMuS), no paid API calls. It reads each line and SAVES the transcript tied to its baseline (per-line geometry the reader can overlay). Install the Kraken runtime AND a recognition model first from Settings → AI → Local Inference (the on-device model catalog); the run reports clearly if either is missing. Best on the historical hands McCATMuS was trained on. Pair with a Cleanup pass for hard pages.
 - [Transcribe + Review (Pipeline)](workflows/transcribe-review-pipeline.md) — Use this when: you want the full paleography treatment in one run — the single-pass Transcribe Paleography workflow, then the Paleographer Review workflow over its result. This preset RUNS the two other workflows as sub-workflows (the chain pattern: any preset can compose others the same way). Model: whatever you pick at run time, used by both stages.
+- [Transcribe Audio](workflows/transcribe-audio.md) — Use this when: a recording should become text. Whisper reads it on this Mac (it ships with the app; its model downloads once). The transcript is saved as the recording's reading, timed.
 - [Transcribe HTR](workflows/transcribe-htr.md) — Use this when: you have legible historical handwriting (16th–19th C.) that doesn't need the full paleography treatment. One whole-page pass with period-orthography advice; run Paleographer Review afterwards for hard documents.
 - [Transcribe Manuscript](workflows/transcribe-manuscript.md) — Use this when: you have modern handwriting (20th–21st century) — letters, notes, diaries, forms, signatures. For historical handwriting (pre-20th C.) use Transcribe HTR; for archaic scripts use Transcribe Paleography.
 - [Transcribe Paleography](workflows/transcribe-paleography.md) — Use this when: you have archaic or specialist pre-18th C. script in any language and want ONE careful, whole-page pass with extended thinking. Language-specific presets (Español s. XVI–XVII / s. XVIII–XIX, Latin, English secretary) carry deeper period advice; run Paleographer Review afterwards to refine the result. Model: whatever you pick at run time.

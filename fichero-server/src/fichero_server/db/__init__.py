@@ -988,6 +988,10 @@ class EmbedOutcome:
     def is_infrastructure_failure(self) -> bool:
         return self.reason in self.INFRASTRUCTURE_REASONS
 
+    def __bool__(self) -> bool:
+        # `if db.embed(doc):` keeps reading "was it embedded?"; the reason rides along.
+        return self.embedded
+
 
 
 def _opening_caller() -> str:
@@ -5769,7 +5773,7 @@ class Database(DatabaseEmbeddingMixin):
             return ""
         return text
 
-    def embed(self, doc: BaseModel, *, mode: str = "passage") -> bool:
+    def embed(self, doc: BaseModel, *, mode: str = "passage") -> EmbedOutcome:
         """Create embedding for a document.
 
         Uses document's page_content if available, otherwise name. Passage
@@ -5780,7 +5784,8 @@ class Database(DatabaseEmbeddingMixin):
             doc: Document model with id and optionally page_content
 
         Returns:
-            True if embedding was created
+            The outcome, truthy only if vectors were written; its ``reason`` tells a skip
+            (no text, excluded) from a malfunction (no passages) and an outage (#4395).
         """
         # #4580: an excluded document must not spend an embed or leave a
         # vector that a later query-time filter has to hide.
@@ -5788,7 +5793,7 @@ class Database(DatabaseEmbeddingMixin):
             self.last_embed_outcome = EmbedOutcome(
                 embedded=False, reason="excluded_from_search", document_id=doc.id
             )
-            return False
+            return self.last_embed_outcome
 
         # Marker-only content guard: when transcribe runs against a blank
         # or unreadable page it sets page_content to '[sin texto]' (or
@@ -5804,7 +5809,7 @@ class Database(DatabaseEmbeddingMixin):
             self.last_embed_outcome = EmbedOutcome(
                 embedded=False, reason="no_embeddable_text", document_id=doc.id
             )
-            return False
+            return self.last_embed_outcome
 
         try:
             if mode == "page":
@@ -5813,15 +5818,17 @@ class Database(DatabaseEmbeddingMixin):
             else:
                 count = self.save_passage_embeddings(doc, text=text)
                 if count == 0:
+                    # Text in, no vectors out: a malfunction, never a quiet skip.
+                    logger.warning("No passages produced for %s (%d chars of text)", doc.id, len(text))
                     self.last_embed_outcome = EmbedOutcome(
                         embedded=False,
                         reason="no_passages_produced",
                         document_id=doc.id,
                     )
-                    return False
+                    return self.last_embed_outcome
             logger.debug("Created %s embedding for %s", mode, doc.id)
             self.last_embed_outcome = EmbedOutcome(embedded=True, document_id=doc.id)
-            return True
+            return self.last_embed_outcome
         except Exception as e:
             # #4395: the bool alone cannot distinguish "this document has no
             # embeddable text" (a legitimate skip) from "the embedding model
@@ -5837,7 +5844,7 @@ class Database(DatabaseEmbeddingMixin):
                 document_id=doc.id,
                 error=str(e),
             )
-            return False
+            return self.last_embed_outcome
 
     def _collect_folder_descendants(self, folder_id: str) -> set[str]:
         """Wrap the free helper so callers don't reach into module level."""

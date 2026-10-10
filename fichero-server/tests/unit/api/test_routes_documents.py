@@ -15,6 +15,7 @@ import pytest
 
 
 from fichero_server.db import storage as storage_module
+from fichero_server.db import EmbedOutcome
 from fichero_server.actions.registry import ActionContext, ActionResult
 from fichero_server.api.routes.document import documents as documents_routes
 from fichero_server.api.routes.document.documents import related_documents
@@ -1146,7 +1147,7 @@ class TestUpdateDocument:
         )
         db.save(doc)
         embed_calls: list[str] = []
-        monkeypatch.setattr(type(db), "embed", lambda self, saved_doc: embed_calls.append(saved_doc.id))
+        monkeypatch.setattr(type(db), "embed", lambda self, saved_doc: embed_calls.append(saved_doc.id) or EmbedOutcome(embedded=True, document_id=saved_doc.id))
 
         r = client.put(
             f"/api/documents/{doc.id}",
@@ -1323,7 +1324,7 @@ class TestBatchExcludeDocuments:
         db.save(doc)
 
         assert db._is_active_document_id(doc.id) is False
-        assert db.embed(doc) is False
+        assert db.embed(doc).embedded is False
         assert db.last_embed_outcome.reason == "excluded_from_search"
 
         # And the flag is honest curation: flipping it back re-admits the doc.

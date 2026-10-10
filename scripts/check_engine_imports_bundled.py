@@ -17,6 +17,8 @@ import ast
 import sys
 from pathlib import Path
 
+from _scan_files import scan_rglob
+
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = [ROOT / "fichero-server/src/fichero_server", ROOT / "fichero-mcp/src/fichero_mcp",
            ROOT / "fichero-cli/src/fichero_cli"]
@@ -46,7 +48,7 @@ def engine_imports() -> dict[str, set[str]]:
     stdlib = set(sys.stdlib_module_names) | {"__future__"}
     uses: dict[str, set[str]] = {}
     for src in SOURCES:
-        for path in src.rglob("*.py"):
+        for path in scan_rglob(src, "*.py"):
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"))
             except SyntaxError:

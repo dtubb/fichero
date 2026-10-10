@@ -39,7 +39,7 @@ from tests.unit.workflows.test_default_workflow_e2e_harness import (
     _load_workflow_by_name,
 )
 
-from fichero_server.db import Database, db_manager
+from fichero_server.db import Database, EmbedOutcome, db_manager
 from fichero_server.models import Artifact, DocType, Document, FileType
 from fichero_server.models.knowledge import KnowledgeEntity
 from fichero_server.workflows.builder import build_graph
@@ -231,7 +231,7 @@ def test_catalogue_stage_2_extract_entities_persists_entities_through_the_graph(
         "fichero_server.workflows.tools.extract_entities_only.chat_structured_with_fallback",
         fake_entities_only,
     )
-    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
+    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: EmbedOutcome(embedded=False, reason="no_embeddable_text"))
     monkeypatch.setattr(
         "fichero_server.knowledge.entity_vectors.find_similar", lambda *a, **k: []
     )

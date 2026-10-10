@@ -25,12 +25,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[4]
 GUARDS = sorted(p.name for p in (ROOT / "scripts").glob("check_*.py"))
 
-#: Guards that judge THIS MACHINE'S git state, not the tree, so a clean checkout of a good
-#: commit can fail them. verify_all.sh skips check_unmerged_work for the same reason.
+#: Guards that judge THIS MACHINE'S state (git, or a build on disk), not the tree, so a clean
+#: checkout of a good commit can fail them. verify_all.sh skips check_unmerged_work for the same reason.
 MACHINE_STATE = {
     "check_unmerged_work.py": "lists other lanes' unmerged branches and worktrees on this machine",
     "check_no_orphan_stashes.py": "reads the stash stack shared by every worktree on this machine",
     "check_merged_worktrees.py": "lists this machine's worktrees whose branch already landed",
+    "check_engine_imports_bundled.py": "judges a staged app_packages; preflight-embedded-engine.sh runs it on one",
 }
 
 

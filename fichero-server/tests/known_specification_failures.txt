@@ -19,17 +19,12 @@
 #
 
 # ---- #4395 (5) ----
-tests/unit/db/test_embed_outcome_contract.py::TestSkipIsDistinguishableFromFailure::test_model_unavailable_is_not_silently_falsy
-tests/unit/db/test_embed_outcome_contract.py::TestSkipIsDistinguishableFromFailure::test_no_text_and_model_unavailable_do_not_report_the_same_outcome
-tests/unit/db/test_embed_outcome_contract.py::TestSkipIsDistinguishableFromFailure::test_zero_vectors_written_is_not_silent
-tests/unit/importers/test_import_embedding_report_contract.py::TestImportReportsEmbeddingCounts::test_embed_call_sites_do_not_discard_the_result
 tests/unit/importers/test_import_embedding_report_contract.py::TestPageChildrenEmbeddingIsNotSilentlySkipped::test_page_children_default_to_being_embedded
 
 # ---- #4420 (10) ----
 tests/unit/seams/test_change_event_seam.py::test_every_kg_writing_tool_emits_a_change_event
 tests/unit/seams/test_change_event_seam.py::test_kg_writer_emits_a_change_event
 tests/unit/seams/test_declared_port_seam.py::test_every_declared_input_port_is_fillable_by_some_tool_output
-tests/unit/seams/test_discarded_result_seam.py::test_embed_result_is_never_discarded
 tests/unit/seams/test_discarded_result_seam.py::test_no_success_status_is_discarded_at_its_call_site
 tests/unit/seams/test_optional_callback_seam.py::test_claim_source_navigation_is_supplied_everywhere
 tests/unit/seams/test_optional_callback_seam.py::test_every_control_gating_callback_is_supplied_by_every_host
