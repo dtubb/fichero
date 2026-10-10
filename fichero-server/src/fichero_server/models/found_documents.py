@@ -187,3 +187,59 @@ class FindDocumentsRun(BaseModel):
     state: str
     reason: str | None = None
     proposal_ids: list[str] = Field(default_factory=list)
+
+
+class FindDocumentsScoreRequest(BaseModel):
+    folder_id: str = Field(description="The folder whose proposal is scored against the documents a person set on it.")
+    proposal_id: str | None = Field(None, description="The proposal to score; left out, the folder's newest current one.")
+
+
+class LevelAgreement(BaseModel):
+    """How often a person agreed with the run's calls it was at least `level` sure of (`finddocs.scored`)."""
+
+    level: float
+    joins: int = Field(description="Judged joins the run was at least this sure of: a boundary at its probability, "
+                                   "\"runs on\" at one minus it.")
+    agreed: int = Field(description="Of those, the ones the person's documents agree with.")
+    share: float | None = Field(None, description="agreed / joins; null with no joins.")
+
+
+class FindDocumentsScore(BaseModel):
+    """One stored score of a folder's proposal against a person's breakdown (`finddocs.scored`)."""
+
+    id: str = Field(description="The `finddocs_score` artifact on the folder that keeps it.")
+    folder_id: str
+    proposal_id: str
+    job_id: str | None = Field(None, description="The run that made the proposal.")
+    scored_at: str
+    scored_by: str | None = None
+    documents: int = Field(description="Documents a person set (accepted or adjusted): the breakdown scored against.")
+    joins: int = Field(description="Joins judged: either page is in one of the person's documents.")
+    boundaries_proposed: int = Field(description="Judged joins the run called a boundary.")
+    boundaries_actual: int = Field(description="Judged joins the person's documents make a boundary.")
+    precision: float | None = Field(None, description="Of the run's boundaries, the share that are the person's; "
+                                                      "null with none.")
+    recall: float | None = Field(None, description="Of the person's boundaries, the share the run called; null with none.")
+    exact_documents: int = Field(description="The person's documents the run had exactly: its start and end called, "
+                                             "no boundary inside.")
+    kinds_confirmed: int = Field(0, description="Documents a person accepted whose node still has a kind.")
+    kinds_right: int = Field(0, description="Of those, the ones whose kind is the one the run proposed.")
+    kind_accuracy: float | None = None
+    levels: list[LevelAgreement] = Field(default_factory=list)
+
+
+class FindDocumentsScores(BaseModel):
+    items: list[FindDocumentsScore] = Field(description="Stored scores, newest first.")
+    count: int
+    levels: list[LevelAgreement] = Field(
+        default_factory=list, description="The agreement at each level, pooled over the newest score of every folder.")
+    suggested_accept_above: float | None = Field(
+        None, description="The lowest level whose pooled joins were at least 99% agreed over at least `min_joins`; "
+                          "null until a scored box shows it. A suggestion: the auto-accept stays off until a person "
+                          "turns it on.")
+    min_joins: int = Field(description="Joins a level needs before it is suggested.")
+
+
+class FindDocumentsScoreResult(FindDocumentsScores):
+    score: FindDocumentsScore = Field(description="The score just stored.")
+    audit_id: str

@@ -47,7 +47,9 @@ teacher only where it is unsure.
 - **The auto-accept is off until a scored box.** The 95% is a hand-set score today, never checked against a
   box a person broke down. Until a real box (Istmina first) is scored against a person's breakdown and shows
   boundaries at least 99% right at that level, Find the Documents proposes and accepts nothing by itself;
-  then it switches on at the measured level.
+  then it switches on at the measured level. **Built 2026-10-10 (engine):** the measurement
+  (`finddocs.scored`): a folder is scored against the documents a person accepted or adjusted, the score is
+  kept, and it suggests the level (`suggested_accept_above`); a person, not the score, switches it on.
 - **Organise runs after names and dates.** Parties come from the names found; officials who appear on every
   document (a judge, a secretary) are not parties and link nothing. **Built 2026-10-10:** the step follows
   "Work out dates" in the recipe order, and a name on more than half of a folder's documents (four or more)
@@ -253,8 +255,31 @@ involve the company it names. Lessons the tool must carry:
   boundary-and-kind model (distillation.md), held out by box, scored, kept in the project.
 - `finddocs.scored` — **[PARTIAL]** (#5550) a run against a person's breakdown reports boundary precision
   and recall, exact documents, kind accuracy and group agreement. **Built 2026-10-07 (engine):**
-  `propose.score` gives boundary precision and recall and exact documents. *Not built: kind accuracy and
-  group agreement, and a route that scores a stored run.*
+  `propose.score` gives boundary precision and recall and exact documents against a known answer.
+  **Built 2026-10-10 (engine):** scoring is a stored measurement of a folder. A person's breakdown of a folder
+  is the documents a person set on its proposal: those a person accepted (`decided_by` a person) and those a
+  person adjusted (`adjusted_by`), rejected ones left out (a rejection says the run was wrong, not where the
+  document runs). `POST /api/find-documents/score` (`finddocs.score`, audited; a measurement, so not
+  undoable: it changes nothing but the record it adds) scores the folder's newest current proposal, or the
+  one named, from the run's own call at each join (`joins`, kept as the run made them; an adjustment never
+  changes them): a join is judged when either page is in one of the person's documents, a boundary when its
+  two pages are not in the same one. It reports boundary precision and recall over the judged joins, exact
+  documents (a person's document whose start and end the run called and inside which it called none), kind
+  accuracy over the kinds confirmed (a document a person accepted whose node still has a kind: right when
+  that kind is the one the run proposed; changed since, a correction), and, the number the auto-accept
+  ruling needs, the run's agreement at each confidence level (0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99): of the
+  judged joins the run was at least that sure of (a boundary's probability, or one minus it for "runs on",
+  the certainty a document's confidence is the least of), how many and how many the person agreed with. The
+  score is kept as one `finddocs_score` artifact on the folder, with the proposal, its run, the date and who
+  scored it; every score is kept. `GET /api/find-documents/score?folder_id=` lists the stored scores, newest
+  first, with `suggested_accept_above`: pooling the newest score of every folder in the project, the lowest
+  level whose joins were at least 99% agreed over at least 50 of them (`score.MIN_JOINS`: at 50 joins 99%
+  allows no miss; a level only 95% right would pass 20 joins with none a third of the time), null until
+  then. The suggestion never switches the auto-accept on: `finddocs.AUTO_ACCEPT_ABOVE` stays None and a
+  person turns it on at the suggested level (that setting's surface is a later slice). Refused in words,
+  changing nothing: a folder with no proposal, or none of whose documents a person accepted or adjusted
+  (422); an unknown proposal (404). Pinned by `fichero-server/tests/unit/finddocs/test_find_documents_score.py`.
+  *Not built: group agreement; the app's surface for the score and for turning the auto-accept on.*
 - `finddocs.known-answer-first` — **[PARTIAL]** (#5548, #5550) the method is checked on the Voynich
   conjugate leaves and one public page-stream set before it is offered on a real box. **Built
   2026-10-07:** two synthetic boxes with a known answer and no real text

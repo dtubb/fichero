@@ -1,7 +1,7 @@
 """Find the Documents, from the API (`finddocs.*`, specs/source/finding-documents.md, #5550).
 
 Start a run on folders or a selection of pages (`finddocs.run`, one background job), follow it, read the
-proposals it stored, adjust them (`finddocs.split`, `finddocs.join`, `finddocs.move_page`), and accept or reject
+proposals it stored, score them against what a person set (`finddocs.score`), adjust them (`finddocs.split`, `finddocs.join`, `finddocs.move_page`), and accept or reject
 them (`finddocs.accept`, `finddocs.reject`): each audited, undone by one undo through
 `/api/actions/audit/{id}/undo`. The MCP and the command line get these from the contract.
 """
@@ -21,6 +21,7 @@ from fichero_server.api.main import (
 from fichero_server.db import Database
 from fichero_server.finddocs import accept as _accept  # noqa: F401  (registers finddocs.accept, .reject)
 from fichero_server.finddocs import adjust as finddocs_adjust  # registers finddocs.split, .join, .move_page
+from fichero_server.finddocs import score as finddocs_score  # registers finddocs.score
 from fichero_server.finddocs import store as finddocs_store
 from fichero_server.models.found_documents import (
     DocumentsProposal,
@@ -30,6 +31,10 @@ from fichero_server.models.found_documents import (
     FindDocumentsJoinRequest,
     FindDocumentsMovePageRequest,
     FindDocumentsRejectRequest,
+    FindDocumentsScore,
+    FindDocumentsScoreRequest,
+    FindDocumentsScoreResult,
+    FindDocumentsScores,
     FindDocumentsSplitRequest,
     FindDocumentsRequest,
     FindDocumentsRun,
@@ -234,3 +239,52 @@ async def move_find_documents_page(
     examples: one document across the page's new join, a new document across the one it left. Nothing in the
     library changes; one undo of `audit_id` restores the proposal."""
     return _adjust(db, "finddocs.move_page", proposal_id, body, ctx)
+
+
+def _suggestion(db: Database) -> dict:
+    levels = finddocs_score.pooled(db)
+    return {"levels": levels, "suggested_accept_above": finddocs_score.suggest(levels),
+            "min_joins": finddocs_score.MIN_JOINS}
+
+
+@router.post("/score", response_model=FindDocumentsScoreResult,
+             summary="Score a folder's proposal against the documents a person accepted or adjusted, and keep it",
+             responses={404: {"description": "No such folder or proposal."},
+                        422: {"description": "The folder has no proposal, or a person set none of its documents."}})
+async def score_find_documents(
+    body: FindDocumentsScoreRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> FindDocumentsScoreResult:
+    """Score the folder's newest current proposal (or the one named) against a person's breakdown: the documents a
+    person accepted or adjusted. Boundary precision and recall over the joins a person judged, exact documents,
+    kind accuracy over the kinds confirmed, and, at each confidence level, how many of the run's calls at least that
+    sure the person agreed with. The score is kept on the folder (audited; a measurement, not undone). The answer
+    carries `suggested_accept_above`: the lowest level at least 99% right over at least `min_joins` joins, pooled
+    over every folder's newest score; null until then. It never turns the auto-accept on."""
+    try:
+        result = registry.invoke(db, "finddocs.score", body.model_dump(), ctx)
+    except finddocs_score.ScoreNotPossible as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    score = FindDocumentsScore.model_validate(result.result["score"])
+    stored = finddocs_score.scores(db, body.folder_id)
+    return FindDocumentsScoreResult(items=stored, count=len(stored), score=score, audit_id=result.audit_id,
+                                    **_suggestion(db))
+
+
+@router.get("/score", response_model=FindDocumentsScores, summary="Stored Find the Documents scores")
+async def list_find_documents_scores(
+    request: Request,
+    folder_id: str | None = Query(None, description="Only this folder's scores."),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    db: Database = Depends(get_library_database),
+) -> FindDocumentsScores:
+    """Newest first (a score on a folder this caller may not read is left out), with the agreement at each level
+    pooled over every folder's newest score and `suggested_accept_above` (null until a level is at least 99% right
+    over at least `min_joins` joins)."""
+    found = finddocs_score.scores(db, folder_id)
+    readable = set(readable_documents(request, x_fichero_library_path, [s.folder_id for s in found]))
+    kept = [s for s in found if s.folder_id in readable]
+    return FindDocumentsScores(items=kept, count=len(kept), **_suggestion(db))
