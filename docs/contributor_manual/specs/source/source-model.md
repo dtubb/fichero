@@ -1225,5 +1225,6 @@ action record holding a researcher's words is ruled out.
 
 ## Triaged from the backlog (2026-10-04)
 - `source.store.every-model-registered` — **[GAP]** (#5055) every persisted model is in `Database._all_schema_models`, so a library open creates every table and index.
+- `source.store.saved-is-found-after-a-crash` — **[OK]** (#5644) what a run saved is found after the engine was killed mid-work: a page's segment pass and its lines are listed, its run's activity is found, and a library damaged before the fix opens repaired, once. DuckDB 1.4–1.5.6 writes stale secondary indexes at the first checkpoint after replaying a WAL (`scripts/repro_duckdb_wal_index.py`); the first open of a file after a crash rebuilds them in `core/duckdb_session.py::connect_utc`, whoever opens it. Pinned by `fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py` (a real engine process killed mid-write).
 - `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.

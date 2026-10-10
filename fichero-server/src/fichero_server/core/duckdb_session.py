@@ -21,6 +21,7 @@ import contextvars
 import logging
 import os
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,9 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "connect_utc",
+    "rebuild_secondary_indexes",
+    "rebuilt_after_replay",
+    "wal_left_behind",
     "pin_utc_session",
     "get_query_count",
     "reset_query_count",
@@ -191,8 +195,105 @@ def connect_utc(database: Any = ":memory:", **kwargs: Any) -> duckdb.DuckDBPyCon
     this is the one chokepoint every server connection is created through, so
     wrapping it here counts every query the app issues without touching any
     of the ~100 call sites that use `self.conn.execute(...)`.
+
+    The first time this process opens a file the last session did not close cleanly, the
+    indexes are rebuilt before the connection is handed out (#5644, the note at the end of this
+    module) -- whichever caller opens it first: the library, the activity store, the scheduler.
     """
-    conn = apply_memory_limit(pin_utc_session(duckdb.connect(database, **kwargs)))
+    key = _file_key(database, kwargs)
+    if key is None:
+        conn = apply_memory_limit(pin_utc_session(duckdb.connect(database, **kwargs)))
+    else:
+        # One lock per FILE: opens of different files never wait on each other (review, #5644).
+        with _registry_lock:
+            first_open_lock = _first_open_locks.setdefault(key, threading.Lock())
+        with first_open_lock:
+            replaying = key not in _opened_in_this_process and wal_left_behind(key)
+            conn = apply_memory_limit(pin_utc_session(duckdb.connect(database, **kwargs)))
+            _opened_in_this_process.add(key)
+            if replaying:
+                rebuilt, failed = rebuild_secondary_indexes(conn)
+                if not failed:
+                    _rebuilt_after_replay.add(key)
+                logger.warning(
+                    "rebuilt %d secondary indexes on %s: the last session ended without a clean close (#5644)",
+                    rebuilt, key,
+                )
     if _counting_enabled():
         return _QueryCountingConnection(conn)  # type: ignore[return-value]
     return conn
+
+
+# ---------------------------------------------------------------------------
+# DuckDB 1.4+ writes wrong secondary indexes after replaying a WAL (#5644)
+# ---------------------------------------------------------------------------
+#
+# Measured 2026-10-09 (`scripts/repro_duckdb_wal_index.py`): a process that dies with a WAL
+# leaves its rows safe, and the next open replays them correctly -- but the FIRST checkpoint
+# after that replay writes every secondary (ART) index without the replayed rows. From then on
+# a lookup through the index misses rows that are there (a page's segments, a run's activity),
+# and an UPDATE or DELETE of such a row raises FATAL "Failed to delete all rows from index",
+# invalidating the database. DuckDB 1.3.2 is clean; 1.4.4 through 1.5.6 all do it. Primary
+# keys are not affected (measured), so they are left alone.
+#
+# The engine dies with a WAL whenever the app quits or crashes mid-write, so this is the
+# ordinary case, not an edge. Rebuilding the indexes from their tables right after the replay,
+# before anything can checkpoint, writes correct ones.
+
+
+#: Files this process has opened. Only a file's FIRST open here can replay a WAL left by a session
+#: that died; later ones join the instance already open (or, after a FATAL, the library's own
+#: reconnect handles it: `Database._reconnect_after_invalidated`).
+_opened_in_this_process: set[str] = set()
+#: Files whose every index was rebuilt at their first open here (the library's one-time repair
+#: then has nothing left to do: `rebuilt_after_replay`).
+_rebuilt_after_replay: set[str] = set()
+_first_open_locks: dict[str, threading.Lock] = {}
+_registry_lock = threading.Lock()
+
+
+def rebuilt_after_replay(database: str | Path) -> bool:
+    """Whether this process rebuilt every index of `database` when it first opened it."""
+    return os.path.realpath(str(database)) in _rebuilt_after_replay
+
+
+def _file_key(database: Any, kwargs: dict) -> str | None:
+    """The file a connect opens, or None for an in-memory or read-only one (it never checkpoints)."""
+    if kwargs.get("read_only") or not isinstance(database, (str, Path)):
+        return None
+    if str(database) in ("", ":memory:") or str(database).startswith(":memory:"):
+        return None
+    return os.path.realpath(str(database))
+
+
+def wal_left_behind(database: str | Path) -> bool:
+    """Whether the last session on this file ended without a clean close.
+
+    A clean close checkpoints and removes the ``.wal``; one still there at open means DuckDB is
+    about to replay it. Ask BEFORE connecting -- the connection itself starts the replay.
+    """
+    return Path(f"{database}.wal").exists()
+
+
+def rebuild_secondary_indexes(conn: duckdb.DuckDBPyConnection) -> tuple[int, int]:
+    """Drop and recreate every non-unique, non-primary index from the SQL DuckDB recorded (#5644).
+
+    An index is a speed-up, never data, so this cannot lose a row. Each index is rebuilt on its
+    own: one that fails to come back is logged as an ERROR and its queries fall back to a scan,
+    never a wrong answer. Returns (rebuilt, failed).
+    """
+    indexes = conn.execute(
+        "SELECT index_name, sql FROM duckdb_indexes() "
+        "WHERE database_name = current_database() AND NOT is_unique AND NOT is_primary "
+        "AND sql IS NOT NULL"
+    ).fetchall()
+    rebuilt = failed = 0
+    for name, sql in indexes:
+        try:
+            conn.execute(f'DROP INDEX "{name}"')
+            conn.execute(sql)
+            rebuilt += 1
+        except duckdb.Error as exc:
+            failed += 1
+            logger.error("index %s could not be rebuilt (#5644); its lookups fall back to a scan: %s", name, exc)
+    return rebuilt, failed

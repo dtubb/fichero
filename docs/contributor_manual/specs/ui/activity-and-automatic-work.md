@@ -1197,6 +1197,7 @@ and node, not by job); a retry action for failed pages.
   since 2026-10-08, for workflow runs: the reopen sweep and the interrupted-run marking take only
   running and accepted runs, a paused run is listed in Activity as paused, and its Resume carries on
   from its checkpoint (`fichero-server/tests/unit/jobs/test_durable_5357.py`).
+- `activity.durable.run-deletable-after-a-crash` — **[OK]** (#5644) a failed run from a session the engine did not close cleanly can be deleted or cleared, and the project stays usable. Deleting it used to raise DuckDB's FATAL "Failed to delete all rows from index" on a stale index and shut the database for the session. Pinned by `fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py::test_a_failed_run_can_be_deleted_after_the_engine_was_killed`.
 - `activity.durable.poison-item` — **[PARTIAL]** (#5357) an item that fails three times is
   set aside with its reason and the job carries on. Built: a queued job interrupted by a quit or
   crash goes back to waiting and is set aside after three (`fichero-server/tests/unit/jobs/test_job_queue.py`); a job that raises fails

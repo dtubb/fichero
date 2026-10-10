@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from fichero_server.core.timeutil import ensure_utc, utc_now
 from pathlib import Path
 
-from fichero_server.core.duckdb_session import connect_utc
+from fichero_server.core.duckdb_session import connect_utc, rebuild_secondary_indexes
 from pydantic import BaseModel
 from fichero_server.db.storage import settings
 from fichero_server.models import (
@@ -129,6 +129,9 @@ class AppDatabase:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
         self.conn = connect_utc(str(path))
+        # DuckDB writes wrong indexes after replaying a WAL (#5644, `core/duckdb_session.py`). The app
+        # database is small, so every open rebuilds them: after a replay, and any written before.
+        rebuild_secondary_indexes(self.conn)
         # DuckDB connections are not thread-safe and the Python binding leaves a
         # "pending query result" on the connection if a prior `.execute()`
         # didn't have its `.fetchone()` consumed. Under FastAPI's threadpool,

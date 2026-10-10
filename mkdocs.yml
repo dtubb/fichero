@@ -391,6 +391,7 @@ nav:
               - What Leaves, Transfer & Results: contributor_manual/specs/compute/transfer-and-results.md
               - Jobs, Engines, Fine-tuning & Publishing: contributor_manual/specs/compute/jobs-and-fine-tuning.md
               - Teaching Small Models from Big Ones: contributor_manual/specs/compute/distillation.md
+              - Running on a University Cluster (ACENET): contributor_manual/specs/compute/hpc-runner-acenet.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Export:

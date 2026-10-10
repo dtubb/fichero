@@ -63,7 +63,12 @@ import threading
 import time
 import unicodedata
 import duckdb
-from fichero_server.core.duckdb_session import connect_utc
+from fichero_server.core.duckdb_session import (
+    connect_utc,
+    rebuild_secondary_indexes,
+    rebuilt_after_replay,
+    wal_left_behind,
+)
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefinedType
 from fichero_server.db.embeddings import (
@@ -1014,6 +1019,8 @@ class Database(DatabaseEmbeddingMixin):
 
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
+        # A WAL left by a session that died is replayed, and its indexes rebuilt, inside
+        # `connect_utc` (#5644).
         self.conn = self._connect()
         self.duck = self.conn  # Alias used by ActionStore and other direct SQL callers
         self._lance_path = path.parent / "vectors"
@@ -1051,6 +1058,10 @@ class Database(DatabaseEmbeddingMixin):
         # (it appends to this SAME instance's list) — a failure looks the
         # same from either caller. Surfaced at `GET /api/health`.
         self.migration_failures: list = []
+
+        # Before any migration writes: a migration's UPDATE on a row a stale index cannot find is
+        # the FATAL that invalidates the whole database (#5644).
+        self._repair_indexes_once()
 
         # Migrate tables if needed
         from fichero_server.db.migrations.schema import (
@@ -1142,6 +1153,40 @@ class Database(DatabaseEmbeddingMixin):
                 ) from exc
             raise
 
+    #: Records that this library's indexes were rebuilt once, repairing any written by a replay
+    #: before the fix (#5644). A library with no settings table yet is new: nothing to repair.
+    INDEXES_REPAIRED_SETTING = "indexes_rebuilt_after_wal_replay_5644"
+
+    def _repair_indexes_once(self) -> None:
+        """Rebuild the secondary indexes once for every library, repairing any a replay wrote stale
+        before the fix (#5644; why, measured: `core/duckdb_session.py`'s note). After a crash the
+        rebuild already happened in `connect_utc`; this is the library's own record that it is sound.
+        """
+        conn = self.conn
+        has_settings = bool(conn.execute(
+            "SELECT 1 FROM duckdb_tables() WHERE table_name = 'librarysettings'"
+        ).fetchone())
+        repaired = has_settings and bool(conn.execute(
+            "SELECT 1 FROM librarysettings WHERE id = ?", [self.INDEXES_REPAIRED_SETTING]
+        ).fetchone())
+        if repaired:
+            return
+        if rebuilt_after_replay(self.path):
+            failed = 0  # rebuilt moments ago in `connect_utc`; nothing stale is left to repair
+        else:
+            rebuilt, failed = rebuild_secondary_indexes(conn)
+            logger.warning("rebuilt %d secondary indexes on %s (one-time repair, #5644)", rebuilt, self.path)
+        if not has_settings or failed:
+            return  # a new library has nothing to repair; a failed index is tried again next open
+        try:
+            conn.execute(
+                "INSERT INTO librarysettings (id, value, updated_at) VALUES (?, '1', now())",
+                [self.INDEXES_REPAIRED_SETTING],
+            )
+        except duckdb.Error as exc:
+            # The record is a saving, not the repair: without it the next open repairs again.
+            logger.error("could not record the index repair on %s (#5644): %s", self.path, exc)
+
     @staticmethod
     def _is_invalidated_error(exc: Exception) -> bool:
         message = str(exc).lower()
@@ -1175,7 +1220,16 @@ class Database(DatabaseEmbeddingMixin):
             self.conn.close()
         except Exception:
             pass
+        # An invalidated database never checkpoints, so this connection replays the WAL (#5644).
+        replaying = wal_left_behind(self.path)
         self.conn = self._connect()
+        if replaying:
+            try:
+                rebuild_secondary_indexes(self.conn)
+            except duckdb.Error as exc:
+                # Another connection still pins the invalidated database; the schema step below
+                # meets the same error and says so. The rebuild runs again at the next open.
+                logger.error("indexes not rebuilt on reconnect to %s (#5644): %s", self.path, exc)
         self.duck = self.conn
         # The dedicated READ cursor was minted from the CLOSED connection. A
         # stale cursor does not always raise — it can silently keep serving
@@ -1504,9 +1558,11 @@ class Database(DatabaseEmbeddingMixin):
                         return cur
                     except duckdb.Error as exc:
                         if self._is_invalidated_error(exc):
+                            # The cause, always (#5644): "invalidated" also means "closed", and a
+                            # FATAL behind it went unseen for weeks without its own words here.
                             logger.warning(
-                                "DuckDB connection for %s was invalidated; reopening and retrying",
-                                self.path,
+                                "DuckDB connection for %s was invalidated; reopening and retrying: %s",
+                                self.path, str(exc).splitlines()[0][:300],
                             )
                             self._reconnect_after_invalidated()
                             continue
@@ -1671,9 +1727,11 @@ class Database(DatabaseEmbeddingMixin):
                         return rows, columns
                     except duckdb.Error as exc:
                         if self._is_invalidated_error(exc):
+                            # The cause, always (#5644): "invalidated" also means "closed", and a
+                            # FATAL behind it went unseen for weeks without its own words here.
                             logger.warning(
-                                "DuckDB connection for %s was invalidated; reopening and retrying",
-                                self.path,
+                                "DuckDB connection for %s was invalidated; reopening and retrying: %s",
+                                self.path, str(exc).splitlines()[0][:300],
                             )
                             self._reconnect_after_invalidated()
                             continue
