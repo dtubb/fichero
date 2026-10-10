@@ -27,22 +27,35 @@ design keeps that record and lets it hang on any segment, not only on a whole do
 A segment has any number of **readings**. A reading has:
 
 - its **text** (which may include declared signs: see `languages-scripts-signs.md`);
-- its **kind**: *as written* (letter for letter), *expanded* (abbreviations opened),
-  *normalised* (spelling regularised; this is where the normalization spec's planned second
-  text field goes: one reading of kind *normalised*, not a second field), *as read aloud* (the qere; the Japanese reading of a
+- its **kind**: *transcription*, *as read aloud* (the qere; the Japanese reading of a
   Chinese text), *transliteration*, *translation*, *description* (what a picture shows),
   *coordinate* (for a map control point), *music* (the notes or neumes of a music segment,
   in the field's encoding), *drawing* (a diagram, a map outline or a letterform as lines that can be scaled and edited:
   an SVG; the SVG kind and the Convert-to-SVG tool that exist today are this kind). A project can add kinds;
-- **how normalised it is**, as a named level. Three sensible defaults ship (*as written*,
-  *expanded*, *normalised*) and the list is open: a project can define its own as part of its
-  guideline. Levels cannot be reliably converted into each other, so the level is recorded,
-  never assumed;
+- **how normalised it is**, as a named **level** (ruled 2026-10-10). Levels are levels, not kinds:
+  an expanded transcription is still a transcription, read further from the ink. Five ship:
+  - *graphemic*: letter for letter, letterforms told apart (long s, r rotunda);
+  - *as written*: the letters, each abbreviation kept as the scribe wrote it;
+  - *expanded*: abbreviations opened (*dha* is *dicha*);
+  - *regularised*: u/v, i/j and long s regularised, spelling otherwise kept (this is where the
+    normalization spec's planned second text field goes: one reading at level *regularised*, not a
+    second field);
+  - *modernised*: spelling and punctuation made modern.
+
+  The list is checked like the kinds list and open like it: a project can add its own as part of its
+  guideline, and a level outside the list is refused, naming the list. An older spelling is the level
+  it means, never a new one: *normalised* (the third level that shipped before 2026-10-10) is
+  *regularised*, and *as-written* (the spelling recipes and the setup sheet send) is *as written*.
+  Levels cannot be reliably converted into each other, so the level is recorded, never assumed;
+  a reading with no level says so.
+
+  The kind *normalized text* that shipped before levels were checked is a transcription at a level
+  (*regularised*); reading its rows as that is owed (`source.reading.normalized-text-is-a-level`).
 
   > **TEI's `<choice>` is two readings, not normalisation prose** (noted 2026-09-27, for whoever
   > builds TEI import or the reading editor next). `<choice><orig>vnto</orig><reg>unto</reg></choice>`
   > and its siblings (`<sic>`/`<corr>`, `<abbr>`/`<expan>`) are ONE segment carrying TWO readings of
-  > different kinds — *as written* and *normalised*, or *as written* and *expanded* — whose
+  > different levels — *as written* and *regularised*, or *as written* and *expanded* — whose
   > relationship is stated by the encoder. The model already has both halves: reading kinds, and a
   > reading's normalisation level. So a `<choice>` maps onto two readings of the same segment, and
   > the pair must be written back as a `<choice>` rather than as two unrelated readings. The trap
@@ -92,8 +105,13 @@ ranked guesses. The model holds both, and does not mix them up.
 
 ### Which reading counts
 
-For each kind, one reading can be **the chosen one**: what the Reader shows first, what
-export writes. How it comes to be chosen is **the project's rule** (ruled 2026-09-19). In a
+For each kind **at each level**, one reading can be **the chosen one**: what the Reader shows first, what
+export writes. Readings compete only with readings of the same kind at the same level (ruled
+2026-10-10): a person's expanded reading of a line never replaces the line as written, and a
+person's correction as written never retires an expanded reading. A reading with no level competes
+at *as written*. Where one answer per kind is asked for (the page's text, segment lists, export, a
+training set), it is the answer at *as written*, or, when the kind has no reading there, at the
+first level it has. How it comes to be chosen is **the project's rule** (ruled 2026-09-19). In a
 *strict* project, which is how every new project starts, only a person chooses: until someone
 has, the Reader shows the newest reading and **labels it plainly as a machine's and
 unchosen**; search still finds it; an export marks it as machine-made in its loss report. In
@@ -105,7 +123,8 @@ arrived, never claimed by the sender. The choice is itself recorded, with who an
 changing it rewrites nothing.
 
 How it is kept: only a person's **deliberate choices** are stored (this segment, this kind,
-this reading, who, when). Everything else is worked out when asked. So switching a project
+this reading, who, when; the level is the chosen reading's, so choosing at one level leaves a choice
+at another standing). Everything else is worked out when asked. So switching a project
 between strict and relaxed changes an answer and rewrites nothing.
 
 **What an audited record may hold** is an open, blocking question (morning file): every
@@ -237,10 +256,47 @@ any other: several can exist, one is chosen, none is overwritten.
 Readings
 - `source.reading.set` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_three_readings_of_one_line_coexist_and_adding_one_changes_no_other`) a segment can have many readings; adding one never changes another.
 - `source.reading.kinds` — **[OK]** (#4934; pinned by `tests/unit/models/test_reading_kinds_and_choices.py::TestTheKindsListIsOpen::test_an_unknown_kind_is_refused_and_the_list_is_named`) a reading has a kind from an extendable list whose shipped defaults
-  are: as written, expanded, normalised, as read aloud, transliteration, translation,
-  description, coordinate, music, drawing.
+  are: transcription, as read aloud, transliteration, translation, description, coordinate, music,
+  drawing. *As written*, *expanded* and *normalised* are levels, not kinds (`source.reading.levels`).
 - `source.reading.level-recorded` — **[OK]** (#4934; pinned by `tests/unit/models/test_reading_kinds_and_choices.py::TestTheGrownRecord::test_level_is_never_inferred`) every reading says how normalised it is; the level is
   never inferred or silently converted.
+- `source.reading.levels` — **[OK]** (ruled 2026-10-10; pinned by `tests/unit/api/test_reading_levels.py::TestFiveLevelsShip::test_an_unknown_level_is_refused_on_write_and_the_list_is_named`) five levels ship, seeded into the library's
+  levels list when it opens (`libraryreadinglevels`, as the kinds are): graphemic, as written, expanded,
+  regularised, modernised. A write naming a level outside the list is refused, naming the list; a
+  project can add a level. An older spelling is stored as the level it means, at the engine's boundary:
+  `as-written` is `as_written`, `normalised` is `regularised` (and a stored `normalised` row reads back as
+  `regularised`, never rewritten). Also pinned by
+  `tests/unit/api/test_reading_levels.py::TestOldSpellingsAreTheLevelsTheyMean` and
+  `::TestFiveLevelsShip::test_the_five_levels_are_seeded_when_a_library_opens`.
+- `source.reading.counts-per-level` — **[OK]** (ruled 2026-10-10; pinned by `tests/unit/api/test_reading_levels.py::TestWhichReadingCountsIsPerKindAndLevel::test_a_persons_expanded_reading_does_not_replace_the_line_as_written`) which reading counts is worked
+  out per kind AND level (`segment_readings.counting_by_kind_and_level`): a person's expanded reading of
+  a line never replaces the line as written, so the page's text, export and the Kraken training set keep
+  `dha`. A reading with no level competes at as written. One answer per kind (`counting_by_kind`, what
+  the readings list's `counting`, the page's text, segment lists and export read) is the as-written one,
+  else the kind's first level. A choice supersedes only the choices at its own level, and a write's
+  compare-and-set compares against the reading counting at the level written. Also pinned by
+  `::test_choosing_an_expanded_reading_leaves_the_as_written_choice_standing`,
+  `::test_writing_an_expanded_reading_is_not_stale_against_the_as_written_one` and
+  `::test_a_persons_as_written_correction_still_counts_over_the_files`. Not built: the readings list
+  reports one counting answer per kind; a per-level answer on the wire needs a contract change.
+- `source.reading.normalized-text-is-a-level` — **[GAP]** (#5653) the kind `normalized_text` is a
+  transcription at level regularised: its rows read as that, without rewriting them, and a write under
+  it is stored as that. Not built in the levels slice: the readings list's `kind` filter, the counting
+  answer's keys and the PAGE export's `reading_kind` all still name `normalized_text`, so reading it as
+  a transcription would empty them; they move together.
+- `source.reading.abbreviation-markup-parsed` — **[PARTIAL]** (#5651; pinned by `tests/unit/api/test_names_read_expanded_text.py::test_no_markup_reaches_spacy`) a corpus's abbreviation markup in a
+  line's text (`dha$.dicha`, `Parq.$^l$.Parroquial`, `$ant:Miguel`, `le:$-`; PAGE `custom` `abbrev
+  {offset; length; expansion}`) is read into the line as written (markup gone, abbreviation kept:
+  `dha`) and expanded (`dicha`) by `formats/abbreviation_markup.py`. Names and statements (the NLP draft
+  at import, the extract-names workflow) are read from each line's expanded reading where one counts,
+  else from the text with its markup read; a page with no markup is read exactly as before. The Kraken
+  training set holds every line as written, so `$` is never learnt as a letter. Also pinned by
+  `tests/unit/formats/test_abbreviation_markup.py`,
+  `tests/unit/api/test_names_read_expanded_text.py::test_a_lines_expanded_reading_is_what_names_are_read_from`
+  and `tests/unit/training/test_kraken_training_set.py::test_the_set_does_not_learn_abbreviation_markup_as_text`.
+  Not built: the PAGE importer does not yet write a line's expanded reading from its markup or its
+  `custom` abbrev tags (the parser is ready for it), and the page's text (`page_content`) still holds
+  the markup for search.
 - `source.reading.read-from` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_the_image_it_was_read_from_is_recorded`) a reading names the image it was read from, and the reading it
   was made from if it has one.
 - `source.reading.author-and-guideline` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_a_reading_names_its_author_not_only_the_kind_of_author`) a reading names its author (person, or model and
