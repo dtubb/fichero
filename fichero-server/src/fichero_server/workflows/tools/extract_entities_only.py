@@ -47,6 +47,9 @@ from fichero_server.workflows.types import DataType, PortDef, State
 logger = logging.getLogger(__name__)
 
 _TRANSCRIPTION_ARTIFACT = "transcription"
+#: Why a selected document was left out of a run: it has no text to read names from.
+NO_TEXT = ("no text: no line of its working pass has a reading, and it has no page text or "
+           "transcription")
 _ENTITY_TYPES = {
     section["schema_key"]: section["entity_type"]
     for section in _SECTIONS
@@ -167,7 +170,19 @@ def _transcription_text(document: Document, db) -> str:
     # And never as abbreviation markup either (#5651): `dha$.dicha` reaches the model as `dicha`. Each
     # line's expanded reading where it has one, else the text with the corpus's markup read
     # (`segment_readings.text_for_names`).
-    from fichero_server.api.routes.document.segment_readings import text_for_names  # noqa: PLC0415
+    from fichero_server.api.routes.document.segment_readings import (  # noqa: PLC0415
+        document_text,
+        text_for_names,
+    )
+
+    # The page's text is its working pass's lines, each line's counting reading (`source.point.text-is-
+    # derived`): the one derived-text path every surface reads. A page whose words live only there (an
+    # imported page archive, a page read line by line) has no `page_content` until the cache is filled,
+    # and was skipped as if it were blank. The stored fields below are the fallback for a page with no
+    # pass.
+    derived = document_text(db, document.id).text
+    if derived and derived.strip():
+        return text_for_names(db, document.id, derived.strip()).strip()
 
     metadata = dict(document.metadata or {})
     raw_transcription = metadata.get("transcription")
@@ -187,7 +202,9 @@ def _transcription_text(document: Document, db) -> str:
     return ""
 
 
-def _iter_records(documents: list[Document], db) -> Iterator[dict[str, Any]]:
+def _iter_records(
+    documents: list[Document], db, left_out: list[dict[str, Any]] | None = None,
+) -> Iterator[dict[str, Any]]:
     """Yield one extraction record at a time, reading each document's text
     only when the extraction loop is ready for it (#4379).
 
@@ -210,10 +227,16 @@ def _iter_records(documents: list[Document], db) -> Iterator[dict[str, Any]]:
     hydration. Bounding that too means teaching the source/files node to emit
     document ids and hydrate lazily, which is a cross-tool change to the
     workflow source contract and is deliberately not in this fix.
+
+    A document with no text at all is never skipped in silence: it is appended to ``left_out`` with
+    the reason, so a run that read nothing cannot report itself done.
     """
     for index, document in enumerate(documents):
         text = _transcription_text(document, db)
         if not text:
+            if left_out is not None:
+                left_out.append({"document_id": document.id, "name": document.name, "why": NO_TEXT})
+            logger.warning("extract_entities_only: %s left out: %s", document.name or document.id, NO_TEXT)
             continue
         yield {
             "index": index,
@@ -223,7 +246,9 @@ def _iter_records(documents: list[Document], db) -> Iterator[dict[str, Any]]:
         }
 
 
-def _records_for_documents(documents: list[Document], db) -> list[dict[str, Any]]:
+def _records_for_documents(
+    documents: list[Document], db, left_out: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """Materialise every record up front.
 
     Only for callers that must traverse the record set more than once —
@@ -233,7 +258,7 @@ def _records_for_documents(documents: list[Document], db) -> list[dict[str, Any]
     whole selection's text resident for the life of the call, which is the
     memory shape #4379 was about.
     """
-    return list(_iter_records(documents, db))
+    return list(_iter_records(documents, db, left_out))
 
 
 @register_tool(
@@ -324,7 +349,10 @@ async def extract_entities_only(
             documents = _coerce_documents(fallback_documents, db, library_path)
     # Bounded lookahead of exactly ONE record, so "did anything have text?"
     # can be answered without reading the whole selection (#4379).
-    records = _iter_records(documents, db)
+    # Every document with no text is named, with why, in the summary (`left_out`): the step must never
+    # say done with nothing done.
+    left_out: list[dict[str, Any]] = []
+    records = _iter_records(documents, db, left_out)
     first_record = next(records, None)
     if first_record is None:
         return {
@@ -334,6 +362,8 @@ async def extract_entities_only(
                 "entities_created": 0,
                 "entities_reused": 0,
                 "entities_suppressed": 0,
+                "documents_left_out": len(left_out),
+                "left_out": left_out,
             },
             "count": 0,
         }
@@ -529,5 +559,8 @@ async def extract_entities_only(
         "entities_suppressed": suppressed,
         # Per-document language actually used, `unknown` included (#2092).
         "languages_used": dict(languages_used),
+        # The selected documents with no text, each with why: never skipped in silence.
+        "documents_left_out": len(left_out),
+        "left_out": left_out,
     }
     return {"summary": summary, "count": processed}
