@@ -4275,6 +4275,32 @@
         "query_params": [],
         "request_model": null,
         "response_model": "FindDocumentsRun"
+      },
+      {
+        "method": "GET",
+        "path": "/find-documents/score",
+        "operation_id": "list_find_documents_scores_api_find_documents_score_get",
+        "summary": "Stored Find the Documents scores",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "folder_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "FindDocumentsScores"
+      },
+      {
+        "method": "POST",
+        "path": "/find-documents/score",
+        "operation_id": "score_find_documents_api_find_documents_score_post",
+        "summary": "Score a folder's proposal against the documents a person accepted or adjusted, and keep it",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FindDocumentsScoreRequest",
+        "response_model": "FindDocumentsScoreResult"
       }
     ],
     "folders": [

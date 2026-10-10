@@ -945,6 +945,18 @@ run's `run_probability` and `run_reasons` for that join). Each answers the propo
 `audit_id` whose undo (`finddocs.unadjust`) restores the proposal exactly. An index or page out of range is
 422; a superseded proposal, a document already accepted or rejected, or pages grouped since is 409.
 
+A folder's proposal is scored against a person's breakdown (`finddocs.scored`): the documents a person accepted
+or adjusted. `POST /api/find-documents/score` (`folder_id`, optional `proposal_id`: left out, the folder's newest
+current proposal) runs `finddocs.score` (audited, not undoable: a measurement) and keeps the score as a
+`finddocs_score` artifact on the folder: `documents`, the judged `joins`, `boundaries_proposed`,
+`boundaries_actual`, `precision`, `recall`, `exact_documents`, `kinds_confirmed`, `kinds_right`,
+`kind_accuracy`, and `levels` (for 0.5 to 0.99: the judged joins the run was at least that sure of and how many
+the person agreed with). It answers the score, its `audit_id`, the folder's stored scores and the suggestion
+below. A folder with no proposal, or none of whose documents a person set, is 422; an unknown folder or
+proposal is 404. `GET /api/find-documents/score` (`folder_id`) lists stored scores newest first, with `levels`
+pooled over every folder's newest score and `suggested_accept_above`: the lowest level at least 99% agreed over
+at least `min_joins` (50) joins, null until then. The suggestion never turns the auto-accept on.
+
 ### Workflow run comparison
 
 `GET /api/workflow-execution/comparisons` diffs what two runs produced from

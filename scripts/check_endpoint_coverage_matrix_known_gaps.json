@@ -288,6 +288,8 @@
   "POST /api/find-documents/proposals/{proposal_id}/split": "Find the Documents adjustments (#5550, finddocs.adjust): engine, CLI and MCP first; the app's surface (moving a card on the canvas) is not built yet",
   "POST /api/find-documents/proposals/{proposal_id}/join": "Find the Documents adjustments (#5550, finddocs.adjust): engine, CLI and MCP first; the app's surface (moving a card on the canvas) is not built yet",
   "POST /api/find-documents/proposals/{proposal_id}/move-page": "Find the Documents adjustments (#5550, finddocs.adjust): engine, CLI and MCP first; the app's surface (moving a card on the canvas) is not built yet",
+  "POST /api/find-documents/score": "Find the Documents scoring (#5550, finddocs.scored): engine, CLI and MCP first; the app's surface for the score and for turning the auto-accept on is a later slice",
+  "GET /api/find-documents/score": "Find the Documents scoring (#5550, finddocs.scored): engine, CLI and MCP first; the app's surface for the score and for turning the auto-accept on is a later slice",
   "GET /api/recipes/project/runs/{job_id}/summary": "store missing by design (#5577): the app reads the same summary on the recipe run's node of GET /api/activity/jobs/{job_id}; this route serves the CLI and MCP",
   "POST /api/claims/batch/transition": "#5613: the only Swift call was the hand-rolled entityService.batchTransitionClaims, uncalled and sending `state` where the engine takes `to_state` (it would have 422'd), so it was deleted; reached from the CLI and MCP; a Mac surface adds it through the generated client with its caller",
   "GET /api/recipes/project/automatic": "what runs by itself (#5362): the engine read first, served to the CLI and MCP; the app's setup and Activity do not show it yet",

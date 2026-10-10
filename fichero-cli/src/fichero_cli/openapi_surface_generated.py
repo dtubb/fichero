@@ -6212,6 +6212,42 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("stored-the-scores", hidden=True)
+    @target_app.command("list-scores")
+    def find_documents_list_scores_get(
+        ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help="Only this folder's scores."),
+    ) -> None:
+        """Stored Find the Documents scores (GET /api/find-documents/score)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/find-documents/score"
+            params = {
+                "folder_id": folder_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("score-a-folder-s-proposal-against-the-a-person-accepted-or-adjusted-and-keep-it", hidden=True)
+    @target_app.command("score")
+    def find_documents_score_post(
+        ctx: typer.Context,
+        folder_id: str = typer.Option(..., '--folder-id', help='The folder whose proposal is scored against the documents a person set on it.'),
+        proposal_id: Optional[str] = typer.Option(None, '--proposal-id', help="The proposal to score; left out, the folder's newest current one."),
+    ) -> None:
+        """Score a folder's proposal against the documents a person accepted or adjusted, and keep it (POST /api/find-documents/score)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/find-documents/score"
+            params = None
+            payload = _build_json_payload({
+                "folder_id": folder_id,
+                "proposal_id": proposal_id,
+            }, {
+                "folder_id": {'type': 'string', 'title': 'Folder Id', 'description': 'The folder whose proposal is scored against the documents a person set on it.', 'x-cli-required': True},
+                "proposal_id": {'type': 'string', 'nullable': True, 'title': 'Proposal Id', 'description': "The proposal to score; left out, the folder's newest current one.", 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('folders')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for folders endpoints.', no_args_is_help=True)

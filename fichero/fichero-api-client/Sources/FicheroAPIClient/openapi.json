@@ -7436,6 +7436,110 @@
         }
       }
     },
+    "/api/find-documents/score": {
+      "post": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "Score a folder's proposal against the documents a person accepted or adjusted, and keep it",
+        "description": "Score the folder's newest current proposal (or the one named) against a person's breakdown: the documents a\nperson accepted or adjusted. Boundary precision and recall over the joins a person judged, exact documents,\nkind accuracy over the kinds confirmed, and, at each confidence level, how many of the run's calls at least that\nsure the person agreed with. The score is kept on the folder (audited; a measurement, not undone). The answer\ncarries `suggested_accept_above`: the lowest level at least 99% right over at least `min_joins` joins, pooled\nover every folder's newest score; null until then. It never turns the auto-accept on.",
+        "operationId": "score_find_documents_api_find_documents_score_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindDocumentsScoreRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindDocumentsScoreResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such folder or proposal."
+          },
+          "422": {
+            "description": "The folder has no proposal, or a person set none of its documents."
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "Stored Find the Documents scores",
+        "description": "Newest first (a score on a folder this caller may not read is left out), with the agreement at each level\npooled over every folder's newest score and `suggested_accept_above` (null until a level is at least 99% right\nover at least `min_joins` joins).",
+        "operationId": "list_find_documents_scores_api_find_documents_score_get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Only this folder's scores.",
+              "title": "Folder Id"
+            },
+            "description": "Only this folder's scores."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindDocumentsScores"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/evaluation/runs": {
       "post": {
         "tags": [
@@ -61665,6 +61769,227 @@
         ],
         "title": "FindDocumentsRun"
       },
+      "FindDocumentsScore": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The `finddocs_score` artifact on the folder that keeps it."
+          },
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id"
+          },
+          "proposal_id": {
+            "type": "string",
+            "title": "Proposal Id"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id",
+            "description": "The run that made the proposal."
+          },
+          "scored_at": {
+            "type": "string",
+            "title": "Scored At"
+          },
+          "scored_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scored By"
+          },
+          "documents": {
+            "type": "integer",
+            "title": "Documents",
+            "description": "Documents a person set (accepted or adjusted): the breakdown scored against."
+          },
+          "joins": {
+            "type": "integer",
+            "title": "Joins",
+            "description": "Joins judged: either page is in one of the person's documents."
+          },
+          "boundaries_proposed": {
+            "type": "integer",
+            "title": "Boundaries Proposed",
+            "description": "Judged joins the run called a boundary."
+          },
+          "boundaries_actual": {
+            "type": "integer",
+            "title": "Boundaries Actual",
+            "description": "Judged joins the person's documents make a boundary."
+          },
+          "precision": {
+            "type": "number",
+            "nullable": true,
+            "title": "Precision",
+            "description": "Of the run's boundaries, the share that are the person's; null with none."
+          },
+          "recall": {
+            "type": "number",
+            "nullable": true,
+            "title": "Recall",
+            "description": "Of the person's boundaries, the share the run called; null with none."
+          },
+          "exact_documents": {
+            "type": "integer",
+            "title": "Exact Documents",
+            "description": "The person's documents the run had exactly: its start and end called, no boundary inside."
+          },
+          "kinds_confirmed": {
+            "type": "integer",
+            "title": "Kinds Confirmed",
+            "description": "Documents a person accepted whose node still has a kind.",
+            "default": 0
+          },
+          "kinds_right": {
+            "type": "integer",
+            "title": "Kinds Right",
+            "description": "Of those, the ones whose kind is the one the run proposed.",
+            "default": 0
+          },
+          "kind_accuracy": {
+            "type": "number",
+            "nullable": true,
+            "title": "Kind Accuracy"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/LevelAgreement"
+            },
+            "type": "array",
+            "title": "Levels"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "folder_id",
+          "proposal_id",
+          "scored_at",
+          "documents",
+          "joins",
+          "boundaries_proposed",
+          "boundaries_actual",
+          "exact_documents"
+        ],
+        "title": "FindDocumentsScore",
+        "description": "One stored score of a folder's proposal against a person's breakdown (`finddocs.scored`)."
+      },
+      "FindDocumentsScoreRequest": {
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id",
+            "description": "The folder whose proposal is scored against the documents a person set on it."
+          },
+          "proposal_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Proposal Id",
+            "description": "The proposal to score; left out, the folder's newest current one."
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder_id"
+        ],
+        "title": "FindDocumentsScoreRequest"
+      },
+      "FindDocumentsScoreResult": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FindDocumentsScore"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Stored scores, newest first."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/LevelAgreement"
+            },
+            "type": "array",
+            "title": "Levels",
+            "description": "The agreement at each level, pooled over the newest score of every folder."
+          },
+          "suggested_accept_above": {
+            "type": "number",
+            "nullable": true,
+            "title": "Suggested Accept Above",
+            "description": "The lowest level whose pooled joins were at least 99% agreed over at least `min_joins`; null until a scored box shows it. A suggestion: the auto-accept stays off until a person turns it on."
+          },
+          "min_joins": {
+            "type": "integer",
+            "title": "Min Joins",
+            "description": "Joins a level needs before it is suggested."
+          },
+          "score": {
+            "$ref": "#/components/schemas/FindDocumentsScore",
+            "description": "The score just stored."
+          },
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count",
+          "min_joins",
+          "score",
+          "audit_id"
+        ],
+        "title": "FindDocumentsScoreResult"
+      },
+      "FindDocumentsScores": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FindDocumentsScore"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Stored scores, newest first."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/LevelAgreement"
+            },
+            "type": "array",
+            "title": "Levels",
+            "description": "The agreement at each level, pooled over the newest score of every folder."
+          },
+          "suggested_accept_above": {
+            "type": "number",
+            "nullable": true,
+            "title": "Suggested Accept Above",
+            "description": "The lowest level whose pooled joins were at least 99% agreed over at least `min_joins`; null until a scored box shows it. A suggestion: the auto-accept stays off until a person turns it on."
+          },
+          "min_joins": {
+            "type": "integer",
+            "title": "Min Joins",
+            "description": "Joins a level needs before it is suggested."
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count",
+          "min_joins"
+        ],
+        "title": "FindDocumentsScores"
+      },
       "FindDocumentsSplitRequest": {
         "properties": {
           "document_index": {
@@ -67100,6 +67425,38 @@
         ],
         "title": "LetterformDescription",
         "description": "This very mark, described: its chain and its features (`source.letterform.chain`, `.features`)."
+      },
+      "LevelAgreement": {
+        "properties": {
+          "level": {
+            "type": "number",
+            "title": "Level"
+          },
+          "joins": {
+            "type": "integer",
+            "title": "Joins",
+            "description": "Judged joins the run was at least this sure of: a boundary at its probability, \"runs on\" at one minus it."
+          },
+          "agreed": {
+            "type": "integer",
+            "title": "Agreed",
+            "description": "Of those, the ones the person's documents agree with."
+          },
+          "share": {
+            "type": "number",
+            "nullable": true,
+            "title": "Share",
+            "description": "agreed / joins; null with no joins."
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "joins",
+          "agreed"
+        ],
+        "title": "LevelAgreement",
+        "description": "How often a person agreed with the run's calls it was at least `level` sure of (`finddocs.scored`)."
       },
       "LibraryAuthzSnapshot": {
         "properties": {

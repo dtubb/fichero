@@ -2913,6 +2913,23 @@ def fichero_find_documents_run(
     return _rt.call("GET", f"/api/find-documents/runs/{job_id}")
 
 
+def fichero_find_documents_list_scores(
+    *,
+    folder_id: Annotated[Optional[str], Field(description="Only this folder's scores.")] = None,
+) -> Any:
+    "Stored Find the Documents scores\n\nNewest first (a score on a folder this caller may not read is left out), with the agreement at each level\npooled over every folder's newest score and `suggested_accept_above` (null until a level is at least 99% right\nover at least `min_joins` joins).\n\nRoute: GET /api/find-documents/score (toolset `find-documents`; reads)."
+    return _rt.call("GET", "/api/find-documents/score", params={"folder_id": folder_id})
+
+
+def fichero_find_documents_score(
+    *,
+    folder_id: Annotated[str, Field(description='The folder whose proposal is scored against the documents a person set on it.')],
+    proposal_id: Annotated[Optional[str], Field(description="The proposal to score; left out, the folder's newest current one.")] = None,
+) -> Any:
+    "Score a folder's proposal against the documents a person accepted or adjusted, and keep it\n\nScore the folder's newest current proposal (or the one named) against a person's breakdown: the documents a\nperson accepted or adjusted. Boundary precision and recall over the joins a person judged, exact documents,\nkind accuracy over the kinds confirmed, and, at each confidence level, how many of the run's calls at least that\nsure the person agreed with. The score is kept on the folder (audited; a measurement, not undone). The answer\ncarries `suggested_accept_above`: the lowest level at least 99% right over at least `min_joins` joins, pooled\nover every folder's newest score; null until then. It never turns the auto-accept on.\n\nRoute: POST /api/find-documents/score (toolset `find-documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/find-documents/score", json=_rt.body({"folder_id": folder_id, "proposal_id": proposal_id}))
+
+
 def fichero_folders_delete(
     *,
     entity_type: Annotated[str, Field(description='Path parameter entity_type.')],
@@ -8842,6 +8859,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_find_documents_split", "find-documents", "POST", "/api/find-documents/proposals/{proposal_id}/split", fichero_find_documents_split),
     GeneratedTool("fichero_find_documents_start", "find-documents", "POST", "/api/find-documents/runs", fichero_find_documents_start),
     GeneratedTool("fichero_find_documents_run", "find-documents", "GET", "/api/find-documents/runs/{job_id}", fichero_find_documents_run),
+    GeneratedTool("fichero_find_documents_list_scores", "find-documents", "GET", "/api/find-documents/score", fichero_find_documents_list_scores),
+    GeneratedTool("fichero_find_documents_score", "find-documents", "POST", "/api/find-documents/score", fichero_find_documents_score),
     GeneratedTool("fichero_folders_delete", "folders", "DELETE", "/api/folders/{entity_type}/folders", fichero_folders_delete),
     GeneratedTool("fichero_folders_list", "folders", "GET", "/api/folders/{entity_type}/folders", fichero_folders_list),
     GeneratedTool("fichero_folders_create", "folders", "POST", "/api/folders/{entity_type}/folders", fichero_folders_create),
