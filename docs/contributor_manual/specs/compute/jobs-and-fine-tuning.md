@@ -312,7 +312,10 @@ so every model it loads is held on purpose, counted, and let go. One rule set fo
    corrected while the rest runs. Batches go in the order the person is likely to need them: the
    folder they are working in first, then the order of the project's tree; a person can move a folder
    to the front. Every batch is a checkpoint: a stop, quit or crash resumes at the next unfinished page,
-   never redoing finished ones. The plan states, before Start, the number of batches, pages, the time
+   never redoing finished ones. A batch where a step fails on some pages does not stop the run: those
+   pages are recorded as failed (by step and folder) and the run carries on, ending "done with failures"
+   with Read Again for just those pages; a step that fails outright on 3 batches in a row stops it
+   (provisional, #5540, awaiting the maintainer's ruling). The plan states, before Start, the number of batches, pages, the time
    per batch measured on this Mac, the whole run's estimate, disk it will use, and peak memory; Activity
    shows progress per folder, not one bar for 400,000 pages. Background throttling and the memory rules
    apply between pages and between batches. A cheap step that every later step needs (finding lines,

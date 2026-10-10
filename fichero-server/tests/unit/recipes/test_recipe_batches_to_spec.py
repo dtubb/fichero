@@ -2,14 +2,16 @@
 (docs/contributor_manual/specs/source/models-chains-and-projects.md; rule 9 of compute/jobs-and-fine-tuning.md).
 
 Behaviours: `source.recipe.folder-scoped-start`, `source.recipe.batch-at-archive-scale`,
-`source.recipe.batch-checkpoint`, `activity.run.progress-per-folder`. WHY: a recipe run was project-wide only, and
+`source.recipe.batch-checkpoint`, `activity.run.progress-per-folder`, and (provisional, #5540) a failed batch carried
+past: a step failing on a batch no longer ends the run there. WHY: a recipe run was project-wide only, and
 handed every unfinished page of a step to the workflow at once: 800 folders of 200 pages queued 160,000 page jobs
 per step, nothing was readable until every page had been through every step, and there was no "run the whole recipe
 on this folder".
 
 Through the public routes (`GET|POST /api/recipes/project/start`, `GET /api/recipes/project/runs/{id}`) and the
 real scheduler (a fresh one per test). Stubbed only at the boundary: each step's workflow run
-(`runner._run_workflow`), which writes the step's job row as a real run does and records the pages it was handed.
+(`runner._run_workflow`), which writes the step's job row as a real run does and records the pages it was handed,
+and that run's account (`run_account.run_account`, what the run's own status says it did, page by page).
 """
 from __future__ import annotations
 
@@ -56,6 +58,11 @@ class Steps:
         self.ran: list[tuple[str, list[str]]] = []
         self.reasons: list[str] = []
         self.interrupt: tuple[str, int] | None = None  # (step, which call of it)
+        #: (step, which call of it) -> "page" (the run fails on the first page handed, doing the rest) or
+        #: "outright" (the run fails having done no page: no account, as a run that never started has none).
+        self.fail: dict[tuple[str, int], str] = {}
+        self.stop_at: tuple[str, int] | None = None  # a person presses Stop on the run as this call runs
+        self.accounts: dict[str, object] = {}  # child -> its run account
 
     def run(self, db, card, documents, parent):
         step = card["steps"][0]
@@ -65,19 +72,38 @@ class Steps:
             self.interrupt = None
             raise jobs.JobOutOfReach("Interrupted: the project was closed; carries on when it opens again")
         self.ran.append((step, list(documents)))
+        failing = self.fail.get((step, calls))
+        if self.stop_at == (step, calls):
+            from fichero_server.recipes import runner
+
+            runner.request_cancel(db, parent)
         child = f"thread-{uuid.uuid4().hex[:12]}"
-        jobs._record(db, child, kind="workflow", subject=child, parent_id=None, state="done", reason=None,
+        state, why = ("failed", f"{'1 page' if failing == 'page' else 'the model'} failed") if failing else ("done", None)
+        jobs._record(db, child, kind="workflow", subject=child, parent_id=None, state=state, reason=why,
                      name=card["workflow"])
         jobs.set_parent(db, child, parent)
-        return child, "done", None
+        if failing == "page":
+            from fichero_server.workflows.run_account import PageFailure, RunAccount, RunOffer
+
+            self.accounts[child] = RunAccount(
+                state="failed", pages_total=len(documents), pages_done=len(documents) - 1, pages_failed=1,
+                failures=[PageFailure(page="p.png", document_id=documents[0], reason="unreadable")],
+                offer=RunOffer(pages=1, label="Read the 1 page that failed"))
+        return child, state, why
+
+    async def account(self, db, thread_id, **_kwargs):
+        return self.accounts.get(thread_id)
 
 
 @pytest.fixture
 def steps(monkeypatch):
     from fichero_server.recipes import runner
 
+    from fichero_server.workflows import run_account
+
     stub = Steps()
     monkeypatch.setattr(runner, "_run_workflow", stub.run)
+    monkeypatch.setattr(run_account, "run_account", stub.account)
     return stub
 
 
@@ -254,4 +280,87 @@ def test_a_resumed_run_redoes_nothing(client, db, archive, steps, monkeypatch):
     assert run["state"] == "done", run
     assert steps.ran == [("lines", [b1]), ("names", [b1]), ("lines", [b2]), ("names", [b2])], (
         "a finished batch or a step finished on the interrupted batch ran again")
+    assert (run["folders_done"], run["folders_total"]) == (1, 1)
+
+
+def test_a_page_failing_in_one_batch_does_not_stop_the_next(client, db, archive, steps):
+    """source.recipe.batch-at-archive-scale (provisional, #5540): a step that fails on some pages of a batch keeps
+    them as failed, and the run carries on: every batch runs; the run ends failed, "Done with failures", naming the
+    step and the folder; its summary lists the failed page with Read Again for just it. WHY: one bad page ended the
+    run at its folder, so an 800-folder run stalled at the same folder on every Start."""
+    _save(client)
+    steps.fail[("lines", 0)] = "page"  # folder A, the first batch
+    run = _finished(client, _start(client)["started"]["job_id"])
+
+    lines = [set(pages) for step, pages in steps.ran if step == "lines"]
+    assert len(lines) == 4, f"the batches after the failed one did not run: {steps.ran}"
+    assert (run["folders_done"], run["folders_total"]) == (4, 4), run
+    assert run["state"] == "failed", run
+    assert run["reason"].startswith("Done with failures: step lines, read failed on 1 of 4 folders (A: 1 page failed)"), (
+        run["reason"])
+    assert run["steps"][0]["state"] == "failed", run["steps"]
+
+    summary = client.get(f"/api/recipes/project/runs/{run['job_id']}/summary").json()
+    assert summary["pages_failed"] == 1, summary["failed"]
+    failed = summary["failed"][0]
+    assert failed["steps"] == ["lines", "read"] and failed["offer"] == "Read the 1 page that failed"
+    assert failed["failures"][0]["document_id"] in archive["a"], failed
+
+
+def test_stop_still_ends_the_run_after_the_current_batch(client, db, archive, steps):
+    """source.recipe.batch-checkpoint (provisional, #5540): carrying on past failures does not carry on past a
+    person's Stop: the run ends after the batch it was on, cancelled, and no later batch runs, even when a step
+    failed on that batch. WHY: Stop must mean stop."""
+    _save(client)
+    steps.fail[("lines", 0)] = "page"
+    steps.stop_at = ("lines", 0)
+    run = _finished(client, _start(client)["started"]["job_id"])
+
+    assert run["state"] == "cancelled" and run["reason"].startswith("Stopped by you"), run
+    assert [s for s, _ in steps.ran] == ["lines"], f"a step or batch ran after Stop: {steps.ran}"
+
+
+def test_a_step_failing_outright_three_batches_in_a_row_stops_the_run(client, db, archive, steps):
+    """source.recipe.batch-at-archive-scale (provisional, #5540): a step that does none of a batch's pages (a
+    missing model, the step crashing) on 3 batches in a row stops the run, saying why; a batch it did a page of
+    resets the count. WHY: carrying on past failures must not let a broken model burn through 800 folders."""
+    _save(client)
+    steps.fail.update({("lines", 0): "outright", ("lines", 1): "outright", ("lines", 2): "outright"})
+    run = _finished(client, _start(client)["started"]["job_id"])
+
+    assert [s for s, _ in steps.ran if s == "lines"] == ["lines"] * 3, f"not 3 batches, then stop: {steps.ran}"
+    assert run["state"] == "failed", run
+    assert run["reason"].startswith("Stopped: step lines, read failed on 3 folders in a row without doing a page "
+                                    "(the model failed)"), run["reason"]
+    assert "3 of 4 folders done" in run["reason"], run["reason"]
+
+    # Two outright failures, then a batch with a page done, then one more: the count starts again; every batch runs.
+    steps.ran, steps.fail = [], {("lines", 0): "outright", ("lines", 1): "outright", ("lines", 3): "outright"}
+    run = _finished(client, _start(client)["started"]["job_id"])
+    assert len([s for s, _ in steps.ran if s == "lines"]) == 4, steps.ran
+    assert run["reason"].startswith("Done with failures: step lines, read failed on 3 of 4 folders"), run["reason"]
+
+
+def test_a_resumed_run_after_a_failed_batch_redoes_nothing(client, db, archive, steps, monkeypatch):
+    """source.recipe.batch-checkpoint (provisional, #5540): a batch a step failed on, carried past, is still a
+    checkpoint: interrupted on the next batch, the run carries on there and runs neither the failed step nor any
+    finished one again. WHY: carrying on must not turn a resume into a second pass over failed folders."""
+    from fichero_server.recipes import runner
+
+    monkeypatch.setattr(runner, "BATCH_PAGE_LIMIT", 1)
+    _save(client)
+    steps.fail[("lines", 0)] = "page"
+    steps.interrupt = ("lines", 1)  # the project closes as lines starts on batch 2
+    job_id = _start(client, folder_id=archive["B"])["started"]["job_id"]
+    assert _wait(lambda: _status(client, job_id)["reason"].startswith("Interrupted")), _status(client, job_id)
+    b1, b2 = archive["b"]
+    before = list(steps.ran)
+    assert before[0] == ("lines", [b1]) and ("lines", [b2]) not in before, before
+
+    jobs.resume(db)
+    run = _finished(client, job_id)
+
+    assert steps.ran[:len(before)] == before and steps.ran[len(before):] == [("lines", [b2]), ("names", [b2])], (
+        f"a failed or finished step ran again on batch 1: {steps.ran}")
+    assert run["state"] == "failed" and run["reason"].startswith("Done with failures"), run
     assert (run["folders_done"], run["folders_total"]) == (1, 1)

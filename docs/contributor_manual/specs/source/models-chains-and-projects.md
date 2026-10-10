@@ -2279,9 +2279,22 @@ Projects
   counts once, and its pages go with it). Every step finishes on a batch before the next batch starts, so
   the first volume is read, named and searchable while the rest waits; no step is ever handed more than one
   batch's pages at once. Folders go in the order of the project's material. The whole-project Start, a
-  folder's Start and an import's run are the same loop (an import is usually one batch). A step that fails
-  or is not run on a batch ends the run after that batch: the batches after it do not run, and Start runs
-  them again. A step that covers the whole project at once (publish) runs once, on the last batch. A step's
+  folder's Start and an import's run are the same loop (an import is usually one batch). **[OK, provisional]**
+  (#5540: a default chosen while the maintainer was away, awaiting his ruling; built 2026-10-10:
+  `runner._settle_batch`, `runner._did_no_page`, `runner.OUTRIGHT_IN_A_ROW`; tested in
+  `test_recipe_batches_to_spec.py::test_a_page_failing_in_one_batch_does_not_stop_the_next`,
+  `::test_a_step_failing_outright_three_batches_in_a_row_stops_the_run`) a step that fails or is not run on a
+  batch does not end the run: the step's failed batches are kept on it (`failed_batches`: the folder, the step's
+  job on it, why), and the run carries on to the next batch, so one bad page no longer holds an 800-folder run at
+  the same folder on every Start. A run with failures ends failed, its row saying "Done with failures: step
+  lines, read failed on 1 of 4 folders (B: why)" and how many folders it finished; its summary lists each failed
+  batch's pages with Read Again for just those (`source.onboard.auto.results-summary`), and the next Start offers
+  the step again (`source.recipe.done-is-not-redone` skips the pages it did). A step that fails **outright** on a
+  batch (it did none of the batch's pages: a missing model, the step itself crashing) on 3 batches in a row stops
+  the run there, saying "Stopped: step lines, read failed on 3 folders in a row without doing a page (why)", so a
+  broken model does not burn through 800 folders; a batch it did any page of resets the count. A step that is not
+  a workflow (a check, an embed) cannot say which pages it did, so its every failure counts as outright. A step
+  that covers the whole project at once (publish) runs once, on the last batch. A step's
   state over the run is its worst on any batch; its counts (already done, blank versos, by kind, what it made)
   add up over the batches.
 - `source.recipe.batch-checkpoint` — **[OK]** (#5540; built 2026-10-10: the run's `batches_done`,
@@ -2290,7 +2303,9 @@ Projects
   being run, which steps finished on it. A quit or crash (the run is carried on when the project opens again)
   resumes at the next unfinished step of the unfinished batch, and within that step at its next unfinished page
   (`source.recipe.done-is-not-redone`): a finished batch, or a step finished on the interrupted batch, is never
-  run again, even a step that cannot tell what it has done. A person's Stop ends the run (#5609); Start then
+  run again, even a step that cannot tell what it has done (tested also with a failed step carried past, in
+  `::test_a_resumed_run_after_a_failed_batch_redoes_nothing`). A person's Stop ends the run after the current
+  batch (#5609; tested in `::test_stop_still_ends_the_run_after_the_current_batch`), failures or not; Start then
   begins a new run, which skips only what `source.recipe.done-is-not-redone` can tell is done.
 - `activity.run.progress-per-folder` — **[OK]** (#5540; built 2026-10-10: `runner._folders_words`, `folders_done`
   and `folders_total` on `GET /api/recipes/project/runs/{id}`; tested as above) a recipe run's row says how far
