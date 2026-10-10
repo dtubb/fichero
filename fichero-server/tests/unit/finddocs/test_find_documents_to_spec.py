@@ -207,32 +207,30 @@ def test_finddocs_run_accepts_by_itself_above_its_setting(client, db, tmp_path, 
     assert f"{len(sure)} accepted" in run["reason"]
 
 
-def test_finddocs_accepts_at_95_percent_by_default(client, db, tmp_path, jobs_run_by_the_test):
-    """`finddocs.recipe-step` (ruled 2026-10-08, #5550): left out, a run accepts by itself every document at least
-    95% sure and proposes the rest for a person -- the route (so the MCP and CLI generated from it) and the recipe
-    step share the one setting, `finddocs.AUTO_ACCEPT_ABOVE`."""
+def test_finddocs_proposes_only_by_default(client, db, tmp_path, jobs_run_by_the_test):
+    """`finddocs.recipe-step` (ruled 2026-10-10, #5550): the auto-accept is off until a box a person broke down
+    is scored, so left out a run proposes every document for a person -- the route (so the MCP and CLI generated
+    from it) and the recipe step share the one setting, `finddocs.AUTO_ACCEPT_ABOVE`. A run given a level still
+    accepts the documents at least that sure."""
     from fichero_server import finddocs
     from fichero_server.models.found_documents import FindDocumentsRequest
 
-    assert finddocs.AUTO_ACCEPT_ABOVE == 0.95
-    assert FindDocumentsRequest(scope_ids=["x"]).accept_above == finddocs.AUTO_ACCEPT_ABOVE
-    assert FindDocumentsRequest(scope_ids=["x"], accept_above=None).accept_above is None
+    assert finddocs.AUTO_ACCEPT_ABOVE is None
+    assert FindDocumentsRequest(scope_ids=["x"]).accept_above is None
     pages, _truth, _groups = correspondence_box()
     folder, _ids = _project(db, tmp_path, pages)
-    run = _run(client, db, [folder.id])  # no accept_above: the default
+    waiting = _run(client, db, [folder.id])  # no accept_above: the default
+    assert {d["state"] for d in _proposal(client, waiting["proposal_ids"][0])["documents"]} == {"proposed"}
+    assert "waiting for you" in waiting["reason"]
+    again = tmp_path / "again"
+    again.mkdir()
+    folder2, _ = _project(db, again, pages)
+    run = _run(client, db, [folder2.id], accept_above=0.95)
     proposal = _proposal(client, run["proposal_ids"][0])
     sure = [d["index"] for d in proposal["documents"] if d["confidence"] >= 0.95]
     assert sure and len(sure) < len(proposal["documents"]), "the box has documents on both sides of 95%"
     assert [d["index"] for d in proposal["documents"] if d["state"] == "accepted"] == sure
-    assert {d["state"] for d in proposal["documents"] if d["index"] not in sure} == {"proposed"}
     assert f"{len(sure)} accepted (at least 95% sure)" in run["reason"]
-    # null leaves every document for a person.
-    again = tmp_path / "again"
-    again.mkdir()
-    folder2, _ = _project(db, again, pages)
-    waiting = _run(client, db, [folder2.id], accept_above=None)
-    assert {d["state"] for d in _proposal(client, waiting["proposal_ids"][0])["documents"]} == {"proposed"}
-    assert "waiting for you" in waiting["reason"]
 
 
 def test_finddocs_selection_and_unknown_ids(client, db, istmina):
@@ -258,10 +256,15 @@ def _accept_audit(db, run_id):
     return audit
 
 
-def test_finddocs_run_accept_records_the_run_as_who_chose_the_kind(client, db, tmp_path, jobs_run_by_the_test):
-    """`finddocs.accept-makes-groups` + `finddocs.corrections-teach`: a kind the run's own auto-accept wrote records
-    the run (machine: its proposal, its method), never a person, on a one-page document's page and on a group node
-    alike; each document says the run decided it; a kind a person chose is left alone; one undo restores it all."""
+def _proposed_kind(db, node_id):
+    return ((db.get(Document, node_id).metadata or {}).get("proposed_attributes") or {}).get("prototype")
+
+
+def test_finddocs_run_accept_is_boundaries_only(client, db, tmp_path, jobs_run_by_the_test):
+    """Ruled 2026-10-10 (`finddocs.accept-makes-groups`, `finddocs.corrections-teach`): the run's own accept takes
+    a document's boundaries only. Its kind is left as a proposed kind citing the run (machine: its proposal, its
+    method), on a one-page document's page and on a group node alike, never assigned; a kind a person chose is left
+    alone; cases stay proposals; each document says the run decided it; one undo restores it all."""
     from fichero_server.api.routes.document.classifications import ClassificationCreateRequest, create_value_impl
     from fichero_server.api.routes.document.documents import PrototypeAssignRequest, assign_document_prototype_impl
 
@@ -280,21 +283,25 @@ def test_finddocs_run_accept_records_the_run_as_who_chose_the_kind(client, db, t
     for document in accepted:
         assert document["decided_by"] == {"by": "run", "run_id": job_id, "actor": None}
     for document in one_page + grouped:
-        source = _kind_source(db, document["accepted_as"])
-        assert db.get(Document, document["accepted_as"]).prototype_key == document["prototype_key"]
+        node = document["accepted_as"]
+        assert db.get(Document, node).prototype_key is None and _kind_source(db, node) is None
+        proposed = _proposed_kind(db, node)
+        assert proposed["value"] == document["prototype_key"] and proposed["state"] == "proposed"
+        source = proposed["source"]
         assert source["by"] == "machine" and "accepted_by" not in source
         assert source["run_id"] == job_id and source["artifact_id"] == proposal["id"]
         assert source["model"] == "find-documents/rules-1" and source["tool"] == "find-documents"
     # The receipt's page had a person's kind: the run's accept left it, and who chose it, alone.
     assert [d for d in accepted if d["page_ids"] == [ids["d7-p1"]]], "the receipt is above 80%"
     assert db.get(Document, ids["d7-p1"]).prototype_key == "factura"
-    assert _kind_source(db, ids["d7-p1"]) == {"by": "person"}
+    assert _kind_source(db, ids["d7-p1"]) == {"by": "person"} and _proposed_kind(db, ids["d7-p1"]) is None
+    assert {g["state"] for g in proposal["groups"]} <= {"proposed"}, "cases wait for a person"
 
     undo = client.post(f"/api/actions/audit/{_accept_audit(db, job_id).id}/undo")
     assert undo.status_code == 200, undo.text
     for document in one_page:
         page = db.get(Document, document["accepted_as"])
-        assert page.prototype_key is None and _kind_source(db, page.id) is None
+        assert page.prototype_key is None and _proposed_kind(db, page.id) is None
     assert _kind_source(db, ids["d7-p1"]) == {"by": "person"}
     assert {(d["state"], d["decided_by"]) for d in _proposal(client, proposal["id"])["documents"]} == {
         ("proposed", None)}

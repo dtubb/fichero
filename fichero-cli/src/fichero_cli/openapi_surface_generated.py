@@ -6119,7 +6119,7 @@ def register_generated_openapi_commands(
     @target_app.command("start")
     def find_documents_start_post(
         ctx: typer.Context,
-        accept_above: Optional[float] = typer.Option(None, '--accept-above', help="Accept, as the run ends, every proposed document at least this confident (left out: 0.95, the project's default, ruled 2026-10-08); null leaves all for a person. Default: 0.95."),
+        accept_above: Optional[float] = typer.Option(None, '--accept-above', help="Accept, as the run ends, the boundaries of every proposed document at least this confident; kinds and cases stay proposals for a person. Left out: the project's default, off until a box a person broke down is scored (ruled 2026-10-10); null leaves all for a person."),
         scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders, or a selection of pages (each with its folder). A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Find the documents in folders or a selection of pages (POST /api/find-documents/runs)."""
@@ -6130,7 +6130,7 @@ def register_generated_openapi_commands(
                 "accept_above": accept_above,
                 "scope_ids": scope_ids,
             }, {
-                "accept_above": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Accept Above', 'description': "Accept, as the run ends, every proposed document at least this confident (left out: 0.95, the project's default, ruled 2026-10-08); null leaves all for a person.", 'default': 0.95, 'x-cli-required': False},
+                "accept_above": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Accept Above', 'description': "Accept, as the run ends, the boundaries of every proposed document at least this confident; kinds and cases stay proposals for a person. Left out: the project's default, off until a box a person broke down is scored (ruled 2026-10-10); null leaves all for a person.", 'x-cli-required': False},
                 "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Scope Ids', 'description': 'Folders, or a selection of pages (each with its folder).', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

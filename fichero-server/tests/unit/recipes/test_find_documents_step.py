@@ -1,8 +1,8 @@
 """Find the documents as a recipe step (spec: docs/contributor_manual/specs/source/finding-documents.md, #5550).
 
 `finddocs.recipe-step`: setup adds the step for loose pages, after reading, with Fichero's own rules (no model to
-choose) and the project's setting `accept_above` (default: propose, accept by itself only at very high
-confidence); the Start plan carries it as its own card; a recipe run runs that card as a Find the Documents job
+choose) and the project's setting `accept_above` (default: propose only; the auto-accept is
+off until a box is scored, ruled 2026-10-10); the Start plan carries it as its own card; a recipe run runs that card as a Find the Documents job
 under the recipe's row. Through `POST /api/recipes/assemble`, `plan_start` and `runner.run`.
 """
 from __future__ import annotations
@@ -88,8 +88,8 @@ def test_a_recipe_run_finds_the_documents_under_its_row(client, db, tmp_path, jo
     assert db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [step["child_id"]])[0] == job_id
     (proposal,) = finddocs_store.proposals(db, folder.id)
     assert [d.page_ids for d in proposal.documents] == [[ids[p] for p in doc] for doc in truth]
-    accepted = [d.index for d in proposal.documents if d.state == "accepted"]
-    assert accepted == [d.index for d in proposal.documents if d.confidence >= AUTO_ACCEPT_ABOVE]
+    # Off until a scored box (ruled 2026-10-10): the step proposes every document for a person.
+    assert AUTO_ACCEPT_ABOVE is None and {d.state for d in proposal.documents} == {"proposed"}
 
 
 def test_on_by_default_for_a_project_holding_loose_pages(client, db, tmp_path, jobs_run_by_the_test):

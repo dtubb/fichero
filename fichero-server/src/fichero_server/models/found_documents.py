@@ -111,9 +111,9 @@ class FindDocumentsRequest(BaseModel):
     scope_ids: list[str] = Field(min_length=1, description="Folders, or a selection of pages (each with its folder).")
     accept_above: float | None = Field(
         AUTO_ACCEPT_ABOVE, ge=0.0, le=1.0,
-        description="Accept, as the run ends, every proposed document at least this confident (left out: "
-                    f"{AUTO_ACCEPT_ABOVE}, the project's default, ruled 2026-10-08); null leaves all for a "
-                    "person.")
+        description="Accept, as the run ends, the boundaries of every proposed document at least this confident; "
+                    "kinds and cases stay proposals for a person. Left out: the project's default, off until a "
+                    "box a person broke down is scored (ruled 2026-10-10); null leaves all for a person.")
 
 
 class FindDocumentsAcceptRequest(BaseModel):

@@ -61288,8 +61288,7 @@
             "minimum": 0.0,
             "nullable": true,
             "title": "Accept Above",
-            "description": "Accept, as the run ends, every proposed document at least this confident (left out: 0.95, the project's default, ruled 2026-10-08); null leaves all for a person.",
-            "default": 0.95
+            "description": "Accept, as the run ends, the boundaries of every proposed document at least this confident; kinds and cases stay proposals for a person. Left out: the project's default, off until a box a person broke down is scored (ruled 2026-10-10); null leaves all for a person."
           }
         },
         "type": "object",

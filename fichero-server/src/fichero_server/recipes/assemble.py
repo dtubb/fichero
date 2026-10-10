@@ -618,8 +618,9 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
                           "runs_on": "this-mac", "uses_cloud": False,
                           "settings": {"accept_above": AUTO_ACCEPT_ABOVE},
                           "reasons": ["reads the text already there and the pages' thumbnails, on this Mac, free",
-                                      f"proposes; accepts by itself only a document at least "
-                                      f"{AUTO_ACCEPT_ABOVE:.0%} sure (one undo restores)"]})
+                                      "proposes the documents for you to accept" if AUTO_ACCEPT_ABOVE is None
+                                      else f"proposes; accepts by itself only a document's pages at least "
+                                           f"{AUTO_ACCEPT_ABOVE:.0%} sure (one undo restores)"]})
             continue
         if job in FICHERO_DOES_IT:
             # Fichero carries it out itself: no model to choose, so never "Fichero has no model" (#5619).

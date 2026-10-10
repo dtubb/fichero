@@ -177,16 +177,18 @@ involve the company it names. Lessons the tool must carry:
   `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py`. **Built 2026-10-10 (engine):**
   every kind it writes, on a one-page document's page and on a document's group node alike, records who
   chose it through the one attribute-sources record (`metadata.attribute_sources.prototype`,
-  `workflows/attribute_sources.py`): the run's own auto-accept records the run (machine: its proposal, its
-  run and its method), never a person, and leaves a kind a person chose alone; a person's accept records
-  the run's proposal with `accepted_by` the person. Accept refuses in words (409), changing nothing, a
+  `workflows/attribute_sources.py`): a person's accept records the run's proposal with `accepted_by` the
+  person. **Built 2026-10-10 (engine, the ruling above):** the run's own auto-accept takes boundaries only:
+  each document's kind is left as a proposed kind on its node, citing the run (machine: its proposal, its
+  run and its method), through `attribute_sources.propose_prototype`, never over a person's kind; proposed
+  cases are made only on a person's accept. Accept refuses in words (409), changing nothing, a
   document any of whose pages is no longer a loose page of the proposal's folder (grouped, moved or
   deleted since; a page cut from a photograph, whose parent is the photograph, is a loose page), naming
   the document and the page, and a proposal a later run superseded (`state` "superseded",
   `superseded_by`): a later run on any of the same pages supersedes it, and the folder's listing
   (`GET /api/find-documents/proposals`) leaves superseded proposals out unless `include_superseded` is
   asked for, so the Inspector never lists the same pages twice. Undo restores the kinds' records too.
-  Pinned by `test_finddocs_run_accept_records_the_run_as_who_chose_the_kind`,
+  Pinned by `test_finddocs_run_accept_is_boundaries_only`,
   `test_finddocs_person_accept_records_the_person`, `test_finddocs_accept_refuses_pages_grouped_since`,
   `test_finddocs_pages_cut_from_a_photograph_accept_and_refuse` and
   `test_finddocs_a_second_run_supersedes_the_first` in the same file. **Built 2026-10-10 (app):** Find
@@ -200,7 +202,7 @@ involve the company it names. Lessons the tool must carry:
   accepted or rejected document, and each accepted group, records who decided it (`decided_by`: the run
   that made the proposal, accepting by itself, or the person), so a person's answer can be told from the
   run's; a superseded proposal is kept with its answers. Pinned by
-  `test_finddocs_run_accept_records_the_run_as_who_chose_the_kind` and
+  `test_finddocs_run_accept_is_boundaries_only` and
   `test_finddocs_person_accept_records_the_person`. *Not built: an adjustment (a moved card) recorded,
   and the states exported as training examples.*
 - `finddocs.recipe-step` — **[OK]** (#5550) onboarding organises by itself: a recipe that reads a project
@@ -208,13 +210,14 @@ involve the company it names. Lessons the tool must carry:
   run as background work. **Built 2026-10-07 (engine):** setup's answer `loose_pages` adds it (unset, it
   is on when the open project holds a folder of loose page images, as "Everything automatic after
   Start" lays out for a box); Start runs it as its own card (`find-documents`) under the recipe's row.
-  **Superseded in part 2026-10-10 (above): boundaries only, and off until a scored box.** **Default (ruled by the maintainer 2026-10-08):** Find the Documents accepts by itself a document at
-  least 95% sure and proposes the rest for a person. One setting, `finddocs.AUTO_ACCEPT_ABOVE`: the
-  recipe step's `accept_above` (the project's setting; empty leaves every proposal for the person) and
-  the run's own default (`POST /api/find-documents/runs` with `accept_above` left out, so the MCP tool
-  and the CLI command generated from it; `null` leaves every proposal for the person). One undo restores
-  what it accepted. Pinned by `fichero-server/tests/unit/recipes/test_find_documents_step.py` and
-  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py::test_finddocs_accepts_at_95_percent_by_default`.
+  **Default (ruled 2026-10-10, replacing 2026-10-08's 95%):** the auto-accept is off until a box a person
+  broke down is scored and shows boundaries at least 99% right; until then Find the Documents proposes
+  every document for a person. One setting, `finddocs.AUTO_ACCEPT_ABOVE` (None today): the recipe step's
+  `accept_above` (the project's setting) and the run's own default (`POST /api/find-documents/runs` with
+  `accept_above` left out, so the MCP tool and the CLI command generated from it). A run given a level
+  accepts boundaries at least that sure; one undo restores what it accepted. Pinned by
+  `fichero-server/tests/unit/recipes/test_find_documents_step.py` and
+  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py::test_finddocs_proposes_only_by_default`.
 - `finddocs.teacher-on-uncertain` — **[GAP]** (#5550) a thinking vision-language model is asked only
   about uncertain boundaries, kinds or groups, with its reasons kept; never about all pages by
   default; the egress gate applies.

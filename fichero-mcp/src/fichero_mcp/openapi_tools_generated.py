@@ -2869,7 +2869,7 @@ def fichero_find_documents_reject_proposal(
 
 def fichero_find_documents_start(
     *,
-    accept_above: Annotated[Optional[float], Field(description="Accept, as the run ends, every proposed document at least this confident (left out: 0.95, the project's default, ruled 2026-10-08); null leaves all for a person. Default: 0.95.")] = None,
+    accept_above: Annotated[Optional[float], Field(description="Accept, as the run ends, the boundaries of every proposed document at least this confident; kinds and cases stay proposals for a person. Left out: the project's default, off until a box a person broke down is scored (ruled 2026-10-10); null leaves all for a person.")] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders, or a selection of pages (each with its folder).')],
 ) -> Any:
     "Find the documents in folders or a selection of pages\n\nQueue one background job: each folder's loose pages are paired into leaves, and documents, their kinds\nand their groups are proposed from the text already read, with evidence and a confidence; blank versos and\nsecond shots are reported, not made documents. The proposals are stored; nothing in the source changes.\nAs the run ends, the documents at least `accept_above` sure are accepted (left out: 0.95, the project's\ndefault); the rest wait for a person. `accept_above: null` leaves them all for a person.\n\nRoute: POST /api/find-documents/runs (toolset `find-documents`; changes data, as the agent account when one exists)."

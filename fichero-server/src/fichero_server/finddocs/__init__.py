@@ -7,8 +7,9 @@ job and stores the proposal as a hypothesis (a `grouping` artifact on the folder
 `accept` is the one audited action that makes the accepted documents group nodes, undone as one.
 """
 
-#: The one default (`finddocs.recipe-step`, ruled by the maintainer 2026-10-08, #5550): Find the Documents
-#: accepts by itself a document at least this sure, and proposes the rest for a person. It is the recipe
-#: step's setting and the run's (`FindDocumentsRequest.accept_above`, so the route, MCP and CLI) when left
-#: out; null leaves every proposal for a person. One undo restores what it accepted.
-AUTO_ACCEPT_ABOVE = 0.95
+#: The one default (`finddocs.recipe-step`, #5550): the confidence at or above which Find the Documents
+#: accepts a document's boundaries by itself; None proposes everything for a person. Ruled 2026-10-10: off
+#: (None) until a box a person broke down is scored and shows boundaries at least 99% right; then it is set
+#: to the measured level. It is the recipe step's setting and the run's (`FindDocumentsRequest.accept_above`,
+#: so the route, MCP and CLI) when left out. One undo restores what a run accepted.
+AUTO_ACCEPT_ABOVE: float | None = None

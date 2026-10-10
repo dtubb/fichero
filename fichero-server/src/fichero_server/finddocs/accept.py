@@ -10,10 +10,11 @@
 * each proposed group whose documents are all accepted becomes a group of those documents, in its order;
 * the folder's canvas is laid out in the documents' order (`arrange_impl`, the Arrange command's).
 
-Each kind it writes records who chose it (`metadata.attribute_sources.prototype`, the one attribute-sources
-path, `workflows/attribute_sources.py`): the run that made the proposal when its own auto-accept accepted it
-(the action runs as that run: `ctx.run_id` is the proposal's `job_id`), never a person; otherwise the run's
-proposal with ``accepted_by`` the person. The run's auto-accept leaves a kind a person chose alone. Each
+The run's own auto-accept (the action runs as that run: `ctx.run_id` is the proposal's `job_id`) accepts
+boundaries only (ruled 2026-10-10): each document's kind is left as a proposed kind on its node
+(`attribute_sources.propose_prototype`, the one mechanism `classify` uses, never over a person's kind) and
+proposed cases stay proposals. A person's accept assigns the kind, recorded as the run's proposal with
+``accepted_by`` the person (`metadata.attribute_sources.prototype`), and makes the cases they accept. Each
 document and group decided records who decided it (`decided_by`), so a person's answer can be told from the
 run's (`finddocs.corrections-teach`).
 
@@ -238,7 +239,10 @@ def _action_accept(db: Any, params: FindDocumentsAcceptParams, ctx: ActionContex
             group = group_documents_impl(db, DocumentGroupParams(name=document.name, child_ids=pages))
             target = group.id
             made.append(target)
-            if document.prototype_key:
+            if document.prototype_key and decision.by == "run":
+                # Ruled 2026-10-10: the run's own accept is boundaries only; the kind stays a proposal.
+                attribute_sources.propose_prototype(db, group, document.kind or document.prototype_key, source)
+            elif document.prototype_key:
                 _ensure_prototype(db, document.prototype_key, document.kind or document.prototype_key, values_made)
                 # The group is this action's own, not yet committed: the assign route's impl reads committed
                 # rows only, so the new node takes its prototype, and who chose it, as it is made.
@@ -251,16 +255,18 @@ def _action_accept(db: Any, params: FindDocumentsAcceptParams, ctx: ActionContex
             page = db.get(Document, target)
             prototypes_before[target] = page.prototype_key
             kind_records_before[target] = _kind_record(page)
-            # The run's own accept never replaces a kind a person chose (`attribute_sources.machine_may_set`).
-            if document.prototype_key and (decision.by == "person" or
-                                           attribute_sources.machine_may_set(page, attribute_sources.PROTOTYPE)):
+            if document.prototype_key and decision.by == "run":
+                # Ruled 2026-10-10: boundaries only; the kind is proposed (never over a person's kind).
+                attribute_sources.propose_prototype(db, page, document.kind or document.prototype_key, source)
+            elif document.prototype_key:
                 _ensure_prototype(db, document.prototype_key, document.kind or document.prototype_key, values_made)
                 assign_document_prototype_impl(db, target, PrototypeAssignRequest(
                     prototype_key=document.prototype_key), source=source)
         document.state, document.accepted_as, document.decided_by = "accepted", target, decision
     # A proposed group whose documents are all accepted becomes a group of them, in its order.
     tops = {d.index: d.accepted_as for d in proposal.documents if d.state == "accepted"}
-    if params.groups:
+    # Cases are made only when a person accepts them (ruled 2026-10-10), never by the run.
+    if params.groups and decision.by == "person":
         for group in proposal.groups:
             members = [tops.get(i) for i in group.document_indexes]
             if group.state != "proposed" or None in members or len(members) < 2:
