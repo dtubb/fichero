@@ -115,9 +115,11 @@ MEMORY_HEADROOM_GB = 2.0
 STEP_ORDER: tuple[str, ...] = (
     "split-pages", "prepare-the-image", "find-regions", "find-lines",
     "put-in-order", "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
-    "tie-text-to-lines", "transcribe-speech", "correct", "find-documents-in-a-folder", "trace-a-drawing",
+    "tie-text-to-lines", "transcribe-speech", "correct", "trace-a-drawing",
     "identify-signs",
     "translate-transliterate-normalise", "split-into-entries", "find-names-tag-words", "work-out-dates",
+    # Organise reads the names and dates found (ruled 2026-10-10): parties group the documents, dates order them.
+    "find-documents-in-a-folder",
     "find-statements", "link-to-authorities", "place-in-a-gazetteer", "pull-out-passages",
     "describe-for-the-catalogue", "extract-to-a-table", "make-a-vector", "train-a-model", "check",
     "export", "publish",

@@ -49,7 +49,11 @@ teacher only where it is unsure.
   boundaries at least 99% right at that level, Find the Documents proposes and accepts nothing by itself;
   then it switches on at the measured level.
 - **Organise runs after names and dates.** Parties come from the names found; officials who appear on every
-  document (a judge, a secretary) are not parties and link nothing.
+  document (a judge, a secretary) are not parties and link nothing. **Built 2026-10-10:** the step follows
+  "Work out dates" in the recipe order, and a name on more than half of a folder's documents (four or more)
+  is an official, shared by no case (`finddocs/propose._groups`); pinned by
+  `fichero-server/tests/unit/finddocs/test_officials_are_not_parties.py`. *Not built: offices named per
+  language (judge, notary, secretary) in place of the count.*
 - **An accepted case is a group node**, holding its documents in their order, made only when a person accepts
   the case.
 
@@ -206,7 +210,8 @@ involve the company it names. Lessons the tool must carry:
   `test_finddocs_person_accept_records_the_person`. *Not built: an adjustment (a moved card) recorded,
   and the states exported as training examples.*
 - `finddocs.recipe-step` — **[OK]** (#5550) onboarding organises by itself: a recipe that reads a project
-  of loose pages has the step "Find documents in a folder" after reading (after Correct, before names),
+  of loose pages has the step "Find documents in a folder" after reading, names and dates (ruled 2026-10-10:
+  parties group the documents, dates order them; `recipes/assemble.STEP_ORDER`),
   run as background work. **Built 2026-10-07 (engine):** setup's answer `loose_pages` adds it (unset, it
   is on when the open project holds a folder of loose page images, as "Everything automatic after
   Start" lays out for a box); Start runs it as its own card (`find-documents`) under the recipe's row.

@@ -54,6 +54,8 @@ DUPLICATE_MIN_CHARS = 40
 DUPLICATE_HASH_BITS = 6
 #: Documents sharing at least this many parties are proposed as one group.
 GROUP_SHARED_PARTIES = 2
+#: Below this many documents nobody is called an official (a name on most of two documents is a party).
+OFFICIAL_MIN_DOCUMENTS = 4
 _EXCERPT = 80
 
 
@@ -381,10 +383,18 @@ def _groups(documents: list[ProposedDocument]) -> list[ProposedGroup]:
             i = parent[i]
         return i
 
+    # Officials (a judge, a notary, a secretary) sign most of a folder's documents and are not parties: they
+    # link nothing (ruled 2026-10-10). ponytail: "most" is more than half of at least OFFICIAL_MIN_DOCUMENTS
+    # documents; a list of offices per language replaces the count when a scored box shows it misjudges.
+    def on(name: str) -> int:
+        return sum(1 for d in documents if any(_same_party(name, y) for y in d.parties))
+
+    officials = ({x for d in documents for x in d.parties if on(x) * 2 > len(documents)}
+                 if len(documents) >= OFFICIAL_MIN_DOCUMENTS else set())
     for i, a in enumerate(documents):
         for j in range(i + 1, len(documents)):
             b = documents[j]
-            shared = [x for x in a.parties if any(_same_party(x, y) for y in b.parties)]
+            shared = [x for x in a.parties if x not in officials and any(_same_party(x, y) for y in b.parties)]
             if len(shared) >= GROUP_SHARED_PARTIES:
                 shared_by[(i, j)] = shared
                 parent[find(j)] = find(i)

@@ -37,9 +37,9 @@ def test_loose_pages_add_the_step_after_reading_with_its_default(client):
     assert step["model"] == {"builtin": "document-finder"} and step["runs_on"] == "this-mac"
     assert step["settings"] == {"accept_above": AUTO_ACCEPT_ABOVE} and AUTO_ACCEPT_ABOVE == finddocs.AUTO_ACCEPT_ABOVE
     assert step["gap"] is None and loose["problems"] == []
-    # Reading before cataloguing: it sits after correcting and before names.
-    assert STEP_ORDER.index("correct") < STEP_ORDER.index("find-documents-in-a-folder") < STEP_ORDER.index(
-        "find-names-tag-words")
+    # Ruled 2026-10-10: it runs after names and dates are found, so parties group and dates order.
+    assert STEP_ORDER.index("correct") < STEP_ORDER.index("find-names-tag-words") < STEP_ORDER.index(
+        "work-out-dates") < STEP_ORDER.index("find-documents-in-a-folder")
     assert get_job("find-documents-in-a-folder").takes == frozenset({READING})
     # Loose pages that nothing reads add nothing: the step reads the text.
     assert "find-documents-in-a-folder" not in [s["job"] for s in _assemble(client, loose_pages=True)["steps"]]
