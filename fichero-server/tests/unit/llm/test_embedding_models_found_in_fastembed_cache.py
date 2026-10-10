@@ -23,4 +23,5 @@ def test_a_model_cached_under_its_source_repo_lists_as_downloaded(tmp_path) -> N
     listed = {m.model_id: m for m in _manager(tmp_path).list_embeddings_models()}
     assert listed["intfloat/multilingual-e5-large"].is_downloaded
     assert listed["BAAI/bge-m3"].is_downloaded
+    assert listed["intfloat/multilingual-e5-large"].download_state == "installed"
     assert not listed["BAAI/bge-small-en-v1.5"].is_downloaded

@@ -538,6 +538,7 @@ class LocalModelManager:
                     expected_size_mb=info["disk_mb"],
                     path=str(model_dir) if is_downloaded else None,
                     metadata=info,
+                    download_state="installed" if is_downloaded else "idle",
                 )
             )
         return results
