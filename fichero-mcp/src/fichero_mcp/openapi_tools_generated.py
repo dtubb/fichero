@@ -2858,6 +2858,25 @@ def fichero_find_documents_accept_proposal(
     return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/accept", json=_rt.body({"arrange": arrange, "document_indexes": document_indexes, "groups": groups, "min_confidence": min_confidence}))
 
 
+def fichero_find_documents_join(
+    *,
+    proposal_id: Annotated[str, Field(description='Proposal Id')],
+    document_index: Annotated[int, Field(description='The proposed document joined to the one after it.')],
+) -> Any:
+    'Join a proposed document to the next (an adjustment the project learns from)\n\nThe document and the one after it become one, set by this caller, and the proposal keeps the example "one\ndocument" across the join. Nothing in the library changes; one undo of `audit_id` restores the proposal.\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/join (toolset `find-documents`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/join", json=_rt.body({"document_index": document_index}))
+
+
+def fichero_find_documents_move_page(
+    *,
+    proposal_id: Annotated[str, Field(description='Proposal Id')],
+    document_index: Annotated[int, Field(description='The proposed document a page moves out of.')],
+    to: Annotated[str, Field(description='previous: its first page moves to the end of the document before it; next: its last page moves to the start of the document after it. One of: previous, next.')],
+) -> Any:
+    "Move a proposed document's first or last page to its neighbour (an adjustment the project learns from)\n\n`to: previous` moves the document's first page to the end of the document before it; `to: next` moves its\nlast page to the start of the one after it. Both documents are set by this caller; the proposal keeps two\nexamples: one document across the page's new join, a new document across the one it left. Nothing in the\nlibrary changes; one undo of `audit_id` restores the proposal.\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/move-page (toolset `find-documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/move-page", json=_rt.body({"document_index": document_index, "to": to}))
+
+
 def fichero_find_documents_reject_proposal(
     *,
     proposal_id: Annotated[str, Field(description='Proposal Id')],
@@ -2865,6 +2884,16 @@ def fichero_find_documents_reject_proposal(
 ) -> Any:
     "Reject proposed documents (kept, for the project's own model to learn from)\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/reject (toolset `find-documents`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/reject", json=_rt.body({"document_indexes": document_indexes}))
+
+
+def fichero_find_documents_split(
+    *,
+    proposal_id: Annotated[str, Field(description='Proposal Id')],
+    document_index: Annotated[int, Field(description='The proposed document to split.')],
+    page_id: Annotated[str, Field(description='The page that starts the second document: one of its pages, not its first.')],
+) -> Any:
+    'Split a proposed document at a page (an adjustment the project learns from)\n\nThe named page starts a new document: the proposal\'s documents are renumbered, both halves are set by\nthis caller, and the proposal keeps the example "a document starts here" between the two pages. Nothing in\nthe library changes; one undo of `audit_id` restores the proposal exactly.\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/split (toolset `find-documents`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/split", json=_rt.body({"document_index": document_index, "page_id": page_id}))
 
 
 def fichero_find_documents_start(
@@ -8807,7 +8836,10 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_find_documents_list_proposals", "find-documents", "GET", "/api/find-documents/proposals", fichero_find_documents_list_proposals),
     GeneratedTool("fichero_find_documents_get_proposal", "find-documents", "GET", "/api/find-documents/proposals/{proposal_id}", fichero_find_documents_get_proposal),
     GeneratedTool("fichero_find_documents_accept_proposal", "find-documents", "POST", "/api/find-documents/proposals/{proposal_id}/accept", fichero_find_documents_accept_proposal),
+    GeneratedTool("fichero_find_documents_join", "find-documents", "POST", "/api/find-documents/proposals/{proposal_id}/join", fichero_find_documents_join),
+    GeneratedTool("fichero_find_documents_move_page", "find-documents", "POST", "/api/find-documents/proposals/{proposal_id}/move-page", fichero_find_documents_move_page),
     GeneratedTool("fichero_find_documents_reject_proposal", "find-documents", "POST", "/api/find-documents/proposals/{proposal_id}/reject", fichero_find_documents_reject_proposal),
+    GeneratedTool("fichero_find_documents_split", "find-documents", "POST", "/api/find-documents/proposals/{proposal_id}/split", fichero_find_documents_split),
     GeneratedTool("fichero_find_documents_start", "find-documents", "POST", "/api/find-documents/runs", fichero_find_documents_start),
     GeneratedTool("fichero_find_documents_run", "find-documents", "GET", "/api/find-documents/runs/{job_id}", fichero_find_documents_run),
     GeneratedTool("fichero_folders_delete", "folders", "DELETE", "/api/folders/{entity_type}/folders", fichero_folders_delete),

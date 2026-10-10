@@ -934,6 +934,17 @@ are all accepted becomes a group of them; the folder's canvas is laid out in the
 documents rejected (`finddocs.reject`), kept for the project's own model to learn from. A recipe's
 `find-documents-in-a-folder` step runs the same job, with the step's `accept_above` (default 0.95).
 
+Before accepting, a person adjusts a proposal (`finddocs.adjust`), changing the stored proposal only:
+`POST /api/find-documents/proposals/{proposal_id}/split` (`document_index`, `page_id`: the page that starts
+the second document), `POST /api/find-documents/proposals/{proposal_id}/join` (`document_index`: joined to the
+next) and `POST /api/find-documents/proposals/{proposal_id}/move-page` (`document_index`, `to`: `previous`
+moves its first page to the document before, `next` its last page to the document after). Each renumbers the
+documents, marks the touched ones set by the person (`adjusted_by`, confidence 1.0) and appends labelled
+examples to the proposal's `examples` (`left_page_id`, `right_page_id`, `boundary`, `decided_by`, `at`, the
+run's `run_probability` and `run_reasons` for that join). Each answers the proposal, the new examples and an
+`audit_id` whose undo (`finddocs.unadjust`) restores the proposal exactly. An index or page out of range is
+422; a superseded proposal, a document already accepted or rejected, or pages grouped since is 409.
+
 ### Workflow run comparison
 
 `GET /api/workflow-execution/comparisons` diffs what two runs produced from

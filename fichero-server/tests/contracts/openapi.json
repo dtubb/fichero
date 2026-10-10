@@ -7229,6 +7229,213 @@
         }
       }
     },
+    "/api/find-documents/proposals/{proposal_id}/split": {
+      "post": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "Split a proposed document at a page (an adjustment the project learns from)",
+        "description": "The named page starts a new document: the proposal's documents are renumbered, both halves are set by\nthis caller, and the proposal keeps the example \"a document starts here\" between the two pages. Nothing in\nthe library changes; one undo of `audit_id` restores the proposal exactly.",
+        "operationId": "split_find_documents_document_api_find_documents_proposals__proposal_id__split_post",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindDocumentsSplitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindDocumentsAdjustResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+          },
+          "422": {
+            "description": "No such document or page in the proposal, or the adjustment cannot be made."
+          }
+        }
+      }
+    },
+    "/api/find-documents/proposals/{proposal_id}/join": {
+      "post": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "Join a proposed document to the next (an adjustment the project learns from)",
+        "description": "The document and the one after it become one, set by this caller, and the proposal keeps the example \"one\ndocument\" across the join. Nothing in the library changes; one undo of `audit_id` restores the proposal.",
+        "operationId": "join_find_documents_documents_api_find_documents_proposals__proposal_id__join_post",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindDocumentsJoinRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindDocumentsAdjustResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+          },
+          "422": {
+            "description": "No such document or page in the proposal, or the adjustment cannot be made."
+          }
+        }
+      }
+    },
+    "/api/find-documents/proposals/{proposal_id}/move-page": {
+      "post": {
+        "tags": [
+          "find-documents"
+        ],
+        "summary": "Move a proposed document's first or last page to its neighbour (an adjustment the project learns from)",
+        "description": "`to: previous` moves the document's first page to the end of the document before it; `to: next` moves its\nlast page to the start of the one after it. Both documents are set by this caller; the proposal keeps two\nexamples: one document across the page's new join, a new document across the one it left. Nothing in the\nlibrary changes; one undo of `audit_id` restores the proposal.",
+        "operationId": "move_find_documents_page_api_find_documents_proposals__proposal_id__move_page_post",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindDocumentsMovePageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindDocumentsAdjustResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+          },
+          "422": {
+            "description": "No such document or page in the proposal, or the adjustment cannot be made."
+          }
+        }
+      }
+    },
     "/api/evaluation/runs": {
       "post": {
         "tags": [
@@ -49823,6 +50030,70 @@
         ],
         "title": "BookmarkCreate"
       },
+      "BoundaryExample": {
+        "properties": {
+          "left_page_id": {
+            "type": "string",
+            "title": "Left Page Id"
+          },
+          "right_page_id": {
+            "type": "string",
+            "title": "Right Page Id"
+          },
+          "boundary": {
+            "type": "boolean",
+            "title": "Boundary",
+            "description": "True: a document starts at the right page; false: the two are one document."
+          },
+          "adjustment": {
+            "type": "string",
+            "enum": [
+              "split",
+              "join",
+              "move-page"
+            ],
+            "title": "Adjustment"
+          },
+          "decided_by": {
+            "$ref": "#/components/schemas/FoundDocumentsDecision"
+          },
+          "at": {
+            "type": "string",
+            "title": "At",
+            "description": "When it was decided (ISO 8601, UTC)."
+          },
+          "proposal_id": {
+            "type": "string",
+            "title": "Proposal Id"
+          },
+          "run_probability": {
+            "type": "number",
+            "nullable": true,
+            "title": "Run Probability",
+            "description": "The run's probability that a document starts at the right page, when it scored that join."
+          },
+          "run_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Run Reasons",
+            "description": "The run's named signals for that join."
+          }
+        },
+        "type": "object",
+        "required": [
+          "left_page_id",
+          "right_page_id",
+          "boundary",
+          "adjustment",
+          "decided_by",
+          "at",
+          "proposal_id"
+        ],
+        "title": "BoundaryExample",
+        "description": "One labelled example a person's adjustment gave: whether a document starts between two pages, with what\nthe run had said of that join (`finddocs.corrections-teach`)."
+      },
       "BrowserNavigateRequest": {
         "properties": {
           "url": {
@@ -58091,6 +58362,14 @@
             "nullable": true,
             "title": "Superseded By",
             "description": "The later proposal for the same pages."
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/BoundaryExample"
+            },
+            "type": "array",
+            "title": "Examples",
+            "description": "The labelled examples a person's adjustments gave, oldest first."
           }
         },
         "type": "object",
@@ -61248,6 +61527,71 @@
         ],
         "title": "FindDocumentsAcceptResult"
       },
+      "FindDocumentsAdjustResult": {
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/DocumentsProposal"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/BoundaryExample"
+            },
+            "type": "array",
+            "title": "Examples",
+            "description": "The labelled examples this adjustment added."
+          },
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id",
+            "description": "The adjustment's audit row: undoing it restores the proposal exactly."
+          }
+        },
+        "type": "object",
+        "required": [
+          "proposal",
+          "examples",
+          "audit_id"
+        ],
+        "title": "FindDocumentsAdjustResult"
+      },
+      "FindDocumentsJoinRequest": {
+        "properties": {
+          "document_index": {
+            "type": "integer",
+            "title": "Document Index",
+            "description": "The proposed document joined to the one after it."
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_index"
+        ],
+        "title": "FindDocumentsJoinRequest"
+      },
+      "FindDocumentsMovePageRequest": {
+        "properties": {
+          "document_index": {
+            "type": "integer",
+            "title": "Document Index",
+            "description": "The proposed document a page moves out of."
+          },
+          "to": {
+            "type": "string",
+            "enum": [
+              "previous",
+              "next"
+            ],
+            "title": "To",
+            "description": "previous: its first page moves to the end of the document before it; next: its last page moves to the start of the document after it."
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_index",
+          "to"
+        ],
+        "title": "FindDocumentsMovePageRequest"
+      },
       "FindDocumentsRejectRequest": {
         "properties": {
           "document_indexes": {
@@ -61320,6 +61664,26 @@
           "state"
         ],
         "title": "FindDocumentsRun"
+      },
+      "FindDocumentsSplitRequest": {
+        "properties": {
+          "document_index": {
+            "type": "integer",
+            "title": "Document Index",
+            "description": "The proposed document to split."
+          },
+          "page_id": {
+            "type": "string",
+            "title": "Page Id",
+            "description": "The page that starts the second document: one of its pages, not its first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_index",
+          "page_id"
+        ],
+        "title": "FindDocumentsSplitRequest"
       },
       "FlowCandidate": {
         "properties": {
@@ -74401,6 +74765,11 @@
           "decided_by": {
             "$ref": "#/components/schemas/FoundDocumentsDecision",
             "nullable": true
+          },
+          "adjusted_by": {
+            "$ref": "#/components/schemas/FoundDocumentsDecision",
+            "nullable": true,
+            "description": "The person who set this document's pages by an adjustment (split, join, move a page): its confidence is then theirs (1.0), not the run's (`finddocs.adjust`)."
           }
         },
         "type": "object",

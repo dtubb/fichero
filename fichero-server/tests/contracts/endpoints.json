@@ -4208,6 +4208,30 @@
       },
       {
         "method": "POST",
+        "path": "/find-documents/proposals/{proposal_id}/join",
+        "operation_id": "join_find_documents_documents_api_find_documents_proposals__proposal_id__join_post",
+        "summary": "Join a proposed document to the next (an adjustment the project learns from)",
+        "path_params": [
+          "proposal_id"
+        ],
+        "query_params": [],
+        "request_model": "FindDocumentsJoinRequest",
+        "response_model": "FindDocumentsAdjustResult"
+      },
+      {
+        "method": "POST",
+        "path": "/find-documents/proposals/{proposal_id}/move-page",
+        "operation_id": "move_find_documents_page_api_find_documents_proposals__proposal_id__move_page_post",
+        "summary": "Move a proposed document's first or last page to its neighbour (an adjustment the project learns from)",
+        "path_params": [
+          "proposal_id"
+        ],
+        "query_params": [],
+        "request_model": "FindDocumentsMovePageRequest",
+        "response_model": "FindDocumentsAdjustResult"
+      },
+      {
+        "method": "POST",
         "path": "/find-documents/proposals/{proposal_id}/reject",
         "operation_id": "reject_find_documents_proposal_api_find_documents_proposals__proposal_id__reject_post",
         "summary": "Reject proposed documents (kept, for the project's own model to learn from)",
@@ -4217,6 +4241,18 @@
         "query_params": [],
         "request_model": "FindDocumentsRejectRequest",
         "response_model": "DocumentsProposal"
+      },
+      {
+        "method": "POST",
+        "path": "/find-documents/proposals/{proposal_id}/split",
+        "operation_id": "split_find_documents_document_api_find_documents_proposals__proposal_id__split_post",
+        "summary": "Split a proposed document at a page (an adjustment the project learns from)",
+        "path_params": [
+          "proposal_id"
+        ],
+        "query_params": [],
+        "request_model": "FindDocumentsSplitRequest",
+        "response_model": "FindDocumentsAdjustResult"
       },
       {
         "method": "POST",

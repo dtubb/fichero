@@ -6096,6 +6096,47 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("join-a-proposed-to-the-next-an-adjustment-the-project-learns-from", hidden=True)
+    @target_app.command("join")
+    def find_documents_join_post(
+        ctx: typer.Context,
+        proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        document_index: int = typer.Option(..., '--document-index', help='The proposed document joined to the one after it.'),
+    ) -> None:
+        """Join a proposed document to the next (an adjustment the project learns from) (POST /api/find-documents/proposals/{proposal_id}/join)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/find-documents/proposals/{proposal_id}/join"
+            params = None
+            payload = _build_json_payload({
+                "document_index": document_index,
+            }, {
+                "document_index": {'type': 'integer', 'title': 'Document Index', 'description': 'The proposed document joined to the one after it.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("move-a-proposed-s-first-or-last-page-to-its-neighbour-an-adjustment-the-project-learns-from", hidden=True)
+    @target_app.command("move-page")
+    def find_documents_move_page_post(
+        ctx: typer.Context,
+        proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        document_index: int = typer.Option(..., '--document-index', help='The proposed document a page moves out of.'),
+        to: str = typer.Option(..., '--to', help='previous: its first page moves to the end of the document before it; next: its last page moves to the start of the document after it. One of: previous, next.'),
+    ) -> None:
+        """Move a proposed document's first or last page to its neighbour (an adjustment the project learns from) (POST /api/find-documents/proposals/{proposal_id}/move-page)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/find-documents/proposals/{proposal_id}/move-page"
+            params = None
+            payload = _build_json_payload({
+                "document_index": document_index,
+                "to": to,
+            }, {
+                "document_index": {'type': 'integer', 'title': 'Document Index', 'description': 'The proposed document a page moves out of.', 'x-cli-required': True},
+                "to": {'type': 'string', 'enum': ['previous', 'next'], 'title': 'To', 'description': 'previous: its first page moves to the end of the document before it; next: its last page moves to the start of the document after it.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("reject-proposed-kept-for-the-project-s-own-model-to-learn-from", hidden=True)
     @target_app.command("reject-proposal")
     def find_documents_reject_proposal_post(
@@ -6111,6 +6152,28 @@ def register_generated_openapi_commands(
                 "document_indexes": document_indexes,
             }, {
                 "document_indexes": {'items': {'type': 'integer'}, 'type': 'array', 'minItems': 1, 'title': 'Document Indexes', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("split-a-proposed-at-a-page-an-adjustment-the-project-learns-from", hidden=True)
+    @target_app.command("split")
+    def find_documents_split_post(
+        ctx: typer.Context,
+        proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        document_index: int = typer.Option(..., '--document-index', help='The proposed document to split.'),
+        page_id: str = typer.Option(..., '--page-id', help='The page that starts the second document: one of its pages, not its first.'),
+    ) -> None:
+        """Split a proposed document at a page (an adjustment the project learns from) (POST /api/find-documents/proposals/{proposal_id}/split)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/find-documents/proposals/{proposal_id}/split"
+            params = None
+            payload = _build_json_payload({
+                "document_index": document_index,
+                "page_id": page_id,
+            }, {
+                "document_index": {'type': 'integer', 'title': 'Document Index', 'description': 'The proposed document to split.', 'x-cli-required': True},
+                "page_id": {'type': 'string', 'title': 'Page Id', 'description': 'The page that starts the second document: one of its pages, not its first.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
