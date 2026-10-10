@@ -130,13 +130,17 @@ involve the company it names. Lessons the tool must carry:
 ## Behaviors
 
 - `finddocs.job.any-box` — **[OK]** (#5550) Find the Documents runs on any folder or selection of
-  pages as one background job and stores proposals; it changes nothing in the source. **Built
+  pages as one background job and stores proposals. Finding changes nothing in the source; as the run
+  ends it accepts by itself, through the one audited accept (`finddocs.accept-makes-groups`), the
+  documents at least as sure as its setting (95% unless the run says otherwise, `finddocs.recipe-step`);
+  a run with `accept_above: null` changes nothing and leaves every proposal for a person. **Built
   2026-10-07 (engine):** `POST /api/find-documents/runs` queues one `find-documents-in-a-folder` job
   (`finddocs/job.py`, images lane): each folder's loose pages in its order, read from the page's text or
   its best reading, the thumbnail's ink and look, and the knowledge graph's people on the page; the
-  proposal is stored as a `grouping` artifact on the folder (the existing hypothesis store). Pinned by
-  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py`. *App: Organise ▸ Find the
-  Documents is not built.*
+  proposal is stored as a `grouping` artifact on the folder (the existing hypothesis store). A later run
+  on any of the same pages supersedes the folder's earlier proposal (built 2026-10-10, below). Pinned by
+  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py`. **Built 2026-10-10 (app):** Find
+  the Documents in the context menus of a folder or a selection of pages (library and sidebar).
 - `finddocs.boundaries.proposed-with-evidence` — **[PARTIAL]** (#5550) every proposed start or end of a
   document carries its signals (cue lines, continuity score, furniture, look, parties) and a
   confidence. **Built 2026-10-07 (engine):** every join between written pages has a probability and
@@ -170,15 +174,35 @@ involve the company it names. Lessons the tool must carry:
   (made if missing, the classifications code), groups the documents of a fully accepted group, and
   arranges the folder's canvas (the Arrange code); one undo of its audit row (`finddocs.unaccept`)
   restores the folder, the prototypes and the canvas; redo accepts again. Pinned by
-  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py`. **Built 2026-10-10 (app):** Find
+  `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py`. **Built 2026-10-10 (engine):**
+  every kind it writes, on a one-page document's page and on a document's group node alike, records who
+  chose it through the one attribute-sources record (`metadata.attribute_sources.prototype`,
+  `workflows/attribute_sources.py`): the run's own auto-accept records the run (machine: its proposal, its
+  run and its method), never a person, and leaves a kind a person chose alone; a person's accept records
+  the run's proposal with `accepted_by` the person. Accept refuses in words (409), changing nothing, a
+  document any of whose pages is no longer a loose page of the proposal's folder (grouped, moved or
+  deleted since; a page cut from a photograph, whose parent is the photograph, is a loose page), naming
+  the document and the page, and a proposal a later run superseded (`state` "superseded",
+  `superseded_by`): a later run on any of the same pages supersedes it, and the folder's listing
+  (`GET /api/find-documents/proposals`) leaves superseded proposals out unless `include_superseded` is
+  asked for, so the Inspector never lists the same pages twice. Undo restores the kinds' records too.
+  Pinned by `test_finddocs_run_accept_records_the_run_as_who_chose_the_kind`,
+  `test_finddocs_person_accept_records_the_person`, `test_finddocs_accept_refuses_pages_grouped_since`,
+  `test_finddocs_pages_cut_from_a_photograph_accept_and_refuse` and
+  `test_finddocs_a_second_run_supersedes_the_first` in the same file. **Built 2026-10-10 (app):** Find
   the Documents on a folder or a selection (library and sidebar menus); a folder's Inspector lists the
   documents still proposed (pages, kind, confidence, reasons) with Accept, Reject and Accept All at least
   95/90/80/70% sure, through the same actions; pinned by `fichero/Tests/Unit/general/Models/FoundDocumentsStoreTests.swift`.
   *Not built: proposals drawn on the canvas (`finddocs.canvas.drawn`).*
 - `finddocs.corrections-teach` — **[PARTIAL]** (#5550) every accept, reject and adjustment is kept as a
   labelled example for the project. **Built 2026-10-07 (engine):** accepted and rejected documents keep
-  their state on the stored proposal (`finddocs.reject`, undoable). *Not built: an adjustment (a moved
-  card) recorded, and the states exported as training examples.*
+  their state on the stored proposal (`finddocs.reject`, undoable). **Built 2026-10-10 (engine):** each
+  accepted or rejected document, and each accepted group, records who decided it (`decided_by`: the run
+  that made the proposal, accepting by itself, or the person), so a person's answer can be told from the
+  run's; a superseded proposal is kept with its answers. Pinned by
+  `test_finddocs_run_accept_records_the_run_as_who_chose_the_kind` and
+  `test_finddocs_person_accept_records_the_person`. *Not built: an adjustment (a moved card) recorded,
+  and the states exported as training examples.*
 - `finddocs.recipe-step` — **[OK]** (#5550) onboarding organises by itself: a recipe that reads a project
   of loose pages has the step "Find documents in a folder" after reading (after Correct, before names),
   run as background work. **Built 2026-10-07 (engine):** setup's answer `loose_pages` adds it (unset, it

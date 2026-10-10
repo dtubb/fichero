@@ -95,11 +95,14 @@ def _readable(request: Request, library: str | None, proposals: list[DocumentsPr
 async def list_find_documents_proposals(
     request: Request,
     folder_id: str | None = Query(None, description="Only this folder's proposals."),
+    include_superseded: bool = Query(False, description="Also the proposals a later run on the same pages "
+                                                        "replaced (kept for what their answers teach)."),
     x_fichero_library_path: str | None = Depends(optional_library_path),
     db: Database = Depends(get_library_database),
 ) -> DocumentsProposalList:
-    """Newest first; a proposal on a folder this caller may not read is left out and counted."""
-    found = finddocs_store.proposals(db, folder_id)
+    """Newest first; a proposal on a folder this caller may not read is left out and counted. A proposal a later
+    run replaced (`state` "superseded") is left out unless asked for, so the same pages are never listed twice."""
+    found = finddocs_store.proposals(db, folder_id, superseded=include_superseded)
     kept = _readable(request, x_fichero_library_path, found)
     return DocumentsProposalList(items=kept, count=len(kept), withheld=len(found) - len(kept))
 
@@ -121,7 +124,9 @@ async def get_find_documents_proposal(
 
 
 @router.post("/proposals/{proposal_id}/accept", response_model=FindDocumentsAcceptResult,
-             summary="Accept proposed documents: group nodes with their prototypes, the canvas laid out")
+             summary="Accept proposed documents: group nodes with their prototypes, the canvas laid out",
+             responses={409: {"description": "The proposal is out of date: a later run replaced it, or a "
+                                             "document's pages were grouped, moved or deleted since."}})
 async def accept_find_documents_proposal(
     proposal_id: str,
     body: FindDocumentsAcceptRequest,
@@ -131,11 +136,15 @@ async def accept_find_documents_proposal(
     """Accept all the proposed documents, the ones named, or those at least `min_confidence` sure: each becomes a
     group node of its pages (a one-page document stays its page) with its proposed prototype (made if the project
     has none of that name); a proposed group whose documents are all accepted becomes a group of them; the
-    folder's canvas is laid out in their order. One audited action: undoing it (its `audit_id`) restores all."""
+    folder's canvas is laid out in their order. One audited action: undoing it (its `audit_id`) restores all.
+    Each kind records who chose it: the run, accepted by this caller. A proposal a later run replaced, or a
+    document whose pages are no longer the folder's loose pages, is refused (409) and nothing changes."""
     try:
         result = registry.invoke(db, "finddocs.accept", {"proposal_id": proposal_id, **body.model_dump()}, ctx)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except finddocs_store.ProposalOutOfDate as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return FindDocumentsAcceptResult(proposal=finddocs_store.read(db, proposal_id), audit_id=result.audit_id,
                                      **result.result)
 

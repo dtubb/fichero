@@ -14,6 +14,9 @@ from fichero_server.finddocs import AUTO_ACCEPT_ABOVE
 
 #: What a proposed document or group can be in: still proposed, accepted (made a group node), or rejected.
 ProposalState = Literal["proposed", "accepted", "rejected"]
+#: A proposal is current until a later run on its folder proposes for any of its pages: then it is superseded,
+#: kept (its answers teach, `finddocs.corrections-teach`) but no longer listed or accepted.
+ProposalCurrency = Literal["current", "superseded"]
 #: What a page that is not a document's own page turned out to be.
 FindingKind = Literal["blank-verso", "blank-page", "duplicate-shot", "no-reading"]
 
@@ -47,6 +50,15 @@ class PageFinding(BaseModel):
     reason: str
 
 
+class Decision(BaseModel):
+    """Who accepted or rejected a proposed document or group: the run that made the proposal (its own
+    auto-accept) or a person. A person's answer is a label; the run's is not (`finddocs.corrections-teach`)."""
+
+    by: Literal["run", "person"]
+    run_id: str | None = Field(None, description="The run that accepted it by itself.")
+    actor: str | None = Field(None, description="The person who decided.")
+
+
 class ProposedDocument(BaseModel):
     index: int
     name: str
@@ -61,6 +73,7 @@ class ProposedDocument(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     state: ProposalState = "proposed"
     accepted_as: str | None = Field(None, description="The group node (or the one page) it became.")
+    decided_by: Decision | None = None
 
 
 class ProposedGroup(BaseModel):
@@ -73,6 +86,7 @@ class ProposedGroup(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     state: ProposalState = "proposed"
     accepted_as: str | None = None
+    decided_by: Decision | None = None
 
 
 class DocumentsProposal(BaseModel):
@@ -89,6 +103,8 @@ class DocumentsProposal(BaseModel):
     findings: list[PageFinding] = Field(default_factory=list)
     joins: list[ProposedJoin] = Field(default_factory=list)
     created_at: str | None = None
+    state: ProposalCurrency = "current"
+    superseded_by: str | None = Field(None, description="The later proposal for the same pages.")
 
 
 class FindDocumentsRequest(BaseModel):

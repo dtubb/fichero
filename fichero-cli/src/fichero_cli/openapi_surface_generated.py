@@ -6043,12 +6043,14 @@ def register_generated_openapi_commands(
     def find_documents_list_proposals_get(
         ctx: typer.Context,
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help="Only this folder's proposals."),
+        include_superseded: Optional[bool] = typer.Option(None, '--include-superseded/--no-include-superseded', help='Also the proposals a later run on the same pages replaced (kept for what their answers teach).'),
     ) -> None:
         """Stored Find the Documents proposals (GET /api/find-documents/proposals)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/find-documents/proposals"
             params = {
                 "folder_id": folder_id,
+                "include_superseded": include_superseded,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

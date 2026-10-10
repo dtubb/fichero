@@ -4172,6 +4172,11 @@
             "name": "folder_id",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "include_superseded",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "request_model": null,

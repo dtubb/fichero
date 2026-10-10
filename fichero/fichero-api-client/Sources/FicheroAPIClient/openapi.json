@@ -6987,7 +6987,7 @@
           "find-documents"
         ],
         "summary": "Stored Find the Documents proposals",
-        "description": "Newest first; a proposal on a folder this caller may not read is left out and counted.",
+        "description": "Newest first; a proposal on a folder this caller may not read is left out and counted. A proposal a later\nrun replaced (`state` \"superseded\") is left out unless asked for, so the same pages are never listed twice.",
         "operationId": "list_find_documents_proposals_api_find_documents_proposals_get",
         "parameters": [
           {
@@ -7001,6 +7001,18 @@
               "title": "Folder Id"
             },
             "description": "Only this folder's proposals."
+          },
+          {
+            "name": "include_superseded",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also the proposals a later run on the same pages replaced (kept for what their answers teach).",
+              "default": false,
+              "title": "Include Superseded"
+            },
+            "description": "Also the proposals a later run on the same pages replaced (kept for what their answers teach)."
           }
         ],
         "responses": {
@@ -7075,7 +7087,7 @@
           "find-documents"
         ],
         "summary": "Accept proposed documents: group nodes with their prototypes, the canvas laid out",
-        "description": "Accept all the proposed documents, the ones named, or those at least `min_confidence` sure: each becomes a\ngroup node of its pages (a one-page document stays its page) with its proposed prototype (made if the project\nhas none of that name); a proposed group whose documents are all accepted becomes a group of them; the\nfolder's canvas is laid out in their order. One audited action: undoing it (its `audit_id`) restores all.",
+        "description": "Accept all the proposed documents, the ones named, or those at least `min_confidence` sure: each becomes a\ngroup node of its pages (a one-page document stays its page) with its proposed prototype (made if the project\nhas none of that name); a proposed group whose documents are all accepted becomes a group of them; the\nfolder's canvas is laid out in their order. One audited action: undoing it (its `audit_id`) restores all.\nEach kind records who chose it: the run, accepted by this caller. A proposal a later run replaced, or a\ndocument whose pages are no longer the folder's loose pages, is refused (409) and nothing changes.",
         "operationId": "accept_find_documents_proposal_api_find_documents_proposals__proposal_id__accept_post",
         "parameters": [
           {
@@ -7128,6 +7140,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The proposal is out of date: a later run replaced it, or a document's pages were grouped, moved or deleted since."
           },
           "422": {
             "description": "Validation Error",
@@ -56121,6 +56136,36 @@
         ],
         "title": "DatasetSort"
       },
+      "Decision": {
+        "properties": {
+          "by": {
+            "type": "string",
+            "enum": [
+              "run",
+              "person"
+            ],
+            "title": "By"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id",
+            "description": "The run that accepted it by itself."
+          },
+          "actor": {
+            "type": "string",
+            "nullable": true,
+            "title": "Actor",
+            "description": "The person who decided."
+          }
+        },
+        "type": "object",
+        "required": [
+          "by"
+        ],
+        "title": "Decision",
+        "description": "Who accepted or rejected a proposed document or group: the run that made the proposal (its own\nauto-accept) or a person. A person's answer is a label; the run's is not (`finddocs.corrections-teach`)."
+      },
       "DeclaredSign": {
         "properties": {
           "id": {
@@ -58037,6 +58082,21 @@
             "type": "string",
             "nullable": true,
             "title": "Created At"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "current",
+              "superseded"
+            ],
+            "title": "State",
+            "default": "current"
+          },
+          "superseded_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Superseded By",
+            "description": "The later proposal for the same pages."
           }
         },
         "type": "object",
@@ -74314,6 +74374,10 @@
             "nullable": true,
             "title": "Accepted As",
             "description": "The group node (or the one page) it became."
+          },
+          "decided_by": {
+            "$ref": "#/components/schemas/Decision",
+            "nullable": true
           }
         },
         "type": "object",
@@ -74372,6 +74436,10 @@
             "type": "string",
             "nullable": true,
             "title": "Accepted As"
+          },
+          "decided_by": {
+            "$ref": "#/components/schemas/Decision",
+            "nullable": true
           }
         },
         "type": "object",

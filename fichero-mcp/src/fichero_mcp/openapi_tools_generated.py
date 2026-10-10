@@ -2832,9 +2832,10 @@ def fichero_export_word_route(
 def fichero_find_documents_list_proposals(
     *,
     folder_id: Annotated[Optional[str], Field(description="Only this folder's proposals.")] = None,
+    include_superseded: Annotated[Optional[bool], Field(description='Also the proposals a later run on the same pages replaced (kept for what their answers teach).')] = None,
 ) -> Any:
-    'Stored Find the Documents proposals\n\nNewest first; a proposal on a folder this caller may not read is left out and counted.\n\nRoute: GET /api/find-documents/proposals (toolset `find-documents`; reads).'
-    return _rt.call("GET", "/api/find-documents/proposals", params={"folder_id": folder_id})
+    'Stored Find the Documents proposals\n\nNewest first; a proposal on a folder this caller may not read is left out and counted. A proposal a later\nrun replaced (`state` "superseded") is left out unless asked for, so the same pages are never listed twice.\n\nRoute: GET /api/find-documents/proposals (toolset `find-documents`; reads).'
+    return _rt.call("GET", "/api/find-documents/proposals", params={"folder_id": folder_id, "include_superseded": include_superseded})
 
 
 def fichero_find_documents_get_proposal(
@@ -2853,7 +2854,7 @@ def fichero_find_documents_accept_proposal(
     groups: Annotated[Optional[bool], Field(description='Also accept each proposed group whose documents are all accepted. Default: true.')] = None,
     min_confidence: Annotated[Optional[float], Field(description='Accept every document at least this confident.')] = None,
 ) -> Any:
-    "Accept proposed documents: group nodes with their prototypes, the canvas laid out\n\nAccept all the proposed documents, the ones named, or those at least `min_confidence` sure: each becomes a\ngroup node of its pages (a one-page document stays its page) with its proposed prototype (made if the project\nhas none of that name); a proposed group whose documents are all accepted becomes a group of them; the\nfolder's canvas is laid out in their order. One audited action: undoing it (its `audit_id`) restores all.\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/accept (toolset `find-documents`; changes data, as the agent account when one exists)."
+    "Accept proposed documents: group nodes with their prototypes, the canvas laid out\n\nAccept all the proposed documents, the ones named, or those at least `min_confidence` sure: each becomes a\ngroup node of its pages (a one-page document stays its page) with its proposed prototype (made if the project\nhas none of that name); a proposed group whose documents are all accepted becomes a group of them; the\nfolder's canvas is laid out in their order. One audited action: undoing it (its `audit_id`) restores all.\nEach kind records who chose it: the run, accepted by this caller. A proposal a later run replaced, or a\ndocument whose pages are no longer the folder's loose pages, is refused (409) and nothing changes.\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/accept (toolset `find-documents`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/accept", json=_rt.body({"arrange": arrange, "document_indexes": document_indexes, "groups": groups, "min_confidence": min_confidence}))
 
 
