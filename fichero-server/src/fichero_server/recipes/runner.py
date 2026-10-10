@@ -787,6 +787,10 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
     for card, step in zip(detail.get("runs", []), steps):
         step["job"] = card.get("job")  # what the stage does, by its last job (a reading, names, dates)
     for step in steps:
+        if step["state"] == "running" and not step.get("child_id") and row["state"] == "running":
+            # The step learns its job's id only when the job returns: while it runs, its job is the run's
+            # newest job not yet ended, so the status points at it (#5654).
+            step["child_id"] = jobs.running_child(db, job_id)
         child = jobs.read_job(db, step["child_id"]) if step.get("child_id") else None
         if child is not None:
             step["state"] = child["state"]

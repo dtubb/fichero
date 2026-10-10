@@ -1130,6 +1130,14 @@ def set_parent(db: "Database", job_id: str, parent_id: str) -> None:
     db.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", [parent_id, job_id])
 
 
+def running_child(db: "Database", parent_id: str) -> str | None:
+    """The newest job under `parent_id` not yet ended (a recipe run's step it is running now), or None."""
+    _ensure(db)
+    row = db.execute_fetchone("SELECT id FROM jobs WHERE parent_id = ? AND state IN ('waiting', 'running', 'paused') "
+                              "ORDER BY created_at DESC, rowid DESC LIMIT 1", [parent_id])
+    return row[0] if row else None
+
+
 def _job_row(db: "Database", job_id: str) -> tuple[str, str]:
     _ensure(db)
     row = db.execute_fetchone("SELECT kind, state FROM jobs WHERE id = ?", [job_id])
