@@ -199,12 +199,22 @@ def lines_of_pass(db: Any, pass_id: str, verdicts: dict[str, Any]) -> tuple[dict
 
 def drop_flagged_lines(page_xml: str, rejected: set[str]) -> tuple[str, list[tuple[str, str]]]:
     """The PAGE file without its flagged TextLines, and (PAGE id, flag) for each line taken out. A file
-    with nothing flagged comes back exactly as it was."""
+    with nothing flagged comes back exactly as it was.
+
+    And with every text AS WRITTEN (#5651, `source.reading.abbreviation-markup-parsed`): a corpus's
+    abbreviation markup (`dha$.dicha`, `$ant:`, `$-`) is not ink, so a reader trained on it would learn
+    `$` as a letter of the hand. The abbreviation stays as the scribe wrote it (`dha`)."""
+    from fichero_server.formats.abbreviation_markup import as_written, has_markup
     from fichero_server.formats.pagexml import PAGE_NS_2019
     from fichero_server.formats.validation import parse
 
     ns = f"{{{PAGE_NS_2019}}}"
     root = parse(page_xml.encode("utf-8"))
+    rewritten = False
+    for unicode in root.iter(f"{ns}Unicode"):
+        if unicode.text and has_markup(unicode.text):
+            unicode.text = as_written(unicode.text)
+            rewritten = True
     dropped: list[tuple[str, str]] = []
     for line in list(root.iter(f"{ns}TextLine")):
         line_id = line.get("id") or ""
@@ -213,7 +223,7 @@ def drop_flagged_lines(page_xml: str, rejected: set[str]) -> tuple[str, list[tup
         if flag:
             line.getparent().remove(line)
             dropped.append((line_id, flag))
-    if not dropped:
+    if not dropped and not rewritten:
         return page_xml, dropped
     from lxml import etree
 

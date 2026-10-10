@@ -106,13 +106,16 @@ def write_readings(
     run_id: str | None,
     actor: str = "system",
     kind: str = "transcription",
+    level: str | None = None,
     library_path: str | None = None,
 ) -> list[str]:
     """Each `(segment_id, text)` written as a reading of that line (`representation.create`), derived from
     the reader's page artifact (whose provider and model say who read it), under `run_id`: a machine's
     reading, `workflow`, never a person's. A segment id of None is a reading of the node itself (a
     translation of a page with no lines, a folder's description, #5599). An empty text writes nothing: a
-    line read as nothing has not been given words. Returns the readings' ids."""
+    line read as nothing has not been given words. `level` is the level the reader read at
+    (`source.reading.levels`): a reader that expands abbreviations writes `expanded`, which counts beside
+    the line as written, never over it; unset, no level is recorded, as before. Returns the readings' ids."""
     import fichero_server.api.routes.document.content_representations  # noqa: F401  (representation.create)
     from fichero_server.actions.registry import ActionContext, registry
 
@@ -123,5 +126,5 @@ def write_readings(
             continue
         made.append(registry.invoke(db, "representation.create", {
             "document_id": document_id, "segment_id": segment_id, "kind": kind, "content": text.strip(),
-            "derived_from_artifact_id": artifact_id}, ctx).result["id"])
+            "derived_from_artifact_id": artifact_id, "level": level}, ctx).result["id"])
     return made

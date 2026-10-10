@@ -752,6 +752,52 @@ def counting_by_kind(
     return answers
 
 
+def text_for_names(db: Database, document_id: str, text: str) -> str:
+    """The text names and statements are read from (#5651, `source.reading.abbreviation-markup-parsed`).
+
+    Each line's EXPANDED reading where it has one that counts, else its as-written text with the corpus's
+    abbreviation markup read (`formats.abbreviation_markup`): ``dha$.dicha`` reaches spaCy as ``dicha``,
+    never as markup. `text` is the page's text (`Document.page_content`); it is what is read, markup
+    parsed, when no line of the page has an expanded reading -- and a page with neither markup nor
+    expanded readings is read exactly as before.
+    """
+    from fichero_server.formats.abbreviation_markup import expanded, expanded_text, has_markup
+
+    readings = [
+        row for row in _document_readings(db, document_id)
+        if row.segment_id and row.retracted_at is None and counting_level(row.level) == "expanded"
+    ]
+    if not readings:
+        return expanded_text(text)
+    answer = working_pass(db, document_id)
+    if answer.pass_id is None or is_unconverted_pass(answer.pass_id):
+        return expanded_text(text)
+    rows = ordered_lines(db, answer.pass_id)
+    by_segment = _readings_for_live_rows(db, rows, document_id, {})
+    rule = project_record_rule(db)
+    choices: dict[str, list[ReadingChoice]] = {}
+    for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in rows]):
+        choices.setdefault(choice.segment_id, []).append(choice)
+    marked = has_markup(text)
+    lines: list[str] = []
+    for row in rows:
+        items = by_segment.get(row.id, [])
+        if not items:
+            continue
+        by_level = counting_by_kind_and_level(db, row.id, items, rule=rule, choices=choices.get(row.id, []))
+        content = {item.id: item.content for item in items}
+        opened = by_level.get(("transcription", "expanded"))
+        if opened is not None and opened.representation_id in content:
+            lines.append(content[opened.representation_id])
+            continue
+        levels = [level for kind, level in by_level if kind == "transcription"]
+        written = by_level[("transcription", min(levels, key=_level_rank))] if levels else None
+        if written is not None and written.representation_id in content:
+            line = content[written.representation_id]
+            lines.append(expanded(line, marked=marked or has_markup(line)))
+    return "\n".join(lines) if lines else expanded_text(text)
+
+
 @router.get("/{segment_id}/readings", response_model=ReadingListResponse)
 async def list_segment_readings(
     segment_id: str,

@@ -164,13 +164,18 @@ def _transcription_text(document: Document, db) -> str:
     caller of this helper hands its result to an LLM, so the conversion belongs
     here, at the one boundary they share, rather than in each of them.
     """
+    # And never as abbreviation markup either (#5651): `dha$.dicha` reaches the model as `dicha`. Each
+    # line's expanded reading where it has one, else the text with the corpus's markup read
+    # (`segment_readings.text_for_names`).
+    from fichero_server.api.routes.document.segment_readings import text_for_names  # noqa: PLC0415
+
     metadata = dict(document.metadata or {})
     raw_transcription = metadata.get("transcription")
     if isinstance(raw_transcription, str) and raw_transcription.strip():
-        return to_plain_text(raw_transcription).strip()
+        return text_for_names(db, document.id, to_plain_text(raw_transcription).strip()).strip()
 
     if isinstance(document.page_content, str) and document.page_content.strip():
-        return to_plain_text(document.page_content).strip()
+        return text_for_names(db, document.id, to_plain_text(document.page_content).strip()).strip()
 
     for artifact in db.query(
         Artifact,
@@ -178,7 +183,7 @@ def _transcription_text(document: Document, db) -> str:
         artifact_type=_TRANSCRIPTION_ARTIFACT,
     ):
         if isinstance(artifact.content, str) and artifact.content.strip():
-            return to_plain_text(artifact.content).strip()
+            return text_for_names(db, document.id, to_plain_text(artifact.content).strip()).strip()
     return ""
 
 

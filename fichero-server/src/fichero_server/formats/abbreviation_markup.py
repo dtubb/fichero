@@ -52,28 +52,41 @@ def has_markup(text: str) -> bool:
     return bool(_TAG.search(text) or "$." in text or "$^" in text or "$-" in text)
 
 
-def _strip_leftovers(text: str) -> str:
-    # Any `$` the patterns above did not account for is markup the corpus did not document; it is never
-    # a letter of the line, so it never reaches a reader of the text.
-    return text.replace("$", "")
+def _strip_leftovers(text: str, marked: bool) -> str:
+    # In a marked text, any `$` the patterns above did not account for is markup the corpus did not
+    # document; it is never a letter of the line, so it never reaches a reader of the text. A text with
+    # no markup keeps its `$` (a price in a ledger is not markup).
+    return text.replace("$", "") if marked else text
 
 
-def as_written(text: str) -> str:
-    """The line as written: markup removed, each abbreviation kept as the scribe wrote it."""
+def as_written(text: str, *, marked: bool | None = None) -> str:
+    """The line as written: markup removed, each abbreviation kept as the scribe wrote it.
+
+    ``marked`` says the text comes from a marked corpus (a whole page that has markup); unset, the line
+    is asked itself."""
+    if marked is None:
+        marked = has_markup(text)
+    if not marked:
+        return text
     out = _TAG.sub("", text)
     out = _ABBREVIATION.sub(lambda match: match.group("abbr"), out)
     out = _RAISED.sub("", out)
     out = _BREAK.sub("", out)
-    return _strip_leftovers(out)
+    return _strip_leftovers(out, marked)
 
 
-def expanded(text: str) -> str:
-    """The line with its abbreviations opened: ``dha$.dicha`` is ``dicha``."""
+def expanded(text: str, *, marked: bool | None = None) -> str:
+    """The line with its abbreviations opened: ``dha$.dicha`` is ``dicha``. ``marked`` as for
+    :func:`as_written`."""
+    if marked is None:
+        marked = has_markup(text)
+    if not marked:
+        return text
     out = _TAG.sub("", text)
     out = _ABBREVIATION.sub(lambda match: match.group("expansion"), out)
     out = _RAISED.sub("", out)
     out = _BREAK_WITH_MARK.sub("", out)
-    return _strip_leftovers(out)
+    return _strip_leftovers(out, marked)
 
 
 def read_line(text: str) -> MarkedLine:
@@ -82,8 +95,11 @@ def read_line(text: str) -> MarkedLine:
 
 
 def expanded_text(text: str) -> str:
-    """A whole text (lines joined by newlines) with each line's abbreviations opened."""
-    return "\n".join(expanded(line) for line in text.split("\n"))
+    """A whole text (lines joined by newlines) with each line's abbreviations opened. A text with no
+    markup anywhere is returned exactly as it is."""
+    if not has_markup(text):
+        return text
+    return "\n".join(expanded(line, marked=True) for line in text.split("\n"))
 
 
 _CUSTOM_ABBREV = re.compile(r"\b(?:abbrev|expan|expansion)\s*\{(?P<body>[^}]*)\}")

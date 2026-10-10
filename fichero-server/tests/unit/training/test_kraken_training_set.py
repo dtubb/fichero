@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import pytest
+from lxml import etree
 from PIL import Image
 
 import fichero_server.api.main  # noqa: F401  (registers every action)
@@ -112,3 +113,19 @@ def test_nothing_to_train_on_is_refused(db, tmp_path, notebook):
     _page(db, tmp_path, "SM_NPQ_C09_001", notebook, read_by=None)
     with pytest.raises(EmptyTrainingSet):
         export_training_set(db, scope_ids=[notebook.id], teacher=TEACHER, held_out_ids=[], out_dir=tmp_path / "set")
+
+
+def test_the_set_does_not_learn_abbreviation_markup_as_text(db, tmp_path, notebook):
+    """WHY (#5651): the corpus writes `dha$.dicha` and `$ant:Miguel` into its lines. A Kraken reader
+    trained on that learns `$` as a letter of the hand and `dicha` as ink that is not there. The set
+    holds every line as written: the markup gone, the abbreviation kept as the scribe wrote it."""
+    _page(db, tmp_path, "SM_NPQ_C09_001", notebook)
+    out = tmp_path / "set"
+    made = export_training_set(db, scope_ids=[notebook.id], teacher=TEACHER, held_out_ids=[], out_dir=out)
+
+    (entry,) = made.pages
+    xml = (out / entry.xml).read_text(encoding="utf-8")
+    texts = [u.text or "" for u in etree.fromstring(xml.encode("utf-8")).iter("{*}Unicode")]
+    assert texts and not [text for text in texts if "$" in text]
+    assert any("a la dha Anna Maria su" in text for text in texts)
+    assert not any("dicha Anna" in text for text in texts)

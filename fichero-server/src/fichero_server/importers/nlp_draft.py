@@ -217,6 +217,12 @@ def run_nlp_draft(
     text = doc.page_content or ""
     if not text.strip():
         return NlpDraftResult()
+    # Names and statements are read from each line's expanded reading where it has one, else from the
+    # page's text with the corpus's abbreviation markup read (#5651): `dha$.dicha` reaches spaCy as
+    # `dicha`, never `$ant:` as a subject.
+    from fichero_server.api.routes.document.segment_readings import text_for_names  # noqa: PLC0415
+
+    text = text_for_names(db, doc.id, text)
 
     # Statement-language-matches-the-document ruling: resolve the document's
     # own language (`language` param, when given, is the top-precedence
