@@ -321,6 +321,27 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   before either is adopted.
 - `runtime.pytorch.device-chosen` — **[GAP]** (#5370) PyTorch work (PyKEEN, a YOLO detector) uses
   MPS where it measures faster on the fixture and the CPU otherwise; nothing hard-codes the device.
+- `runtime.mlx.fit-estimate` — **[GAP]** (#5641) before an MLX model loads, Fichero estimates what it
+  needs: its weights, plus the KV cache for the step's context length (a long page needs more), at the
+  cache precision it would run with, plus a fixed overhead. It says "fits", "tight" or "won't fit" in
+  Set Up, in the model finder and on the step, before anything is downloaded or loaded. Today the only
+  check is weights plus 1 GB against 75% of memory (`llm/local_inference.py`
+  `assert_memory_available_for_model`), made at load time.
+- `runtime.mlx.refuse-only-what-would-crash` — **[GAP]** (#5641) a model that can run on MLX runs. The
+  refusal line is a measured ceiling, the point where macOS starts swapping heavily, measured on an
+  8 GB and a 16 GB Mac with the fixture pages; below it the model loads (idle models unloaded first,
+  one heavy model at a time when memory is busy, #5622). Above it the step refuses in words, naming the
+  estimate and the ceiling. Today's 75% of memory refuses small models that would run.
+- `runtime.mlx.offer-a-way-to-fit` — **[GAP]** (#5641) a model that won't fit is offered a way to fit:
+  a smaller quantized build of the same model (from the model finder), a quantized KV cache, or a
+  shorter context. MLX cannot split a model between GPU and CPU as Ollama does; a smaller build is the
+  Mac's equivalent.
+- `runtime.mlx.kv-cache-settings` — **[PARTIAL]** (#5641) the bundled MLX server's KV-cache settings
+  are chosen per load: the batch is the client's pages at once (`MLX_VLM_MAX_NUM_SEQS` equals
+  `local_reads_at_once`, `llm/local_inference.reads_at_once_for`, built 2026-10-10). *Not built:* a
+  quantized cache (`kv_bits`) and a cap (`max_kv_size`) when they let a model fit, adopted only after the
+  fixture pages show no rise in character error rate; prompt (prefix) caching for a step's fixed
+  instruction.
 - `runtime.memory-gates-compose` — **[GAP]** (#4987, #5358) one memory check, fed by the cards'
   resident sizes, replaces the per-runtime guards (Kraken's 2.5 GB free, MLX's estimate); it knows
   what is already resident (Kraken, the embedder, an MLX model) before admitting another.
