@@ -357,7 +357,9 @@ final class ProjectRunStripTests: XCTestCase {
         // WHY: the engine counts folders done on the run's status (`folders_done`, `folders_total`); the strip
         // must say them after the stage, through the store, read with the run's tree.
         let store = Self.store()
-        let tree = try Self.runningTree()
+        var tree = try Self.runningTree()
+        // The run's own reason is now its progress; it must never read as a wait.
+        tree["reason"] = "Running the recipe: 3 of 800 folders done"
         let jobId = try XCTUnwrap(tree["id"] as? String)
         XCTAssertEqual(tree["kind"] as? String, ActivityStore.recipeRunKind, "the recorded tree is a recipe run")
         let status: [String: Any] = [
@@ -376,6 +378,7 @@ final class ProjectRunStripTests: XCTestCase {
         XCTAssertEqual(store.recipeRunFolders[jobId], RecipeRunFolders(done: 3, total: 800))
         let strip = try XCTUnwrap(ProjectRunStrip(store: store))
         XCTAssertEqual(strip.title, "Transcribe (Kraken) · stage 1 of 3 · 3 of 800 folders")
+        XCTAssertFalse(strip.detail.contains("Waiting: Running"), "the run's progress is not a wait: \(strip.detail)")
     }
 
     func testStrip_aRunOverOneFolder_saysNothingMoreThanItsStage() async throws {

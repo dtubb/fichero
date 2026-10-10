@@ -76,7 +76,9 @@ struct ProjectRunStrip: Equatable {
             var parts: [String] = []
             if let counts = stage.counts { parts.append(counts) }
             if let timeLeft = stage.timeLeft { parts.append("\(timeLeft) left") }
-            if let waiting = stage.waitingFor ?? node?.reason { parts.append("Waiting: \(waiting)") }
+            // Only the stage's own wait: while a stage runs, the run's reason is its progress ("Running the
+            // recipe: 3 of 800 folders done"), shown as the folders count, never as a wait.
+            if let waiting = stage.waitingFor { parts.append("Waiting: \(waiting)") }
             return ("\(stage.title) · stage \(running + 1) of \(stages.count)", parts.joined(separator: " · "))
         }
         // Not in a stage yet: the run's reason says what it waits for (another run, memory).
