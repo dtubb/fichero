@@ -12,8 +12,8 @@ struct InspectorRightsTests {
                                                      labels: ["TK Attribution"]))
         #expect(restricted.map(\.value) == ["Only owner", "Local models only", "TK Attribution"])
         let open = InspectorRights.effect(.init())
-        #expect(open.map(\.value) == ["Everyone the library's permissions allow",
-                                      "No rule here; the library's AI settings decide"])
+        #expect(open.map(\.value) == ["Everyone the project's permissions allow",
+                                      "No rule here; the project's AI settings decide"])
     }
 
     @Test("each record says where it sits and what it says, library first")
@@ -24,7 +24,7 @@ struct InspectorRightsTests {
             .init(id: "r3", targetKind: "document", targetId: "folder"),
             .init(id: "r4", targetKind: "segment", targetId: "l1", restricted: true, readers: ["owner"], createdBy: "owner")
         ], targetKind: "segment", targetId: "l1", pageId: "p1")
-        #expect(rows.map(\.place) == ["On the library", "On this page", "On a folder above", "On this segment"])
+        #expect(rows.map(\.place) == ["On the project", "On this page", "On a folder above", "On this segment"])
         #expect(rows[0].detail == "labels: TK Attribution · held by ÖNB")
         #expect(rows[1].detail == "local models only · agreement 2026-07")
         #expect(rows[3].detail == "restricted to owner · by owner")

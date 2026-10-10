@@ -161,8 +161,8 @@ final class OwningLibraryScopeTests: XCTestCase {
         let new = try Self.appSource(
             "Views/Library/ViewModes/Graph/Ontology/Entity/NewEntitySheet.swift"
         )
-        XCTAssertTrue(split.contains("errorText = \"This window has no library to split the entity in.\""))
-        XCTAssertTrue(new.contains("errorText = \"This window has no library to create the entity in.\""))
+        XCTAssertTrue(split.contains("errorText = \"This window has no project to split the entity in.\""))
+        XCTAssertTrue(new.contains("errorText = \"This window has no project to create the entity in.\""))
     }
 
     /// MERGE is the verb Daniel's dedupe program is built on, and it is a
@@ -175,7 +175,7 @@ final class OwningLibraryScopeTests: XCTestCase {
         )
         XCTAssertTrue(merge.contains("LibraryManager.shared.library(owningService: $0)"))
         XCTAssertTrue(
-            merge.contains("errorText = \"This window has no library to merge the entities in.\"")
+            merge.contains("errorText = \"This window has no project to merge the entities in.\"")
         )
     }
 

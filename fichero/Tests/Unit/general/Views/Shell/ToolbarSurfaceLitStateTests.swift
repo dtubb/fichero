@@ -78,7 +78,7 @@ struct ToolbarSurfaceLitStateTests {
         for pair in ["\"Hide Preview\" : \"Show Preview\"",
                      "\"Hide Reader\" : \"Show Reader\"",
                      "\"Hide Chat\" : \"Show Chat\"",
-                     "\"Hide Library\" : \"Show Library\"",
+                     "ItemListPane.hideLabel : ItemListPane.showLabel",
                      "\"Hide Inspector\" : \"Show Inspector\""] {
             #expect(source.contains(pair), "the label for \(pair) stopped flipping")
         }

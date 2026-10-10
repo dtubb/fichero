@@ -13,7 +13,7 @@ struct BackupStoreTests {
         let created = await store.create(reason: "before migration")
 
         #expect(!created)
-        #expect(store.statusMessage == "No library open")
+        #expect(store.statusMessage == "No project open")
         #expect(!store.isCreating)
         #expect(store.snapshots.isEmpty)
     }

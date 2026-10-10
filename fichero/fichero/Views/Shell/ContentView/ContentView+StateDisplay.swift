@@ -37,7 +37,8 @@ extension ContentView {
             } else if let document {
                 viewName = DocumentTitle.displayName(for: document)
             } else {
-                viewName = "Library"
+                // Nothing selected: the window names the project it shows (ruled 2026-10-10).
+                viewName = windowState.library?.displayName ?? ItemListPane.name
             }
         case .chat(let conversation):
             viewName = conversation?.title ?? "Chat"
@@ -97,7 +98,8 @@ extension ContentView {
         let breadcrumb = BreadcrumbBuilder.buildBreadcrumbForLibraryMode(
             document: doc,
             pageLabel: pageLabel,
-            parentLookup: parentLookup
+            parentLookup: parentLookup,
+            rootName: windowState.library?.displayName ?? BreadcrumbBuilder.unnamedRoot
         )
 
         // Return the breadcrumb minus the leaf name (which is already in navigationTitle)

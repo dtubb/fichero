@@ -10,7 +10,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
 
         let result = BreadcrumbBuilder.buildBreadcrumb(from: doc, parentLookup: lookup)
 
-        XCTAssertEqual(result, "Library › File.pdf")
+        XCTAssertEqual(result, "Project › File.pdf")
     }
 
     func testBreadcrumbWithSingleParent() {
@@ -23,7 +23,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
 
         let result = BreadcrumbBuilder.buildBreadcrumb(from: file, parentLookup: lookup)
 
-        XCTAssertEqual(result, "Library › Folder A › File.pdf")
+        XCTAssertEqual(result, "Project › Folder A › File.pdf")
     }
 
     func testBreadcrumbWithNestedHierarchy() {
@@ -41,7 +41,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
 
         let result = BreadcrumbBuilder.buildBreadcrumb(from: file, parentLookup: lookup)
 
-        XCTAssertEqual(result, "Library › Collection › Box 3 › Letter 12")
+        XCTAssertEqual(result, "Project › Collection › Box 3 › Letter 12")
     }
 
     func testBreadcrumbWithPageLabel() {
@@ -54,7 +54,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
 
         let result = BreadcrumbBuilder.buildBreadcrumb(from: file, parentLookup: lookup, pageLabel: "p.4")
 
-        XCTAssertEqual(result, "Library › Folder A › Document.pdf › p.4")
+        XCTAssertEqual(result, "Project › Folder A › Document.pdf › p.4")
     }
 
     func testBuildBreadcrumbForLibraryModeWithRoot() {
@@ -80,10 +80,10 @@ final class BreadcrumbBuilderTests: XCTestCase {
 
         let result = BreadcrumbBuilder.buildBreadcrumbForLibraryMode(document: nil, parentLookup: lookup)
 
-        XCTAssertEqual(result, "Library")
+        XCTAssertEqual(result, "Project")
     }
 
-    /// This test used to assert `"Library › Folder A › page_0004 › p.4"` —
+    /// This test used to assert `"Project › Folder A › page_0004 › p.4"` —
     /// which is #4416 in miniature, pinned as correct: the page contributed its
     /// STORAGE name (`page_0004`) and the label was appended on top, so the
     /// page appeared twice. The expectation is corrected, not the code
@@ -101,7 +101,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
             parentLookup: lookup
         )
 
-        XCTAssertEqual(result, "Library › Folder A › Page 4")
+        XCTAssertEqual(result, "Project › Folder A › Page 4")
         XCTAssertFalse(result.contains("page_0004"), "a storage name is never user-facing")
     }
 
@@ -112,7 +112,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
         let result = BreadcrumbBuilder.buildBreadcrumb(from: file, parentLookup: lookup)
 
         // When parent is missing, it stops traversal at the file
-        XCTAssertEqual(result, "Library › File.pdf")
+        XCTAssertEqual(result, "Project › File.pdf")
     }
 
     func testBreadcrumbEmptyPageLabel() {
@@ -121,7 +121,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
 
         let result = BreadcrumbBuilder.buildBreadcrumb(from: doc, parentLookup: lookup, pageLabel: nil)
 
-        XCTAssertEqual(result, "Library › Document.pdf")
+        XCTAssertEqual(result, "Project › Document.pdf")
     }
 
     // MARK: - Clickable segments (#1928)
@@ -129,7 +129,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
     func testSegmentsNilDocumentIsRootOnly() {
         let segments = BreadcrumbBuilder.buildSegments(from: nil, parentLookup: { _ in nil })
 
-        XCTAssertEqual(segments.map(\.name), ["Library"])
+        XCTAssertEqual(segments.map(\.name), ["Project"])
         XCTAssertTrue(segments[0].isRoot)
         XCTAssertNil(segments[0].documentId)
         XCTAssertTrue(segments[0].isNavigable)
@@ -149,7 +149,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
 
         let segments = BreadcrumbBuilder.buildSegments(from: file, parentLookup: lookup)
 
-        XCTAssertEqual(segments.map(\.name), ["Library", "Collection", "Box 3", "Letter 12"])
+        XCTAssertEqual(segments.map(\.name), ["Project", "Collection", "Box 3", "Letter 12"])
         XCTAssertEqual(segments.map(\.documentId), [nil, "root", "subfolder", "file"])
         XCTAssertTrue(segments.allSatisfy(\.isNavigable))
     }
@@ -163,7 +163,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
             pageLabel: "p.4"
         )
 
-        XCTAssertEqual(segments.map(\.name), ["Library", "Document.pdf", "p.4"])
+        XCTAssertEqual(segments.map(\.name), ["Project", "Document.pdf", "p.4"])
         let leaf = segments.last!
         XCTAssertNil(leaf.documentId)
         XCTAssertFalse(leaf.isRoot)
@@ -175,6 +175,6 @@ final class BreadcrumbBuilderTests: XCTestCase {
 
         let segments = BreadcrumbBuilder.buildSegments(from: file, parentLookup: { _ in nil })
 
-        XCTAssertEqual(segments.map(\.name), ["Library", "File.pdf"])
+        XCTAssertEqual(segments.map(\.name), ["Project", "File.pdf"])
     }
 }

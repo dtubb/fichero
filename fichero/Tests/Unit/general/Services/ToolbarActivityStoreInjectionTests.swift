@@ -96,11 +96,11 @@ final class ToolbarActivityStoreInjectionTests: XCTestCase {
     /// The stores must be forwarded INSIDE the branch that renders ContentView,
     /// not after the `else`. A forward that lands outside the resolved-library
     /// branch would not compile against `library`, but pinning the order keeps a
-    /// future edit from moving the chain onto the "Library not found" placeholder.
+    /// future edit from moving the chain onto the "Project not found" placeholder.
     func testActivityForwardsPrecedeTheNotFoundPlaceholder() throws {
         let source = try Self.appSource("Views/Shell/DocumentTabView.swift")
         guard let activityRange = source.range(of: ".environment(library.activityStore)"),
-              let placeholderRange = source.range(of: "Text(\"Library not found\")") else {
+              let placeholderRange = source.range(of: "Text(\"Project not found\")") else {
             return XCTFail("Expected both the activityStore forward and the not-found placeholder (#4448).")
         }
         XCTAssertTrue(

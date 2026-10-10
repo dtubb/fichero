@@ -261,7 +261,7 @@ extension ContentView {
                 setLibraryPaneVisible(!model.isVisible)
             }
         } label: {
-            Label(model.isVisible ? "Hide Library" : "Show Library",
+            Label(model.isVisible ? ItemListPane.hideLabel : ItemListPane.showLabel,
                   systemImage: model.systemImage)
                 .toolbarSurfaceLit(model.isVisible)
         }

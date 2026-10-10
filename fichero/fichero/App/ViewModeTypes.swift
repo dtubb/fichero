@@ -35,7 +35,7 @@ enum SidebarMode: String, CaseIterable {
     /// Display label for menus
     var label: String {
         switch self {
-        case .library: "Library"
+        case .library: ItemListPane.name
         case .chat: "Chat"
         case .workflows: "Workflows"
         case .research: "Research"
@@ -61,7 +61,7 @@ enum SidebarMode: String, CaseIterable {
         let body: String
         switch self {
         case .library:
-            body = "Library — browse your documents and folders"
+            body = "\(ItemListPane.name) — browse your documents and folders"
         case .chat:
             body = "Chat — ask questions about your documents in a conversation"
         case .workflows:

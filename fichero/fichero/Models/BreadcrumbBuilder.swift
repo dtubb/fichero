@@ -1,9 +1,13 @@
 import Foundation
 
 /// Pure, testable helper for building breadcrumb paths from document hierarchies.
-/// Converts a document selection into a readable trail: "Library › Folder › File › p.4"
+/// Converts a document selection into a readable trail: "My Project › Folder › File › p.4".
+/// The trail's root is the PROJECT's own name (ruled 2026-10-10), never the pane's name.
 struct BreadcrumbBuilder {
     typealias DocumentLookup = (String) -> Document?
+
+    /// The root when the caller has no project name to give.
+    static let unnamedRoot = "Project"
 
     private init() { }
 
@@ -11,7 +15,7 @@ struct BreadcrumbBuilder {
     struct Segment: Equatable, Identifiable {
         let name: String
         /// The document to navigate to when tapped, or nil. `isRoot` marks the
-        /// leading "Library" segment (navigates to the library root); a nil
+        /// leading project segment (navigates to the project root); a nil
         /// `documentId` on a non-root segment is a non-navigable leaf (a page label).
         let documentId: String?
         let isRoot: Bool
@@ -20,16 +24,17 @@ struct BreadcrumbBuilder {
         var isNavigable: Bool { isRoot || documentId != nil }
     }
 
-    /// Build clickable breadcrumb segments: Library ▸ folder ▸ … ▸ document ▸ page.
+    /// Build clickable breadcrumb segments: project ▸ folder ▸ … ▸ document ▸ page.
     /// Pure — the same parent-chain walk as `buildBreadcrumb`, but structured so
     /// the header can render each segment as a button (#1928). A `guardCount`
     /// bounds a malformed (cyclic) parent chain.
     static func buildSegments(
         from document: Document?,
         parentLookup: DocumentLookup,
-        pageLabel: String? = nil
+        pageLabel: String? = nil,
+        rootName: String = BreadcrumbBuilder.unnamedRoot
     ) -> [Segment] {
-        var segments = [Segment(name: "Library", documentId: nil, isRoot: true)]
+        var segments = [Segment(name: rootName, documentId: nil, isRoot: true)]
         guard let document else { return segments }
 
         var chain: [Document] = []
@@ -63,12 +68,13 @@ struct BreadcrumbBuilder {
     }
 
     /// Build a breadcrumb trail from a document and its parent hierarchy.
-    /// Returns a string like "Library › Folder › File › p.4" or just the document name
+    /// Returns a string like "My Project › Folder › File › p.4" or just the document name
     /// if hierarchy is empty.
     static func buildBreadcrumb(
         from document: Document,
         parentLookup: DocumentLookup,
-        pageLabel: String? = nil
+        pageLabel: String? = nil,
+        rootName: String = BreadcrumbBuilder.unnamedRoot
     ) -> String {
         var path: [String] = []
         var current: Document? = document
@@ -87,9 +93,9 @@ struct BreadcrumbBuilder {
             current = parent
         }
 
-        // Add library root if path is not empty
+        // Add the project root if path is not empty
         if !path.isEmpty {
-            path.insert("Library", at: 0)
+            path.insert(rootName, at: 0)
         }
 
         // Only when the leaf is not already the page (#4416): otherwise the
@@ -107,10 +113,11 @@ struct BreadcrumbBuilder {
     static func buildBreadcrumbForLibraryMode(
         document: Document?,
         pageLabel: String? = nil,
-        parentLookup: DocumentLookup
+        parentLookup: DocumentLookup,
+        rootName: String = BreadcrumbBuilder.unnamedRoot
     ) -> String {
         guard let doc = document else {
-            return "Library"
+            return rootName
         }
 
         // Check if this document has a parent — if not, just return the name
@@ -119,6 +126,6 @@ struct BreadcrumbBuilder {
         }
 
         // Full breadcrumb with hierarchy
-        return buildBreadcrumb(from: doc, parentLookup: parentLookup, pageLabel: pageLabel)
+        return buildBreadcrumb(from: doc, parentLookup: parentLookup, pageLabel: pageLabel, rootName: rootName)
     }
 }

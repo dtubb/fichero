@@ -1425,7 +1425,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             .effective(targetKind: "segment", targetId: "seg-0003")
         XCTAssertEqual(InspectorRights.effect(answer).map(\.value), ["Only owner", "Local models only", "TK Attribution"])
         let rows = InspectorRights.rows(answer.records, targetKind: "segment", targetId: "seg-0003", pageId: "doc-0001")
-        XCTAssertEqual(rows.map(\.place), ["On the library", "On this page", "On this segment"])
+        XCTAssertEqual(rows.map(\.place), ["On the project", "On this page", "On this segment"])
         XCTAssertEqual(rows.map(\.detail), [
             "labels: TK Attribution · held by Österreichische Nationalbibliothek · by owner",
             "local models only · agreement 2026-07 · by owner",

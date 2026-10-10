@@ -19,15 +19,15 @@ final class RetrievalInfoTests: XCTestCase {
 
     func testSummaryPluralization() {
         let one = RetrievalInfo(documentCount: 1, contextCount: 1, kgClaimsUsed: 1, kgEntitiesUsed: 1)
-        XCTAssertEqual(one.summary, "Searched library · 1 document · 1 claim · 1 entity")
+        XCTAssertEqual(one.summary, "Searched project · 1 document · 1 claim · 1 entity")
 
         let many = RetrievalInfo(documentCount: 5, contextCount: 5, kgClaimsUsed: 3, kgEntitiesUsed: 2)
-        XCTAssertEqual(many.summary, "Searched library · 5 documents · 3 claims · 2 entities")
+        XCTAssertEqual(many.summary, "Searched project · 5 documents · 3 claims · 2 entities")
     }
 
     func testSummaryOmitsZeroParts() {
         let docsOnly = RetrievalInfo(documentCount: 4, contextCount: 4, kgClaimsUsed: 0, kgEntitiesUsed: 0)
-        XCTAssertEqual(docsOnly.summary, "Searched library · 4 documents")
+        XCTAssertEqual(docsOnly.summary, "Searched project · 4 documents")
     }
 
     func testRetrievalRoundTripsThroughChatMessageCoding() throws {
@@ -39,6 +39,6 @@ final class RetrievalInfoTests: XCTestCase {
         let data = try JSONEncoder().encode(message)
         let decoded = try JSONDecoder().decode(ChatMessage.self, from: data)
         XCTAssertEqual(decoded.retrieval?.documentCount, 2)
-        XCTAssertEqual(decoded.retrieval?.summary, "Searched library · 2 documents · 1 claim")
+        XCTAssertEqual(decoded.retrieval?.summary, "Searched project · 2 documents · 1 claim")
     }
 }

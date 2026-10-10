@@ -138,7 +138,7 @@ struct PaneContentPlanTests {
                 let reason = cell.emptyReason
                 #expect(reason != nil, "\(name).\(pane) must be empty with no library")
                 #expect(
-                    reason?.contains("No library is open") == true,
+                    reason?.contains("No project is open") == true,
                     "\(name).\(pane) must name the actual situation"
                 )
             }

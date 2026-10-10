@@ -143,9 +143,9 @@ final class DocumentInspectorTests: XCTestCase {
         // #4024: entities tab content lives across split sibling files now.
         let entitiesSource = try Self.entitiesTabSource()
 
-        XCTAssertTrue(entitiesSource.contains("Button(\"Find in Library\")"))
+        XCTAssertTrue(entitiesSource.contains("Button(\"Find in Project\")"))
         XCTAssertTrue(entitiesSource.contains("postSearch("))
-        XCTAssertTrue(entitiesSource.contains("Find in Library"))
+        XCTAssertTrue(entitiesSource.contains("Find in Project"))
         XCTAssertTrue(entitiesSource.contains(".simultaneousGesture("))
         XCTAssertTrue(entitiesSource.contains("TapGesture(count: 2).onEnded { beginRename(entity) }"))
     }

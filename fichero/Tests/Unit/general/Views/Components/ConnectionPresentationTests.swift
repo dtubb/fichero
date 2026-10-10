@@ -82,7 +82,7 @@ struct ConnectionPresentationTests {
         // #4380 still holds: the detail may set a TIME EXPECTATION (Daniel,
         // 2026-08-25: "say it might take a few moments") but must never
         // narrate engine states the app is not observing.
-        #expect(appManaged.detail == "Your libraries run on a local server. This can take a few moments.")
+        #expect(appManaged.detail == "Your projects run on a local server. This can take a few moments.")
         #expect(!appManaged.detail.localizedCaseInsensitiveContains("import"))
         #expect(!appManaged.detail.localizedCaseInsensitiveContains("database"))
         #expect(appManaged.action == nil)

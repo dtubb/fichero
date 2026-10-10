@@ -22,7 +22,7 @@ enum PaneFocus: Hashable {
     var paneTitle: String {
         switch self {
         case .sidebar: return "Sidebar"
-        case .content: return "Library"
+        case .content: return ItemListPane.name
         case .preview: return "Preview"
         case .reading: return "Reader"
         case .chat: return "Chat"

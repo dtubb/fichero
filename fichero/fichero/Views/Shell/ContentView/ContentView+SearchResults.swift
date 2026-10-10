@@ -457,7 +457,7 @@ extension ContentView {
     /// `activeSearchQuery` makes the fallback structural: with no results on
     /// screen there is nothing for a results-name to be the name OF.
     var searchChromeLibraryName: String {
-        let windowLibraryName = windowState.library?.displayName ?? "Library"
+        let windowLibraryName = windowState.library?.displayName ?? BreadcrumbBuilder.unnamedRoot
         guard activeSearchQuery != nil else { return windowLibraryName }
         return chromeUX.resultsLibraryName ?? windowLibraryName
     }

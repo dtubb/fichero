@@ -26,7 +26,7 @@ enum PaneEmptyState: String, CaseIterable {
 
     var hint: String {
         switch self {
-        case .reader: return "Select a page in the Library to read it."
+        case .reader: return "Select a page in the \(ItemListPane.name) to read it."
         case .preview: return "Select a page to see it here."
         case .inspector: return "Select an item to see its details."
         }
